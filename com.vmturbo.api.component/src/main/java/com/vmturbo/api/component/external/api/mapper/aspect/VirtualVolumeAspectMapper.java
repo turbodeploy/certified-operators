@@ -62,11 +62,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -264,7 +263,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 .map(TopologyEntityDTO::getOid)
                 .flatMap(id ->
                         repositoryApi.newSearchRequest(SearchProtoUtil.neighborsOfType(
-                                id, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME))
+                                id, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME))
                                 .getFullEntities())
                 .collect(Collectors.toList());
 
@@ -296,7 +295,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         // get all VMs consuming given storage tiers
         List<TopologyEntityDTO> vms = storageTierById.keySet().stream()
             .flatMap(id -> repositoryApi.newSearchRequest(
-                SearchProtoUtil.neighborsOfType(id, TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE)).getFullEntities())
+                SearchProtoUtil.neighborsOfType(id, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE)).getFullEntities())
             .collect(Collectors.toList());
 
         final Map<Long, TopologyEntityDTO> vmByVolumeId = Maps.newHashMap();
@@ -450,7 +449,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                         repositoryApi.newSearchRequest(
                                 SearchProtoUtil.neighborsOfType(connectedEntity.getConnectedEntityId(),
                                         TraversalDirection.OWNED_BY,
-                                        UIEntityType.REGION))
+                                        ApiEntityType.REGION))
                                 .getEntities()
                                 .forEach(region -> regionByVolumeId.put(vol.getOid(), region));
                         break;
@@ -473,7 +472,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             repositoryApi.newSearchRequest(
                     SearchProtoUtil.neighborsOfType(vol.getOid(),
                             TraversalDirection.CONNECTED_FROM,
-                            UIEntityType.VIRTUAL_MACHINE))
+                            ApiEntityType.VIRTUAL_MACHINE))
                     .getFullEntities().forEach(vm ->
                         vmByVolumeId.put(vol.getOid(), vm));
         });
@@ -527,12 +526,12 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 || !storage.getTypeSpecificInfo().getStorage().getIgnoreWastedFiles())
             .forEach(storage ->
                 repositoryApi.newSearchRequest(SearchProtoUtil.neighborsOfType(
-                    storage.getOid(), TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME)).getFullEntities()
+                    storage.getOid(), TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME)).getFullEntities()
                     .filter(topoEntity ->
                         repositoryApi.newSearchRequest(SearchProtoUtil.neighborsOfType(
                             topoEntity.getOid(),
                             TraversalDirection.CONNECTED_FROM,
-                            UIEntityType.VIRTUAL_MACHINE)).count() == 0)
+                            ApiEntityType.VIRTUAL_MACHINE)).count() == 0)
                     .filter(TopologyEntityDTO::hasTypeSpecificInfo)
                     .map(TopologyEntityDTO::getTypeSpecificInfo)
                     .filter(TypeSpecificInfo::hasVirtualVolume)
@@ -612,7 +611,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      */
     private Map<Long, ApiPartialEntity> fetchRegions() {
         return repositoryApi.newSearchRequest(SearchParameters.newBuilder()
-                .setStartingFilter(SearchProtoUtil.entityTypeFilter(UIEntityType.REGION.apiStr()))
+                .setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.REGION.apiStr()))
                 .build())
             .getEntities()
             .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
@@ -624,7 +623,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
      */
     private Map<Long, ServiceEntityApiDTO> fetchStorageTiers() {
         return repositoryApi.newSearchRequest(SearchParameters.newBuilder()
-                .setStartingFilter(SearchProtoUtil.entityTypeFilter(UIEntityType.STORAGE_TIER.apiStr()))
+                .setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.STORAGE_TIER.apiStr()))
                 .build())
             .getMinimalEntities()
             .collect(Collectors.toMap(MinimalEntity::getOid, ServiceEntityMapper::toBasicEntity));
@@ -703,7 +702,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         repositoryApi.newSearchRequest(
                 SearchProtoUtil.neighborsOfType(volumeId,
                         TraversalDirection.OWNED_BY,
-                        UIEntityType.BUSINESS_ACCOUNT))
+                        ApiEntityType.BUSINESS_ACCOUNT))
                 .getSEList()
                 .forEach(businessAccount -> virtualDiskApiDTO.setBusinessAccount(businessAccount));
 

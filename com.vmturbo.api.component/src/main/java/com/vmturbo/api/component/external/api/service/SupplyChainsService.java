@@ -1,9 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.components.common.utils.StringConstants.CLUSTER;
-import static com.vmturbo.components.common.utils.StringConstants.GROUP;
-import static com.vmturbo.components.common.utils.StringConstants.STORAGE_CLUSTER;
-import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_MACHINE_CLUSTER;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLUSTER;
+import static com.vmturbo.common.protobuf.utils.StringConstants.GROUP;
+import static com.vmturbo.common.protobuf.utils.StringConstants.STORAGE_CLUSTER;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE_CLUSTER;
 
 import java.time.Clock;
 import java.util.ArrayList;
@@ -56,8 +56,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupB
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat.StatGroup;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.api.PlanUtils;
 
 /**
@@ -328,7 +328,7 @@ public class SupplyChainsService implements ISupplyChainsService {
             }
             if (statGroup.hasEntityType()) {
                 apiStat.addFilter(EntitiesCountCriteria.entityType.name(),
-                    UIEntityType.fromType(statGroup.getEntityType()).apiStr());
+                    ApiEntityType.fromType(statGroup.getEntityType()).apiStr());
             }
             if (statGroup.hasSeverity()) {
                 apiStat.addFilter(EntitiesCountCriteria.severity.name(),

@@ -1,20 +1,20 @@
 package com.vmturbo.history.db;
 
-import static com.vmturbo.components.common.utils.StringConstants.AVG_VALUE;
-import static com.vmturbo.components.common.utils.StringConstants.CAPACITY;
-import static com.vmturbo.components.common.utils.StringConstants.COMMODITY_KEY;
-import static com.vmturbo.components.common.utils.StringConstants.CURRENT_PRICE_INDEX;
-import static com.vmturbo.components.common.utils.StringConstants.EFFECTIVE_CAPACITY;
-import static com.vmturbo.components.common.utils.StringConstants.MAX_VALUE;
-import static com.vmturbo.components.common.utils.StringConstants.MIN_VALUE;
-import static com.vmturbo.components.common.utils.StringConstants.PRICE_INDEX;
-import static com.vmturbo.components.common.utils.StringConstants.PRODUCER_UUID;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_USED;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.components.common.utils.StringConstants.RELATION;
-import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.components.common.utils.StringConstants.UUID;
+import static com.vmturbo.common.protobuf.utils.StringConstants.AVG_VALUE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CAPACITY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CURRENT_PRICE_INDEX;
+import static com.vmturbo.common.protobuf.utils.StringConstants.EFFECTIVE_CAPACITY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.MAX_VALUE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.MIN_VALUE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PRODUCER_UUID;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE_USED;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDateOrTimestampField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
@@ -57,7 +57,6 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
-
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -65,7 +64,6 @@ import org.apache.logging.log4j.util.Strings;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.InsertSetStep;
-import org.jooq.Queries;
 import org.jooq.Query;
 import org.jooq.Record;
 import org.jooq.Record1;
@@ -111,11 +109,9 @@ import com.vmturbo.history.schema.abstraction.tables.VmStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
-import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
 import com.vmturbo.history.stats.PropertySubType;
-import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.sql.utils.SQLDatabaseConfig.SQLConfigObject;
@@ -377,70 +373,6 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * Return the "_stats_latest" table for the given Entity Type based on the ID.
-     * <p>
-     * The table prefix depends on the entity type.
-     * <p>
-     * Returns null if the table prefix cannot be determined. This may represent an entity
-     * that is not to be persisted, or an internal system configuration error.
-     *
-     * @param entityTypeId the type of the Service Entity for which stats are to be persisted
-     * @return a DB Table object for the _stats_latest table for the entity type of this entity,
-     * or null if the entity table cannot be determined.
-     */
-    public Table<?> getLatestDbTableForEntityType(int entityTypeId) {
-
-        Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
-        if (!entityDBInfo.isPresent()) {
-            logger.debug("Cannot convert {} to EntityType ", entityTypeId);
-            return null;
-        }
-        return entityDBInfo.get().getLatestTable();
-    }
-
-    /**
-     * Return the "_stats_by_day" table for the given Entity Type based on the ID.
-     * <p>
-     * The table prefix depends on the entity type.
-     * <p>
-     * Returns null if the table prefix cannot be determined. This may represent an entity
-     * that is not to be persisted, or an internal system configuration error.
-     *
-     * @param entityTypeId the type of the Service Entity for which stats are to be persisted
-     * @return a DB Table object for the _stats_by_day table for the entity type of this entity,
-     * or null if the entity table cannot be determined.
-     */
-    private Table<?> getDayStatsDbTableForEntityType(int entityTypeId) {
-
-        Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
-        if (!entityDBInfo.isPresent()) {
-            return null;
-        }
-        return entityDBInfo.get().getDayTable();
-    }
-
-    /**
-     * Return the "_stats_by_month" table for the given Entity Type based on the ID.
-     * <p>
-     * The table prefix depends on the entity type.
-     * <p>
-     * Returns null if the table prefix cannot be determined. This may represent an entity
-     * that is not to be persisted, or an internal system configuration error.
-     *
-     * @param entityTypeId the type of the Service Entity for which stats are to be persisted
-     * @return a DB Table object for the _stats_by_month table for the entity type of this entity,
-     * or null if the entity table cannot be determined.
-     */
-    private Table<?> getMonthStatsDbTableForEntityType(int entityTypeId) {
-
-        Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
-        if (!entityDBInfo.isPresent()) {
-            return null;
-        }
-        return entityDBInfo.get().getMonthTable();
-    }
-
-    /**
      * Convert the {@link CommonDTO.EntityDTO.EntityType} numeric id
      * to an SDK EntityType to an {@link EntityType}.
      *
@@ -455,20 +387,17 @@ public class HistorydbIO extends BasedbIO {
             logger.debug("unknown entity type for entity type id {}", sdkEntityTypeId);
             return Optional.empty();
         }
-        return Optional.ofNullable(HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE.get(sdkEntityType));
+        return EntityType.fromSdkEntityType(sdkEntityType).map(EntityType::resolve);
     }
 
     public Optional<String> getBaseEntityType(int sdkEntityTypeId) {
         CommonDTO.EntityDTO.EntityType sdkEntityType = CommonDTO.EntityDTO.EntityType
             .forNumber(sdkEntityTypeId);
-        if (sdkEntityType == null || HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE_NO_ALIAS
-            .get(sdkEntityType) == null) {
+        if (sdkEntityType == null || !EntityType.fromSdkEntityType(sdkEntityType).isPresent()) {
             logger.debug("unknown entity type for entity type id {}", sdkEntityTypeId);
             return Optional.empty();
         }
-        return Optional.ofNullable(HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE_NO_ALIAS
-            .get(sdkEntityType)
-            .getClsName());
+        return EntityType.fromSdkEntityType(sdkEntityType).map(EntityType::getName);
     }
 
     /**
@@ -540,38 +469,52 @@ public class HistorydbIO extends BasedbIO {
      * @param commodityKey      the external association key for this commodity
      * @param record            the record being populated
      * @param table             stats db table for this entity type
+     * @param longCommodityKeys for consolidated logging of shortened commodity keys
      */
     public void initializeCommodityRecord(
-        @Nonnull String propertyType,
-        long snapshotTime,
-        long entityId,
-        @Nonnull RelationType relationType,
-        @Nullable Long providerId,
-        @Nullable Double capacity,
-        @Nullable Double effectiveCapacity,
-        @Nullable String commodityKey,
-        @Nonnull Record record,
-        @Nonnull Table<?> table) {
+            @Nonnull String propertyType,
+            long snapshotTime,
+            long entityId,
+            @Nonnull RelationType relationType,
+            @Nullable Long providerId,
+            @Nullable Double capacity,
+            @Nullable Double effectiveCapacity,
+            @Nullable String commodityKey,
+            @Nonnull Record record,
+            @Nonnull Table<?> table,
+            @Nonnull Set<String> longCommodityKeys) {
         // providerId might be null
         String providerIdString = providerId != null ? Long.toString(providerId) : null;
         record.set(getStringField(table, PRODUCER_UUID), providerIdString);
         // commodity_key is limited in length
-        if (commodityKey != null && commodityKey.length() > COMMODITY_KEY_MAX_LENGTH) {
-            String longCommditiyKey = commodityKey;
-            commodityKey = commodityKey.substring(0, COMMODITY_KEY_MAX_LENGTH - 1);
-            logger.trace("shortening commodity key {} ({}) to {}", longCommditiyKey,
-                longCommditiyKey.length(), commodityKey);
-        }
         // populate the other fields; all fields are nullable based on DB design; Is that best?
         // property_subtype, avg_value, min_value, max_value are all set elsewhere
         record.set(getDateOrTimestampField(table, SNAPSHOT_TIME),
-            new java.sql.Timestamp(snapshotTime));
+                new java.sql.Timestamp(snapshotTime));
         record.set(getStringField(table, UUID), Long.toString(entityId));
         record.set(getStringField(table, PROPERTY_TYPE), propertyType);
         record.set(getDoubleField(table, CAPACITY), clipValue(capacity));
         record.set(getDoubleField(table, EFFECTIVE_CAPACITY), clipValue(effectiveCapacity));
         record.set(getRelationTypeField(table, RELATION), relationType);
-        record.set(getStringField(table, COMMODITY_KEY), commodityKey);
+        record.set(getStringField(table, COMMODITY_KEY),
+                limitCommodityKey(commodityKey, longCommodityKeys));
+    }
+
+    /**
+     * Check that a commodity key does not exceed its maximum allowed length, and truncate it
+     * if necessary.
+     *
+     * @param commodityKey      commodity key value
+     * @param longCommodityKeys where caller keeps track of shortened keys for consolidated logging
+     * @return possibly truncated value
+     */
+    public static String limitCommodityKey(String commodityKey, Set<String> longCommodityKeys) {
+        if (commodityKey != null && commodityKey.length() > COMMODITY_KEY_MAX_LENGTH) {
+            longCommodityKeys.add(commodityKey);
+            return commodityKey.substring(0, COMMODITY_KEY_MAX_LENGTH - 1);
+        } else {
+            return commodityKey;
+        }
     }
 
     /**
@@ -746,7 +689,7 @@ public class HistorydbIO extends BasedbIO {
         }
 
         String entityType = entityTypes.iterator().next();
-        return EntityType.getTypeForName(entityType)
+        return EntityType.named(entityType)
                 .orElseThrow(() -> new IllegalArgumentException("Entities resolve to invalid entity type: " + entityType));
     }
 
@@ -790,7 +733,7 @@ public class HistorydbIO extends BasedbIO {
         final SeekPaginationCursor seekPaginationCursor = SeekPaginationCursor.parseCursor(paginationParams.getNextCursor().orElse(""));
         // Now we have the entity type, we can use it together with the time frame to
         // figure out the table to paginate in.
-        final Table<?> table = entityType.getTimeFrameTable(tFrame);
+        final Table<?> table = entityType.getTimeFrameTable(tFrame).get();
 
         final List<Condition> conditions = new ArrayList<>();
         conditions.add(getTimestampField(table, SNAPSHOT_TIME).eq(timestamp));
@@ -879,20 +822,6 @@ public class HistorydbIO extends BasedbIO {
     @VisibleForTesting
     protected int getTotalRecordsCount(Connection conn, Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats) {
         return using(conn).fetchCount(aggregatedStats);
-    }
-
-    /**
-     * Return the value field used in sort by.
-     * For princeIndex, sort by the average value, because it's a compound metrics already.
-     * For others commodity, sort by the average/capacity value, because the average value
-     * is from "used", so divided by "capacity" to be utilization.
-     */
-    @VisibleForTesting
-    Field<Double> getValueField(@Nonnull final EntityStatsPaginationParams paginationParams,
-                                @Nonnull final Table<?> table) {
-        final Field<Double> avgValueField = getDoubleField(table, AVG_VALUE);
-        return paginationParams.getSortCommodity().equals(PRICE_INDEX)
-            ? avgValueField : avgValueField.divide(getDoubleField(table, CAPACITY));
     }
 
     /**
@@ -1176,34 +1105,6 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * Persist a list of records in the mkt_snapshots_stats table.
-     *
-     * @param snapshotStatRecords a list of records to be inserted in the mkt_snapshots_stats
-     * @throws VmtDbException database errors
-     */
-    public void persistMarketSnapshotsStats(@Nonnull List<MktSnapshotsStatsRecord> snapshotStatRecords)
-        throws VmtDbException {
-        logger.trace("Persisting {} MktSnapshotsStatsRecord", snapshotStatRecords.size());
-        final Connection connection = transConnection();
-        try {
-            for (Collection<MktSnapshotsStatsRecord> chunk : Lists.partition(snapshotStatRecords,
-                entitiesChunkSize)) {
-                logger.trace("Persisting next chunk of {} MktSnapshotsStatsRecord to the DB",
-                    chunk::size);
-                using(connection).batchStore(chunk).execute();
-            }
-            connection.commit();
-        } catch (SQLException | DataAccessException e) {
-            rollback(connection);
-            throw new VmtDbException(VmtDbException.INSERT_ERR,
-                "Failed to insert mkt_snapshots_stats table records.", e);
-        } finally {
-            close(connection);
-        }
-        logger.trace("Successfully persisted market snapshot stats.");
-    }
-
-    /**
      * Clip a value so it fits within the decimal precision for the Stats tables.
      * This precision is currently "DECIMAL(15,3)". If the value to be clipped is null,
      * return null;
@@ -1364,20 +1265,21 @@ public class HistorydbIO extends BasedbIO {
     public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(int entityTypeNo)
             throws VmtDbException, SQLException {
 
-        final Optional<EntityType> entityType = getEntityType(entityTypeNo);
-        Table<?> table = entityType.map(type -> type.getMonthTable()).orElse(null);
-        if (table == null) {
+        final EntityType entityType = EntityType.fromSdkEntityType(entityTypeNo).orElse(null);
+        Optional<Table<?>> table = entityType != null ? entityType.getMonthTable() : Optional.empty();
+        if (table.isPresent()) {
+            // Query for the max of the max values from all the days in the DB for
+            // each commodity in each entity.
+            try (Connection conn = connection()) {
+                final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(table.get()).getQuery();
+                Result<? extends Record> statsRecords = using(conn).fetch(query);
+                logger.debug("Number of records fetched for table {} = {}", table.get(), statsRecords.size());
+                return convertToEntityCommoditiesMaxValues(table.get(), statsRecords);
+            }
+        } else {
             logger.error("No monthly stats table for entityType: {}",
-                    entityType.map(EntityType::name).orElse("Entity type #" + entityTypeNo));
+                    entityType != null ? entityType.getName() : "Entity type #" + entityTypeNo);
             return Collections.emptyList();
-        }
-        // Query for the max of the max values from all the days in the DB for
-        // each commodity in each entity.
-        try (Connection conn = connection()) {
-            final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(table).getQuery();
-            Result<? extends Record> statsRecords = using(conn).fetch(query);
-            logger.debug("Number of records fetched for table {} = {}", table, statsRecords.size());
-            return convertToEntityCommoditiesMaxValues(table, statsRecords);
         }
     }
 
@@ -1438,24 +1340,8 @@ public class HistorydbIO extends BasedbIO {
     public Map<Long, EntityDTO.EntityType> getEntityIdToEntityTypeMap()
         throws VmtDbException {
 
-        // DATACENTER(DC) and VIRTUAL_APPLICATION types are filtered out,
-        // because they are mapped to PM and APPLICATION entities respectively
-        // PM stats tables store both DC and PM entities.
-        // APP stats tables store both APPLICATION and VIRTUAL_APPLICATION entities.
-        // TODO: We should have a separate mapping for DATACENTER instead of mapping to PM.
-        Map<EntityType, EntityDTO.EntityType> entityTypeToSdkEntityType =
-            HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE.entrySet()
-                .stream()
-                .filter(entry -> (entry.getKey() != EntityDTO.EntityType.DATACENTER
-                    && entry.getKey() != EntityDTO.EntityType.VIRTUAL_APPLICATION))
-                .collect(Collectors.toMap(
-                    entry -> entry.getValue(),
-                    entry -> entry.getKey()));
-
         // As PM and DC entities are stored in the same stats table, we have to
         // run additional query to distinguish between the PM and DC entities.
-        // Since VIRTUAL_APPLICATIONS are not yet supported in XL, there
-        // is no need for filtering them.
         Set<Long> datacenterEntities = getDatacenterEntities();
         Map<Long, EntityDTO.EntityType> entityIdToEntityTypeMap = new HashMap<>();
 
@@ -1466,6 +1352,7 @@ public class HistorydbIO extends BasedbIO {
                     .fetch()
                     .intoMap(Entities.ENTITIES.ID, Entities.ENTITIES.CREATION_CLASS);
 
+            Set<String> unresolvedCreationClasses = new HashSet<>();
             entityIdToCreationClass.entrySet()
                 .forEach(entry -> {
                     EntityDTO.EntityType type;
@@ -1473,16 +1360,19 @@ public class HistorydbIO extends BasedbIO {
                         type = EntityDTO.EntityType.DATACENTER;
                     } else {
                         Optional<EntityType> entityType =
-                            EntityType.getEntityTypeByClsName(entry.getValue());
+                            EntityType.named(entry.getValue());
                         if (!entityType.isPresent()) {
-                            throw new RuntimeException("Can't find entityType for creation class" +
-                                entry.getValue());
+                            unresolvedCreationClasses.add(entry.getValue());
                         }
-                        type = entityTypeToSdkEntityType.get(entityType.get());
+                        type = entityType.get().getSdkEntityType().orElse(null);
                     }
 
                     entityIdToEntityTypeMap.put(entry.getKey(), type);
                 });
+            if (!unresolvedCreationClasses.isEmpty()) {
+                logger.error("Failed to resolve following class names to entity types: {}",
+                        unresolvedCreationClasses);
+            }
         } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.READ_ERR, e);
         }

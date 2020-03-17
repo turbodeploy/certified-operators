@@ -17,8 +17,8 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 
 /**
@@ -84,7 +84,7 @@ public class VirtualMachineAspectMapper extends AbstractAspectMapper {
         final List<BusinessUserSessionApiDTO> sessions = new LinkedList<>();
         repositoryApi.newSearchRequest(
                 SearchProtoUtil.neighborsOfType(entity.getOid(), TraversalDirection.PRODUCES,
-                        UIEntityType.BUSINESS_USER))
+                        ApiEntityType.BUSINESS_USER))
                 .getFullEntities()
                 .filter(e -> e.hasTypeSpecificInfo() && e.getTypeSpecificInfo().hasBusinessUser())
                 .forEach((e) -> {

@@ -38,8 +38,8 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpec;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateSpecResource;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * A Mapper class for template, it provide two convert functions: mapToTemplateApiDTO and
@@ -175,7 +175,7 @@ public class TemplateMapper {
         dto.setModel(templateInfo.getModel());
         dto.setCpuModel(templateInfo.getCpuModel());
         dto.setVendor(templateInfo.getVendor());
-        dto.setClassName(UIEntityType.fromType(templateInfo.getEntityType()).apiStr() +
+        dto.setClassName(ApiEntityType.fromType(templateInfo.getEntityType()).apiStr() +
                 TemplatesUtils.PROFILE);
         dto.setDescription(templateInfo.getDescription());
         if (templateInfo.hasPrice()) {

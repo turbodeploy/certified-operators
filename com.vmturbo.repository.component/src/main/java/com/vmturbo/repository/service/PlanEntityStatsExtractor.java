@@ -1,8 +1,8 @@
 package com.vmturbo.repository.service;
 
-import static com.vmturbo.components.common.utils.StringConstants.KEY;
-import static com.vmturbo.components.common.utils.StringConstants.PRICE_INDEX;
-import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_DISK;
+import static com.vmturbo.common.protobuf.utils.StringConstants.KEY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_DISK;
 
 import java.util.Collections;
 import java.util.List;
@@ -38,7 +38,7 @@ import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.components.common.stats.StatsUtils;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.repository.topology.util.PlanEntityStatsExtractorUtil;
 
 /**

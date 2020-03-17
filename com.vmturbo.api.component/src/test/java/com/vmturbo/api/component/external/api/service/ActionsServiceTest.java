@@ -56,7 +56,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.MultiActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -150,7 +150,7 @@ public class ActionsServiceTest {
         final ApiId scope1 = ApiTestUtils.mockEntityId("1", uuidMapper);
         final ApiId scope2 = ApiTestUtils.mockGroupId("3", uuidMapper);
         actionScopesApiInputDTO.setActionInput(actionApiInputDTO);
-        actionScopesApiInputDTO.setRelatedType(UIEntityType.PHYSICAL_MACHINE.apiStr());
+        actionScopesApiInputDTO.setRelatedType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
 
         final ActionStatsQuery expectedQuery = ImmutableActionStatsQuery.builder()
                 .entityType(EntityType.PHYSICAL_MACHINE_VALUE)
@@ -168,7 +168,7 @@ public class ActionsServiceTest {
 
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(MinimalEntity.newBuilder()
             .setOid(1)
-            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .setDisplayName("First Entity")
             .build()));
         when(repositoryApi.entitiesRequest(Collections.singleton(1L))).thenReturn(req);
@@ -183,7 +183,7 @@ public class ActionsServiceTest {
         assertThat(statsByUuid.keySet(), containsInAnyOrder("1", "3"));
         assertThat(statsByUuid.get("1").getStats(), is(scope1Snapshots));
         assertThat(statsByUuid.get("1").getDisplayName(), is("First Entity"));
-        assertThat(statsByUuid.get("1").getClassName(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(statsByUuid.get("1").getClassName(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
 
         assertThat(statsByUuid.get("3").getStats(), is(scope2Snapshots));
     }

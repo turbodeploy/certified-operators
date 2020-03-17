@@ -1,5 +1,7 @@
 package com.vmturbo.history.db;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.select;
 import static org.junit.Assert.assertEquals;
@@ -43,7 +45,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
 import com.vmturbo.history.db.HistorydbIO.SeekPaginationCursor;
 import com.vmturbo.history.db.jooq.JooqUtils;
@@ -62,6 +64,8 @@ import com.vmturbo.sql.utils.DbCleanupRule;
 public class HistorydbIOTest {
 
     private static final Logger logger = LogManager.getLogger();
+    private static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = EntityType.named(PHYSICAL_MACHINE).get();
+    private static final EntityType VIRTUAL_MACHINE_ENTITY_TYPE = EntityType.named(VIRTUAL_MACHINE).get();
 
     @Autowired
     private DbTestConfig dbTestConfig;
@@ -198,7 +202,7 @@ public class HistorydbIOTest {
         EntityType responseType = historydbIO.getEntityTypeFromEntityStatsScope(scope);
 
         //THEN
-        assertEquals(responseType, EntityType.PHYSICAL_MACHINE);
+        assertEquals(responseType, PHYSICAL_MACHINE_ENTITY_TYPE);
 
     }
 
@@ -219,12 +223,12 @@ public class HistorydbIOTest {
                 .build();
 
         final HashMap<String, String> entityTypesMap = new HashMap<>();
-        entityTypesMap.put("foo", EntityType.PHYSICAL_MACHINE.getClsName());
+        entityTypesMap.put("foo", PHYSICAL_MACHINE_ENTITY_TYPE.getName());
         when(mockHistorydbIO.getTypesForEntities(Mockito.anySet())).thenReturn(entityTypesMap);
         when(mockHistorydbIO.getEntityTypeFromEntityStatsScope(any())).thenCallRealMethod();
 
         //THEN
-        assertEquals(mockHistorydbIO.getEntityTypeFromEntityStatsScope(scope), EntityType.PHYSICAL_MACHINE);
+        assertEquals(mockHistorydbIO.getEntityTypeFromEntityStatsScope(scope), PHYSICAL_MACHINE_ENTITY_TYPE);
     }
 
     /**
@@ -313,7 +317,8 @@ public class HistorydbIOTest {
             doReturn(100).when(historydbIOSpy).getTotalRecordsCount(any(), any());
 
             //WHEN
-            NextPageInfo nextPageInfo = historydbIOSpy.getNextPage(entityStatsScope, new Timestamp(1L), TimeFrame.LATEST, paginationParams, EntityType.VIRTUAL_MACHINE);
+            NextPageInfo nextPageInfo = historydbIOSpy.getNextPage(entityStatsScope,
+                    new Timestamp(1L), TimeFrame.LATEST, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE);
 
             //THEN
             verify(historydbIOSpy, times(1)).getTotalRecordsCount(any(), any());

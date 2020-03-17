@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
 
@@ -139,7 +139,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                         final Collection<Integer> groupExpectedMemberTypes =
                                 GroupProtoUtil.getEntityTypes(group)
                                         .stream()
-                                        .map(UIEntityType::typeNumber)
+                                        .map(ApiEntityType::typeNumber)
                                         .collect(Collectors.toSet());
                         if (!groupExpectedMemberTypes.contains(policyEntityType)) {
                             errors.add("Group " + group.getId() + " with entity type " +

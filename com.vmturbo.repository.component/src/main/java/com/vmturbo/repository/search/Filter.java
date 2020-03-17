@@ -21,7 +21,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.ObjectFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition.VerticesCondition;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.graph.parameter.EdgeParameter.EdgeType;
 
 /**
@@ -245,7 +245,7 @@ public abstract class Filter<PH_FILTER_TYPE> implements AQLConverter {
                         .setPropertyName(propertyName)
                         .setStringFilter(
                             StringFilter.newBuilder()
-                                .addOptions(UIEntityType.fromType(
+                                .addOptions(ApiEntityType.fromType(
                                     Math.toIntExact(numericFilter.getValue())).apiStr())
                                 .setCaseSensitive(true)
                                 .build())

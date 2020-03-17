@@ -5,6 +5,7 @@ import static gnu.trove.impl.Constants.DEFAULT_LOAD_FACTOR;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -67,6 +68,12 @@ public class LiveStatsAggregator {
      * Cache for sold commodity capacities, so bought commodity records can include seller capacities.
      */
     private CapacityCache capacityCache = new CapacityCache();
+
+    /**
+     * Commodity keys that exceeded their max allowed length, encountered during the lifetime of
+     * this {@link LiveStatsAggregator instance}.
+     */
+    Set<String> longCommodityKeys = new HashSet<>();
 
     /**
      * {@link MarketStatsAccumulator}s by base entity type and environment type.
@@ -186,7 +193,8 @@ public class LiveStatsAggregator {
                 accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType());
         if (marketStatsAccumulator == null) {
             marketStatsAccumulator = new MarketStatsAccumulator(topologyInfo, baseEntityType,
-                    entityDTO.getEnvironmentType(), historydbIO, commoditiesToExclude, loaders);
+                    entityDTO.getEnvironmentType(), historydbIO, commoditiesToExclude, loaders,
+                    longCommodityKeys);
             accumulatorsByEntityAndEnvType.put(baseEntityType, entityDTO.getEnvironmentType(), marketStatsAccumulator);
         }
 
@@ -224,6 +232,13 @@ public class LiveStatsAggregator {
     public void writeFinalStats() throws VmtDbException, InterruptedException {
         for (final MarketStatsAccumulator statsAccumulator : accumulatorsByEntityAndEnvType.values()) {
             statsAccumulator.writeFinalStats();
+        }
+    }
+
+    public void logShortenedCommodityKeys() {
+        if (!longCommodityKeys.isEmpty()) {
+            logger.error("Following commodity keys needed to be shortened when persisted; " +
+                    "data access anomalies may result: {}", longCommodityKeys);
         }
     }
 

@@ -26,7 +26,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -111,7 +111,7 @@ public class DesktopPoolAspectMapper extends AbstractAspectMapper {
                         .addSearchFilter(SearchFilter.newBuilder()
                                 .setTraversalFilter(
                                         SearchProtoUtil.traverseToType(TraversalDirection.CONSUMES,
-                                                UIEntityType.PHYSICAL_MACHINE.apiStr())))
+                                                ApiEntityType.PHYSICAL_MACHINE.apiStr())))
                         .build()).getMinimalEntities().findFirst();
         if (physicalMachine.isPresent()) {
             final long pmId = physicalMachine.get().getOid();

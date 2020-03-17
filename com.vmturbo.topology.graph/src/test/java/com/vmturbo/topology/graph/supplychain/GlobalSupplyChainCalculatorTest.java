@@ -16,7 +16,7 @@ import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -48,44 +48,44 @@ public class GlobalSupplyChainCalculatorTest {
     private static final long REGION_ID = 7;
 
     private final TestGraphEntity.Builder storage =
-            TestGraphEntity.newBuilder(STORAGE_ID, UIEntityType.STORAGE)
+            TestGraphEntity.newBuilder(STORAGE_ID, ApiEntityType.STORAGE)
                     .setEnvironmentType(EnvironmentType.ON_PREM)
                     .setName("storage");
 
     private final TestGraphEntity.Builder host1 =
-            TestGraphEntity.newBuilder(HOST1_ID, UIEntityType.PHYSICAL_MACHINE)
+            TestGraphEntity.newBuilder(HOST1_ID, ApiEntityType.PHYSICAL_MACHINE)
                     .setName("pm")
                     .setEnvironmentType(EnvironmentType.ON_PREM)
                     .addProviderId(STORAGE_ID);
 
     private final TestGraphEntity.Builder host2 =
-            TestGraphEntity.newBuilder(HOST2_ID, UIEntityType.PHYSICAL_MACHINE)
+            TestGraphEntity.newBuilder(HOST2_ID, ApiEntityType.PHYSICAL_MACHINE)
                     .setName("pm1")
                     .setEnvironmentType(EnvironmentType.ON_PREM)
                     .addProviderId(STORAGE_ID);
 
     private final TestGraphEntity.Builder vm =
-            TestGraphEntity.newBuilder(VM_ID, UIEntityType.VIRTUAL_MACHINE)
+            TestGraphEntity.newBuilder(VM_ID, ApiEntityType.VIRTUAL_MACHINE)
                    .setName("vm")
                    .setEnvironmentType(EnvironmentType.ON_PREM)
                    .addProviderId(HOST1_ID)
                    .addProviderId(STORAGE_ID);
 
     private final TestGraphEntity.Builder computeTier =
-            TestGraphEntity.newBuilder(COMPUTE_TIER_ID, UIEntityType.COMPUTE_TIER)
+            TestGraphEntity.newBuilder(COMPUTE_TIER_ID, ApiEntityType.COMPUTE_TIER)
                     .setName("compute tier")
                     .addConnectedEntity(REGION_ID, ConnectionType.AGGREGATED_BY_CONNECTION)
                     .setEnvironmentType(EnvironmentType.CLOUD);
 
     private final TestGraphEntity.Builder cloudVm =
-            TestGraphEntity.newBuilder(CLOUD_VM_ID, UIEntityType.VIRTUAL_MACHINE)
+            TestGraphEntity.newBuilder(CLOUD_VM_ID, ApiEntityType.VIRTUAL_MACHINE)
                     .setName("cloud vm")
                     .setEnvironmentType(EnvironmentType.HYBRID)
                     .addProviderId(COMPUTE_TIER_ID)
                     .addConnectedEntity(REGION_ID, ConnectionType.AGGREGATED_BY_CONNECTION);
 
     private final TestGraphEntity.Builder region =
-            TestGraphEntity.newBuilder(REGION_ID, UIEntityType.REGION)
+            TestGraphEntity.newBuilder(REGION_ID, ApiEntityType.REGION)
                     .setName("region")
                     .setEnvironmentType(EnvironmentType.CLOUD);
 
@@ -100,38 +100,38 @@ public class GlobalSupplyChainCalculatorTest {
      */
     @Test
     public void testCalculateOnPremSupplyChain() {
-        final Map<UIEntityType, SupplyChainNode> nodesByType =
+        final Map<ApiEntityType, SupplyChainNode> nodesByType =
             globalSupplyChainCalculator.getSupplyChainNodes(topology, EnvironmentType.ON_PREM,
                     GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
 
-        assertThat(nodesByType.keySet(), containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE,
-                                                            UIEntityType.PHYSICAL_MACHINE,
-                                                            UIEntityType.STORAGE));
+        assertThat(nodesByType.keySet(), containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE,
+                                                            ApiEntityType.PHYSICAL_MACHINE,
+                                                            ApiEntityType.STORAGE));
 
-        assertThat(nodesByType.get(UIEntityType.VIRTUAL_MACHINE).getConnectedConsumerTypesList(),
+        assertThat(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE).getConnectedConsumerTypesList(),
                    containsInAnyOrder());
-        assertThat(nodesByType.get(UIEntityType.VIRTUAL_MACHINE).getConnectedProviderTypesList(),
-                   containsInAnyOrder(UIEntityType.PHYSICAL_MACHINE.apiStr(),
-                                      UIEntityType.STORAGE.apiStr(),
-                                      UIEntityType.REGION.apiStr())); // appears here because the cloud VM
+        assertThat(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE).getConnectedProviderTypesList(),
+                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+                                      ApiEntityType.STORAGE.apiStr(),
+                                      ApiEntityType.REGION.apiStr())); // appears here because the cloud VM
                                                                       // is included in the supply chain
                                                                       // as a hybrid entity
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.VIRTUAL_MACHINE)),
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE)),
                    containsInAnyOrder(VM_ID, CLOUD_VM_ID)); // note that hybrid entity is also included
 
-        assertThat(nodesByType.get(UIEntityType.PHYSICAL_MACHINE).getConnectedProviderTypesList(),
-                   containsInAnyOrder(UIEntityType.STORAGE.apiStr()));
-        assertThat(nodesByType.get(UIEntityType.PHYSICAL_MACHINE).getConnectedConsumerTypesList(),
-                   containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.apiStr()));
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.PHYSICAL_MACHINE)),
+        assertThat(nodesByType.get(ApiEntityType.PHYSICAL_MACHINE).getConnectedProviderTypesList(),
+                   containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+        assertThat(nodesByType.get(ApiEntityType.PHYSICAL_MACHINE).getConnectedConsumerTypesList(),
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.PHYSICAL_MACHINE)),
                    containsInAnyOrder(HOST1_ID, HOST2_ID));
 
-        assertThat(nodesByType.get(UIEntityType.STORAGE).getConnectedConsumerTypesList(),
-                   containsInAnyOrder(UIEntityType.PHYSICAL_MACHINE.apiStr(),
-                                      UIEntityType.VIRTUAL_MACHINE.apiStr()));
-        assertThat(nodesByType.get(UIEntityType.STORAGE).getConnectedProviderTypesList(),
+        assertThat(nodesByType.get(ApiEntityType.STORAGE).getConnectedConsumerTypesList(),
+                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+                                      ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(nodesByType.get(ApiEntityType.STORAGE).getConnectedProviderTypesList(),
                    containsInAnyOrder());
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.STORAGE)),
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.STORAGE)),
                    containsInAnyOrder(STORAGE_ID));
     }
 
@@ -140,28 +140,28 @@ public class GlobalSupplyChainCalculatorTest {
      */
     @Test
     public void testCalculateCloudSupplyChain() {
-        final Map<UIEntityType, SupplyChainNode> nodesByType =
+        final Map<ApiEntityType, SupplyChainNode> nodesByType =
                 globalSupplyChainCalculator.getSupplyChainNodes(topology, EnvironmentType.CLOUD,
                         GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
 
         // Note that tiers are ignored
         assertThat(nodesByType.keySet(),
-                   containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE, UIEntityType.REGION));
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE, ApiEntityType.REGION));
 
         // Region appears as a "consumer" in the chain ("consumers" are all inbound edges)
-        assertThat(nodesByType.get(UIEntityType.VIRTUAL_MACHINE).getConnectedProviderTypesList(),
-                   containsInAnyOrder(UIEntityType.REGION.apiStr()));
-        assertThat(nodesByType.get(UIEntityType.VIRTUAL_MACHINE).getConnectedConsumerTypesList(),
+        assertThat(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE).getConnectedProviderTypesList(),
+                   containsInAnyOrder(ApiEntityType.REGION.apiStr()));
+        assertThat(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE).getConnectedConsumerTypesList(),
                    containsInAnyOrder());
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.VIRTUAL_MACHINE)),
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE)),
                    containsInAnyOrder(CLOUD_VM_ID)); // hybrid entity is also included
 
         // VM appears as a "provider" in the chain ("providers" are all outbound edges)
-        assertThat(nodesByType.get(UIEntityType.REGION).getConnectedProviderTypesList(),
+        assertThat(nodesByType.get(ApiEntityType.REGION).getConnectedProviderTypesList(),
                    containsInAnyOrder());
-        assertThat(nodesByType.get(UIEntityType.REGION).getConnectedConsumerTypesList(),
-                   containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.apiStr()));
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.REGION)),
+        assertThat(nodesByType.get(ApiEntityType.REGION).getConnectedConsumerTypesList(),
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.REGION)),
                    containsInAnyOrder(REGION_ID));
     }
 
@@ -193,52 +193,52 @@ public class GlobalSupplyChainCalculatorTest {
      */
     @Test
     public void testCalculateCloudSupplyChainNoFilterForDisplay() {
-        final Map<UIEntityType, SupplyChainNode> nodesByType =
+        final Map<ApiEntityType, SupplyChainNode> nodesByType =
                 globalSupplyChainCalculator.getSupplyChainNodes(topology, EnvironmentType.CLOUD, type -> false);
 
         // Verify that the compute tiers are included in this response
         assertThat(nodesByType.keySet(),
-                containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE, UIEntityType.COMPUTE_TIER, UIEntityType.REGION));
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.VIRTUAL_MACHINE)),
+                containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE, ApiEntityType.COMPUTE_TIER, ApiEntityType.REGION));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE)),
                 containsInAnyOrder(cloudVm.getOid()));
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.COMPUTE_TIER)),
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.COMPUTE_TIER)),
                 containsInAnyOrder(computeTier.getOid()));
     }
 
-    private void assertFullTopology(@Nonnull Map<UIEntityType, SupplyChainNode> nodesByType) {
-        assertThat(nodesByType.keySet(), containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE,
-                                                            UIEntityType.PHYSICAL_MACHINE,
-                                                            UIEntityType.STORAGE,
-                                                            UIEntityType.REGION));
+    private void assertFullTopology(@Nonnull Map<ApiEntityType, SupplyChainNode> nodesByType) {
+        assertThat(nodesByType.keySet(), containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE,
+                                                            ApiEntityType.PHYSICAL_MACHINE,
+                                                            ApiEntityType.STORAGE,
+                                                            ApiEntityType.REGION));
 
-        assertThat(nodesByType.get(UIEntityType.VIRTUAL_MACHINE).getConnectedConsumerTypesList(),
+        assertThat(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE).getConnectedConsumerTypesList(),
                    containsInAnyOrder());
-        assertThat(nodesByType.get(UIEntityType.VIRTUAL_MACHINE).getConnectedProviderTypesList(),
-                   containsInAnyOrder(UIEntityType.PHYSICAL_MACHINE.apiStr(),
-                                      UIEntityType.STORAGE.apiStr(),
-                                      UIEntityType.REGION.apiStr()));
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.VIRTUAL_MACHINE)),
+        assertThat(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE).getConnectedProviderTypesList(),
+                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+                                      ApiEntityType.STORAGE.apiStr(),
+                                      ApiEntityType.REGION.apiStr()));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.VIRTUAL_MACHINE)),
                    containsInAnyOrder(VM_ID, CLOUD_VM_ID));
 
-        assertThat(nodesByType.get(UIEntityType.PHYSICAL_MACHINE).getConnectedProviderTypesList(),
-                   containsInAnyOrder(UIEntityType.STORAGE.apiStr()));
-        assertThat(nodesByType.get(UIEntityType.PHYSICAL_MACHINE).getConnectedConsumerTypesList(),
-                   containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.apiStr()));
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.PHYSICAL_MACHINE)),
+        assertThat(nodesByType.get(ApiEntityType.PHYSICAL_MACHINE).getConnectedProviderTypesList(),
+                   containsInAnyOrder(ApiEntityType.STORAGE.apiStr()));
+        assertThat(nodesByType.get(ApiEntityType.PHYSICAL_MACHINE).getConnectedConsumerTypesList(),
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.PHYSICAL_MACHINE)),
                    containsInAnyOrder(HOST1_ID, HOST2_ID));
 
-        assertThat(nodesByType.get(UIEntityType.STORAGE).getConnectedConsumerTypesList(),
-                   containsInAnyOrder(UIEntityType.PHYSICAL_MACHINE.apiStr(),
-                                      UIEntityType.VIRTUAL_MACHINE.apiStr()));
-        assertThat(nodesByType.get(UIEntityType.STORAGE).getConnectedProviderTypesList(),
+        assertThat(nodesByType.get(ApiEntityType.STORAGE).getConnectedConsumerTypesList(),
+                   containsInAnyOrder(ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+                                      ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(nodesByType.get(ApiEntityType.STORAGE).getConnectedProviderTypesList(),
                    containsInAnyOrder());
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.STORAGE)),
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.STORAGE)),
                    containsInAnyOrder(STORAGE_ID));
-        assertThat(nodesByType.get(UIEntityType.REGION).getConnectedProviderTypesList(),
+        assertThat(nodesByType.get(ApiEntityType.REGION).getConnectedProviderTypesList(),
                    containsInAnyOrder());
-        assertThat(nodesByType.get(UIEntityType.REGION).getConnectedConsumerTypesList(),
-                   containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.apiStr()));
-        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(UIEntityType.REGION)),
+        assertThat(nodesByType.get(ApiEntityType.REGION).getConnectedConsumerTypesList(),
+                   containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(nodesByType.get(ApiEntityType.REGION)),
                    containsInAnyOrder(REGION_ID));
     }
 }

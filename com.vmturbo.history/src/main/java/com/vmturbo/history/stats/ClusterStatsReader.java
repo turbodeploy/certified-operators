@@ -1,11 +1,11 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.components.common.utils.StringConstants.INTERNAL_NAME;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.components.common.utils.StringConstants.RECORDED_ON;
-import static com.vmturbo.components.common.utils.StringConstants.SAMPLES;
-import static com.vmturbo.components.common.utils.StringConstants.VALUE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.INTERNAL_NAME;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RECORDED_ON;
+import static com.vmturbo.common.protobuf.utils.StringConstants.SAMPLES;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VALUE;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;

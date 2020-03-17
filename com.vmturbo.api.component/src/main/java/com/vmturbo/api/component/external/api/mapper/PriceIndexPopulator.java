@@ -33,9 +33,9 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.stats.StatsUtils;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Class for fetching and setting the priceIndex on the service entity.
@@ -92,7 +92,7 @@ public class PriceIndexPopulator {
         entities.stream()
                 // it's expected that these entities do not have priceIndex.
                 .filter(entity -> !StatsUtils.SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES.contains(
-                        UIEntityType.fromStringToSdkType(entity.getClassName())))
+                        ApiEntityType.fromStringToSdkType(entity.getClassName())))
                 .forEach(entity -> {
                     Float priceIndex = priceIndexEntityId.get(Long.valueOf(entity.getUuid()));
                     if (priceIndex == null) {
@@ -118,7 +118,7 @@ public class PriceIndexPopulator {
         // entities, note: we don't support pagination across entity types for now
         final Map<Integer, Set<Long>> entityTypesToOids = serviceEntityApiDTOs.stream()
                 .collect(Collectors.groupingBy(se ->
-                                UIEntityType.fromString(se.getClassName()).typeNumber(),
+                                ApiEntityType.fromString(se.getClassName()).typeNumber(),
                         Collectors.mapping(s -> Long.parseLong(s.getUuid()), Collectors.toSet())));
         // fetch price index stats of real market from history component
         final List<EntityStats> entityStats = new ArrayList<>();
@@ -149,7 +149,7 @@ public class PriceIndexPopulator {
                         } while (!StringUtils.isEmpty(cursor));
                     } catch (StatusRuntimeException e) {
                         logger.error("Error while fetching priceIndex for entities {} of type {}: ",
-                                entry.getValue(), UIEntityType.fromType(entry.getKey()).apiStr(), e);
+                                entry.getValue(), ApiEntityType.fromType(entry.getKey()).apiStr(), e);
                     }
                 });
         return entityStats.stream()

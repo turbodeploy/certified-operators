@@ -30,9 +30,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
@@ -127,7 +127,7 @@ public class PlanRpcServiceUtil {
                 // yet in the commonDTO.EntityType, ba is BUSINESS_ACCOUNT
                 final int type = className.equals(StringConstants.BUSINESS_ACCOUNT)
                                 ? EntityType.BUSINESS_ACCOUNT_VALUE
-                                : UIEntityType.fromStringToSdkType(className);
+                                : ApiEntityType.fromStringToSdkType(className);
                 scopeObjectByClass.computeIfAbsent(type, k -> new HashSet<>()).add(oid);
             }
         }

@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class MagicScopeGatewayTest {
@@ -97,7 +97,7 @@ public class MagicScopeGatewayTest {
 
         final GroupApiDTO groupRequest = groupCreateRequestCaptor.getValue();
         assertThat(groupRequest.getTemporary(), is(true));
-        assertThat(groupRequest.getGroupType(), is(UIEntityType.PHYSICAL_MACHINE.apiStr()));
+        assertThat(groupRequest.getGroupType(), is(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
         assertThat(groupRequest.getScope(), contains(UuidMapper.UI_REAL_TIME_MARKET_STR));
         assertThat(groupRequest.getEnvironmentType(), is(EnvironmentType.ONPREM));
     }

@@ -133,9 +133,9 @@ import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -914,7 +914,7 @@ public class GroupsServiceTest {
             .setStaticGroupMembers(GroupDTO.StaticMembers.newBuilder()
                 .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
                     .setType(GroupDTO.MemberType.newBuilder()
-                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build())
+                        .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).build())
                     .addMembers(11L)
                     .build())
                 .build())
@@ -1101,7 +1101,7 @@ public class GroupsServiceTest {
 
         // with related entity type
         expandedIds = groupsService.expandUuids(Sets.newHashSet(target1, target2),
-            Lists.newArrayList(UIEntityType.VIRTUAL_MACHINE.apiStr()), null);
+            Lists.newArrayList(ApiEntityType.VIRTUAL_MACHINE.apiStr()), null);
         assertThat(expandedIds, containsInAnyOrder(entityId11, entityId21));
     }
 
@@ -1115,7 +1115,7 @@ public class GroupsServiceTest {
 
         // expand a VM group, provide no entity type and expect to get all vms in the group
         SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
-                ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.apiStr(), SupplyChainNode.newBuilder()
+                ImmutableMap.of(ApiEntityType.VIRTUAL_MACHINE.apiStr(), SupplyChainNode.newBuilder()
                     .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                         .addMemberOids(vm1).addMemberOids(vm2).build())
                     .build()));
@@ -1126,14 +1126,14 @@ public class GroupsServiceTest {
 
         // expand a VM group, provide PM entity type and expect to get all related PMs in the group
         fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
-            ImmutableMap.of(UIEntityType.PHYSICAL_MACHINE.apiStr(), SupplyChainNode.newBuilder()
+            ImmutableMap.of(ApiEntityType.PHYSICAL_MACHINE.apiStr(), SupplyChainNode.newBuilder()
                 .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                     .addMemberOids(pm1).build())
                 .build()));
         when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(fetcherBuilder);
 
         expandedIds = groupsService.expandUuids(Sets.newHashSet(groupId11),
-            Lists.newArrayList(UIEntityType.PHYSICAL_MACHINE.apiStr()), null);
+            Lists.newArrayList(ApiEntityType.PHYSICAL_MACHINE.apiStr()), null);
         assertThat(expandedIds, containsInAnyOrder(pm1));
     }
 
@@ -1348,7 +1348,7 @@ public class GroupsServiceTest {
         actionApiInputDTO.setCostType(ActionCostType.SAVING);
 
         CachedGroupInfo cachedGroupInfo = mock(CachedGroupInfo.class);
-        when(cachedGroupInfo.getEntityTypes()).thenReturn(ImmutableSet.of(UIEntityType.REGION));
+        when(cachedGroupInfo.getEntityTypes()).thenReturn(ImmutableSet.of(ApiEntityType.REGION));
         ApiId apiId = mock(ApiId.class);
         when(apiId.isGlobalTempGroup()).thenReturn(true);
         when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
@@ -1372,7 +1372,7 @@ public class GroupsServiceTest {
         // environment type of input dto should not change
         Assert.assertEquals(EnvironmentType.CLOUD, actionApiInputDTO.getEnvironmentType());
         // related entity types should by updated to all entity types
-        Assert.assertEquals(UIEntityType.values().length, actionApiInputDTO.getRelatedEntityTypes().size());
+        Assert.assertEquals(ApiEntityType.values().length, actionApiInputDTO.getRelatedEntityTypes().size());
     }
 
     /**

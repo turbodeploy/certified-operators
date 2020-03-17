@@ -70,8 +70,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
@@ -522,7 +522,7 @@ public class StatsMapperTest {
         List<StatApiInputDTO> statistics = Lists.newArrayListWithCapacity(1);
         // The API caller is requesting stats for a DATACENTER
         statistics.add(new StatApiInputDTO(CommodityType.CPU_ALLOCATION.name(),
-            UIEntityType.DATACENTER.apiStr(), null, null));
+            ApiEntityType.DATACENTER.apiStr(), null, null));
         statPeriodApiInputDTO.setStatistics(statistics);
         // Stats for a data center will be collected with a group entity type of PHYSICAL_MACHINE
         StatsFilter filter =
@@ -532,7 +532,7 @@ public class StatsMapperTest {
         filter.getCommodityRequestsList().stream()
             .filter(CommodityRequest::hasRelatedEntityType)
             .map(CommodityRequest::getRelatedEntityType)
-            .forEach(relatedEntityType -> assertEquals(UIEntityType.PHYSICAL_MACHINE.apiStr(), relatedEntityType));
+            .forEach(relatedEntityType -> assertEquals(ApiEntityType.PHYSICAL_MACHINE.apiStr(), relatedEntityType));
     }
 
     @Test

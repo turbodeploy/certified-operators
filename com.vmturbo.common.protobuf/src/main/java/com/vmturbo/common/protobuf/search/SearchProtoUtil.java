@@ -24,20 +24,20 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class SearchProtoUtil {
 
-    private static final ImmutableList<UIEntityType> EXCLUDE_FROM_SEARCH_ALL =
-                    ImmutableList.of(UIEntityType.INTERNET, UIEntityType.HYPERVISOR_SERVER, UIEntityType.UNKNOWN);
+    private static final ImmutableList<ApiEntityType> EXCLUDE_FROM_SEARCH_ALL =
+                    ImmutableList.of(ApiEntityType.INTERNET, ApiEntityType.HYPERVISOR_SERVER, ApiEntityType.UNKNOWN);
 
     /**
      * All entity types that can be used in a search.
      */
-    public static final List<String> SEARCH_ALL_TYPES = Stream.of(UIEntityType.values())
+    public static final List<String> SEARCH_ALL_TYPES = Stream.of(ApiEntityType.values())
                     .filter(e -> !EXCLUDE_FROM_SEARCH_ALL.contains(e))
-                    .map(UIEntityType::apiStr)
+                    .map(ApiEntityType::apiStr)
                     .collect(Collectors.toList());
 
     /**
@@ -268,21 +268,21 @@ public class SearchProtoUtil {
     public static PropertyFilter entityTypeFilter(Collection<String> entityType) {
         if (entityType.size() == 1) {
             return numericPropertyFilter(SearchableProperties.ENTITY_TYPE,
-                UIEntityType.fromString(entityType.iterator().next()).typeNumber(), ComparisonOperator.EQ);
+                ApiEntityType.fromString(entityType.iterator().next()).typeNumber(), ComparisonOperator.EQ);
         } else {
             return SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.ENTITY_TYPE,
                 entityType);
         }
     }
 
-    public static PropertyFilter entityTypeFilter(UIEntityType entityType) {
+    public static PropertyFilter entityTypeFilter(ApiEntityType entityType) {
         return numericPropertyFilter(SearchableProperties.ENTITY_TYPE,
             entityType.typeNumber(), ComparisonOperator.EQ);
     }
 
     public static PropertyFilter entityTypeFilter(String entityType) {
         return numericPropertyFilter(SearchableProperties.ENTITY_TYPE,
-            UIEntityType.fromString(entityType).typeNumber(), ComparisonOperator.EQ);
+            ApiEntityType.fromString(entityType).typeNumber(), ComparisonOperator.EQ);
     }
 
     public static PropertyFilter entityTypeFilter(int entityType) {
@@ -490,7 +490,7 @@ public class SearchProtoUtil {
      * @param direction the traversal direction.
      * @return the constructed {@link SearchParameters} filter.
      */
-    public static SearchParameters neighborsOfType(long oid, TraversalDirection direction, final UIEntityType type) {
+    public static SearchParameters neighborsOfType(long oid, TraversalDirection direction, final ApiEntityType type) {
         return
             makeSearchParameters(SearchProtoUtil.idFilter(oid))
                 .addSearchFilter(

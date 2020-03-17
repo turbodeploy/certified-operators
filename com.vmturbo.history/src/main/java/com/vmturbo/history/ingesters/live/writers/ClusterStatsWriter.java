@@ -1,13 +1,13 @@
 package com.vmturbo.history.ingesters.live.writers;
 
-import static com.vmturbo.components.common.utils.StringConstants.CAPACITY;
-import static com.vmturbo.components.common.utils.StringConstants.CPU;
-import static com.vmturbo.components.common.utils.StringConstants.MEM;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_CPUS;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_SOCKETS;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS;
-import static com.vmturbo.components.common.utils.StringConstants.USED;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CAPACITY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CPU;
+import static com.vmturbo.common.protobuf.utils.StringConstants.MEM;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_CPUS;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_HOSTS;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_SOCKETS;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS;
+import static com.vmturbo.common.protobuf.utils.StringConstants.USED;
 import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsLatest.CLUSTER_STATS_LATEST;
 import static gnu.trove.impl.Constants.DEFAULT_CAPACITY;
 import static gnu.trove.impl.Constants.DEFAULT_LOAD_FACTOR;

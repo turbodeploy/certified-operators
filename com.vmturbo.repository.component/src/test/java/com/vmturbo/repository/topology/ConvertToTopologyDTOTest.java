@@ -19,7 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Busines
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolAssignmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolCloneType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData.DesktopPoolProvisionType;
@@ -192,7 +192,7 @@ public class ConvertToTopologyDTOTest {
         final ServiceEntityRepoDTO serviceEntityRepoDTO = new ServiceEntityRepoDTO();
         serviceEntityRepoDTO.setOid(SE_OID_STRING);
         serviceEntityRepoDTO.setDisplayName("SE_DISPLAY_NAME");
-        serviceEntityRepoDTO.setEntityType(UIEntityType.fromType(entityType).apiStr());
+        serviceEntityRepoDTO.setEntityType(ApiEntityType.fromType(entityType).apiStr());
         return serviceEntityRepoDTO;
     }
 }

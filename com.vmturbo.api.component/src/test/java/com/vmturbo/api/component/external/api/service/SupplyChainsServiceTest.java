@@ -59,10 +59,10 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat.StatGroup;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Unit tests for {@link SupplyChainsService}.
@@ -288,7 +288,7 @@ public class SupplyChainsServiceTest {
         final long uuid = 1;
         final SupplyChainStatsApiInputDTO inputDTO = new SupplyChainStatsApiInputDTO();
         inputDTO.setEnvironmentType(EnvironmentType.CLOUD);
-        inputDTO.setTypes(Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+        inputDTO.setTypes(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
         inputDTO.setGroupBy(Arrays.asList(EntitiesCountCriteria.businessUnit,
                 EntitiesCountCriteria.resourceGroup));
         inputDTO.setUuids(Collections.singletonList(Long.toString(uuid)));
@@ -393,14 +393,14 @@ public class SupplyChainsServiceTest {
         SupplyChainStat supplyChainStat = SupplyChainStat.newBuilder()
             .setNumEntities(100)
             .setStatGroup(StatGroup.newBuilder()
-                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
             .build();
         StatApiDTO statApiDTO = mapper.supplyChainStatToApi(supplyChainStat);
         assertThat(statApiDTO.getValue(), is(100.0f));
         assertThat(statApiDTO.getName(), is(StringConstants.ENTITIES));
         assertThat(statApiDTO.getFilters().size(), is(1));
         assertThat(statApiDTO.getFilters().get(0).getType(), is(EntitiesCountCriteria.entityType.name()));
-        assertThat(statApiDTO.getFilters().get(0).getValue(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(statApiDTO.getFilters().get(0).getValue(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
     }
 
     /**

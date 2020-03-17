@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats.live;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
@@ -48,7 +49,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
@@ -68,6 +69,7 @@ import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
 
 public class LiveStatsReaderTest {
 
+    private static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = EntityType.named(PHYSICAL_MACHINE).get();
     private HistorydbIO mockHistorydbIO = mock(HistorydbIO.class);
 
     private TimeRangeFactory timeRangeFactory = mock(TimeRangeFactory.class);
@@ -96,7 +98,7 @@ public class LiveStatsReaderTest {
     @Test
     public void testGetStatPage() throws VmtDbException {
         final Set<String> entityIds = Collections.singleton("1");
-        final EntityType entityType = EntityType.PHYSICAL_MACHINE;
+        final EntityType entityType = PHYSICAL_MACHINE_ENTITY_TYPE;
         final EntityStatsScope scope = EntityStatsScope.newBuilder()
                 .setEntityList(EntityList.newBuilder()
                         .addEntities(1))
@@ -162,7 +164,7 @@ public class LiveStatsReaderTest {
                 .setEntityList(EntityList.newBuilder()
                         .addEntities(1))
                 .build();
-        final EntityType entityType = EntityType.PHYSICAL_MACHINE;
+        final EntityType entityType = PHYSICAL_MACHINE_ENTITY_TYPE;
         when(mockHistorydbIO.getEntityTypeFromEntityStatsScope(scope))
                 .thenReturn(entityType);
 
@@ -205,7 +207,7 @@ public class LiveStatsReaderTest {
                 .setEntityList(EntityList.newBuilder()
                         .addEntities(1))
                 .build();
-        final EntityType entityType = EntityType.PHYSICAL_MACHINE;
+        final EntityType entityType = PHYSICAL_MACHINE_ENTITY_TYPE;
         when(mockHistorydbIO.getEntityTypeFromEntityStatsScope(scope))
                 .thenReturn(entityType);
 
@@ -326,7 +328,7 @@ public class LiveStatsReaderTest {
         // ACT
         final List<Record> records = liveStatsReader.getFullMarketStatsRecords(statsFilter,
             GlobalFilter.newBuilder()
-                .addRelatedEntityType(StringConstants.PHYSICAL_MACHINE)
+                .addRelatedEntityType(PHYSICAL_MACHINE)
                 .setEnvironmentType(EnvironmentType.CLOUD)
                 .build());
 
@@ -340,7 +342,7 @@ public class LiveStatsReaderTest {
             .createCommodityRequestsCond(statsFilterWithCounts.getCommodityRequestsList(),
                 Tables.MARKET_STATS_LATEST);
         verify(statsQueryFactory).environmentTypeCond(EnvironmentType.CLOUD, Tables.MARKET_STATS_LATEST);
-        verify(statsQueryFactory).entityTypeCond(Sets.newHashSet(StringConstants.PHYSICAL_MACHINE), Tables.MARKET_STATS_LATEST);
+        verify(statsQueryFactory).entityTypeCond(Sets.newHashSet(PHYSICAL_MACHINE), Tables.MARKET_STATS_LATEST);
         verify(mockHistorydbIO).execute(eq(Style.FORCED), isA(Query.class));
         verify(computedPropertiesProcessor).processResults(result, TIMESTAMP);
 

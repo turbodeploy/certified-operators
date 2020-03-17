@@ -5,9 +5,9 @@ import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.C
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.REGION_FILTER_PATH;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.STATE;
 import static com.vmturbo.api.component.external.api.mapper.EntityFilterMapper.VOLUME_ATTACHMENT_STATE_FILTER_PATH;
-import static com.vmturbo.components.common.utils.StringConstants.BUSINESS_ACCOUNT;
-import static com.vmturbo.components.common.utils.StringConstants.GROUP;
-import static com.vmturbo.components.common.utils.StringConstants.WORKLOAD;
+import static com.vmturbo.common.protobuf.utils.StringConstants.BUSINESS_ACCOUNT;
+import static com.vmturbo.common.protobuf.utils.StringConstants.GROUP;
+import static com.vmturbo.common.protobuf.utils.StringConstants.WORKLOAD;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,7 +75,6 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.exceptions.ConversionException;
-import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -120,8 +119,8 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus;
@@ -377,7 +376,7 @@ public class SearchService implements ISearchService {
             } else if (typesHashSet.contains(TargetsService.TARGET)) {
                 final Collection<TargetApiDTO> targets = targetsService.getTargets(null);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(targets));
-            } else if (typesHashSet.contains(UIEntityType.BUSINESS_ACCOUNT.apiStr())) {
+            } else if (typesHashSet.contains(ApiEntityType.BUSINESS_ACCOUNT.apiStr())) {
                 final Collection<BusinessUnitApiDTO> businessAccounts =
                         businessAccountRetriever.getBusinessAccountsInScope(scopes, null);
                 return paginationRequest.allResultsResponse(Lists.newArrayList(businessAccounts));
@@ -509,7 +508,7 @@ public class SearchService implements ISearchService {
                 .getSEMap()
                 .values()
                 .stream()
-                .filter(se -> UIEntityType.WORKLOAD_ENTITY_TYPES.contains(UIEntityType.fromString(se.getClassName())))
+                .filter(se -> ApiEntityType.WORKLOAD_ENTITY_TYPES.contains(ApiEntityType.fromString(se.getClassName())))
                 .collect(Collectors.toList());
 
             return paginationRequest.allResultsResponse(results);
@@ -675,8 +674,8 @@ public class SearchService implements ISearchService {
         if (className == null) {
             return Collections.emptyList();
         } else if (className.equals(WORKLOAD)) {
-            return UIEntityType.WORKLOAD_ENTITY_TYPES.stream()
-                .map(UIEntityType::apiStr)
+            return ApiEntityType.WORKLOAD_ENTITY_TYPES.stream()
+                .map(ApiEntityType::apiStr)
                 .collect(Collectors.toList());
         } else {
             return Collections.singletonList(className);
@@ -803,7 +802,7 @@ public class SearchService implements ISearchService {
             statsScope.setEntityList(EntityList.newBuilder()
                 .addAllEntities(getCandidateEntitiesForSearch(inputDTO, nameQuery, expandedIds, searchRequest)));
         } else {
-            statsScope.setEntityType(UIEntityType.fromString(inputDTO.getClassName()).typeNumber());
+            statsScope.setEntityType(ApiEntityType.fromString(inputDTO.getClassName()).typeNumber());
         }
         final GetEntityStatsResponse response = statsHistoryServiceRpc.getEntityStats(
             GetEntityStatsRequest.newBuilder()
@@ -977,7 +976,7 @@ public class SearchService implements ISearchService {
         final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
         // get all business accounts which have associated target (monitored by probe)
         repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                SearchProtoUtil.entityTypeFilter(UIEntityType.BUSINESS_ACCOUNT.apiStr()))
+                SearchProtoUtil.entityTypeFilter(ApiEntityType.BUSINESS_ACCOUNT.apiStr()))
                 .addSearchFilter(SearchFilter.newBuilder()
                         .setPropertyFilter(SearchProtoUtil.associatedTargetFilter())
                         .build())
@@ -1009,7 +1008,7 @@ public class SearchService implements ISearchService {
     private List<CriteriaOptionApiDTO> getConnectionStorageTierOptions() {
         final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
         repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                SearchProtoUtil.entityTypeFilter(UIEntityType.STORAGE_TIER.apiStr()))
+                SearchProtoUtil.entityTypeFilter(ApiEntityType.STORAGE_TIER.apiStr()))
                 .build())
                 .getMinimalEntities()
                 .forEach(tier -> {
@@ -1025,7 +1024,7 @@ public class SearchService implements ISearchService {
     private List<CriteriaOptionApiDTO> getRegionFilterOptions() {
         final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
         repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                SearchProtoUtil.entityTypeFilter(UIEntityType.REGION.apiStr()))
+                SearchProtoUtil.entityTypeFilter(ApiEntityType.REGION.apiStr()))
                 .build())
                 .getMinimalEntities()
                 .forEach(region -> {
