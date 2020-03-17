@@ -577,26 +577,55 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
     static PlanStatus getOCPWithBuyRIPlanStatus(@Nonnull final PlanInstance.Builder plan,
                                                 final boolean isOCPOptimizeAndBuyRI) {
         final Status planProgressProjectedCostStatus = plan.getPlanProgress()
-                .getProjectedCostStatus();
+                        .getProjectedCostStatus();
         final Status planProgressProjectedRiCoverageStatus = plan.getPlanProgress()
-                .getProjectedRiCoverageStatus();
+                        .getProjectedRiCoverageStatus();
         if (Status.FAIL.equals(planProgressProjectedCostStatus) ||
-                Status.FAIL.equals(planProgressProjectedRiCoverageStatus)) {
+            Status.FAIL.equals(planProgressProjectedRiCoverageStatus)) {
             return PlanStatus.FAILED;
         }
-        // Optimize cloud plan (OCP)
-        if (plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
-                plan.hasProjectedTopologyId() && plan.hasSourceTopologyId()) {
-            if (isOCPOptimizeAndBuyRI) {
-                // OCP buy RI and optimize services
-                return Status.SUCCESS.equals(planProgressProjectedCostStatus) &&
-                        Status.SUCCESS.equals(planProgressProjectedRiCoverageStatus) ?
-                        PlanStatus.SUCCEEDED : PlanStatus.WAITING_FOR_RESULT;
-            }
-            // OCP buy RI only
-            return PlanStatus.SUCCEEDED;
+
+        // AnalysisState.FAILED is not processed here, but is used to directly fail the plan.
+        final boolean analysisSuccessful = Status.SUCCESS
+                        .equals(plan.getPlanProgress().getAnalysisStatus());
+
+        final boolean costNotificationsSuccessful = Status.SUCCESS
+                        .equals(planProgressProjectedCostStatus) &&
+                                                    Status.SUCCESS.equals(planProgressProjectedRiCoverageStatus);
+
+        final boolean commonNotificationsSuccessful = checkCommonNotificationsSuccessful(plan);
+
+        if (isOCPBuyRIOnly(plan)) {
+            return commonNotificationsSuccessful ? PlanStatus.SUCCEEDED
+                            : PlanStatus.WAITING_FOR_RESULT;
+        } else if (isOCPOptimizeAndBuyRI) {
+            return analysisSuccessful && commonNotificationsSuccessful
+                   && costNotificationsSuccessful ? PlanStatus.SUCCEEDED
+                                   : PlanStatus.WAITING_FOR_RESULT;
+        } else if (isOCPOptimizeServices(plan)) {
+            return analysisSuccessful && commonNotificationsSuccessful
+                            && costNotificationsSuccessful ? PlanStatus.SUCCEEDED
+                                            : PlanStatus.WAITING_FOR_RESULT;
+        } else {
+            // Non-OCP plans are processed in calling method.
+            logger.error("This is not an OCP plan, hence returning FAILED status");
+            return plan.getStatus();
         }
-        return PlanStatus.WAITING_FOR_RESULT;
+    }
+
+    /**
+     * Checks if all relevant from other components notifications have been received by the Plan Orchestrator.
+     *
+     * @param plan The plan instance.
+     * @return whether common notifications -- stats, action plan id list, source and projected topologies have been received.
+     */
+    private static boolean checkCommonNotificationsSuccessful(@Nonnull final PlanInstance.Builder plan) {
+
+
+        final boolean commonNotificationsSuccessful = plan.getStatsAvailable() && !plan.getActionPlanIdList().isEmpty() &&
+                        plan.hasProjectedTopologyId() && plan.hasSourceTopologyId();
+
+        return commonNotificationsSuccessful;
     }
 
     /**
