@@ -53,6 +53,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ObjectsPage;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -1028,7 +1029,7 @@ public class GroupsService implements IGroupsService {
                         .stream()
                         .filter(group -> !isHiddenGroup(group.group()))
                         .collect(Collectors.toList());
-        final List<GroupApiDTO> result;
+        final ObjectsPage<GroupApiDTO> result;
         try {
             result = groupMapper.toGroupApiDto(groupsWithMembers, populateSeverity, null, environmentType);
         } catch (InvalidOperationException e) {
@@ -1038,13 +1039,7 @@ public class GroupsService implements IGroupsService {
                             .map(Grouping::getId)
                             .collect(Collectors.toList()), e);
         }
-        if ((environmentType == null) || (environmentType == EnvironmentType.HYBRID)) {
-            return result;
-        } else {
-            return result.stream()
-                    .filter(group -> group.getEnvironmentType() == environmentType)
-                    .collect(Collectors.toList());
-        }
+        return result.getObjects();
     }
 
     /**
@@ -1248,46 +1243,20 @@ public class GroupsService implements IGroupsService {
                                                    final SearchPaginationRequest paginationRequest,
                                                    @Nullable final EnvironmentType environmentType)
             throws InvalidOperationException, ConversionException, InterruptedException {
-
-        final long skipCount;
-        if (paginationRequest.getCursor().isPresent()) {
-            try {
-                skipCount = Long.parseLong(paginationRequest.getCursor().get());
-                if (skipCount < 0) {
-                    throw new InvalidOperationException("Illegal cursor: " +
-                        skipCount + ". Must be be a positive integer");
-                }
-            } catch (InvalidOperationException e) {
-                throw new InvalidOperationException("Cursor " + paginationRequest.getCursor() +
-                    " is invalid. Should be a number.");
-            }
-
-        } else {
-            skipCount = 0;
-        }
-
-        // TODO (OM-56346): The below logic is badly broken. Since 'toGroupApiDto' may filter based on
-        // environment type, there is no way here to know the total record count or correctly
-        // detect whether we are returning the final page.
-        // groupsWithMembers::size does *not* represent the totalRecordCount
-        // This was an easy fix in 7.21.2, when the environment type filtering was done right in
-        // this method. It will need a new fix for 7.21.200.
-        // Total count of records, prior to pagination
-        final int totalRecordCount = groupsWithMembers.size();
-        final List<GroupApiDTO> paginatedGroupApiDTOs =
+        final ObjectsPage<GroupApiDTO> paginatedGroupApiDTOs =
                 groupMapper.toGroupApiDto(groupsWithMembers, true, paginationRequest,
                         environmentType);
-        final List<BaseApiDTO> retList = new ArrayList<>(paginatedGroupApiDTOs);
+        final int totalRecordCount = paginatedGroupApiDTOs.getTotalCount();
+        final List<BaseApiDTO> retList = new ArrayList<>(paginatedGroupApiDTOs.getObjects());
 
         // Determine if this is the final page
-        long nextCursor = skipCount + paginatedGroupApiDTOs.size();
-        if (nextCursor >= totalRecordCount) {
-            if (nextCursor > totalRecordCount) {
-                logger.warn("Illegal cursor: the value is bigger than the total record count.");
-            }
+        long nextCursor = paginatedGroupApiDTOs.getNextCursor();
+        if (nextCursor == totalRecordCount) {
             return paginationRequest.finalPageResponse(retList, totalRecordCount);
+        } else {
+            return paginationRequest.nextPageResponse(retList, Long.toString(nextCursor),
+                    totalRecordCount);
         }
-        return paginationRequest.nextPageResponse(retList, Long.toString(nextCursor), totalRecordCount);
     }
 
     /**

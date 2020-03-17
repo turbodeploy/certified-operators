@@ -47,6 +47,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ObjectsPage;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
@@ -405,7 +406,7 @@ public class GroupMapper {
                 groups.stream().map(groupExpander::getMembersForGroup).collect(Collectors.toList());
         final List<GroupApiDTO> apiGroups;
         try {
-            apiGroups = toGroupApiDto(groupsAndMembers, populateSeverity, null, null);
+            apiGroups = toGroupApiDto(groupsAndMembers, populateSeverity, null, null).getObjects();
         } catch (InvalidOperationException e) {
             throw new ConversionException("Failed to convert groups " +
                     groups.stream().map(Grouping::getId).collect(Collectors.toList()) + ": " +
@@ -437,26 +438,26 @@ public class GroupMapper {
      * @param populateSeverity whether to calculate and set severity values.
      * @param paginationRequest pagination request, if any
      * @param requestedEnvironment requested environment type, if any
-     * @return resulting groups. Positions in the resulting list are guaranteed to match positions
-     *         in the source list
+     * @return resulting groups. This list could be shorter then incoming list as some of the groups
+     *         could be filtered out
      * @throws ConversionException if error faced converting objects to API DTOs
      * @throws InterruptedException if current thread has been interrupted
      * @throws InvalidOperationException if pagination request is invalid
      */
     @Nonnull
-    public List<GroupApiDTO> toGroupApiDto(@Nonnull List<GroupAndMembers> groupsAndMembers,
+    public ObjectsPage<GroupApiDTO> toGroupApiDto(@Nonnull List<GroupAndMembers> groupsAndMembers,
             boolean populateSeverity, @Nullable SearchPaginationRequest paginationRequest,
             @Nullable EnvironmentType requestedEnvironment)
             throws ConversionException, InterruptedException, InvalidOperationException {
         final PaginatorSupplier paginatorSupplier = getPaginator(paginationRequest);
-        final List<GroupAndMembers> groupsPage;
+        final ObjectsPage<GroupAndMembers> groupsPage;
         final GroupConversionContext context;
         try {
             final AbstractPaginator paginator =
                     paginatorSupplier.createPaginator(groupsAndMembers, paginationRequest,
                             requestedEnvironment);
             if (paginator.isEmptyResult()) {
-                return Collections.emptyList();
+                return ObjectsPage.createEmptyPage();
             }
             groupsPage = paginator.getGroupsPage();
             context = paginator.createContext();
@@ -465,15 +466,16 @@ public class GroupMapper {
                     groupsAndMembers.stream().map(GroupAndMembers::group).map(Grouping::getId), e);
         }
         final List<GroupApiDTO> result = new ArrayList<>(groupsAndMembers.size());
-        for (GroupAndMembers group : groupsPage) {
+        for (GroupAndMembers group : groupsPage.getObjects()) {
             result.add(toGroupApiDto(group, context, populateSeverity));
         }
-        return Collections.unmodifiableList(result);
+        return new ObjectsPage<>(result, groupsPage.getTotalCount(), groupsPage.getNextCursor());
     }
 
     @Nonnull
-    private Future<Map<Long, MinimalEntity>> getEntities(@Nonnull Set<Long> members) {
-        final MembersMapObserver observer = new MembersMapObserver();
+    private Future<Map<Long, EntityEnvironment>> getGroupEnvironments(
+            @Nonnull Collection<GroupAndMembers> groups, @Nonnull Set<Long> members) {
+        final EnvironmentMapObserver observer = new EnvironmentMapObserver(groups);
         repositoryApi.entitiesRequest(members).getMinimalEntities(observer);
         return observer.getFuture();
     }
@@ -494,9 +496,8 @@ public class GroupMapper {
             @Nonnull GroupConversionContext conversionContext, boolean populateSeverity)
             throws ConversionException, InterruptedException {
 
-        final EntityEnvironment envCloudType = conversionContext.getEntityEnvironment()
-                .orElseGet(() -> getEnvironmentAndCloudTypeForGroup(groupAndMembers,
-                        conversionContext.getEntities()));
+        final EntityEnvironment envCloudType =
+                conversionContext.getEntityEnvironment(groupAndMembers.group().getId());
         final GroupApiDTO outputDTO;
         final Grouping group = groupAndMembers.group();
         outputDTO = convertToGroupApiDto(groupAndMembers, conversionContext);
@@ -549,7 +550,7 @@ public class GroupMapper {
      * @return map future
      */
     @Nonnull
-    private Future<Map<Long, MinimalEntity>> getOwners(
+    private Future<Map<Long, String>> getOwnerDisplayNames(
             @Nonnull Collection<GroupAndMembers> groupsAndMembers) {
         final Set<Long> ownerIds = groupsAndMembers.stream()
                 .map(GroupAndMembers::group)
@@ -561,7 +562,7 @@ public class GroupMapper {
         if (ownerIds.isEmpty()) {
             return CompletableFuture.completedFuture(Collections.emptyMap());
         }
-        final MembersMapObserver observer = new MembersMapObserver();
+        final MembersDisplayNamesObserver observer = new MembersDisplayNamesObserver();
         repositoryApi.entitiesRequest(ownerIds).getMinimalEntities(observer);
         return observer.getFuture();
     }
@@ -972,14 +973,14 @@ public class GroupMapper {
     private static class GroupConversionContext {
         private final Set<Long> activeEntities;
         private final Map<Long, String> ownerDisplayName;
-        private final Map<Long, MinimalEntity> entities;
+        private final Map<Long, EntityEnvironment> entities;
         private final EntityEnvironment entityEnvironment;
         private final SeverityMap severityMap;
         private final Map<Long, Float> groupCosts;
 
         GroupConversionContext(@Nonnull Set<Long> activeEntities,
                 @Nonnull Map<Long, String> ownerDisplayName,
-                @Nullable Map<Long, MinimalEntity> entities,
+                @Nullable Map<Long, EntityEnvironment> entities,
                 @Nullable EntityEnvironment entityEnvironment,
                 @Nonnull SeverityMap severityMap,
                 @Nonnull Map<Long, Float> groupCosts) {
@@ -989,6 +990,11 @@ public class GroupMapper {
             this.entityEnvironment = entityEnvironment;
             this.severityMap = Objects.requireNonNull(severityMap);
             this.groupCosts = Objects.requireNonNull(groupCosts);
+            if ((entities == null) == (entityEnvironment == null)) {
+                throw new IllegalArgumentException(
+                        "Either entities or entity environment is expected to be set for groups " +
+                                groupCosts.keySet());
+            }
         }
 
         /**
@@ -1012,25 +1018,22 @@ public class GroupMapper {
         }
 
         /**
-         * Returns a map of entities in this request.
-         *
-         * @return map of entities
-         */
-        @Nullable
-        public Map<Long, MinimalEntity> getEntities() {
-            return entities;
-        }
-
-        /**
          * Returns global entity environment. If this value is set, this means, that all the
-         * entities in the environment have the same environment and cloud types. Either
-         * this value or {@link #getEntities()} must be non-null.
+         * entities in the environment have the same environment and cloud types.
          *
+         * @param groupOid OID of the group to return environment of
          * @return global entity environment
          */
         @Nonnull
-        public Optional<EntityEnvironment> getEntityEnvironment() {
-            return Optional.ofNullable(entityEnvironment);
+        public EntityEnvironment getEntityEnvironment(long groupOid) {
+            if (entityEnvironment != null) {
+                return entityEnvironment;
+            } else {
+                // According to the code, every group will have a record in this map. If the value
+                // is absent - it is a error in the code.
+                return Objects.requireNonNull(entities.get(groupOid),
+                        "entity environment has not been calculated for group " + groupOid);
+            }
         }
 
         /**
@@ -1057,19 +1060,48 @@ public class GroupMapper {
     /**
      * Observer collecting minimal entities into a map from OID to entity.
      */
-    private static class MembersMapObserver extends
-            FutureObserver<MinimalEntity, Map<Long, MinimalEntity>> {
-        private final Map<Long, MinimalEntity> result = new HashMap<>();
+    private static class MembersDisplayNamesObserver extends
+            FutureObserver<MinimalEntity, Map<Long, String>> {
+        private final Map<Long, String> result = new HashMap<>();
 
         @Nonnull
         @Override
-        protected Map<Long, MinimalEntity> createResult() {
+        protected Map<Long, String> createResult() {
             return Collections.unmodifiableMap(result);
         }
 
         @Override
         public void onNext(MinimalEntity value) {
-            result.put(value.getOid(), value);
+            result.put(value.getOid(), value.getDisplayName());
+        }
+    }
+
+    /**
+     * Observer collecting group environment types.
+     */
+    private class EnvironmentMapObserver extends
+            FutureObserver<MinimalEntity, Map<Long, EntityEnvironment>> {
+        private final Map<Long, MinimalEntity> entities = new HashMap<>();
+        private final Collection<GroupAndMembers> groups;
+
+        EnvironmentMapObserver(@Nonnull Collection<GroupAndMembers> groups) {
+            this.groups = Objects.requireNonNull(groups);
+        }
+
+        @Nonnull
+        @Override
+        protected Map<Long, EntityEnvironment> createResult() {
+            final Map<Long, EntityEnvironment> entityEnvironmentMap = new HashMap<>(groups.size());
+            for (GroupAndMembers group : groups) {
+                entityEnvironmentMap.put(group.group().getId(),
+                        getEnvironmentAndCloudTypeForGroup(group, entities));
+            }
+            return Collections.unmodifiableMap(entityEnvironmentMap);
+        }
+
+        @Override
+        public void onNext(MinimalEntity value) {
+            entities.put(value.getOid(), value);
         }
     }
 
@@ -1160,14 +1192,13 @@ public class GroupMapper {
         return skipCount;
     }
 
-    // TODO (OM-56346): We need a wrapper on this return type, to contain the pagination information
     @Nonnull
-    private List<GroupAndMembers> applyPagination(@Nonnull List<GroupAndMembers> groups,
+    private ObjectsPage<GroupAndMembers> applyPagination(@Nonnull List<GroupAndMembers> groups,
             @Nonnull Comparator<GroupAndMembers> comparator,
             @Nullable SearchPaginationRequest paginationRequest,
             @Nullable Predicate<GroupAndMembers> groupFilter) throws InvalidOperationException {
         if (paginationRequest == null && groupFilter == null) {
-            return groups;
+            return new ObjectsPage<>(groups, groups.size(), groups.size());
         }
         final int skipCount = paginationRequest == null ? 0 : getSkipCount(paginationRequest);
         final int limit = paginationRequest == null ? groups.size() : paginationRequest.getLimit();
@@ -1177,9 +1208,6 @@ public class GroupMapper {
         } else {
             filteredGroups = groups;
         }
-        // TODO: Right here in 'filteredGroups' we have the totalRecordCount
-        // This needs to be used to calculate whether this is the final page, as well as to
-        // populate the totalRecordCount field in the pagination response.
         final List<GroupAndMembers> groupsPage;
         if (paginationRequest != null) {
             final Comparator<GroupAndMembers> effectiveComparator =
@@ -1187,11 +1215,12 @@ public class GroupMapper {
             final List<GroupAndMembers> sortedGroups = new ArrayList<>(filteredGroups);
             sortedGroups.sort(effectiveComparator);
             groupsPage = sortedGroups.subList(getSkipCount(paginationRequest),
-                    Math.min(limit + skipCount, groups.size()));
+                    Math.min(limit + skipCount, sortedGroups.size()));
         } else {
             groupsPage = filteredGroups;
         }
-        return groupsPage;
+        final int nextCursor = Math.min(filteredGroups.size(), skipCount + limit);
+        return new ObjectsPage<>(groupsPage, filteredGroups.size(), nextCursor);
     }
 
     @Nonnull
@@ -1222,7 +1251,7 @@ public class GroupMapper {
     private abstract class AbstractPaginator {
 
         private final EntityEnvironment globalEnvironment;
-        private final Future<Map<Long, MinimalEntity>> allEntitiesFuture;
+        private final Future<Map<Long, EntityEnvironment>> groupEnvironments;
         private final EnvironmentType requestedEnvironmentType;
         private final Set<Long> allMembers;
         private final boolean emptyResult;
@@ -1239,7 +1268,7 @@ public class GroupMapper {
                 // If no filtering by environment type is selected
                 // of if hybrid environment is selected - we do not apply environment filters
                 this.requestedEnvironmentType = null;
-                this.allEntitiesFuture = null;
+                this.groupEnvironments = null;
                 this.emptyResult = false;
             } else if (globalEnvironment != null) {
                 // If global environment is homogeneous we either return nothing or do not
@@ -1247,11 +1276,11 @@ public class GroupMapper {
                 this.emptyResult =
                         globalEnvironment.getEnvironmentType() != requestedEnvironmentType;
                 this.requestedEnvironmentType = null;
-                this.allEntitiesFuture = null;
+                this.groupEnvironments = null;
             } else {
                 // We still need to filter by environment type
                 this.emptyResult = false;
-                this.allEntitiesFuture = getEntities(allMembers);
+                this.groupEnvironments = getGroupsEnvironment(groups, allMembers);
                 this.requestedEnvironmentType = requestedEnvironmentType;
             }
         }
@@ -1262,10 +1291,10 @@ public class GroupMapper {
             if (requestedEnvironmentType == null) {
                 return null;
             }
-            final Map<Long, MinimalEntity> allEntities =
-                    allEntitiesFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            final Map<Long, EntityEnvironment> groupsEnvironment =
+                    groupEnvironments.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
             return group -> groupEnvironmentMatchesRequested(
-                    getEnvironmentAndCloudTypeForGroup(group, allEntities).getEnvironmentType(),
+                    groupsEnvironment.get(group.group().getId()).getEnvironmentType(),
                     requestedEnvironmentType);
         }
 
@@ -1275,11 +1304,12 @@ public class GroupMapper {
         }
 
         @Nonnull
-        protected final Future<Map<Long, MinimalEntity>> getEntities(@Nonnull Set<Long> members) {
-            if (allEntitiesFuture != null) {
-                return allEntitiesFuture;
+        protected final Future<Map<Long, EntityEnvironment>> getGroupsEnvironment(
+                @Nonnull Collection<GroupAndMembers> groups, @Nonnull Set<Long> members) {
+            if (groupEnvironments != null) {
+                return groupEnvironments;
             } else {
-                return GroupMapper.this.getEntities(members);
+                return GroupMapper.this.getGroupEnvironments(groups, members);
             }
         }
 
@@ -1288,24 +1318,25 @@ public class GroupMapper {
         }
 
         @Nonnull
-        public abstract List<GroupAndMembers> getGroupsPage();
+        public abstract ObjectsPage<GroupAndMembers> getGroupsPage();
 
         @Nonnull
         public GroupConversionContext createContext()
                 throws InterruptedException, TimeoutException, ExecutionException {
-            final List<GroupAndMembers> groupsAndMembers = getGroupsPage();
+            final ObjectsPage<GroupAndMembers> groupsPage = getGroupsPage();
+            final List<GroupAndMembers> groupsAndMembers = groupsPage.getObjects();
             final Set<Long> members = groupsAndMembers.stream()
                     .map(GroupAndMembers::entities)
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
             final EntityEnvironment entityEnvironment = getApplianceEnvironment();
             final Future<Set<Long>> activeEntities = getActiveMembers(members);
-            final Future<Map<Long, MinimalEntity>> ownerEntities = getOwners(groupsAndMembers);
-            final Future<Map<Long, MinimalEntity>> entities;
+            final Future<Map<Long, String>> ownerEntities = getOwnerDisplayNames(groupsAndMembers);
+            final Future<Map<Long, EntityEnvironment>> groupEnvironments;
             if (entityEnvironment == null) {
-                entities = getEntities(members);
+                groupEnvironments = getGroupsEnvironment(groupsAndMembers, members);
             } else {
-                entities = CompletableFuture.completedFuture(null);
+                groupEnvironments = CompletableFuture.completedFuture(null);
             }
             final Future<SeverityMap> severityMap = getSeverityMap(members);
             final Future<Map<Long, Float>> groupCosts = getCosts(groupsAndMembers, members);
@@ -1313,12 +1344,8 @@ public class GroupMapper {
             final GroupConversionContext context;
             context = new GroupConversionContext(
                     activeEntities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
-                    ownerEntities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS)
-                            .entrySet()
-                            .stream()
-                            .collect(Collectors.toMap(Map.Entry::getKey,
-                                    entry -> entry.getValue().getDisplayName())),
-                    entities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS), entityEnvironment,
+                    ownerEntities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
+                    groupEnvironments.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS), entityEnvironment,
                     severityMap.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
                     groupCosts.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
             return context;
@@ -1351,7 +1378,7 @@ public class GroupMapper {
      * Parinator sorting groups by display name.
      */
     private class PaginatorName extends AbstractPaginator {
-        private final List<GroupAndMembers> groupsPage;
+        private final ObjectsPage<GroupAndMembers> groupsPage;
 
         /**
          * Constructs display name sorting paginator.
@@ -1378,7 +1405,7 @@ public class GroupMapper {
 
         @Nonnull
         @Override
-        public List<GroupAndMembers> getGroupsPage() {
+        public ObjectsPage<GroupAndMembers> getGroupsPage() {
             return groupsPage;
         }
     }
@@ -1387,7 +1414,7 @@ public class GroupMapper {
      * Paginator implementation sorting groups by severity.
      */
     private class PaginatorSeverity extends AbstractPaginator {
-        private final List<GroupAndMembers> groupsPage;
+        private final ObjectsPage<GroupAndMembers> groupsPage;
         private final Future<SeverityMap> severityMapFuture;
 
         /**
@@ -1428,7 +1455,7 @@ public class GroupMapper {
 
         @Nonnull
         @Override
-        public List<GroupAndMembers> getGroupsPage() {
+        public ObjectsPage<GroupAndMembers> getGroupsPage() {
             return groupsPage;
         }
 
@@ -1444,7 +1471,7 @@ public class GroupMapper {
      */
     private class PaginatorCost extends AbstractPaginator {
 
-        private final List<GroupAndMembers> groupsPage;
+        private final ObjectsPage<GroupAndMembers> groupsPage;
         private final Future<Map<Long, Float>> groupCostsFuture;
 
         /**
@@ -1475,7 +1502,7 @@ public class GroupMapper {
 
         @Nonnull
         @Override
-        public List<GroupAndMembers> getGroupsPage() {
+        public ObjectsPage<GroupAndMembers> getGroupsPage() {
             return groupsPage;
         }
 
@@ -1499,5 +1526,4 @@ public class GroupMapper {
                 throws InvalidOperationException, InterruptedException, ExecutionException,
                 TimeoutException;
     }
-
 }

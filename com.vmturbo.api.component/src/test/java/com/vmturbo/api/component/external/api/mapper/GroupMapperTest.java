@@ -51,6 +51,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ObjectsPage;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
@@ -1547,6 +1548,7 @@ public class GroupMapperTest {
         targets.add(AWS_TARGET);
         final GroupApiDTO groupDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
@@ -1577,6 +1579,7 @@ public class GroupMapperTest {
         targets.add(AWS_TARGET);
         final GroupApiDTO groupDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
@@ -1607,6 +1610,7 @@ public class GroupMapperTest {
         targets.add(AWS_TARGET);
         final GroupApiDTO groupDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
@@ -1677,6 +1681,7 @@ public class GroupMapperTest {
         // test with only one type, cloudType should be AWS
         final GroupApiDTO groupApiDTO =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAws), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         assertEquals(groupApiDTO.getCloudType(), CloudType.AWS);
@@ -1693,6 +1698,7 @@ public class GroupMapperTest {
         // test with both AWS and Azure, cloudType should be Hybrid
         final GroupApiDTO groupApiDTO2 =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupHybrid), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         assertEquals(groupApiDTO2.getCloudType(), CloudType.HYBRID);
@@ -1766,6 +1772,7 @@ public class GroupMapperTest {
 
         final GroupApiDTO groupApiDTO =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), true, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         assertEquals(EnvironmentType.HYBRID, groupApiDTO.getEnvironmentType());
@@ -1827,6 +1834,7 @@ public class GroupMapperTest {
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
         final GroupApiDTO groupDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
@@ -1867,6 +1875,7 @@ public class GroupMapperTest {
 
         final GroupApiDTO convertedDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         assertEquals(EnvironmentType.CLOUD, convertedDto.getEnvironmentType());
@@ -1975,6 +1984,7 @@ public class GroupMapperTest {
             .build();
         GroupApiDTO mappedDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
 
@@ -2037,6 +2047,7 @@ public class GroupMapperTest {
             .build();
         final GroupApiDTO mappedDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
 
@@ -2132,7 +2143,7 @@ public class GroupMapperTest {
                         .build());
         final List<GroupApiDTO> resultPage1 = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
-                paginationRequest, null);
+                paginationRequest, null).getObjects();
         Assert.assertEquals(2, resultPage1.size());
         Assert.assertEquals(Sets.newHashSet(group2.getId(), group3.getId()), resultPage1.stream()
                 .map(GroupApiDTO::getUuid)
@@ -2143,7 +2154,7 @@ public class GroupMapperTest {
                 new SearchPaginationRequest("2", 2, true, "COST");
         final List<GroupApiDTO> resultPage2 = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
-                paginationRequest2, null);
+                paginationRequest2, null).getObjects();
         Assert.assertEquals(1, resultPage2.size());
         Assert.assertEquals(group1.getId(),
                 Long.parseLong(resultPage2.iterator().next().getUuid()));
@@ -2208,7 +2219,7 @@ public class GroupMapperTest {
                         .build()));
         final List<GroupApiDTO> resultPage = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
-                paginationRequest, null);
+                paginationRequest, null).getObjects();
         Assert.assertEquals(3, resultPage.size());
         Assert.assertEquals(Long.toString(group3.getId()), resultPage.get(0).getUuid());
         Assert.assertEquals(Long.toString(group1.getId()), resultPage.get(1).getUuid());
@@ -2260,7 +2271,7 @@ public class GroupMapperTest {
                 new SearchPaginationRequest("0", 3, true, "NAME");
         final List<GroupApiDTO> resultPage = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
-                paginationRequest, null);
+                paginationRequest, null).getObjects();
         Assert.assertEquals(3, resultPage.size());
         Assert.assertEquals(Long.toString(group2.getId()), resultPage.get(0).getUuid());
         Assert.assertEquals(Long.toString(group3.getId()), resultPage.get(1).getUuid());
@@ -2284,16 +2295,16 @@ public class GroupMapperTest {
         Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        null).size());
+                        null).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.ONPREM).size());
+                        EnvironmentType.ONPREM).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.HYBRID).size());
+                        EnvironmentType.HYBRID).getObjects().size());
         Assert.assertEquals(0,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.CLOUD).size());
+                        EnvironmentType.CLOUD).getObjects().size());
     }
 
     /**
@@ -2313,16 +2324,16 @@ public class GroupMapperTest {
         Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        null).size());
+                        null).getObjects().size());
         Assert.assertEquals(0,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.ONPREM).size());
+                        EnvironmentType.ONPREM).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.HYBRID).size());
+                        EnvironmentType.HYBRID).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.CLOUD).size());
+                        EnvironmentType.CLOUD).getObjects().size());
     }
 
     /**
@@ -2342,16 +2353,16 @@ public class GroupMapperTest {
         Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        null).size());
+                        null).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.ONPREM).size());
+                        EnvironmentType.ONPREM).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.HYBRID).size());
+                        EnvironmentType.HYBRID).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.CLOUD).size());
+                        EnvironmentType.CLOUD).getObjects().size());
     }
 
     /**
@@ -2369,17 +2380,63 @@ public class GroupMapperTest {
         Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        null).size());
+                        null).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.ONPREM).size());
+                        EnvironmentType.ONPREM).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.HYBRID).size());
+                        EnvironmentType.HYBRID).getObjects().size());
         Assert.assertEquals(0,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.CLOUD).size());
+                        EnvironmentType.CLOUD).getObjects().size());
         Mockito.verify(repositoryApi, Mockito.never()).entitiesRequest(Mockito.any());
+    }
+
+    /**
+     * Tests how the total size is calculated when filtering is applied.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testTotalSizeWhenFiltered() throws Exception {
+        targets.add(VC_TARGET);
+        final Grouping grouping1 = Grouping.newBuilder().setId(1L).build();
+        final Grouping grouping2 = Grouping.newBuilder().setId(2L).build();
+        final Grouping grouping3 = Grouping.newBuilder().setId(3L).build();
+        final Grouping grouping4 = Grouping.newBuilder().setId(4L).build();
+        final GroupAndMembers groupAndMembers1 = createGroup(grouping1, VC_VM.getOid());
+        final GroupAndMembers groupAndMembers2 = createGroup(grouping2, VC_VM.getOid());
+        final GroupAndMembers groupAndMembers3 = createGroup(grouping3, ENTITY_VM1.getOid());
+        final GroupAndMembers groupAndMembers4 = createGroup(grouping4, VC_VM.getOid(), ENTITY_VM1.getOid());
+        targets.add(VC_TARGET);
+        targets.add(AWS_TARGET);
+        final List<GroupAndMembers> requestedGroups =
+                Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3,
+                        groupAndMembers4);
+        final MultiEntityRequest req1 =
+                ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(ENTITY_VM1, VC_VM));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
+        final SearchPaginationRequest request = new SearchPaginationRequest("0", 1, true, null);
+        final ObjectsPage<GroupApiDTO> response1 =
+                groupMapper.toGroupApiDto(requestedGroups, false, request, null);
+        Assert.assertEquals(4, response1.getTotalCount());
+        Assert.assertEquals(1, response1.getObjects().size());
+
+        final ObjectsPage<GroupApiDTO> response2 =
+                groupMapper.toGroupApiDto(requestedGroups, false, request, EnvironmentType.ONPREM);
+        Assert.assertEquals(3, response2.getTotalCount());
+        Assert.assertEquals(1, response2.getObjects().size());
+
+        final ObjectsPage<GroupApiDTO> response3 =
+                groupMapper.toGroupApiDto(requestedGroups, false, request, EnvironmentType.HYBRID);
+        Assert.assertEquals(4, response3.getTotalCount());
+        Assert.assertEquals(1, response3.getObjects().size());
+
+        final ObjectsPage<GroupApiDTO> response4 =
+                groupMapper.toGroupApiDto(requestedGroups, false, request, EnvironmentType.CLOUD);
+        Assert.assertEquals(2, response4.getTotalCount());
+        Assert.assertEquals(1, response4.getObjects().size());
     }
 
     private GroupAndMembers createGroup(@Nonnull Grouping grouping, Long... members) {
