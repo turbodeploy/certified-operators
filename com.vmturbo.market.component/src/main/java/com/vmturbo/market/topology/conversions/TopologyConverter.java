@@ -2485,11 +2485,14 @@ public class TopologyConverter {
             isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(buyer) > 0;
         }
 
-
-        // Apply scalable to movable for cloud VMs in realtime
-        if (!isPlan() && buyer.getEnvironmentType() == EnvironmentType.CLOUD
+        if (buyer.getEnvironmentType() == EnvironmentType.CLOUD
                 && buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-            isMovable = isMovable && buyer.getAnalysisSettings().getIsEligibleForScale();
+            // Apply scalable from mediation to movable for cloud VMs.
+            isMovable &= commBoughtGrouping.getScalable();
+            // Apply EligibleForScale to movable for cloud VMs in realtime
+            if (!isPlan()) {
+                isMovable = isMovable && buyer.getAnalysisSettings().getIsEligibleForScale();
+            }
         }
 
         // if the buyer of the shopping list is in control state(controllable = false), or if the
