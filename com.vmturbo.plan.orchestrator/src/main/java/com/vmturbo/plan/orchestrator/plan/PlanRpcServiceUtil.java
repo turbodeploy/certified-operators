@@ -63,7 +63,7 @@ public class PlanRpcServiceUtil {
         riSetting.getRiSettingByCloudtypeMap().entrySet().forEach(riSettingEntry -> {
                     String cloudType = riSettingEntry.getKey();
                     RIProviderSetting riProviderSetting = riSettingEntry.getValue();
-                    ReservedInstanceType.OfferingClass defaultOffering = cloudType == CloudType.AZURE.name() ?
+                    ReservedInstanceType.OfferingClass defaultOffering = cloudType.equals(CloudType.AZURE.name()) ?
                             ReservedInstanceType.OfferingClass.CONVERTIBLE : ReservedInstanceType.OfferingClass.STANDARD;
                     ReservedInstanceType.PaymentOption defaultPayment = ReservedInstanceType.PaymentOption.ALL_UPFRONT;
                     int defaultTerm = 1;
