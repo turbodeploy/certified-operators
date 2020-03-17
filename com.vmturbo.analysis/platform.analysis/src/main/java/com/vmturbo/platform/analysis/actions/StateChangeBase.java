@@ -26,8 +26,8 @@ class StateChangeBase extends ActionImpl {
      * @param target The target of {@code this} activation or deactivation.
      * @param sourceMarket The source market of {@code this} activation or deactivation.
      */
-    public StateChangeBase(@NonNull Economy economy, @NonNull Trader target,
-                           @NonNull Market sourceMarket) {
+    StateChangeBase(@NonNull Economy economy, @NonNull Trader target,
+                    @NonNull Market sourceMarket) {
         super(economy);
         target_ = target;
         sourceMarket_ = sourceMarket;
