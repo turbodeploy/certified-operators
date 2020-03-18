@@ -77,6 +77,8 @@ fluent-bit:
   enabled: false
 prometheus:
   enabled: false
+prometheus-mysql-exporter:
+  enabled: false
 grafana:
   enabled: false
 chronograf:

@@ -121,6 +121,10 @@ dependencies:
     repository: file://../base/prometheus
     version: 9.5.0
     condition: prometheus.enabled
+  - name: prometheus-mysql-exporter
+    repository: file://../base/prometheus-mysql-exporter
+    version: 0.5.2
+    condition: prometheus-mysql-exporter.enabled
   - name: grafana
     repository: file://../base/grafana
     version: 4.1.2
