@@ -23,7 +23,6 @@ import org.junit.Test;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -31,7 +30,6 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
-import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 public class ReplayActionsTest {
@@ -140,18 +138,6 @@ public class ReplayActionsTest {
     }
 
     @Test
-    public void testTranslateShoppingList() {
-        ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
-        Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
-        for (ShoppingList sl : buying.keySet()) {
-            ShoppingList newSl =
-                replayActions.translateShoppingList(sl, second, second.getTopology());
-            assertEquals(sl.getBasket(), newSl.getBasket());
-        }
-    }
-
-    @Test
     public void testTranslateMarket() {
         ReplayActions replayActions = new ReplayActions();
         replayActions.setTraderOids(traderOids);
@@ -159,19 +145,6 @@ public class ReplayActionsTest {
         Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
         Map<ShoppingList,Market> newBuying = first.getMarketsAsBuyer(newVm);
         assertEquals(buying.keySet().size(), newBuying.keySet().size());
-    }
-
-    @Test
-    public void testTranslateCommoditySold() {
-        ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
-        pm1.getCommoditySold(CPU).setCapacity(100);
-        Trader newPm1 = replayActions.translateTrader(pm1, second, "testTranslateCommoditySold");
-        CommoditySold newCommSold = replayActions.translateCommoditySold(newPm1,
-                               CPU,
-                               pm1.getCommoditySold(CPU),
-                               second, second.getTopology());
-        assertEquals(100, newCommSold.getCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
     @Test

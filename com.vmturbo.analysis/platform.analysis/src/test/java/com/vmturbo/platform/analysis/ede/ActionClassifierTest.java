@@ -14,25 +14,25 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
-import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 public class ActionClassifierTest {
@@ -221,18 +221,6 @@ public class ActionClassifierTest {
     }
 
     @Test
-    public void testTranslateShoppingList() {
-        ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
-        Map<ShoppingList, Market> buying = first.getMarketsAsBuyer(vm);
-        for (ShoppingList sl : buying.keySet()) {
-            ShoppingList newSl = replayActions.translateShoppingList(sl, second,
-                                                                     second.getTopology());
-            assertEquals(true, sl.getBasket().equals(newSl.getBasket()));
-        }
-    }
-
-    @Test
     public void testTranslateMarket() {
         ReplayActions replayActions = new ReplayActions();
         replayActions.setTraderOids(traderOids);
@@ -240,18 +228,6 @@ public class ActionClassifierTest {
         Map<ShoppingList, Market> buying = first.getMarketsAsBuyer(vm);
         Map<ShoppingList, Market> newBuying = first.getMarketsAsBuyer(newVm);
         assertEquals(buying.keySet().size(), newBuying.keySet().size());
-    }
-
-    @Test
-    public void testTranslateCommoditySold() {
-        ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
-        pm1.getCommoditySold(CPU).setCapacity(100);
-        Trader newPm1 = replayActions.translateTrader(pm1, second, "testTranslateCommoditySold");
-        CommoditySold newCommSold = replayActions
-                        .translateCommoditySold(newPm1, CPU, pm1.getCommoditySold(CPU), second,
-                                                second.getTopology());
-        assertEquals(100, newCommSold.getCapacity(), TestUtils.FLOATING_POINT_DELTA);
     }
 
 }

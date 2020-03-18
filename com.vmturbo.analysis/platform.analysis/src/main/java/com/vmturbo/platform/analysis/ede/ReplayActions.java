@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -21,9 +20,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
-import com.vmturbo.platform.analysis.economy.Basket;
-import com.vmturbo.platform.analysis.economy.CommoditySold;
-import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
@@ -222,52 +218,4 @@ public class ReplayActions {
         return newTrader;
     }
 
-    /**
-     * Translate the given ShoppingList to the new Economy
-     *
-     * @param oldTarget The ShoppingList in the old Economy
-     * @param newEconomy The {@link Economy} in which actions are to be replayed
-     * @param newTopology The {@link Topology} for the given {@link Economy}
-     * @return The ShoppingList in the new Economy or null if it fails to translate it
-     */
-    public @Nullable ShoppingList translateShoppingList(ShoppingList oldTarget,
-                                        Economy newEconomy, Topology newTopology) {
-        Basket basket = oldTarget.getBasket();
-        double[] requestedQuantities = oldTarget.getQuantities();
-        double[] requestedPeakQuantities = oldTarget.getQuantities();
-        Trader buyer = oldTarget.getBuyer();
-        Trader newBuyer = translateTrader(buyer, newEconomy, "translateShoppingList");
-        if (newBuyer != null) {
-            Set<ShoppingList> shoppingLists = newEconomy.getMarketsAsBuyer(newBuyer).keySet();
-            for (ShoppingList shoppingList : shoppingLists) {
-                if (shoppingList.getBasket().equals(basket)
-                                && Arrays.equals(shoppingList.getQuantities(), requestedQuantities)
-                                && Arrays.equals(shoppingList.getPeakQuantities(),
-                                                requestedPeakQuantities)) {
-                    return shoppingList;
-
-                }
-            }
-        }
-        throw new IllegalArgumentException("Unable to translate shopping list " + basket.toString());
-    }
-
-    /**
-     * Translate the CommoditySold to the one in new Economy
-     *
-     * @param newSellingTrader The Trader in the new Economy
-     * @param oldResizedCommoditySpec The CommoditySpecification for the Trader in old Economy
-     * @param oldResizedCommodity The Commodity sold by Trader in old Economy
-     * @param newEconomy The {@link Economy} in which actions are to be replayed
-     * @param newTopology The {@link Topology} for the given {@link Economy}
-     * @return CommoditySold in the new Economy or null if it fails to translate it
-     */
-    public @Nullable CommoditySold translateCommoditySold(Trader newSellingTrader,
-                    @Nullable CommoditySpecification oldResizedCommoditySpec,
-                                        @Nullable CommoditySold oldResizedCommodity,
-                                        Economy newEconomy, Topology newTopology) {
-        CommoditySpecification newResizedCommoditySpec = oldResizedCommoditySpec;
-        CommoditySold sold = newSellingTrader.getCommoditySold(newResizedCommoditySpec);
-        return sold;
-    }
 }
