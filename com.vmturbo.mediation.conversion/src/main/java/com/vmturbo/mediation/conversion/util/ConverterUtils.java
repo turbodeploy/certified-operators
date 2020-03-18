@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -144,37 +143,6 @@ public class ConverterUtils {
         }
         return sc;
     }
-
-    // a wrapper class to represent the storage amount and storage access commodity's min and max capacity
-    public static class CommodityCapacityWrapper {
-        public final double storageAmountMaxCapacity;
-        public final double storageAmountMinCapacity;
-        public final double storageAccessMaxCapacity;
-        public final double storageAccessMinCapacity;
-        public CommodityCapacityWrapper(double stAmtMax, double stAmtMin, double stAccMax, double stAccMin) {
-            storageAmountMaxCapacity = stAmtMax;
-            storageAmountMinCapacity = stAmtMin;
-            storageAccessMaxCapacity = stAccMax;
-            storageAccessMinCapacity = stAccMin;
-        }
-    }
-    // a utility map used for keeping the capacity values for cloud storage entity
-    public static ImmutableMap<String, CommodityCapacityWrapper> cloudStorageCapacityMap = ImmutableMap
-            .<String, CommodityCapacityWrapper>builder()
-            .put("IO1", new CommodityCapacityWrapper(16*1024, 4, 20000, 100))
-            .put("GP2", new CommodityCapacityWrapper(16*1024, 1, 10000, 100))
-            .put("SC1", new CommodityCapacityWrapper(16*1024, 500, 250, 0))
-            .put("ST1", new CommodityCapacityWrapper(16*1024, 500, 500, 0))
-            .put("STANDARD", new CommodityCapacityWrapper(16*1024, 1, 200, 40))
-            .put("MANAGED_STANDARD", new CommodityCapacityWrapper(4*1024, 1, 500, 0))
-            .put("UNMANAGED_STANDARD", new CommodityCapacityWrapper(5000*1024, 1, 500, 0))
-            .put("MANAGED_PREMIUM", new CommodityCapacityWrapper(4*1024, 1, 7500, 120))
-            .put("UNMANAGED_PREMIUM", new CommodityCapacityWrapper(8*1024, 1, 7500, 500))
-            .build();
-    public static final int IO1_IOPS_TO_STORAGE_AMOUNT_RATIO = 50;
-    public static final int GP2_IOPS_TO_STORAGE_AMOUNT_RATIO = 3;
-    public static final String GP2 = "GP2";
-    public static final String IO1 = "IO1";
 
     /**
      * Gets set of {@link CloudService}s filtered by a given {@link SDKProbeType}.

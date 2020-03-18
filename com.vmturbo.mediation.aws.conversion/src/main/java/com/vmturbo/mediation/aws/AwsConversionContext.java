@@ -7,12 +7,8 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
@@ -36,8 +32,6 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
  */
 public class AwsConversionContext implements CloudProviderConversionContext {
 
-    private final Logger logger = LogManager.getLogger();
-
     // converters for different entity types
     private static final Map<EntityType, IEntityConverter> AWS_ENTITY_CONVERTERS;
     static {
@@ -46,7 +40,6 @@ public class AwsConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.COMPUTE_TIER, new ComputeTierConverter(SDKProbeType.AWS));
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AWS));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AWS));
-        converters.put(EntityType.STORAGE, new AwsStorageConverter());
         converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AWS));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
@@ -96,33 +89,6 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     public String getRegionIdFromAzId(@Nonnull String azId) {
         String region = azId.split("::", 3)[1];
         return "aws::" + region + "::DC::" + region;
-    }
-
-    /**
-     * Get AZ id based on region id. It gets "ca-central-1" from region id and then combine
-     * with prefix into the AZ id. For example:
-     *     AWS AZ id is:     aws::ca-central-1::PM::ca-central-1b
-     *     AWS Region id is: aws::ca-central-1::DC::ca-central-1b
-     *
-     * @param regionId id of the region
-     * @return id of the AZ
-     */
-    @Nonnull
-    @Override
-        public String getAzIdFromRegionId(@Nonnull String regionId) {
-        String region = regionId.split("::", 3)[1];
-        return "aws::" + region + "::PM::" + region;
-    }
-
-    @Nonnull
-    @Override
-    public Optional<String> getVolumeIdFromStorageFilePath(@Nullable String regionName,
-                                                           @Nonnull String filePath) {
-        if (regionName == null) {
-            logger.error("Null region name for file {}", filePath);
-            return Optional.empty();
-        }
-        return Optional.of("aws::" + regionName + "::VL::" + filePath);
     }
 
     @Nonnull

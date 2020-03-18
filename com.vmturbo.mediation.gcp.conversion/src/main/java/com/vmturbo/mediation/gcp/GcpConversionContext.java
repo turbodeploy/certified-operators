@@ -7,7 +7,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -24,7 +23,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.StorageConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
@@ -48,7 +46,6 @@ public class GcpConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.COMPUTE_TIER, new ComputeTierConverter(SDKProbeType.GCP));
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.GCP));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.GCP));
-        converters.put(EntityType.STORAGE, new StorageConverter(SDKProbeType.GCP));
         converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.GCP));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
@@ -97,33 +94,6 @@ public class GcpConversionContext implements CloudProviderConversionContext {
     public String getRegionIdFromAzId(@Nonnull String azId) {
         String region = azId.split("::", 3)[1];
         return "gcp::" + region + "::DC::" + region;
-    }
-
-    /**
-     * Get AZ id based on region id. It gets "ca-central-1" from region id and then combine
-     * with prefix into the AZ id. For example:
-     *     AWS AZ id is:     aws::ca-central-1::PM::ca-central-1b
-     *     AWS Region id is: aws::ca-central-1::DC::ca-central-1b
-     *
-     * @param regionId id of the region
-     * @return id of the AZ
-     */
-    @Nonnull
-    @Override
-    public String getAzIdFromRegionId(@Nonnull String regionId) {
-        String region = regionId.split("::", 3)[1];
-        return "gcp::" + region + "::PM::" + region;
-    }
-
-    @Nonnull
-    @Override
-    public Optional<String> getVolumeIdFromStorageFilePath(@Nullable String regionName,
-                                                           @Nonnull String filePath) {
-        if (regionName == null) {
-            logger.error("Null region name for file {}", filePath);
-            return Optional.empty();
-        }
-        return Optional.of("gcp::" + regionName + "::VL::" + filePath);
     }
 
     @Nonnull

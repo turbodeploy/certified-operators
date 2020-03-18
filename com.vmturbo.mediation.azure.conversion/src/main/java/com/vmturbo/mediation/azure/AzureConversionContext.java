@@ -7,7 +7,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -40,7 +39,6 @@ public class AzureConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.COMPUTE_TIER, new AzureComputeTierConverter());
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AZURE));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AZURE));
-        converters.put(EntityType.STORAGE, new AzureStorageConverter(SDKProbeType.AZURE));
         converters.put(EntityType.DATABASE_TIER, new DatabaseTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AZURE));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
@@ -90,37 +88,6 @@ public class AzureConversionContext implements CloudProviderConversionContext {
     public String getRegionIdFromAzId(@Nonnull String azId) {
         String region = azId.split("::", 3)[1];
         return "azure::" + region + "::DC::" + region;
-    }
-
-    /**
-     * Get AZ id based on region id. It get region name from region id and then combine
-     * with prefix into the AZ id. For example:
-     *     Azure AZ id is:     azure::northcentralus::PM::northcentralus
-     *     Azure Region id is: azure::northcentralus::DC::northcentralus
-     *
-     * @param regionId id of the region
-     * @return id of the AZ
-     */
-    @Nonnull
-    @Override
-    public String getAzIdFromRegionId(@Nonnull String regionId) {
-        String region = regionId.split("::", 3)[1];
-        return "azure::" + region + "::PM::" + region;
-    }
-
-    /**
-     * Azure replaces "/" with "::" to construct volume id. For example:
-     * "/subscriptions/758ad253-cbf5-4b18-8863-3eed0825bf07/resourceGroups/OLEGN_RG/
-     * providers/Microsoft.Compute/disks/olga-stress_OsDisk_1_586cb62ed63c42ea84b7e3bc135c6473"
-     *
-     * "::subscriptions::758ad253-cbf5-4b18-8863-3eed0825bf07::resourcegroups::olegn_rg::
-     * providers::microsoft.compute::disks::olga-stress_osdisk_1_586cb62ed63c42ea84b7e3bc135c6473"
-     */
-    @Nonnull
-    @Override
-    public Optional<String> getVolumeIdFromStorageFilePath(@Nullable String regionName,
-                                                           @Nonnull String filePath) {
-        return Optional.of(filePath.replace("/", "::").toLowerCase());
     }
 
     @Nonnull

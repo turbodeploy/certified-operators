@@ -22,15 +22,9 @@ import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
-import com.vmturbo.platform.sdk.common.util.Units;
 
 /**
  * Convert cloud discovery response (entities, profiles...) to new cloud model for use by XL.
@@ -57,6 +51,8 @@ public class CloudDiscoveryConverter {
     private Map<String, EntityProfileDTO> profileDTOsById = new HashMap<>();
 
     private Set<String> allStorageTierIds = new HashSet<>();
+
+    private Set<String> allVolumeIds = new HashSet<>();
 
     // the business account which is used to own entities (VMs, Apps, etc).
     // For AWS, this is the master account if it is available, or sub account if not. For Azure,
@@ -118,9 +114,10 @@ public class CloudDiscoveryConverter {
         EntityDTO.Builder entityBuilder = entityDTO.toBuilder();
         EntityType entityType = entityBuilder.getEntityType();
 
-        if (entityType == EntityType.STORAGE) {
-            createStorageTier(entityDTO);
-            createVolumeFromStorageDTO(entityDTO);
+        if (entityType == EntityType.STORAGE_TIER) {
+            allStorageTierIds.add(entityBuilder.getId());
+        } else if (entityType == EntityType.VIRTUAL_VOLUME) {
+            allVolumeIds.add(entityBuilder.getId());
         } else if (entityType == EntityType.BUSINESS_ACCOUNT) {
             // for aws there are two cases, store master account if possible:
             // 1. this aws target is added using sub account (discover sub)
@@ -128,9 +125,6 @@ public class CloudDiscoveryConverter {
             if (businessAccountToOwnEntities == null || entityBuilder.getConsistsOfCount() > 0) {
                 businessAccountToOwnEntities = entityBuilder;
             }
-        } else if (entityType == EntityType.VIRTUAL_MACHINE) {
-            // create volumes based on subDivision data in VM
-            createVolumeFromVmDTO(entityDTO);
         }
 
         // add to map for every entity builder
@@ -149,183 +143,14 @@ public class CloudDiscoveryConverter {
                 .filter(entity -> conversionContext.getEntityConverters().getOrDefault(
                         entity.getEntityType(), defaultConverter).convert(entity, this))
                 .collect(Collectors.toList());
+        // Update consistsOf relationship between CloudService and StorageTier.
+        allStorageTierIds.forEach(storageTierId -> ownedByCloudService(EntityType.STORAGE_TIER, storageTierId));
+        // Update consistsOf relationship between BusinessAccount and Volume.
+        allVolumeIds.forEach(volumeId -> ownedByBusinessAccount(volumeId));
         discoveryResponseBuilder.clearEntityDTO();
         discoveryResponseBuilder.addAllEntityDTO(builders.stream()
                 .map(EntityDTO.Builder::build)
                 .collect(Collectors.toList()));
-    }
-
-    /**
-     * Create StorageTier entity based on the set of cloud storages discovered.
-     *
-     * @param storageDTO the dto of the storage to create storage tier for
-     */
-    private void createStorageTier(@Nonnull EntityDTO storageDTO) {
-        // we got one -- create a storage tier based on it's storage data
-        if (storageDTO.hasStorageData()) {
-            final String storageTier = conversionContext.getStorageTier(storageDTO);
-            createStorageTier(storageTier);
-        }
-    }
-
-    private void createStorageTier(@Nonnull final String storageTierName) {
-        final String storageTierId = conversionContext.getStorageTierId(storageTierName);
-        // create new StorageTier if not existing
-        newEntityBuildersById.computeIfAbsent(storageTierId, k -> {
-            allStorageTierIds.add(storageTierId);
-            return EntityDTO.newBuilder()
-                    .setEntityType(EntityType.STORAGE_TIER)
-                    .setId(storageTierId)
-                    .setDisplayName(storageTierName);
-        });
-    }
-
-    /**
-     * Create volume based on the subDivision data on vm entity dto, or update if it already exists.
-     *
-     * @param entityDTO dto of the vm based on which to create volume
-     */
-    private void createVolumeFromVmDTO(@Nonnull EntityDTO entityDTO) {
-        entityDTO.getCommoditiesBoughtList().forEach(commodityBought -> {
-            if (!commodityBought.hasSubDivision()) {
-                return;
-            }
-
-            SubDivisionData subDivisionData = commodityBought.getSubDivision();
-            String volumeId = subDivisionData.getSubDivisionId();
-
-            // volume may have been created when processing storage data, update existing fields
-            // if not, then we need to create new volume and set fields
-            final EntityDTO.Builder volume = newEntityBuildersById.computeIfAbsent(volumeId, k ->
-                    EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_VOLUME).setId(volumeId));
-            updateVolumeDTO(volume, subDivisionData, true);
-        });
-        // Create volumes for each instance store attached to a VM.
-        if (entityDTO.hasVirtualMachineData()) {
-            int numInstanceStores = entityDTO.getVirtualMachineData().getNumEphemeralStorages();
-            final EntityProfileDTO profileDTO = profileDTOsById.get(entityDTO.getProfileId());
-            if (profileDTO != null && profileDTO.hasVmProfileDTO()) {
-                final String diskType = profileDTO.getVmProfileDTO().getInstanceDiskType().toString();
-                final int diskSizeInGB = profileDTO.getVmProfileDTO().getInstanceDiskSize();
-                final String entityId = entityDTO.getId();
-                for (int index = 0; index < numInstanceStores; index++) {
-                    final String id = createEphemeralVolumeId(entityId, index, diskType);
-                    newEntityBuildersById.computeIfAbsent(id, k -> EntityDTO.newBuilder()
-                            .setEntityType(EntityType.VIRTUAL_VOLUME)
-                            .setId(id)
-                            .setDisplayName(id)
-                            .setMonitored(false)
-                            .setVirtualVolumeData(VirtualVolumeData.newBuilder()
-                                    .setIsEphemeral(true)
-                                    .setStorageAmountCapacity((float) (diskSizeInGB * (Units.GIGA / Units.MBYTE)))
-                                    .setAttachmentState(AttachmentState.ATTACHED)));
-
-                    // Create Storage Tier if it doesn't exist
-                    createStorageTier(diskType);
-                }
-            }
-        }
-    }
-
-    /**
-     * Update the fields on volume entity dto based on data availability in SubDivisionData.
-     *
-     * @param volume the volume EntityDTO to update
-     * @param subDivisionData the {@link SubDivisionData} object containing volume info
-     * @param fromVM if information of volume is from VM
-     */
-    private void updateVolumeDTO(@Nonnull EntityDTO.Builder volume,
-                                 @Nonnull SubDivisionData subDivisionData,
-                                 boolean fromVM) {
-        if (subDivisionData.hasDisplayName()) {
-            volume.setDisplayName(subDivisionData.getDisplayName());
-        }
-        VirtualVolumeData.Builder volumeData = volume.getVirtualVolumeData().toBuilder();
-        if (subDivisionData.hasStorageAccessCapacity()) {
-            volumeData.setStorageAccessCapacity(subDivisionData.getStorageAccessCapacity());
-        }
-        if (subDivisionData.hasStorageAmountCapacity()) {
-            volumeData.setStorageAmountCapacity(subDivisionData.getStorageAmountCapacity());
-        }
-        if (subDivisionData.hasRedundancyType()) {
-            try {
-                volumeData.setRedundancyType(RedundancyType.valueOf(
-                        subDivisionData.getRedundancyType()));
-            } catch (IllegalArgumentException e) {
-                logger.error("Unsupported redundancy type: {}", subDivisionData.getRedundancyType());
-            }
-        }
-        // if information of volume is from VM, it is attached to the VM
-        if (fromVM) {
-            volumeData.setAttachmentState(AttachmentState.ATTACHED);
-        }
-        volume.setVirtualVolumeData(volumeData.build());
-    }
-
-    /**
-     * Create volume based on the storage file info in the Storage entity dto, if it doesn't exist.
-     * These files are all the volumes provided by this storage, some are used by VMs and have
-     * been created in {@link this::createVolumeFromVmDTO}, the rest are wasted volumes which are
-     * not used by any VMs and thus created here.
-     *
-     * Note: This is currently used by both AWS and Azure probe. The one from Azure may not make
-     * sense, since Azure has a separate storage browsing probe to handle wasted files.
-     *
-     * @param entityDTO the storage entity dto to create volume on
-     */
-    private void createVolumeFromStorageDTO(@Nonnull EntityDTO entityDTO) {
-        // find the related region name for this storage
-        Optional<String> azId = conversionContext.getAvailabilityZone(entityDTO.toBuilder());
-
-        if (!azId.isPresent() || !entityDTO.hasStorageData()) {
-            return;
-        }
-
-        String regionName = getRegionNameFromAzId(azId.get());
-        entityDTO.getStorageData().getFileList().forEach(file ->
-            conversionContext.getVolumeIdFromStorageFilePath(regionName, file.getPath())
-                .ifPresent(volumeId -> {
-                    newEntityBuildersById.computeIfAbsent(volumeId, k -> {
-                        EntityDTO.Builder volume = EntityDTO.newBuilder()
-                            .setEntityType(EntityType.VIRTUAL_VOLUME)
-                            .setId(volumeId)
-                            .setDisplayName(file.getVolumeName());
-                        VirtualVolumeData.Builder vvData = VirtualVolumeData.newBuilder();
-                        if (file.hasIopsProvisioned()) {
-                            vvData.setStorageAccessCapacity(file.getIopsProvisioned());
-                        }
-                        if (file.hasSizeKb()) {
-                            vvData.setStorageAmountCapacity(file.getSizeKb() / 1024.0f);
-                        }
-                        if (file.hasSnapshotId()) {
-                            vvData.setSnapshotId(file.getSnapshotId());
-                        }
-                        if (file.hasRedundancyType()) {
-                            try {
-                                vvData.setRedundancyType(RedundancyType.valueOf(
-                                    file.getRedundancyType()));
-                            } catch (IllegalArgumentException e) {
-                                logger.error("Unsupported redundancy type: {}",
-                                    file.getRedundancyType());
-                            }
-                        }
-                        if (file.hasModificationTimeMs()) {
-                            vvData.setCreationTime(file.getModificationTimeMs());
-                        }
-                        for (final EntityProperty volumeProperty : file.getVolumePropertiesList()) {
-                            volume.addEntityProperties(volumeProperty);
-                        }
-                        volume.setVirtualVolumeData(vvData.build());
-                        return volume;
-                    });
-                    newEntityBuildersById.computeIfPresent(volumeId, (id, vol) -> {
-                        for (final EntityProperty volumeProperty : file.getVolumePropertiesList()) {
-                            vol.addEntityProperties(volumeProperty);
-                        }
-                        return vol;
-                    });
-                })
-        );
     }
 
     /**
@@ -496,11 +321,6 @@ public class CloudDiscoveryConverter {
         return key.split("::", 2)[1];
     }
 
-    @Nonnull
-    public static String getRegionNameFromAzId(@Nonnull String azId) {
-        return azId.split("::")[1];
-    }
-
     /**
      * Get the region id based on the zone id.
      *
@@ -513,17 +333,6 @@ public class CloudDiscoveryConverter {
     }
 
     /**
-     * Get the zone id based on the region id.
-     *
-     * @param regionId id of the region
-     * @return id of the related availability zone
-     */
-    @Nonnull
-    public String getAzIdFromRegionId(@Nonnull String regionId) {
-        return conversionContext.getAzIdFromRegionId(regionId);
-    }
-
-    /**
      * Get the id for the storage tier.
      *
      * @param storageTier name of the storage tier
@@ -532,16 +341,6 @@ public class CloudDiscoveryConverter {
     @Nonnull
     public String getStorageTierId(@Nonnull String storageTier) {
         return conversionContext.getStorageTierId(storageTier);
-    }
-
-    @Nonnull
-    public Optional<String> getVolumeId(@Nullable String regionName, @Nonnull String filePath) {
-        return conversionContext.getVolumeIdFromStorageFilePath(regionName, filePath);
-    }
-
-    @Nonnull
-    public String getStorageTier(final Builder entity) {
-        return conversionContext.getStorageTier(entity);
     }
 
     public Optional<String> getAvailabilityZone(final Builder entity) {

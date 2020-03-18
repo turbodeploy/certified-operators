@@ -8,7 +8,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -24,7 +23,6 @@ import com.google.common.collect.Sets;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.vmturbo.mediation.aws.util.AwsConstants;
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
@@ -42,19 +40,14 @@ import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.mediation.conversion.util.ConverterUtils;
 import com.vmturbo.mediation.conversion.util.TestUtils;
-import com.vmturbo.platform.common.builders.EntityBuilders;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.SubDivisionData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
-import com.vmturbo.platform.sdk.common.util.SDKUtil;
 
 public class AwsCloudDiscoveryConverterTest {
 
@@ -138,7 +131,6 @@ public class AwsCloudDiscoveryConverterTest {
 
             // check providers changed (vm may consumes multiple storages, convert each to new type)
             verifyProvidersChanged(oldVM, newVM, ImmutableMap.of(
-                    EntityType.STORAGE, EntityType.STORAGE_TIER,
                     EntityType.PHYSICAL_MACHINE, EntityType.COMPUTE_TIER,
                     EntityType.AVAILABILITY_ZONE, EntityType.COMPUTE_TIER
             ), ImmutableList.of(EntityType.AVAILABILITY_ZONE));
@@ -193,9 +185,6 @@ public class AwsCloudDiscoveryConverterTest {
                                     .map(id -> awsConverter.getNewEntityBuilder(id).getEntityType())
                                     .collect(Collectors.toList()), containsInAnyOrder(
                                             EntityType.AVAILABILITY_ZONE, EntityType.STORAGE_TIER));
-
-                    // volume ownedby BusinsesAccount
-                    assertThat(ba.getConsistsOfList(), hasItem(volume.getId()));
                 });
             }
 
@@ -289,7 +278,7 @@ public class AwsCloudDiscoveryConverterTest {
                     CommodityType.CPU_PROVISIONED, CommodityType.MEM, CommodityType.MEM_PROVISIONED,
                     CommodityType.IO_THROUGHPUT, CommodityType.NET_THROUGHPUT,
                     CommodityType.NUM_DISK, CommodityType.NETWORK_INTERFACE_COUNT,
-                    CommodityType.LICENSE_ACCESS));
+                    CommodityType.LICENSE_ACCESS, CommodityType.TENANCY_ACCESS));
 
             // check ct owned by CloudService
             assertThat(awsConverter.getNewEntityBuilder(CloudService.AWS_EC2.getId()).getConsistsOfList(),
@@ -331,122 +320,6 @@ public class AwsCloudDiscoveryConverterTest {
             assertThat(awsConverter.getNewEntityBuilder(
                     CloudService.AWS_RDS.getId()).getConsistsOfList(), hasItem(entityId));
         });
-    }
-
-    @Test
-    public void testStorageTierConverter() {
-        IEntityConverter converter = new AwsStorageConverter();
-        rawEntitiesByType.get(EntityType.STORAGE).forEach(entity -> {
-
-            String storageTierId = awsConversionContext.getStorageTierId(entity.getStorageData().getStorageTier());
-
-            EntityDTO.Builder storage = awsConverter.getNewEntityBuilder(entity.getId());
-            EntityDTO.Builder storageTier = awsConverter.getNewEntityBuilder(storageTierId);
-
-            // check storage IS removed
-            assertFalse(converter.convert(storage, awsConverter));
-
-            // connected to region
-            Set<EntityType> connectedEntityTypes = storageTier.getLayeredOverList().stream()
-                    .map(id -> awsConverter.getNewEntityBuilder(id).getEntityType())
-                    .collect(Collectors.toSet());
-            assertThat(connectedEntityTypes, containsInAnyOrder(EntityType.REGION));
-
-            // check bought commodities
-            assertEquals(0, storageTier.getCommoditiesBoughtCount());
-
-            // check sold commodities
-            assertThat(storageTier.getCommoditiesSoldList().stream()
-                            .map(CommodityDTO::getCommodityType)
-                            .collect(Collectors.toSet()), containsInAnyOrder(
-                    CommodityType.STORAGE_ACCESS, CommodityType.STORAGE_AMOUNT,
-                    CommodityType.STORAGE_CLUSTER, CommodityType.STORAGE_LATENCY,
-                    CommodityType.STORAGE_PROVISIONED));
-
-            // check storage tier owned by CloudService
-            assertThat(awsConverter.getNewEntityBuilder(CloudService.AWS_EBS.getId())
-                    .getConsistsOfList(), hasItem(storageTierId));
-
-            // check volumes
-            entity.getCommoditiesSoldList().stream()
-                    .filter(commodity -> commodity.getCommodityType() == CommodityType.DSPM_ACCESS)
-                    .map(commodityDTO -> CloudDiscoveryConverter.keyToUuid(commodityDTO.getKey()))
-                    .findAny()
-                    .ifPresent(azId -> {
-                        String regionName = CloudDiscoveryConverter.getRegionNameFromAzId(azId);
-                        entity.getStorageData().getFileList().forEach(file ->
-                            awsConverter.getVolumeId(regionName, file.getPath()).ifPresent(volumeId -> {
-                                EntityDTO.Builder volume = awsConverter.getNewEntityBuilder(volumeId);
-
-                                // check volume properties
-                                assertEquals(file.getVolumeName(), volume.getDisplayName());
-                                assertEquals(file.getIopsProvisioned(),
-                                        volume.getVirtualVolumeData().getStorageAccessCapacity(), 0);
-                                assertEquals(file.getSizeKb() / 1024,
-                                        volume.getVirtualVolumeData().getStorageAmountCapacity(), 0);
-                                assertEquals(file.getSnapshotId(),
-                                        volume.getVirtualVolumeData().getSnapshotId());
-                                assertFalse(file.hasRedundancyType());
-                                assertFalse(volume.getVirtualVolumeData().hasRedundancyType());
-                                assertFalse(volume.getVirtualVolumeData().hasSnapshotId());
-
-                                // volumes are connected to AZ and StorageTier
-                                assertThat(volume.getLayeredOverList().stream()
-                                        .map(id -> awsConverter.getNewEntityBuilder(id).getEntityType())
-                                        .collect(Collectors.toList()), containsInAnyOrder(
-                                        EntityType.AVAILABILITY_ZONE, EntityType.STORAGE_TIER));
-
-                                // volume ownedby BusinsesAccount
-                                assertThat(awsConverter.getNewEntityBuilder(masterAccountId)
-                                        .getConsistsOfList(), hasItem(volume.getId()));
-                            })
-                        );
-                    });
-        });
-
-        // check all storage tiers are connected to 15 regions after converting all storages
-        awsConverter.getAllStorageTierIds().forEach(s ->
-            assertEquals(15, awsConverter.getNewEntityBuilder(s).getLayeredOverCount()));
-    }
-
-    /**
-     * Test that appropriate EntityProperties are used to set appropriate fields of
-     * VirtualVolumeData and that all other EntityProperties are handled gracefully (i.e. ignored).
-     */
-    @Test
-    public void testEntityPropertyUpdates() {
-        final EntityProperty TAG_ENTITY_PROPERTY = EntityBuilders.entityProperty()
-            .withNamespace(SDKUtil.VC_TAGS_NAMESPACE)
-            .named("tag-name").withValue("tag-value").build();
-        final EntityProperty THROUGHPUT_ENTITY_PROPERTY = EntityBuilders.entityProperty()
-            .named(AwsConstants.IO_THROUGHPUT_CAPACITY_PROPERTY).withValue("123").build();
-        final EntityProperty UNKNOWN_ENTITY_PROPERTY = EntityBuilders.entityProperty()
-            .named("some-unrecognized-name").withValue("some-value").build();
-        final EntityProperty UNKNOWN_STATE_ENTITY_PROPERTY = EntityBuilders.entityProperty()
-            .named(AwsConstants.STATE).withValue("some-unrecognized-state").build();
-        final EntityProperty KNOWN_STATE_ENTITY_PROPERTY = EntityBuilders.entityProperty()
-            .named(AwsConstants.STATE).withValue("available").build();
-        final EntityProperty ENCRYPTION_PROPERTY = EntityBuilders.entityProperty()
-                .named(AwsConstants.ENCRYPTED).withValue("true").build();
-
-        final VirtualVolumeData PREEXISTING = VirtualVolumeData.newBuilder().build();
-
-        final AwsStorageConverter converter = new AwsStorageConverter();
-        final VirtualVolumeData resultUnknownState = converter.updateVirtualVolumeData(PREEXISTING,
-            Arrays.asList(TAG_ENTITY_PROPERTY, THROUGHPUT_ENTITY_PROPERTY, UNKNOWN_ENTITY_PROPERTY,
-                UNKNOWN_STATE_ENTITY_PROPERTY));
-
-        assertEquals(AttachmentState.ATTACHED, resultUnknownState.getAttachmentState());
-        assertFalse(resultUnknownState.getEncrypted());
-        assertEquals(123, resultUnknownState.getIoThroughputCapacity(), .001);
-
-        final VirtualVolumeData resultKnownState = converter.updateVirtualVolumeData(PREEXISTING,
-            Arrays.asList(TAG_ENTITY_PROPERTY, THROUGHPUT_ENTITY_PROPERTY, UNKNOWN_ENTITY_PROPERTY,
-                KNOWN_STATE_ENTITY_PROPERTY, ENCRYPTION_PROPERTY));
-
-        assertEquals(AttachmentState.UNATTACHED, resultKnownState.getAttachmentState());
-        assertTrue(resultKnownState.getEncrypted());
-        assertEquals(123, resultKnownState.getIoThroughputCapacity(), .001);
     }
 
     @Test
@@ -514,7 +387,7 @@ public class AwsCloudDiscoveryConverterTest {
             // master account owns sub account
             if (newEntity.getId().equals(masterAccountId)) {
                 assertThat(newEntity.getConsistsOfList(), containsInAnyOrder("323871187550",
-                        "001844731978"));
+                        "001844731978", "631949720430"));
             }
 
             // check that dataDiscovered field is cleared if it is false

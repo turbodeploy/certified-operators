@@ -48,25 +48,6 @@ public interface CloudProviderConversionContext {
     String getRegionIdFromAzId(@Nonnull String azId);
 
     /**
-     * Get the zone id based on the region id. This should be implemented by different probes.
-     *
-     * @param regionId id of the related region
-     * @return id of the availability zone
-     */
-    @Nonnull
-    String getAzIdFromRegionId(@Nonnull String regionId);
-
-    /**
-     * Get the optional volume id used by the probe based on the region name and the file path.
-     *
-     * @param regionName name of region
-     * @param filePath path of storage file for this volume
-     * @return optional id of the volume
-     */
-    @Nonnull
-    Optional<String> getVolumeIdFromStorageFilePath(@Nonnull String regionName, @Nonnull String filePath);
-
-    /**
      * Get all the converters for each entity type. This should be implemented by different
      * probes to return different converters based on the entity they discover.
      *
