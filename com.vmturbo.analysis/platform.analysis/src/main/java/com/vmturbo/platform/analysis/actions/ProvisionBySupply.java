@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -307,6 +308,21 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
         getSubsequentActions().clear();
         setProvisionedSeller(null);
         return this;
+    }
+
+    @Override
+    public @NonNull ProvisionBySupply port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        ProvisionBySupply ported = new ProvisionBySupply(destinationEconomy,
+            destinationTrader.apply(getModelSeller()), commSoldToReplaceMap_, getReason());
+
+        if (!ported.getModelSeller().getSettings().isCloneable()) {
+            throw new NoSuchElementException("ProvisionBySupply didn't pass porting checks");
+        }
+
+        return ported;
     }
 
     @Override

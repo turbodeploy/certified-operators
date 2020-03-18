@@ -88,6 +88,17 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
         return this;
     }
 
+    @Override
+    @Pure
+    public @NonNull Action port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        // Port action
+        // TODO: do we need to add validation steps?
+        return new Reconfigure(destinationEconomy, destinationShoppingList.apply(getTarget()));
+    }
+
     private @NonNull Reconfigure internalRollback() {
         super.rollback();
         // Nothing to roll back!

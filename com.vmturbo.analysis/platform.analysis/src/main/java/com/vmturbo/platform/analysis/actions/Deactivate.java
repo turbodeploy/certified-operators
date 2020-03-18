@@ -6,6 +6,7 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -119,6 +120,22 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                 trader, true);
         removedShoppingLists.clear();
         return this;
+    }
+
+    @Override
+    public @NonNull Deactivate port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        // TODO: do I need to check if market doesn't exist any more or replace market with basket?
+        Deactivate ported = new Deactivate(destinationEconomy, destinationTrader.apply(getTarget()),
+            destinationEconomy.getMarket(getSourceMarket().getBasket()));
+
+        if (!ported.getTarget().getSettings().isSuspendable()) {
+            throw new NoSuchElementException("Deactivate didn't pass porting checks");
+        }
+
+        return ported;
     }
 
     // TODO: update description and reason when we create the corresponding matrix.

@@ -17,7 +17,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
  * {@link Action}. It keeps the common implementation for methods defined in {@link Action}.
  * It also keeps track of the state of an action instance whether it is being taken or not.
  */
-public class ActionImpl implements Action {
+public abstract class ActionImpl implements Action {
     // Fields
     private final @NonNull Economy economy_; // whether we can avoid this field is under investigation.
 

@@ -2,6 +2,7 @@ package com.vmturbo.platform.analysis.actions;
 
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -17,6 +18,7 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
@@ -90,6 +92,23 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
             "Trying to deactivate %s which is already Inactive", getTarget());
         getTarget().changeState(TraderState.INACTIVE);
         return this;
+    }
+
+    @Override
+    public @NonNull Activate port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        Activate ported = new Activate(destinationEconomy, destinationTrader.apply(getTarget()),
+            destinationEconomy.getMarket(getSourceMarket().getBasket()),
+            destinationTrader.apply(getModelSeller()), getReason());
+
+        // Do we want to check if some other trader is cloneable or if this one is activate-able?
+        if (!ported.getModelSeller().getSettings().isCloneable()) {
+            throw new NoSuchElementException("Activate didn't pass porting checks");
+        }
+
+        return ported;
     }
 
     // TODO: update description and reason when we create the corresponding matrix.

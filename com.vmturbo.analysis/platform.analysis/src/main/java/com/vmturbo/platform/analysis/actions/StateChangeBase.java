@@ -11,7 +11,7 @@ import com.vmturbo.platform.analysis.economy.Trader;
 /**
  * A number of factored-out getters and fields needed by both {@link Activate} and {@link Deactivate}.
  */
-class StateChangeBase extends ActionImpl {
+abstract class StateChangeBase extends ActionImpl {
     // Fields
     private final @NonNull Trader target_;
     private final @NonNull Market sourceMarket_; // only needed for debugDescription/debugReason.

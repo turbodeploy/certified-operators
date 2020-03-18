@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.actions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -17,6 +18,7 @@ import org.checkerframework.dataflow.qual.Pure;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Resizer;
 
@@ -213,6 +215,23 @@ public class Resize extends ActionImpl {
         super.rollback();
         getSellingTrader().getCommoditySold(getResizedCommoditySpec()).setCapacity(getOldCapacity());
         return this;
+    }
+
+    @Override
+    public @NonNull Action port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        // Port action
+        Resize ported = new Resize(destinationEconomy, destinationTrader.apply(getSellingTrader()),
+            getResizedCommoditySpec(), getOldCapacity(), getNewCapacity());
+
+        // Validate port
+        if (!ported.getResizedCommodity().getSettings().isResizable()) {
+            throw new NoSuchElementException("Resize didn't pass porting checks");
+        }
+
+        return ported;
     }
 
     @Override

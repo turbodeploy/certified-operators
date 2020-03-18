@@ -5,26 +5,22 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
-import com.vmturbo.platform.analysis.actions.Activate;
-import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
-import com.vmturbo.platform.analysis.actions.Move;
-import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
-import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
-import com.vmturbo.platform.analysis.actions.Reconfigure;
-import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -76,137 +72,53 @@ public class ReplayActions {
      * @param economy The {@link Economy} in which actions are to be replayed
      */
     public void replayActions(Economy economy, Ledger ledger) {
-        Topology topology = economy.getTopology();
-        LinkedList<Action> actions = new LinkedList<>();
         List<Action> deactivateActions = actions_.stream()
                         .filter(action -> action.getType() == ActionType.DEACTIVATE)
                         .collect(Collectors.toList());
-        actions.addAll(tryReplayDeactivateActions(deactivateActions, economy, ledger));
+        LinkedList<Action> actions = new LinkedList<>(tryReplayDeactivateActions(deactivateActions, economy, ledger));
         actions_.removeAll(deactivateActions);
-        actions_.forEach(a -> {
+
+        for (Action action : actions_) {
             try {
-                if (a.getType() == ActionType.MOVE) {
-                    Move oldAction = (Move)a;
-                    // Target shopping list is movable and destination trader
-                    // can accept customer, generate move action
-                    Trader newTargetTrader = translateTrader(oldAction.getDestination(), economy, "Move");
-                    ShoppingList newShoppingList = translateShoppingList(oldAction.getTarget(), economy, topology);
-                    if (newShoppingList.isMovable() && newTargetTrader.getSettings().canAcceptNewCustomers()) {
-                        Move m = new Move(economy, newShoppingList, newTargetTrader);
-                        // move will fail if supplier has changed handling actions already taken
-                        m.take();
-                        actions.add(m);
+                Function<@NonNull Trader, @NonNull Trader> traderMap = oldTrader -> {
+                    Long oid = action.getEconomy().getTopology().getTraderOids().get(oldTrader);
+                    Trader newTrader = economy.getTopology().getTraderOids().inverse().get(oid);
+
+                    if (newTrader == null) {
+                        throw new NoSuchElementException("Could not find trader with oid " + oid
+                            + " " + oldTrader.getDebugInfoNeverUseInCode() + " in new economy");
                     }
-                } else if (a.getType() == ActionType.RESIZE) {
-                    Resize oldAction = (Resize)a;
-                    Trader newSellingTrader = translateTrader(oldAction.getSellingTrader(), economy, "Resize");
-                    CommoditySold newSoldCommodity = newSellingTrader.getCommoditySold(
-                                    oldAction.getResizedCommoditySpec());
-                    // new commodity of trader still resizable, then take the action
-                    if (newSoldCommodity.getSettings().isResizable()) {
-                        Resize r = new Resize(economy, newSellingTrader,
-                                        oldAction.getResizedCommoditySpec(), newSoldCommodity,
-                                        newSellingTrader.getBasketSold().indexOf(
-                                                        oldAction.getResizedCommoditySpec()),
-                                        oldAction.getNewCapacity());
-                        r.take();
-                        actions.add(r);
+
+                    return newTrader;
+                };
+
+                Function<@NonNull ShoppingList, @NonNull ShoppingList> shoppingListMap = oldSl -> {
+                    Long oid = action.getEconomy().getTopology().getShoppingListOids().get(oldSl);
+                    ShoppingList newSl =
+                                    economy.getTopology().getShoppingListOids().inverse().get(oid);
+
+                    if (newSl == null) {
+                        throw new NoSuchElementException("Could not find shopping list with oid "
+                            + oid + " " + oldSl.getDebugInfoNeverUseInCode() + " in new economy");
                     }
-                } else if (a.getType() == ActionType.PROVISION_BY_DEMAND) {
-                    ProvisionByDemand oldAction = (ProvisionByDemand)a;
-                    // Model seller of provision by demand action is still cloneable,
-                    // then take the action
-                    Trader newTrader = translateTrader(oldAction.getModelSeller(), economy, "ProvisionByDemand");
-                    if (newTrader.getSettings().isCloneable()) {
-                        ProvisionByDemand pbd = new ProvisionByDemand(economy,
-                                        translateShoppingList(oldAction.getModelBuyer(), economy, topology),
-                                        newTrader);
-                        pbd.take();
-                        Long oid = oldAction.getOid();
-                        topology.addProvisionedTrader(pbd.getProvisionedSeller(), oid);
-                        topology.getEconomy().getMarketsAsBuyer(pbd.getProvisionedSeller()).keySet()
-                                        .stream().forEach(topology::addProvisionedShoppingList);
-                        actions.add(pbd);
-                    }
-                } else if (a.getType() == ActionType.PROVISION_BY_SUPPLY) {
-                    ProvisionBySupply oldAction = (ProvisionBySupply)a;
-                    // Model seller of provision by supply action is still cloneable,
-                    // then take the action
-                    Trader newTrader = translateTrader(oldAction.getModelSeller(), economy, "ProvisionBySupply");
-                    if (newTrader.getSettings().isCloneable()) {
-                        ProvisionBySupply pbs = new ProvisionBySupply(economy, newTrader,
-                                        oldAction.getReason());
-                        pbs.take();
-                        Long oid = oldAction.getOid();
-                        topology.addProvisionedTrader(pbs.getProvisionedSeller(), oid);
-                        topology.getEconomy().getMarketsAsBuyer(pbs.getProvisionedSeller()).keySet()
-                                        .stream().forEach(topology::addProvisionedShoppingList);
-                        actions.add(pbs);
-                    }
-                } else if (a.getType() == ActionType.ACTIVATE) {
-                    Activate oldAction = (Activate)a;
-                    // Model seller of activate action should be cloneable
-                    Trader newTrader = translateTrader(oldAction.getModelSeller(), economy, "Activate2");
-                    if (newTrader.getSettings().isCloneable()) {
-                        Activate act = new Activate(economy,
-                                        translateTrader(oldAction.getTarget(), economy, "Activate1"),
-                                        oldAction.getSourceMarket(),
-                                        newTrader, oldAction.getReason());
-                        act.take();
-                        actions.add(act);
-                    }
-                } else if (a.getType() == ActionType.RECONFIGURE) {
-                    Reconfigure oldAction = (Reconfigure)a;
-                    Reconfigure reconf = new Reconfigure(economy,
-                               translateShoppingList(oldAction.getTarget(), economy, topology));
-                    // nothing to do
-                    reconf.take();
-                    actions.add(reconf);
-                } else if (a.getType() == ActionType.COMPOUND_MOVE) {
-                    CompoundMove oldAction = (CompoundMove)a;
-                    Trader newTrader = translateTrader(oldAction.getActionTarget(), economy,
-                                    "CompoundMove");
-                    // If trader shopTogether is false, no need to replay compound move
-                    if (newTrader.getSettings().isShopTogether()) {
-                        List<Move> oldMoves = oldAction.getConstituentMoves();
-                        List<ShoppingList> shoppingLists = new LinkedList<>();
-                        List<Trader> destinationTraders = new LinkedList<>();
-                        boolean movable = true;
-                        for (Move move : oldMoves) {
-                            if (!move.getTarget().isMovable()) {
-                                movable = false;
-                                break;
-                            }
-                            shoppingLists.add(translateShoppingList(move.getTarget(), economy,
-                                            topology));
-                            destinationTraders.add(translateTrader(move.getDestination(), economy,
-                                            "Move"));
-                        }
-                        // Movable false on any shopping list, means no compound move
-                        if (movable) {
-                            CompoundMove compound =
-                                        CompoundMove.createAndCheckCompoundMoveWithImplicitSources(
-                                                        economy, shoppingLists, destinationTraders);
-                            if (compound != null) {
-                                compound.take();
-                                actions.add(compound);
-                            }
-                        }
-                    }
-                } else {
-                    logger.warn("uncovered action " + a.toString());
-                }
+
+                    return newSl;
+                };
+
+                actions.add(action.port(economy, traderMap, shoppingListMap).take());
+
                 if (logger.isDebugEnabled()) {
-                    logger.debug("replayed " + a.toString());
+                    logger.debug("replayed " + action.toString());
                 }
             } catch (Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("Could not replay " + a.toString(), e);
+                    logger.debug("Could not replay " + action.toString(), e);
                 }
             }
-        });
+        } // end for each action
+
         actions_ = actions;
-    }
+    } // end replayActions
 
     /**
      * Try deactivate actions and replay only if we are able to move all customers
