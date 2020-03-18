@@ -12,9 +12,6 @@ import java.util.Optional;
 
 import com.google.common.collect.Table;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.commons.analysis.NumericIDAllocator;
-
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -25,8 +22,10 @@ import org.junit.runner.RunWith;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO.PriceFunctionTypeCase;
@@ -198,6 +197,28 @@ public class CommodityConverterTest {
             assertEquals(poolType.getType(), spec.getBaseType());
             final Optional<CommodityType> convertedType =
                     converterToTest.marketToTopologyCommodity(spec, Optional.of(index));
+            assertTrue(convertedType.isPresent());
+            assertEquals(convertedType.get(), poolType);
+        }
+    }
+
+    /**
+     * Tests creation of multiple commodity Specifications as in case of
+     * Pool commodities that are time slot based.
+     */
+    @Test
+    public void testCreatePoolSpecifications() {
+        CommodityType poolType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build();
+        Collection<CommoditySpecificationTO> specifications =
+            converterToTest.commoditySpecification(poolType, 3);
+        assertEquals(3, specifications.size());
+        int index = 0;
+        for (CommoditySpecificationTO spec: specifications) {
+            index++;
+            assertEquals(poolType.getType(), spec.getBaseType());
+            final Optional<CommodityType> convertedType =
+                converterToTest.marketToTopologyCommodity(spec);
             assertTrue(convertedType.isPresent());
             assertEquals(convertedType.get(), poolType);
         }
