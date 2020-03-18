@@ -52,7 +52,7 @@ public class CompoundMove extends ActionImpl {
      * @param destinations The new suppliers for the shopping lists in the same order as the
      *                     shopping lists appear in the respective collection.
      */
-    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
+    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
                         @NonNull Collection<@Nullable Trader> destinations) {
         this(economy,shoppingLists,shoppingLists.stream().map(ShoppingList::getSupplier)
              .collect(Collectors.toList()),destinations);
@@ -77,7 +77,7 @@ public class CompoundMove extends ActionImpl {
      *                Must be the same size as <b>destinations</b> and not empty.
      * @param destinations Same as for {@link #CompoundMove(Economy, Collection, Collection)}.
      */
-    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
+    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
             @NonNull Collection<@Nullable Trader> sources, @NonNull Collection<@Nullable Trader> destinations) {
         super(economy);
 

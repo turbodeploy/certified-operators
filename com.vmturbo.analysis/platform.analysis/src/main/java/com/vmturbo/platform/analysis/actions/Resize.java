@@ -103,8 +103,8 @@ public class Resize extends ActionImpl {
      * @param newCapacity The capacity of the commodity after the resize action is taken.
      */
     public Resize(@NonNull Economy economy, @NonNull Trader sellingTrader,
-                  @NonNull CommoditySpecification resizedCommoditySpec, CommoditySold
-                  resizedCommodity, int soldIndex,double oldCapacity, double newCapacity) {
+                  @NonNull CommoditySpecification resizedCommoditySpec, @NonNull CommoditySold
+                  resizedCommodity, int soldIndex, double oldCapacity, double newCapacity) {
         super(economy);
 
         checkArgument(sellingTrader.getBasketSold().indexOf(resizedCommoditySpec) >= 0,
@@ -126,7 +126,7 @@ public class Resize extends ActionImpl {
      * Returns the trader whose commodity will be resized by {@code this} action.
      */
     @Pure
-    public @Nullable Trader getSellingTrader(@ReadOnly Resize this) {
+    public @NonNull Trader getSellingTrader(@ReadOnly Resize this) {
         return sellingTrader_;
     }
 
@@ -135,7 +135,7 @@ public class Resize extends ActionImpl {
      * action.
      */
     @Pure
-    public @Nullable CommoditySpecification getResizedCommoditySpec(@ReadOnly Resize this) {
+    public @NonNull CommoditySpecification getResizedCommoditySpec(@ReadOnly Resize this) {
         return resizedCommoditySpec_;
     }
 
@@ -144,7 +144,7 @@ public class Resize extends ActionImpl {
      * action.
      */
     @Pure
-    public @Nullable CommoditySold getResizedCommodity(@ReadOnly Resize this) {
+    public @NonNull CommoditySold getResizedCommodity(@ReadOnly Resize this) {
         return resizedCommodity_;
     }
 

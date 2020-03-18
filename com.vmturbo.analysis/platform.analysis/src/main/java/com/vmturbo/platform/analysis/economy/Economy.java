@@ -27,7 +27,6 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Longs;
 
-import com.vmturbo.commons.analysis.InvertedIndex;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -35,6 +34,7 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
+import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Context.CoverageEntry;
@@ -773,9 +773,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * the entity in the scope
      */
     @Override
-    public Trader getCloneOfTrader (Trader trader) {
+    public @NonNull Trader getCloneOfTrader (@NonNull Trader trader) {
         while (trader.isClone()) {
-            trader = this.getTraders().get(trader.getCloneOf());
+            trader = getTraders().get(trader.getCloneOf());
         }
         return trader;
     }

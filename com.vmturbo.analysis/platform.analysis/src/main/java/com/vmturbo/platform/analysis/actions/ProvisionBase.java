@@ -58,7 +58,7 @@ public abstract class ProvisionBase extends ActionImpl {
      * Returns the seller that is used as a model in taking {@code this} action.
      */
     @Pure
-    public @Nullable Trader getModelSeller(@ReadOnly ProvisionBase this) {
+    public @NonNull Trader getModelSeller(@ReadOnly ProvisionBase this) {
         return modelSeller_;
     }
 

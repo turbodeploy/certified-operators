@@ -17,7 +17,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -45,7 +44,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
      * @param sourceMarket The market that benefits from deactivating target.
      *                     The sourceMarket can be NULL when the target doesn't sell in any market
      */
-    public Deactivate(@NonNull Economy economy, @NonNull Trader target, @Nullable Market sourceMarket) {
+    public Deactivate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket) {
         super(economy, target, sourceMarket);
     }
 
