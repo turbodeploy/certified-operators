@@ -149,12 +149,12 @@ public interface StatsQueryFactory {
         @Override
         public Optional<Condition> environmentTypeCond(@Nonnull final EnvironmentType environmentType, @Nonnull final Table<?> table) {
             // We only record the environment type in the database for the aggregate
-            // market stats tables.
-            if (HistoryStatsUtils.isMarketStatsTable(table)) {
-                return Optional.of(JooqUtils.getEnvField(table, MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE.getName()).eq(environmentType));
-            } else {
+            // market stats tables. Those results on-prem and cloud.  For Hybrid envType
+            // we remove the conditional.
+            if (EnvironmentType.HYBRID.equals(environmentType) || !HistoryStatsUtils.isMarketStatsTable(table)) {
                 return Optional.empty();
             }
+            return Optional.of(JooqUtils.getEnvField(table, MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE.getName()).eq(environmentType));
         }
 
         @Override
