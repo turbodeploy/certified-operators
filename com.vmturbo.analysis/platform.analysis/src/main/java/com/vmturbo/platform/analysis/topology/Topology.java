@@ -8,12 +8,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.checkerframework.checker.javari.qual.ReadOnly;
-import org.checkerframework.checker.nullness.qual.NonNull;
-
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.Maps;
+
+import org.checkerframework.checker.javari.qual.ReadOnly;
+import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
@@ -331,23 +331,6 @@ public final class Topology implements Serializable {
         traderOids_.put(provisionedTrader, newId);
         return newId;
 
-    }
-
-    /**
-     * Add the given OID for newly provisioned trader to the traderOids_ map. This OID must have
-     * been generated with {@link IdentityGenerator} to give a globally unique OID.
-     *
-     * @param provisionedTrader The provisioned {@link Trader}
-     * @param newOid The alias OID that the trader should be associated with
-     * @return the old OID if any
-     */
-    public long addProvisionedTrader(@NonNull Trader provisionedTrader, long newOid) {
-        long oldId = -1;
-        if (traderOids_.containsKey(provisionedTrader)) {
-            oldId = traderOids_.get(provisionedTrader);
-        }
-        traderOids_.put(provisionedTrader, newOid);
-        return oldId;
     }
 
     /**

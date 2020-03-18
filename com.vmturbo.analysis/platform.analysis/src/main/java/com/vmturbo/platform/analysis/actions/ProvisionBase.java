@@ -62,22 +62,4 @@ public abstract class ProvisionBase extends ActionImpl {
         return modelSeller_;
     }
 
-    /**
-     * Save the oid of the provisioned trader for use in replaying action
-     *
-     * @param oid The oid of the provisioned trader
-     */
-    public void setOid(@NonNull Long oid) {
-        oid_ = oid;
-    }
-
-    /**
-     * Return the saved oid for the provisioned trader
-     *
-     * @return oid of the provisioned trader
-     */
-    public Long getOid() {
-        return oid_;
-    }
-
 }

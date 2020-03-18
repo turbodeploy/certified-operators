@@ -69,7 +69,6 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -447,8 +446,6 @@ public final class AnalysisToProtobuf {
                             // and add the oid into BiMap traderOids_
                             .setProvisionedSeller(topology.addProvisionedTrader(
                                             provDemand.getProvisionedSeller()));
-            // set oid for use in the next round for replaying of actions
-            provDemand.setOid(topology.getTraderOids().get(provDemand.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists
             topology.getEconomy()
                 .getMarketsAsBuyer(provDemand.getProvisionedSeller())
@@ -508,8 +505,6 @@ public final class AnalysisToProtobuf {
                                                                             .getModelSeller(),
                                                                             topology.getEconomy())
                                                             : provSupply.getReason()));
-            // set oid for use in the next round for replaying of actions
-            provSupply.setOid(topology.getTraderOids().get(provSupply.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists
             topology.getEconomy()
                 .getMarketsAsBuyer(provSupply.getProvisionedSeller())
