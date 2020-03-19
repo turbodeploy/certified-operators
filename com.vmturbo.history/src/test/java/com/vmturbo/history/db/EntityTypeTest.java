@@ -18,6 +18,8 @@ import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
+import java.util.Optional;
+
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -176,5 +178,22 @@ public class EntityTypeTest extends Assert {
     @Test
     public void testThatToStringWorks() {
         assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.toString(), is("EntityType[VirtualMachine]"));
+    }
+
+    /**
+     * Test that OM-56003 is fixed.
+     *
+     * <p>The issue reported potential NPEs when processing topologies, which came down to the use
+     * of {@link Optional#of(Object)} where {@link Optional#ofNullable(Object)} was required, in
+     * {@link EntityType#fromSdkEntityType(int)}. This test breaks without the fix and passes
+     * with the fix.</p>
+     */
+    @Test
+    public void testThatOM56603IsFixed() {
+        // we don't know what entity types might be added to EntityTypeDefinitions in the future,
+        // so we'll just loop through all the SDK entity types and make sure none of them NPEs.
+        for (final EntityDTO.EntityType sdkEntityType : EntityDTO.EntityType.values()) {
+            EntityType.fromSdkEntityType(sdkEntityType);
+        }
     }
 }

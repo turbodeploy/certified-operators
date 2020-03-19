@@ -143,7 +143,7 @@ public interface EntityType {
      * @return corresponding entity type, if any
      */
     static Optional<EntityType> fromSdkEntityType(int sdkEntityTypeNo) {
-        return Optional.of(EntityTypeDefinitions.SDK_TO_ENTITY_TYPE_MAP.get(sdkEntityTypeNo));
+        return Optional.ofNullable(EntityTypeDefinitions.SDK_TO_ENTITY_TYPE_MAP.get(sdkEntityTypeNo));
     }
 
 
