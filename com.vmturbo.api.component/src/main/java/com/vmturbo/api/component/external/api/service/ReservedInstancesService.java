@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.validation.constraints.NotNull;
 
 import com.google.common.collect.Lists;
 
@@ -116,7 +117,9 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     @Override
     public List<ReservedInstanceApiDTO> getReservedInstances(
-            @Nullable String scopeUuid, @Nullable Boolean includeAllUsable) throws Exception {
+            @NotNull String scopeUuid, @Nullable Boolean includeAllUsable) throws Exception {
+        Objects.requireNonNull(scopeUuid);
+
         final ApiId scope = uuidMapper.fromUuid(scopeUuid);
         final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(
                 scope, Objects.isNull(includeAllUsable) ? false : includeAllUsable);
