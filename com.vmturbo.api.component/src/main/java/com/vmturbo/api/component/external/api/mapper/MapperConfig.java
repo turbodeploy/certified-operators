@@ -287,7 +287,7 @@ public class MapperConfig {
      */
     @Bean
     public RegionAspectMapper regionAspectMapper() {
-        return new RegionAspectMapper();
+        return new RegionAspectMapper(communicationConfig.supplyChainRpcService());
     }
 
     /**

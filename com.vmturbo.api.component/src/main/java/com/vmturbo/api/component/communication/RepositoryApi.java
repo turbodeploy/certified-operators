@@ -3,7 +3,6 @@ package com.vmturbo.api.component.communication;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -25,8 +24,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
-
-import org.apache.commons.collections.CollectionUtils;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -351,16 +348,12 @@ public class RepositoryApi {
                 throws InterruptedException, ConversionException {
             final Map<Long, ServiceEntityApiDTO> entities;
             if (aspectMapper == null) {
-                // Do the conversion in bulk.
                 entities = serviceEntityMapper.toServiceEntityApiDTOMap(getEntities()
                         .collect(Collectors.toList()));
             } else {
-                entities = new HashMap<>();
-                final Iterator<TopologyEntityDTO> iterator = getFullEntities().iterator();
-                while (iterator.hasNext()) {
-                    final TopologyEntityDTO entity = iterator.next();
-                    entities.put(entity.getOid(), entityWithAspects(entity, aspectMapper, requestedAspects));
-                }
+                List<TopologyEntityDTO> entityList = getFullEntities().collect(Collectors.toList());
+                entities = entitiesWithAspects(entityList, aspectMapper, requestedAspects);
+
                 setEntitiesCost(entities.values());
             }
             severityPopulator.populate(contextId, entities.values());
@@ -376,58 +369,73 @@ public class RepositoryApi {
 
             if (aspectMapper == null) {
                 entities = getEntities()
-                    .map(serviceEntityMapper::toServiceEntityApiDTO)
-                    .collect(Collectors.toList());
+                        .map(serviceEntityMapper::toServiceEntityApiDTO)
+                        .collect(Collectors.toList());
             } else {
-                entities = new ArrayList<>();
-                final Iterator<TopologyEntityDTO> iterator = getFullEntities().iterator();
-                while (iterator.hasNext()) {
-                    final TopologyEntityDTO entity = iterator.next();
-                    entities.add(entityWithAspects(entity, aspectMapper, requestedAspects));
-                }
+                List<TopologyEntityDTO> topologyEntities = getFullEntities().collect(Collectors.toList());
+                entities = entitiesWithAspects(topologyEntities, aspectMapper, requestedAspects).values().stream().collect(Collectors.toList());
             }
             severityPopulator.populate(contextId, entities);
             return entities;
+
         }
 
-        @Nonnull
-        private ServiceEntityApiDTO entityWithAspects(@Nonnull final TopologyEntityDTO entity,
-                @Nonnull EntityAspectMapper aspectMapper,
-                @Nullable Collection<String> requestedAspects)
-                throws ConversionException, InterruptedException {
+        /**
+         * Convert an entity with aspect using the aspect map.
+         *
+         * @param entity entity to convert
+         * @param aspects a map containing all aspects of all entities.
+         * @return service entity
+         */
+        private ServiceEntityApiDTO entityToSeWithAspect(TopologyEntityDTO entity, Map<Long, Map<AspectName, EntityAspect>> aspects) {
             final ServiceEntityApiDTO se = serviceEntityMapper.toServiceEntityApiDTO(entity);
-            if (CollectionUtils.isNotEmpty(requestedAspects)) {
-                final Map<AspectName, EntityAspect> aspectsByName = new HashMap<>();
-                final TemplateApiDTO template = new TemplateApiDTO();
-                BaseApiDTO cloudTemplate = null;
 
-                for (String requestedAspect: requestedAspects) {
-                    final AspectName aspectName = AspectName.fromString(requestedAspect);
-                    final EntityAspect entityAspect = aspectMapper.getAspectByEntity(entity, aspectName);
-                    // aspect may be null, for example: cloud aspect for on_prem vm
-                    if (entityAspect != null) {
-                        aspectsByName.put(aspectName, entityAspect);
-                        if (entityAspect instanceof CloudAspectApiDTO) {
-                            CloudAspectApiDTO cloudAspect = (CloudAspectApiDTO)entityAspect;
-                            if (cloudTemplate == null) {
-                                cloudTemplate = cloudAspect.getTemplate();
-                            }
+            if (aspects.containsKey(entity.getOid())) {
+                Map<AspectName, EntityAspect> aspectMap = aspects.get(entity.getOid());
+
+                for (EntityAspect aspect : aspectMap.values()) {
+                    if (aspect instanceof CloudAspectApiDTO) {
+                        BaseApiDTO cloudTemplate = ((CloudAspectApiDTO)aspect).getTemplate();
+                        if (cloudTemplate != null) {
+                            final TemplateApiDTO template = new TemplateApiDTO();
+                            template.setUuid(cloudTemplate.getUuid());
+                            template.setDisplayName(cloudTemplate.getDisplayName());
+                            se.setTemplate(template);
+                            break;
                         }
                     }
                 }
 
-                if (cloudTemplate != null) {
-                    template.setUuid(cloudTemplate.getUuid());
-                    template.setDisplayName(cloudTemplate.getDisplayName());
-                    se.setTemplate(template);
-                }
-
-                se.setAspectsByName(aspectsByName);
-            } else {
-                se.setAspectsByName(aspectMapper.getAspectsByEntity(entity));
+                se.setAspectsByName(aspectMap);
             }
 
             return se;
+        }
+
+        /**
+         * Return service entities with aspects.
+         *
+         * @param entities list of topology entities
+         * @param aspectMapper aspect mapper
+         * @param requestedAspects list of requested aspects. if null or empty, we will use all aspects
+         * @return a map of oid -> serviceEntity
+         * @throws ConversionException if conversion failed.
+         * @throws InterruptedException if interrupted
+         */
+        @Nonnull
+        private Map<Long, ServiceEntityApiDTO> entitiesWithAspects(@Nonnull final List<TopologyEntityDTO> entities,
+              @Nonnull EntityAspectMapper aspectMapper,
+              @Nullable Collection<String> requestedAspects)
+                throws ConversionException, InterruptedException {
+
+            // create a map of oid -> map of aspectName -> aspect
+            Map<Long, Map<AspectName, EntityAspect>> aspects = aspectMapper.getAspectsByEntities(entities, requestedAspects);
+
+            // return a map of oid -> serviceEntity with aspect
+            return entities.stream().collect(Collectors.toMap(
+                    TopologyEntityDTO::getOid,
+                    entity -> entityToSeWithAspect(entity, aspects)
+                   ));
         }
 
         /**

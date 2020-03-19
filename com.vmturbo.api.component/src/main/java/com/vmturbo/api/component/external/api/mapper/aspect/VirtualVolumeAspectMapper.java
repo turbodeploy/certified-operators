@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -129,6 +130,16 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         aspect.setDisplayName(entity.getDisplayName());
         aspect.setName(String.valueOf(entity.getOid()));
         return mapEntitiesToAspect(Lists.newArrayList(entity));
+    }
+
+    @Override
+    @Nullable
+    public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatch(@Nonnull final List<TopologyEntityDTO> entities)
+            throws InterruptedException, ConversionException {
+        EntityAspect aspect = mapEntitiesToAspect(entities);
+
+        return Optional.of(mapOneToManyAspects(entities, aspect).entrySet().stream()
+                .collect(Collectors.toMap(e -> Long.valueOf(e.getKey()), e -> e.getValue())));
     }
 
     /**

@@ -315,11 +315,10 @@ public class RepositoryApiTest {
             .addEntities(PartialEntity.newBuilder()
                 .setFullEntity(ret))
             .build())).when(repoBackend).retrieveTopologyEntities(any());
-        when(aspectMapper.getAspectByEntity(any(TopologyEntityDTO.class), any())).thenReturn(null);
         assertThat(repositoryApi.entityRequest(7L)
             .useAspectMapper(aspectMapper, Collections.singletonList(AspectName.CLOUD.getApiName()))
             .getSE().get(), is(se));
-        assertThat(se.getAspects().get(AspectName.CLOUD.getApiName()), is(nullValue()));
+        assertThat(se.getAspects(), is(nullValue()));
 
         final ArgumentCaptor<RetrieveTopologyEntitiesRequest> captor =
             ArgumentCaptor.forClass(RetrieveTopologyEntitiesRequest.class);
@@ -331,7 +330,6 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.FULL));
 
         verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
-        verify(aspectMapper).getAspectByEntity(ret, AspectName.CLOUD);
         verify(severityPopulator).populate(realtimeContextId, Collections.singletonList(se));
     }
 
@@ -572,7 +570,6 @@ public class RepositoryApiTest {
         assertThat(req.getReturnType(), is(Type.FULL));
 
         verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
-        verify(aspectMapper).getAspectsByEntity(ret);
         verify(severityPopulator).populate(realtimeContextId, Collections.singletonList(se));
     }
 
@@ -713,7 +710,7 @@ public class RepositoryApiTest {
 
         // Check to make sure we used the aspect mapper.
         verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
-        verify(aspectMapper).getAspectsByEntity(ret);
+        verify(aspectMapper).getAspectsByEntities(Collections.singletonList(ret), null);
         verify(severityPopulator).populate(realtimeContextId, Collections.singletonList(se));
     }
 

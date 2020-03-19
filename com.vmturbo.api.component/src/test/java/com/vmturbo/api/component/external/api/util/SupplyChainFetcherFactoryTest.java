@@ -154,6 +154,7 @@ public class SupplyChainFetcherFactoryTest {
             EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             repositoryApiBackend,
             groupExpander,
+            mock(EntityAspectMapper.class),
             CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             7);
     }
@@ -277,9 +278,6 @@ public class SupplyChainFetcherFactoryTest {
         when(entityAspectMapperMock.getGroupMemberMappers(volumes))
             .thenReturn(volumeAspectMapperMocks);
 
-        when(entityAspectMapperMock.getExpandedAspectsByGroupUsingMappers(volumes, volumeAspectMapperMocks))
-            .thenReturn(entityAspectMap);
-
         when(virtualVolumeAspectMapperMock.supportsGroupAspectExpansion()).thenReturn(true);
 
         when(groupExpander.expandUuids(searchUuidSet)).thenReturn(ImmutableSet.of(1L));
@@ -302,18 +300,6 @@ public class SupplyChainFetcherFactoryTest {
         Map<String, ServiceEntityApiDTO> serviceEntityApiDTOMap = supplychainEntryDTOs.iterator().next()
                 .getInstances();
         assertFalse(serviceEntityApiDTOMap.isEmpty());
-
-        Map<String, EntityAspect> resultEntityAspectMap = serviceEntityApiDTOMap
-                .values().iterator().next()
-                .getAspects();
-        assertFalse(resultEntityAspectMap.isEmpty());
-
-        Map.Entry<String, EntityAspect> mapEntry = resultEntityAspectMap.entrySet().iterator().next();
-
-        assertEquals(virtualVolumeAspect, mapEntry.getKey());
-        assertEquals("VirtualDisksAspectApiDTO", mapEntry.getValue().getType());
-        assertEquals(virtualDiskApiDTO,
-            ((VirtualDisksAspectApiDTO)mapEntry.getValue()).getVirtualDisks().get(0));
     }
 
     /**

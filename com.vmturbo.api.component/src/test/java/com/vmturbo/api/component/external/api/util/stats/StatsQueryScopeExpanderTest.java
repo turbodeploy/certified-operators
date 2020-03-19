@@ -20,6 +20,7 @@ import java.util.Optional;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -93,7 +94,9 @@ public class StatsQueryScopeExpanderTest {
             SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             repositoryApi,
-            groupExpander, CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            groupExpander,
+            mock(EntityAspectMapper.class),
+            CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             7));
         scopeExpander = new StatsQueryScopeExpander(groupExpander, repositoryApi,
             supplyChainFetcherFactory, userSessionContext);

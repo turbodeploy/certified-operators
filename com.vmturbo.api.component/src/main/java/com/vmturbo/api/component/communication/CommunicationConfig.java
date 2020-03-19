@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.api.component.external.api.mapper.MapperConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -154,6 +155,8 @@ public class CommunicationConfig {
     private ApiComponentGlobalConfig apiComponentGlobalConfig;
     @Autowired
     private UserSessionConfig userSessionConfig;
+    @Autowired
+    private MapperConfig mapperConfig;
 
     @Value("${clustermgr_host}")
     private String clusterMgrHost;
@@ -483,6 +486,7 @@ public class CommunicationConfig {
                 entitySeverityService(),
                 repositoryApi(),
                 groupExpander(),
+                mapperConfig.entityAspectMapper(),
                 costServiceBlockingStub(),
                 realtimeTopologyContextId);
     }
