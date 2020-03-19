@@ -61,12 +61,12 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyCha
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -195,35 +195,47 @@ public class ActionSpecMappingContextFactory {
         final Map<Long, ApiPartialEntity> datacenterById =
             getDatacentersByEntity(entitiesById.keySet(), topologyContextId);
 
-        // fetch related regions and create a map from zone id to region
-        final List<ApiPartialEntity> regions = repositoryApi.getRegion(entitiesById.keySet())
-                                                            .getEntities()
-                                                            .collect(Collectors.toList());
-
-        //TODO: This seems excessive to make repository request for each entity in scope
+        // Fetch related regions and create maps from region IDs to regions and
+        // from availability zone IDs to regions.
         final Map<Long, ApiPartialEntity> entityIdToRegion = new HashMap<>();
-        for (long entityId : entitiesById.keySet()) {
-            final ApiPartialEntity region =
-                repositoryApi.getRegion(Collections.singleton(entityId))
-                    .getEntities()
-                    .findAny()
-                    .orElse(null);
-            if (region != null) {
-                entityIdToRegion.put(entityId, region);
+        final Map<Long, ApiPartialEntity> regions = new HashMap<>();
+        final Map<Long, ApiPartialEntity> azToRegion = new HashMap<>();
+        repositoryApi.getRegion(entitiesById.keySet()).getEntities().forEach(region -> {
+            Long regionOid = region.getOid();
+            regions.put(regionOid, region);
+            // Create the AZ -> Region mappings that we learned from this entry.
+            for (RelatedEntity re : region.getConnectedToList()) {
+                if (re.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE) {
+                    azToRegion.put(re.getOid(), region);
+                }
+            }
+        });
+
+        for (ApiPartialEntity entry : entitiesById.values()) {
+            // Identify the first region. Make a note of the first availability zone that we
+            // encounter in case we need to derive the region from the availability zone instead.
+            Long azId = null;
+            ApiPartialEntity relatedRegion = null;
+            for (RelatedEntity re : entry.getConnectedToList()) {
+                if (re.getEntityType() == EntityType.REGION_VALUE) {
+                    relatedRegion = regions.get(re.getOid());
+                    break;
+                } else if (azId == null &&
+                           re.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE) {
+                    azId = re.getOid();
+                }
+            }
+            if (relatedRegion == null && azId != null) {
+                // Get the region from the AZ instead
+                relatedRegion = azToRegion.get(azId);
+            }
+            if (relatedRegion != null) {
+                entityIdToRegion.put(entry.getOid(), relatedRegion);
             }
         }
-
-        // Add the regions to the entities map.
+        // Add the regions and availability zones to the entities map.
         entityIdToRegion.values().forEach(region -> entitiesById.put(region.getOid(), region));
-
-        for (ApiPartialEntity region : regions) {
-            repositoryApi.requestForTypeBasedTraversal(
-                    Collections.singleton(region.getOid()),
-                    TraversalDirection.AGGREGATES,
-                    EntityType.AVAILABILITY_ZONE)
-                .getOids()
-                .forEach(zoneId -> entitiesById.put(zoneId, region));
-        }
+        entitiesById.putAll(azToRegion);
 
         // fetch all cloud aspects
         final Map<Long, EntityAspect> cloudAspects = getEntityToAspectMapping(entitiesById.values(),
@@ -258,7 +270,7 @@ public class ActionSpecMappingContextFactory {
      * Quick test to check if entity is projected or not.  Relies on fact that Market assigns
      * negative OIDs to entities that it provisions.
      *
-     * @param entityId
+     * @param entityId ID of entity to check
      * @return true for projected entities.
      */
     private boolean isProjected(long entityId) {
