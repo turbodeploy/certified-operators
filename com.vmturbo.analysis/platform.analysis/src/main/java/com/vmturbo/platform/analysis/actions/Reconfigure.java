@@ -94,9 +94,18 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
             @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
             @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
                                                                         destinationShoppingList) {
-        // Port action
-        // TODO: do we need to add validation steps?
         return new Reconfigure(destinationEconomy, destinationShoppingList.apply(getTarget()));
+    }
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a reconfigure is always considered valid.</p>
+     */
+    // TODO: do we need to add conditions?
+    @Override
+    public boolean isValid() {
+        return true;
     }
 
     private @NonNull Reconfigure internalRollback() {

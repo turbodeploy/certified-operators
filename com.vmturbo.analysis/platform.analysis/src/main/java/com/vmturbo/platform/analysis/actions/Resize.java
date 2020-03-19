@@ -3,7 +3,6 @@ package com.vmturbo.platform.analysis.actions;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
-import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -222,16 +221,18 @@ public class Resize extends ActionImpl {
             @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
             @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
                                                                         destinationShoppingList) {
-        // Port action
-        Resize ported = new Resize(destinationEconomy, destinationTrader.apply(getSellingTrader()),
+        return new Resize(destinationEconomy, destinationTrader.apply(getSellingTrader()),
             getResizedCommoditySpec(), getOldCapacity(), getNewCapacity());
+    }
 
-        // Validate port
-        if (!ported.getResizedCommodity().getSettings().isResizable()) {
-            throw new NoSuchElementException("Resize didn't pass porting checks");
-        }
-
-        return ported;
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a resize is considered valid iff the resized commodity is resizable.</p>
+     */
+    @Override
+    public boolean isValid() {
+        return getResizedCommodity().getSettings().isResizable();
     }
 
     @Override

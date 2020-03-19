@@ -10,7 +10,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
@@ -150,19 +149,25 @@ public class CompoundMove extends ActionImpl {
         List<Move> portedMoves = getConstituentMoves().stream().map(
             move -> move.port(destinationEconomy, destinationTrader, destinationShoppingList)
         ).collect(Collectors.toList());
-        CompoundMove ported = new CompoundMove(destinationEconomy,
+
+        return new CompoundMove(destinationEconomy,
             portedMoves.stream().map(Move::getTarget).collect(Collectors.toList()),
             portedMoves.stream().map(Move::getSource).collect(Collectors.toList()),
             portedMoves.stream().map(Move::getDestination).collect(Collectors.toList()));
+    }
 
-        // TODO: does it make sense to replay a compound move if SNM is disabled? Can they represent
-        // moves that don't require it?
-        // Individual move validity is checked in Move::port for now.
-        if (!ported.getActionTarget().getSettings().isShopTogether()) {
-            throw new NoSuchElementException("CompoundMove didn't pass porting checks");
-        }
-
-        return ported;
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a compound move is considered valid iff the target trader has shop-together
+     * enabled and all constituent moves are also valid.</p>
+     */
+    // TODO: does it make sense to replay a compound move if SNM is disabled? Can they represent
+    // moves that don't require it?
+    @Override
+    public boolean isValid() {
+        return getActionTarget().getSettings().isShopTogether()
+            && getConstituentMoves().stream().allMatch(Move::isValid);
     }
 
     @Override

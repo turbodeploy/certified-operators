@@ -101,7 +101,10 @@ public class ReplayActions {
                     return newSl;
                 };
 
-                actions.add(action.port(economy, traderMap, shoppingListMap).take());
+                Action ported = action.port(economy, traderMap, shoppingListMap);
+                if (ported.isValid()) {
+                    actions.add(ported.take());
+                }
 
                 if (logger.isDebugEnabled()) {
                     logger.debug("replayed " + action.toString());

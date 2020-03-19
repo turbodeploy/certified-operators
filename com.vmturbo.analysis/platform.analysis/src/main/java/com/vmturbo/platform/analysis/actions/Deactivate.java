@@ -6,7 +6,6 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -31,8 +30,6 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 public class Deactivate extends StateChangeBase { // inheritance for code reuse
 
     private static final Logger logger = LogManager.getLogger();
-    // Actions triggered by chaining Deactivate actions triggering by providerMustClone
-    private List<@NonNull Action> subsequentActions_ = new ArrayList<>();
     private List<ShoppingList> removedShoppingLists = new ArrayList<>();
 
     // Constructors
@@ -127,14 +124,19 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
             @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
                                                                         destinationShoppingList) {
         // TODO: do I need to check if market doesn't exist any more or replace market with basket?
-        Deactivate ported = new Deactivate(destinationEconomy, destinationTrader.apply(getTarget()),
+        return new Deactivate(destinationEconomy, destinationTrader.apply(getTarget()),
             destinationEconomy.getMarket(getSourceMarket().getBasket()));
+    }
 
-        if (!ported.getTarget().getSettings().isSuspendable()) {
-            throw new NoSuchElementException("Deactivate didn't pass porting checks");
-        }
-
-        return ported;
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a deactivate is considered valid iff the target trader is suspendable and
+     * active.</p>
+     */
+    @Override
+    public boolean isValid() {
+        return getTarget().getSettings().isSuspendable() && getTarget().getState().isActive();
     }
 
     // TODO: update description and reason when we create the corresponding matrix.

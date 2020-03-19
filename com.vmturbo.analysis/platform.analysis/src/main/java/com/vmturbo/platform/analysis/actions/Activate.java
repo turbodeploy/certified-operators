@@ -2,7 +2,6 @@ package com.vmturbo.platform.analysis.actions;
 
 import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 
-import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -99,16 +98,21 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
             @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
             @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
                                                                         destinationShoppingList) {
-        Activate ported = new Activate(destinationEconomy, destinationTrader.apply(getTarget()),
+        return new Activate(destinationEconomy, destinationTrader.apply(getTarget()),
             destinationEconomy.getMarket(getSourceMarket().getBasket()),
             destinationTrader.apply(getModelSeller()), getReason());
+    }
 
-        // Do we want to check if some other trader is cloneable or if this one is activate-able?
-        if (!ported.getModelSeller().getSettings().isCloneable()) {
-            throw new NoSuchElementException("Activate didn't pass porting checks");
-        }
-
-        return ported;
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently an activate is considered valid iff the model seller is cloneable and inactive.
+     * </p>
+     */
+    // TODO: Do we want to check if some other trader is cloneable or if this one is activate-able?
+    @Override
+    public boolean isValid() {
+        return getModelSeller().getSettings().isCloneable() && !getTarget().getState().isActive();
     }
 
     // TODO: update description and reason when we create the corresponding matrix.

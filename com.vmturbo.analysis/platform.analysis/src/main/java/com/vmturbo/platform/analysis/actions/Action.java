@@ -117,8 +117,7 @@ public interface Action {
      *                                source economy to one in the destination economy. If such a
      *                                mapping doesn't exist, the function should throw a
      *                                {@link NoSuchElementException}.
-     * @return The ported action of {@code null} if {@code this} action can't be ported to
-     *         <b>destinationEconomy</b>.
+     * @return The ported action iff {@code this} action can be ported to <b>destinationEconomy</b>.
      * @throws NoSuchElementException Iff the action can't be ported to <b>destinationEconomy</b>
      *                                using the specified mapping.
      */
@@ -126,6 +125,22 @@ public interface Action {
     @NonNull Action port(@NonNull Economy destinationEconomy,
          @NonNull Function<@NonNull Trader, @NonNull Trader> destinationTrader,
          @NonNull Function<@NonNull ShoppingList, @NonNull ShoppingList> destinationShoppingList);
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>It does not concern itself with whether the economy will be closer to the desired state
+     * after taking {@code this} action. It only considers settings like whether its target is
+     * resizable, movable, etc. and current state like whether target is active or placed on source.
+     * </p>
+     *
+     * <p>The exact set of constraints considered differs by implementation and is documented there.
+     * </p>
+     *
+     * @return Whether {@code this} action respects constraints and can be taken.
+     */
+    @Pure
+    boolean isValid();
 
     /**
      * Returns a human-readable description of {@code this} action for debugging purposes.

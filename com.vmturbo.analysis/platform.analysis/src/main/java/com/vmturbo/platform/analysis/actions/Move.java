@@ -7,7 +7,6 @@ import static com.vmturbo.platform.analysis.ede.Placement.initiateQuoteMinimizer
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -212,23 +211,27 @@ public class Move extends MoveBase implements Action { // inheritance for code r
             @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
             @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
                                                                         destinationShoppingList) {
-        // Port action
-        Move ported = new Move(destinationEconomy, destinationShoppingList.apply(getTarget()),
+        return new Move(destinationEconomy, destinationShoppingList.apply(getTarget()),
             getSource() == null ? null : destinationTrader.apply(getSource()),
             getDestination() == null ? null : destinationTrader.apply(getDestination()),
             getContext());
+    }
 
-        // Validate port
-        // TODO: are those checks enough?
-        if (!ported.getTarget().isMovable()
-                || ported.getDestination() != null
-                    && !ported.getDestination().getSettings().canAcceptNewCustomers()
-                // TODO: for replay this kind of makes sense but in general?
-                || ported.getSource() != ported.getTarget().getSupplier()) {
-            throw new NoSuchElementException("Move didn't pass porting checks");
-        }
-
-        return ported;
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a move is considered valid iff the target shopping list is movable, the
+     * destination trader can accept new customers and the source trader is where the target
+     * shopping list is currently placed.
+     * </p>
+     */
+    // TODO: are those checks enough?
+    @Override
+    public boolean isValid() {
+        return getTarget().isMovable()
+            && (getDestination() == null || getDestination().getSettings().canAcceptNewCustomers())
+            // TODO: for replay this kind of makes sense but in general?
+            && getSource() == getTarget().getSupplier();
     }
 
     @Override

@@ -5,7 +5,6 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -261,15 +260,19 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
             @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
             @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
                                                                         destinationShoppingList) {
-        ProvisionByDemand ported = new ProvisionByDemand(destinationEconomy,
+        return new ProvisionByDemand(destinationEconomy,
             destinationShoppingList.apply(getModelBuyer()),
             destinationTrader.apply(getModelSeller()));
+    }
 
-        if (!ported.getModelSeller().getSettings().isCloneable()) {
-            throw new NoSuchElementException("ProvisionByDemand didn't pass porting checks");
-        }
-
-        return ported;
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a provision-by-demand is considered valid iff the model seller is cloneable.</p>
+     */
+    @Override
+    public boolean isValid() {
+        return getModelSeller().getSettings().isCloneable();
     }
 
     @Override
