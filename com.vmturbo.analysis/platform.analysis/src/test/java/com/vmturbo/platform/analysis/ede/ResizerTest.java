@@ -886,13 +886,13 @@ public class ResizerTest {
         double vmVmemCapacity = 500;
         double vmemUsedByAppServer1 = 50;
         double vmemUsedByDbServer1 = 50;
-        double heapUsedByApp = 60;
+        double heapUsedByApp = 155;
         double vmMinDesiredUtil = 0.65;
         double vmMaxDesiredUtil = 0.75;
         double economyRightSizeLower = 1;
         double economyRightSizeUpper = 0.7;
-        double appServerHeapCapacity = 100;
-        double dbServerDbMemCapacity = 100;
+        double appServerHeapCapacity = 160;
+        double dbServerDbMemCapacity = 160;
 
         Economy economy = new Economy();
         pm = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
@@ -958,11 +958,8 @@ public class ResizerTest {
 
         vm.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
         appserver1.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
-        appserver1.getCommoditiesSold().get(0).getSettings().setUtilizationUpperBound(0.7);
         appserver2.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
-        appserver2.getCommoditiesSold().get(0).getSettings().setUtilizationUpperBound(0.7);
         dbserver1.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
-        dbserver1.getCommoditiesSold().get(0).getSettings().setUtilizationUpperBound(0.7);
         economy.getSettings().setRightSizeLower(economyRightSizeLower);
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
 
@@ -973,11 +970,8 @@ public class ResizerTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         ledger = new Ledger(economy);
 
-        // VM tries resizing vMem down (to 215) but this resize is prevented by the appServers cumulatively selling high
-        // heap/dbMem(300 total and 210 effective). Disallow appServer and dbServer resizes UPs when the resizes pushes
-        // the cumulative capacity over rawMaterialCap.
-        // NOTE: We would have had resizes if we considered the effectiveCap on the appServers and dbServers instead
-        // of the actualCapacity
+        // VM tries resizing vMem down but this resize is prevented by the appServers cumulatively selling high heap/dbMem
+        // disallow appServer and dbServer resizes UPs when the resizes pushes the cumulative capacity over rawMaterialCap
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         assertEquals(0, actions.size());

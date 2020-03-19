@@ -327,13 +327,13 @@ public class Resizer {
             // in the case of heap resizing up, we make sure that the sum of all heapCapacities sold by allServers
             // is less than the vMemSoldCapacity. This sum is not going to be same as vMemUsed and hence
             // this check is different from the rawMaterial validation.
-            double totalCapOnConsumers = calculateTotalCapacityOnCoConsumersForResizeUp(economy, commSpec, seller);
-            if (totalCapOnConsumers + desiredIncrement <= rawMaterial.getEffectiveCapacity()) {
+            double totalEffCapOnConsumers = calculateTotalEffectiveCapacityOnCoConsumersForResizeUp(economy, commSpec, seller);
+            if (totalEffCapOnConsumers + desiredIncrement <= rawMaterial.getEffectiveCapacity()) {
                 return desiredIncrement;
             } else {
                 logger.debug("The sum of the effCap sold by all the customers is {}. This is " +
                         "much larger than the raw material {}'s effCap {} after resizing up by {} for {} on {}",
-                        totalCapOnConsumers, rawMaterial.getEffectiveCapacity(),
+                        totalEffCapOnConsumers, rawMaterial.getEffectiveCapacity(),
                         desiredIncrement, commSpec.getDebugInfoNeverUseInCode(), seller.getDebugInfoNeverUseInCode());
                 return 0.0;
             }
@@ -349,14 +349,14 @@ public class Resizer {
      * @param economy           The economy that the trader is a part of
      * @param commSpec          The commSpec being resized
      * @param seller            The seller
-     * @return                  Total Capacity of commoditySold across all customers
+     * @return                  Total effectiveCapacity of commoditySold across all customers
      */
-    private static double calculateTotalCapacityOnCoConsumersForResizeUp(Economy economy,
+    private static double calculateTotalEffectiveCapacityOnCoConsumersForResizeUp(Economy economy,
                                                                                    CommoditySpecification commSpec,
                                                                                    Trader seller) {
         // co-dependant commodity capacity validation
         // this means that there is a mapping for the commodity and the commodity is resizeUpAware
-        double totalCap = 0;
+        double totalEffCap = 0;
         List<Integer> rawMaterials = economy.getRawMaterials(commSpec.getBaseType());
         Set<ShoppingList> sls = economy.getMarketsAsBuyer(seller).keySet();
         if (rawMaterials != null) {
@@ -374,57 +374,57 @@ public class Resizer {
                         // of dbMemCap and heapCap sold by all customers
                         if (economy.getResizeProducesDependencyEntry(baseCommType) != null) {
                             for (int commType : economy.getResizeProducesDependencyEntry(baseCommType)) {
-                                totalCap += sumUpCapacitiesSoldByCustomersForCommodity(optionalSupplier.get(), commType);
+                                totalEffCap += sumUpEffCapacitiesSoldByCustomersForCommodity(optionalSupplier.get(), commType);
                             }
                         }
                     }
                 }
             }
         }
-        return totalCap;
+        return totalEffCap;
     }
 
     /**
-     * When a commodity like heap or dbMem tries resizingDown, return the sum of capacities of dependant commodity sold
-     * by the co-customers. These dependant commodities are heap and dbMem.
+     * When a commodity like heap or dbMem tries resizingDown, return the sum of capacities of dependant commodity sold by the co-customers.
+     * These dependant commodities are heap and dbMem
      *
      * @param economy           The economy that the trader is a part of
      * @param commSpec          The commSpec being resized
      * @param seller            The seller
-     * @return                  Total capacity of commoditySold across all customers
+     * @return                  Total effectiveCapacity of commoditySold across all customers
      */
-    private static double calculateTotalCapacityOnCoConsumersForResizeDown(Economy economy,
+    private static double calculateTotalEffectiveCapacityOnCoConsumersForResizeDown(Economy economy,
                                                                                    CommoditySpecification commSpec,
                                                                                    Trader seller) {
         // co-dependant commodity capacity validation
         // this means that there is a mapping for the commodity and the commodity is resizeUpAware
-        double totalCap = 0;
+        double totalEffCap = 0;
         if (economy.getResizeProducesDependencyEntry(commSpec.getBaseType()) != null) {
             // for vMem resizing down, the related commodities are heap or dbMem
             for (Integer commType : economy.getResizeProducesDependencyEntry(commSpec.getBaseType())) {
                 // check if customer sells commType. eg, heap or dbMem in the case of an AppServer or dbServer respectively
                 // and sum up the resourceCapacities
-                totalCap += sumUpCapacitiesSoldByCustomersForCommodity(seller, commType);
+                totalEffCap += sumUpEffCapacitiesSoldByCustomersForCommodity(seller, commType);
             }
         }
-        return totalCap;
+        return totalEffCap;
     }
 
     /**
-     * return the sum of capacities of commodity sold of a particular type sold by the customers of a seller.
+     * return the sum of effective capacities of commodity sold of a particular type sold by the customers of a seller.
      *
      * @param seller            The seller
      * @param commType          Type of commodity being sold by the customers
-     * @return                  Total Capacity of commoditySold across all customers
+     * @return                  Total effectiveCapacity of commoditySold across all customers
      */
-    private static double sumUpCapacitiesSoldByCustomersForCommodity(Trader seller,
+    private static double sumUpEffCapacitiesSoldByCustomersForCommodity(Trader seller,
                                                                         Integer commType) {
         // check if customer sells commType. eg, heap or dbMem in the case of an AppServer or dbServer respectively
         // and sum up the resourceCapacities
         return seller.getCustomers().stream().map(ShoppingList::getBuyer)
                 .filter(trader -> trader.getBasketSold().indexOfBaseType(commType) != -1)
                 .map(trader -> trader.getCommoditiesSold().get(trader.getBasketSold().indexOfBaseType(commType)))
-                .map(CommoditySold::getCapacity)
+                .map(CommoditySold::getEffectiveCapacity)
                 .mapToDouble(Double::doubleValue).sum();
     }
 
@@ -526,13 +526,13 @@ public class Resizer {
                         commSpec.getDebugInfoNeverUseInCode(), newCapacity, rawMaterial.getEffectiveCapacity());
             }
         }
-        double totalCapOnCoConsumers = calculateTotalCapacityOnCoConsumersForResizeDown(economy, commSpec, seller);
+        double totalEffectiveCapOnCoConsumers = calculateTotalEffectiveCapacityOnCoConsumersForResizeDown(economy, commSpec, seller);
         // if the total capacity on all the consumers for the dependant commodities is much larger than the newCapacity, dont resize
-        if (totalCapOnCoConsumers > currentCapacity - amount) {
-            logger.debug("The sum of the Capacities sold by all the customers is {}. This is " +
-                            "much larger than {}'s Capacity {} after resizing down by {} for {}",
-                            totalCapOnCoConsumers, commSpec.getDebugInfoNeverUseInCode(), currentCapacity,
-                            amount, seller.getDebugInfoNeverUseInCode());
+        if (totalEffectiveCapOnCoConsumers > currentCapacity - amount) {
+            logger.debug("The sum of the effCap sold by all the customers is {}. This is " +
+                            "much larger than {}'s effCap {} after resizing down by {} for {}",
+                             totalEffectiveCapOnCoConsumers, commSpec.getDebugInfoNeverUseInCode(), currentCapacity,
+                             amount, seller.getDebugInfoNeverUseInCode());
             return 0;
         }
         return amount;
