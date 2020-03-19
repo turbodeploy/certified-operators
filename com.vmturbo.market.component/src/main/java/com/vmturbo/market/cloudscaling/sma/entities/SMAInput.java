@@ -400,16 +400,16 @@ public class SMAInput {
         contextToOSTypes.put(context, osTypes);
 
         Optional<String> groupIdOptional = consistentScalingHelper.getScalingGroupId(oid);
-        String groupName = SMAUtils.NO_GROUP_ID;
+        String groupId = SMAUtils.NO_GROUP_ID;
         if (groupIdOptional.isPresent()) {
-            groupName = groupIdOptional.get();
+            groupId = groupIdOptional.get();
         }
         /*
          * Create Virtual Machine.
          */
         SMAVirtualMachine vm = new SMAVirtualMachine(oid,
             name,
-            groupName,
+            groupId,
             businessAccountId,
             null,
             new ArrayList<SMATemplate>(),
@@ -435,16 +435,16 @@ public class SMAInput {
      * found a VM that is not eligible for scaling, determine if covered by RIs and update the
      * riBoughtIdToCouponsUsed map.
      * @param cloudCostData           RI coverage of VMs
-     * @param vmOid                   VM oid
-     * @param vmName                  VM name
+     * @param oid                     VM oid
+     * @param name                    VM name
      * @param riBoughtIdToCouponsUsed map from RI bought OID to coupons covering VM.
      */
     private static void processNotEligibleForScaling(final CloudCostData cloudCostData,
-                                              long vmOid, final String vmName,
+                                              long oid, final String name,
                                               Map<Long, Float> riBoughtIdToCouponsUsed) {
         // check if VM is covered by one or more RIs, if so cache the RI and coupons.
-        logger.debug("processVM: VM OID={} name={} not eligible for scale", vmOid, vmName);
-        Optional<EntityReservedInstanceCoverage> optional = cloudCostData.getRiCoverageForEntity(vmOid);
+        logger.debug("processVM: VM OID={} name={} not eligible for scale", oid, name);
+        Optional<EntityReservedInstanceCoverage> optional = cloudCostData.getRiCoverageForEntity(oid);
         if (optional.isPresent()) {
             EntityReservedInstanceCoverage coverage = optional.get();
             Map<Long, Double> couponsCoveredByRIs = coverage.getCouponsCoveredByRi();
@@ -935,16 +935,14 @@ public class SMAInput {
         ReservedInstanceKey reservedInstanceKey = new ReservedInstanceKey(data,
                 template.getFamily(), billingFamilyId);
         long riKeyId = reservedInstanceKeyIDGenerator.lookUpRIKey(reservedInstanceKey, riBoughtId);
-        /*
-         * if RI has coupons covering VMs that can't scale, update the count
-         */
+        // if RI has coupons covering VMs that can't scale, update the count
         Float usedCoupons = riBoughtIdToCouponsUsed.get(riBoughtId);
         if (usedCoupons != null) {
             float numberRIsUsed = usedCoupons / (float)template.getCoupons();
             logger.info("processRI: RI bouught OID={} has usedCoupons={}, reduce count by int of {}",
             riBoughtId, usedCoupons, numberRIsUsed);
             count = count - numberRIsUsed;
-            logger.info("processRI: RI bought OID={} has count={} == 0", riBoughtId, count);
+            logger.info("processRI: RI bouught OID={} has count={} == 0", riBoughtId, count);
             if (count <= 0) {
                 return false;
             }

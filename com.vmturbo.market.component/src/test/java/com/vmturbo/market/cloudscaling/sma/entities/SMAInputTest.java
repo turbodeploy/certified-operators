@@ -373,7 +373,6 @@ public class SMAInputTest {
         Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs = new HashMap<>();
         Map<Long, SMAReservedInstance> riBoughtOidToRI = new HashMap<>();
         final ReservedInstanceData riData = new ReservedInstanceData(riBought1, riSpec1);
-
         boolean created = SMAInput.processReservedInstance(riData, cloudTopology,
             computeTierOidToContextToTemplate, regionIdToOsTypeToContexts, riBoughtIdToCouponsUsed,
             cspFromRegion, reservedInstanceKeyIDGenerator, smaContextToRIs, riBoughtOidToRI);
@@ -492,7 +491,6 @@ public class SMAInputTest {
         Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs = new HashMap<>();
         Map<Long, SMAReservedInstance> riBoughtOidToRI = new HashMap<>();
         final ReservedInstanceData riData = new ReservedInstanceData(riBought2, riSpec1);
-
         boolean created = SMAInput.processReservedInstance(riData, cloudTopology,
             computeTierOidToContextToTemplate, regionIdToOsTypeToContexts, riBoughtIdToCouponsUsed,
             cspFromRegion, reservedInstanceKeyIDGenerator, smaContextToRIs, riBoughtOidToRI);
@@ -620,7 +618,6 @@ public class SMAInputTest {
         Map<Long, SMAReservedInstance> riBoughtOidToRI = new HashMap<>();
         // 1 t2.small with t2.mciro coupons used
         final ReservedInstanceData riData = new ReservedInstanceData(riBought3, riSpec2);
-
         boolean created = SMAInput.processReservedInstance(riData, cloudTopology,
             computeTierOidToContextToTemplate, regionIdToOsTypeToContexts, riBoughtIdToCouponsUsed,
             cspFromRegion, reservedInstanceKeyIDGenerator, smaContextToRIs, riBoughtOidToRI);

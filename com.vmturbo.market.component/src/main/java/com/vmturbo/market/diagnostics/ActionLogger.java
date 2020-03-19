@@ -11,7 +11,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
-import com.google.common.base.Strings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,10 +68,9 @@ public class ActionLogger {
     private static final String prefix = "actionLogger";
 
     private static final String header = "market," + prefix + ",engine,CSP,billingFamily,businessAccount,region," +
-        "osType,tenancy,vm,vmOid,vmGroup,savingsPerHour," +
-        "sourceTemplate,sourceCoupons,naturalTemplate,naturalCoupons," +
-        "sourceRI,sourceRITemplate,sourceRICoupons," +
-        "projectedTemplate,projectedCoupons,projectedRI,projectedRITemplate,projectedRICoupons," +
+        "OSType,Tenancy,vmName,vmOid,vmGroupName,savingsPerHour," +
+        "sourceTemplate,sourceCoupons,natrualTemplate,naturalCoupons,sourceRI,RITemplate,RICoupons," +
+        "projectedTemplate,projectedCoupons,projectedRI,RITemplate,RICoupons," +
         "templateChange,familyChange";
     /*
      * What is written to the log for each action
@@ -319,7 +317,7 @@ public class ActionLogger {
             .append(tenancyName).append(",")
             .append(virtualMachineName).append(",")
             .append(virtualMachineOid).append(",")
-            .append((Strings.isNullOrEmpty(virtualMachineGroupName) ? "-" : virtualMachineGroupName)).append(",")
+            .append(virtualMachineGroupName).append(",")
             .append(savingsPerHour).append(",")
             .append(sourceTemplateName).append(",")
             .append(sourceTemplateCoupons).append(",")
