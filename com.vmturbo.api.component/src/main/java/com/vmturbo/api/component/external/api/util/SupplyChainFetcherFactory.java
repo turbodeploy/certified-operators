@@ -146,19 +146,20 @@ public class SupplyChainFetcherFactory {
      * expand cloud aggregators, we want to get entities of all the types in
      * {@link #SCOPE_EXPANSION_TYPES_FOR_CLOUD}.
      */
-    private static final Map<UIEntityType, Set<UIEntityType>> ENTITY_TYPES_TO_EXPAND =
-        ImmutableMap.<UIEntityType, Set<UIEntityType>>builder()
-            .put(UIEntityType.BUSINESS_APPLICATION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
-                ImmutableSet.of(UIEntityType.BUSINESS_APPLICATION, UIEntityType.BUSINESS_TRANSACTION)))
-            .put(UIEntityType.BUSINESS_TRANSACTION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
-                Collections.singleton(UIEntityType.BUSINESS_TRANSACTION)))
-            .put(UIEntityType.SERVICE, SCOPE_EXPANSION_TYPES_FOR_RISK)
-            .put(UIEntityType.DATACENTER, Collections.singleton(UIEntityType.PHYSICAL_MACHINE))
-            .put(UIEntityType.REGION, SCOPE_EXPANSION_TYPES_FOR_CLOUD)
-            .put(UIEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD)
-            .put(UIEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD)
-            .put(UIEntityType.VIRTUAL_DATACENTER, Collections.singleton(UIEntityType.VIRTUAL_MACHINE))
-            .build();
+    private static final Map<UIEntityType, Set<UIEntityType>> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
+        UIEntityType.DATACENTER, Collections.singleton(UIEntityType.PHYSICAL_MACHINE),
+        UIEntityType.REGION, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
+        UIEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
+        UIEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
+        UIEntityType.VIRTUAL_DATACENTER, Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
+
+    private static final Map<UIEntityType, Set<UIEntityType>> ENTITY_TYPES_TO_EXPAND_FOR_ACTION_PROPAGATION =
+        ImmutableMap.of(
+            UIEntityType.BUSINESS_APPLICATION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
+                ImmutableSet.of(UIEntityType.BUSINESS_APPLICATION, UIEntityType.BUSINESS_TRANSACTION)),
+            UIEntityType.BUSINESS_TRANSACTION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
+                Collections.singleton(UIEntityType.BUSINESS_TRANSACTION)),
+            UIEntityType.SERVICE, SCOPE_EXPANSION_TYPES_FOR_RISK);
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -231,27 +232,52 @@ public class SupplyChainFetcherFactory {
     }
 
     /**
-     * Expand aggregator entities according to the map {@link #ENTITY_TYPES_TO_EXPAND}.
-     *
-     * <p>The method takes a set of entity oids. It expands each entity whose type
-     * is in the key set of {@link #ENTITY_TYPES_TO_EXPAND} to the aggregated entities
-     * of the corresponding type. It will leave all other entities unchanged. For
-     * example, if the input set of oids contains the oids of a datacenter and a VM,
-     * the result will contain the oids of the VM and all the PMs aggregated by
-     * the datacenter.</p>
+     * Calls the expand aggregate function with {@link #ENTITY_TYPES_TO_EXPAND}.
      *
      * @param entityOidsToExpand the input set of ServiceEntity oids
-     * @return the input set with oids of aggregating entities substituted by their
-     *         expansions
+     * @return the input set with oids of aggregating entities substituted by their expansions.
      */
     public Set<Long> expandAggregatedEntities(Collection<Long> entityOidsToExpand) {
+        return expandAggregatedEntities(entityOidsToExpand, ENTITY_TYPES_TO_EXPAND);
+    }
+
+    /**
+     * Calls the expand aggregate function with both {@link #ENTITY_TYPES_TO_EXPAND_FOR_ACTION_PROPAGATION}
+     * and {@link #ENTITY_TYPES_TO_EXPAND}.
+     *
+     * @param entityOidsToExpand the input set of ServiceEntity oids
+     * @return the input set with oids of aggregating entities substituted by their expansions.
+     */
+    public Set<Long> expandAggregatingAndActionPropagatingEntities(Collection<Long> entityOidsToExpand) {
+        Map<UIEntityType, Set<UIEntityType>> mergeEntityMap = new HashMap<>();
+        mergeEntityMap.putAll(ENTITY_TYPES_TO_EXPAND);
+        mergeEntityMap.putAll(ENTITY_TYPES_TO_EXPAND_FOR_ACTION_PROPAGATION);
+        return expandAggregatedEntities(entityOidsToExpand, mergeEntityMap);
+    }
+
+    /**
+     * Expand aggregator entities according to the a given entity map.
+     *
+     * <p>The method takes a set of entity oids. It expands each entity whose type
+     * is in the key set of the given map to the aggregated entities
+     * of the corresponding type. It will leave all other entities unchanged. For
+     * example, if the input set of oids contains the oids of a datacenter and a VM,
+     * and the map contains logic for their expansion then the result will contain the oids of the
+     * VM and all the PMs aggregated by the datacenter.</p>
+     *
+     * @param entityOidsToExpand the input set of ServiceEntity oids
+     * @param expandingMap an expansion map that shown the expansion logic
+     * @return the input set with oids of aggregating entities substituted by their expansions
+     */
+    private Set<Long> expandAggregatedEntities(Collection<Long> entityOidsToExpand,
+                                              Map<UIEntityType, Set<UIEntityType>>  expandingMap) {
         // Early return if the input is empty, to prevent making
         // the initial RPC call.
         if (entityOidsToExpand.isEmpty()) {
             return Collections.emptySet();
         }
 
-        final Set<String> entityTypeString = ENTITY_TYPES_TO_EXPAND.keySet().stream()
+        final Set<String> entityTypeString = expandingMap.keySet().stream()
             .map(UIEntityType::apiStr)
             .collect(Collectors.toSet());
         final Set<Long> expandedEntityOids = Sets.newHashSet();
@@ -271,23 +297,27 @@ public class SupplyChainFetcherFactory {
                 // if expandServiceEntityMap contains oid, it means current oid entity needs to expand.
                 if (expandServiceEntities.containsKey(oidToExpand)) {
                     final MinimalEntity expandEntity = expandServiceEntities.get(oidToExpand);
-                    final List<String> relatedEntityTypes =
-                        ENTITY_TYPES_TO_EXPAND.get(UIEntityType.fromType(expandEntity.getEntityType()))
-                            .stream()
-                            .map(UIEntityType::apiStr)
-                            .collect(Collectors.toList());
-                    // fetch the supply chain map:  entity type -> SupplyChainNode
-                    Map<String, SupplyChainNode> supplyChainMap = newNodeFetcher()
-                        .entityTypes(relatedEntityTypes)
-                        .addSeedUuid(Long.toString(expandEntity.getOid()))
-                        .fetch();
-                    if (!supplyChainMap.isEmpty()) {
-                        for (SupplyChainNode relatedEntities : supplyChainMap.values()) {
-                            expandedEntityOids.addAll(RepositoryDTOUtil.getAllMemberOids(relatedEntities));
+                    Set<UIEntityType> uiEntityTypes = expandingMap.getOrDefault(UIEntityType.fromType(
+                        expandEntity.getEntityType()), new HashSet<>());
+                    if (uiEntityTypes != null && !uiEntityTypes.isEmpty()) {
+                        final List<String> relatedEntityTypes =
+                            expandingMap.get(UIEntityType.fromType(expandEntity.getEntityType()))
+                                .stream()
+                                .map(UIEntityType::apiStr)
+                                .collect(Collectors.toList());
+                        // fetch the supply chain map:  entity type -> SupplyChainNode
+                        Map<String, SupplyChainNode> supplyChainMap = newNodeFetcher()
+                            .entityTypes(relatedEntityTypes)
+                            .addSeedUuid(Long.toString(expandEntity.getOid()))
+                            .fetch();
+                        if (!supplyChainMap.isEmpty()) {
+                            for (SupplyChainNode relatedEntities : supplyChainMap.values()) {
+                                expandedEntityOids.addAll(RepositoryDTOUtil.getAllMemberOids(relatedEntities));
+                            }
+                        } else {
+                            logger.warn("RelatedEntityType {} not found in supply chain for {}; " +
+                                "the entity is discarded", relatedEntityTypes, expandEntity.getOid());
                         }
-                    } else {
-                        logger.warn("RelatedEntityType {} not found in supply chain for {}; " +
-                            "the entity is discarded", relatedEntityTypes, expandEntity.getOid());
                     }
                 } else {
                     expandedEntityOids.add(oidToExpand);
