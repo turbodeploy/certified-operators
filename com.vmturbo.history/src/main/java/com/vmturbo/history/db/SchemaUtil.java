@@ -23,8 +23,8 @@ import org.jooq.SQLDialect;
 import org.jooq.exception.DataAccessException;
 import org.mariadb.jdbc.MariaDbDataSource;
 
-import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
-import com.vmturbo.sql.utils.flyway.ForgetMigrationCallback;
+import com.vmturbo.history.flyway.V1_27_Callback;
+import com.vmturbo.history.flyway.V1_28_1_And_V1_35_1_Callback;
 
 public class SchemaUtil {
     protected static final Logger logger = Logger.getLogger("com.vmturbo.history.db");
@@ -112,12 +112,7 @@ public class SchemaUtil {
             .orElseGet(SchemaUtil::locations);
 
         fway.setLocations(locations.toArray(new String[]{}));
-        fway.setCallbacks(
-                // V1.27 migrations collided when 7.17 and 7.21 branches were merged
-                new ForgetMigrationCallback("1.27"),
-                // three migrations were changed in order to remove mention of MyISAM DB engine
-                new ResetChecksumsForMyIsamInfectedMigrations()
-        );
+        fway.setCallbacks(new V1_27_Callback(), new V1_28_1_And_V1_35_1_Callback());
         return fway;
     }
 
@@ -187,8 +182,8 @@ public class SchemaUtil {
                 throw e;
             }
         }
-        using(conn).execute("CREATE DATABASE IF NOT EXISTS " + dbName +
-            " DEFAULT CHARACTER SET = UTF8 DEFAULT COLLATE = utf8_unicode_ci;");
+        using(conn).execute("CREATE DATABASE IF NOT EXISTS `" + dbName +
+            "` DEFAULT CHARACTER SET = UTF8 DEFAULT COLLATE = utf8_unicode_ci;");
     }
 
     /*

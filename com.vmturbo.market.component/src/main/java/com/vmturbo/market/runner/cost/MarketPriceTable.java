@@ -454,6 +454,7 @@ public class MarketPriceTable {
             logger.debug("Price list not found for tier {} in region {}'s price table." +
                             " Cost data might not have been uploaded, or the tier is not available in the region.",
                     tierId, region.getDisplayName());
+            return priceBuilder.build();
         }
         final OSType baseOsType = computeTierPrices.getBasePrice().getGuestOsType();
         entityInfoExtractor.getComputeTierConfig(tier).ifPresent(computeTierConfig -> {
