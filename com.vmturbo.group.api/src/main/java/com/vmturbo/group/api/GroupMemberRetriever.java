@@ -1,6 +1,7 @@
 package com.vmturbo.group.api;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -63,6 +64,7 @@ public class GroupMemberRetriever {
         final Map<Long, List<Long>> members = new HashMap<>();
         final GetMembersRequest.Builder membersBuilder =
                 GetMembersRequest.newBuilder().setExpectPresent(true);
+
         for (Grouping group: groups) {
             if (group.getDefinition().hasStaticGroupMembers()) {
                 members.put(group.getId(), GroupProtoUtil.getStaticMembers(group));
@@ -85,7 +87,7 @@ public class GroupMemberRetriever {
             if (GroupProtoUtil.isNestedGroup(group)) {
                 entitiesBuilder.addId(group.getId());
             } else {
-                entities.put(group.getId(), members.get(group.getId()));
+                entities.put(group.getId(), members.getOrDefault(group.getId(), Collections.emptyList()));
             }
         }
         populateMembers(entities, entitiesBuilder.build());
@@ -94,8 +96,8 @@ public class GroupMemberRetriever {
             final long groupId = group.getId();
             final GroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
                     .group(group)
-                    .members(members.get(groupId))
-                    .entities(entities.get(groupId))
+                    .members(members.getOrDefault(groupId, Collections.emptyList()))
+                    .entities(entities.getOrDefault(groupId, Collections.emptyList()))
                     .build();
             result.add(groupAndMembers);
         }

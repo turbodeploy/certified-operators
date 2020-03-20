@@ -600,23 +600,6 @@ public class ScheduleStoreTest {
     }
 
     /**
-     * Test diags with wrong size.
-     * @throws Exception If test throws any exceptions
-     */
-    @Test(expected = DiagnosticsException.class)
-    public void testDiagsWrongDiagsSize() throws Exception {
-        Schedule schedule1 = scheduleStore.createSchedule(testScheduleWithLastDate);
-        final DiagnosticsAppender appender = Mockito.mock(DiagnosticsAppender.class);
-        scheduleStore.collectDiags(appender);
-        final ArgumentCaptor<String> diags = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(appender, Mockito.atLeastOnce()).appendString(diags.capture());
-        Assert.assertNotEquals(Collections.emptyList(), diags.getAllValues());
-        final List<String> clonedDiags = new ArrayList(diags.getAllValues());
-        clonedDiags.remove(0);
-        scheduleStore.restoreDiags(clonedDiags);
-    }
-
-    /**
      * Test collect diags trowing DataAccessException.
      * @throws Exception If test throws any unexpected exceptions
      */

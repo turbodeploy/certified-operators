@@ -10,10 +10,13 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
+import com.google.gson.reflect.TypeToken;
 
 import io.grpc.Status;
 
@@ -157,7 +160,18 @@ public class GroupDaoDiagnostics implements DiagsRestorable {
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         // Replace all existing groups with the ones in the collected diags.
         final Collection<Grouping> allGroups = collectedDiags.stream()
-                .map(string -> gson.fromJson(string, Grouping.class))
+                .flatMap(string -> {
+                    try {
+                        // The current version of diags has one group per line.
+                        return Stream.of(gson.fromJson(string, Grouping.class));
+                    } catch (JsonParseException e) {
+                        // Old diags may have two lines - one line containing ALL discovered groups,
+                        // and one containing all user groups.
+                        logger.warn("Failed to parse diags line as Grouping class. Trying to load using old format.");
+                        List<Grouping> groupings = gson.fromJson(string, new TypeToken<List<Grouping>>() {}.getType());
+                        return groupings.stream();
+                    }
+                })
                 .collect(Collectors.toList());
         groupStore.deleteAllGroups();
         logger.info("Removed all the groups.");

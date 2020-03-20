@@ -60,7 +60,7 @@ public class DiagnosticsException extends Exception {
      */
     public DiagnosticsException(@Nonnull final Throwable cause) {
         super(cause.getMessage(), cause);
-        this.errors = Collections.emptyList();
+        this.errors = Collections.singletonList(ExceptionUtils.getStackTrace(cause));
     }
 
     /**
@@ -70,11 +70,7 @@ public class DiagnosticsException extends Exception {
      * @return the list of error messages recorded tha occurred during diagnostics dumping
      */
     public List<String> getErrors() {
-        if (hasErrors()) {
-            return ImmutableList.copyOf(errors);
-        } else {
-            return Collections.singletonList(ExceptionUtils.getStackTrace(this));
-        }
+        return ImmutableList.copyOf(errors);
     }
 
     /**

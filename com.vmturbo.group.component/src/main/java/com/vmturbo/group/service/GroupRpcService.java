@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.lang3.StringUtils;
@@ -120,9 +121,9 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param settingPolicyUpdater updater for the discovered setting policies
      */
     public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
-                           @Nonnull final SearchServiceBlockingStub searchServiceRpc,
-                           @Nonnull final UserSessionContext userSessionContext,
-                           @Nonnull final GroupStitchingManager groupStitchingManager,
+            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
+            @Nonnull final UserSessionContext userSessionContext,
+            @Nonnull final GroupStitchingManager groupStitchingManager,
             @Nonnull TransactionProvider transactionProvider,
             @Nonnull IdentityProvider identityProvider,
             @Nonnull TargetSearchServiceBlockingStub targetSearchService,
@@ -342,25 +343,33 @@ public class GroupRpcService extends GroupServiceImplBase {
             }
         }
         for (Long groupId: realGroupIds) {
-            final Collection<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId),
+            try {
+                final Collection<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId),
                     request.getExpandNestedGroups());
-            // verify the user has access to all of the group members before returning any of them.
-            if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
-                if (!request.getExpandNestedGroups()) {
-                    // Need to use the expanded members for checking access, if we didn't already fetch them
-                    UserScopeUtils.checkAccess(userSessionContext,
+                // verify the user has access to all of the group members before returning any of them.
+                if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
+                    if (!request.getExpandNestedGroups()) {
+                        // Need to use the expanded members for checking access, if we didn't already fetch them
+                        UserScopeUtils.checkAccess(userSessionContext,
                             getGroupMembers(groupStore, Collections.singleton(groupId), true));
-                } else {
-                    UserScopeUtils.checkAccess(userSessionContext, members);
+                    } else {
+                        UserScopeUtils.checkAccess(userSessionContext, members);
+                    }
                 }
-            }
-            // return members
-            logger.trace("Returning group ({}) with {} members", groupId, members.size());
-            final GetMembersResponse response = GetMembersResponse.newBuilder()
+                // return members
+                logger.trace("Returning group ({}) with {} members", groupId, members.size());
+                final GetMembersResponse response = GetMembersResponse.newBuilder()
                     .setGroupId(groupId)
                     .addAllMemberId(members)
                     .build();
-            responseObserver.onNext(response);
+                responseObserver.onNext(response);
+            } catch (StoreOperationException | UserAccessScopeException | DataAccessException e) {
+                // We don't want a failure to retrieve the members of one group to result in a failure
+                // to retrieve members of all groups.
+                // In the future it might be worth it to try to detect database connection issues
+                // here, and NOT retry in that case.
+                logger.error("Failed to retrieve members for group " + groupId, e);
+            }
         }
         responseObserver.onCompleted();
     }
@@ -860,9 +869,14 @@ public class GroupRpcService extends GroupServiceImplBase {
                         searchFilterResolver.resolveExternalFilters(params));
             }
             final Search.SearchEntityOidsRequest searchRequest = searchRequestBuilder.build();
-            final Search.SearchEntityOidsResponse searchResponse =
+            try {
+                final Search.SearchEntityOidsResponse searchResponse =
                     searchServiceRpc.searchEntityOids(searchRequest);
-            memberOids.addAll(searchResponse.getEntitiesList());
+                memberOids.addAll(searchResponse.getEntitiesList());
+            } catch (StatusRuntimeException e) {
+                logger.error("Error resolving filter {}. Error: {}. Some members may be missing.",
+                    entityFilter, e.getMessage());
+            }
         }
         return memberOids;
     }
