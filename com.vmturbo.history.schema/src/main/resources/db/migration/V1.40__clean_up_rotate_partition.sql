@@ -28,8 +28,7 @@ DELIMITER ;
 DROP PROCEDURE IF EXISTS rotate_partition;
 
 DELIMITER $$
-CREATE DEFINER=CURRENT_USER PROCEDURE rotate_partition(
-    IN stats_table CHAR(30) CHARACTER SET utf8mb4,  asOfTime DATETIME)
+CREATE DEFINER=CURRENT_USER PROCEDURE rotate_partition(IN stats_table CHAR(30), asOfTime DATETIME)
 BEGIN
     DECLARE debug INT DEFAULT FALSE;
 
@@ -57,7 +56,7 @@ BEGIN
     # cursor for iterating over existing partitions, returning formatted partition boundary times
     # partitions with names that _do not_ begin with 'before' (including start and future) are excluded
     DECLARE cur1 CURSOR FOR (SELECT substring(partition_name, 7) FROM information_schema.partitions
-        WHERE table_name = stats_table COLLATE utf8mb4_unicode_ci AND table_schema = database()
+        WHERE table_name = stats_table COLLATE utf8_unicode_ci AND table_schema = database()
             AND substring(PARTITION_NAME, 1, 6) = 'before' ORDER BY partition_name ASC);
 
 
@@ -233,14 +232,14 @@ DELIMITER ;
 DROP PROCEDURE IF EXISTS summarize_stats_partitions;
 
 DELIMITER $$
-CREATE PROCEDURE summarize_stats_partitions(IN stats_table VARCHAR(30) CHARACTER SET utf8mb4)
+CREATE PROCEDURE summarize_stats_partitions(IN stats_table VARCHAR(30))
 BEGIN
     # dump a handy table showing the time overall time range, and the now-current partition boundaries
     DROP TABLE IF EXISTS _summary;
     CREATE TEMPORARY TABLE _summary (row INTEGER AUTO_INCREMENT PRIMARY KEY, time DATETIME);
     INSERT INTO _summary SELECT NULL, str_to_date(substring(partition_name, 7), '%Y%m%d%H%i%s')
         FROM information_schema.partitions
-        WHERE table_name = stats_table  COLLATE utf8mb4_unicode_ci AND table_schema = database()
+        WHERE table_name = stats_table COLLATE utf8_unicode_ci AND table_schema = database()
         AND substring(partition_name, 1, 6) = 'before';
 
     SET @previous_time = NULL;
