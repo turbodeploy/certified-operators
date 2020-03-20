@@ -389,9 +389,9 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                     .map(CommodityRequest::getCommodityName)
                     .map(PropertyType::named)
                     .collect(Collectors.toList());
-            answer.addAll(getCountStats(timeRangeOpt.get().getMostRecentSnapshotTime(),
-                    entityTypeToIdsMap, requestedProperties.stream()
-                            .filter(PropertyType::isCountMetric)));
+            answer.addAll(getCountStats(timeRangeOpt.get().getMostRecentSnapshotTime(), entityTypeToIdsMap,
+                    requestedProperties.isEmpty() ? PropertyType.getMetricPropertyTypes().stream()
+                            : requestedProperties.stream().filter(PropertyType::isCountMetric)));
 
             answer.addAll(getComputedStats(timeRangeOpt.get().getMostRecentSnapshotTime(),
                     entityTypeToIdsMap, requestedProperties.stream()
