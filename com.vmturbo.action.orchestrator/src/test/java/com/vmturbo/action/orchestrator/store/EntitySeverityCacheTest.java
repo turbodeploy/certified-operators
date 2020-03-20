@@ -1,8 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -15,9 +13,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -48,6 +46,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
@@ -59,10 +58,14 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Unit Tests for EntitySeverityCache.
@@ -97,9 +100,11 @@ public class EntitySeverityCacheTest {
 
     @Test
     public void testRefreshVisibleNotDisabled() {
-        ActionView action = actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL));
+        ActionView action = actionView(executableMove(
+            0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL));
         when(actionStore.getActionViews())
-            .thenReturn(new MapBackedActionViews(Collections.singletonMap(action.getRecommendation().getId(), action)));
+            .thenReturn(new MapBackedActionViews(
+                Collections.singletonMap(action.getRecommendation().getId(), action)));
 
         entitySeverityCache.refresh(actionStore);
         assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
@@ -107,7 +112,8 @@ public class EntitySeverityCacheTest {
 
     @Test
     public void testRefreshNotVisibleDisabled() {
-        ActionView action = spy(actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL)));
+        ActionView action = spy(actionView(executableMove(
+            0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.CRITICAL)));
         doReturn(ActionMode.DISABLED).when(action).getMode();
 
         MapBackedActionViews actionViews = new MapBackedActionViews(
@@ -121,9 +127,12 @@ public class EntitySeverityCacheTest {
 
     @Test
     public void testRefreshPicksMaxSeverity() {
-        ActionView action1 = actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.MINOR));
-        ActionView action2 = actionView(executableMove(3, DEFAULT_SOURCE_ID, 1, 4, 1, Severity.CRITICAL));
-        ActionView action3 = actionView(executableMove(5, DEFAULT_SOURCE_ID, 1, 6, 1, Severity.MAJOR));
+        ActionView action1 = actionView(executableMove(
+            0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.MINOR));
+        ActionView action2 = actionView(executableMove(
+            3, DEFAULT_SOURCE_ID, 1, 4, 1, Severity.CRITICAL));
+        ActionView action3 = actionView(executableMove(
+            5, DEFAULT_SOURCE_ID, 1, 6, 1, Severity.MAJOR));
 
         when(actionStore.getActionViews()).thenReturn(new MapBackedActionViews(ImmutableMap.of(
             action1.getRecommendation().getId(), action1,
@@ -136,10 +145,14 @@ public class EntitySeverityCacheTest {
 
     @Test
     public void testRefreshIndividualAction() {
-        ActionView action1 = actionView(executableMove(0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.MINOR));
-        ActionView action2 = spy(actionView(executableMove(3, DEFAULT_SOURCE_ID, 1, 4, 1, Severity.CRITICAL)));
-        ActionView action3 = actionView(executableMove(5, DEFAULT_SOURCE_ID, 1, 6, 1, Severity.MAJOR));
-        ActionView unrelatedAction = actionView(executableMove(5, 999, 1, 6, 1, Severity.CRITICAL));
+        ActionView action1 = actionView(executableMove(
+            0, DEFAULT_SOURCE_ID, 1, 2, 1, Severity.MINOR));
+        ActionView action2 = spy(actionView(executableMove(
+            3, DEFAULT_SOURCE_ID, 1, 4, 1, Severity.CRITICAL)));
+        ActionView action3 = actionView(executableMove(
+            5, DEFAULT_SOURCE_ID, 1, 6, 1, Severity.MAJOR));
+        ActionView unrelatedAction = actionView(executableMove(
+            5, 999, 1, 6, 1, Severity.CRITICAL));
 
         final QueryableActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
             action1.getRecommendation().getId(), action1,
@@ -149,7 +162,7 @@ public class EntitySeverityCacheTest {
         when(actionStore.getActionViews()).thenReturn(actionViews);
 
         when(actionStore.getActionView(Mockito.anyLong()))
-            .thenAnswer((Answer<Optional<ActionView>>) invocation -> {
+            .thenAnswer((Answer<Optional<ActionView>>)invocation -> {
                 Long id = invocation.getArgumentAt(0, Long.class);
                 return actionViews.get(id);
             });
@@ -157,8 +170,8 @@ public class EntitySeverityCacheTest {
         entitySeverityCache.refresh(actionStore);
         assertEquals(Severity.CRITICAL, entitySeverityCache.getSeverity(DEFAULT_SOURCE_ID).get());
 
-        // Simulate changing the state of the critical action to IN_PROGRESS and refreshing for that action.
-        // State should the next most critical action that applies to the entity.
+        // Simulate changing the state of the critical action to IN_PROGRESS and refreshing for that
+        // action. State should the next most critical action that applies to the entity.
         when(action2.getState()).thenReturn(ActionState.IN_PROGRESS);
 
         entitySeverityCache.refresh(action2.getRecommendation(), actionStore);
@@ -168,154 +181,344 @@ public class EntitySeverityCacheTest {
     /**
      * VMs, Hosts, etc should only count actions where they are directly the source.
      * BusinessApp should count actions in entities below them in the supply chain.
+     * <pre>
+     *     BusinessApp1 -> BTx1 -> Srv1 -> App1 -> VM1 -> PM1 -> Storage1
+     *                                            Minor  Minor    Major
+     *     BusinessApp2 -> BTx2 -> Srv2 -> DB1 -> VM2 -> PM2 -> Storage2
+     *                                   Critical               Major
+     *                                                          Minor
+     * BusinessTxn ends up using same host:
+     *      --> Service1 --> App1 --> VM1 ---
+     *     /                         Minor   \
+     * BTxn3                                  --> PM1 -> Storage1
+     *     \                                 /    Minor   Major
+     *      --> Service3 --> App2 --> VM3 ---
+     *
+     * Service can have multiple App/DB:
+     * Service4 ----> App1 -> VM1----
+     *           \            Minor  \
+     *           \--> App2 -> VM3--   \
+     *                             \   \
+     *                              ------> PM1 -> Storage1
+     *                                     Minor   Major
+     * </pre>
      */
     @Test
-    public void testSeverityCounts() {
-        final long virtualMachine1Oid = 111L;
-        final long physicalMachine1Oid = 222L;
-        final long storage1Oid = 333L;
-        final long missingId = 444L;
-        long idCounter = 1000;
-        final long applicationOid = idCounter++;
-        final long businessApp1Oid = idCounter++;
-        final long virtualMachine2Oid = idCounter++;
-        final long physicalMachine2Oid = idCounter++;
-        final long storage2Oid = idCounter++;
-        final long databaseOid = idCounter++;
-        final long businessApp2Oid = idCounter++;
-        final long service1Oid = idCounter++;
-        final long service2Oid = idCounter++;
-        final long businessTx1Oid = idCounter++;
-        final long businessTx2Oid = idCounter++;
+    public void testSeverityBreakdownAndSeverityCounts() {
+        SeverityBreakdownScenario severityBreakdownScenario = new SeverityBreakdownScenario(
+            actionStore, supplyChainServiceMole, repositoryServiceMole);
 
-        List<ActionView> actions = Arrays.asList(
-            actionView(executableMove(0, virtualMachine1Oid, 1, 2, 1, Severity.MINOR)),
-            actionView(executableMove(3, physicalMachine1Oid, 1, 4, 1, Severity.MINOR)),
-            actionView(executableMove(5, storage1Oid, 1, 6, 1, Severity.MAJOR)),
-            actionView(executableMove(5, databaseOid, 1, 2, 1, Severity.CRITICAL)),
-            actionView(executableMove(5, storage2Oid, 1, 2, 1, Severity.MINOR)),
-            actionView(executableMove(5, storage2Oid, 1, 2, 1, Severity.MAJOR))
-        );
-
-        // refresh cache using the above actions
-        when(actionStore.getActionViews()).thenReturn(new MapBackedActionViews(
-            actions.stream().collect(Collectors.toMap(actionView -> actionView.getRecommendation().getId(), Function.identity()))));
-
-        // repository service will return the two business apps
-        when(repositoryServiceMole.retrieveTopologyEntities(any())).thenReturn(
-            Arrays.asList(PartialEntityBatch.newBuilder()
-                .addAllEntities(Stream.of(businessApp1Oid, businessApp2Oid, businessTx1Oid, businessTx2Oid, service1Oid, service2Oid)
-                    .map(businessAppOid -> PartialEntity.newBuilder()
-                        .setMinimal(MinimalEntity.newBuilder()
-                            .setOid(businessAppOid)
-                            .buildPartial())
-                        .buildPartial())
-                    .collect(Collectors.toList()))
-                .buildPartial()));
-
-        // listen to the supply chain request that is sent.
-        // later on we verify they it contains a request for bapp1 and another request for bapp2
-        // batched together
-        ArgumentCaptor<GetMultiSupplyChainsRequest> getMultiSupplyChainsCaptor = ArgumentCaptor.forClass(GetMultiSupplyChainsRequest.class);
-        when(supplyChainServiceMole.getMultiSupplyChains(getMultiSupplyChainsCaptor.capture())).thenReturn(
-            Arrays.asList(
-                makeGetMultiSupplyChainsResponse(businessApp1Oid, businessApp1Oid, businessTx1Oid, service1Oid, applicationOid, virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
-                makeGetMultiSupplyChainsResponse(businessApp2Oid, businessApp2Oid, businessTx2Oid, service2Oid, databaseOid, virtualMachine2Oid, physicalMachine2Oid, storage2Oid),
-                makeGetMultiSupplyChainsResponse(businessTx1Oid, businessTx1Oid, service1Oid, applicationOid, virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
-                makeGetMultiSupplyChainsResponse(businessTx2Oid, businessTx2Oid, service2Oid, databaseOid, virtualMachine2Oid, physicalMachine2Oid, storage2Oid),
-                makeGetMultiSupplyChainsResponse(service1Oid, service1Oid, applicationOid, virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
-                makeGetMultiSupplyChainsResponse(service2Oid, service2Oid, databaseOid, virtualMachine2Oid, physicalMachine2Oid, storage2Oid)
-            ));
-
+        // trigger the recomputation of severity and severity breakdown
         entitySeverityCache.refresh(actionStore);
-        Map<Optional<Severity>, Long> actualSeverityCounts =
-            entitySeverityCache.getSeverityCounts(Arrays.asList(virtualMachine1Oid, physicalMachine1Oid, storage1Oid, missingId));
-        assertEquals(2L, (long)actualSeverityCounts.get(Optional.of(Severity.MINOR)));
-        assertEquals(1L, (long)actualSeverityCounts.get(Optional.of(Severity.MAJOR)));
-        // No actions should map to critical so it should be empty.
-        assertTrue(actualSeverityCounts.get(Optional.of(Severity.CRITICAL)) == null);
-        assertEquals(1L, (long)actualSeverityCounts.get(Optional.<Severity>empty())); // The missing ID should map to null
+
+        checkSupplyChainSeverityCount(Arrays.asList(
+            severityBreakdownScenario.virtualMachine1Oid,
+            severityBreakdownScenario.physicalMachine1Oid,
+            severityBreakdownScenario.storage1Oid,
+            severityBreakdownScenario.missingId),
+            ImmutableMap.of(
+                Optional.of(Severity.MINOR), 2L,
+                Optional.of(Severity.MAJOR), 1L,
+                Optional.empty(), 1L));
 
         // check that the appropriate request was sent to supply chain service
-        GetMultiSupplyChainsRequest actualSupplyChainRequest = getMultiSupplyChainsCaptor.getValue();
+        GetMultiSupplyChainsRequest actualSupplyChainRequest =
+            severityBreakdownScenario.getMultiSupplyChainsCaptor.getValue();
         assertEquals(6, actualSupplyChainRequest.getSeedsCount());
         assertEquals(
-            ImmutableSet.of(businessApp1Oid, businessApp2Oid, businessTx1Oid, businessTx2Oid, service1Oid, service2Oid),
+            severityBreakdownScenario.vmAppDBOids,
             actualSupplyChainRequest.getSeedsList().stream()
                 .map(SupplyChainSeed::getSeedOid)
                 .collect(Collectors.toSet()));
         assertEquals(
-            ImmutableSet.of(businessApp1Oid, businessApp2Oid, businessTx1Oid, businessTx2Oid, service1Oid, service2Oid),
+            severityBreakdownScenario.vmAppDBOids,
             actualSupplyChainRequest.getSeedsList().stream()
                 .map(supplyChainSeed -> supplyChainSeed.getScope().getStartingEntityOid(0))
                 .collect(Collectors.toSet()));
 
+        // Missing entity should have no breaking.
+        Assert.assertFalse(
+            entitySeverityCache.getSeverityBreakdown(severityBreakdownScenario.missingId)
+                .isPresent());
+
         // BusinessApp1 -> BTx -> Srv -> App -> VM1 -> PM1 -> Storage1
-        //                               Minor  Minor    Major
+        //                                      Minor  Minor    Major
         // Minor: 2
         // Major: 1
-        // Normal: 2
+        // Normal: 1
         // BusinessApp1, BusinessTx1, Service1 should have the same counts except NORMAL
         // BusinessApp1
-        actualSeverityCounts =
-            entitySeverityCache.getSeverityCounts(Arrays.asList(businessApp1Oid));
-        assertEquals(ImmutableMap.of(
-                Optional.of(Severity.MINOR), 2L,
-                Optional.of(Severity.MAJOR), 1L,
-                Optional.of(Severity.NORMAL), 4L),
-            actualSeverityCounts);
-        // BusinessTx1
-        actualSeverityCounts =
-                entitySeverityCache.getSeverityCounts(Arrays.asList(businessTx1Oid));
-        assertEquals(ImmutableMap.of(
-                Optional.of(Severity.MINOR), 2L,
-                Optional.of(Severity.MAJOR), 1L,
-                Optional.of(Severity.NORMAL), 3L),
-                actualSeverityCounts);
-        // Service1
-        actualSeverityCounts =
-                entitySeverityCache.getSeverityCounts(Arrays.asList(service1Oid));
-        assertEquals(ImmutableMap.of(
-                Optional.of(Severity.MINOR), 2L,
-                Optional.of(Severity.MAJOR), 1L,
-                Optional.of(Severity.NORMAL), 2L),
-                actualSeverityCounts);
+        checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.businessApp1Oid,
+            ImmutableMap.of(
+                Severity.MINOR, 2,
+                Severity.MAJOR, 1,
+                Severity.NORMAL, 1));
 
+        // BusinessTx1
+        checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.businessTx1Oid,
+            ImmutableMap.of(
+                Severity.MINOR, 2,
+                Severity.MAJOR, 1,
+                Severity.NORMAL, 1));
+
+        // Service1
+        checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.service1Oid,
+            ImmutableMap.of(
+                Severity.MINOR, 2,
+                Severity.MAJOR, 1,
+                Severity.NORMAL, 1));
 
         // BusinessApp2 -> BTx -> Srv -> DB -> VM2 -> PM2 -> Storage2
         //                            Critical               Major
         //                                                   Minor
         // Critical: 1
         // Major: 1
-        // Normal: 3
+        // Normal: 2
         // no minor because Storage2's max severity is major
-        // BusinessApp2, BusinessTx2, Service3 should have the same counts except NORMAL
+        // BusinessApp2, BusinessTx2, Service3 should have the same counts
         // BusinessApp2
-        actualSeverityCounts =
-            entitySeverityCache.getSeverityCounts(Arrays.asList(businessApp2Oid));
-        assertEquals(ImmutableMap.of(
-            Optional.of(Severity.CRITICAL), 1L,
-            Optional.of(Severity.MAJOR), 1L,
-            Optional.of(Severity.NORMAL), 5L),
-            actualSeverityCounts);
+        checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.businessApp2Oid,
+            ImmutableMap.of(
+                Severity.CRITICAL, 1,
+                Severity.MAJOR, 1,
+                Severity.NORMAL, 2));
+
         // BusinessTx2
-        actualSeverityCounts =
-            entitySeverityCache.getSeverityCounts(Arrays.asList(businessTx2Oid));
-        assertEquals(ImmutableMap.of(
-            Optional.of(Severity.CRITICAL), 1L,
-            Optional.of(Severity.MAJOR), 1L,
-            Optional.of(Severity.NORMAL), 4L),
-            actualSeverityCounts);
+        checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.businessTx2Oid,
+            ImmutableMap.of(
+                Severity.CRITICAL, 1,
+                Severity.MAJOR, 1,
+                Severity.NORMAL, 2));
+
         // Service2
-        actualSeverityCounts =
-            entitySeverityCache.getSeverityCounts(Arrays.asList(service2Oid));
-        assertEquals(ImmutableMap.of(
-            Optional.of(Severity.CRITICAL), 1L,
-            Optional.of(Severity.MAJOR), 1L,
-            Optional.of(Severity.NORMAL), 3L),
-            actualSeverityCounts);
+        checkBothSupplyChainSeverityCountAndBreakdown(severityBreakdownScenario.service2Oid,
+            ImmutableMap.of(
+                Severity.CRITICAL, 1,
+                Severity.MAJOR, 1,
+                Severity.NORMAL, 2));
+
+        // BusinessTxn ends up using same host:
+        //      --> Service1 --> App1 --> VM1 ---
+        //     /                         Minor   \
+        // BTxn3                                  --> PM1 -> Storage1
+        //     \                                 /    Minor   Major
+        //      --> Service3 --> App2 --> VM3 ---
+        // PM1's Minor is counted twice. Once through App1 and again through App2.
+        // The same goes for Storage1.
+        checkSeverityBreakdown(severityBreakdownScenario.businessTx3Oid,
+            ImmutableMap.of(
+                Severity.MINOR, 3,
+                Severity.MAJOR, 2,
+                Severity.NORMAL, 3));
+
+        // Service can have multiple App/DB:
+        // Service4 ----> App1 -> VM1----
+        //           \            Minor  \
+        //           \--> App2 -> VM3--   \
+        //                            \   \
+        //                              ------> PM1 -> Storage1
+        //                                     Minor   Major
+        // PM1's Minor is counted twice. Once through App1 and again through App2.
+        // The same goes for Storage1.
+        checkSeverityBreakdown(severityBreakdownScenario.service4Oid,
+            ImmutableMap.of(
+                Severity.MINOR, 3,
+                Severity.MAJOR, 2,
+                Severity.NORMAL, 3));
     }
 
+    private void checkBothSupplyChainSeverityCountAndBreakdown(
+        long oid,
+        Map<Severity, Integer> expectedSeveritiesAndCounts) {
+        checkSeverityBreakdown(oid, expectedSeveritiesAndCounts);
+
+        checkSupplyChainSeverityCount(
+            Arrays.asList(oid),
+            expectedSeveritiesAndCounts.entrySet().stream().collect(Collectors.toMap(
+                entry -> Optional.of(entry.getKey()),
+                entry -> entry.getValue().longValue())));
+    }
+
+    private void checkSupplyChainSeverityCount(
+            @Nonnull List<Long> oidToSearchFor,
+            @Nonnull Map<Optional<Severity>, Long> expectedSeveritiesAndCounts) {
+        Map<Optional<Severity>, Long> actualSeverityCounts =
+            entitySeverityCache.getSeverityCounts(oidToSearchFor);
+        assertEquals(expectedSeveritiesAndCounts.size(), actualSeverityCounts.size());
+        expectedSeveritiesAndCounts.forEach((expectedSeverity, expectedCount) -> {
+            assertEquals(expectedCount, actualSeverityCounts.get(expectedSeverity));
+        });
+    }
+
+    private void checkSeverityBreakdown(
+            long oid,
+            Map<Severity, Integer> expectedSeveritiesAndCounts) {
+        Optional<SeverityCount> actualBreakdownOptional =
+            entitySeverityCache.getSeverityBreakdown(oid);
+        Assert.assertTrue(actualBreakdownOptional.isPresent());
+        SeverityCount actualBreakdown = actualBreakdownOptional.get();
+
+        assertEquals(expectedSeveritiesAndCounts.size(), actualBreakdown.getSeverityCounts().size());
+        expectedSeveritiesAndCounts.forEach((expectedSeverity, expectedCount) -> {
+            assertEquals(expectedCount, actualBreakdown.getCountOfSeverity(expectedSeverity));
+        });
+    }
+
+    /**
+     * Holds all the information for the SeverityBreakdownScenario. Had to move this out of
+     * {@link #testSeverityBreakdownAndSeverityCounts()}, because the method became longer than the
+     * 256 line limit.
+     */
+    private class SeverityBreakdownScenario {
+        // manually assign the oids to make it easier to debug
+        public final long storage1Oid = 1001L;
+        public final long storage2Oid = 1002L;
+        public final long physicalMachine1Oid = 2001L;
+        public final long physicalMachine2Oid = 2002L;
+        public final long virtualMachine1Oid = 3001L;
+        public final long virtualMachine2Oid = 3002L;
+        public final long virtualMachine3Oid = 3003L;
+        public final long missingId = 9999L;
+        public final long application1Oid = 4001L;
+        public final long application2Oid = 4002L;
+        public final long databaseOid = 5001L;
+        public final long service1Oid = 6001L;
+        public final long service2Oid = 6002L;
+        public final long service3Oid = 6003L;
+        public final long service4Oid = 6004L;
+        public final long businessTx1Oid = 7001L;
+        public final long businessTx2Oid = 7002L;
+        public final long businessTx3Oid = 7003L;
+        public final long businessApp1Oid = 8001L;
+        public final long businessApp2Oid = 8002L;
+        public final Set<Long> vmAppDBOids = ImmutableSet.of(virtualMachine1Oid, application1Oid, virtualMachine2Oid,
+            databaseOid, application2Oid, virtualMachine3Oid);
+        public final ArgumentCaptor<GetMultiSupplyChainsRequest> getMultiSupplyChainsCaptor;
+
+        /**
+         * Sets up actionStore, supplyChainServiceMole, and repositoryServiceMole with the scenario.
+         *
+         * @param actionStore Sets up actionStore with the scenario.
+         * @param supplyChainServiceMole Sets up supplyChainServiceMole with the scenario.
+         * @param repositoryServiceMole Sets up repositoryServiceMole with the scenario.
+         */
+        private SeverityBreakdownScenario(
+                ActionStore actionStore,
+                SupplyChainServiceMole supplyChainServiceMole,
+                RepositoryServiceMole repositoryServiceMole) {
+            List<ActionView> actions = Arrays.asList(
+                actionView(executableMove(0, virtualMachine1Oid, 1, 2, 1, Severity.MINOR)),
+                actionView(executableMove(3, physicalMachine1Oid, 1, 4, 1, Severity.MINOR)),
+                actionView(executableMove(5, storage1Oid, 1, 6, 1, Severity.MAJOR)),
+                actionView(executableMove(5, databaseOid, 1, 2, 1, Severity.CRITICAL)),
+                actionView(executableMove(5, storage2Oid, 1, 2, 1, Severity.MINOR)),
+                actionView(executableMove(5, storage2Oid, 1, 2, 1, Severity.MAJOR))
+            );
+
+            // refresh cache using the above actions
+            when(actionStore.getActionViews()).thenReturn(new MapBackedActionViews(
+                actions.stream().collect(
+                    Collectors.toMap(
+                        actionView -> actionView.getRecommendation().getId(),
+                        Function.identity()))));
+
+            // repository service will return the apps, dbs, and vms
+            when(repositoryServiceMole.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                    .addEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                    .addEntityType(EntityType.DATABASE_SERVER_VALUE)
+                    .addEntityType(EntityType.CONTAINER_VALUE)
+                    .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .setReturnType(Type.MINIMAL)
+                    .build()))
+                .thenReturn(
+                    Arrays.asList(PartialEntityBatch.newBuilder()
+                        .addAllEntities(vmAppDBOids.stream()
+                            .map(oid -> PartialEntity.newBuilder()
+                                .setMinimal(MinimalEntity.newBuilder()
+                                    .setOid(oid)
+                                    .buildPartial())
+                                .buildPartial())
+                            .collect(Collectors.toList()))
+                        .buildPartial()));
+
+            // listen to the supply chain request that is sent.
+            // later on we verify they it contains a request for bapp1 and another request for bapp2
+            // batched together
+            getMultiSupplyChainsCaptor = ArgumentCaptor.forClass(GetMultiSupplyChainsRequest.class);
+            when(supplyChainServiceMole.getMultiSupplyChains(getMultiSupplyChainsCaptor.capture()))
+                .thenReturn(
+                    Arrays.asList(
+                        makeGetMultiSupplyChainsResponse(application1Oid,
+                            application1Oid, virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
+                        makeGetMultiSupplyChainsResponse(databaseOid,
+                            databaseOid, virtualMachine2Oid, physicalMachine2Oid, storage2Oid),
+                        makeGetMultiSupplyChainsResponse(virtualMachine1Oid,
+                            virtualMachine1Oid, physicalMachine1Oid, storage1Oid),
+                        makeGetMultiSupplyChainsResponse(virtualMachine2Oid,
+                            virtualMachine2Oid, physicalMachine2Oid, storage2Oid),
+                        makeGetMultiSupplyChainsResponse(application2Oid,
+                            application2Oid, virtualMachine3Oid, physicalMachine1Oid, storage1Oid),
+                        makeGetMultiSupplyChainsResponse(virtualMachine3Oid,
+                            virtualMachine3Oid, physicalMachine1Oid, storage1Oid)
+                    ));
+
+            // return the services
+            when(repositoryServiceMole.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                    .addEntityType(EntityType.SERVICE_VALUE)
+                    .setReturnType(Type.API)
+                    .build()))
+                .thenReturn(
+                    Arrays.asList(PartialEntityBatch.newBuilder()
+                        .addEntities(makeApiPartialEntity(service1Oid, application1Oid))
+                        .addEntities(makeApiPartialEntity(service2Oid, databaseOid))
+                        .addEntities(makeApiPartialEntity(service3Oid, application2Oid))
+                        .addEntities(makeApiPartialEntity(service4Oid,
+                            application1Oid, application2Oid))
+                        .buildPartial()));
+
+            // return the btxns
+            when(repositoryServiceMole.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                    .addEntityType(EntityType.BUSINESS_TRANSACTION_VALUE)
+                    .setReturnType(Type.API)
+                    .build()))
+                .thenReturn(
+                    Arrays.asList(PartialEntityBatch.newBuilder()
+                        .addEntities(makeApiPartialEntity(businessTx1Oid, service1Oid))
+                        .addEntities(makeApiPartialEntity(businessTx2Oid, service2Oid))
+                        .addEntities(makeApiPartialEntity(businessTx3Oid, service1Oid, service3Oid))
+                        .buildPartial()));
+
+            // return the bapps
+            when(repositoryServiceMole.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                    .addEntityType(EntityType.BUSINESS_APPLICATION_VALUE)
+                    .setReturnType(Type.API)
+                    .build()))
+                .thenReturn(
+                    Arrays.asList(PartialEntityBatch.newBuilder()
+                        .addEntities(makeApiPartialEntity(businessApp1Oid, businessTx1Oid))
+                        .addEntities(makeApiPartialEntity(businessApp2Oid, businessTx2Oid))
+                        .buildPartial()));
+        }
+    }
+
+    @Nonnull
+    private PartialEntity makeApiPartialEntity(long entityOid, long... providerOids) {
+        return PartialEntity.newBuilder()
+            .setApi(ApiPartialEntity.newBuilder()
+                .setOid(entityOid)
+                .addAllProviders(Arrays.stream(providerOids)
+                    .boxed()
+                    .map(providerOid -> RelatedEntity.newBuilder()
+                        .setOid(providerOid)
+                        .buildPartial())
+                    .collect(Collectors.toList()))
+                .buildPartial())
+            .buildPartial();
+    }
 
     /**
      * The comparator should result in the below ascending order.
@@ -349,45 +552,45 @@ public class EntitySeverityCacheTest {
         long lowestSeverityBreakdown = id++;
         when(mockedEntitySeverityCache.getSeverity(lowestSeverityBreakdown)).thenReturn(Optional.of(Severity.MAJOR));
         when(mockedEntitySeverityCache.getSeverityBreakdown(lowestSeverityBreakdown)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 2L,
-                Severity.NORMAL, 2L)
+            ImmutableMap.of(Severity.MINOR, 2,
+                Severity.NORMAL, 2)
         )));
         // exact same severity as previous should be tied
         long exactSameSeverity = 99L;
         when(mockedEntitySeverityCache.getSeverity(exactSameSeverity)).thenReturn(Optional.of(Severity.MAJOR));
         when(mockedEntitySeverityCache.getSeverityBreakdown(exactSameSeverity)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 2L,
-                Severity.NORMAL, 2L)
+            ImmutableMap.of(Severity.MINOR, 2,
+                Severity.NORMAL, 2)
         )));
         // same proportion but higher count
         long sameProportionHigherCount = id++;
         when(mockedEntitySeverityCache.getSeverity(sameProportionHigherCount)).thenReturn(Optional.of(Severity.MAJOR));
         when(mockedEntitySeverityCache.getSeverityBreakdown(sameProportionHigherCount)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 4L,
-                Severity.NORMAL, 4L)
+            ImmutableMap.of(Severity.MINOR, 4,
+                Severity.NORMAL, 4)
         )));
         // higher proportion
         long higherProportion = id++;
         when(mockedEntitySeverityCache.getSeverity(higherProportion)).thenReturn(Optional.of(Severity.MAJOR));
         when(mockedEntitySeverityCache.getSeverityBreakdown(higherProportion)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 3L,
-                Severity.NORMAL, 2L)
+            ImmutableMap.of(Severity.MINOR, 3,
+                Severity.NORMAL, 2)
         )));
         // higher severity
         long higherSeverity = id++;
         when(mockedEntitySeverityCache.getSeverity(higherSeverity)).thenReturn(Optional.of(Severity.MAJOR));
         when(mockedEntitySeverityCache.getSeverityBreakdown(higherSeverity)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 2L,
-                Severity.NORMAL, 2L,
-                Severity.MAJOR, 2L)
+            ImmutableMap.of(Severity.MINOR, 2,
+                Severity.NORMAL, 2,
+                Severity.MAJOR, 2)
         )));
         // even higher severity, but no entity level severity
         long evenHigherSeverityButNoEntitySeverity = id++;
         when(mockedEntitySeverityCache.getSeverity(evenHigherSeverityButNoEntitySeverity)).thenReturn(Optional.empty());
         when(mockedEntitySeverityCache.getSeverityBreakdown(evenHigherSeverityButNoEntitySeverity)).thenReturn(Optional.of(makeSeverityCount(
-            ImmutableMap.of(Severity.MINOR, 2L,
-                Severity.NORMAL, 2L,
-                Severity.CRITICAL, 2L)
+            ImmutableMap.of(Severity.MINOR, 2,
+                Severity.NORMAL, 2,
+                Severity.CRITICAL, 2)
         )));
 
         List<Long> ascendingOrder = new ArrayList<>();
@@ -409,9 +612,9 @@ public class EntitySeverityCacheTest {
         checkSortedByComparator(randomOrder, asc, ascendingOrder);
     }
 
-    private SeverityCount makeSeverityCount(Map<Severity, Long> severityBreakdown) {
+    private SeverityCount makeSeverityCount(Map<Severity, Integer> severityBreakdown) {
         SeverityCount severityCount = new SeverityCount();
-        for (Map.Entry<Severity, Long> entry : severityBreakdown.entrySet()) {
+        for (Map.Entry<Severity, Integer> entry : severityBreakdown.entrySet()) {
             severityCount.addSeverity(entry.getKey(), entry.getValue());
         }
         return severityCount;

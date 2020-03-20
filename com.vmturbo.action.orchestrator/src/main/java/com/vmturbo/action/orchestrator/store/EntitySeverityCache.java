@@ -17,6 +17,7 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -42,6 +43,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
@@ -49,11 +51,11 @@ import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
- * Maintain a cache of entity severities. Refreshing the entire cache causes the recomputation of the
- * severity for every entity in the cache. Refreshing the cache when a single action changes updates
- * causes the recomputation of only the "SeverityEntity"
- * for that action (although this operation is not that much faster than a full recomputation because
- * it still requires an examination of every action in the {@link ActionStore}.
+ * Maintain a cache of entity severities. Refreshing the entire cache causes the recomputation of
+ * the severity for every entity in the cache. Refreshing the cache when a single action changes
+ * updates causes the recomputation of only the "SeverityEntity" for that action (although this
+ * operation is not that much faster than a full recomputation because it still requires an
+ * examination of every action in the {@link ActionStore}.
  *
  * The severity for an entity is considered the maximum severity across all "visible" actions for
  * which the entity is a "SeverityEntity".
@@ -73,42 +75,62 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  */
 @ThreadSafe
 public class EntitySeverityCache {
+
+    /**
+     * BusinessApp, BusinessTransaction, and Service can directly connect to ApplicationComponent,
+     * DatabaseServer, Container, and VirtualMachine. In order to efficiently compute the
+     * breakdowns, we must first compute the breakdowns for these entities. After computing
+     * the breakdowns for these, we can use their breakdowns to build up the breakdowns for
+     * Service then BusinessTransaction then BusinessApp.
+     */
+    private static final RetrieveTopologyEntitiesRequest GET_ENTITIES_DIRECTLY_ATTACHED_TO_BAPP =
+        RetrieveTopologyEntitiesRequest.newBuilder()
+            .addEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
+                    .addEntityType(EntityType.DATABASE_SERVER_VALUE)
+                    .addEntityType(EntityType.CONTAINER_VALUE)
+                    .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                    .setReturnType(Type.MINIMAL)
+                    .build();
+
     private final Logger logger = LogManager.getLogger();
 
     private final Map<Long, Severity> severities = Collections.synchronizedMap(new HashMap<>());
-    private final Map<Long, SeverityCount> entitySeverityBreakdowns = Collections.synchronizedMap(new HashMap<>());
+    private final Map<Long, SeverityCount> entitySeverityBreakdowns =
+        Collections.synchronizedMap(new HashMap<>());
 
     private final SeverityComparator severityComparator = new SeverityComparator();
     private final SupplyChainServiceBlockingStub supplyChainService;
     private final RepositoryServiceBlockingStub repositoryService;
 
     /**
-     * There are the entities that need to be retrieved underneath BusinessApp, BusinessTxn, and Service.
-     * BusinessApp -> BusinessTxn -> Service -> ApplicationComponent -> Node
-     *                                          ApplicationServer       VirtualMachine  --> VDC ----> Host  --------
-     *                                          DatabaseServer                \    \   \             ^              \
-     *                                          Database                       \    \   \___________/                v
-     *                                                                          \    -----> Volume   ------------->  Storage
-     *                                                                           \                                   ^
-     *                                                                            ----------------------------------/
+     * These are the entities that need to be retrieved underneath BusinessApp, BusinessTxn, and
+     * Service.
+     * <pre>
+     * BApp -> BTxn -> Service -> AppComp -> Node
+     *                                       VirtualMachine  --> VDC ----> Host  --------
+     *                       DatabaseServer   \    \   \             ^                \
+     *                                          \    \   \___________/                v
+     *                                           \    -----> Volume   ------------->  Storage
+     *                                            \                                   ^
+     *                                             ----------------------------------/
+     * </pre>
      */
     private static final List<String> PROPAGATED_ENTITY_TYPES = Arrays.asList(
-        UIEntityType.BUSINESS_APPLICATION.apiStr(),
-        UIEntityType.BUSINESS_TRANSACTION.apiStr(),
-        UIEntityType.SERVICE.apiStr(),
         UIEntityType.APPLICATION_COMPONENT.apiStr(),
         UIEntityType.VIRTUAL_MACHINE.apiStr(),
-        UIEntityType.APPLICATION_SERVER.apiStr(),
         UIEntityType.DATABASE_SERVER.apiStr(),
-        UIEntityType.DATABASE.apiStr(),
         UIEntityType.VIRTUAL_VOLUME.apiStr(),
         UIEntityType.STORAGE.apiStr(),
+        UIEntityType.VIRTUAL_VOLUME.apiStr(),
         UIEntityType.PHYSICAL_MACHINE.apiStr());
 
     /**
      * Constructs the EntitySeverityCache that uses grpc to calculation risk propagation.
-     * @param supplyChainService the service that provides supply chain info used in risk propagation.
-     * @param repositoryService the service that provides entities by type used as the seeds in risk propagation.
+     *
+     * @param supplyChainService the service that provides supply chain info used in risk
+     *                           propagation.
+     * @param repositoryService the service that provides entities by type used as the seeds in risk
+     *                          propagation.
      */
     public EntitySeverityCache(@Nonnull final SupplyChainServiceBlockingStub supplyChainService,
                                @Nonnull final RepositoryServiceBlockingStub repositoryService) {
@@ -129,50 +151,171 @@ public class EntitySeverityCache {
             visibleReadyActionViews(actionStore)
                 .forEach(this::handleActionSeverity);
 
-            entitySeverityBreakdowns.clear();
-            Iterator<PartialEntityBatch> batchedIterator = repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-                .addAllEntityType(Arrays.asList(EntityType.BUSINESS_APPLICATION_VALUE, EntityType.BUSINESS_TRANSACTION_VALUE, EntityType.SERVICE_VALUE))
-                .setReturnType(Type.MINIMAL)
-                .build());
+            calculateSeverityBreakdowns();
+        }
+    }
 
-            List<SupplyChainSeed> oidSeeds = Streams.stream(batchedIterator)
-                .map(PartialEntityBatch::getEntitiesList)
-                .flatMap(List::stream)
-                .map(PartialEntity::getMinimal)
-                .map(MinimalEntity::getOid)
-                .map(oid -> SupplyChainSeed.newBuilder()
-                    .setSeedOid(oid)
-                    .setScope(SupplyChainScope.newBuilder()
-                        .addStartingEntityOid(oid)
-                        .addAllEntityTypesToInclude(PROPAGATED_ENTITY_TYPES)
-                        .build())
+    /**
+     * A lock on {@link #severities} must be held when calling this method.
+     * <ol>
+     *     <li>Compute the breakdown for all entities that directly connect to BusinessApp,
+     *         BusinessTxn, and Service. These can be: Application Component, Database Server,
+     *         Container, and Virtual Machine</li>
+     *     <li>Compute Service using the direct connections from the repository, using the counts
+     *         from step 1.</li>
+     *     <li>Compute Business Transactions using the direct connections from repository, using
+     *         the counts accumulated from step 1 and 2.</li>
+     *     <li>Compute Business Applications using the direct connections from repository, using
+     *         the counts accumulated from step 1, 2 and 3.</li>
+     *     <li>Remove break downs for Application Component, Database Server, Container, and
+     *         Virtual Machine because they are not used anywhere. It's a waste to keep them
+     *         around.</li>
+     * </ol>
+     * We must compute the breakdowns in this way for the following reasons:
+     * <ol>
+     *     <li>BusinessApplication, BusinessTransaction, and Service can directly contain
+     *     Application Component, Database Server, Container, and Virtual Machine</li>
+     *     <li>BusinessApplication can contain BusinessTransaction and Service</li>
+     *     <li>BusinessTransaction can contain Service</li>
+     *     <li>BusinessApplication, BusinessTransaction, and Service can have multiple paths to
+     *     entities deeper in the supply chain like a host. All these paths must be counted.
+     *     See the bottom for samples.</li>
+     * </ol>
+     * All potential relationships from BApp, BTxn, and Service are drawn below:
+     * <pre>
+     *     BusinessApplication --\    /----------------------------------------------------------
+     *    /        |              |  |    ApplicationComponent---------\--------------------\    \
+     *   /         v              v  |        ^                        v                    v    v
+     *  |  BusinessTransaction -->o--/--------/--\-------------->Container----------->VirtualMachine
+     *  |          |              ^              v                     ^                    ^
+     *   \         V              |       DatabaseServer---------------/--------------------/
+     *     ---> Service ---------/
+     * </pre>
+     * Here are some example edge cases that we need to support:
+     * <pre>
+     * Example 1: Services end up using the same host
+     *      --> Service1 --> App1 --> VM1 ---
+     *     /                                 \
+     * BTxn1                                  --> Host1
+     *     \                                 /
+     *      --> Service2 --> App2 --> VM2 ---
+     * So if Host1 is Critical, then BTxn1 double counts the critical entity host 1
+     *     critical: 2 entities (Host1 thru Service1 and Host1 again through Service2)
+     *     normal: 4 entities (App1, App2, VM 1 and VM2)
+     * Example 2: Service can have multiple applications or databases:
+     * Service1 ----> App1 -> VM1----
+     *           \--> App2 -> VM2--  \
+     *                             \  \
+     *                              ------> Host1
+     * Suppose Host1 has a critical action then the breakdown for Service1 is:
+     *     critical: 2 entities (Host1 thru App1 and Host1 again through App2)
+     *     normal: 4 entities (App1, App2, VM1 and VM2)
+     * </pre>
+     */
+    @GuardedBy("severities")
+    private void calculateSeverityBreakdowns() {
+        entitySeverityBreakdowns.clear();
+        final Iterator<PartialEntityBatch> batchedIterator =
+            repositoryService.retrieveTopologyEntities(GET_ENTITIES_DIRECTLY_ATTACHED_TO_BAPP);
+
+        final Set<Long> oids = Streams.stream(batchedIterator)
+            .map(PartialEntityBatch::getEntitiesList)
+            .flatMap(List::stream)
+            .map(PartialEntity::getMinimal)
+            .map(MinimalEntity::getOid)
+            .collect(Collectors.toSet());
+
+        final List<SupplyChainSeed> oidSeeds = oids.stream()
+            .map(oid -> SupplyChainSeed.newBuilder()
+                .setSeedOid(oid)
+                .setScope(SupplyChainScope.newBuilder()
+                    .addStartingEntityOid(oid)
+                    .addAllEntityTypesToInclude(PROPAGATED_ENTITY_TYPES)
                     .build())
-                .collect(Collectors.toList());
+                .build())
+            .collect(Collectors.toList());
 
-            GetMultiSupplyChainsRequest getMultiSupplyChainsRequest = GetMultiSupplyChainsRequest.newBuilder()
+        final GetMultiSupplyChainsRequest getMultiSupplyChainsRequest =
+            GetMultiSupplyChainsRequest.newBuilder()
                 .addAllSeeds(oidSeeds)
                 .build();
 
-            Iterator<GetMultiSupplyChainsResponse> multiSupplyChainIterator =
-                supplyChainService.getMultiSupplyChains(getMultiSupplyChainsRequest);
+        final Iterator<GetMultiSupplyChainsResponse> multiSupplyChainIterator =
+            supplyChainService.getMultiSupplyChains(getMultiSupplyChainsRequest);
 
-            multiSupplyChainIterator.forEachRemaining(getMultiSupplyChainsResponse -> {
-                long oid = getMultiSupplyChainsResponse.getSeedOid();
-                SeverityCount severityCount = new SeverityCount();
-                for (SupplyChainNode node : getMultiSupplyChainsResponse.getSupplyChain().getSupplyChainNodesList()) {
-                    for (MemberList memberList : node.getMembersByStateMap().values()) {
-                        for (long entityOid : memberList.getMemberOidsList()) {
-                            Severity entitySeverity = severities.get(entityOid);
-                            if (entitySeverity == null) {
-                                entitySeverity = Severity.NORMAL;
-                            }
-                            severityCount.addSeverity(entitySeverity);
+        multiSupplyChainIterator.forEachRemaining(getMultiSupplyChainsResponse -> {
+            long oid = getMultiSupplyChainsResponse.getSeedOid();
+            SeverityCount severityBreakdown = new SeverityCount();
+            for (SupplyChainNode node : getMultiSupplyChainsResponse.getSupplyChain()
+                    .getSupplyChainNodesList()) {
+                for (MemberList memberList : node.getMembersByStateMap().values()) {
+                    for (long entityOid : memberList.getMemberOidsList()) {
+                        Severity entitySeverity = severities.get(entityOid);
+                        if (entitySeverity == null) {
+                            entitySeverity = Severity.NORMAL;
                         }
+                        severityBreakdown.addSeverity(entitySeverity);
                     }
                 }
-                entitySeverityBreakdowns.put(oid, severityCount);
+            }
+            entitySeverityBreakdowns.put(oid, severityBreakdown);
+        });
+        // At this point we have the breakdowns for Application Component, Database Server,
+        // Container, and Virtual Machine. We can use these for Service, BusinessTransaction, and
+        // BusinessApplication.
+
+        // Build up the severity breakdowns starting from Service. Since BTxn depends on Service, we
+        // compute BTxn next. Finally we finish off with BApp. We build up in this way so that we
+        // do not need to repeat the calculation for the lower levels of the supply chain.
+        calculateSeverityBreakdown(EntityType.SERVICE);
+        calculateSeverityBreakdown(EntityType.BUSINESS_TRANSACTION);
+        calculateSeverityBreakdown(EntityType.BUSINESS_APPLICATION);
+
+        // Remove the Application Component, Database Server, Container, and Virtual Machine because
+        // they are not used. It would be a waste of memory to keep them.
+        oids.forEach(entitySeverityBreakdowns::remove);
+    }
+
+    /**
+     * Compute the breakdowns for all the entities that have the provided entity type, using the
+     * already computed breakdowns. The breakdowns for the entities under the provided entityType
+     * in the supply chain must have their breakdowns already computed.
+     * For instance,
+     * <ol>
+     *     <li>Service requires ApplicationComponent, DatabaseServer, Container, and VirtualMachines
+     *         to have their breakdown in entitySeverityBreakdowns.</li>
+     *     <li>BusinessTransaction requires the same as Service and requires Service to be
+     *         computed</li>
+     *     <li>Finally, BusinessApplication requires the same as BusinessTransaction and requires
+     *         BusinessTransaction to be computed.</li>
+     * </ol>
+     * You must grab the monitor for severities before calling this method.
+     *
+     * @param entityType Computes the severities for the provided entity type. Severity breakdowns
+     *                  for all the types that this entity depends on must already be computed.
+     */
+    @GuardedBy("severities")
+    private void calculateSeverityBreakdown(@Nonnull EntityType entityType) {
+        Iterator<PartialEntityBatch> batchedIterator =
+            repositoryService.retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
+                .addEntityType(entityType.getNumber())
+                .setReturnType(Type.API)
+                .build());
+
+        Streams.stream(batchedIterator)
+            .map(PartialEntityBatch::getEntitiesList)
+            .flatMap(List::stream)
+            .filter(PartialEntity::hasApi)
+            .map(PartialEntity::getApi)
+            .forEach(apiPartialEntity -> {
+                long oid = apiPartialEntity.getOid();
+                SeverityCount severityBreakdown = new SeverityCount();
+                for (RelatedEntity providerRelatedEntity : apiPartialEntity.getProvidersList()) {
+                    severityBreakdown.combine(
+                        entitySeverityBreakdowns.get(providerRelatedEntity.getOid()));
+                }
+                entitySeverityBreakdowns.put(oid, severityBreakdown);
             });
-        }
     }
 
     /**
@@ -180,7 +323,8 @@ public class EntitySeverityCache {
      */
     public static class SeverityCount {
 
-        private final Map<Severity, Long> severityCount = Collections.synchronizedMap(new HashMap<>());
+        private final Map<Severity, Integer> counts =
+            Collections.synchronizedMap(new HashMap<>());
 
         /**
          * Increments the provided severity.
@@ -188,7 +332,7 @@ public class EntitySeverityCache {
          * @param severity the count of the severity to increment.
          */
         public void addSeverity(Severity severity) {
-            addSeverity(severity, 1L);
+            addSeverity(severity, 1);
         }
 
         /**
@@ -198,9 +342,9 @@ public class EntitySeverityCache {
          * @param count the amount to increment by.
          */
         @VisibleForTesting
-        void addSeverity(Severity severity, long count) {
-            long currentCount = severityCount.getOrDefault(severity, 0L);
-            severityCount.put(severity, currentCount + count);
+        void addSeverity(Severity severity, int count) {
+            int currentCount = counts.getOrDefault(severity, 0);
+            counts.put(severity, currentCount + count);
         }
 
         /**
@@ -210,16 +354,29 @@ public class EntitySeverityCache {
          * @return the count of the given severity, or null if not found.
          */
         @Nullable
-        public Long getCountOfSeverity(@Nonnull Severity severity) {
-            return severityCount.get(severity);
+        public Integer getCountOfSeverity(@Nonnull Severity severity) {
+            return counts.get(severity);
         }
 
         /**
          * Returns the severity counts in a set of Map.Entry.
          * @return the severity counts in a set of Map.Entry.
          */
-        public Set<Entry<Severity, Long>> getSeverityCounts() {
-            return severityCount.entrySet();
+        public Set<Entry<Severity, Integer>> getSeverityCounts() {
+            return counts.entrySet();
+        }
+
+        /**
+         * Adds the counts from another SeverityCount.
+         *
+         * @param severityCount the severity breakdown to add to this one.
+         */
+        public void combine(@Nullable SeverityCount severityCount) {
+            if (severityCount != null) {
+                severityCount.counts.forEach((severity, count) -> {
+                    this.addSeverity(severity, count);
+                });
+            }
         }
 
         /**
@@ -228,7 +385,7 @@ public class EntitySeverityCache {
          * @return a human readable representation of SeverityCount.
          */
         public String toString() {
-            return severityCount.toString();
+            return counts.toString();
         }
     }
 
@@ -261,7 +418,8 @@ public class EntitySeverityCache {
      * Get the severity for a given entity by that entity's OID.
      *
      * @param entityOid The OID of the entity whose severity should be retrieved.
-     * @return The severity  of the entity. Optional.empty() if the severity of the entity is unknown.
+     * @return The severity  of the entity. Optional.empty() if the severity of the entity is
+     *         unknown.
      */
     @Nonnull
     public Optional<Severity> getSeverity(long entityOid) {
@@ -272,7 +430,8 @@ public class EntitySeverityCache {
      * Get the severity breakdown for a given entity by that entity's OID.
      *
      * @param entityOid The OID of the entity whose severity breakdown should be retrieved.
-     * @return The severity breakdown of the entity. Optional.empty() if the severity breakdown of the entity is unknown.
+     * @return The severity breakdown of the entity. Optional.empty() if the severity breakdown of
+     *         the entity is unknown.
      */
     @Nonnull
     public Optional<SeverityCount> getSeverityBreakdown(long entityOid) {
@@ -308,7 +467,7 @@ public class EntitySeverityCache {
             for (long oid : entityOids) {
                 SeverityCount countForOid = entitySeverityBreakdowns.get(oid);
                 if (countForOid != null) {
-                    for (Entry<Severity, Long> entry : countForOid.getSeverityCounts()) {
+                    for (Entry<Severity, Integer> entry : countForOid.getSeverityCounts()) {
                         Optional<Severity> key = Optional.of(entry.getKey());
                         long previous = accumulatedCounts.getOrDefault(key, 0L);
                         accumulatedCounts.put(key, previous + entry.getValue());
@@ -333,7 +492,9 @@ public class EntitySeverityCache {
      * @param ascending whether to sort in ascending order
      * @return sorted entity oids
      */
-    public List<Long> sortEntityOids(@Nonnull final Collection<Long> entityOids, final boolean ascending) {
+    public List<Long> sortEntityOids(
+            @Nonnull final Collection<Long> entityOids,
+            final boolean ascending) {
         synchronized (severities) {
             OrderOidBySeverity orderOidBySeverity = new OrderOidBySeverity(this);
             return entityOids.stream()
@@ -373,7 +534,9 @@ public class EntitySeverityCache {
      * @return True if the severityEntity for the actionView matches the input severityEntity.
      *         False if there is no match or the severity entity for the spec cannot be determined.
      */
-    private boolean matchingSeverityEntity(long severityEntity, @Nonnull final ActionView actionView) {
+    private boolean matchingSeverityEntity(
+            long severityEntity,
+            @Nonnull final ActionView actionView) {
         try {
             long specSeverityEntity = ActionDTOUtil.getSeverityEntity(
                     actionView.getTranslationResultOrOriginal());
@@ -459,8 +622,10 @@ public class EntitySeverityCache {
 
         private int compareSeverityBreakdown(long oid1,
                                              long oid2) {
-            SeverityCount breakdown1 = entitySeverityCache.getSeverityBreakdown(oid1).orElse(null);
-            SeverityCount breakdown2 = entitySeverityCache.getSeverityBreakdown(oid2).orElse(null);
+            SeverityCount breakdown1 = entitySeverityCache.getSeverityBreakdown(oid1)
+                .orElse(null);
+            SeverityCount breakdown2 = entitySeverityCache.getSeverityBreakdown(oid2)
+                .orElse(null);
 
             if (breakdown1 == breakdown2) {
                 return 0;
@@ -496,18 +661,18 @@ public class EntitySeverityCache {
             return breakdown.getSeverityCounts().stream()
                 .map(Entry::getValue)
                 .filter(Objects::nonNull)
-                .mapToLong(Long::longValue).sum();
+                .mapToLong(Integer::longValue).sum();
         }
 
-        private static int compareSameSeverity(@Nullable Long severityCount1,
-                                               @Nullable Long severityCount2,
+        private static int compareSameSeverity(@Nullable Integer severityCount1,
+                                               @Nullable Integer severityCount2,
                                                long breakdownTotal1,
                                                long breakdownTotal2) {
             if (severityCount1 == null) {
-                severityCount1 = 0L;
+                severityCount1 = 0;
             }
             if (severityCount2 == null) {
-                severityCount2 = 0L;
+                severityCount2 = 0;
             }
             // do not divided by 0
             if (breakdownTotal1 == 0) {
@@ -529,7 +694,8 @@ public class EntitySeverityCache {
         }
 
         private int compareDirectSeverity(final long oid1, final long oid2) {
-            return Integer.compare(entitySeverityCache.getSeverity(oid1).orElse(Severity.NORMAL).getNumber(),
+            return Integer.compare(
+                entitySeverityCache.getSeverity(oid1).orElse(Severity.NORMAL).getNumber(),
                 entitySeverityCache.getSeverity(oid2).orElse(Severity.NORMAL).getNumber());
         }
     }
