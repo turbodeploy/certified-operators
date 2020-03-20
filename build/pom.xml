@@ -32,7 +32,7 @@
 
         <spring.version>4.3.8.RELEASE</spring.version>
         <spring.retry.version>1.2.4.RELEASE</spring.retry.version>
-        <spring.security.version>4.2.2.RELEASE</spring.security.version>
+        <spring.security.version>4.2.13.RELEASE</spring.security.version>
         <guava.version>28.2-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
 
@@ -110,7 +110,7 @@
         <swagger.plugin.version>3.1.7</swagger.plugin.version>
         <asciidoctor.plugin.version>1.5.3</asciidoctor.plugin.version>
         <swagger2markup.plugin.version>0.9.3</swagger2markup.plugin.version>
-        <commons-validator.version>1.4.0</commons-validator.version>
+        <commons-validator.version>1.5.0</commons-validator.version>
         <!-- END swagger properties -->
 
         <docker.compose.rule.version>0.31.1</docker.compose.rule.version>
@@ -133,7 +133,7 @@
         <failsafe.version>2.19.1</failsafe.version>
         <surefire.version>2.20</surefire.version>
         <jetty.version>9.4.19.v20190610</jetty.version>
-        <bouncycastle.version>1.57</bouncycastle.version>
+        <bouncycastle.version>1.60</bouncycastle.version>
         <!-- FlexLM, for use with Cisco licenses -->
         <flex.lm.version>11.14.1.1</flex.lm.version>
 
