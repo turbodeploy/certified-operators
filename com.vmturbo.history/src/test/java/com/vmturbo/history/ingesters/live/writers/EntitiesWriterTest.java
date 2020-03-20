@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Functions;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 
 import org.junit.Before;
@@ -30,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.EntityType.UseCase;
 import com.vmturbo.history.db.HistorydbIO;
@@ -47,8 +49,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 public class EntitiesWriterTest {
 
     private static final String TOPOLOGY_SUMMARY = "test topology";
-    private static final EntityType COMPUTE_TIER_ENTITY_TYPE = EntityType.named(COMPUTE_TIER).get();
-    private static final EntityType NETWORK_ENTITY_TYPE = EntityType.named(NETWORK).get();
+    private static final EntityType COMPUTE_TIER_ENTITY_TYPE = EntityType.get(COMPUTE_TIER);
+    private static final EntityType NETWORK_ENTITY_TYPE = EntityType.get(NETWORK);
+    private static final EntityType VM_ENTITY_TYPE = EntityType.get(StringConstants.VIRTUAL_MACHINE);
+
     private HistorydbIO historydbIO;
     private TopologyInfo topologyInfo;
     private DbMock dbMock = new DbMock();
@@ -181,6 +185,26 @@ public class EntitiesWriterTest {
         assertEquals(COMPUTE_TIER_ENTITY_TYPE.getName(),
                 dbMock.getRecord(ENTITIES, 1L).get(ENTITIES.CREATION_CLASS));
         assertNull(dbMock.getRecord(ENTITIES, 2L));
+    }
+
+    /**
+     * Ensure that entities with display names that exceed the schema limit are truncated to the
+     * allowed size.
+     *
+     * @throws InterruptedException if interrupted
+     */
+    @Test
+    public void testThatLongDisplayNamesAreTruncated() throws InterruptedException {
+        final String maxName = Strings.repeat("x", EntitiesWriter.ENTITY_DISPLAY_NAME_MAX_LENGTH);
+        final String tooLongName = Strings.repeat("y", EntitiesWriter.ENTITY_DISPLAY_NAME_MAX_LENGTH + 1);
+        writer.processChunk(makeSingletonChunk(VM_ENTITY_TYPE, 1L, maxName), "test topology");
+        writer.processChunk(makeSingletonChunk(VM_ENTITY_TYPE, 2L, tooLongName), "test topology");
+        loaders.flushAll();
+        final Collection<EntitiesRecord> entitiesWritten = dbMock.getRecords(ENTITIES);
+        assertEquals(2, entitiesWritten.size());
+        assertEquals(maxName, dbMock.getRecord(ENTITIES, 1L).getDisplayName());
+        assertEquals(tooLongName.substring(0, EntitiesWriter.ENTITY_DISPLAY_NAME_MAX_LENGTH),
+                dbMock.getRecord(ENTITIES, 2L).getDisplayName());
     }
 
     private List<List<Topology.DataSegment>> createChunks(
