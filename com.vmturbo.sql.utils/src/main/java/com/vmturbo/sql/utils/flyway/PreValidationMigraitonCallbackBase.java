@@ -14,7 +14,7 @@ import org.flywaydb.core.api.callback.BaseFlywayCallback;
  * generally some sort of manipulation of the migration history table in order to accommodate
  * migration changes that would otherwise cause validations to fail.
  */
-public abstract class PreValidationMigrationCallbackBase extends BaseFlywayCallback {
+public abstract class PreValidationMigraitonCallbackBase extends BaseFlywayCallback {
 
     protected static final String DEFAULT_MIGRATION_TABLE_NAME = new Flyway().getTable();
     protected final Logger logger;
@@ -22,7 +22,7 @@ public abstract class PreValidationMigrationCallbackBase extends BaseFlywayCallb
     /**
      * Create a new callback instance.
      */
-    public PreValidationMigrationCallbackBase() {
+    public PreValidationMigraitonCallbackBase() {
         // log messages should identify as from the subclass, not this base class
         this.logger = LogManager.getLogger(getClass());
     }
@@ -76,7 +76,7 @@ public abstract class PreValidationMigrationCallbackBase extends BaseFlywayCallb
                 logger.info("Callback succeeded");
             }
         } catch (SQLException e) {
-            logger.error("Failed to {}: {}", describeCallback(), e.getMessage());
+            logger.error("Failed to {}", describeCallback(), e);
         }
     }
 
@@ -97,8 +97,7 @@ public abstract class PreValidationMigrationCallbackBase extends BaseFlywayCallb
             return result.next();
         } catch (SQLException e) {
             // assume failure here means table does not exist
-            logger.warn("Failed migration table check when attempting {}; " +
-                    "this is expected during new installations", describeCallback(), e.getMessage());
+            logger.error("Failed migration table check when attempting {}", describeCallback(), e);
             return false;
         }
     }
