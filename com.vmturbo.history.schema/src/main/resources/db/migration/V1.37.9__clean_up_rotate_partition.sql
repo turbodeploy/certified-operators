@@ -115,7 +115,7 @@ BEGIN
 
     # calculate what should be the most distant partition boundary in the past, and a formatted version of it
     # we normally do everything based on current time, but for testing we permit an alternative time to be specified
-    set @current_utc := IFNULL(asOfTime, utc_timestamp);
+    set @current_utc := utc_timestamp;
     set @oldest_part := date_sub(@current_utc, INTERVAL num_seconds SECOND);
     set @oldest_part_fmt := format_14_digit_datetime(@oldest_part);
 
