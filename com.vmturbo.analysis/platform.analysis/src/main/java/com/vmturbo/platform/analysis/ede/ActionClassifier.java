@@ -52,7 +52,6 @@ public class ActionClassifier {
         // Step 2 - mark actions we know to be executable
         markResizeUpsExecutable(actions);
         markResizeDownsExecutable(actions);
-        markSuspensionsEmptyTradersExecutable(actions);
         // This must be called after all other suspension classification occurs, because it could
         // potentially enable actions for previously disabled suspension actions.
         markSuspensionsInAtomicSegments(actions);
@@ -140,7 +139,7 @@ public class ActionClassifier {
                 Deactivate s = (Deactivate)a;
                 Trader suspensionCandidate = s.getActionTarget();
                 if (!suspensionCandidate.getSettings().isProviderMustClone()) {
-                    if (!suspensionCandidate.getCustomers().isEmpty()){
+                    if (Suspension.sellerHasNonDaemonCustomers(suspensionCandidate)) {
                         s.setExecutable(false);
                     }
                 } else {
@@ -166,36 +165,20 @@ public class ActionClassifier {
                                     tradersToCheck.add(provider);
                                 }
                             }
-                        } else {
+                        } else if (!trader.getSettings().isDaemon()) {
                             // We are at the bottom of the chain, so suspensions associated with
-                            // this trader should be executable.
+                            // this trader should be executable. If this is a daemon, it is being
+                            // suspended due to its supplier suspending (which makes it an orphan),
+                            // so we do not want to force these to executable.
                             forceEnable_.add(trader);
                         }
                     }
                 }
-            } catch (Exception ex) {
-                a.setExecutable(true);
-                printLogMessageInDebugForExecutableFlag(a);
-            }
-        });
-    }
 
-    /**
-     * Mark suspension of empty traders as executable
-     *
-     * @param actions The list of actions to be classified.
-     */
-    private void markSuspensionsEmptyTradersExecutable(@NonNull List<Action> actions) {
-        actions.stream().filter(a -> a instanceof Deactivate).forEach(a -> {
-            try {
-                Deactivate s = (Deactivate)a;
-                Trader suspensionCandidate = s.getActionTarget();
-                Trader simSuspensionCandidate =
-                                lookupTraderInSimulationEconomy(suspensionCandidate);
-                if (simSuspensionCandidate == null
-                                || simSuspensionCandidate.getCustomers().isEmpty()) {
-                    s.setExecutable(true);
-                } else {
+                // Check for customers on simulation target and mark not executable if any are present.
+                Trader simSuspensionCandidate = lookupTraderInSimulationEconomy(suspensionCandidate);
+                if (simSuspensionCandidate != null &&
+                        Suspension.sellerHasNonDaemonCustomers(simSuspensionCandidate)) {
                     s.setExecutable(false);
                 }
             } catch (Exception ex) {

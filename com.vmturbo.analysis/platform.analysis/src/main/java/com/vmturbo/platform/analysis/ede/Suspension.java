@@ -10,12 +10,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -33,6 +34,9 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 
+/**
+ * This class implements the suspension of {@link Trader}s in an {@link Economy}.
+ */
 public class Suspension {
 
     // a set to keep all traders that is the sole seller in any market.
@@ -66,8 +70,7 @@ public class Suspension {
      * Return a list of recommendations to optimize the suspension of all eligible traders in the
      * economy.
      *
-     * <p>
-     *  As a result of invoking this method, both the economy and the state that are passed as
+     * <p>As a result of invoking this method, both the economy and the state that are passed as
      *  parameters to it, may be changed.
      * </p>
      *
@@ -78,7 +81,7 @@ public class Suspension {
      * @return list of deactivate and move actions
      */
     public @NonNull List<@NonNull Action> suspensionDecisions(@NonNull Economy economy,
-                                                              @NonNull Ledger ledger, Ede ede) {
+                                                              @NonNull Ledger ledger) {
         List<@NonNull Action> allActions = new ArrayList<>();
         int round = 0;
         // suspend entities that are not sellers in any market
@@ -94,7 +97,11 @@ public class Suspension {
                     logger.info("Suspending " + seller.getDebugInfoNeverUseInCode()
                             + " as it is not a seller in any market.");
                 }
-                suspendTrader(economy, null, seller, allActions);
+                Deactivate deactivate = suspendTrader(economy, null, seller, allActions);
+                if (deactivate != null) {
+                    // Suspend any remaining customers.  These should all be daemons.
+                    allActions.addAll(suspendOrphanedCustomers(economy, deactivate));
+                }
                 // Avoid further suspensions if setting is CLUSTER
                 if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
                     makeCoSellersNonSuspendable(economy, seller);
@@ -137,7 +144,11 @@ public class Suspension {
                             logger.info("Suspending " + sellerDebugInfo
                                 + " as there are no customers.");
                         }
-                        suspendTrader(economy, market, seller, allActions);
+                        Deactivate deactivate = suspendTrader(economy, market, seller, allActions);
+                        if (deactivate != null) {
+                            // Suspend any remaining customers.  These should all be daemons.
+                            allActions.addAll(suspendOrphanedCustomers(economy, deactivate));
+                        }
                         // Avoid further suspensions if setting is CLUSTER
                         if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
                             makeCoSellersNonSuspendable(economy, seller);
@@ -203,7 +214,7 @@ public class Suspension {
             logger.info("Trying to suspend trader " + traderDebugInfo + ".");
         }
         List<Market> markets = economy.getMarketsAsSeller(trader);
-        Market market = (markets == null || markets.isEmpty()) ? null : markets.get(0);
+        final Market market = (markets == null || markets.isEmpty()) ? null : markets.get(0);
 
         List<@NonNull Action> suspendActions = new ArrayList<>();
         if (!trader.getSettings().isSuspendable()) {
@@ -237,11 +248,11 @@ public class Suspension {
         // Need to get this before doing the suspend, or the list will be empty.
         List<ShoppingList> guaranteedBuyerSls = GuaranteedBuyerHelper
                 .findSlsBetweenSellerAndGuaranteedBuyer(trader);
-        Map<Trader, Set<ShoppingList>> slsSponsoredByGuaranteedBuyer =
+        final Map<Trader, Set<ShoppingList>> slsSponsoredByGuaranteedBuyer =
                 GuaranteedBuyerHelper.getAllSlsSponsoredByGuaranteedBuyer(economy,
                         guaranteedBuyerSls);
-
-        if (!suspendTrader(economy, market, trader, suspendActions)) {
+        Deactivate deactivate = suspendTrader(economy, market, trader, suspendActions);
+        if (deactivate == null) {
             return suspendActions;
         }
 
@@ -303,6 +314,8 @@ public class Suspension {
             }
         }
 
+        // Suspend any remaining customers.  These should all be daemons.
+        suspendActions.addAll(suspendOrphanedCustomers(economy, deactivate));
         updateSoleProviders(economy, trader);
         logger.info("{" + traderDebugInfo + "} was suspended.");
         if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
@@ -311,13 +324,57 @@ public class Suspension {
         return suspendActions;
     }
 
-    private List<Action> rollBackSuspends (List<Action> suspendActions) {
+    /**
+     * Suspend all customers on this Trader as well as the customers of those customers.  If one of
+     * the customers is a guaranteed buyer and the guaranteed buyer no longer has any shopping
+     * lists, suspend the guaranteed buyer as well.
+     * @param economy economy.
+     * @param drivingDeactivate Deactivate action of supplier whose customers need to be deactivated.
+     * @return list of new Deactivates that were generated.  These actions are also added to the
+     *          driving Deactivate action's subsequent actions list.
+     */
+    public List<Action> suspendOrphanedCustomers(final Economy economy,
+                                                  final Deactivate drivingDeactivate) {
+        List<Action> actions = new ArrayList<>();
+        suspendOrphanedCustomersHelper(economy, drivingDeactivate.getActionTarget(), actions);
+        drivingDeactivate.getSubsequentActions().addAll(actions);
+        return actions;
+    }
+
+    private void suspendOrphanedCustomersHelper(final Economy economy,
+                                                final Trader trader,
+                                                final List<Action> actions) {
+        for (ShoppingList sl : trader.getCustomers()) {
+            Trader customer = sl.getBuyer();
+            if (customer.getSettings().isGuaranteedBuyer()) {
+                // If this guaranteed buyer is a buyer in a single market, then by definition the
+                // current trader is the sole supplier.  Since the current trader is suspending and
+                // the guaranteed buyer isn't buying from anything else, we should also remove it.
+                // Note that this condition occurs very rarely when a daemon is exposed as a
+                // service and its underlying node suspends.
+                if (economy.getSuppliers(customer).size() > 1) {
+                    continue;
+                }
+            }
+            if (customer.getState().isActive()) {
+                List<Market> markets = economy.getMarketsAsSeller(customer);
+                Market market = (markets == null || markets.isEmpty()) ? null : markets.get(0);
+                Deactivate deactivateAction = new Deactivate(economy, customer, market);
+                deactivateAction.setExecutable(false);
+                actions.add(deactivateAction.take());
+            }
+            // Call this function again to deactivate this customer's customers as well.
+            suspendOrphanedCustomersHelper(economy, customer, actions);
+        }
+    }
+
+    private List<Action> rollBackSuspends(List<Action> suspendActions) {
         Lists.reverse(suspendActions).forEach(axn -> axn.rollback());
         return new ArrayList<>();
     }
 
     /**
-     * Adjust the utilThreshold of {@link CommoditySold} by {@link Trader}s to maxDesiredUtil
+     * Adjust the utilThreshold of {@link CommoditySold} by {@link Trader}s to maxDesiredUtil.
      *
      * @param economy - the {@link Economy} which is being evaluated for suspension
      * @param update - set threshold to maxDesiredUtil*utilThreshold if true or reset to original value if false
@@ -349,14 +406,17 @@ public class Suspension {
     }
 
     /**
-     * Suspend the <code>bestTraderToEngage</code> and add the action to the <code>actions</code> list
+     * Suspend the <code>bestTraderToEngage</code> and add the action to the
+     * <code>actions</code> list.
      *
      * @param economy - the {@link Economy} in which the suspend action is performed
      * @param market - the {@link Market} in which the suspend action takes place
      * @param traderToSuspend - the trader that satisfies the engagement criteria best
      * @param actions - a list that the suspend action would be added to
+     * @return the Deactivate action generated, or null if the deactivation didn't succeed.
      */
-    public boolean suspendTrader(Economy economy, Market market, Trader traderToSuspend,
+    @Nullable
+    public Deactivate suspendTrader(Economy economy, Market market, Trader traderToSuspend,
                               List<@NonNull Action> actions) {
         final List<@NonNull Trader> guaranteedBuyers = GuaranteedBuyerHelper
                 .findGuaranteedBuyers(traderToSuspend);
@@ -367,7 +427,7 @@ public class Suspension {
         // creating groups for each guaranteed buyer.
         if (guaranteedBuyers.stream().anyMatch(guaranteedBuyersWithSuspensions::contains)
                         && !Utility.isProviderOfResizeThroughSupplierTrader(traderToSuspend)) {
-            return false;
+            return null;
         }
 
         Deactivate deactivateAction = new Deactivate(economy, traderToSuspend, market);
@@ -376,7 +436,7 @@ public class Suspension {
         guaranteedBuyersWithSuspensions.addAll(guaranteedBuyers);
         actions.add(deactivateAction.take());
         actions.addAll(deactivateAction.getSubsequentActions());
-        return true;
+        return deactivateAction;
     }
 
     /**
@@ -414,6 +474,8 @@ public class Suspension {
     /**
      * Identifies sole providers of guaranteed buyers of given trader. We do not want to
      * suspend the last supplier of a guaranteed buyer.
+     * @param economy current economy
+     * @param trader Trader to check
      */
     public void updateSoleProviders(Economy economy, Trader trader) {
         final List<@NonNull Trader> guaranteedBuyers = GuaranteedBuyerHelper
@@ -480,7 +542,7 @@ public class Suspension {
     }
 
     /**
-     * Get list of customers of seller that are not daemons
+     * Get list of customers of seller that are not daemons.
      * @param seller to check
      * @return list of sellers that are not daemons that are customers of the seller
      */
@@ -489,11 +551,11 @@ public class Suspension {
     }
 
     /**
-     * Return whether the seller has any customers that are not daemons
+     * Return whether the seller has any customers that are not daemons.
      * @param seller to check
      * @return true if the seller has at least one customer that is not a daemon
      */
-    private static boolean sellerHasNonDaemonCustomers(Trader seller) {
+    public static boolean sellerHasNonDaemonCustomers(Trader seller) {
         return makeNonDaemonCustomerStream(seller).findFirst().isPresent();
     }
 }
