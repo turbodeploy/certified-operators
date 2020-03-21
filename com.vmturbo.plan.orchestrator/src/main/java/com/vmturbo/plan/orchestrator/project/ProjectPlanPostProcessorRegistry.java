@@ -3,11 +3,19 @@ package com.vmturbo.plan.orchestrator.project;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.client.RemoteIteratorDrain;
+import com.vmturbo.plan.orchestrator.market.ProjectedTopologyProcessor;
 import com.vmturbo.plan.orchestrator.plan.PlanStatusListener;
 
 /**
@@ -26,7 +34,7 @@ import com.vmturbo.plan.orchestrator.plan.PlanStatusListener;
  * PlanProjectPostProcessors, which will also manage references.
  */
 @ThreadSafe
-public class ProjectPlanPostProcessorRegistry implements PlanStatusListener {
+public class ProjectPlanPostProcessorRegistry implements PlanStatusListener, ProjectedTopologyProcessor {
 
     private Map<Long, ProjectPlanPostProcessor> projectIdForPlan =
             Collections.synchronizedMap(new HashMap<>());
@@ -54,4 +62,23 @@ public class ProjectPlanPostProcessorRegistry implements PlanStatusListener {
         projectIdForPlan.remove(postProcessor.getPlanId());
     }
 
+    @Override
+    public boolean appliesTo(@Nonnull final TopologyInfo sourceTopologyInfo) {
+        final ProjectPlanPostProcessor postProcessor = projectIdForPlan.get(sourceTopologyInfo.getTopologyContextId());
+        return postProcessor != null && postProcessor.appliesTo(sourceTopologyInfo);
+    }
+
+    @Override
+    public void handleProjectedTopology(final long projectedTopologyId,
+                                        @Nonnull final TopologyInfo sourceTopologyInfo,
+                                        @Nonnull final RemoteIterator<ProjectedTopologyEntity> iterator)
+            throws InterruptedException, TimeoutException, CommunicationException {
+        final ProjectPlanPostProcessor postProcessor = projectIdForPlan.get(sourceTopologyInfo.getTopologyContextId());
+        if (postProcessor != null) {
+            postProcessor.handleProjectedTopology(projectedTopologyId, sourceTopologyInfo, iterator);
+        } else {
+            RemoteIteratorDrain.drainIterator(iterator,
+                TopologyDTOUtil.getProjectedTopologyLabel(sourceTopologyInfo), false);
+        }
+    }
 }

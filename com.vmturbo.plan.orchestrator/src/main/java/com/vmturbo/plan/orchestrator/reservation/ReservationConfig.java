@@ -9,6 +9,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTOREST.ReservationServiceCon
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
+import com.vmturbo.plan.orchestrator.market.PlanOrchestratorMarketConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.repository.RepositoryConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
@@ -17,7 +18,12 @@ import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
  * Spring Configuration for Reservation services.
  */
 @Configuration
-@Import({PlanOrchestratorDBConfig.class, RepositoryConfig.class, TemplatesConfig.class, BaseKafkaProducerConfig.class})
+@Import({PlanOrchestratorDBConfig.class,
+    RepositoryConfig.class,
+    TemplatesConfig.class,
+    BaseKafkaProducerConfig.class,
+    PlanOrchestratorMarketConfig.class
+})
 public class ReservationConfig {
     @Autowired
     private PlanConfig planConfig;
@@ -33,6 +39,9 @@ public class ReservationConfig {
 
     @Autowired
     private BaseKafkaProducerConfig kafkaProducerConfig;
+
+    @Autowired
+    private PlanOrchestratorMarketConfig planOrchestratorMarketConfig;
 
     @Bean
     public ReservationRpcService reservationRpcService() {
@@ -70,7 +79,10 @@ public class ReservationConfig {
 
     @Bean
     public ReservationPlacementHandler reservationPlacementHandler() {
-        return new ReservationPlacementHandler(reservationManager(),
+        ReservationPlacementHandler placementHandler = new ReservationPlacementHandler(reservationManager(),
                 repositoryConfig.repositoryServiceBlockingStub());
+        // Register to handle projected topology of reservation plans.
+        planOrchestratorMarketConfig.planProjectedTopologyListener().addProjectedTopologyProcessor(placementHandler);
+        return placementHandler;
     }
 }

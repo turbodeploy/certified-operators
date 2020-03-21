@@ -96,7 +96,9 @@ public class GlobalConfig {
     @Bean
     public MarketComponent marketNotificationClient() {
         final MarketComponent market = marketClientConfig.marketComponent(
-            MarketSubscription.forTopic(MarketSubscription.Topic.AnalysisStatusNotification));
+            MarketSubscription.forTopic(MarketSubscription.Topic.AnalysisStatusNotification),
+            // Read the most recent projected topologies instead of reading from the beginning.
+            MarketSubscription.forTopic(MarketSubscription.Topic.ProjectedTopologies));
         return market;
     }
 

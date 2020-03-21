@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -111,16 +112,24 @@ public class MarketActionListener implements ActionsListener, AnalysisSummaryLis
 
         // Populate the store with the new recommendations and refresh the cache.
         try {
-            final ActionStore actionStore = actionStorehouse.storeActions(orderedActions);
-            logger.info("Received {} actions in action plan {} (info: {})" +
-                            " (analysis start [{}] completion [{}])" +
-                            " (store population: {}).",
+            // We don't store "transient" plan actions.
+            // However, for transient plans we still want to send the actions update notification
+            // so the plan lifecycle can continue as normal.
+            if (PlanDTOUtil.isTransientPlan(orderedActions.getInfo().getMarket().getSourceTopologyInfo())) {
+                logger.info("Skipping persistence of {} actions for transient plan {}",
+                    orderedActions.getActionCount(), orderedActions.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId());
+            } else {
+                final ActionStore actionStore = actionStorehouse.storeActions(orderedActions);
+                logger.info("Received {} actions in action plan {} (info: {})" +
+                        " (analysis start [{}] completion [{}])" +
+                        " (store population: {}).",
                     orderedActions.getActionCount(),
                     orderedActions.getId(),
                     orderedActions.getInfo(),
                     localDateTimeFromSystemTime(orderedActions.getAnalysisStartTimestamp()),
                     localDateTimeFromSystemTime(orderedActions.getAnalysisCompleteTimestamp()),
                     actionStore.size());
+            }
             // Notify listeners that actions are ready for retrieval.
             try {
                 notificationSender.notifyActionsUpdated(orderedActions);

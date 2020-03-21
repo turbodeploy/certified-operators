@@ -14,6 +14,7 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
+import com.vmturbo.plan.orchestrator.market.PlanOrchestratorMarketConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
@@ -26,7 +27,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         GroupClientConfig.class,
         PlanConfig.class,
         TemplatesConfig.class,
-        ActionOrchestratorClientConfig.class})
+        ActionOrchestratorClientConfig.class,
+        PlanOrchestratorMarketConfig.class})
 public class PlanProjectConfig {
     @Autowired
     private PlanOrchestratorDBConfig databaseConfig;
@@ -51,6 +53,9 @@ public class PlanProjectConfig {
 
     @Autowired
     private ActionOrchestratorClientConfig aoClientConfig;
+
+    @Autowired
+    private PlanOrchestratorMarketConfig planOrchestratorMarketConfig;
 
     @Value("${defaultHeadroomPlanProjectJsonFile:systemPlanProjects.json}")
     private String defaultHeadroomPlanProjectJsonFile;
@@ -77,6 +82,7 @@ public class PlanProjectConfig {
     public ProjectPlanPostProcessorRegistry planProjectRuntime() {
         final ProjectPlanPostProcessorRegistry runtime = new ProjectPlanPostProcessorRegistry();
         planConfig.planDao().addStatusListener(runtime);
+        planOrchestratorMarketConfig.planProjectedTopologyListener().addProjectedTopologyProcessor(runtime);
         return runtime;
     }
 

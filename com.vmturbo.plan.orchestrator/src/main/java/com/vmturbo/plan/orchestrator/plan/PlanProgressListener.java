@@ -23,7 +23,6 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.Builder;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -201,10 +200,6 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
                 final PlanInstance updatedPlan = planDao.updatePlanInstance(topologyContextId, plan ->
                         processProjectedTopology(plan, projectedTopologyId));
                 logger.info("Finished updating plan instance for plan {}", topologyContextId);
-                if (updatedPlan.getProjectType() == PlanProjectType.RESERVATION_PLAN) {
-                    reservationPlacementHandler.updateReservations(topologyContextId,
-                            projectedTopologyId, true);
-                }
             } catch (IntegrityException e) {
                 logger.error("Could not change plan's {} state according to  " +
                         "available projected topology {}", topologyContextId, projectedTopologyId, e);
@@ -213,8 +208,7 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             }
         } else {
             logger.debug("Updating reservation based on real-time projected topology notification.");
-            reservationPlacementHandler.updateReservations(topologyContextId,
-                    projectedTopologyId, false);
+            reservationPlacementHandler.updateReservationsFromLiveTopology(topologyContextId, projectedTopologyId);
             logger.debug("Finished update reservation based on real-time projected topology notification.");
         }
     }
