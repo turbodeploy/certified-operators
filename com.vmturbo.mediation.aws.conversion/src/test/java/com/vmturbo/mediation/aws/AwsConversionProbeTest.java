@@ -59,7 +59,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         // unmodified
         assertEquals(24, entitiesByType.get(EntityType.LOAD_BALANCER).size());
         assertEquals(28, entitiesByType.get(EntityType.SERVICE).size());
-        assertEquals(187, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(187, entitiesByType.get(EntityType.APPLICATION_COMPONENT).size());
         assertEquals(27, entitiesByType.get(EntityType.RESERVED_INSTANCE).size());
         assertEquals(15, entitiesByType.get(EntityType.REGION).size());
         assertEquals(45, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
@@ -97,7 +97,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         // unmodified
         assertEquals(3, entitiesByType.get(EntityType.LOAD_BALANCER).size());
         assertEquals(3, entitiesByType.get(EntityType.SERVICE).size());
-        assertEquals(20, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(20, entitiesByType.get(EntityType.APPLICATION_COMPONENT).size());
         assertEquals(1, entitiesByType.get(EntityType.RESERVED_INSTANCE).size());
         assertEquals(43, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
 

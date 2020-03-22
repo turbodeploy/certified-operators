@@ -1875,7 +1875,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::30dab553-9804-43df-af7c-2d39bd321c8b"
   displayName: "GuestLoad [marketing-vm2]"
   commoditiesSold {
@@ -1914,7 +1914,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::bf1a97c1-0bfa-44b9-9fe2-fad0b057e158"
   displayName: "GuestLoad [Ubuntu-Web-01]"
   commoditiesSold {
@@ -1953,7 +1953,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::4f0e790f-03b8-40c1-bcc0-84eae8f1f850"
   displayName: "GuestLoad [Ubuntu-Web-02]"
   commoditiesSold {
@@ -1992,7 +1992,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::126e5ef7-b25b-4fca-a644-8fbc7bb82a8d"
   displayName: "GuestLoad [Ubuntu-App-01]"
   commoditiesSold {
@@ -2031,7 +2031,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::12aaa3e4-e5db-40e3-bc00-1bb74be68cba"
   displayName: "GuestLoad [marketing-vm1]"
   commoditiesSold {
@@ -2070,7 +2070,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::82ea36f3-9aa4-48d6-bec8-04efc1c8a29f"
   displayName: "GuestLoad [Ubuntu-App-02]"
   commoditiesSold {

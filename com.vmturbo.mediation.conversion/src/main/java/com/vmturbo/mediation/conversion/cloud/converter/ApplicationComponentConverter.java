@@ -9,7 +9,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 /**
  * CloudDiscoveryConverter for Application. It adds App to be owned by BusinessAccount.
  */
-public class ApplicationConverter implements IEntityConverter {
+public class ApplicationComponentConverter implements IEntityConverter {
 
     @Override
     public boolean convert(@Nonnull EntityDTO.Builder entity, @Nonnull CloudDiscoveryConverter converter) {

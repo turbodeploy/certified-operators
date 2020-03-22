@@ -13,7 +13,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
+import com.vmturbo.mediation.conversion.cloud.converter.ApplicationComponentConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
@@ -44,7 +44,7 @@ public class AzureConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.DATABASE_TIER, new DatabaseTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AZURE));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
-        converters.put(EntityType.APPLICATION, new ApplicationConverter());
+        converters.put(EntityType.APPLICATION_COMPONENT, new ApplicationComponentConverter());
         converters.put(EntityType.SERVICE, new ServiceConverter());
         converters.put(EntityType.DISK_ARRAY, new DiskArrayConverter());
         AZURE_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);

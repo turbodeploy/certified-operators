@@ -56,7 +56,7 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         assertEquals(30, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
-        assertEquals(46, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(46, entitiesByType.get(EntityType.APPLICATION_COMPONENT).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);
@@ -87,7 +87,7 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         assertEquals(30, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
-        assertEquals(6, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(6, entitiesByType.get(EntityType.APPLICATION_COMPONENT).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);

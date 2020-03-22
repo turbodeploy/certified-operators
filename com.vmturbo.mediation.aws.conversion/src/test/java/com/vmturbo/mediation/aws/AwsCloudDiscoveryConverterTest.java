@@ -28,7 +28,7 @@ import com.vmturbo.mediation.aws.util.AwsConstants;
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
+import com.vmturbo.mediation.conversion.cloud.converter.ApplicationComponentConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
@@ -532,16 +532,16 @@ public class AwsCloudDiscoveryConverterTest {
     }
 
     @Test
-    public void testApplicationConverter() {
-        IEntityConverter converter = new ApplicationConverter();
-        rawEntitiesByType.get(EntityType.SERVICE).forEach(entity ->
+    public void testApplicationComponentConverter() {
+        IEntityConverter converter = new ApplicationComponentConverter();
+        rawEntitiesByType.get(EntityType.APPLICATION_COMPONENT).forEach(entity ->
                 convertAndVerifyEntityUnmodified(converter, entity.getId()));
     }
 
     @Test
     public void testServiceConverter() {
         IEntityConverter converter = new ServiceConverter();
-        rawEntitiesByType.get(EntityType.APPLICATION).forEach(entity ->
+        rawEntitiesByType.get(EntityType.SERVICE).forEach(entity ->
                 convertAndVerifyEntityUnmodified(converter, entity.getId()));
     }
 

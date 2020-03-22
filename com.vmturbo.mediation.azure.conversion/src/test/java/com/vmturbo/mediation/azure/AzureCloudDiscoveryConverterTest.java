@@ -392,9 +392,9 @@ public class AzureCloudDiscoveryConverterTest {
     }
 
     @Test
-    public void testApplicationConverter() {
+    public void testApplicationComponentConverter() {
         IEntityConverter converter = new ServiceConverter();
-        rawEntitiesByType.get(EntityType.APPLICATION).forEach(entity -> {
+        rawEntitiesByType.get(EntityType.APPLICATION_COMPONENT).forEach(entity -> {
             String entityId = entity.getId();
             EntityDTO oldEntity = azureConverter.getRawEntityDTO(entityId);
             EntityDTO.Builder newEntity = azureConverter.getNewEntityBuilder(entityId);

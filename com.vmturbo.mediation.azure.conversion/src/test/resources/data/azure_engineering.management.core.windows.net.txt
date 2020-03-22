@@ -14730,7 +14730,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::60c6e538-8fc9-4f80-a33b-cf9ac6ff47b2"
   displayName: "GuestLoad [dim-CO]"
   commoditiesSold {
@@ -14767,7 +14767,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::301aa7da-e6ae-4fba-8c2d-d5cc006aba9b"
   displayName: "GuestLoad [989fcf99-162a-40e5-b8b4-e4bfd7e18b98]"
   commoditiesSold {
@@ -14804,7 +14804,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::7aab651f-eedc-4c13-9a39-d90419a9104f"
   displayName: "GuestLoad [a0f1a95b-e77a-4629-9c05-16a1aeb95de5]"
   commoditiesSold {
@@ -14841,7 +14841,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::7b46a227-ef45-410b-a331-d7428ff23cd2"
   displayName: "GuestLoad [716ffe5f-f95d-47fd-bff8-1c369176ca45]"
   commoditiesSold {
@@ -14878,7 +14878,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::c75d3a74-455b-469f-94e9-47f5220be74a"
   displayName: "GuestLoad [97b220ad-3030-402e-8962-382efc06d984]"
   commoditiesSold {
@@ -14915,7 +14915,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::27507cef-b38f-41cf-9aaf-5e5e44ee87d0"
   displayName: "GuestLoad [e3578d5f-b237-4756-89b8-71746b925710]"
   commoditiesSold {
@@ -14952,7 +14952,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::8af11992-4b0a-4a20-a1d1-ad1c212b1324"
   displayName: "GuestLoad [stackato]"
   commoditiesSold {
@@ -14991,7 +14991,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::db695eba-41d0-4200-91b4-f61bed92fa28"
   displayName: "GuestLoad [dim-turbo-61]"
   commoditiesSold {
@@ -15030,7 +15030,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::bd282015-0a11-4f6a-b296-a1e1bd099ba8"
   displayName: "GuestLoad [14700ae2-8411-4853-bd34-d15284d32793]"
   commoditiesSold {
@@ -15067,7 +15067,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::1af39599-bb2f-4430-b93b-346a602726d5"
   displayName: "GuestLoad [d1b82bdd-8b70-4e5c-88a5-0fd678fa5190]"
   commoditiesSold {
@@ -15104,7 +15104,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::b9025d3e-0014-4b1a-9d21-1965e230d872"
   displayName: "GuestLoad [92701c39-2478-4076-aeab-4a97dbce1f65]"
   commoditiesSold {
@@ -15141,7 +15141,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::d0c7840f-dba2-4939-aa90-5ef3fd230be7"
   displayName: "GuestLoad [olga-stress250]"
   commoditiesSold {
@@ -15178,7 +15178,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::d8b34069-d416-4a0e-8d6e-a292588ed3df"
   displayName: "GuestLoad [olga-stress55]"
   commoditiesSold {
@@ -15215,7 +15215,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::74b3e36c-d1a9-4da6-8768-9547f169c907"
   displayName: "GuestLoad [arsen-w16-wstin]"
   commoditiesSold {
@@ -15254,7 +15254,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::fe3679df-d780-4f40-abcf-ec9a02c1fd66"
   displayName: "GuestLoad [PT-AH-RHEL]"
   commoditiesSold {
@@ -15291,7 +15291,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::006b0d81-80ec-4349-a129-4a1f54a7aa79"
   displayName: "GuestLoad [PT-AH-Ubuntu]"
   commoditiesSold {
@@ -15328,7 +15328,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::4959201f-20d8-481a-91b2-353170ae202a"
   displayName: "GuestLoad [50d16b82-f0f7-4b8f-a34f-be8cdf8d9c07]"
   commoditiesSold {
@@ -15365,7 +15365,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::b496815b-528c-4cd5-ab1d-9c1976367a7f"
   displayName: "GuestLoad [olegn-westus2-multip]"
   commoditiesSold {
@@ -15402,7 +15402,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::1434beb6-2040-4759-a27f-8b590d9b4cbf"
   displayName: "GuestLoad [arsen-ubuntu-westeu]"
   commoditiesSold {
@@ -15441,7 +15441,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::eb624167-f57b-4bf5-acc9-8dd69d214c8e"
   displayName: "GuestLoad [8f0e3136-b259-43e5-41f8-0d2c64c62acc]"
   commoditiesSold {
@@ -15478,7 +15478,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::8ab8d840-f522-4ffe-b110-7d447ea2580f"
   displayName: "GuestLoad [Turbo-EY]"
   commoditiesSold {
@@ -15517,7 +15517,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::c2ef4e4b-b90c-4f41-bf45-6e46d3f7498f"
   displayName: "GuestLoad [appdynamics]"
   commoditiesSold {
@@ -15556,7 +15556,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::6f1c42fc-ca84-46f3-a1cb-fff17305f3a9"
   displayName: "GuestLoad [AustinASRTest]"
   commoditiesSold {
@@ -15593,7 +15593,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::008eb7c1-6a72-40b1-98cd-4cd923fe9eb9"
   displayName: "GuestLoad [yingtest]"
   commoditiesSold {
@@ -15630,7 +15630,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::7a38b547-1f24-486f-a384-dee9e82cd67c"
   displayName: "GuestLoad [c4629d57-1a89-4527-afe1-2ba690a5d471]"
   commoditiesSold {
@@ -15667,7 +15667,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::9c277778-7d74-4e2f-b640-e4f602903e41"
   displayName: "GuestLoad [firemonkey]"
   commoditiesSold {
@@ -15704,7 +15704,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::42c1ab9b-24f2-4d36-9f64-40f3223ddcfa"
   displayName: "GuestLoad [robot-vm]"
   commoditiesSold {
@@ -15741,7 +15741,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::ca926a5a-3880-44e3-811d-f685f67bbe94"
   displayName: "GuestLoad [olga-stress100]"
   commoditiesSold {
@@ -15778,7 +15778,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::efd1b8b1-5a77-493a-8e6a-74ffe4cf0661"
   displayName: "GuestLoad [9f40d8bf-1686-4c9b-8e22-f9c68161658f]"
   commoditiesSold {
@@ -15815,7 +15815,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::6f52709a-e2c1-40f0-88d9-2a2f82c8ab49"
   displayName: "GuestLoad [8cd9874e-fd03-4e3f-8bc8-07bfa0d94345]"
   commoditiesSold {
@@ -15852,7 +15852,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::a0301bb0-e5b9-4e7c-83e4-132f8b2a3c70"
   displayName: "GuestLoad [5b811a97-d717-40d7-9afb-4bc335d4b87f]"
   commoditiesSold {
@@ -15889,7 +15889,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::b00a40d9-3319-42d6-961f-9f3fce8e0aea"
   displayName: "GuestLoad [119cd15e-5f9e-494e-a351-1995c9e0b35f]"
   commoditiesSold {
@@ -15926,7 +15926,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::df6ce846-437f-402c-bce6-e9b524259001"
   displayName: "GuestLoad [22929c2f-96a9-4cb6-9c8c-cb8808caa1fb]"
   commoditiesSold {
@@ -15963,7 +15963,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::d264f66a-aaca-414e-86ab-70cd5d60522b"
   displayName: "GuestLoad [ecca4669-5709-427a-b330-2e4e09ce40f5]"
   commoditiesSold {
@@ -16000,7 +16000,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::1511171c-21ce-47b0-8da5-0bc55694b791"
   displayName: "GuestLoad [olga-stress]"
   commoditiesSold {
@@ -16037,7 +16037,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::2a7b0334-15ee-422f-a6a8-b328ceb117ea"
   displayName: "GuestLoad [pcf-ops-man]"
   commoditiesSold {
@@ -16074,7 +16074,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::0825f6bf-3f00-4343-8da9-1d6396b51114"
   displayName: "GuestLoad [35854fa4-c0cc-488c-879c-17fbfb7b728e]"
   commoditiesSold {
@@ -16111,7 +16111,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::654b8af7-5a3c-4880-a0ee-331937f54c99"
   displayName: "GuestLoad [2996ceae-1c8d-4e1b-83ef-b989d843b3fb]"
   commoditiesSold {
@@ -16148,7 +16148,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::706beb47-e85f-4cdb-8936-637db726c0a7"
   displayName: "GuestLoad [arsen-ubuntu-francecentral]"
   commoditiesSold {
@@ -16187,7 +16187,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::b809240b-25a0-45e5-b34a-dd209bab4166"
   displayName: "GuestLoad [0b50a0e6-65af-47e9-8184-b77cc2feb4ce]"
   commoditiesSold {
@@ -16224,7 +16224,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::7547ab15-c8c5-4852-b31e-a7a04271beb6"
   displayName: "GuestLoad [70d6715c-4db8-460a-bc5f-1fbe2fb56289]"
   commoditiesSold {
@@ -16261,7 +16261,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::2ffc038a-7af3-4d23-86a9-211da2e4d433"
   displayName: "GuestLoad [e47f9c97-b44d-4461-be02-0304b97e201e]"
   commoditiesSold {
@@ -16298,7 +16298,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::27a876f8-75aa-44f8-b62e-9f3141d5b4b2"
   displayName: "GuestLoad [cf9f60ca-347b-440d-9fc8-a6eeee9e9fd5]"
   commoditiesSold {
@@ -16335,7 +16335,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::APP::00f931f2-a7a2-4c12-a9a1-3152b81c2f09"
   displayName: "GuestLoad [1de5c621-4e45-4045-8a5c-8084655da2ce]"
   commoditiesSold {
@@ -26098,7 +26098,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::DB_APP::f265b613-e410-4967-9ee3-ffcacce393ab"
   displayName: "GuestLoad [OM-37135-do-NOT-delete]"
   commoditiesSold {
@@ -26236,7 +26236,7 @@ entityDTO {
   }
 }
 entityDTO {
-  entityType: APPLICATION
+  entityType: APPLICATION_COMPONENT
   id: "azure::DB_APP::403c5ff4-ef6e-4c43-9028-01aa346edf5b"
   displayName: "GuestLoad [azuremetabroker]"
   commoditiesSold {

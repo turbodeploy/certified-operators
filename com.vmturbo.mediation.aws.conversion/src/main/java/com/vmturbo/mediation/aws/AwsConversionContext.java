@@ -16,7 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
+import com.vmturbo.mediation.conversion.cloud.converter.ApplicationComponentConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
@@ -50,7 +50,7 @@ public class AwsConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AWS));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
-        converters.put(EntityType.APPLICATION, new ApplicationConverter());
+        converters.put(EntityType.APPLICATION_COMPONENT, new ApplicationComponentConverter());
         converters.put(EntityType.SERVICE, new ServiceConverter());
         converters.put(EntityType.DISK_ARRAY, new DiskArrayConverter());
         AWS_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
