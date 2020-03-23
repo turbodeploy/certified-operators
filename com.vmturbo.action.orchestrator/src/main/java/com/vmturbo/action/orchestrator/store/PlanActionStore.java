@@ -42,6 +42,8 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
 import com.vmturbo.action.orchestrator.db.tables.records.MarketActionRecord;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
@@ -143,6 +145,8 @@ public class PlanActionStore implements ActionStore {
 
     private final ActionTranslator actionTranslator;
 
+    private final ActionTargetSelector actionTargetSelector;
+
     /**
      * Create a new {@link PlanActionStore}.
      *
@@ -151,14 +155,15 @@ public class PlanActionStore implements ActionStore {
      * @param topologyContextId the topology context id
      * @param actionTranslator the action translator class
      * @param realtimeTopologyContextId real time topology id
-     *
+     * @param actionTargetSelector For calculating target specific action pre-requisites
      */
     public PlanActionStore(@Nonnull final IActionFactory actionFactory,
                            @Nonnull final DSLContext dsl,
                            final long topologyContextId,
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionTranslator actionTranslator,
-                           final long realtimeTopologyContextId) {
+                           final long realtimeTopologyContextId,
+                           @Nonnull ActionTargetSelector actionTargetSelector) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.dsl = dsl;
         this.actionPlanIdByActionPlanType = Maps.newHashMap();
@@ -168,6 +173,7 @@ public class PlanActionStore implements ActionStore {
         this.entitySettingsCache = entitySettingsCache;
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.actionTargetSelector = actionTargetSelector;
     }
 
     /**
@@ -450,7 +456,11 @@ public class PlanActionStore implements ActionStore {
 
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
 
-        final Stream<Action> translatedActions = actionTranslator.translate(actions.stream()
+        Map<Long, ActionTargetInfo> actionTargetInfo = actionTargetSelector.getTargetsForActions(actions.stream(), snapshot);
+        Stream<ActionDTO.Action> actionStream = actions.stream().map(
+            action -> action.toBuilder().addAllPrerequisite(actionTargetInfo.get(action.getId()).prerequisites()).build());
+
+        final Stream<Action> translatedActions = actionTranslator.translate(actionStream
             .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId())),
             snapshot);
 
@@ -589,19 +599,22 @@ public class PlanActionStore implements ActionStore {
         private final EntitiesAndSettingsSnapshotFactory entitySettingsCache;
         private final ActionTranslator actionTranslator;
         private final long realtimeTopologyContextId;
+        private final ActionTargetSelector actionTargetSelector;
 
         public StoreLoader(@Nonnull final DSLContext dsl,
                            @Nonnull final IActionFactory actionFactory,
                            @Nonnull final ActionModeCalculator actionModeCalculator,
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionTranslator actionTranslator,
-                           final long realtimeTopologyContextId) {
+                           final long realtimeTopologyContextId,
+                           @Nonnull final ActionTargetSelector actionTargetSelector) {
             this.dsl = Objects.requireNonNull(dsl);
             this.actionFactory = Objects.requireNonNull(actionFactory);
             this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
             this.entitySettingsCache = entitySettingsCache;
             this.actionTranslator = actionTranslator;
             this.realtimeTopologyContextId = realtimeTopologyContextId;
+            this.actionTargetSelector = actionTargetSelector;
         }
 
         /**
@@ -618,7 +631,8 @@ public class PlanActionStore implements ActionStore {
                         final PlanActionStore store = planActionStoresByTopologyContextId
                             .computeIfAbsent(actionPlan.getTopologyContextId(),
                                 k -> new PlanActionStore(actionFactory, dsl,
-                                    actionPlan.getTopologyContextId(), entitySettingsCache, actionTranslator, realtimeTopologyContextId));
+                                    actionPlan.getTopologyContextId(), entitySettingsCache,
+                                    actionTranslator, realtimeTopologyContextId, actionTargetSelector));
                         store.setupPlanInformation(actionPlan);
                     });
                 return planActionStoresByTopologyContextId.values().stream().collect(Collectors.toList());
