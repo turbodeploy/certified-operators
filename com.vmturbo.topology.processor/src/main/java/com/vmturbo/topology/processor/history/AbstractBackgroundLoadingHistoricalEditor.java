@@ -13,7 +13,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -84,7 +84,7 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
      */
     protected AbstractBackgroundLoadingHistoricalEditor(@Nonnull Config config,
                     @Nonnull Stub statsHistoryClient,
-                    @Nonnull Function<Stub, HistoryLoadingTask> historyLoadingTaskCreator,
+                    @Nonnull BiFunction<Stub, Pair<Long, Long>, HistoryLoadingTask> historyLoadingTaskCreator,
                     @Nonnull Supplier<HistoryData> historyDataCreator, @Nonnull ExecutorService backgroundLoadingPool) {
         super(config, statsHistoryClient, historyLoadingTaskCreator, historyDataCreator);
         this.backgroundLoadingPool = backgroundLoadingPool;
@@ -127,8 +127,8 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
                 return;
             }
             chunksToSchedule.forEach(chunk -> running.add(Pair.create(chunk, backgroundLoadingPool
-                            .submit(new HistoryLoadingCallable(context, historyLoadingTaskCreator
-                                            .apply(getStatsHistoryClient()), chunk)))));
+                            .submit(new HistoryLoadingCallable(context, createLoadingTask(null),
+                                            chunk)))));
             if (running.isEmpty()) {
                 clearLoadingStatistic();
                 logger.info("Background loading process completed successfully in '{}' ms",
@@ -225,6 +225,15 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
     protected void clearLoadingStatistic() {
         attempt = 0;
         backgroundLoadingStartTimestamp = 0;
+    }
+
+    /**
+     * Returns {@code} true in case background loading is running.
+     *
+     * @return {@code} true in case background loading is running.
+     */
+    protected boolean isRunning() {
+        return !running.isEmpty();
     }
 
 }

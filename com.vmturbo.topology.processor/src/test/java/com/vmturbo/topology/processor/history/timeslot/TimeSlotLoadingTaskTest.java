@@ -38,7 +38,6 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({StatsHistoryServiceBlockingStub.class})
 public class TimeSlotLoadingTaskTest {
-    private static final int PERIOD = 3;
     private static final TimeslotHistoricalEditorConfig CONFIG =
                     new TimeslotHistoricalEditorConfig(1, 1, 1, 1, 1, 1, Clock.systemUTC());
     private static final long OID1 = 12;
@@ -69,11 +68,11 @@ public class TimeSlotLoadingTaskTest {
                                 .getArgumentAt(0, GetEntityStatsRequest.class);
                 Assert.assertNotNull(request);
                 Assert.assertEquals(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS,
-                                    request.getFilter().getRollupPeriod());
+                                request.getFilter().getRollupPeriod());
                 Assert.assertEquals(1, request.getFilter().getCommodityRequestsCount());
                 Assert.assertEquals(UICommodityType.fromType(CT.getType()),
-                                    UICommodityType.fromString(request.getFilter()
-                                                    .getCommodityRequests(0).getCommodityName()));
+                                UICommodityType.fromString(request.getFilter()
+                                                .getCommodityRequests(0).getCommodityName()));
                 // two snapshots with one record per entity each
                 return GetEntityStatsResponse.newBuilder()
                                 .addEntityStats(createEntityStats(OID1, t1, t2))
@@ -84,7 +83,7 @@ public class TimeSlotLoadingTaskTest {
 
         Mockito.doAnswer(answerGetStats).when(history).getEntityStats(Mockito.any());
 
-        TimeSlotLoadingTask task = new TimeSlotLoadingTask(history, PERIOD);
+        TimeSlotLoadingTask task = new TimeSlotLoadingTask(history, Pair.create(null, null));
         Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> comms = task
                         .load(ImmutableList.of(ref1, ref2), CONFIG);
 
