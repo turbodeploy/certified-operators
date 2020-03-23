@@ -55,6 +55,7 @@ public class StringConstants {
     public static final String MEM = "Mem";
     public static final String PLATFORM = "platform";
     public static final String TENANCY = "tenancy";
+    public static final String PERCENTILE = "percentile";
     /**
      * Indicates whether the instance is optimized for Amazon EBS I/O.
      */

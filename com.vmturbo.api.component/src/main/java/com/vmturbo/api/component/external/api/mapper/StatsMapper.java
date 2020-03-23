@@ -88,7 +88,6 @@ public class StatsMapper {
      * This is a special "group by" sent in by the probe and transferred directly to/from history
      * component.
      */
-    private static final String PERCENTILE = "percentile";
     private final ConcurrentHashMap<Long, TargetApiDTO> uuidToTargetApiDtoMap = new ConcurrentHashMap<>();
 
     private static final ImmutableSet<String> apiRelationTypes = ImmutableSet.of(
@@ -421,7 +420,7 @@ public class StatsMapper {
         if (!convertedStatRecord.getHistUtilizationValueList().isEmpty()) {
             final Optional<HistUtilizationValue> percentileValue =
                             convertedStatRecord.getHistUtilizationValueList().stream()
-                                            .filter(value -> PERCENTILE.equals(value.getType()))
+                                            .filter(value -> StringConstants.PERCENTILE.equals(value.getType()))
                                             .findAny();
             percentileValue.map(StatsMapper::calculatePercentile)
                             .map(StatsMapper::createPercentileApiDto)
