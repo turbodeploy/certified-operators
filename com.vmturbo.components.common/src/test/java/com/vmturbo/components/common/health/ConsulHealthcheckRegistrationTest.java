@@ -54,7 +54,7 @@ public class ConsulHealthcheckRegistrationTest {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
             true, componentType, instanceId, instanceIp, instanceRoute, serverPort,
-                maxRetrySecs, "", clock);
+                maxRetrySecs, maxRetrySecs, "", clock);
         NewService expectedNewService = new NewService();
         expectedNewService.setName(componentType);
         expectedNewService.setId(expectedRandomizedId(instanceId));
@@ -98,7 +98,7 @@ public class ConsulHealthcheckRegistrationTest {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
             true, componentType, instanceId, null, instanceRoute,
-                serverPort, maxRetrySecs, "", clock);
+                serverPort, maxRetrySecs, maxRetrySecs, "", clock);
         String localhostIp = InetAddress.getLocalHost().getHostAddress();
         NewService expectedNewService = new NewService();
         expectedNewService.setName(componentType);
@@ -141,7 +141,7 @@ public class ConsulHealthcheckRegistrationTest {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
             false, componentType, instanceId, instanceIp, instanceRoute,
-                serverPort, 0, "", clock);
+                serverPort, 0, 0, "", clock);
         // act
         consulHealthcheckRegistration.registerService();
         // assert
@@ -156,7 +156,7 @@ public class ConsulHealthcheckRegistrationTest {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
             true, componentType, instanceId, instanceIp, instanceRoute,
-                serverPort, maxRetrySecs, "", clock);
+                serverPort, maxRetrySecs, maxRetrySecs, "", clock);
         // act
         consulHealthcheckRegistration.deregisterService();
         // assert
@@ -173,7 +173,7 @@ public class ConsulHealthcheckRegistrationTest {
         // arrange
         consulHealthcheckRegistration = new ConsulHealthcheckRegistration(consulClient,
             false, componentType, instanceId, instanceIp, instanceRoute,
-                serverPort, maxRetrySecs, "", clock);
+                serverPort, maxRetrySecs, maxRetrySecs, "", clock);
         // act
         consulHealthcheckRegistration.deregisterService();
         // assert

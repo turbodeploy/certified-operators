@@ -5,11 +5,11 @@
 if [ -z "$LOG_TO_STDOUT" ]; then
     try_number=0
     while ! (echo ""> /dev/tcp/rsyslog/2514) ; do
-        sleep 1;
+        sleep 10;
         try_number=`expr $try_number + 1`
         echo "Waiting for rsyslog to accept connections";
-        if [ "$try_number" -ge 30 ]; then
-             echo "Failed to access rsyslog daemon to 30 seconds. Exiting..."
+        if [ "$try_number" -ge 360 ]; then
+             echo "Failed to access rsyslog daemon after one hour. Exiting..."
             exit 1;
         fi
     done;

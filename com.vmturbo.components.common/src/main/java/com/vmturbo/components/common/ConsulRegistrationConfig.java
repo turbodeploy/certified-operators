@@ -37,8 +37,11 @@ public class ConsulRegistrationConfig {
     @Value("${consul_port}")
     private Integer consulPort;
 
-    @Value("${consulMaxRetrySecs:60}")
+    @Value("${consulMaxRetrySecs:3600}")
     private int consulMaxRetrySecs;
+
+    @Value("${consulMaxRetryDelaySecs:30}")
+    private int consulMaxRetryDelaySecs;
 
     @Value("${" + BaseVmtComponent.PROP_serverHttpPort + '}')
     private Integer serverPort;
@@ -74,7 +77,7 @@ public class ConsulRegistrationConfig {
         final ConsulRawClient rawClient = new ConsulRawClient(consulHost, consulPort);
         final ConsulClient consulClient = new ConsulClient(rawClient);
         return new ConsulHealthcheckRegistration(consulClient, enableConsulRegistration,
-            componentType, instanceId, instanceIp, instanceRoute, serverPort, consulMaxRetrySecs,
+            componentType, instanceId, instanceIp, instanceRoute, serverPort, consulMaxRetrySecs, consulMaxRetryDelaySecs,
             ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace),
             Clock.systemUTC());
     }
