@@ -47,6 +47,7 @@ import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -298,6 +299,7 @@ public class PlanActionStore implements ActionStore {
      * {@inheritDoc}
      * The {@link PlanActionStore} permits the clear operation.
      */
+    @Override
     public boolean clear() {
         try {
             actionPlanIdByActionPlanType.values().forEach(planId -> cleanActions(dsl, planId));
@@ -415,6 +417,15 @@ public class PlanActionStore implements ActionStore {
      */
     private List<ActionAndInfo> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
                                                             @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
+        // Check if there are any delete volume actions.  If so we need to
+        // get these from the real-time SOURCE topology as plan projected topology
+        // won't have them.
+        Set<ActionDTO.Action> deleteVolumeActions = actions.stream()
+                        .filter(action -> action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE)
+                        .collect(Collectors.toSet());
+        final Set<Long> deleteVolumesToRetrieve = ActionDTOUtil.getInvolvedEntityIds(deleteVolumeActions);
+
+        //TODO: Remove deleteVolumesToRetrieve from entitiesToRetrieve
         final Set<Long> entitiesToRetrieve =
                 new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
         // snapshot contains the entities information that is required for the actions descriptions
@@ -426,14 +437,17 @@ public class PlanActionStore implements ActionStore {
         // TODO: remove hack to go to realtime if source plan topology is not available.  Needed to
         // compute action descriptions.
         EntitiesAndSettingsSnapshot snapshotHack = entitySettingsCache.newSnapshot(
-            entitiesToRetrieve, planContextId);
+            entitiesToRetrieve, deleteVolumesToRetrieve, planContextId);
         if (MapUtils.isEmpty(snapshotHack.getEntityMap())) {
             // Hack: if the plan source topology is not ready, use realtime.
             // This should only occur initially when the plan  created.
             logger.warn("translatePlanActions: failed for topologyContextId={} topologyId={}, try realtime",
                 planContextId, planData.getTopologyId());
-            snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve, realtimeTopologyContextId);
+            snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve,
+                                                           deleteVolumesToRetrieve,
+                                                           realtimeTopologyContextId);
         }
+
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
 
         final Stream<Action> translatedActions = actionTranslator.translate(actions.stream()
@@ -449,9 +463,11 @@ public class PlanActionStore implements ActionStore {
                 final ActionDTO.Action recommendation = action.getActionTranslation().getTranslationResultOrOriginal();
                 try {
                     final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
+
                     translatedActionsToAdd.add(ImmutableActionAndInfo.builder()
                         .translatedAction(recommendation)
-                        .description(ActionDescriptionBuilder.buildActionDescription(snapshot, recommendation))
+                        .description(ActionDescriptionBuilder.buildActionDescription(snapshot,
+                                                                      recommendation))
                         .associatedAccountId(snapshot.getOwnerAccountOfEntity(primaryEntity)
                             .map(EntityWithConnections::getOid))
                         .build());

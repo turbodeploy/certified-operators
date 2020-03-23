@@ -5,6 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -12,8 +13,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import io.grpc.Status;
@@ -21,6 +24,7 @@ import io.grpc.Status;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Matchers;
 
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -115,8 +119,9 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                         Groupings.newBuilder().addGroupId(ASSOCIATED_RESOURCE_GROUP_ID).build())
                 .build());
 
+        Set<Long> nonProjectedEntities = any();
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
-            Collections.singleton(ENTITY_ID), REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+            Collections.singleton(ENTITY_ID), anySet(), REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         final Map<String, Setting> newSettings = snapshot.getSettingsForEntity(ENTITY_ID);
         assertTrue(newSettings.containsKey(setting.getSettingSpecName()));
@@ -140,7 +145,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                 GetGroupsForEntitiesResponse.getDefaultInstance());
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
-            TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+                                         Collections.emptySet(), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         assertTrue(snapshot.getSettingsForEntity(ENTITY_ID).isEmpty());
     }
