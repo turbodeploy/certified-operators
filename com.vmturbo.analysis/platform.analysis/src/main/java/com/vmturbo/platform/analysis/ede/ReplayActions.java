@@ -250,12 +250,12 @@ public class ReplayActions {
                     List<Market> marketsAsSeller = economy.getMarketsAsSeller(newTrader);
                     Deactivate replayedSuspension = new Deactivate(economy, newTrader,
                                     !marketsAsSeller.isEmpty() ? marketsAsSeller.get(0) : null);
-                    suspendActions.add(replayedSuspension.take());
+                    replayedSuspension.take();
                     // Any orphan suspensions generated will be added to the replayed suspension's
                     // subsequent actions list.
                     suspensionInstance
                         .suspendOrphanedCustomers(economy, replayedSuspension);
-                    suspendActions.addAll(replayedSuspension.getSubsequentActions());
+                    suspendActions.addAll(replayedSuspension.getAllActions());
                 }
             }
         }

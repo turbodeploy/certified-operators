@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.ede;
 import static com.vmturbo.platform.analysis.testUtilities.TestUtils.PM_TYPE;
 import static com.vmturbo.platform.analysis.testUtilities.TestUtils.VM_TYPE;
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -116,4 +117,24 @@ public class ConsistentPlacementTest {
         assertArrayEquals(expectedActions, results.getActions().toArray());
         assertTrue(results.getUnplacedTraders().isEmpty());
     }
+
+    /**
+     * The first move is the group leader's move.  Ensure that the other two moves are in the
+     * subsequent actions list.  The other two moves should have no subsequent actions.
+     */
+    @Test
+    public void testSubsequentActions() {
+        Economy e = new Economy();
+        Trader[] traders = createTraders(e, 3, 1);  // 3 buyers, 1 seller
+
+        // Expected actions are moves for both trader 1 and trader 2
+        Trader seller = traders[3];
+        final ShoppingList sl1 = getSl(e, traders[0]);
+        PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, sl1);
+        assertEquals(3, results.getActions().size());
+        assertEquals(3, results.getActions().get(0).getAllActions().size());
+        assertEquals(1, results.getActions().get(1).getAllActions().size());
+        assertEquals(1, results.getActions().get(2).getAllActions().size());
+    }
+
 }
