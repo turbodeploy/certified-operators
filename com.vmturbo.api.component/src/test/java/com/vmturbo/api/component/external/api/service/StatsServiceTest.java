@@ -273,8 +273,6 @@ public class StatsServiceTest {
         verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
         verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
 
-        verify(paginationRequest).allResultsResponse(any());
-
         assertThat(response.getRawResults().size(), is(1));
         final EntityStatsApiDTO clusterStats = response.getRawResults().get(0);
         assertThat(clusterStats.getUuid(), is("7"));
@@ -288,10 +286,9 @@ public class StatsServiceTest {
      *
      * @throws Exception should not happen
      */
-    @Ignore
     @Test
     public void testClusterStatsSortingByCpuHeadRoomAscending() throws Exception {
-        Assert.assertEquals(ImmutableList.of(3, 2, 1),
+        Assert.assertEquals(ImmutableList.of(2L, 3L, 1L),
                             prepareClusterStatsOrderingTest(StringConstants.CPU_HEADROOM, true));
     }
 
@@ -300,10 +297,9 @@ public class StatsServiceTest {
      *
      * @throws Exception should not happen
      */
-    @Ignore
     @Test
     public void testClusterStatsSortingByCpuHeadRoomDescending() throws Exception {
-        Assert.assertEquals(ImmutableList.of(1, 3, 2),
+        Assert.assertEquals(ImmutableList.of(1L, 3L, 2L),
                             prepareClusterStatsOrderingTest(StringConstants.CPU_HEADROOM, false));
     }
 
@@ -312,11 +308,10 @@ public class StatsServiceTest {
      *
      * @throws Exception should not happen
      */
-    @Ignore
     @Test
     public void testClusterStatsSortingByMemUtilizationDescending() throws Exception {
-        Assert.assertEquals(ImmutableList.of(1, 3, 2),
-                            prepareClusterStatsOrderingTest(StringConstants.MEM, true));
+        Assert.assertEquals(ImmutableList.of(2L, 3L, 1L),
+                            prepareClusterStatsOrderingTest(StringConstants.MEM, false));
     }
 
     /**
@@ -347,10 +342,11 @@ public class StatsServiceTest {
         final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
 
         // Add a cluster stat request.
-        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
-        statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
-        statApiInputDTO.setName(StringConstants.MEM);
-        periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
+        final StatApiInputDTO statApiInputDTO1 = new StatApiInputDTO();
+        statApiInputDTO1.setName(StringConstants.CPU_HEADROOM);
+        final StatApiInputDTO statApiInputDTO2 = new StatApiInputDTO();
+        statApiInputDTO2.setName(StringConstants.MEM);
+        periodApiInputDTO.setStatistics(ImmutableList.of(statApiInputDTO1, statApiInputDTO2));
 
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(ImmutableList.of("1", "2", "3"));
@@ -406,9 +402,21 @@ public class StatsServiceTest {
         when(apiId3.isGroup()).thenReturn(true);
         when(apiId3.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
 
-        final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.getDefaultInstance();
-//        when(statsMapper.toClusterStatsRequest("7", periodApiInputDTO, true))
-  //              .thenReturn(clusterStatsRequest);
+        final ClusterStatsRequest clusterStatsRequest1 = ClusterStatsRequest.newBuilder()
+                                                                .setClusterId(1L)
+                                                                .build();
+        final ClusterStatsRequest clusterStatsRequest2 = ClusterStatsRequest.newBuilder()
+                                                                .setClusterId(2L)
+                                                                .build();
+        final ClusterStatsRequest clusterStatsRequest3 = ClusterStatsRequest.newBuilder()
+                                                                .setClusterId(3L)
+                                                                .build();
+        when(statsMapper.toClusterStatsRequest("1", periodApiInputDTO, true))
+                .thenReturn(clusterStatsRequest1);
+        when(statsMapper.toClusterStatsRequest("2", periodApiInputDTO, true))
+                .thenReturn(clusterStatsRequest2);
+        when(statsMapper.toClusterStatsRequest("3", periodApiInputDTO, true))
+                .thenReturn(clusterStatsRequest3);
 
         final StatSnapshot fakeSnapshot1 = StatSnapshot.newBuilder()
                                                 .setSnapshotDate(1L)
@@ -419,16 +427,20 @@ public class StatsServiceTest {
         final StatSnapshot fakeSnapshot3 = StatSnapshot.newBuilder()
                                                 .setSnapshotDate(3L)
                                                 .build();
-        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest))
-                .thenReturn(ImmutableList.of(fakeSnapshot1, fakeSnapshot2, fakeSnapshot3));
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest1))
+                .thenReturn(Collections.singletonList(fakeSnapshot1));
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest2))
+                .thenReturn(Collections.singletonList(fakeSnapshot2));
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest3))
+                .thenReturn(Collections.singletonList(fakeSnapshot3));
 
-        final EntityStatsApiDTO apiSnapshot1 = makeClusterStatSnapshotApiDTO("1", 10.0f, 1.0f, 200.0f);
-        final EntityStatsApiDTO apiSnapshot2 = makeClusterStatSnapshotApiDTO("2", 1.0f, 2.0f, 3.0f);
-        final EntityStatsApiDTO apiSnapshot3 = makeClusterStatSnapshotApiDTO("3", 9.0f, 2.0f, 4.0f);
+        final StatSnapshotApiDTO apiSnapshot1 = makeStatApiDTO("1", 10.0f, 1.0f, 200.0f);
+        final StatSnapshotApiDTO apiSnapshot2 = makeStatApiDTO("2", 1.0f, 2.0f, 3.0f);
+        final StatSnapshotApiDTO apiSnapshot3 = makeStatApiDTO("3", 9.0f, 2.0f, 4.0f);
 
-       // when(statsMapper.toStatApiDto(fakeSnapshot1)).thenReturn(apiSnapshot1);
-//        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot2)).thenReturn(apiSnapshot2);
-  //      when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot3)).thenReturn(apiSnapshot3);
+        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot1)).thenReturn(apiSnapshot1);
+        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot2)).thenReturn(apiSnapshot2);
+        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot3)).thenReturn(apiSnapshot3);
 
         final EntityStatsPaginationResponse response =
                 statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
@@ -438,31 +450,27 @@ public class StatsServiceTest {
                         .collect(Collectors.toList());
     }
 
-    private EntityStatsApiDTO makeClusterStatSnapshotApiDTO(
-            @Nonnull String id, float cpuHeadRoom, float memAvg, float memCap) {
-        final EntityStatsApiDTO result = new EntityStatsApiDTO();
-
-        final StatSnapshotApiDTO apiSnapshot1 = new StatSnapshotApiDTO();
+    private StatSnapshotApiDTO makeStatApiDTO(@Nonnull String id, float cpuHeadRoom,
+                                              float memAvg, float memCap) {
         final StatApiDTO statApiDTO1 = new StatApiDTO();
         statApiDTO1.setName(StringConstants.CPU_HEADROOM);
         final StatValueApiDTO statValueApiDTO1 = new StatValueApiDTO();
         statValueApiDTO1.setAvg(cpuHeadRoom);
         statApiDTO1.setValues(statValueApiDTO1);
-        apiSnapshot1.setStatistics(Collections.singletonList(statApiDTO1));
+        statApiDTO1.setUuid(id);
 
-        final StatSnapshotApiDTO apiSnapshot2 = new StatSnapshotApiDTO();
         final StatApiDTO statApiDTO2 = new StatApiDTO();
         statApiDTO2.setName(StringConstants.MEM);
-        final StatValueApiDTO statValueApiDTO2v = new StatValueApiDTO();
-        statValueApiDTO2v.setAvg(memAvg);
-        final StatValueApiDTO statValueApiDTO2c = new StatValueApiDTO();
-        statValueApiDTO2c.setAvg(memCap);
-        statApiDTO2.setValues(statValueApiDTO2v);
-        statApiDTO2.setCapacity(statValueApiDTO2c);
-        apiSnapshot2.setStatistics(Collections.singletonList(statApiDTO2));
+        final StatValueApiDTO statValueApiDTO21 = new StatValueApiDTO();
+        statValueApiDTO21.setAvg(memAvg);
+        statApiDTO2.setValues(statValueApiDTO21);
+        final StatValueApiDTO statValueApiDTO22 = new StatValueApiDTO();
+        statValueApiDTO22.setAvg(memCap);
+        statApiDTO2.setCapacity(statValueApiDTO22);
+        statApiDTO2.setUuid(id);
 
-        result.setUuid(id);
-        result.setStats(ImmutableList.of(apiSnapshot1, apiSnapshot2));
+        final StatSnapshotApiDTO result = new StatSnapshotApiDTO();
+        result.setStatistics(ImmutableList.of(statApiDTO1, statApiDTO2));
 
         return result;
     }

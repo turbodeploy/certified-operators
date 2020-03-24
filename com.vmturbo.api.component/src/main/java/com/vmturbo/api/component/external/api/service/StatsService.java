@@ -356,7 +356,7 @@ public class StatsService implements IStatsService {
     private static StatApiDTO getRelevantStatsRecord(@Nonnull EntityStatsApiDTO entityStatsApiDTO,
                                                      @Nonnull String commodity) {
         return entityStatsApiDTO.getStats().stream()
-                    .map(s -> s.getStatistics().get(0))
+                    .flatMap(s -> s.getStatistics().stream())
                     .filter(s -> commodity.equalsIgnoreCase(s.getName()))
                     .findAny()
                     .orElseGet(() -> {
