@@ -202,11 +202,14 @@ public class ReservedInstanceAggregate {
      */
     public void relinquishCoupons(EntityReservedInstanceCoverage riCoverageToRelinquish) {
         riCoverageToRelinquish.getCouponsCoveredByRiMap().forEach((riId, couponsToRelinquish) -> {
-            double couponsRelinquished = riCouponInfoMap.get(riId).relinquishCoupons(couponsToRelinquish);
-            if (couponsRelinquished < couponsToRelinquish) {
-                logger.error("Wanted to relinquish {} coupons, but could only relinquish {} " +
-                        "coupons in {} for {}", couponsToRelinquish, couponsRelinquished,
-                        riId, riCoverageToRelinquish.getEntityId());
+            final RICouponInfo riCouponInfo = riCouponInfoMap.get(riId);
+            if (riCouponInfo != null) {
+                double couponsRelinquished = riCouponInfo.relinquishCoupons(couponsToRelinquish);
+                if (couponsRelinquished < couponsToRelinquish) {
+                    logger.error("Wanted to relinquish {} coupons, but could only relinquish {} " +
+                                    "coupons in {} for {}", couponsToRelinquish, couponsRelinquished,
+                            riId, riCoverageToRelinquish.getEntityId());
+                }
             }
         });
     }
