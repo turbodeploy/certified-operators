@@ -374,6 +374,7 @@
                 <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
@@ -705,6 +706,7 @@
         <profile>
             <id>mediation-udt</id>
             <modules>
+                <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
             </modules>
         </profile>
@@ -889,6 +891,7 @@
                 <module>../com.vmturbo.mediation.vcenter.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.component</module>
 
@@ -1087,6 +1090,7 @@
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.custom.data.component</module>
+                <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>

@@ -38,6 +38,14 @@
                         </configuration>
                     </execution>
                 </executions>
+                <dependencies>
+                    <dependency>
+                        <!-- This dependency is added to enforce build order -->
+                        <groupId>com.vmturbo</groupId>
+                        <artifactId>com.vmturbo.mediation.udt</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
     </build>
