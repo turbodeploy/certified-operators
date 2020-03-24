@@ -74,8 +74,6 @@ public enum ApiEntityType {
     /** PhysicalMachine entity type. */
     PHYSICAL_MACHINE(StringConstants.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE),
     /** ProcessorPool entity type. */
-    /** HCI PhysicalMachine entity type. */
-    HCI_PHYSICAL_MACHINE(StringConstants.HCI_PHYSICAL_MACHINE, EntityType.HCI_PHYSICAL_MACHINE),
     PROCESSOR_POOL(StringConstants.PROCESSOR_POOL, EntityType.PROCESSOR_POOL),
     /** Region entity type. */
     REGION(StringConstants.REGION, EntityType.REGION),
