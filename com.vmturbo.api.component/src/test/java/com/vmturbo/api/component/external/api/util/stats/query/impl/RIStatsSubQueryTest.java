@@ -137,6 +137,7 @@ public class RIStatsSubQueryTest {
 
     @Test
     public void testAggregateStats() throws Exception {
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         final ReservedInstanceStatsRecord cvgRecord =
                 ReservedInstanceStatsRecord.newBuilder().setSnapshotDate(MILLIS).build();
         Mockito.doReturn(GetReservedInstanceCoverageStatsResponse.newBuilder()
@@ -161,7 +162,7 @@ public class RIStatsSubQueryTest {
                         GetReservedInstanceCoverageStatsRequest.newBuilder()
                                 .setStartDate(TIME_WINDOW.startTime())
                                 .setEndDate(TIME_WINDOW.endTime())
-                                .setRegionFilter(RegionFilter.newBuilder().addRegionId(0))
+                                .setRegionFilter(RegionFilter.newBuilder().addAllRegionId(SCOPE_ENTITIES))
                                 .setIncludeBuyRiCoverage(false)
                                 .build());
         Mockito.verify(backend)
@@ -169,7 +170,7 @@ public class RIStatsSubQueryTest {
                         GetReservedInstanceUtilizationStatsRequest.newBuilder()
                                 .setStartDate(TIME_WINDOW.startTime())
                                 .setEndDate(TIME_WINDOW.endTime())
-                                .setRegionFilter(RegionFilter.newBuilder().addRegionId(0))
+                                .setRegionFilter(RegionFilter.newBuilder().addAllRegionId(SCOPE_ENTITIES))
                                 .setIncludeBuyRiUtilization(false)
                                 .build());
 
@@ -232,7 +233,7 @@ public class RIStatsSubQueryTest {
     public void testCreateUtilizationRequestRegionScope() throws OperationFailedException {
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
-        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
         Mockito.when(scope.getScopeTypes())
@@ -250,7 +251,7 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateUtilizationRequestAzScope() throws OperationFailedException {
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
-        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);
@@ -269,7 +270,7 @@ public class RIStatsSubQueryTest {
     @Test
     public void testCreateUtilizationRequestBaScope() throws OperationFailedException {
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
-        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);
@@ -311,7 +312,7 @@ public class RIStatsSubQueryTest {
         Mockito.when(scope.getScopeTypes())
                 .thenReturn(Optional.of(Collections.singleton(ApiEntityType.REGION)));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
-        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);
@@ -330,7 +331,7 @@ public class RIStatsSubQueryTest {
         Mockito.when(scope.getScopeTypes())
                 .thenReturn(Optional.of(Collections.singleton(ApiEntityType.AVAILABILITY_ZONE)));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
-        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);
@@ -364,7 +365,7 @@ public class RIStatsSubQueryTest {
         Mockito.when(scope.getScopeTypes())
                 .thenReturn(Optional.of(Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
-        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);
@@ -399,7 +400,7 @@ public class RIStatsSubQueryTest {
         Mockito.when(scope.getScopeTypes())
                 .thenReturn(Optional.of(Collections.singleton(ApiEntityType.SERVICE_PROVIDER)));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);
-        Mockito.when(cachedGroupInfo.getEntityIds()).thenReturn(SCOPE_ENTITIES);
+        Mockito.when(context.getQueryScope().getScopeOids()).thenReturn(SCOPE_ENTITIES);
         Mockito.when(context.getInputScope().getCachedGroupInfo())
                 .thenReturn(Optional.of(cachedGroupInfo));
         Mockito.when(context.getInputScope().isGroup()).thenReturn(true);

@@ -328,7 +328,7 @@ public class StatsQueryScopeExpander {
         final Set<Long> scopeOids;
 
         if (globalScope == null) {
-            scopeOids = scope.getScopeOids(userSessionContext);
+            scopeOids = scope.getScopeOids(userSessionContext, statistics);
         } else {
             scopeOids = null;
         }

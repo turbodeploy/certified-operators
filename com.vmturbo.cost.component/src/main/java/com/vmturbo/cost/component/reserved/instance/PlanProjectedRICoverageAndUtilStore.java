@@ -19,6 +19,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -54,6 +55,8 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
     private static final Logger logger = LogManager.getLogger();
 
     private static final String PLAN_ID = "plan_id";
+
+    private static final String REGION_ID = "region_id";
 
     private final DSLContext context;
 
@@ -410,17 +413,22 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
      * utilization table.
      *
      * @param planId plan ID.
+     * @param regions a list of regions.
      * @return a list of {@link ReservedInstanceStatsRecord}.
      */
-    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceUtilizationStatsRecords(long planId) {
-        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION);
+    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceUtilizationStatsRecords(long planId, List<Long> regions) {
+        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION, regions);
     }
 
-    private List<ReservedInstanceStatsRecord> getPlanRIStatsRecords(long planId, final Table<?> table) {
+    private List<ReservedInstanceStatsRecord> getPlanRIStatsRecords(long planId, final Table<?> table, List<Long> regions) {
+        Condition conditions = table.field(PLAN_ID, Long.class).eq(planId);
+        if (regions != null && !regions.isEmpty()) {
+            conditions.and(table.field(REGION_ID, Long.class).in(regions));
+        }
         final Result<Record> records =
                         context.select(ReservedInstanceUtil.createSelectFieldsForPlanRIUtilizationCoverage(table))
                                         .from(table)
-                                        .where(table.field(PLAN_ID, Long.class).eq(planId))
+                                        .where(conditions)
                                         .fetch();
         return records.stream().filter(r -> r.getValue(0) != null)
                         .map(ReservedInstanceUtil::convertPlanRIUtilizationCoverageRecordToRIStatsRecord)
@@ -432,10 +440,11 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
      * coverage table.
      *
      * @param planId plan ID.
+     * @param regions a list of regions.
      * @return a list of {@link ReservedInstanceStatsRecord}.
      */
-    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceCoverageStatsRecords(long planId) {
-        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE);
+    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceCoverageStatsRecords(long planId, List<Long> regions) {
+        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE, regions);
     }
 
     @Override

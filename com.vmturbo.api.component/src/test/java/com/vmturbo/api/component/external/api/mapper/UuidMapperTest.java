@@ -15,8 +15,12 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import com.google.common.collect.Lists;
 
@@ -33,6 +37,9 @@ import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
@@ -56,8 +63,11 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
-
+import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
+import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 public class UuidMapperTest {
 
@@ -73,6 +83,10 @@ public class UuidMapperTest {
 
     private GroupExpander groupExpander = mock(GroupExpander.class);
 
+    private ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
+
+    private CloudTypeMapper cloudTypeMapper = mock(CloudTypeMapper.class);
+
     @Rule
     public GrpcTestServer grpcServer =
         GrpcTestServer.newServer(groupServiceBackend, planServiceMole);
@@ -87,7 +101,9 @@ public class UuidMapperTest {
             topologyProcessor,
             PlanServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            groupExpander);
+            groupExpander,
+            thinTargetCache,
+            cloudTypeMapper);
 
         when(magicScopeGateway.enter(any(String.class))).thenAnswer(invocation -> invocation.getArgumentAt(0, String.class));
     }
@@ -547,5 +563,82 @@ public class UuidMapperTest {
         assertFalse(id.isRealtimeMarket());
         assertFalse(id.isPlan());
         assertFalse(id.isEntity());
+    }
+
+    /**
+     * Test the filtering of scope IDs by CSP.
+     * Call filterEntitiesByCsp with a scope of  2 regions - 1 AWS and 1 Azure.
+     * StatApiInputDTO indicates filter with AWS type only.
+     * Only the OID of the AWS region should be returned.
+     *
+     * @throws Exception any exception
+     */
+    @Test
+    public void testFilterEntitiesByCsp() throws Exception {
+        final MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
+
+        final long awsTargetId = 100L;
+        final Long awsRegionOid = 1000L;
+        final MinimalEntity awsRegion = MinimalEntity.newBuilder()
+                .addDiscoveringTargetIds(awsTargetId)
+                .setOid(awsRegionOid)
+                .build();
+        final ImmutableThinTargetInfo awsTargetInfo = ImmutableThinTargetInfo.builder()
+                .oid(awsTargetId)
+                .isHidden(false)
+                .displayName("AWS Target")
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .type(SDKProbeType.AWS.getProbeType())
+                        .oid(1L)
+                        .category("Cloud")
+                        .build())
+                .build();
+        when(thinTargetCache.getTargetInfo(awsTargetId)).thenReturn(Optional.of(awsTargetInfo));
+
+        final long azureTargetId = 200L;
+        final Long azureRegionOid = 2000L;
+        final MinimalEntity azureRegion = MinimalEntity.newBuilder()
+                .addDiscoveringTargetIds(azureTargetId)
+                .setOid(azureRegionOid)
+                .build();
+        final ImmutableThinTargetInfo azureTargetInfo = ImmutableThinTargetInfo.builder()
+                .oid(awsTargetId)
+                .isHidden(false)
+                .displayName("Azure Target")
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .type(SDKProbeType.AZURE.getProbeType())
+                        .oid(2L)
+                        .category("Cloud")
+                        .build())
+                .build();
+        when(thinTargetCache.getTargetInfo(azureTargetId)).thenReturn(Optional.of(azureTargetInfo));
+
+        List<MinimalEntity> regionList = Arrays.asList(awsRegion, azureRegion);
+        when(multiEntityRequest.getMinimalEntities()).thenReturn(regionList.stream());
+
+        when(cloudTypeMapper.fromTargetType(awsTargetInfo.probeInfo().type()))
+                .thenReturn(Optional.of(CloudType.AWS));
+        when(cloudTypeMapper.fromTargetType(azureTargetInfo.probeInfo().type()))
+                .thenReturn(Optional.of(CloudType.AZURE));
+
+        Set<Long> scopeOids = new HashSet<>(Arrays.asList(awsRegionOid, azureRegionOid));
+        List<StatApiInputDTO> statApiInputList = createStatApiInputDTO();
+
+        final ApiId apiId1 = uuidMapper.fromOid(123);
+        Set<Long> result = apiId1.filterEntitiesByCsp(scopeOids, statApiInputList);
+
+        // Expect 1 region in the result - the AWS region.
+        assertEquals(1, result.size());
+        assertEquals(awsRegionOid, result.iterator().next());
+    }
+
+    private List<StatApiInputDTO> createStatApiInputDTO() {
+        StatFilterApiDTO statFilterApiDTO = new StatFilterApiDTO();
+        statFilterApiDTO.setType("CSP");
+        statFilterApiDTO.setValue("AWS");
+        StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setFilters(Collections.singletonList(statFilterApiDTO));
+        return Collections.singletonList(statApiInputDTO);
     }
 }
