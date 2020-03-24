@@ -374,6 +374,7 @@
                 <module>../com.vmturbo.mediation.pivotal.component</module>
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
@@ -702,6 +703,13 @@
         </profile>
 
         <profile>
+            <id>mediation-udt</id>
+            <modules>
+                <module>../com.vmturbo.mediation.udt.component</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>mediation-baremetal</id>
             <modules>
                 <module>../com.vmturbo.mediation.baremetal.component</module>
@@ -881,6 +889,7 @@
                 <module>../com.vmturbo.mediation.vcenter.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.component</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
@@ -1078,6 +1087,7 @@
                 <module>../com.vmturbo.mediation.cloudfoundry.component</module>
                 <module>../com.vmturbo.mediation.compellent.component</module>
                 <module>../com.vmturbo.mediation.custom.data.component</module>
+                <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.database.mssql.component</module>
                 <module>../com.vmturbo.mediation.datadog.component</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>

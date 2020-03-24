@@ -505,6 +505,21 @@ services:
       JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VCENTER_SYSTEM_PROPERTIES}"
     mem_limit: ${MEDIATION_VCENTER_MEM_LIMIT_MB}M
 
+  mediation-udt:
+    extends:
+      file: common-services.yml
+      service: dev-mediation-component
+    image: turbonomic/com.vmturbo.mediation.udt.component:${XL_VERSION}
+    depends_on: *clustermgrdep
+    ports:
+      - "${MEDIATION_UDT_PORT}"
+      - "${MEDIATION_UDT_DEBUG_PORT}"
+    environment:
+      component_type: mediation-udt
+      instance_id: mediation-udt-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_UDT_SYSTEM_PROPERTIES}"
+    mem_limit: ${MEDIATION_UDT_MEM_LIMIT_MB}M
+
   mediation-vcenter-browsing:
     extends:
       file: common-services.yml

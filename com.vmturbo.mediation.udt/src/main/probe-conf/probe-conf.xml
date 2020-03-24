@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<probe>
+    <full-class-name>com.vmturbo.mediation.udt.UserDefinedTopologyProbe</full-class-name>
+    <type>User-Defined-Topology</type>
+    <category>CUSTOM</category>
+    <version>1.0.0</version>
+    <rediscovery-interval-seconds>120</rediscovery-interval-seconds>
+    <creation-mode>INTERNAL</creation-mode>
+</probe>

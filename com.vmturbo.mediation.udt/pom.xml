@@ -1,0 +1,32 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <artifactId>xl-sdk-probe-parent</artifactId>
+        <groupId>com.vmturbo</groupId>
+        <version>7.21.200-EA1</version>
+        <relativePath>../com.vmturbo.mediation.probe.parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>com.vmturbo.mediation.udt</artifactId>
+    <description>User Defined Topology Component</description>
+    <packaging>jar</packaging>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>vmturbo-sdk-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

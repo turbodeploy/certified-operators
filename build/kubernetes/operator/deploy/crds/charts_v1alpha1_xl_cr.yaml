@@ -27,6 +27,8 @@ spec:
     enabled: true
   appdynamics:
     enabled: true
+  udt:
+    enabled: true
   appinsights:
     enabled: true
   aws:

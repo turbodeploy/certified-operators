@@ -26,6 +26,8 @@ spec:
     enabled: true
   appdynamics:
     enabled: true
+  udt:
+    enabled: true
   appinsight:
     enabled: false
   aws:
@@ -167,6 +169,10 @@ spec:
       limits:
         memory: 2Gi
   mediation-vcenterbrowsing:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-udt:
     resources:
       limits:
         memory: 512Mi
