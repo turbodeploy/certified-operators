@@ -632,6 +632,11 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                                  long tierId) {
         DbTierOnDemandPriceTable priceTable =
             onDemandPriceTable.getDbPricesByInstanceIdMap().get(tierId);
+        if (priceTable == null) {
+            logger.warn("No database price table found for db tier id {}. Returning null db price list",
+                    tierId);
+            return null;
+        }
         Optional<CloudCostDTO.DeploymentType> deploymentType =
             databaseConfig.getDeploymentType();
 
