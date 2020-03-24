@@ -12,10 +12,13 @@ import com.google.common.collect.ImmutableSortedMap;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.components.common.migration.Migration;
+import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.identity.services.IdentityServiceUnderlyingStore;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.TargetStore;
 
 public class MigrationsLibrary {
 
@@ -31,12 +34,18 @@ public class MigrationsLibrary {
 
     private final KeyValueStore keyValueStore;
 
+    private final TargetStore targetStore;
+
+    private final IdentityStore<TargetSpec> targetIdentityStore;
+
     public MigrationsLibrary(@Nonnull DSLContext dslContext,
                              @Nonnull ProbeStore probeStore,
                              @Nonnull StatsHistoryServiceBlockingStub statsHistoryClient,
                              @Nonnull IdentityServiceUnderlyingStore identityServiceUnderlyingStore,
                              @Nonnull IdentityProvider identityProvider,
-                             @Nonnull KeyValueStore keyValueStore) {
+                             @Nonnull KeyValueStore keyValueStore,
+                             @Nonnull TargetStore targetStore,
+                             @Nonnull IdentityStore<TargetSpec> targetIdentityStore) {
 
         this.dslContext = Objects.requireNonNull(dslContext);
         this.probeStore = Objects.requireNonNull(probeStore);
@@ -44,6 +53,8 @@ public class MigrationsLibrary {
         this.identityServiceUnderlyingStore = Objects.requireNonNull(identityServiceUnderlyingStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.keyValueStore = keyValueStore;
+        this.targetStore = Objects.requireNonNull(targetStore);
+        this.targetIdentityStore = Objects.requireNonNull(targetIdentityStore);
     }
 
     public SortedMap<String, Migration> getMigrationsList(){
@@ -58,7 +69,10 @@ public class MigrationsLibrary {
                 identityServiceUnderlyingStore,
                 identityProvider),
             "V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration",
-            new V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration(keyValueStore)
+            new V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration(keyValueStore),
+            "V_01_00_03__Target_Oid_Replace_Ip_With_Address",
+            new V_01_00_03__Target_Oid_Replace_Ip_With_Address(probeStore, targetStore,
+                targetIdentityStore)
         );
     }
 }
