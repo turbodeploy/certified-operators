@@ -12,6 +12,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -48,6 +49,18 @@ public class UserScopeUtils {
     // ScopedUserUtil.java.
     public static final Set<String> SHARED_USER_ENTITY_TYPES = ImmutableSet.of(
             ApiEntityType.APPLICATION.apiStr(), ApiEntityType.VIRTUAL_MACHINE.apiStr());
+
+    /**
+     * Cloud static infrastructure EntityTypes.
+     */
+    public static final Collection<String> STATIC_CLOUD_ENTITY_TYPES = ImmutableList.of(
+            ApiEntityType.REGION.apiStr(),
+            ApiEntityType.AVAILABILITY_ZONE.apiStr(),
+            ApiEntityType.COMPUTE_TIER.apiStr(),
+            ApiEntityType.STORAGE_TIER.apiStr(),
+            ApiEntityType.DATABASE_SERVER_TIER.apiStr(),
+            ApiEntityType.DATABASE_TIER.apiStr());
+
 
     public static boolean isUserScoped() {
         // first check if there is a security context user

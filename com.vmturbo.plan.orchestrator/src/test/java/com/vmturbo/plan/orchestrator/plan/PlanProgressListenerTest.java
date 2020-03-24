@@ -890,7 +890,7 @@ public class PlanProgressListenerTest {
         planProgressListener.onProjectedTopologyAvailable(0, REALTIME_CONTEXT_ID);
         Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
         Mockito.verify(reservationPlacementHandler, Mockito.times(1))
-            .updateReservations(Mockito.anyLong(), Mockito.anyLong(), Mockito.anyBoolean());
+            .updateReservationsFromLiveTopology(Mockito.anyLong(), Mockito.anyLong());
         planProgressListener.onProjectedTopologyFailure(0, REALTIME_CONTEXT_ID, "");
         Mockito.verify(planDao, Mockito.never()).updatePlanInstance(Mockito.anyLong(), Mockito.any());
     }

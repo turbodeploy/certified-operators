@@ -117,8 +117,10 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     @Override
     public List<ReservedInstanceApiDTO> getReservedInstances(
-            @NotNull String scopeUuid, @Nullable Boolean includeAllUsable) throws Exception {
-        Objects.requireNonNull(scopeUuid);
+            @Nullable String scopeUuid, @Nullable Boolean includeAllUsable) throws Exception {
+        // default to the real time market as the scope
+        scopeUuid = Optional.ofNullable(scopeUuid)
+            .orElse(UuidMapper.UI_REAL_TIME_MARKET_STR);
 
         final ApiId scope = uuidMapper.fromUuid(scopeUuid);
         final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(

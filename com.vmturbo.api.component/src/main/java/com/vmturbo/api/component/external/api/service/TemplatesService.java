@@ -342,8 +342,6 @@ public class TemplatesService implements ITemplatesService {
                 return EntityType.VIRTUAL_MACHINE.getNumber();
             case ParamStrings.PHYSICAL_MACHINE:
                 return EntityType.PHYSICAL_MACHINE.getNumber();
-            case ParamStrings.HCI_PHYSICAL_MACHINE:
-                return EntityType.HCI_PHYSICAL_MACHINE.getNumber();
             case ParamStrings.STORAGE:
                 return EntityType.STORAGE.getNumber();
             default:

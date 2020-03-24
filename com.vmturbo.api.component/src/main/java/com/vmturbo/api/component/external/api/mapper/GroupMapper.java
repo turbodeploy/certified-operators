@@ -45,6 +45,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.communication.FutureObserver;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.SeverityPopulator.SeverityMapImpl;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ObjectsPage;
@@ -87,9 +88,9 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -978,16 +979,25 @@ public class GroupMapper {
         private final SeverityMap severityMap;
         private final Map<Long, Float> groupCosts;
 
+        /**
+         * Errors encountered during construction of the context.
+         * TODO (roman, March 19 2020) OM-56615: Propagate to the user to notify them that the
+         * group we are returning from the API may not be complete.
+         */
+        private final Map<String, Exception> retrievalErrors;
+
         GroupConversionContext(@Nonnull Set<Long> activeEntities,
                 @Nonnull Map<Long, String> ownerDisplayName,
                 @Nullable Map<Long, EntityEnvironment> entities,
                 @Nullable EntityEnvironment entityEnvironment,
                 @Nonnull SeverityMap severityMap,
-                @Nonnull Map<Long, Float> groupCosts) {
-            this.activeEntities = Objects.requireNonNull(activeEntities);
-            this.ownerDisplayName = Objects.requireNonNull(ownerDisplayName);
+                @Nonnull Map<Long, Float> groupCosts,
+                @Nonnull final Map<String, Exception> retrievalErrors) {
+            this.activeEntities = activeEntities;
+            this.ownerDisplayName = ownerDisplayName;
             this.entities = entities;
             this.entityEnvironment = entityEnvironment;
+            this.retrievalErrors = retrievalErrors;
             this.severityMap = Objects.requireNonNull(severityMap);
             this.groupCosts = Objects.requireNonNull(groupCosts);
             if ((entities == null) == (entityEnvironment == null)) {
@@ -1005,6 +1015,17 @@ public class GroupMapper {
         @Nonnull
         public Set<Long> getActiveEntities() {
             return activeEntities;
+        }
+
+        /**
+         * Get any errors that were encountered when gathering data for this context.
+         * This can be used to notify the user that some parts of the group's information may be missing.
+         *
+         * @return The map of error description -> {@link Exception} that caused the error.
+         */
+        @Nonnull
+        public Map<String, Exception> getRetrievalErrors() {
+            return retrievalErrors;
         }
 
         /**
@@ -1330,24 +1351,80 @@ public class GroupMapper {
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
             final EntityEnvironment entityEnvironment = getApplianceEnvironment();
-            final Future<Set<Long>> activeEntities = getActiveMembers(members);
-            final Future<Map<Long, String>> ownerEntities = getOwnerDisplayNames(groupsAndMembers);
-            final Future<Map<Long, EntityEnvironment>> groupEnvironments;
+            final Future<Set<Long>> activeEntitiesFuture = getActiveMembers(members);
+            final Future<Map<Long, String>> ownerEntitiesFuture = getOwnerDisplayNames(groupsAndMembers);
+            final Future<Map<Long, EntityEnvironment>> groupEnvironmentsFuture;
             if (entityEnvironment == null) {
-                groupEnvironments = getGroupsEnvironment(groupsAndMembers, members);
+                groupEnvironmentsFuture = getGroupsEnvironment(groupsAndMembers, members);
             } else {
-                groupEnvironments = CompletableFuture.completedFuture(null);
+                groupEnvironmentsFuture = CompletableFuture.completedFuture(null);
             }
-            final Future<SeverityMap> severityMap = getSeverityMap(members);
-            final Future<Map<Long, Float>> groupCosts = getCosts(groupsAndMembers, members);
+            final Future<SeverityMap> severityMapFuture = getSeverityMap(members);
+            final Future<Map<Long, Float>> groupCostsFuture = getCosts(groupsAndMembers, members);
 
             final GroupConversionContext context;
-            context = new GroupConversionContext(
-                    activeEntities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
-                    ownerEntities.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
-                    groupEnvironments.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS), entityEnvironment,
-                    severityMap.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS),
-                    groupCosts.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+
+            // Collect the errors we encounter so we can print all of them.
+            final Map<String, Exception> errors = new HashMap<>();
+            // We may encounter errors retrieving some of the related information. For example, if
+            // the action orchestrator is down we will not be able to get severity information. We
+            // try to get as much as we can, and prevent a failure in a single component from
+            // stopping ANY group results from being displayed.
+
+            // Wait for the active entities.
+            Set<Long> activeEntities;
+            try {
+                activeEntities = Objects.requireNonNull(activeEntitiesFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+            } catch (ExecutionException | TimeoutException e) {
+                errors.put("Failed to get active entities. Error: " + e.getMessage(), e);
+                activeEntities = Collections.emptySet();
+            }
+
+            // Wait for the owner display names.
+            Map<Long, String> ownerDisplayName;
+            try {
+                ownerDisplayName = ownerEntitiesFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            } catch (ExecutionException | TimeoutException e) {
+                errors.put("Failed to get owner display name. Error: " + e.getMessage(), e);
+                ownerDisplayName = Collections.emptyMap();
+            }
+
+            // Wait for the entities.
+            Map<Long, EntityEnvironment> groupEnvironments;
+            try {
+                groupEnvironments = groupEnvironmentsFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            } catch (ExecutionException | TimeoutException e) {
+                errors.put("Failed to get entities. Error: " + e.getMessage(), e);
+                groupEnvironments = Collections.emptyMap();
+            }
+
+            // Wait for the severity map.
+            SeverityMap severityMap;
+            try {
+                severityMap = Objects.requireNonNull(severityMapFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+            } catch (ExecutionException | TimeoutException e) {
+                errors.put("Failed to get severity information. Error: " + e.getMessage(), e);
+                severityMap = SeverityMapImpl.empty();
+            }
+
+            // Wait for the group costs.
+            Map<Long, Float> groupCosts;
+            try {
+                groupCosts = Objects.requireNonNull(groupCostsFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+            } catch (ExecutionException | TimeoutException e) {
+                errors.put("Failed to get cost information. Error: " + e.getMessage(), e);
+                groupCosts = Collections.emptyMap();
+            }
+
+            if (!errors.isEmpty()) {
+                logger.error("Errors constructing group conversion context." +
+                    " Some group field may be empty. Turn on debug logging for stack traces. Errors: {}", errors.keySet());
+                if (logger.isDebugEnabled()) {
+                    errors.forEach(logger::debug);
+                }
+            }
+            context = new GroupConversionContext(activeEntities, ownerDisplayName, groupEnvironments, entityEnvironment,
+                    severityMap, groupCosts, errors);
             return context;
         }
 
@@ -1436,8 +1513,15 @@ public class GroupMapper {
                 InvalidOperationException {
             super(groups, requestedEnvironmentType);
             this.severityMapFuture = fetchSeverityMap(getAllMembers());
-            final SeverityMap severityMap =
-                    severityMapFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+
+            SeverityMap severityMap;
+            try {
+                severityMap = severityMapFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
+            } catch (ExecutionException | TimeoutException e) {
+                logger.error("Failed to get severities from Action Orchestrator. Defaulting to NORMAL.", e);
+                severityMap = SeverityMapImpl.empty();
+            }
+
             final Map<Long, Integer> groupsSeverities = new HashMap<>(groups.size());
             for (GroupAndMembers group: groups) {
                 final int severity;

@@ -29,7 +29,7 @@ DROP PROCEDURE IF EXISTS rotate_partition;
 
 DELIMITER $$
 CREATE DEFINER=CURRENT_USER PROCEDURE rotate_partition(
-    IN stats_table CHAR(30) CHARACTER SET utf8mb4)
+    IN stats_table CHAR(30) CHARACTER SET utf8mb4,  asOfTime DATETIME)
 BEGIN
     DECLARE debug INT DEFAULT FALSE;
 

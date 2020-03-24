@@ -40,16 +40,6 @@ public class LiveTopologyIngester extends TopologyIngesterBase<Topology.DataSegm
     }
 
     /**
-     * Summarize topology being ingested.
-     *
-     * @param topologyInfo topology info object
-     * @return summary string
-     */
-    public static String getTopologyInfoSummary(TopologyInfo topologyInfo) {
-        return getTopologyInfoSummary(topologyInfo, TOPOLOGY_TYPE.getReadableName());
-    }
-
-    /**
      * We only want to count the entities appearing in a chunk, not extension data.
      *
      * @param chunk chunk to be counted

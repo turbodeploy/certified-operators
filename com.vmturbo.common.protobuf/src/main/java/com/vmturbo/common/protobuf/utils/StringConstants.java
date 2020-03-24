@@ -55,6 +55,7 @@ public class StringConstants {
     public static final String MEM = "Mem";
     public static final String PLATFORM = "platform";
     public static final String TENANCY = "tenancy";
+    public static final String PERCENTILE = "percentile";
     /**
      * Indicates whether the instance is optimized for Amazon EBS I/O.
      */
@@ -183,7 +184,6 @@ public class StringConstants {
     // Entity type class names
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
     public static final String PHYSICAL_MACHINE = "PhysicalMachine";
-    public static final String HCI_PHYSICAL_MACHINE = "HCIPhysicalMachine";
     public static final String DATA_CENTER = "DataCenter";
     public static final String STORAGE = "Storage";
     public static final String APPSRV = "ApplicationServer";

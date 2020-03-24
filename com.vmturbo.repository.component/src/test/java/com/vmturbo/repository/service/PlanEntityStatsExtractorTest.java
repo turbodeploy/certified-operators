@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -46,6 +47,8 @@ public class PlanEntityStatsExtractorTest {
 
         final double cpuUsedValue = 20;
         final double cpuPeakValue = 30;
+        final double vcpuPercentileValue = 50;
+        final double vcpuCapacity = 100;
 
         CommoditiesBoughtFromProvider commoditiesBought = CommoditiesBoughtFromProvider.newBuilder()
             .setProviderId(888)
@@ -66,7 +69,11 @@ public class PlanEntityStatsExtractorTest {
                 .setType(CommodityDTO.CommodityType.VCPU_VALUE))
             .setUsed(cpuUsedValue)
             .setPeak(cpuPeakValue)
-            .setCapacity(100)
+            .setHistoricalUsed(HistoricalValues.newBuilder()
+                    .setPercentile(vcpuPercentileValue / vcpuCapacity)
+                    .setHistUtilization(vcpuPercentileValue)
+                    .build())
+            .setCapacity(vcpuCapacity)
             .build();
 
         final double vMemUsedValue = 1024;
@@ -132,5 +139,17 @@ public class PlanEntityStatsExtractorTest {
         assertEquals(vMemUsedValue, vMemStat.getUsed().getTotal(), 0);
         assertEquals(vMemCapacity, vMemStat.getCapacity().getTotal(), 0);
         assertEquals(StringConstants.RELATION_SOLD, vMemStat.getRelation());
+        assertEquals(0, vMemStat.getHistUtilizationValueList().size());
+        // Check VCPU sold stat for percentile values
+        final List<StatRecord> vCpuStats = statSnapshot.getStatRecordsList().stream()
+                .filter(StatRecord::hasName)
+                .filter(statRecord -> statRecord.getName().equalsIgnoreCase(CommodityDTO.CommodityType.VCPU.toString()))
+                .collect(Collectors.toList());
+        assertEquals(1, vCpuStats.size());
+        StatRecord vCpuStat = vCpuStats.iterator().next();
+        assertEquals(1, vCpuStat.getHistUtilizationValueList().size());
+        assertEquals("percentile", vCpuStat.getHistUtilizationValueList().get(0).getType());
+        assertEquals(vcpuCapacity, vCpuStat.getHistUtilizationValueList().get(0).getCapacity().getAvg(), 0);
+        assertEquals(vcpuPercentileValue, vCpuStat.getHistUtilizationValueList().get(0).getUsage().getAvg(), 0);
     }
 }

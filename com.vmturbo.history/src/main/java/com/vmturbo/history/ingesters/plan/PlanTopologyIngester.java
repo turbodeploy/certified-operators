@@ -37,16 +37,6 @@ public class PlanTopologyIngester extends TopologyIngesterBase<Topology.DataSegm
     }
 
     /**
-     * Create a summary string for this topology for use in logs.
-     *
-     * @param topologyInfo topology info
-     * @return summary string
-     */
-    public static String getTopologyInfoSummary(TopologyInfo topologyInfo) {
-        return getTopologyInfoSummary(topologyInfo, TOPOLOGY_TYPE.getReadableName());
-    }
-
-    /**
      * We only want to count the entities appearing in a chunk, not extension data.
      *
      * @param chunk chunk to be counted

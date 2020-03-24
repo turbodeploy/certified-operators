@@ -7,9 +7,11 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -393,6 +395,7 @@ public class GroupRpcServiceTest {
      *
      * @throws Exception on exceptions occurred
      */
+    @Test
     public void testGetGroupForEntityWhenGroupAccessDenied() throws Exception {
         final Set<Long> groups = Collections.singleton(5L);
         final long requestedEntityId = 1L;
@@ -407,7 +410,7 @@ public class GroupRpcServiceTest {
                 .build();
         Mockito.when(groupStoreDAO.getStaticGroupsForEntities(Mockito.any(), Mockito.any()))
                 .thenReturn(Collections.singletonMap(requestedEntityId, groups));
-        Mockito.when(groupStoreDAO.getMembers(Mockito.any(), Mockito.anyBoolean()))
+        Mockito.when(groupStoreDAO.getMembers(Mockito.any(), anyBoolean()))
                 .thenReturn(new GroupMembersPlain(groupMembers, Collections.emptySet(),
                         Collections.emptySet()));
         final EntityAccessScope accessScope =
@@ -674,7 +677,7 @@ public class GroupRpcServiceTest {
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
                 mock(StreamObserver.class);
 
-        Mockito.doThrow(new StoreOperationException(Status.NOT_FOUND,
+        doThrow(new StoreOperationException(Status.NOT_FOUND,
                 "Updable to delete group " + idToDelete))
                 .when(groupStoreDAO)
                 .deleteGroup(idToDelete);
@@ -701,7 +704,7 @@ public class GroupRpcServiceTest {
         final StreamObserver<GroupDTO.DeleteGroupResponse> mockObserver =
                 mock(StreamObserver.class);
         final String errorMsg = "Bad database access";
-        Mockito.doThrow(new DataAccessException(errorMsg)).when(groupStoreDAO).deleteGroup(idToDelete);
+        doThrow(new DataAccessException(errorMsg)).when(groupStoreDAO).deleteGroup(idToDelete);
 
         groupRpcService.deleteGroup(gid, mockObserver);
 
@@ -837,6 +840,47 @@ public class GroupRpcServiceTest {
         verify(mockObserver).onCompleted();
     }
 
+    /**
+     * Test that exceptions in search service during member resolution don't propagate
+     * to the caller of getMembers.
+     *
+     * @throws Exception To satisfy complier.
+     */
+    @Test
+    public void testDynamicGetMembersSearchException() throws Exception {
+        final long groupId = 1234L;
+        final List<Long> mockSearchResults = Arrays.asList(1L, 2L);
+
+        final GroupDTO.GetMembersRequest req = GroupDTO.GetMembersRequest.newBuilder()
+            .addId(groupId)
+            .build();
+
+        final Grouping group = Grouping.newBuilder()
+            .setId(groupId)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setEntityFilters(EntityFilters.newBuilder()
+                    .addEntityFilter(EntityFilter.newBuilder()
+                        .setSearchParametersCollection(SearchParametersCollection.newBuilder()
+                                .addSearchParameters(SearchParameters.getDefaultInstance())))))
+            .build();
+
+        final StreamObserver<GroupDTO.GetMembersResponse> mockObserver = mock(StreamObserver.class);
+
+        groupStoreDAO.addGroup(group);
+        Mockito.when(searchServiceMole.searchEntityOids(Mockito.any()))
+            .thenThrow(Status.INTERNAL.asRuntimeException());
+
+        groupRpcService.getMembers(req, mockObserver);
+
+        final GroupDTO.GetMembersResponse expectedResponse = GetMembersResponse.newBuilder()
+            .setGroupId(groupId)
+            .build();
+
+        verify(mockObserver, never()).onError(any(Exception.class));
+        verify(mockObserver).onNext(expectedResponse);
+        verify(mockObserver).onCompleted();
+    }
+
     @Test
     public void testStaticGetMembers() throws Exception {
         final long groupId = 1234L;
@@ -876,6 +920,65 @@ public class GroupRpcServiceTest {
                 .setGroupId(grouping.getId())
                 .addAllMemberId(staticGroupMembers)
                 .build();
+
+        verify(mockObserver, never()).onError(any(Exception.class));
+        verify(mockObserver).onNext(expectedResponse);
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Test that an error in retrieving members of one group doesn't interfere with the return
+     * of members for other groups.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testGetMembersOneGroupFail() throws Exception {
+        final long groupId1 = 1234L;
+        final long groupId2 = 4567L;
+        final List<Long> staticGroupMembers = Arrays.asList(1L, 2L);
+
+        final GroupDTO.GetMembersRequest req = GroupDTO.GetMembersRequest.newBuilder()
+            .addId(groupId1)
+            .addId(groupId2)
+            .build();
+
+
+        final Grouping grouping1 = Grouping
+            .newBuilder()
+            .setId(groupId1)
+            .setDefinition(GroupDefinition
+                .newBuilder()
+                .setStaticGroupMembers(StaticMembers
+                    .newBuilder()
+                    .addMembersByType(StaticMembersByType
+                        .newBuilder()
+                        .setType(MemberType
+                            .newBuilder()
+                            .setEntity(5)
+                        )
+                        .addAllMembers(staticGroupMembers)
+                    )
+                )
+            )
+            .build();
+        final Grouping grouping2 = grouping1.toBuilder()
+            .setId(groupId2)
+            .build();
+
+        groupStoreDAO.addGroup(grouping1);
+        groupStoreDAO.addGroup(grouping2);
+
+        doThrow(new StoreOperationException(Status.INTERNAL, "Bad group.")).when(groupStoreDAO).getMembers(eq(Collections.singleton(groupId1)), anyBoolean());
+        final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
+            mock(StreamObserver.class);
+
+        groupRpcService.getMembers(req, mockObserver);
+
+        final GroupDTO.GetMembersResponse expectedResponse = GetMembersResponse.newBuilder()
+            .setGroupId(grouping2.getId())
+            .addAllMemberId(staticGroupMembers)
+            .build();
 
         verify(mockObserver, never()).onError(any(Exception.class));
         verify(mockObserver).onNext(expectedResponse);
@@ -1409,7 +1512,7 @@ public class GroupRpcServiceTest {
         //Verify the group was not created
         verify(groupStoreDAO, never())
             .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
-                            Mockito.anyObject(), Mockito.anyBoolean());
+                            Mockito.anyObject(), anyBoolean());
 
         //Verify we send the error response
         final ArgumentCaptor<StatusException> exceptionCaptor =
@@ -1441,7 +1544,7 @@ public class GroupRpcServiceTest {
         //Verify the group was not created
         verify(groupStoreDAO, never())
             .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
-                            Mockito.anyObject(), Mockito.anyBoolean());
+                            Mockito.anyObject(), anyBoolean());
         //Verify we send the error response
         final ArgumentCaptor<StatusException> exceptionCaptor =
                         ArgumentCaptor.forClass(StatusException.class);
@@ -1476,7 +1579,7 @@ public class GroupRpcServiceTest {
         //Verify the group was not created
         verify(groupStoreDAO, never())
                 .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
-                                Mockito.anyObject(), Mockito.anyBoolean());
+                                Mockito.anyObject(), anyBoolean());
 
         //Verify we send the error response
         final ArgumentCaptor<StatusException> exceptionCaptor =
@@ -1627,10 +1730,10 @@ public class GroupRpcServiceTest {
         final StreamObserver<GroupDTO.CreateGroupResponse> mockObserver =
                         mock(StreamObserver.class);
         final String message = "some error occurred";
-        Mockito.doThrow(new StoreOperationException(Status.ABORTED, message))
+        doThrow(new StoreOperationException(Status.ABORTED, message))
                 .when(groupStoreDAO)
                 .createGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
-                        Mockito.anyObject(), Mockito.anyBoolean());
+                        Mockito.anyObject(), anyBoolean());
 
         groupRpcService.createGroup(groupRequest, mockObserver);
 
@@ -1712,7 +1815,7 @@ public class GroupRpcServiceTest {
         //Verify the group was not created
         verify(groupStoreDAO, never())
             .updateGroup(Mockito.anyLong(), Mockito.anyObject(),
-                            Mockito.anyObject(), Mockito.anyBoolean());
+                            Mockito.anyObject(), anyBoolean());
 
         //Verify we send the error response
         final ArgumentCaptor<StatusException> exceptionCaptor =
@@ -1745,7 +1848,7 @@ public class GroupRpcServiceTest {
         //Verify the group was not created
         verify(groupStoreDAO, never())
             .updateGroup(Mockito.anyLong(), Mockito.anyObject(),
-                            Mockito.anyObject(), Mockito.anyBoolean());
+                            Mockito.anyObject(), anyBoolean());
 
         //Verify we send the error response
         final ArgumentCaptor<StatusException> exceptionCaptor =
@@ -1782,7 +1885,7 @@ public class GroupRpcServiceTest {
         //Verify the group was not created
         verify(groupStoreDAO, never())
             .updateGroup(Mockito.anyLong(), Mockito.anyObject(),
-                            Mockito.anyObject(), Mockito.anyBoolean());
+                            Mockito.anyObject(), anyBoolean());
 
         //Verify we send the error response
         final ArgumentCaptor<StatusException> exceptionCaptor =
@@ -1809,10 +1912,10 @@ public class GroupRpcServiceTest {
                 Mockito.mock(StreamObserver.class);
 
         final String message = "some message";
-        Mockito.doThrow(new StoreOperationException(Status.ALREADY_EXISTS, message))
+        doThrow(new StoreOperationException(Status.ALREADY_EXISTS, message))
                 .when(groupStoreDAO)
                 .updateGroup(Mockito.anyLong(), Mockito.anyObject(), Mockito.anyObject(),
-                        Mockito.anyBoolean());
+                        anyBoolean());
 
         groupRpcService.updateGroup(groupRequest, mockObserver);
 
@@ -2005,7 +2108,7 @@ public class GroupRpcServiceTest {
                         .setId(11L)
                         .build();
 
-        Mockito.doThrow(new DataAccessException("ERR1"))
+        doThrow(new DataAccessException("ERR1"))
             .when(groupStoreDAO).getGroupsById(Mockito.anyCollectionOf(Long.class));
 
         groupRpcService.getGroup(groupId, mockObserver);

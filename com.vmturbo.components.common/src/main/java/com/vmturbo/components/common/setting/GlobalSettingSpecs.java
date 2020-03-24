@@ -95,7 +95,7 @@ public enum GlobalSettingSpecs {
             Collections.emptyList()),
 
     PlanRetentionDays("planRetentionDays", "Saved plans [Days]",
-            numeric(15f/*min*/, 365f/*max*/, 30f/*default*/),
+            numeric(1f/*min*/, 365f/*max*/, 14f/*default*/),
             Collections.emptyList()),
 
     MaxConcurrentPlanInstances("maxConcurrentPlanInstances", "Maximum Number of Plan Instances Allowed To Run Concurrently",
@@ -190,7 +190,7 @@ public enum GlobalSettingSpecs {
      * Max observation period for VM growth.
      */
     MaxVMGrowthObservationPeriod("maxVMGrowthObservationPeriod",
-        "VM Growth Observation Period (in month)",
+        "VM Growth Observation (months)",
         numeric(1, 24, 1), Collections.emptyList()),
 
     /**

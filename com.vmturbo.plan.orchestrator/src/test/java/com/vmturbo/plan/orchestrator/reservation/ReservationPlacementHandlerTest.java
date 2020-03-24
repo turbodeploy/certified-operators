@@ -151,7 +151,7 @@ public class ReservationPlacementHandlerTest {
                 .thenReturn(ImmutableList.of(PartialEntityBatch.newBuilder()
                         .addEntities(PartialEntity.newBuilder().setFullEntity(providerEntity))
                         .build()));
-        reservationPlacementHandler.updateReservations(contextId, topologyId, false);
+        reservationPlacementHandler.updateReservationsFromLiveTopology(contextId, topologyId);
         Mockito.verify(reservationManager, Mockito.times(1))
                 .updateReservationResult(ImmutableSet.of(newReservation));
     }
@@ -163,7 +163,7 @@ public class ReservationPlacementHandlerTest {
                 .thenReturn(reservationDao);
         Mockito.when(reservationManager.getReservationDao().getReservationsByStatus(ReservationStatus.RESERVED))
                 .thenReturn(Collections.emptySet());
-        reservationPlacementHandler.updateReservations(contextId, topologyId, false);
+        reservationPlacementHandler.updateReservationsFromLiveTopology(contextId, topologyId);
         Mockito.verifyZeroInteractions(repositoryServiceMole);
     }
 }

@@ -210,6 +210,132 @@ public class RetriableOperation<T> {
     }
 
     /**
+     * Provides a configurable backoff strategy. The following settings can be configured.
+     * <ul>
+     *     <li>Base Delay: the duration of the first retry delay, in milliseconds. Must be greater than zero.</li>
+     *     <li>Max Delay: the maximum delay for any given retry, also in milliseconds. Must be greater than or
+     *     equal to zero. If set to zero, then the max delay will only be capped to the max long value.</li>
+     *     <li>Jitter Factor: A fractional number that will be used to apply a random +/- adjustment
+     *     to each delay calculation. The intention is to scatter retry attempts when many processes
+     *     may be attempting to retry the same operation on the same schedule. This will default to 0.1,
+     *     which will produce a 10% jitter.</li>
+     *     <li>BackoffType: Can be FIXED, LINEAR or EXPONENTIAL.
+     *     <ul>FIXED: Each retry will be delayed by the base delay amount</ul>
+     *     <ul>LINEAR: The retry delay will be increased by the base delay on each successive attempt.</ul>
+     *     <ul>EXPONENTIAL: The retry delay will be doubled on each successive attempt.</ul>
+     *     </li>
+     * </ul>
+     *
+     * <p>The default config is an Exponential backoff with an initial delay of 50 ms, max delay
+     * of 30 seconds, and jitter factor of 20%.
+     */
+    public static class ConfigurableBackoffStrategy implements BackoffStrategy {
+        public enum BackoffType {
+            FIXED, // retry with a fixed interval
+            LINEAR, // retry with a linearly increasing interval
+            EXPONENTIAL // retry with an exponentially increasing interval
+        }
+
+        private final BackoffType backoffType;
+        private final long baseDelayMs;
+        private final long maxDelayMs; // the maximum delay period
+        private final double jitterFactor; // amount of random delay to be applied
+
+        public ConfigurableBackoffStrategy(Builder builder) {
+            this.backoffType = builder.backoffType;
+            this.baseDelayMs = builder.baseDelayMs;
+            this.maxDelayMs = builder.maxDelayMs;
+            this.jitterFactor = builder.jitterFactor;
+        }
+
+        public static Builder newBuilder() {
+            return new Builder();
+        }
+
+        @Override
+        public long getNextDelayMs(int curTry) {
+            long nextCalculatedDuration;
+            try {
+                switch (backoffType) {
+                    case FIXED:
+                        nextCalculatedDuration = baseDelayMs;
+                        break;
+                    case LINEAR:
+                        nextCalculatedDuration = Math.multiplyExact(baseDelayMs, curTry);
+                        break;
+                    case EXPONENTIAL:
+                    default:
+                        // we can only power up so many times due to overflow.
+                        if (curTry < 63) {
+                            nextCalculatedDuration = Math.multiplyExact(baseDelayMs, (1L << (curTry - 1)));
+                        } else {
+                            nextCalculatedDuration = Long.MAX_VALUE;
+                        }
+                        logger.trace("Next exponential retry is {} ms", nextCalculatedDuration);
+                }
+                // apply jitter of +/- percentage
+                double jitter = (Math.random() * 2 * jitterFactor) - jitterFactor;
+                logger.trace("Applying jitter {}", jitter);
+                // only apply if safe to do so
+                if ((Long.MAX_VALUE - nextCalculatedDuration - jitter) > 0) {
+                    nextCalculatedDuration = nextCalculatedDuration + (Math.round((double)nextCalculatedDuration * jitter));
+                } else {
+                    // max value
+                    nextCalculatedDuration = Long.MAX_VALUE;
+                }
+            } catch (ArithmeticException ae) {
+                // any overflow errors will land here, and we'll just go with the max possible duration.
+                nextCalculatedDuration = Long.MAX_VALUE;
+            }
+            // check against the max, if necessary
+            if (maxDelayMs > 0) {
+                // return the smaller of the two delays
+                nextCalculatedDuration = Math.min(nextCalculatedDuration, maxDelayMs);
+            }
+            logger.trace("Returning retry delay of {} ms", nextCalculatedDuration);
+            return nextCalculatedDuration;
+        }
+
+        public static class Builder {
+            private BackoffType backoffType = BackoffType.EXPONENTIAL;
+            private long baseDelayMs = 50;
+            private long maxDelayMs = 30000;
+            private double jitterFactor = 0.2; // default to 20% jitter
+
+            public ConfigurableBackoffStrategy build() {
+                return new ConfigurableBackoffStrategy(this);
+            }
+
+            public Builder withBackoffType(BackoffType backoffType) {
+                this.backoffType = backoffType;
+                return this;
+            }
+
+            public Builder withBaseDelay(long newBaseDelay) {
+                if (newBaseDelay <= 0) {
+                    throw new IllegalArgumentException("Base delay must be greater than zero.");
+                }
+                this.baseDelayMs = newBaseDelay;
+                return this;
+            }
+
+            public Builder withMaxDelay(long newMaxDelay) {
+                if (newMaxDelay < 0) {
+                    throw new IllegalArgumentException("If specified, Max delay must be greater than or equal to zero.");
+                }
+                this.maxDelayMs = newMaxDelay;
+                return this;
+            }
+
+            public Builder withJitterFactor(double newJitterFactor) {
+                this.jitterFactor = newJitterFactor;
+                return this;
+            }
+        }
+
+    }
+
+    /**
      * Operation throws when a {@link RetriableOperation} fails due to a fatal exception thrown
      * by the internal callable. To control which exceptions count as fatal use
      * {@link RetriableOperation#retryOnException(Predicate)}.

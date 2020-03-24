@@ -1,13 +1,16 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -15,6 +18,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationTemplateCollection;
@@ -27,16 +31,22 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositorySe
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.api.client.RemoteIteratorDrain;
+import com.vmturbo.plan.orchestrator.market.ProjectedTopologyProcessor;
 
 /**
  * Update reservation placement information after receive notification from Repository. It will call
  * Repository to get latest project topology entities of reservation entities, and find out the
  * latest placement information.
  */
-public class ReservationPlacementHandler {
+public class ReservationPlacementHandler implements ProjectedTopologyProcessor {
     private final Logger logger = LogManager.getLogger();
 
     private final ReservationManager reservationManager;
@@ -65,24 +75,10 @@ public class ReservationPlacementHandler {
      *
      * @param contextId context id of topology.
      * @param topologyId id of topology.
-     * @param isReservationPlan true if the topology belongs to a reservationPlan.
      */
-    public void updateReservations(final long contextId, final long topologyId, boolean isReservationPlan) {
+    public void updateReservationsFromLiveTopology(final long contextId, final long topologyId) {
         // Get all RESERVED reservations, only RESERVED reservations have entities.
-        Set<Reservation> reservationSet = new HashSet<>();
-        // We should update the inprogress reservation only in reservationPlan and
-        // we should update the reserved and placement_failed only in realtime.
-        // Note that updateReservations is only called for reservationPlan and real-time.
-        if (isReservationPlan) {
-            reservationSet = reservationManager.getReservationDao().getAllReservations().stream()
-                    .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
-                    .collect(Collectors.toSet());
-        } else {
-            reservationSet = reservationManager.getReservationDao().getAllReservations().stream()
-                    .filter(res -> res.getStatus() == ReservationStatus.RESERVED ||
-                            res.getStatus() == ReservationStatus.PLACEMENT_FAILED)
-                    .collect(Collectors.toSet());
-        }
+        Set<Reservation> reservationSet = getReservationSet(false);
         // if no reservations, don't bother updating.
         if (reservationSet.size() == 0) {
             return;
@@ -90,9 +86,37 @@ public class ReservationPlacementHandler {
 
         // Get projected topology entities of reservation entities.
         List<TopologyEntityDTO> reservationEntities =
-                retrieveReservationEntities(contextId, topologyId, reservationSet);
+            retrieveReservationEntities(contextId, topologyId, reservationSet);
         final List<TopologyEntityDTO> providerEntities =
-                retrieveProviderEntities(contextId, topologyId, reservationEntities);
+            retrieveProviderEntities(contextId, topologyId, reservationEntities);
+        doUpdate(reservationSet, reservationEntities, providerEntities);
+    }
+
+    private Set<Reservation> getReservationSet(boolean isReservationPlan) {
+        // Get all RESERVED reservations, only RESERVED reservations have entities.
+        final Set<Reservation> reservationSet;
+        // We should update the inprogress reservation only in reservationPlan and
+        // we should update the reserved and placement_failed only in realtime.
+        // Note that updateReservations is only called for reservationPlan and real-time.
+        if (isReservationPlan) {
+            reservationSet = reservationManager.getReservationDao().getAllReservations().stream()
+                .filter(res -> res.getStatus() == ReservationStatus.INPROGRESS)
+                .collect(Collectors.toSet());
+        } else {
+            reservationSet = reservationManager.getReservationDao().getAllReservations().stream()
+                .filter(res -> res.getStatus() == ReservationStatus.RESERVED ||
+                    res.getStatus() == ReservationStatus.PLACEMENT_FAILED)
+                .collect(Collectors.toSet());
+        }
+        return reservationSet;
+    }
+
+    private void doUpdate(Set<Reservation> reservationSet,
+                          List<TopologyEntityDTO> reservationEntities,
+                          List<TopologyEntityDTO> providerEntities) {
+        if (reservationSet.size() == 0) {
+            return;
+        }
 
         final Map<Long, TopologyEntityDTO> entityIdToEntityMap = reservationEntities.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -108,6 +132,17 @@ public class ReservationPlacementHandler {
         reservationManager.checkAndStartReservationPlan();
     }
 
+    private Set<Long> extractReservationEntityIds(@Nonnull final Set<Reservation> reservations) {
+        return reservations.stream()
+            .map(Reservation::getReservationTemplateCollection)
+            .map(ReservationTemplateCollection::getReservationTemplateList)
+            .flatMap(List::stream)
+            .map(ReservationTemplate::getReservationInstanceList)
+            .flatMap(List::stream)
+            .map(ReservationInstance::getEntityId)
+            .collect(Collectors.toSet());
+    }
+
     /**
      * Get project topology entities of reservations.
      *
@@ -120,14 +155,7 @@ public class ReservationPlacementHandler {
             final long contextId,
             final long topologyId,
             @Nonnull final Set<Reservation> reservations) {
-        final Set<Long> reservationEntityIds = reservations.stream()
-                .map(Reservation::getReservationTemplateCollection)
-                .map(ReservationTemplateCollection::getReservationTemplateList)
-                .flatMap(List::stream)
-                .map(ReservationTemplate::getReservationInstanceList)
-                .flatMap(List::stream)
-                .map(ReservationInstance::getEntityId)
-                .collect(Collectors.toSet());
+        final Set<Long> reservationEntityIds = extractReservationEntityIds(reservations);
 
         return retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
             .setTopologyContextId(contextId)
@@ -136,6 +164,11 @@ public class ReservationPlacementHandler {
             .setTopologyType(TopologyType.PROJECTED));
     }
 
+    private Stream<Long> extractProviders(TopologyEntityDTO entity) {
+        return entity.getCommoditiesBoughtFromProvidersList().stream()
+            .filter(CommoditiesBoughtFromProvider::hasProviderId)
+            .map(CommoditiesBoughtFromProvider::getProviderId);
+    }
     /**
      * Get projected topology entities of providers of Reservations. Because projected topology entities
      * not have projected entity type in {@link CommoditiesBoughtFromProvider}. It needs to request
@@ -152,10 +185,7 @@ public class ReservationPlacementHandler {
             @Nonnull List<TopologyEntityDTO> reservationEntities) {
         // Get provider ids of reservation entities.
         final Set<Long> providerIds = reservationEntities.stream()
-                .map(TopologyEntityDTO::getCommoditiesBoughtFromProvidersList)
-                .flatMap(List::stream)
-                .filter(CommoditiesBoughtFromProvider::hasProviderId)
-                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .flatMap(this::extractProviders)
                 .collect(Collectors.toSet());
 
 
@@ -253,5 +283,46 @@ public class ReservationPlacementHandler {
             placementInfos.add(placementInfoBuilder.build());
         }
         reservationInstance.clearPlacementInfo().addAllPlacementInfo(placementInfos);
+    }
+
+    @Override
+    public boolean appliesTo(@Nonnull final TopologyInfo sourceTopologyInfo) {
+        return sourceTopologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN;
+    }
+
+    @Override
+    public void handleProjectedTopology(final long projectedTopologyId,
+                                        @Nonnull final TopologyInfo sourceTopologyInfo,
+                                        @Nonnull final RemoteIterator<ProjectedTopologyEntity> iterator)
+            throws InterruptedException, TimeoutException, CommunicationException {
+        Set<Reservation> reservations = getReservationSet(true);
+        if (reservations.isEmpty()) {
+            RemoteIteratorDrain.drainIterator(iterator,
+                TopologyDTOUtil.getProjectedTopologyLabel(sourceTopologyInfo), false);
+        } else {
+            try {
+                Set<Long> reservationEntityIds = extractReservationEntityIds(reservations);
+                // We end up collecting all entities in memory, which is not ideal, but may be
+                // acceptable in the reservation case since we greatly trim the topology before
+                // broadcast.
+                Map<Long, TopologyEntityDTO> entitiesById = new HashMap<>();
+                while (iterator.hasNext()) {
+                    iterator.nextChunk().forEach(e -> entitiesById.put(e.getEntity().getOid(), e.getEntity()));
+                }
+                List<TopologyEntityDTO> reservationEntities = reservationEntityIds.stream()
+                    .map(entitiesById::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+                List<TopologyEntityDTO> providerEntities = reservationEntities.stream()
+                    .flatMap(this::extractProviders)
+                    .map(entitiesById::get)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+                doUpdate(reservations, reservationEntities, providerEntities);
+            } finally {
+                RemoteIteratorDrain.drainIterator(iterator,
+                    TopologyDTOUtil.getProjectedTopologyLabel(sourceTopologyInfo), true);
+            }
+        }
     }
 }

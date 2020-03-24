@@ -24,6 +24,7 @@ import org.jooq.exception.DataAccessException;
 import org.mariadb.jdbc.MariaDbDataSource;
 
 import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
+import com.vmturbo.history.flyway.V1_28_1_And_V1_35_1_Callback;
 import com.vmturbo.sql.utils.flyway.ForgetMigrationCallback;
 
 public class SchemaUtil {
@@ -116,7 +117,10 @@ public class SchemaUtil {
                 // V1.27 migrations collided when 7.17 and 7.21 branches were merged
                 new ForgetMigrationCallback("1.27"),
                 // three migrations were changed in order to remove mention of MyISAM DB engine
-                new ResetChecksumsForMyIsamInfectedMigrations()
+                new ResetChecksumsForMyIsamInfectedMigrations(),
+                // V1.28.1 and V1.35.1 java migrations needed to change
+                // V1.28.1 formerly supplied a checksum but no longer does
+                new V1_28_1_And_V1_35_1_Callback()
         );
         return fway;
     }

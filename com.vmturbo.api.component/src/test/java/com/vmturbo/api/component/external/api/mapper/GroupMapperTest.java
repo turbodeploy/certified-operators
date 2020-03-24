@@ -12,6 +12,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -25,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -36,6 +39,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -107,12 +111,12 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -2158,6 +2162,59 @@ public class GroupMapperTest {
         Assert.assertEquals(1, resultPage2.size());
         Assert.assertEquals(group1.getId(),
                 Long.parseLong(resultPage2.iterator().next().getUuid()));
+    }
+
+    /**
+     * Assert that we still return partial results when individual component queries fail.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testMissingDataDueToError() throws Exception {
+        final Grouping group1 = Grouping.newBuilder()
+            .setId(1L)
+            .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.RESOURCE)
+                .setOwner(77)
+                .setDisplayName("rg-1"))
+            .build();
+        final GroupAndMembers groupAndMembers1 = ImmutableGroupAndMembers.builder()
+            .group(group1)
+            .entities(Arrays.asList(10L, 11L))
+            .members(Arrays.asList(10L, 11L))
+            .build();
+        final SearchPaginationRequest paginationRequest =
+            new SearchPaginationRequest("0", 3, false, "SEVERITY");
+        // Severity returns error.
+        doReturn(Optional.of(Status.INTERNAL.asException())).when(severityService).getEntitySeveritiesError(any());
+
+        // Cost service returns error.
+        doReturn(Optional.of(Status.INTERNAL.asException())).when(costServiceMole).getCloudCostStatsError(any());
+
+        // Entity search throws exception.
+        RepositoryApi.SearchRequest req = ApiTestUtils.mockSearchIdReq(Collections.emptySet());
+        CompletableFuture<Set<Long>> oidsFuture = new CompletableFuture<>();
+        oidsFuture.completeExceptionally(Status.INTERNAL.asRuntimeException());
+        when(req.getOidsFuture()).thenReturn(oidsFuture);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(req);
+
+        // Entities fetch throws exception.
+        RepositoryApi.MultiEntityRequest entityReq = ApiTestUtils.mockMultiMinEntityReq(Collections.emptyList());
+        CompletableFuture<Set<Long>> minsFuture = new CompletableFuture<>();
+        minsFuture.completeExceptionally(Status.INTERNAL.asRuntimeException());
+        doAnswer(invocation -> {
+            StreamObserver<MinimalEntity> observer = invocation.getArgumentAt(0, StreamObserver.class);
+            observer.onError(Status.INTERNAL.asRuntimeException());
+            return null;
+        }).when(entityReq).getMinimalEntities(any());
+        when(repositoryApi.entitiesRequest(any())).thenReturn(entityReq);
+
+        final ObjectsPage<GroupApiDTO> resultPage = groupMapper.toGroupApiDto(
+            Arrays.asList(groupAndMembers1), false,
+            paginationRequest, null);
+
+        assertThat(resultPage.getObjects().size(), is(1));
     }
 
     /**

@@ -76,7 +76,7 @@ public abstract class PreValidationMigrationCallbackBase extends BaseFlywayCallb
                 logger.info("Callback succeeded");
             }
         } catch (SQLException e) {
-            logger.error("Failed to {}", describeCallback(), e);
+            logger.error("Failed to {}: {}", describeCallback(), e.getMessage());
         }
     }
 
@@ -97,7 +97,8 @@ public abstract class PreValidationMigrationCallbackBase extends BaseFlywayCallb
             return result.next();
         } catch (SQLException e) {
             // assume failure here means table does not exist
-            logger.error("Failed migration table check when attempting {}", describeCallback(), e);
+            logger.warn("Failed migration table check when attempting {}; " +
+                    "this is expected during new installations", describeCallback(), e.getMessage());
             return false;
         }
     }

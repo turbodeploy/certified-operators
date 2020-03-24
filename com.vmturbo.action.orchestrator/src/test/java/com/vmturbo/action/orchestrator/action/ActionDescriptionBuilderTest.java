@@ -107,6 +107,7 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action resizePortChannelRecommendation;
 
     private EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
+    // private EntitiesAndSettingsSnapshot entitySettingsCacheDetachedVolume = mock(EntitiesAndSettingsSnapshot.class);
 
     @Before
     public void setup() {
@@ -647,7 +648,7 @@ public class ActionDescriptionBuilderTest {
                 VM1_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
-            entitySettingsCache, resizeRecommendation);
+                                                     entitySettingsCache, resizeRecommendation);
 
         Assert.assertEquals(description, "Resize up VCPU for Virtual Machine vm1_test from 10 to 20");
     }

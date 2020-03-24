@@ -12,9 +12,10 @@ import com.google.common.collect.ImmutableSet;
 
 import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
  * Utilities for extracting information from plan-related protobufs
@@ -23,33 +24,25 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 public class PlanDTOUtil {
 
     /**
-     * List of commodities used for CPU headroom calculation.
+     * Plans involving these projects are "lightweight" and do not require persistence in the
+     * various components of the system that save per-plan data.
      */
-    public static final Set<Integer> CPU_HEADROOM_COMMODITIES = ImmutableSet.of(
-        CommodityType.CPU_VALUE, CommodityType.CPU_PROVISIONED_VALUE);
+    public static final Set<PlanProjectType> NO_PERSISTENCE_PLAN_PROJECT = ImmutableSet.of(
+        PlanProjectType.RESERVATION_PLAN,
+        PlanProjectType.CLUSTER_HEADROOM);
 
     /**
-     * List of commodities used for Memory headroom calculation.
+     * Return whether or not a {@link TopologyInfo} describes a transient plan.
+     * Transient plans are those that don't require saving anything to disk. The plan orchestrator
+     * listens to get the necessary information and do the necessary post-processing directly.
+     *
+     * <p/>Components can use this method to decide whether or not to persist data for plans.
+     *
+     * @param topologyInfo The {@link TopologyInfo}.
+     * @return True if the plan is transient.
      */
-    public static final Set<Integer> MEM_HEADROOM_COMMODITIES = ImmutableSet.of(
-        CommodityType.MEM_VALUE, CommodityType.MEM_PROVISIONED_VALUE);
-
-    /**
-     * List of commodities used for Storage headroom calculation.
-     */
-    public static final Set<Integer> STORAGE_HEADROOM_COMMODITIES = ImmutableSet.of(
-        CommodityType.STORAGE_AMOUNT_VALUE, CommodityType.STORAGE_PROVISIONED_VALUE);
-
-    /**
-     * List of commodities used for headroom calculation.
-     */
-    public static final Set<Integer> HEADROOM_COMMODITIES;
-
-    static {
-        HEADROOM_COMMODITIES = ImmutableSet.<Integer>builder()
-            .addAll(CPU_HEADROOM_COMMODITIES)
-            .addAll(MEM_HEADROOM_COMMODITIES)
-            .addAll(STORAGE_HEADROOM_COMMODITIES).build();
+    public static boolean isTransientPlan(@Nonnull final TopologyInfo topologyInfo) {
+        return NO_PERSISTENCE_PLAN_PROJECT.contains(topologyInfo.getPlanInfo().getPlanProjectType());
     }
 
     /**

@@ -2716,16 +2716,19 @@ public class TopologyConverter {
             final Map<Long, Long> providers,
             final Optional<ScalingGroupUsage> scalingGroupUsage) {
         CommodityType type = topologyCommBought.getCommodityType();
-        return CommodityConverter.isBicliqueCommodity(type)
-            ? shopTogether || cloudTc.isMarketTier(providerOid)
+        if (CommodityConverter.isBicliqueCommodity(type)) {
+            if (shopTogether || cloudTc.isMarketTier(providerOid)) {
                 // skip DSPMAcess and Datastore commodities in the case of shop-together
                 // or cloud provider
-                ? null
-                // convert them to biclique commodities if not shop-together
-                : ImmutableList.of(generateBcCommodityBoughtTO(
-                    providers.getOrDefault(providerOid, providerOid), type))
-            // all other commodities - convert to DTO regardless of shop-together
-            : createAndValidateCommBoughtTO(buyer, topologyCommBought, providerOid,
+                return null;
+            }
+            // convert them to biclique commodities if not shop-together
+            CommodityBoughtTO bc = generateBcCommodityBoughtTO(
+                    providers.getOrDefault(providerOid, providerOid), type);
+            return bc != null ? ImmutableList.of(bc) : null;
+        }
+        // all other commodities - convert to DTO regardless of shop-together
+        return createAndValidateCommBoughtTO(buyer, topologyCommBought, providerOid,
                 scalingGroupUsage);
     }
 

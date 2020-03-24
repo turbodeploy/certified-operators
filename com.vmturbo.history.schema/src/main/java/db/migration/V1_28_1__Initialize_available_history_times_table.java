@@ -40,6 +40,7 @@ import com.vmturbo.history.schema.TimeFrame;
  * <p>This will will permit much more efficient execution of some frequently used queries.</p>
  */
 public class V1_28_1__Initialize_available_history_times_table extends BaseJdbcMigration {
+    private static final String UTC_TIME_ZONE_STRING = "+00:00";
     private final Logger logger;
 
     /**
@@ -74,7 +75,7 @@ public class V1_28_1__Initialize_available_history_times_table extends BaseJdbcM
     }
 
     private void loadAvaiableTimestamps(Connection connection) {
-        String originalTimeZone = setTimeZone(connection, "UTC");
+        String originalTimeZone = setTimeZone(connection, UTC_TIME_ZONE_STRING);
         final String sql = String.format("INSERT INTO %s (%s, %s, %s, %s) values (?, ?, ?, ?)",
                 "available_timestamps", "time_stamp", "time_frame", "history_variety", "expires_at");
         int toLoad = 0;

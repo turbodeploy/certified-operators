@@ -48,7 +48,7 @@ public class TopologyIngesterBase<T>
             @Nonnull TopologyIngesterConfig topologyIngesterConfig,
             @Nonnull Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier,
             @Nonnull TopologyType topologyType) {
-        super(chunkProcessorFactories, topologyIngesterConfig, topologyType.getReadableName());
+        super(chunkProcessorFactories, topologyIngesterConfig, topologyType.isProjectedTopology());
         this.logger = LogManager.getLogger(getClass());
         this.topologyIngesterConfig = topologyIngesterConfig;
         this.loaderFactorySupplier = loaderFactorySupplier;
@@ -144,6 +144,10 @@ public class TopologyIngesterBase<T>
         PROJECTED_LIVE,
         PLAN,
         PROJECTED_PLAN;
+
+        public boolean isProjectedTopology() {
+            return this == PROJECTED_LIVE || this == PROJECTED_PLAN;
+        }
 
         public String getReadableName() {
             return WordUtils.capitalizeFully(name().replaceAll("_", " "));
