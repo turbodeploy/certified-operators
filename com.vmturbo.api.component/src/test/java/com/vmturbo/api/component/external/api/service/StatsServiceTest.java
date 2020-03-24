@@ -25,6 +25,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import org.junit.Assert;
@@ -49,10 +52,12 @@ import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
@@ -225,8 +230,6 @@ public class StatsServiceTest {
         se1.setClassName("ClassName-1");
         se2.setUuid(apiId2.uuid());
         se2.setClassName("ClassName-2");
-
-
     }
 
     @Test
@@ -249,14 +252,13 @@ public class StatsServiceTest {
                 .setDisplayName("Winter woede")
                 .build();
         when(groupServiceSpy.getGroups(GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder().addId(7)).build())).thenReturn(
-                                        Collections.singletonList(Grouping.newBuilder().setId(7)
-                                                        .setDefinition(clusterInfo).build()));
+                .setGroupFilter(GroupFilter.newBuilder().addId(7)).build())).thenReturn(
+                Collections.singletonList(Grouping.newBuilder().setId(7)
+                        .setDefinition(clusterInfo).build()));
 
         final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.getDefaultInstance();
         when(statsMapper.toClusterStatsRequest("7", periodApiInputDTO, true))
-            .thenReturn(clusterStatsRequest);
-
+                .thenReturn(clusterStatsRequest);
         when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest))
                 .thenReturn(Collections.singletonList(STAT_SNAPSHOT));
         final StatSnapshotApiDTO apiSnapshot = new StatSnapshotApiDTO();
@@ -266,7 +268,7 @@ public class StatsServiceTest {
                 statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         verify(groupServiceSpy).getGroups(GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder().addId(7)).build());
+                .setGroupFilter(GroupFilter.newBuilder().addId(7)).build());
         verify(statsMapper).toClusterStatsRequest("7", periodApiInputDTO, true);
         verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
         verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
@@ -279,6 +281,190 @@ public class StatsServiceTest {
         assertThat(clusterStats.getDisplayName(), is(clusterInfo.getDisplayName()));
         assertThat(clusterStats.getStats(), containsInAnyOrder(apiSnapshot));
         assertThat(clusterStats.getClassName(), is(StringConstants.CLUSTER));
+    }
+
+    /**
+     * Test cluster stats sorted by CPU headroom, ascending.
+     *
+     * @throws Exception should not happen
+     */
+    @Ignore
+    @Test
+    public void testClusterStatsSortingByCpuHeadRoomAscending() throws Exception {
+        Assert.assertEquals(ImmutableList.of(3, 2, 1),
+                            prepareClusterStatsOrderingTest(StringConstants.CPU_HEADROOM, true));
+    }
+
+    /**
+     * Test cluster stats sorted by CPU headroom, descending.
+     *
+     * @throws Exception should not happen
+     */
+    @Ignore
+    @Test
+    public void testClusterStatsSortingByCpuHeadRoomDescending() throws Exception {
+        Assert.assertEquals(ImmutableList.of(1, 3, 2),
+                            prepareClusterStatsOrderingTest(StringConstants.CPU_HEADROOM, false));
+    }
+
+    /**
+     * Test cluster stats sorted by memory utilization.
+     *
+     * @throws Exception should not happen
+     */
+    @Ignore
+    @Test
+    public void testClusterStatsSortingByMemUtilizationDescending() throws Exception {
+        Assert.assertEquals(ImmutableList.of(1, 3, 2),
+                            prepareClusterStatsOrderingTest(StringConstants.MEM, true));
+    }
+
+    /**
+     * This method fakes three cluster with the following stats:
+     * <ul>
+     *     <li>Mem Utilization: 1/200, CPU headroom: 10</li>
+     *     <li>Mem Utilization: 2/3, CPU headroom: 1</li>
+     *     <li>Mem Utilization: 2/4, CPU headroom: 9</li>
+     * </ul>
+     * then sorts their stats according to the parameters passed to it,
+     * then takes the sorted list and returns their ids in that order.
+     *
+     * <p>
+     *     For example, if we sort by mem utilization ascending,
+     *     what this method should return is: [1, 3, 2]
+     * </p>
+     * @param orderBy what statistic to order by.
+     *                Accepted values: {@link StringConstants#CPU_HEADROOM} and
+     *                {@link StringConstants#MEM}
+     * @param ascending whether the sorting should be ascending
+     * @return list of ids after sorting
+     * @throws Exception should not happen
+     */
+    private List<Long> prepareClusterStatsOrderingTest(@Nonnull String orderBy, boolean ascending)
+            throws Exception {
+        final EntityStatsPaginationRequest paginationRequest =
+                spy(new EntityStatsPaginationRequest("foo", 100, ascending, orderBy));
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+
+        // Add a cluster stat request.
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
+        statApiInputDTO.setName(StringConstants.MEM);
+        periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
+
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(ImmutableList.of("1", "2", "3"));
+        inputDto.setPeriod(periodApiInputDTO);
+
+        final GroupDefinition clusterInfo1 = GroupDefinition.newBuilder()
+                                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                                                .setDisplayName("1")
+                                                .build();
+        final GroupDefinition clusterInfo2 = GroupDefinition.newBuilder()
+                                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                                                .setDisplayName("2")
+                                                .build();
+        final GroupDefinition clusterInfo3 = GroupDefinition.newBuilder()
+                                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                                                .setDisplayName("3")
+                                                .build();
+        when(groupServiceSpy.getGroups(any()))
+            .thenReturn(ImmutableList.of(Grouping.newBuilder()
+                                                .setId(1)
+                                                .setDefinition(clusterInfo1)
+                                                .build(),
+                                         Grouping.newBuilder()
+                                                .setId(2)
+                                                .setDefinition(clusterInfo2)
+                                                .build(),
+                                         Grouping.newBuilder()
+                                                .setId(3)
+                                                .setDefinition(clusterInfo3)
+                                                .build()));
+
+        final ApiId apiId1 = mock(ApiId.class);
+        when(uuidMapper.fromUuid("1")).thenReturn(apiId1);
+        when(uuidMapper.fromOid(1L)).thenReturn(apiId1);
+        when(apiId1.uuid()).thenReturn("1");
+        when(apiId1.oid()).thenReturn(1L);
+        when(apiId1.isGroup()).thenReturn(true);
+        when(apiId1.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
+
+        final ApiId apiId2 = mock(ApiId.class);
+        when(uuidMapper.fromUuid("2")).thenReturn(apiId2);
+        when(uuidMapper.fromOid(2L)).thenReturn(apiId2);
+        when(apiId2.uuid()).thenReturn("2");
+        when(apiId2.oid()).thenReturn(2L);
+        when(apiId2.isGroup()).thenReturn(true);
+        when(apiId2.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
+
+        final ApiId apiId3 = mock(ApiId.class);
+        when(uuidMapper.fromUuid("3")).thenReturn(apiId3);
+        when(uuidMapper.fromOid(3L)).thenReturn(apiId3);
+        when(apiId3.uuid()).thenReturn("3");
+        when(apiId3.oid()).thenReturn(3L);
+        when(apiId3.isGroup()).thenReturn(true);
+        when(apiId3.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
+
+        final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.getDefaultInstance();
+//        when(statsMapper.toClusterStatsRequest("7", periodApiInputDTO, true))
+  //              .thenReturn(clusterStatsRequest);
+
+        final StatSnapshot fakeSnapshot1 = StatSnapshot.newBuilder()
+                                                .setSnapshotDate(1L)
+                                                .build();
+        final StatSnapshot fakeSnapshot2 = StatSnapshot.newBuilder()
+                                                .setSnapshotDate(2L)
+                                                .build();
+        final StatSnapshot fakeSnapshot3 = StatSnapshot.newBuilder()
+                                                .setSnapshotDate(3L)
+                                                .build();
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest))
+                .thenReturn(ImmutableList.of(fakeSnapshot1, fakeSnapshot2, fakeSnapshot3));
+
+        final EntityStatsApiDTO apiSnapshot1 = makeClusterStatSnapshotApiDTO("1", 10.0f, 1.0f, 200.0f);
+        final EntityStatsApiDTO apiSnapshot2 = makeClusterStatSnapshotApiDTO("2", 1.0f, 2.0f, 3.0f);
+        final EntityStatsApiDTO apiSnapshot3 = makeClusterStatSnapshotApiDTO("3", 9.0f, 2.0f, 4.0f);
+
+       // when(statsMapper.toStatApiDto(fakeSnapshot1)).thenReturn(apiSnapshot1);
+//        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot2)).thenReturn(apiSnapshot2);
+  //      when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot3)).thenReturn(apiSnapshot3);
+
+        final EntityStatsPaginationResponse response =
+                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+        return response.getRawResults().stream()
+                        .map(EntityStatsApiDTO::getUuid)
+                        .map(x -> Long.valueOf(x))
+                        .collect(Collectors.toList());
+    }
+
+    private EntityStatsApiDTO makeClusterStatSnapshotApiDTO(
+            @Nonnull String id, float cpuHeadRoom, float memAvg, float memCap) {
+        final EntityStatsApiDTO result = new EntityStatsApiDTO();
+
+        final StatSnapshotApiDTO apiSnapshot1 = new StatSnapshotApiDTO();
+        final StatApiDTO statApiDTO1 = new StatApiDTO();
+        statApiDTO1.setName(StringConstants.CPU_HEADROOM);
+        final StatValueApiDTO statValueApiDTO1 = new StatValueApiDTO();
+        statValueApiDTO1.setAvg(cpuHeadRoom);
+        statApiDTO1.setValues(statValueApiDTO1);
+        apiSnapshot1.setStatistics(Collections.singletonList(statApiDTO1));
+
+        final StatSnapshotApiDTO apiSnapshot2 = new StatSnapshotApiDTO();
+        final StatApiDTO statApiDTO2 = new StatApiDTO();
+        statApiDTO2.setName(StringConstants.MEM);
+        final StatValueApiDTO statValueApiDTO2v = new StatValueApiDTO();
+        statValueApiDTO2v.setAvg(memAvg);
+        final StatValueApiDTO statValueApiDTO2c = new StatValueApiDTO();
+        statValueApiDTO2c.setAvg(memCap);
+        statApiDTO2.setValues(statValueApiDTO2v);
+        statApiDTO2.setCapacity(statValueApiDTO2c);
+        apiSnapshot2.setStatistics(Collections.singletonList(statApiDTO2));
+
+        result.setUuid(id);
+        result.setStats(ImmutableList.of(apiSnapshot1, apiSnapshot2));
+
+        return result;
     }
 
     @Test

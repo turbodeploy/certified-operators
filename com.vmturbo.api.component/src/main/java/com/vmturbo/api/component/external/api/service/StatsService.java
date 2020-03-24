@@ -1,12 +1,15 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -35,6 +38,7 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
@@ -48,6 +52,7 @@ import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.StringUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -346,6 +351,51 @@ public class StatsService implements IStatsService {
         return planEntityStatsFetcher.getPlanEntityStats(planInstance, inputDto, paginationRequest);
     }
 
+    private static boolean isHeadRoomStatName(@Nonnull String name) {
+        return StringConstants.CPU_HEADROOM.equalsIgnoreCase(name)
+                    || StringConstants.MEM_HEADROOM.equalsIgnoreCase(name)
+                    || StringConstants.STORAGE_HEADROOM.equalsIgnoreCase(name)
+                    || StringConstants.TOTAL_HEADROOM.equalsIgnoreCase(name);
+    }
+
+    private static boolean isUtilizationStatName(@Nonnull String name) {
+        return StringConstants.MEM.equalsIgnoreCase(name) || StringConstants.CPU.equalsIgnoreCase(name);
+    }
+
+    private static StatApiDTO getRelevantStatsRecord(@Nonnull EntityStatsApiDTO entityStatsApiDTO,
+                                                     @Nonnull String commodity) {
+        return entityStatsApiDTO.getStats().stream()
+                    .map(s -> s.getStatistics().get(0))
+                    .filter(s -> commodity.equals(s.getName()))
+                    .findAny()
+                    .orElseGet(() -> {
+                        logger.error("No stat name " + commodity + " found on record: " + entityStatsApiDTO);
+                        return new StatApiDTO();
+                    });
+    }
+
+    private static double getUtilization(@Nonnull StatApiDTO statsRecord) {
+        final double EPSILON = 0.1;
+        if (statsRecord.getCapacity() == null || statsRecord.getCapacity().getAvg() == null
+                || statsRecord.getCapacity().getAvg() < EPSILON) {
+            logger.error("Cannot read capacity of stats record: " + statsRecord);
+            return 0.0;
+        }
+        if (statsRecord.getValues() == null || statsRecord.getValues().getAvg() == null) {
+            logger.error("Cannot get avg of stats record: " + statsRecord);
+            return 0.0;
+        }
+        return statsRecord.getValues().getAvg() / statsRecord.getCapacity().getAvg();
+    }
+
+    private static double getHeadRoom(@Nonnull StatApiDTO statsRecord) {
+        if (statsRecord.getValues() == null || statsRecord.getValues().getAvg() == null) {
+            logger.error("Cannot get avg of stats record: " + statsRecord);
+            return 0.0;
+        }
+        return statsRecord.getValues().getAvg();
+    }
+
     /**
      * Get per-cluster stats, modelled as per-entity stats (where each cluster is an entity).
      * This is a helper method to
@@ -368,7 +418,6 @@ public class StatsService implements IStatsService {
         // we'll find all clusters the user has access to and ask for stats on those.
         // otherwise, the scope contains specific id's and we'll request stats for the groups
         // specifically requested.
-        final GetGroupsRequest groupRequest;
         if (isMarketScoped(inputDto)) {
             // a market scope request for cluster entity stats is only valid if the related entity
             // type is set to cluster
@@ -437,14 +486,39 @@ public class StatsService implements IStatsService {
         });
         // did we get all the groups we expected?
         if (results.size() != inputDto.getScopes().size()) {
-            logger.warn("Not all headroom stats were retrieved. {} scopes requested, {} stats recieved.",
+            logger.warn("Not all headroom stats were retrieved. {} scopes requested, {} stats received.",
                     inputDto.getScopes().size(), results.size());
         }
+
+        // sort according to pagination argument
+        final Function<EntityStatsApiDTO, Double> comparisonFunction;
+        if (paginationRequest.getOrderBy() == null
+                || StringUtils.isEmpty(paginationRequest.getOrderBy().name())) {
+            logger.error("No order specified in cluster stats request");
+            comparisonFunction = s -> 0.0; // arbitrary order
+        } else {
+            final String orderByName = paginationRequest.getOrderByStat().orElse("");
+            if (isUtilizationStatName(orderByName)) {
+                comparisonFunction = s -> getUtilization(getRelevantStatsRecord(s, orderByName));
+            } else if (isHeadRoomStatName(orderByName)) {
+                comparisonFunction = s -> getHeadRoom(getRelevantStatsRecord(s, orderByName));
+            } else {
+                logger.error("Not supported: sort cluster stats by " + orderByName);
+                comparisonFunction = s -> 0.0; // arbitrary order
+            }
+        }
+        final Comparator<EntityStatsApiDTO> comparator;
+        if (paginationRequest.isAscending()) {
+            comparator = Comparator.comparing(comparisonFunction);
+        } else {
+            comparator = Comparator.comparing(comparisonFunction).reversed();
+        }
+        Collections.sort(results, comparator);
 
         // The history component does not do pagination for per-cluster stats, because the number
         // of clusters is usually very small compared to the number of entities. We rely on
         // the default pagination mechanism.
-        return paginationRequest.allResultsResponse(results);
+        return new EntityStatsPaginationRequest(null, null, true, null).allResultsResponse(results);
     }
 
     /**
