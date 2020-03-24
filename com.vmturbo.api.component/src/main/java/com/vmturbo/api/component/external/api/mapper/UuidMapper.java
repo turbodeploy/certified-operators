@@ -550,6 +550,33 @@ public class UuidMapper implements RepositoryListener {
             return getCachedGroupInfo().isPresent();
         }
 
+        /**
+         * Check that current scope is resource group or group of resource groups.
+         *
+         * @return in case of resource group / group of resource groups return true otherwise false
+         */
+        public boolean isResourceGroupOrGroupOfResourceGroups() {
+            boolean isResourceGroupsScope = false;
+            if (getGroupType().isPresent()) {
+                switch (getGroupType().get()) {
+                    case RESOURCE:
+                        isResourceGroupsScope = true;
+                        break;
+                    case REGULAR:
+                        if (getCachedGroupInfo().isPresent()) {
+                            final Set<GroupType> nestedGroupTypes =
+                                    getCachedGroupInfo().get().getNestedGroupTypes();
+                            if (!nestedGroupTypes.isEmpty()) {
+                                isResourceGroupsScope = nestedGroupTypes.stream()
+                                        .allMatch(el -> el.equals(GroupType.RESOURCE));
+                            }
+                        }
+                        break;
+                }
+            }
+            return isResourceGroupsScope;
+        }
+
         public boolean isCloudGroup() {
             return getCachedGroupInfo().flatMap(cgi ->
                     cgi.getGlobalEnvType().map(envType -> envType == EnvironmentType.CLOUD))

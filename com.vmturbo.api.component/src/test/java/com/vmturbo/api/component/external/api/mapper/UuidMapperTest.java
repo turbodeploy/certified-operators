@@ -50,8 +50,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -313,6 +313,7 @@ public class UuidMapperTest {
                 .setDefinition(GroupDefinition.newBuilder()
                     .setIsTemporary(true)
                     .setDisplayName("foo")
+                    .setType(GroupType.REGULAR)
                     .setOptimizationMetadata(GroupDefinition.OptimizationMetadata.newBuilder()
                         .setEnvironmentType(EnvironmentType.CLOUD))
                 )
@@ -334,6 +335,71 @@ public class UuidMapperTest {
         assertFalse(id.isRealtimeMarket());
         assertFalse(id.isPlan());
         assertFalse(id.isEntity());
+        assertFalse(id.isResourceGroupOrGroupOfResourceGroups());
+    }
+
+    /**
+     * Test case for resource group related scope. Scope - single resource group.
+     *
+     * @throws Exception if exception occured.
+     */
+    @Test
+    public void testIsResourceGroup() throws Exception {
+        final String scopeUuid = "123";
+        final Grouping resourceGroup = Grouping.newBuilder()
+                .setId(Long.valueOf(scopeUuid))
+                .addExpectedTypes(MemberType.newBuilder()
+                        .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName("foo")
+                        .setType(GroupType.RESOURCE))
+                .build();
+
+        when(groupExpander.getMembersForGroup(any())).thenReturn(ImmutableGroupAndMembers.builder()
+                .group(Grouping.newBuilder().build())
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build());
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+        doReturn(GetGroupResponse.newBuilder().setGroup(resourceGroup).build()).when(
+                groupServiceBackend)
+                .getGroup(GroupID.newBuilder().setId(Long.valueOf(scopeUuid)).build());
+
+        ApiId id = uuidMapper.fromUuid(scopeUuid);
+        assertTrue(id.isResourceGroupOrGroupOfResourceGroups());
+    }
+
+    /**
+     * Test case for resource group related scope. Scope - regular group with resource group
+     * members.
+     *
+     * @throws Exception if exception occured.
+     */
+    @Test
+    public void testIsGroupOfResourceGroups() throws Exception {
+        final String scopeUuid = "123";
+        final Grouping groupOfResourceGroups = Grouping.newBuilder()
+                .setId(Long.valueOf(scopeUuid))
+                .addExpectedTypes(MemberType.newBuilder().setGroup(GroupType.RESOURCE))
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setDisplayName("foo")
+                        .setType(GroupType.REGULAR))
+                .build();
+        when(groupExpander.getMembersForGroup(any())).thenReturn(ImmutableGroupAndMembers.builder()
+                .group(Grouping.newBuilder().build())
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build());
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReqEmpty();
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
+
+        doReturn(GetGroupResponse.newBuilder().setGroup(groupOfResourceGroups).build()).when(
+                groupServiceBackend)
+                .getGroup(GroupID.newBuilder().setId(Long.valueOf(scopeUuid)).build());
+
+        ApiId id = uuidMapper.fromUuid(scopeUuid);
+        assertTrue(id.isResourceGroupOrGroupOfResourceGroups());
     }
 
     /**
