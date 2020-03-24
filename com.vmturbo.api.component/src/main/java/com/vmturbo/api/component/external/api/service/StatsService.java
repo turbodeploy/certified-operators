@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -499,7 +498,7 @@ public class StatsService implements IStatsService {
         } else {
             comparator = Comparator.comparing(comparisonFunction).reversed();
         }
-        Collections.sort(results, comparator);
+        results.sort(comparator);
 
         // since sorting is implemented in this method,
         // we override it and create a pagination response
