@@ -20,9 +20,9 @@ import java.util.regex.Pattern;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.util.FileUtils;
 import org.apache.logging.log4j.core.util.IOUtils;
 import org.apache.sshd.client.channel.ClientChannelEvent;
 import org.apache.sshd.client.session.ClientSession;
@@ -89,7 +89,7 @@ public class ActionScriptTestBase extends Assert {
                 String encodedPath = path.substring(path.indexOf(prefix) + prefix.length());
                 String realPath = URLDecoder.decode(encodedPath, "UTF-8");
                 File dest = new File(root, realPath);
-                FileUtils.makeParentDirs(dest);
+                FileUtils.forceMkdir(dest.getParentFile());
                 try (Reader in = new InputStreamReader(resource.getInputStream())) {
                     try (Writer out = new FileWriter(dest)) {
                         IOUtils.copy(in, out);
