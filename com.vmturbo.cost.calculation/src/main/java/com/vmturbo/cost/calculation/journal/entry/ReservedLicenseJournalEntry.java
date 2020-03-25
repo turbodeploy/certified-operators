@@ -21,7 +21,7 @@ import com.vmturbo.trax.TraxNumber;
  * @param <E> see {@link QualifiedJournalEntry}
  */
 @Immutable
-public class ReservedLicenseJournalEntry<E> implements QualifiedJournalEntry<E>, Comparable {
+public class ReservedLicenseJournalEntry<E> implements QualifiedJournalEntry<E> {
     private final Price price;
     private final Optional<CostSource> costSource;
     private final CostCategory targetCostCategory;
@@ -84,14 +84,5 @@ public class ReservedLicenseJournalEntry<E> implements QualifiedJournalEntry<E>,
     @Nonnull
     public TraxNumber getRiBoughtPercentage() {
         return riBoughtPercentage;
-    }
-
-    @Override
-    public int compareTo(final Object o) {
-        if (o instanceof OnDemandJournalEntry) {
-            return Integer.MAX_VALUE;
-        } else {
-            return 0;
-        }
     }
 }
