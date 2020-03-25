@@ -324,8 +324,7 @@ public class StatsServiceTest {
      * then sorts their stats according to the parameters passed to it,
      * then takes the sorted list and returns their ids in that order.
      *
-     * <p>
-     *     For example, if we sort by mem utilization ascending,
+     * <p>For example, if we sort by mem utilization ascending,
      *     what this method should return is: [1, 3, 2]
      * </p>
      * @param orderBy what statistic to order by.

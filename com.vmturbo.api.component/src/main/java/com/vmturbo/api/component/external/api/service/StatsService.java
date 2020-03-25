@@ -366,9 +366,9 @@ public class StatsService implements IStatsService {
     }
 
     private static double getUtilization(@Nonnull StatApiDTO statsRecord) {
-        final double EPSILON = 0.1;
+        final double epsilon = 0.1;
         if (statsRecord.getCapacity() == null || statsRecord.getCapacity().getAvg() == null
-                || statsRecord.getCapacity().getAvg() < EPSILON) {
+                || statsRecord.getCapacity().getAvg() < epsilon) {
             return 0.0;
         }
         if (statsRecord.getValues() == null || statsRecord.getValues().getAvg() == null) {
