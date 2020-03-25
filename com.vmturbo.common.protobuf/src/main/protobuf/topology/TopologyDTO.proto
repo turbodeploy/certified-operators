@@ -130,6 +130,9 @@ message TypeSpecificInfo {
         // A list of provider specific account attributes that are used to identify the pricing
         // applied to an account.  For example, Azure uses offer ID and enrollment number.
         repeated .common_dto.PricingIdentifier pricing_identifiers = 3;
+
+        // Flag to indicate RI support status.
+        optional bool riSupported = 4;
     }
 
     // Specific data for region
