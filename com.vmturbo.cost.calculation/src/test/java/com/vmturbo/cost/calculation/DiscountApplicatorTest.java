@@ -47,7 +47,7 @@ public class DiscountApplicatorTest {
             mock(AccountPricingData.class);
 
     private CloudCostData<TestEntityClass> emptyCloudCostData =
-            new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(),
+            new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
                     Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
 
     @Before

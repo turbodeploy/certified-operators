@@ -836,7 +836,7 @@ public class TopologyConverter {
                     RiDiscountedMarketTier originalRiTier = (RiDiscountedMarketTier)
                             cloudTc.getMarketTier(originalRiTierSl.get().getSupplier());
                     Optional<EntityReservedInstanceCoverage> originalRiCoverage = cloudCostData
-                            .getRiCoverageForEntity(originalTrader.getOid());
+                            .getFilteredRiCoverage(originalTrader.getOid());
                     if (!originalRiCoverage.isPresent()) {
                         logger.error("{} does not have original RI coverage", originalTrader.getDebugInfoNeverUseInCode());
                         return;

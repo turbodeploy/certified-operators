@@ -266,8 +266,9 @@ public class SMAInputTest {
     Map<Long, ReservedInstanceBought> buyRIBoughtById = new HashMap<>();
     Map<Long, AccountPricingData<TopologyEntityDTO>> accountPricingDataByBusinessAccountOid =
         new HashMap<>();
+    Map<Long, EntityReservedInstanceCoverage> filteredRiCoverageByEntityId = ImmutableMap.of(vm1Id, coverage);
     CloudCostData<TopologyEntityDTO> cloudCostData =
-        new CloudCostData<TopologyEntityDTO>(riCoverageByEntityId,
+        new CloudCostData<TopologyEntityDTO>(riCoverageByEntityId, filteredRiCoverageByEntityId,
             riBoughtById, riSpecById, buyRIBoughtById, accountPricingDataByBusinessAccountOid);
 
     ConsistentScalingHelper consistentScalingHelper = new ConsistentScalingHelper(null);

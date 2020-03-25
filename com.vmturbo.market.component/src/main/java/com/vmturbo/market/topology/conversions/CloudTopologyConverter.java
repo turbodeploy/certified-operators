@@ -488,7 +488,7 @@ public class CloudTopologyConverter {
      * @return EntityReservedInstanceCoverage corresponding to the given entity
      */
     public Optional<EntityReservedInstanceCoverage> getRiCoverageForEntity(long entityId) {
-        return cloudCostData.getRiCoverageForEntity(entityId);
+        return cloudCostData.getFilteredRiCoverage(entityId);
     }
 
     /**
