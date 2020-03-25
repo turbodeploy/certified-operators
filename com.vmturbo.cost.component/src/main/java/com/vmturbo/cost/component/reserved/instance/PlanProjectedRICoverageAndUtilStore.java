@@ -222,35 +222,31 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
             List<TopologyEntityDTO> ba =
                     getConnectedEntityofType(allBa, EntityType.VIRTUAL_MACHINE_VALUE, entity.getOid());
             // find compute tier consumed by entity
-            List<TopologyEntityDTO> computeTiers = getEntityConsumedComputeTiers(entity, entityMap);
-            if (computeTiers.size() != 1) {
-                logger.warn("Entity {} consumes wrong number of compute tiers {}!", entity.getOid(),
-                        computeTiers.size());
-                continue;
-            }
-            final double totalCoupons =
-                    computeTiers.iterator().next().getTypeSpecificInfo().getComputeTier()
-                            .getNumCoupons();
+            final Optional<Integer> optionalCouponCapacity = entityRICoverage.stream().filter(s -> s.getEntityId() == entityId)
+                    .map(a -> a.getEntityCouponCapacity()).findFirst();
             // The aggregated RI coverage of the entity
             final Double usedCoupons = aggregatedEntityRICoverage.getValue();
-            if (usedCoupons > totalCoupons) {
-                // Used coupons should be less than or equals total coupons.
-                logger.error("Used coupons are greater than total coupons for " +
-                                "entityId {}, topologyContextId {}, region id {}, az id {}" +
-                                ", ba id {}, total coupon {}, used coupon {}.",
-                        entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
-                        ba.get(0).getOid(), totalCoupons, usedCoupons);
-            } else {
-                // Used coupons are less than or equals total coupons.
-                coverageRcd.add(context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
-                        new PlanProjectedReservedInstanceCoverageRecord(
-                                entityId, topologyContextId, region.get(0).getOid(),
-                                az.get(0).getConnectedEntityId(), ba.get(0).getOid(),
-                                totalCoupons, usedCoupons)));
-                logger.debug("Projected reserved instance coverage record with entityId {}, topologyContextId {}, "
-                                + "region id {}, az id {}, ba id {}, total coupon {}, used coupon {}.",
-                        entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
-                        ba.get(0).getOid(), totalCoupons, usedCoupons);
+            if (optionalCouponCapacity.isPresent()) {
+                Double totalCoupons = Double.valueOf(optionalCouponCapacity.get());
+                if (usedCoupons > totalCoupons) {
+                    // Used coupons should be less than or equals total coupons.
+                    logger.error("Used coupons are greater than total coupons for " +
+                                    "entityId {}, topologyContextId {}, region id {}, az id {}" +
+                                    ", ba id {}, total coupon {}, used coupon {}.",
+                            entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
+                            ba.get(0).getOid(), totalCoupons, usedCoupons);
+                } else {
+                    // Used coupons are less than or equals total coupons.
+                    coverageRcd.add(context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
+                            new PlanProjectedReservedInstanceCoverageRecord(
+                                    entityId, topologyContextId, region.get(0).getOid(),
+                                    az.get(0).getConnectedEntityId(), ba.get(0).getOid(),
+                                    totalCoupons, usedCoupons)));
+                    logger.debug("Projected reserved instance coverage record with entityId {}, topologyContextId {}, "
+                                    + "region id {}, az id {}, ba id {}, total coupon {}, used coupon {}.",
+                            entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
+                            ba.get(0).getOid(), totalCoupons, usedCoupons);
+                }
             }
         }
         Lists.partition(coverageRcd, chunkSize).forEach(entityChunk -> context.batchInsert(coverageRcd).execute());
@@ -268,14 +264,12 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         Map<Long, Double> aggregatedEntityRICoverages = new HashMap<>();
         for (final EntityReservedInstanceCoverage riCoverage : entityRICoverage) {
             long entityId = riCoverage.getEntityId();
-            riCoverage.getCouponsCoveredByRiMap().forEach((key, value) -> {
-                if (aggregatedEntityRICoverages.containsKey(entityId)) {
-                    aggregatedEntityRICoverages.put(entityId,
-                            aggregatedEntityRICoverages.get(entityId) + value);
-                } else {
-                    aggregatedEntityRICoverages.put(entityId, value);
-                }
-            });
+            final double totalCouponsUsed = riCoverage.getCouponsCoveredByRiMap()
+                    .values()
+                    .stream()
+                    .reduce(0D, Double::sum);
+            aggregatedEntityRICoverages.compute(entityId, (k,v) ->
+            v == null ? totalCouponsUsed : totalCouponsUsed + v);
         }
         return aggregatedEntityRICoverages;
     }

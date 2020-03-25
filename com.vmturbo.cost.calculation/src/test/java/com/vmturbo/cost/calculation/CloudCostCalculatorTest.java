@@ -145,7 +145,7 @@ public class CloudCostCalculatorTest {
 
     private static final PriceTable PRICE_TABLE = thePriceTable();
 
-    private static final CloudCostData CLOUD_COST_DATA = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+    private static final CloudCostData CLOUD_COST_DATA = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
         Collections.emptyMap(), Collections.emptyMap());
 
     private static final double DELTA = 0.0001;
@@ -754,7 +754,7 @@ public class CloudCostCalculatorTest {
     private CloudCostData createCloudCostDataWithAccountPricingTable(Long baOid, AccountPricingData accountPricingData) {
         Map<Long, AccountPricingData> accountPricingDataByBusinessAccount = new HashMap<>();
         accountPricingDataByBusinessAccount.put(baOid, accountPricingData);
-        return new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+        return new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), accountPricingDataByBusinessAccount);
     }
 }

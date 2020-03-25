@@ -84,6 +84,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
             EntityReservedInstanceCoverage.newBuilder()
                     .setEntityId(1L)
                     .putCouponsCoveredByRi(10L, 100.0)
+                    .setEntityCouponCapacity(10)
                     .build();
     private final TopologyInfo topoInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(PLAN_ID)
@@ -196,6 +197,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
             .newBuilder()
             .setEntityId(101L)
             .putAllCouponsCoveredByRi(riUsage)
+            .setEntityCouponCapacity(5)
             .build());
         when(repositoryService.retrieveTopologyEntities(any()))
             .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
@@ -273,6 +275,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .newBuilder()
                         .setEntityId(101L)
                         .putAllCouponsCoveredByRi(riUsage)
+                        .setEntityCouponCapacity(5)
                         .build());
         when(repositoryService.retrieveTopologyEntities(any()))
             .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
@@ -361,7 +364,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                 store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
         assertEquals(1, statsRecords.size());
         final ReservedInstanceStatsRecord record = statsRecords.get(0);
-        assertEquals(10, record.getCapacity().getAvg(), DELTA);
+        assertEquals(5, record.getCapacity().getAvg(), DELTA);
         assertEquals(0.2, record.getValues().getAvg(), DELTA);
     }
 
