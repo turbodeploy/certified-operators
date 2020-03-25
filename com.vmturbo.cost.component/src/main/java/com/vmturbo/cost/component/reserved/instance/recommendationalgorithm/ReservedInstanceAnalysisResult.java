@@ -55,8 +55,9 @@ public class ReservedInstanceAnalysisResult {
         private final ReservedInstanceAnalysisScope analysisScope;
 
         // The  constraints specifying what kind of reservations may be purchased, eg
-        // the user wants standard 1-year all up front reservations.
-        private final ReservedInstancePurchaseConstraints purchaseConstraints;
+        // the user wants standard 1-year all up front reservations. The constraints are
+        // mapped to the service provider display name.
+        private final Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints;
 
         // Id of the topology on which the analysis was run.
         private final long topologyContextId;
@@ -69,7 +70,7 @@ public class ReservedInstanceAnalysisResult {
         public Manifest(long analysisStartTime,
                         long analysisCompletionTime,
                         @Nonnull ReservedInstanceAnalysisScope analysisScope,
-                        @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+                        @Nonnull Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints,
                         long topologyContextId,
                         int contextsAnalyzed) {
             this.analysisStartTime = analysisStartTime;
@@ -94,7 +95,7 @@ public class ReservedInstanceAnalysisResult {
         }
 
         @Nonnull
-        public ReservedInstancePurchaseConstraints getPurchaseConstraints() {
+        public Map<String, ReservedInstancePurchaseConstraints> getPurchaseConstraints() {
             return purchaseConstraints;
         }
 
@@ -112,7 +113,7 @@ public class ReservedInstanceAnalysisResult {
     private final ImmutableList<ReservedInstanceAnalysisRecommendation> recommendations;
 
     public ReservedInstanceAnalysisResult(@Nonnull ReservedInstanceAnalysisScope analysisScope,
-                          @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+                          @Nonnull Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints,
                           @Nonnull List<ReservedInstanceAnalysisRecommendation> recommendations,
                           long topologyId,
                           long analysisStartTime,

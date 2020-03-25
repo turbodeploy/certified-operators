@@ -37,9 +37,11 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.db.GroupComponent;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit test to cover {@link GroupDAO} search functionality. This is pretty large a set of tests
@@ -51,12 +53,14 @@ public class GroupDaoSearchTest {
      * Class rule to create a DB.
      */
     @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule("group_component");
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
+
     /**
      * Rule to automatically cleanup DB data before each test.
      */
     @Rule
-    public DbCleanupRule dbCleanup = new DbCleanupRule(dbConfig, GroupComponent.GROUP_COMPONENT);
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
     /**
      * Expected exception rule.
      */

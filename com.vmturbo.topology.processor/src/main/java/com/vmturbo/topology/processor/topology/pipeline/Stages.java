@@ -37,13 +37,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.ncm.MatrixDTO;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.chunking.OversizedElementException;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -92,6 +92,7 @@ import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfi
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor;
+import com.vmturbo.topology.processor.topology.ConstraintsEditor.ConstraintsEditorException;
 import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
@@ -689,7 +690,7 @@ public class Stages {
             String scopeClassName = planScopeEntries.get(0).getClassName();
             int scopeEntityType = (planScopeEntries.isEmpty() || scopeClassName == null)
                     ? CommonDTO.EntityDTO.EntityType.UNKNOWN_VALUE
-                    : UIEntityType.fromString(scopeClassName).typeNumber();
+                    : ApiEntityType.fromString(scopeClassName).typeNumber();
             // now add the new seed entities to the list, and the scope type for OCP plans.
             getContext().editTopologyInfo(topologyInfoBuilder -> {
                 topologyInfoBuilder.clearScopeSeedOids();
@@ -768,9 +769,18 @@ public class Stages {
         @Override
         public Status passthrough(TopologyGraph<TopologyEntity> input) throws PipelineStageException {
             boolean isPressurePlan = TopologyDTOUtil.isAlleviatePressurePlan(getContext().getTopologyInfo());
-            constraintsEditor.editConstraints(input, changes, isPressurePlan);
+            try {
+                constraintsEditor.editConstraints(input, changes, isPressurePlan);
+            } catch (ConstraintsEditorException e) {
+                throw new PipelineStageException(e);
+            }
             // TODO (roman, 23 Oct 2018): Add some high-level information about modifications made.
             return Status.success();
+        }
+
+        @Override
+        public boolean required() {
+            return true;
         }
     }
 
@@ -1210,7 +1220,7 @@ public class Stages {
 
         private final List<TopoBroadcastManager> broadcastManagers;
 
-        private final Map<UIEntityType, MutableInt> counts = new HashMap<>();
+        private final Map<ApiEntityType, MutableInt> counts = new HashMap<>();
 
         private final MatrixInterface matrix;
 
@@ -1319,7 +1329,7 @@ public class Stages {
                                 entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE;
 
                 if (includeEntityInBroadcast) {
-                    counts.computeIfAbsent(UIEntityType.fromType(entity.getEntityType()),
+                    counts.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),
                             k -> new MutableInt(0)).increment();
                     for (TopologyBroadcast broadcast : broadcasts) {
                         try {

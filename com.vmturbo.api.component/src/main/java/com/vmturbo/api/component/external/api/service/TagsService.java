@@ -23,8 +23,8 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Tags service implementation.
@@ -77,7 +77,7 @@ public class TagsService implements ITagsService {
             requestBuilder.setEnvironmentType(EnvironmentTypeMapper.fromApiToXL(envType));
         }
         if (entityType != null) {
-            requestBuilder.setEntityType(UIEntityType.fromString(entityType).typeNumber());
+            requestBuilder.setEntityType(ApiEntityType.fromString(entityType).typeNumber());
         }
 
         // perform the search
@@ -101,7 +101,7 @@ public class TagsService implements ITagsService {
             if (entityType != null) {
                 msgBuilder
                         .append("Search was restricted to entity type: ")
-                        .append(UIEntityType.fromString(entityType))
+                        .append(ApiEntityType.fromString(entityType))
                         .append(". ");
             }
             throw new OperationFailedException(msgBuilder.toString(), e);

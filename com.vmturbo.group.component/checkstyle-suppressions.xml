@@ -4,6 +4,11 @@
         "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
         "https://checkstyle.org/dtds/suppressions_1_0.dtd">
 
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
 <suppressions>
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/policy/PolicyStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/group/TemporaryGroupCacheTest.java" />
@@ -18,10 +23,8 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/setting/SettingSpecsStoreTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/setting/SettingPolicyValidatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/setting/SettingStoreTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/setting/DefaultSettingPolicyCreatorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/setting/EntitySettingStoreTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/setting/FileBasedSettingsSpecStore.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/migration/V_01_00_03__Change_Default_Transactions_CapacityTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/policy/DiscoveredPoliciesMapperTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/group/policy/PolicyStoreTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/identity/IdentityProvider.java" />
@@ -49,17 +52,10 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/EntitySettingStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/SettingSpecStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/SettingPolicyValidator.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/SettingPolicyFilter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/SettingsUpdatesSender.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/SettingPolicyInfoConverter.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/DiscoveredSettingPoliciesMapper.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/DefaultSettingPolicyCreator.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/DefaultSettingPolicyValidator.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/GroupToSettingPolicyIndex.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/setting/DefaultGlobalSettingsCreator.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/migration/GroupMigrationsLibrary.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/migration/V_01_00_03__Change_Default_Transactions_Capacity.jav" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/migration/MigrationConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/policy/DiscoveredPoliciesMapperFactory.jav" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/policy/PolicyInfoConverter.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/group/policy/PolicyConfig.java" />

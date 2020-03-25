@@ -103,7 +103,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -154,6 +154,7 @@ public class SupplyChainFetcherFactoryTest {
             EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             repositoryApiBackend,
             groupExpander,
+            mock(EntityAspectMapper.class),
             CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             7);
     }
@@ -178,10 +179,10 @@ public class SupplyChainFetcherFactoryTest {
                     .addMembersByType(StaticMembersByType
                         .newBuilder()
                         .setType(MemberType.newBuilder()
-                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                            .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                         )))
             .addExpectedTypes(MemberType.newBuilder()
-                .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
             .build());
         when(groupAndMembers.members()).thenReturn(Collections.emptySet());
         when(groupAndMembers.entities()).thenReturn(Collections.emptySet());
@@ -221,10 +222,10 @@ public class SupplyChainFetcherFactoryTest {
                     .addMembersByType(StaticMembersByType
                         .newBuilder()
                         .setType(MemberType.newBuilder()
-                            .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
+                            .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
                     )))
             .addExpectedTypes(MemberType.newBuilder()
-                .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
+                .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
             .build());
         when(groupExpander.getGroupWithMembers(searchUuids.get(0)))
             .thenReturn(Optional.of(groupAndMembers));
@@ -277,9 +278,6 @@ public class SupplyChainFetcherFactoryTest {
         when(entityAspectMapperMock.getGroupMemberMappers(volumes))
             .thenReturn(volumeAspectMapperMocks);
 
-        when(entityAspectMapperMock.getExpandedAspectsByGroupUsingMappers(volumes, volumeAspectMapperMocks))
-            .thenReturn(entityAspectMap);
-
         when(virtualVolumeAspectMapperMock.supportsGroupAspectExpansion()).thenReturn(true);
 
         when(groupExpander.expandUuids(searchUuidSet)).thenReturn(ImmutableSet.of(1L));
@@ -302,18 +300,6 @@ public class SupplyChainFetcherFactoryTest {
         Map<String, ServiceEntityApiDTO> serviceEntityApiDTOMap = supplychainEntryDTOs.iterator().next()
                 .getInstances();
         assertFalse(serviceEntityApiDTOMap.isEmpty());
-
-        Map<String, EntityAspect> resultEntityAspectMap = serviceEntityApiDTOMap
-                .values().iterator().next()
-                .getAspects();
-        assertFalse(resultEntityAspectMap.isEmpty());
-
-        Map.Entry<String, EntityAspect> mapEntry = resultEntityAspectMap.entrySet().iterator().next();
-
-        assertEquals(virtualVolumeAspect, mapEntry.getKey());
-        assertEquals("VirtualDisksAspectApiDTO", mapEntry.getValue().getType());
-        assertEquals(virtualDiskApiDTO,
-            ((VirtualDisksAspectApiDTO)mapEntry.getValue()).getVirtualDisks().get(0));
     }
 
     /**
@@ -425,9 +411,9 @@ public class SupplyChainFetcherFactoryTest {
                                 .addMembersByType(StaticMembersByType.newBuilder()
                                         .setType(MemberType.newBuilder()
                                                 .setEntity(
-                                                        UIEntityType.VIRTUAL_MACHINE.typeNumber())))))
+                                                        ApiEntityType.VIRTUAL_MACHINE.typeNumber())))))
                 .addExpectedTypes(MemberType.newBuilder()
-                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                        .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .build());
         when(groupExpander.getGroupWithMembers(searchUuids.get(0))).thenReturn(
                 Optional.of(groupAndMembers));
@@ -590,7 +576,7 @@ public class SupplyChainFetcherFactoryTest {
         assertThat(supplyChainFetcherFactory.newNodeFetcher()
             .addSeedUuid(seed)
             .apiEnvironmentType(EnvironmentType.CLOUD)
-            .entityTypes(Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+            .entityTypes(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
             .fetchStats(Collections.singletonList(SupplyChainGroupBy.BUSINESS_ACCOUNT_ID)), containsInAnyOrder(stat));
     }
 
@@ -632,7 +618,7 @@ public class SupplyChainFetcherFactoryTest {
                                                                         .newBuilder()
                                                                         .setType(MemberType
                                                                                         .newBuilder()
-                                                                                        .setEntity(UIEntityType.VIRTUAL_MACHINE
+                                                                                        .setEntity(ApiEntityType.VIRTUAL_MACHINE
                                                                                                         .typeNumber()))))
                                         ).build());
         when(groupAndMembers.members()).thenReturn(Arrays.asList());
@@ -678,17 +664,17 @@ public class SupplyChainFetcherFactoryTest {
                                 .addMembersByType(StaticMembersByType
                                         .newBuilder()
                                         .setType(MemberType.newBuilder()
-                                                .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                                                .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                                         .addMembers(vmId1)
                                         .addMembers(vmId2))))
                 .addExpectedTypes(MemberType.newBuilder()
-                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                        .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .build());
         when(groupAndMembers.members()).thenReturn(Arrays.asList(vmId1, vmId2));
         when(groupAndMembers.entities()).thenReturn(Arrays.asList(vmId1, vmId2));
         when(groupExpander.getGroupWithMembers(groupId)).thenReturn(Optional.of(groupAndMembers));
         when(groupExpander.expandUuidToTypeToEntitiesMap(eq(1L))).thenReturn(
-            ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE, ImmutableSet.of(vmId1, vmId2)));
+            ImmutableMap.of(ApiEntityType.VIRTUAL_MACHINE, ImmutableSet.of(vmId1, vmId2)));
 
         RepositoryApi.MultiEntityRequest req1and2 = ApiTestUtils.mockMultiMinEntityReq(
                 Lists.newArrayList(
@@ -875,15 +861,15 @@ public class SupplyChainFetcherFactoryTest {
     public void testExpandGroupingServiceEntities() {
         MinimalEntity regionMinimalEntity = MinimalEntity.newBuilder()
             .setOid(0L)
-            .setEntityType(UIEntityType.REGION.typeNumber())
+            .setEntityType(ApiEntityType.REGION.typeNumber())
             .build();
         MinimalEntity zoneMinimalEntity = MinimalEntity.newBuilder()
             .setOid(1L)
-            .setEntityType(UIEntityType.AVAILABILITY_ZONE.typeNumber())
+            .setEntityType(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
             .build();
         MinimalEntity vdcMinimalEntity = MinimalEntity.newBuilder()
             .setOid(10L)
-            .setEntityType(UIEntityType.VIRTUAL_DATACENTER.typeNumber())
+            .setEntityType(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())
             .build();
         MinimalEntity bAppMinimalEntity = MinimalEntity.newBuilder()
             .setOid(12L)
@@ -907,26 +893,26 @@ public class SupplyChainFetcherFactoryTest {
         Map<Long, GetSupplyChainResponse> responseMap = ImmutableMap.of(
             0L, GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.VIRTUAL_MACHINE, 0, 3L))
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.DATABASE, 0, 4L))
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.VIRTUAL_VOLUME, 0, 5L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 3L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.DATABASE, 0, 4L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_VOLUME, 0, 5L))
                     .build())
                 .build(),
             1L, GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.VIRTUAL_MACHINE, 0, 6L))
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.DATABASE, 0, 7L))
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.VIRTUAL_VOLUME, 0, 8L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 6L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.DATABASE, 0, 7L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_VOLUME, 0, 8L))
                     .build())
                 .build(),
             10L, GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.VIRTUAL_MACHINE, 0, 11L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 11L))
                     .build())
                 .build(),
             12L, GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.SERVICE, 0, 13L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.SERVICE, 0, 13L))
                     .build())
                 .build());
         when(supplyChainServiceBackend.getSupplyChain(any())).thenAnswer(invocationOnMock ->
@@ -936,7 +922,7 @@ public class SupplyChainFetcherFactoryTest {
         Assert.assertEquals(new HashSet<>(Arrays.asList(2L, 3L, 4L, 5L, 6L, 7L, 8L, 11L)), actual);
     }
 
-    private SupplyChainNode createSupplyChainNode(UIEntityType uiEntityType, int membersByStateKey, long memberOid) {
+    private SupplyChainNode createSupplyChainNode(ApiEntityType uiEntityType, int membersByStateKey, long memberOid) {
         return SupplyChainNode.newBuilder()
             .setEntityType(uiEntityType.apiStr())
             .putMembersByState(membersByStateKey, MemberList.newBuilder()
@@ -988,7 +974,7 @@ public class SupplyChainFetcherFactoryTest {
             // Creating a Business Application that should expand and return the service with oid 13
             12L, GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.SERVICE, 0, 13L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.SERVICE, 0, 13L))
                     .build())
                 .build());
         when(supplyChainServiceBackend.getSupplyChain(any())).thenAnswer(invocationOnMock ->
@@ -1018,20 +1004,20 @@ public class SupplyChainFetcherFactoryTest {
 
         // ASSERT
         assertThat(result.getSeMap().size(), is(3));
-        assertThat(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getEntitiesCount(),
+        assertThat(result.getSeMap().get(ApiEntityType.VIRTUAL_MACHINE.apiStr()).getEntitiesCount(),
             is(1));
-        assertThat(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getConnectedProviderTypes(),
-            containsInAnyOrder(UIEntityType.REGION.apiStr()));
+        assertThat(result.getSeMap().get(ApiEntityType.VIRTUAL_MACHINE.apiStr()).getConnectedProviderTypes(),
+            containsInAnyOrder(ApiEntityType.REGION.apiStr()));
 
-        assertThat(result.getSeMap().get(UIEntityType.APPLICATION.apiStr()).getEntitiesCount(),
+        assertThat(result.getSeMap().get(ApiEntityType.APPLICATION.apiStr()).getEntitiesCount(),
             is(1));
         assertTrue(CollectionUtils.isEmpty(result.getSeMap()
-            .get(UIEntityType.APPLICATION.apiStr()).getConnectedProviderTypes()));
+            .get(ApiEntityType.APPLICATION.apiStr()).getConnectedProviderTypes()));
 
-        assertThat(result.getSeMap().get(UIEntityType.REGION.apiStr()).getEntitiesCount(),
+        assertThat(result.getSeMap().get(ApiEntityType.REGION.apiStr()).getEntitiesCount(),
             is(1));
         assertTrue(CollectionUtils.isEmpty(result.getSeMap()
-            .get(UIEntityType.REGION.apiStr()).getConnectedProviderTypes()));
+            .get(ApiEntityType.REGION.apiStr()).getConnectedProviderTypes()));
     }
 
     private String setUpForResourceGroupTest() {
@@ -1045,43 +1031,43 @@ public class SupplyChainFetcherFactoryTest {
         final TopologyDTO.TopologyEntityDTO vmEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
             .setOid(rgVmOid)
             .setDisplayName("vm1")
-            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .addConnectedEntityList(TopologyDTO.TopologyEntityDTO.ConnectedEntity
                 .newBuilder()
                 .setConnectedEntityId(region1Oid)
-                .setConnectedEntityType(UIEntityType.REGION.typeNumber())
+                .setConnectedEntityType(ApiEntityType.REGION.typeNumber())
             )
             .build();
 
         final TopologyDTO.TopologyEntityDTO appEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
             .setOid(rgAppOid)
             .setDisplayName("app1")
-            .setEntityType(UIEntityType.APPLICATION.typeNumber())
+            .setEntityType(ApiEntityType.APPLICATION.typeNumber())
             .addCommoditiesBoughtFromProviders(TopologyDTO.TopologyEntityDTO
                 .CommoditiesBoughtFromProvider.newBuilder()
                 .setProviderId(appUnderlyingVmOid)
-                .setProviderEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setProviderEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build())
             .build();
 
         final Grouping rgGroup = Grouping.newBuilder()
             .setId(rgOid)
             .addExpectedTypes(MemberType.newBuilder()
-                .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build())
+                .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).build())
             .addExpectedTypes(MemberType.newBuilder()
-                .setEntity(UIEntityType.APPLICATION.typeNumber()).build())
+                .setEntity(ApiEntityType.APPLICATION.typeNumber()).build())
             .setDefinition(GroupDefinition.newBuilder()
                 .setType(GroupType.RESOURCE)
                 .setDisplayName("rg1")
                 .setStaticGroupMembers(StaticMembers.newBuilder()
                     .addMembersByType(StaticMembersByType.newBuilder()
                         .setType(MemberType.newBuilder()
-                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build())
+                            .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).build())
                         .addMembers(rgVmOid)
                         .build())
                     .addMembersByType(StaticMembersByType.newBuilder()
                         .setType(MemberType.newBuilder()
-                            .setEntity(UIEntityType.APPLICATION.typeNumber()).build())
+                            .setEntity(ApiEntityType.APPLICATION.typeNumber()).build())
                         .addMembers(rgAppOid)
                         .build())
                     .build())
@@ -1117,14 +1103,14 @@ public class SupplyChainFetcherFactoryTest {
         // ACT
         SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
             .addSeedUuids(Collections.singleton(rgOidStr))
-            .entityTypes(Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+            .entityTypes(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
             .fetch();
 
         // ASSERT
         assertThat(result.getSeMap().size(), is(1));
-        assertThat(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr()).getEntitiesCount(),
+        assertThat(result.getSeMap().get(ApiEntityType.VIRTUAL_MACHINE.apiStr()).getEntitiesCount(),
             is(1));
-        assertTrue(result.getSeMap().get(UIEntityType.VIRTUAL_MACHINE.apiStr())
+        assertTrue(result.getSeMap().get(ApiEntityType.VIRTUAL_MACHINE.apiStr())
             .getConnectedProviderTypes().isEmpty());
     }
 
@@ -1142,14 +1128,14 @@ public class SupplyChainFetcherFactoryTest {
         // ACT
         SupplychainApiDTO result = supplyChainFetcherFactory.newApiDtoFetcher()
             .addSeedUuids(Collections.singleton(rgOidStr))
-            .entityTypes(Collections.singletonList(UIEntityType.REGION.apiStr()))
+            .entityTypes(Collections.singletonList(ApiEntityType.REGION.apiStr()))
             .fetch();
 
         // ASSERT
         assertThat(result.getSeMap().size(), is(1));
-        assertThat(result.getSeMap().get(UIEntityType.REGION.apiStr()).getEntitiesCount(),
+        assertThat(result.getSeMap().get(ApiEntityType.REGION.apiStr()).getEntitiesCount(),
             is(1));
-        assertTrue(result.getSeMap().get(UIEntityType.REGION.apiStr())
+        assertTrue(result.getSeMap().get(ApiEntityType.REGION.apiStr())
             .getConnectedProviderTypes().isEmpty());
     }
 
@@ -1168,8 +1154,8 @@ public class SupplyChainFetcherFactoryTest {
         final long rgId = 100L;
         final String rgIdStr = Long.toString(rgId);
 
-        final int vmTypeNumber = UIEntityType.VIRTUAL_MACHINE.typeNumber();
-        final String vmTypeStr = UIEntityType.VIRTUAL_MACHINE.apiStr();
+        final int vmTypeNumber = ApiEntityType.VIRTUAL_MACHINE.typeNumber();
+        final String vmTypeStr = ApiEntityType.VIRTUAL_MACHINE.apiStr();
 
         final TopologyDTO.TopologyEntityDTO hybridEntity =
                 TopologyDTO.TopologyEntityDTO.newBuilder()

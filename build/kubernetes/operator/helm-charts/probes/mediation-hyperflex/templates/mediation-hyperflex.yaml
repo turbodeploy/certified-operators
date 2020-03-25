@@ -62,6 +62,9 @@ spec:
           readOnly: true
         - mountPath: /tmp
           name: mediation-hyperflex-tmpfs0
+        - mountPath: /etc/targets
+          name: hyperflex-secrets
+          readOnly: true
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
     {{- if .Values.global.imagePullSecret }}
@@ -95,6 +98,10 @@ spec:
           optional: true
       - name: mediation-hyperflex-tmpfs0
         emptyDir: {}
+      - name: hyperflex-secrets
+        secret:
+          secretName: "hyperflex"
+          optional: true
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}

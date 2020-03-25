@@ -22,7 +22,7 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -91,7 +91,7 @@ public class BuyRiScopeHandler {
 
         // Entity scope (single Region)
         if (scopeId.isEntity() && scopeId.getScopeTypes().isPresent()) {
-            if (scopeId.getScopeTypes().get().equals(Collections.singleton(UIEntityType.REGION))) {
+            if (scopeId.getScopeTypes().get().equals(Collections.singleton(ApiEntityType.REGION))) {
                 return ImmutableSet.of(scopeId.oid());
             }
             return Collections.emptySet();
@@ -102,7 +102,7 @@ public class BuyRiScopeHandler {
             final UuidMapper.CachedGroupInfo groupInfo = scopeId.getCachedGroupInfo().get();
 
             // Group of regions
-            if (groupInfo.getEntityTypes().equals(Collections.singleton(UIEntityType.REGION))) {
+            if (groupInfo.getEntityTypes().equals(Collections.singleton(ApiEntityType.REGION))) {
                 return groupInfo.getEntityIds();
             }
 
@@ -124,8 +124,8 @@ public class BuyRiScopeHandler {
      * @return true if the RI buy should be included, false otherwise.
      */
     public boolean shouldIncludeBuyRiDiscount(@Nonnull final ApiId inputScope) {
-        //only allow non-observer users.
-        if (UserScopeUtils.isUserObserver()) {
+        //only allow non-scoped-observer users.
+        if (UserScopeUtils.isUserObserver() && UserScopeUtils.isUserScoped()) {
             return false;
         }
         // The buy RI discount should be shown in the realtime market (global) scope and plans.
@@ -133,12 +133,12 @@ public class BuyRiScopeHandler {
             return true;
         } else if (inputScope.isEntity() && inputScope.getScopeTypes().isPresent()) {
             // The buy RI discount should be shown in scope of a region
-            return inputScope.getScopeTypes().get().equals(Collections.singleton(UIEntityType.REGION));
+            return inputScope.getScopeTypes().get().equals(Collections.singleton(ApiEntityType.REGION));
         } else if (inputScope.isGroup() && inputScope.getCachedGroupInfo().isPresent()) {
             final UuidMapper.CachedGroupInfo groupInfo = inputScope.getCachedGroupInfo().get();
 
             // If it is a group of region we should not exclude the buy RI discount
-            if (groupInfo.getEntityTypes().equals(Collections.singleton(UIEntityType.REGION))) {
+            if (groupInfo.getEntityTypes().equals(Collections.singleton(ApiEntityType.REGION))) {
                 return true;
             }
             // Otherwise only return true if this is a billing family or group of billing family

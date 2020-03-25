@@ -12,46 +12,46 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.flywaydb.core.Flyway;
+import com.google.common.collect.Sets;
+
 import org.jooq.DSLContext;
 import org.jooq.Result;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
+import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.topology.processor.db.enums.EntityActionStatus;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=topology_processor"})
 public class EntityActionDaoImpTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(TopologyProcessor.TOPOLOGY_PROCESSOR);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    private Flyway flyway;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private EntityActionDaoImp controllableDaoImp;
+    private EntityActionDaoImp controllableDaoImp = new EntityActionDaoImp(dsl, SUCCEED_EXPIRED_SECONDS,
+                                                IN_PROGRESS_EXPIRED_SECONDS, ACTIVATE_SUCCEED_SECONDS,
+                                                SCALE_SUCCEED_SECONDS, RESIZE_SUCCEED_SECONDS);
 
     private static final int IN_PROGRESS_EXPIRED_SECONDS = 3000;
 
@@ -67,8 +67,6 @@ public class EntityActionDaoImpTest {
 
     final Set<Long> entityIds = Sets.newHashSet(1L, 2L);
 
-    private DSLContext dsl;
-
     private static final long MOVE_ACTION_ID = 20L;
 
     private static final long RESIZE_ACTION_ID = 30L;
@@ -80,22 +78,6 @@ public class EntityActionDaoImpTest {
     private static final long RESIZE_ENTITY_ID = 300L;
 
     private static final long SCALE_ENTITY_ID = 400L;
-
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        controllableDaoImp = new EntityActionDaoImp(dsl, SUCCEED_EXPIRED_SECONDS,
-                IN_PROGRESS_EXPIRED_SECONDS, ACTIVATE_SUCCEED_SECONDS,
-                SCALE_SUCCEED_SECONDS, RESIZE_SUCCEED_SECONDS);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
 
     @Test
     public void testInsertQueuedControllable() {

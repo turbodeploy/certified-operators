@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntitySettingsCollection;
@@ -26,6 +27,7 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 public class HistoryAggregationContext {
     private static final Logger logger = LogManager.getLogger();
 
+    private final TopologyInfo topologyInfo;
     private final TopologyGraph<TopologyEntity> graph;
     private final ICommodityFieldAccessor accessor;
     private final EntitySettingsCollection entitySettings;
@@ -34,10 +36,13 @@ public class HistoryAggregationContext {
     /**
      * Construct the context.
      *
+     * @param topologyInfo information about currently processing topology snapshot.
      * @param graphWithSettings topology graph
      * @param isPlan whether the pipeline is for plan
      */
-    public HistoryAggregationContext(@Nonnull GraphWithSettings graphWithSettings, boolean isPlan) {
+    public HistoryAggregationContext(@Nonnull TopologyInfo topologyInfo,
+                    @Nonnull GraphWithSettings graphWithSettings, boolean isPlan) {
+        this.topologyInfo = topologyInfo;
         this.graph = graphWithSettings.getTopologyGraph();
         this.accessor = new CommodityFieldAccessor(graph);
         this.isPlan = isPlan;
@@ -106,6 +111,15 @@ public class HistoryAggregationContext {
     @Nonnull
     public ICommodityFieldAccessor getAccessor() {
         return accessor;
+    }
+
+    /**
+     * Returns topology identifier for which history aggregation is running for.
+     *
+     * @return topology identifier.
+     */
+    public long getTopologyId() {
+        return topologyInfo.getTopologyId();
     }
 
     public boolean isPlan() {

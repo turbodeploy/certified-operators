@@ -1,8 +1,8 @@
 package com.vmturbo.repository.service;
 
-import static com.vmturbo.components.common.utils.StringConstants.KEY;
-import static com.vmturbo.components.common.utils.StringConstants.PRICE_INDEX;
-import static com.vmturbo.components.common.utils.StringConstants.VIRTUAL_DISK;
+import static com.vmturbo.common.protobuf.utils.StringConstants.KEY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_DISK;
 
 import java.util.Collections;
 import java.util.List;
@@ -25,12 +25,14 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtilizationValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -135,6 +137,8 @@ interface PlanEntityStatsExtractor {
                             commodityBoughtDTO.getUsed(),
                             commodityBoughtDTO.getPeak()));
                     final StatValue usedValues = accumulator.toStatValue();
+                    // Currently, there are no requirements to set percentile for commodity bought
+                    // stats. So setting histUtilizationValue to null.
                     final StatRecord statRecord =
                         buildStatRecord(commodityName, key, usedValues,
                                 PlanEntityStatsExtractorUtil.buildStatValue(0), providerOidString,
@@ -164,20 +168,41 @@ interface PlanEntityStatsExtractor {
                 final String key = commoditySoldDTOS.size() == 1 ? commodityType.getKey() : "";
                 StatsAccumulator accumulator = new StatsAccumulator();
                 StatsAccumulator capacityAccumulator = new StatsAccumulator();
-                commoditySoldDTOS.stream()
-                    .forEach(commodityBoughtDTO -> {
+                commoditySoldDTOS.forEach(commoditySoldDTO -> {
                         accumulator.record(
-                            commodityBoughtDTO.getUsed(),
-                            commodityBoughtDTO.getPeak());
-                        if (commodityBoughtDTO.hasCapacity()) {
-                            capacityAccumulator.record(commodityBoughtDTO.getCapacity());
+                                commoditySoldDTO.getUsed(),
+                                commoditySoldDTO.getPeak());
+                        if (commoditySoldDTO.hasCapacity()) {
+                            capacityAccumulator.record(commoditySoldDTO.getCapacity());
                         }
                     });
                 final StatValue usedValues = accumulator.toStatValue();
                 final StatValue capacityValue = capacityAccumulator.toStatValue();
+
+                // If the percentile value is available and only 1 commodity exists for this
+                // commodity type (i.e. no aggregation is needed), include the percentile value in
+                // the stat record. We cannot aggregate percentile values of different commodities.
+                HistUtilizationValue percentileValue = null;
+                if (commoditySoldDTOS.size() == 1) {
+                    final CommoditySoldDTO commoditySoldDTO = commoditySoldDTOS.iterator().next();
+                    final HistoricalValues historicalValues = commoditySoldDTO.getHistoricalUsed();
+                    if (historicalValues != null && historicalValues.hasPercentile()) {
+                        final double percentile = historicalValues.getPercentile();
+                        final double capacity = commoditySoldDTO.getCapacity();
+                        final StatValue percentileUsage = StatValue.newBuilder()
+                                .setAvg((float)(capacity * percentile))
+                                .build();
+                        percentileValue = HistUtilizationValue.newBuilder()
+                                .setType(StringConstants.PERCENTILE)
+                                .setUsage(percentileUsage)
+                                .setCapacity(capacityValue)
+                                .build();
+                    }
+                }
+
                 final StatRecord statRecord =
                     buildStatRecord(commodityName, key, usedValues, capacityValue, entityOidString,
-                        StringConstants.RELATION_SOLD);
+                        StringConstants.RELATION_SOLD, percentileValue);
                 snapshot.addStatRecords(statRecord);
             });
 
@@ -254,6 +279,7 @@ interface PlanEntityStatsExtractor {
          * @param providerOidString the OID for the provider - either this SE for sold, or the 'other'
          *                          SE for bought commodities
          * @param relation the relation ("bought" or "sold") of the commodity to the entity
+         * @param histUtilizationValue historical utilization value
          * @return a new StatRecord initialized from the given values
          */
         private StatRecord buildStatRecord(@Nonnull final String commodityName,
@@ -261,9 +287,10 @@ interface PlanEntityStatsExtractor {
                                            @Nonnull final StatValue used,
                                            @Nonnull final StatValue capacity,
                                            @Nonnull final String providerOidString,
-                                           @Nonnull final String relation) {
+                                           @Nonnull final String relation,
+                                           @Nullable final HistUtilizationValue histUtilizationValue) {
             final String units = CommodityTypeUnits.fromString(commodityName).getUnits();
-            StatRecord statRecord = StatRecord.newBuilder()
+            StatRecord.Builder statRecordBuilder = StatRecord.newBuilder()
                 .setName(commodityName)
                 .setUnits(units)
                 .setCurrentValue(used.getAvg())

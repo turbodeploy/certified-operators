@@ -1,5 +1,7 @@
 package com.vmturbo.history.db.queries;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE;
+
 import java.sql.Timestamp;
 
 import org.jooq.Query;
@@ -15,6 +17,7 @@ import com.vmturbo.history.db.QueryTestBase;
  * Test class for {@link AvailableEntityTimestampsQuery} query builder.
  */
 public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
+    private static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = EntityType.named(PHYSICAL_MACHINE).get();
     private QueryChecker queryChecker;
 
     /**
@@ -61,7 +64,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
     @Test
     public void testWithEntityType() {
         Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
-                EntityType.PHYSICAL_MACHINE, null, 0,
+                PHYSICAL_MACHINE_ENTITY_TYPE, null, 0,
                 null, null, false).getQuery();
         queryChecker.withTables("pm_stats_latest")
                 .withSelectFields("pm_stats_latest.snapshot_time")
@@ -75,8 +78,7 @@ public class AvailableEntityTimestampsQueryTest extends QueryTestBase {
     @Test
     public void testWithEntityOid() {
         Query query = new AvailableEntityTimestampsQuery(TimeFrame.LATEST,
-                EntityType.PHYSICAL_MACHINE, "xyzzy", 0,
-                null, null, false).getQuery();
+                PHYSICAL_MACHINE_ENTITY_TYPE, "xyzzy", 0, null, null, false).getQuery();
         queryChecker
                 // TODO reinstate check for index hint when the hint is back in
 //                .withTables("pm_stats_latest FORCE INDEX \\(uuid\\)")

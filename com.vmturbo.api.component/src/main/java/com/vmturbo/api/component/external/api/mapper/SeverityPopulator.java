@@ -220,6 +220,15 @@ public class SeverityPopulator {
         }
 
         /**
+         * Create an empty {@link SeverityMap}.
+         *
+         * @return The {@link SeverityMap}.
+         */
+        public static SeverityMap empty() {
+            return new SeverityMapImpl(Collections.emptyMap());
+        }
+
+        /**
          * Return the severity for an entity by ID. If the entity is unknown, return NORMAL.
          *
          * @param id The id of the entity whose severity should be retrieved..

@@ -37,7 +37,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.OptScope;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -169,7 +169,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
      */
     private static String entityTypesListToAQL(@Nonnull Set<Integer> entityTypes) {
         return "[" + entityTypes.stream()
-            .map(UIEntityType::fromType)
+            .map(ApiEntityType::fromType)
             .map(entityType -> "\"" + entityType + "\"")
             .collect(Collectors.joining(",")) + "]";
     }
@@ -376,7 +376,7 @@ public class ArangoDBExecutor implements GraphDBExecutor {
             if (request.hasEntityType()) {
                 queryBuilder
                     .append("FILTER service_entity.entityType == \"")
-                    .append(UIEntityType.fromType(request.getEntityType()))
+                    .append(ApiEntityType.fromType(request.getEntityType()))
                     .append("\"\n");
             }
             if (entityOids != null && !entityOids.isEmpty()) {

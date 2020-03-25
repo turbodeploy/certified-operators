@@ -122,6 +122,7 @@
 
                             <name>org.jooq.meta.mysql.MySQLDatabase</name>
                             <includes>.*</includes>
+                            <excludes>schema_version</excludes>
 
                             <inputSchema>${db.schema}</inputSchema>
                             <outputSchema>${target.db.schema}</outputSchema>
@@ -270,8 +271,7 @@
         <!-- Test dependencies -->
         <dependency>
             <groupId>com.vmturbo</groupId>
-            <artifactId>sql-utils</artifactId>
-            <scope>test</scope>
+            <artifactId>sql-test-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>junit</groupId>

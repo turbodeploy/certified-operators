@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -88,18 +89,16 @@ public class ReservedInstanceBoughtRpcServiceTest {
     private PriceTableStore priceTableStore = mock(PriceTableStore.class);
 
     private ReservedInstanceBoughtRpcService service = new ReservedInstanceBoughtRpcService(
-                reservedInstanceBoughtStore,
-                   reservedInstanceMappingStore, repositoryClient, supplyChainService,
-                   planClient, realtimeTopologyContextId, priceTableStore,
-                   reservedInstanceSpecStore);
+            reservedInstanceBoughtStore,
+            reservedInstanceMappingStore, repositoryClient, supplyChainService,
+            planClient, realtimeTopologyContextId, priceTableStore,
+            reservedInstanceSpecStore);
 
     /**
      * Set up a test GRPC server.
      */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(service);
-
-
 
     private ReservedInstanceBoughtServiceBlockingStub client;
 
@@ -251,21 +250,15 @@ public class ReservedInstanceBoughtRpcServiceTest {
          allBusinessAccounts.add(topologyEntityAccount2);
          allBusinessAccounts.add(topologyEntityAccountMaster);
 
-         List<Long> scopeIds = new ArrayList<>();
+         Boolean shared = true;
          // Sub-account to related accounts association.
-         scopeIds.add(7L);
-         assertEquals(3, repositoryClient
-                         .parseRelatedBusinessAccountOrSubscriptionOids(scopeIds,
-                                                                        allBusinessAccounts)
-                         .size());
-
-         scopeIds.clear();
+         assertEquals(3, RepositoryClient.getFilteredScopeBusinessAccountOids(
+                 Sets.newHashSet(7L),
+                 allBusinessAccounts).size());
          // master account to sub-accounts association.
-         scopeIds.add(777L);
-         assertEquals(3, repositoryClient
-                         .parseRelatedBusinessAccountOrSubscriptionOids(scopeIds,
-                                                                        allBusinessAccounts)
-                         .size());
+         assertEquals(3, repositoryClient.getFilteredScopeBusinessAccountOids(
+                 Sets.newHashSet(777L),
+                 allBusinessAccounts).size());
      }
 
     /**

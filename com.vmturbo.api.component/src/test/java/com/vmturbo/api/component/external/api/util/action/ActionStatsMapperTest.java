@@ -45,7 +45,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat.StatGroup;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 public class ActionStatsMapperTest {
 
@@ -113,6 +113,7 @@ public class ActionStatsMapperTest {
                 .setActionState(ActionState.READY)
                 .setActionType(ActionType.ACTIVATE)
                 .setCostType(ActionDTO.ActionCostType.SAVINGS)
+                .setSeverity(ActionDTO.Severity.CRITICAL)
                 .setActionExplanation("Mem congestion")
                 .setTargetEntityId(111))
             .setActionCount(3)
@@ -155,6 +156,7 @@ public class ActionStatsMapperTest {
         verify(stat1Filters).setTargetEntityType(10);
         verify(stat1Filters).setTargetEntityId(111);
         verify(stat1Filters).setActionCostType(ActionDTO.ActionCostType.SAVINGS);
+        verify(stat1Filters).setActionRiskSeverity(ActionDTO.Severity.CRITICAL);
         verify(stat1Filters).setExplanation("Mem congestion");
         // We get the filters for each StatApiDTO.
         verify(stat1Filters, times(2)).getFilters();

@@ -1,17 +1,24 @@
 package com.vmturbo.topology.processor.history.timeslot;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
@@ -48,15 +55,60 @@ public class TimeSlotEditor extends
                         CommodityDTO.CommodityType.POOL_MEM,
                         CommodityDTO.CommodityType.POOL_STORAGE);
 
+    private final Cache<Long, Map<Long, Integer>> topologyToApplicableEntityToPeriod =
+                    CacheBuilder.newBuilder().expireAfterAccess(12, TimeUnit.HOURS).build();
+
+    /**
+     * Stores information about time when we first time started TP. It is required to re-enable back
+     * TimeSlot analysis in the following scenario:
+     * <ol>
+     *     <li> TP started, but background loading process failed and whole TimeSlot analysis
+     *     was disabled.
+     *     <li> In case TP successfully was working and collecting data for more than observation
+     *     period time required for TimeSlot analysis we want to enable TimeSlot analysis back.
+     *     Moreover since that moment of time we are clearing background loading statistic and
+     *     background loading is ready to process big amount of data in background mode as usually.
+     * </ol>
+     */
+    private long startTimestamp;
+
     /**
      * Construct the timeslot historical values editor.
      *
      * @param config configuration settings
      * @param statsHistoryClient history component stub
+     * @param loadingPool loads data for time slot analysis in background.
      */
     public TimeSlotEditor(TimeslotHistoricalEditorConfig config,
-                          StatsHistoryServiceBlockingStub statsHistoryClient) {
-        super(config, statsHistoryClient, TimeSlotLoadingTask::new, TimeSlotCommodityData::new);
+                    StatsHistoryServiceBlockingStub statsHistoryClient,
+                    @Nonnull ExecutorService loadingPool) {
+        this(config, statsHistoryClient, loadingPool, TimeSlotLoadingTask::new);
+    }
+
+    /**
+     * Construct the timeslot historical values editor.
+     *
+     * @param config configuration settings
+     * @param statsHistoryClient history component stub
+     * @param loadingPool loads data for time slot analysis in background.
+     * @param loadingTaskSupplier creator of task that will do background loading
+     */
+    public TimeSlotEditor(TimeslotHistoricalEditorConfig config,
+                    StatsHistoryServiceBlockingStub statsHistoryClient,
+                    @Nonnull ExecutorService loadingPool,
+                    @Nonnull Function<StatsHistoryServiceBlockingStub, TimeSlotLoadingTask> loadingTaskSupplier) {
+        super(config, statsHistoryClient, loadingTaskSupplier, TimeSlotCommodityData::new,
+                        loadingPool);
+    }
+
+    @Override
+    public void initContext(@Nonnull HistoryAggregationContext context,
+                    @Nonnull List<EntityCommodityReference> eligibleComms)
+                    throws HistoryCalculationException, InterruptedException {
+        super.initContext(context, eligibleComms);
+        if (!context.isPlan() && startTimestamp <= 0) {
+            startTimestamp = getConfig().getClock().millis();
+        }
     }
 
     @Override
@@ -94,15 +146,16 @@ public class TimeSlotEditor extends
     public List<? extends Callable<List<EntityCommodityFieldReference>>>
            createPreparationTasks(@Nonnull HistoryAggregationContext context,
                                   @Nonnull List<EntityCommodityReference> commodityRefs) {
+        if (!hasEnoughHistoricalData(context, commodityRefs)) {
+            return Collections.emptyList();
+        }
         List<EntityCommodityReference> uninitializedCommodities =
                         gatherUninitializedCommodities(commodityRefs);
         // partition by configured observation window first
         // we are only interested in business users
-        Map<Long, Integer> user2period = context.entityToSetting(
-                        this::isEntityApplicable,
-                        entity -> getConfig().getObservationPeriod(context, entity.getOid()));
+        final Map<Long, Integer> entity2period = getApplicableEntityToPeriod(context);
         Map<Integer, List<EntityCommodityReference>> period2comms = uninitializedCommodities.stream()
-                        .collect(Collectors.groupingBy(comm -> user2period.get(comm.getEntityOid())));
+                        .collect(Collectors.groupingBy(comm -> entity2period.get(comm.getEntityOid())));
 
         List<HistoryLoadingCallable> loadingTasks = new LinkedList<>();
         for (Map.Entry<Integer, List<EntityCommodityReference>> period2comm : period2comms.entrySet()) {
@@ -120,14 +173,50 @@ public class TimeSlotEditor extends
     }
 
     @Override
+    protected boolean hasEnoughHistoricalData(@Nonnull HistoryAggregationContext context,
+                    @Nonnull List<EntityCommodityReference> commodityRefs) {
+        if (super.hasEnoughHistoricalData(context, commodityRefs)) {
+            return true;
+        }
+        final int maxObservationPeriod =
+                        getApplicableEntityToPeriod(context).values().stream().mapToInt(i -> i)
+                                        .max().orElse(Integer.MAX_VALUE);
+        final long runningTime = getConfig().getClock().millis() - startTimestamp;
+        final boolean hasHistoricalData =
+                        runningTime > Duration.ofDays(maxObservationPeriod).toMillis();
+        if (hasHistoricalData) {
+            clearLoadingStatistic();
+            getLogger().info(
+                            "Data collected for '{}'ms, which is greater than '{}' days (max observation period). So, analysis will be re-enabled",
+                            runningTime, maxObservationPeriod);
+        }
+        return hasHistoricalData;
+    }
+
+    private Map<Long, Integer> getApplicableEntityToPeriod(
+                    @Nonnull HistoryAggregationContext context) {
+        try {
+            return topologyToApplicableEntityToPeriod.get(context.getTopologyId(),
+                            () -> context.entityToSetting(this::isEntityApplicable,
+                                            entity -> getConfig().getObservationPeriod(context,
+                                                            entity.getOid())));
+        } catch (ExecutionException e) {
+            getLogger().error("Cannot get applicable entity to observation period mapping",
+                            e.getCause());
+        }
+        return Collections.emptyMap();
+    }
+
+    @Override
     public void completeBroadcast(@Nonnull HistoryAggregationContext context)
             throws HistoryCalculationException, InterruptedException {
         updateSoldHistoricalTimeSlotValues(context);
         super.completeBroadcast(context);
+        topologyToApplicableEntityToPeriod.invalidate(context.getTopologyId());
     }
 
     private void updateSoldHistoricalTimeSlotValues(final HistoryAggregationContext context) {
-        // Retrieve all desk top pool entities with the associated observation period setting
+        // Retrieve all desktop pool entities with the associated observation period setting
         final Map<Long, Integer> dP2Period = context.entityToSetting(
                 topologyEntity -> EntityType.DESKTOP_POOL_VALUE == topologyEntity.getEntityType(),
                 entity -> getConfig().getSlots(context, entity.getOid()));
@@ -136,7 +225,7 @@ public class TimeSlotEditor extends
         List<EntityCommodityFieldReference> soldFieldReferences =
                 new ArrayList<>();
         for (final Long dpOid : dP2Period.keySet()) {
-            ENABLED_BOUGHT_COMMODITY_TYPES.stream().forEach(type -> {
+            ENABLED_BOUGHT_COMMODITY_TYPES.forEach(type -> {
                 soldFieldReferences.add(new EntityCommodityFieldReference(dpOid,
                         TopologyDTO.CommodityType.newBuilder().setType(type.getNumber()).build(),
                         CommodityField.USED));

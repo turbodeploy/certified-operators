@@ -401,6 +401,15 @@ public class CommodityConverter {
         return commodityTypeAllocator.marketToTopologyCommodity(marketCommodity, slotIndex);
     }
 
+    /**
+     * Check if commodity for the specified market ID is timeslot commodity.
+     *
+     * @param marketCommodityId Market commodity ID
+     * @return True if timeslot commodity
+     */
+    public boolean isTimeSlotCommodity(final int marketCommodityId) {
+        return commodityTypeAllocator.isTimeSlotCommodity(marketCommodityId);
+    }
 
     /**
      * Constructs a string that can be used for debug purposes.

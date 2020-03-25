@@ -1,7 +1,7 @@
 package com.vmturbo.history.stats.readers;
 
-import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.components.common.utils.StringConstants.UUID;
+import static com.vmturbo.common.protobuf.utils.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 
@@ -45,7 +45,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;

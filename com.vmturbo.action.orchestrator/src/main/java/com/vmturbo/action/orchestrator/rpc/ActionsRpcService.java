@@ -296,8 +296,11 @@ public class ActionsRpcService extends ActionsServiceImplBase {
 
                     Tracing.log("Finished pagination.");
 
+                    final PaginationResponse.Builder paginationResponseBuilder =
+                        responseBuilder.getPaginationResponseBuilder();
+                    paginationResponseBuilder.setTotalRecordCount(paginatedViews.getTotalRecordCount());
                     paginatedViews.getNextCursor().ifPresent(nextCursor ->
-                            responseBuilder.getPaginationResponseBuilder().setNextCursor(nextCursor));
+                            paginationResponseBuilder.setNextCursor(nextCursor));
 
                     actionTranslator.translateToSpecs(paginatedViews.getResults())
                             .map(ActionsRpcService::aoAction)

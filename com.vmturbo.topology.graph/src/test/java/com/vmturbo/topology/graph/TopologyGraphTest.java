@@ -21,7 +21,7 @@ import org.junit.rules.ExpectedException;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class TopologyGraphTest {
@@ -33,18 +33,18 @@ public class TopologyGraphTest {
      *    \ /
      *     1     DATACENTER
      */
-    private final TestGraphEntity.Builder onPremDC = TestGraphEntity.newBuilder(1L, UIEntityType.DATACENTER);
+    private final TestGraphEntity.Builder onPremDC = TestGraphEntity.newBuilder(1L, ApiEntityType.DATACENTER);
     private final TestGraphEntity.Builder onPremPM1 =
-            TestGraphEntity.newBuilder(2L, UIEntityType.PHYSICAL_MACHINE)
+            TestGraphEntity.newBuilder(2L, ApiEntityType.PHYSICAL_MACHINE)
                 .addProviderId(1L);
     private final TestGraphEntity.Builder onPremPM2 =
-            TestGraphEntity.newBuilder(3L, UIEntityType.PHYSICAL_MACHINE)
+            TestGraphEntity.newBuilder(3L, ApiEntityType.PHYSICAL_MACHINE)
                 .addProviderId(1L);
     private final TestGraphEntity.Builder onPremVM1 =
-            TestGraphEntity.newBuilder(4L, UIEntityType.VIRTUAL_MACHINE)
+            TestGraphEntity.newBuilder(4L, ApiEntityType.VIRTUAL_MACHINE)
                 .addProviderId(2L);
     private final TestGraphEntity.Builder onPremVM2 =
-            TestGraphEntity.newBuilder(5L, UIEntityType.VIRTUAL_MACHINE)
+            TestGraphEntity.newBuilder(5L, ApiEntityType.VIRTUAL_MACHINE)
                 .addProviderId(2L);
     private final Map<Long, TestGraphEntity.Builder> onPremTopologyMap = ImmutableMap.of(
         1L, onPremDC,
@@ -74,7 +74,7 @@ public class TopologyGraphTest {
 
     @Test
     public void testEntityAppearsMoreThanOnce() {
-        final TestGraphEntity.Builder entity4Duplicate = TestGraphEntity.newBuilder(4L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity.Builder entity4Duplicate = TestGraphEntity.newBuilder(4L, ApiEntityType.VIRTUAL_MACHINE)
             .addProviderId(2L);
 
         final Map<Long, TestGraphEntity.Builder> topologyMap = ImmutableMap.of(
@@ -132,9 +132,9 @@ public class TopologyGraphTest {
          */
 
         final TopologyGraph<TestGraphEntity> graph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(1L, UIEntityType.PHYSICAL_MACHINE),
-            TestGraphEntity.newBuilder(2L, UIEntityType.STORAGE),
-            TestGraphEntity.newBuilder(3L, UIEntityType.VIRTUAL_MACHINE)
+            TestGraphEntity.newBuilder(1L, ApiEntityType.PHYSICAL_MACHINE),
+            TestGraphEntity.newBuilder(2L, ApiEntityType.STORAGE),
+            TestGraphEntity.newBuilder(3L, ApiEntityType.VIRTUAL_MACHINE)
                 .addProviderId(1L)
                 .addProviderId(2L));
 
@@ -230,9 +230,9 @@ public class TopologyGraphTest {
          *   / \
          *  1   2
          */
-        final TestGraphEntity.Builder entity1 = TestGraphEntity.newBuilder(1L, UIEntityType.PHYSICAL_MACHINE);
-        final TestGraphEntity.Builder entity2 = TestGraphEntity.newBuilder(2L, UIEntityType.STORAGE);
-        final TestGraphEntity.Builder entity3 = TestGraphEntity.newBuilder(3L, UIEntityType.VIRTUAL_MACHINE)
+        final TestGraphEntity.Builder entity1 = TestGraphEntity.newBuilder(1L, ApiEntityType.PHYSICAL_MACHINE);
+        final TestGraphEntity.Builder entity2 = TestGraphEntity.newBuilder(2L, ApiEntityType.STORAGE);
+        final TestGraphEntity.Builder entity3 = TestGraphEntity.newBuilder(3L, ApiEntityType.VIRTUAL_MACHINE)
             .addProviderId(1L)
             .addProviderId(2L);
 

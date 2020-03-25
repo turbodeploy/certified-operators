@@ -46,7 +46,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -147,7 +147,7 @@ public class PlanStatsService {
      * @param paginationParameters describes if and how to paginate the response
      * @param entityReturnType indicates what level of detail of entities to include in the response
      * @param responseObserver the sync for entity stats constructed here and returned to caller
-     * @param relatedEntityType the {@link UIEntityType} string version specifying entities targeted
+     * @param relatedEntityType the {@link ApiEntityType} string version specifying entities targeted
      */
     public void getPlanTopologyStats(@Nonnull final TopologyProtobufReader reader,
                                      @Nonnull final StatEpoch statEpoch,
@@ -262,7 +262,7 @@ public class PlanStatsService {
      * @param paginationParameters describes if and how to paginate the response
      * @param entityReturnType indicates what level of detail of entities to include in the response
      * @param responseObserver stream for entity stats constructed here to be returned to the caller
-     * @param relatedEntityType the {@link UIEntityType} string version specifying entities targeted
+     * @param relatedEntityType the {@link ApiEntityType} string version specifying entities targeted
      */
     public void getPlanCombinedStats(@Nonnull final TopologyProtobufReader sourceReader,
                                      @Nonnull final TopologyProtobufReader projectedReader,
@@ -357,12 +357,12 @@ public class PlanStatsService {
      * Filter and maps {@link CommodityRequest} collection to set of supported.
      *
      * @param commodityRequests collection of request to filter and map.
-     * @param relatedEntityType the {@link UIEntityType} string version specifying entities targeted
+     * @param relatedEntityType the {@link ApiEntityType} string version specifying entities targeted
      * @return set of densityStats collected from {@link CommodityRequest}s
      */
     private Set<String> getFilteredDensityStats(@Nonnull List<CommodityRequest> commodityRequests,
             @Nullable final String relatedEntityType) {
-        final String finalDensityName = getSupportedDensityStatNameForEnityType(UIEntityType.fromString(relatedEntityType));
+        final String finalDensityName = getSupportedDensityStatNameForEnityType(ApiEntityType.fromString(relatedEntityType));
 
         if (finalDensityName == null) {
             return Collections.emptySet();
@@ -375,12 +375,12 @@ public class PlanStatsService {
     }
 
     /**
-     * Returns supported density stat name for {@link UIEntityType}.
+     * Returns supported density stat name for {@link ApiEntityType}.
      *
      * @param relatedEntityType the entityType whos support density stats is wanted
      * @return the density stat name supported for entityType or null
      */
-    private String getSupportedDensityStatNameForEnityType(@Nullable UIEntityType relatedEntityType) {
+    private String getSupportedDensityStatNameForEnityType(@Nullable ApiEntityType relatedEntityType) {
         String densityName = null;
         switch (relatedEntityType) {
             case STORAGE:
@@ -413,9 +413,9 @@ public class PlanStatsService {
 
     /**
      * Predicate over CommoditiesBoughtFromProvider returning true if providersEntityType matches
-     * the {@link UIEntityType} string version.
+     * the {@link ApiEntityType} string version.
      *
-     * @param relatedEntityType the {@link UIEntityType} string version to match
+     * @param relatedEntityType the {@link ApiEntityType} string version to match
      * @return  true if the provider entity type of the CommoditiesBoughtFromProvider
      *          matches the given relatedEntityType  OR if relatedEntityType is null
      */
@@ -424,7 +424,7 @@ public class PlanStatsService {
             return entityTypeValue -> true;
         }
 
-        final Integer relatedTypeSDKValue = UIEntityType.fromStringToSdkType(relatedEntityType);
+        final Integer relatedTypeSDKValue = ApiEntityType.fromStringToSdkType(relatedEntityType);
 
         return commoditiesBoughtFromProvider ->
                 commoditiesBoughtFromProvider.getProviderEntityType() == relatedTypeSDKValue;
@@ -432,7 +432,7 @@ public class PlanStatsService {
     }
 
     /**
-     * Gets set of providerIds selling to {@link TopologyEntityDTO} that match {@link UIEntityType}
+     * Gets set of providerIds selling to {@link TopologyEntityDTO} that match {@link ApiEntityType}
      * string version.
      *
      * @param entityDto the {@link TopologyEntityDTO} who providers we wish to match to relatedEntityType
@@ -474,7 +474,7 @@ public class PlanStatsService {
      * @param statsFilter determines which stats will be included
      * @param statEpoch the type of epoch to set on the stat snapshot
      * @param snapshotDate the date reported for the created stat snapshot
-     * @param relatedEntityType the {@link UIEntityType} string version specifying entities targeted
+     * @param relatedEntityType the {@link ApiEntityType} string version specifying entities targeted
      * @return a mapping of entityId to an {@link EntityAndStats} containing the requested stats
      */
     Map<Long, EntityAndStats> retrieveTopologyEntitiesAndStats(

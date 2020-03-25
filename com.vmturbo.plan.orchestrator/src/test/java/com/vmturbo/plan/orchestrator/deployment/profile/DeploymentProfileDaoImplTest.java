@@ -17,18 +17,12 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 
-import org.flywaydb.core.Flyway;
-import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
@@ -36,25 +30,28 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.plan.orchestrator.db.Tables;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateRecord;
 import com.vmturbo.plan.orchestrator.db.tables.records.TemplateToDeploymentProfileRecord;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit tests for {@link DeploymentProfileDaoImpl}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=plan"})
 public class DeploymentProfileDaoImplTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private DeploymentProfileDaoImpl deploymentProfileDao;
 
@@ -70,19 +67,7 @@ public class DeploymentProfileDaoImplTest {
     }
 
     private void prepareDatabase() throws Exception {
-        flyway = dbConfig.flyway();
-        final DSLContext dsl = dbConfig.dsl();
-        deploymentProfileDao = new DeploymentProfileDaoImpl(dsl);
-        flyway.clean();
-        flyway.migrate();
-    }
-
-    /**
-     * Clean up the database after the test runs.
-     */
-    @After
-    public void teardown() {
-        flyway.clean();
+        deploymentProfileDao = new DeploymentProfileDaoImpl(dbConfig.getDslContext());
     }
 
     /**
@@ -272,7 +257,7 @@ public class DeploymentProfileDaoImplTest {
     }
 
     private TemplateRecord createTemplateRecord(final long templateId) {
-        final TemplateRecord t1Record = dbConfig.dsl().newRecord(Tables.TEMPLATE);
+        final TemplateRecord t1Record = dbConfig.getDslContext().newRecord(Tables.TEMPLATE);
         t1Record.setId(templateId);
         t1Record.setName("foo");
         t1Record.setTemplateInfo(TemplateInfo.getDefaultInstance());
@@ -283,7 +268,7 @@ public class DeploymentProfileDaoImplTest {
 
     private TemplateToDeploymentProfileRecord createTemplateToDepProfRecord(final long templateId, final long profileId) {
         final TemplateToDeploymentProfileRecord t1Record1 =
-            dbConfig.dsl().newRecord(Tables.TEMPLATE_TO_DEPLOYMENT_PROFILE);
+            dbConfig.getDslContext().newRecord(Tables.TEMPLATE_TO_DEPLOYMENT_PROFILE);
         t1Record1.setTemplateId(templateId);
         t1Record1.setDeploymentProfileId(profileId);
         return t1Record1;

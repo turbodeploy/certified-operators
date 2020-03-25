@@ -490,9 +490,10 @@ public class RollupProcessor {
             } else if (table == CLUSTER_STATS_LATEST) {
                 return this == BY_HOUR ? table : CLUSTER_STATS_BY_HOUR;
             } else {
-                EntityType type = EntityType.fromTable(table);
+                EntityType type = EntityType.fromTable(table).orElse(null);
                 if (type != null) {
-                    return this == BY_HOUR ? type.getLatestTable() : type.getHourTable();
+                    return this == BY_HOUR ? type.getLatestTable().get()
+                            : type.getHourTable().get();
                 }
                 return null;
             }
@@ -652,8 +653,8 @@ public class RollupProcessor {
      * @return its prefix, if it's subject to rollups
      */
     private Optional<String> getTablePrefix(@Nonnull Table<?> table) {
-        EntityType entityType = EntityType.fromTable(table);
-        if (entityType != null) {
+        Optional<EntityType> entityType = EntityType.fromTable(table);
+        if (entityType.isPresent()) {
             // it's an entity table - get its prefix from reference data map
             return Optional.of(entityType.getTblPrfx());
         } else if (table == MARKET_STATS_LATEST) {

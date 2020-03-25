@@ -9,7 +9,9 @@ import static org.jooq.impl.DSL.trueCondition;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -21,7 +23,6 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -52,7 +53,7 @@ import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost;
 import com.vmturbo.common.protobuf.cost.Cost.EntityCost.ComponentCost.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.TimeUtil;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.db.tables.records.EntityCostRecord;
@@ -83,94 +84,20 @@ public class SqlEntityCostStore implements EntityCostStore {
         this.chunkSize = chunkSize;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void persistEntityCosts(@Nonnull final List<EntityCost> entityCosts,
-                                   @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology)
-            throws DbException, InvalidEntityCostsException {
-        final LocalDateTime curTime = LocalDateTime.now(clock);
-        Objects.requireNonNull(entityCosts);
-        if (!isValidEntityCosts(entityCosts)) {
-            throw new InvalidEntityCostsException("All entity cost must have associated entity id," +
-                    " spend type, component cost list, total amount ");
-        }
-
+    public void persistEntityCost(
+            @Nonnull final Map<Long, CostJournal<TopologyEntityDTO>> costJournals,
+            @Nonnull final CloudTopology<TopologyEntityDTO> cloudTopology,
+            final long topologyCreationTime) throws DbException {
+        final LocalDateTime createdTime =
+                Instant.ofEpochMilli(topologyCreationTime).atZone(ZoneOffset.UTC).toLocalDateTime();
         try {
-            logger.info("Persisting {} entity costs", entityCosts.size());
-            // We chunk the transactions for speed, and to avoid overloading the DB buffers
-            // on large topologies. Ideally this should be one transaction.
-            //
-            // TODO (roman, Sept 6 2018): Try to handle transaction failure (e.g. by deleting all
-            // committed data).
-            Lists.partition(entityCosts, chunkSize).forEach(chunk -> {
-                dsl.transaction(transaction -> {
-                    final DSLContext transactionContext = DSL.using(transaction);
-                    // Initialize the batch.
-                    final BatchBindStep batch = transactionContext.batch(
-                            //have to provide dummy values for jooq
-                            transactionContext.insertInto(ENTITY_COST)
-                                    .set(ENTITY_COST.ASSOCIATED_ENTITY_ID, 0L)
-                                    .set(ENTITY_COST.CREATED_TIME, curTime)
-                                    .set(ENTITY_COST.ASSOCIATED_ENTITY_TYPE, 0)
-                                    .set(ENTITY_COST.COST_TYPE, 0)
-                                    .set(ENTITY_COST.COST_SOURCE, 1)
-                                    .set(ENTITY_COST.CURRENCY, 0)
-                                    .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0))
-                                    .set(ENTITY_COST.ACCOUNT_ID, 0L)
-                                    .set(ENTITY_COST.AVAILABILITY_ZONE_ID, 0L)
-                                    .set(ENTITY_COST.REGION_ID, 0L)
-                    );
-
-                    // Bind values to the batch insert statement. Each "bind" should have values for
-                    // all fields set during batch initialization.
-                    chunk.forEach(entityCost -> entityCost.getComponentCostList()
-                            .forEach(componentCost -> {
-                                final Long entityOid = entityCost.getAssociatedEntityId();
-                                batch.bind(entityOid,
-                                    curTime,
-                                    entityCost.getAssociatedEntityType(),
-                                    componentCost.getCategory().getNumber(),
-                                    componentCost.getCostSource().getNumber(),
-                                    entityCost.getTotalAmount().getCurrency(),
-                                    BigDecimal.valueOf(componentCost.getAmount().getAmount()),
-                                    cloudTopology.getOwner(entityOid)
-                                        .map(TopologyEntityDTO::getOid).orElse(0L),
-                                    cloudTopology.getConnectedAvailabilityZone(entityOid)
-                                        .map(TopologyEntityDTO::getOid).orElse(0L),
-                                    cloudTopology.getConnectedRegion(entityOid)
-                                        .map(TopologyEntityDTO::getOid).orElse(0L));
-                                }
-                            ));
-                    if (batch.size() > 0) {
-                        logger.info("Persisting batch of size: {}", batch.size());
-                        // Actually execute the batch insert.
-                        batch.execute();
-                    }
-                });
-            });
-        } catch (DataAccessException e) {
-            throw new DbException("Failed to persist entity costs to DB" + e.getMessage());
-        }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void persistEntityCost(@Nonnull final Map<Long, CostJournal<TopologyEntityDTO>> costJournals,
-                                  @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) throws DbException {
-        final LocalDateTime curTime = LocalDateTime.now(clock);
-        Objects.requireNonNull(costJournals);
-        try {
-            logger.info("Persisting {} entity cost journals", costJournals.size());
+            logger.info("Persisting {} entity cost journals", costJournals::size);
 
             // We chunk the transactions for speed, and to avoid overloading the DB buffers
             // on large topologies. Ideally this should be one transaction.
-            //
             // TODO (roman, Sept 6 2018): Try to handle transaction failure (e.g. by deleting all
-            // committed data).
+            //  committed data).
             Iterators.partition(costJournals.values().iterator(), chunkSize)
                     .forEachRemaining(chunk -> dsl.transaction(transaction -> {
                         final DSLContext transactionContext = DSL.using(transaction);
@@ -179,7 +106,7 @@ public class SqlEntityCostStore implements EntityCostStore {
                                 //have to provide dummy values for jooq
                                 dsl.insertInto(ENTITY_COST)
                                         .set(ENTITY_COST.ASSOCIATED_ENTITY_ID, 0L)
-                                        .set(ENTITY_COST.CREATED_TIME, curTime)
+                                        .set(ENTITY_COST.CREATED_TIME, createdTime)
                                         .set(ENTITY_COST.ASSOCIATED_ENTITY_TYPE, 0)
                                         .set(ENTITY_COST.COST_TYPE, 0)
                                         .set(ENTITY_COST.COST_SOURCE, 0)
@@ -187,23 +114,24 @@ public class SqlEntityCostStore implements EntityCostStore {
                                         .set(ENTITY_COST.AMOUNT, BigDecimal.valueOf(0))
                                         .set(ENTITY_COST.ACCOUNT_ID, 0L)
                                         .set(ENTITY_COST.AVAILABILITY_ZONE_ID, 0L)
-                                        .set(ENTITY_COST.REGION_ID, 0L)
-                        );
+                                        .set(ENTITY_COST.REGION_ID, 0L));
 
                         // Bind values to the batch insert statement. Each "bind" should have values for
                         // all fields set during batch initialization.
                         chunk.forEach(journal -> journal.getCategories().forEach(costType -> {
-                            for (CostSource costSource : CostSource.values()) {
-                                final TraxNumber categoryCost = journal.getHourlyCostBySourceAndCategory(costType, costSource);
-                                final Long entityOid = journal.getEntity().getOid();
+                                    for (final CostSource costSource : CostSource.values()) {
+                                final TraxNumber categoryCost =
+                                        journal.getHourlyCostBySourceAndCategory(costType,
+                                                costSource);
                                 if (categoryCost != null) {
+                                    final long entityOid = journal.getEntity().getOid();
                                     batch.bind(entityOid,
-                                            curTime,
+                                            createdTime,
                                             journal.getEntity().getEntityType(),
                                             costType.getNumber(),
                                             costSource.getNumber(),
                                             // TODO (roman, Sept 5 2018): Not handling currency in cost
-                                            // calculation yet.
+                                            //  calculation yet.
                                             CurrencyAmount.getDefaultInstance().getCurrency(),
                                             BigDecimal.valueOf(categoryCost.getValue()),
                                             cloudTopology.getOwner(entityOid)
@@ -216,28 +144,16 @@ public class SqlEntityCostStore implements EntityCostStore {
 
                                 }
                             }
-                        }
-                        ));
+                        }));
 
                         if (batch.size() > 0) {
-                            logger.info("Persisting batch of size: {}", batch.size());
-                            // Actually execute the batch insert.
+                            logger.info("Persisting batch of size: {}", batch::size);
                             batch.execute();
                         }
                     }));
-
-        } catch (DataAccessException e) {
-            throw new DbException("Failed to persist entity costs to DB" + e.getMessage());
+        } catch (final DataAccessException e) {
+            throw new DbException("Failed to persist entity costs to DB", e);
         }
-    }
-
-    // ensure all the entity cost object has id, spend type, components and their amount/rate
-    private boolean isValidEntityCosts(final List<EntityCost> entityCosts) {
-        return entityCosts.stream().allMatch(entityCost ->
-                entityCost.hasAssociatedEntityId()
-                        && entityCost.hasAssociatedEntityType()
-                        && !entityCost.getComponentCostList().isEmpty()
-                        && entityCost.getComponentCostList().stream().allMatch(ComponentCost::hasAmount));
     }
 
     @Override
@@ -321,7 +237,7 @@ public class SqlEntityCostStore implements EntityCostStore {
         final Field<LocalDateTime> createdTimeField = getField(table, ENTITY_COST.CREATED_TIME);
         final Field<Integer> entityType = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_TYPE);
         final Field<Integer> costType = getField(table, ENTITY_COST.COST_TYPE);
-        final Set<Field<?>> selectableFields = Sets.newHashSet(costGroupBy.getGroupByFields());
+        final Set<Field<?>> selectableFields = Sets.newHashSet(groupByFields);
         selectableFields.add(createdTimeField);
         selectableFields.add(entityType);
         selectableFields.add(costType);
@@ -334,14 +250,13 @@ public class SqlEntityCostStore implements EntityCostStore {
                 .from(table)
                 .where(Arrays.asList(entityCostFilter.getConditions()))
                 .and(getConditionForEntityCost(dsl, entityCostFilter, createdTimeField, table))
-                .groupBy(ImmutableList.copyOf(groupByFields))
+                .groupBy(groupByFields)
                 .fetch();
         return createGroupByStatRecords(res, selectableFields);
     }
 
     @Nonnull
-    private Result<? extends Record> fetchRecords(
-            @Nonnull final CostFilter entityCostFilter) throws DataAccessException {
+    private Result<? extends Record> fetchRecords(@Nonnull final CostFilter entityCostFilter) {
         final Table<?> table = entityCostFilter.getTable();
         final Field<Long> entityId = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_ID);
         final Field<LocalDateTime> createdTime = getField(table, ENTITY_COST.CREATED_TIME);
@@ -417,8 +332,8 @@ public class SqlEntityCostStore implements EntityCostStore {
         return statRecordBuilder.build();
     }
 
-    private void setStatRecordValues(@Nonnull final StatRecord.Builder statRecordBuilder, final float avg,
-                                     final float max, float min, final float sum) {
+    private void setStatRecordValues(@Nonnull final StatRecord.Builder statRecordBuilder,
+            final float avg, final float max, final float min, final float sum) {
         statRecordBuilder.setName(StringConstants.COST_PRICE);
         statRecordBuilder.setUnits("$/h");
         statRecordBuilder.setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
@@ -507,15 +422,7 @@ public class SqlEntityCostStore implements EntityCostStore {
             @Nonnull final Field<LocalDateTime> createdTime,
             @Nonnull final Table<?> table) {
         if (entityCostFilter.isLatest()) {
-            return dsl.transactionResult(transaction -> {
-                final DSLContext transactionContext = DSL.using(transaction);
-                LocalDateTime res = transactionContext
-                        .select(max(createdTime))
-                        .from(table)
-                        .where(Arrays.asList(entityCostFilter.getConditions()))
-                        .fetchOne("max", LocalDateTime.class);
-                return createdTime.eq(res);
-            });
+            return createdTime.eq(dsl.select(max(createdTime)).from(table));
         } else {
             return trueCondition();
         }

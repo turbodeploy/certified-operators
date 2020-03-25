@@ -50,6 +50,8 @@ import com.vmturbo.group.group.IGroupStore.DiscoveredGroupId;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit test to cover {@link GroupDAO} functionality.
@@ -59,12 +61,14 @@ public class GroupDaoTest {
      * Rule to create the DB schema and migrate it.
      */
     @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule("group_component");
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
+
     /**
      * Rule to automatically cleanup DB data before each test.
      */
     @Rule
-    public DbCleanupRule dbCleanup = new DbCleanupRule(dbConfig, GroupComponent.GROUP_COMPONENT);
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
     private static final Set<MemberType> EXPECTED_MEMBERS =
             ImmutableSet.of(MemberType.newBuilder().setEntity(1).build(),
                     MemberType.newBuilder().setGroup(GroupType.COMPUTE_HOST_CLUSTER).build(),

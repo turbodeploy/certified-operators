@@ -22,6 +22,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.common.mail.MailConfiguration.EncryptionType;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OsMigrationProfileOption;
+import com.vmturbo.components.common.setting.RISettingsEnum.PreferredOfferingClass;
 
 /**
  * Enumeration for all the pre-built global settings.
@@ -94,7 +95,7 @@ public enum GlobalSettingSpecs {
             Collections.emptyList()),
 
     PlanRetentionDays("planRetentionDays", "Saved plans [Days]",
-            numeric(15f/*min*/, 365f/*max*/, 30f/*default*/),
+            numeric(1f/*min*/, 365f/*max*/, 14f/*default*/),
             Collections.emptyList()),
 
     MaxConcurrentPlanInstances("maxConcurrentPlanInstances", "Maximum Number of Plan Instances Allowed To Run Concurrently",
@@ -145,7 +146,7 @@ public enum GlobalSettingSpecs {
      * Global AZURE RI setting for Offering Class.
      */
     AzurePreferredOfferingClass("ri.azure.preferredOfferingClass", "Type",
-            new EnumSettingDataType<>(RISettingsEnum.PreferredOfferingClass.STANDARD,
+            new EnumSettingDataType<>(PreferredOfferingClass.CONVERTIBLE,
                                     RISettingsEnum.PreferredOfferingClass.class),
             Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AZURE)),
 

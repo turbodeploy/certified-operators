@@ -38,7 +38,7 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
@@ -533,7 +533,7 @@ public class EntityFilterMapperTest {
             "VirtualVolume", null);
         assertEquals(1, sp.size());
         final SearchParameters params = sp.get(0);
-        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_VOLUME),
+        assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME),
             params.getStartingFilter());
         assertEquals(1, params.getSearchFilterCount());
         final SearchFilter searchFilter = params.getSearchFilter(0);
@@ -663,7 +663,7 @@ public class EntityFilterMapperTest {
         final GroupApiDTO inputDTO = new GroupApiDTO();
         inputDTO.setCriteriaList(
                 Collections.singletonList(filterDTO(operator, expVal, "vmsByTag")));
-        inputDTO.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        inputDTO.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         final List<SearchParameters> parameters = entityFilterMapper.convertToSearchParameters(
                 inputDTO.getCriteriaList(), inputDTO.getClassName(), null);
         assertEquals(1, parameters.size());
@@ -691,11 +691,11 @@ public class EntityFilterMapperTest {
         final List<FilterApiDTO> criteriaList = Collections.singletonList(
             filterDTO(EntityFilterMapper.EQUAL, "asdf", "volumeByResourceGroup"));
         final List<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
-            criteriaList, UIEntityType.VIRTUAL_VOLUME.apiStr(), null);
+            criteriaList, ApiEntityType.VIRTUAL_VOLUME.apiStr(), null);
         assertEquals(1, result.size());
         final SearchParameters params = result.get(0);
 
-        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_VOLUME),
+        assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_VOLUME),
             params.getStartingFilter());
         assertEquals(1, params.getSearchFilterCount());
         final GroupFilter memFilter = params.getSearchFilter(0).getGroupFilter();
@@ -716,11 +716,11 @@ public class EntityFilterMapperTest {
         final List<FilterApiDTO> criteriaList = Collections.singletonList(
             filterDTO(EntityFilterMapper.NOT_EQUAL, "asdf", "databaseServerByResourceGroupUuid"));
         final List<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
-            criteriaList, UIEntityType.DATABASE_SERVER.apiStr(), null);
+            criteriaList, ApiEntityType.DATABASE_SERVER.apiStr(), null);
         assertEquals(1, result.size());
         final SearchParameters params = result.get(0);
 
-        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.DATABASE_SERVER),
+        assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.DATABASE_SERVER),
             params.getStartingFilter());
         assertEquals(1, params.getSearchFilterCount());
         final GroupFilter memFilter = params.getSearchFilter(0).getGroupFilter();

@@ -61,7 +61,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -404,15 +404,15 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, UIEntityType.REGION))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, ApiEntityType.REGION))) {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, UIEntityType.BUSINESS_ACCOUNT))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.OWNED_BY, UIEntityType.BUSINESS_ACCOUNT))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else {
                 throw new IllegalArgumentException(param.toString());
@@ -473,11 +473,11 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, UIEntityType.REGION))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, ApiEntityType.REGION))) {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, UIEntityType.BUSINESS_ACCOUNT))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else {
                 throw new IllegalArgumentException(param.toString());
@@ -538,11 +538,11 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-            if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+            if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(azureVm));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.STORAGE_TIER))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.STORAGE_TIER))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(azureStorageTier));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.OWNED_BY, UIEntityType.BUSINESS_ACCOUNT))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else {
                 throw new IllegalArgumentException(param.toString());
@@ -605,13 +605,13 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+            if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(azureVm));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, UIEntityType.REGION))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, ApiEntityType.REGION))) {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, UIEntityType.BUSINESS_ACCOUNT))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else {
                 throw new IllegalArgumentException(param.toString());
@@ -714,21 +714,21 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-           if (param.equals(SearchProtoUtil.neighborsOfType(storageTierId1, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME))) {
+           if (param.equals(SearchProtoUtil.neighborsOfType(storageTierId1, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(volume1, volume2));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureStorageTierId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureStorageTierId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(azureVolume));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(storageTierId1, TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(storageTierId1, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureStorageTierId, TraversalDirection.PRODUCES, UIEntityType.VIRTUAL_MACHINE))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureStorageTierId, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(azureVm));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId1, TraversalDirection.OWNED_BY, UIEntityType.BUSINESS_ACCOUNT))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId1, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId2, TraversalDirection.OWNED_BY, UIEntityType.BUSINESS_ACCOUNT))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId2, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.OWNED_BY, UIEntityType.BUSINESS_ACCOUNT))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId4, TraversalDirection.OWNED_BY, UIEntityType.BUSINESS_ACCOUNT))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId4, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else {
                 throw new IllegalArgumentException(param.toString());
@@ -1031,21 +1031,21 @@ public class VirtualVolumeAspectMapperTest {
 
         doAnswer(invocation -> {
             SearchParameters param = invocation.getArgumentAt(0, SearchParameters.class);
-            if (param.equals(SearchProtoUtil.neighborsOfType(storageId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME))) {
+            if (param.equals(SearchProtoUtil.neighborsOfType(storageId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(volume4, wastedFilesVolume));
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId4, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId4, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchCountReq(1);
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(wastedVolumeId1, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_MACHINE))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(wastedVolumeId1, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchCountReq(0);
-            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId4, TraversalDirection.CONNECTED_FROM, UIEntityType.BUSINESS_ACCOUNT))) {
+            } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeId4, TraversalDirection.CONNECTED_FROM, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else {
                 throw new IllegalArgumentException(param.toString());
             }
         }).when(repositoryApi).newSearchRequest(any(SearchParameters.class));
 
-        verify(repositoryApi, never()).newSearchRequest(SearchProtoUtil.neighborsOfType(storageId2, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME));
-        verify(repositoryApi, never()).newSearchRequest(SearchProtoUtil.neighborsOfType(storageId, TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME));
+        verify(repositoryApi, never()).newSearchRequest(SearchProtoUtil.neighborsOfType(storageId2, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME));
+        verify(repositoryApi, never()).newSearchRequest(SearchProtoUtil.neighborsOfType(storageId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME));
 
         MultiEntityRequest req = ApiTestUtils.mockMultiFullEntityReq(Lists.newArrayList(volume4, wastedFilesVolume));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(volumeId4, wastedVolumeId1))).thenReturn(req);
@@ -1055,7 +1055,7 @@ public class VirtualVolumeAspectMapperTest {
 
         // if ignoreWastedFiles for storage2 was honored, we should never search for storage2
         verify(repositoryApi, never()).newSearchRequest(SearchProtoUtil.neighborsOfType(storageId2,
-            TraversalDirection.CONNECTED_FROM, UIEntityType.VIRTUAL_VOLUME));
+            TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME));
 
         assertEquals(2, aspect.getVirtualDisks().size());
 

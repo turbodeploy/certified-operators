@@ -88,9 +88,11 @@ import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
+import com.vmturbo.topology.processor.targets.KvTargetDao;
+import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -134,10 +136,14 @@ public class OperationControllerTest {
         }
 
         @Bean
+        TargetDao targetDao() {
+            return new KvTargetDao(new MapKeyValueStore(), probeStore());
+        }
+
+        @Bean
         TargetStore targetStore() {
             GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
-            return new KVBackedTargetStore(new MapKeyValueStore(), probeStore(),
-                    targetIdentityStore());
+            return new CachingTargetStore(targetDao(), probeStore(), targetIdentityStore());
         }
 
         /**

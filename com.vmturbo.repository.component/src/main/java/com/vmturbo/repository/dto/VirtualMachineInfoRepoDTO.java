@@ -13,12 +13,16 @@ import com.google.common.collect.Lists;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Architecture;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
- * Class that encapsulates the virtual machine data from TopologyEntityDTO.TypeSpecificInfo
+ * Class that encapsulates the virtual machine data from TopologyEntityDTO.TypeSpecificInfo.
+ * Make sure that all the fields which need to be saved in DTO have getters to ensure serialization/deserialization.
  */
 @JsonInclude(Include.NON_EMPTY)
 public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
@@ -35,12 +39,25 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private List<String> connectedNetworks;
 
+    private Boolean hasEnaDriver;
+
+    private Boolean hasNVMeDriver;
+
+    private Architecture architecture;
+
+    private VirtualizationType virtualizationType;
+
+
     public VirtualMachineInfoRepoDTO() {
         guestOsInfo = null;
         tenancy = null;
         licenseModel = LicenseModel.LICENSE_INCLUDED;
         ipAddressInfoList = Lists.newArrayList();
         connectedNetworks = Lists.newArrayList();
+        hasEnaDriver = null;
+        hasNVMeDriver = null;
+        architecture = null;
+        virtualizationType = null;
     }
 
     @Override
@@ -64,6 +81,12 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         setLicenseModel(vmInfo.getLicenseModel());
 
         setConnectedNetworks(vmInfo.getConnectedNetworksList());
+        setHasEnaDriver(vmInfo.hasDriverInfo() && vmInfo.getDriverInfo().hasHasEnaDriver() ?
+            vmInfo.getDriverInfo().getHasEnaDriver() : null);
+        setHasNVMeDriver(vmInfo.hasDriverInfo() && vmInfo.getDriverInfo().hasHasNvmeDriver() ?
+            vmInfo.getDriverInfo().getHasNvmeDriver() : null);
+        setArchitecture(vmInfo.hasArchitecture() ? vmInfo.getArchitecture() : null);
+        setVirtualizationType(vmInfo.hasVirtualizationType() ? vmInfo.getVirtualizationType() : null);
         serviceEntityRepoDTO.setVirtualMachineInfoRepoDTO(this);
     }
 
@@ -101,6 +124,22 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
 
         vmBuilder.setLicenseModel(getLicenseModel());
+        if (getHasEnaDriver() != null || getHasNVMeDriver() != null) {
+            DriverInfo.Builder driverInfo = DriverInfo.newBuilder();
+            if (getHasEnaDriver() != null) {
+                driverInfo.setHasEnaDriver(getHasEnaDriver());
+            }
+            if (getHasNVMeDriver() != null) {
+                driverInfo.setHasNvmeDriver(getHasNVMeDriver());
+            }
+            vmBuilder.setDriverInfo(driverInfo);
+        }
+        if (getArchitecture() != null) {
+            vmBuilder.setArchitecture(getArchitecture());
+        }
+        if (getVirtualizationType() != null) {
+            vmBuilder.setVirtualizationType(getVirtualizationType());
+        }
 
         return TypeSpecificInfo.newBuilder()
                 .setVirtualMachine(vmBuilder)
@@ -156,6 +195,38 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.connectedNetworks = connectedNetworks;
     }
 
+    public Boolean getHasEnaDriver() {
+        return hasEnaDriver;
+    }
+
+    public void setHasEnaDriver(final Boolean hasEnaDriver) {
+        this.hasEnaDriver = hasEnaDriver;
+    }
+
+    public Boolean getHasNVMeDriver() {
+        return hasNVMeDriver;
+    }
+
+    public void setHasNVMeDriver(final Boolean hasNVMeDriver) {
+        this.hasNVMeDriver = hasNVMeDriver;
+    }
+
+    public Architecture getArchitecture() {
+        return architecture;
+    }
+
+    public void setArchitecture(final Architecture architecture) {
+        this.architecture = architecture;
+    }
+
+    public VirtualizationType getVirtualizationType() {
+        return virtualizationType;
+    }
+
+    public void setVirtualizationType(final VirtualizationType virtualizationType) {
+        this.virtualizationType = virtualizationType;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -166,12 +237,17 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 Objects.equals(ipAddressInfoList, that.ipAddressInfoList) &&
                 Objects.equals(numCpus, that.numCpus) &&
                 Objects.equals(licenseModel, that.licenseModel) &&
-                Objects.equals(connectedNetworks, that.connectedNetworks);
+                Objects.equals(connectedNetworks, that.connectedNetworks) &&
+                Objects.equals(hasNVMeDriver, that.hasNVMeDriver) &&
+                Objects.equals(hasEnaDriver, that.hasEnaDriver) &&
+                Objects.equals(architecture, that.architecture) &&
+                Objects.equals(virtualizationType, that.virtualizationType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(guestOsInfo, tenancy, ipAddressInfoList, numCpus, licenseModel, connectedNetworks);
+        return Objects.hash(guestOsInfo, tenancy, ipAddressInfoList, numCpus, licenseModel,
+            connectedNetworks, hasNVMeDriver, hasEnaDriver, architecture, virtualizationType);
     }
 
     @Override
@@ -183,6 +259,10 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 ", numCpus=" + numCpus +
                 ", licenseModel=" + licenseModel +
                 ", connectedNetworks=" + connectedNetworks +
+                ", hasNVMeDriver=" + hasNVMeDriver +
+                ", hasEnaDriver=" + hasEnaDriver +
+                ", architecture=" + architecture +
+                ", virtualizationType=" + virtualizationType +
                 '}';
     }
 }

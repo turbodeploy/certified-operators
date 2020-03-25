@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableMap;
@@ -31,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.typespecific.DesktopPoolInfoMapper;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -110,7 +112,7 @@ public class DiscoveredTemplateDeploymentProfileUploaderTest {
         Target mockTarget = mock(Target.class);
         when(mockTarget.getId()).thenReturn(targetId);
         when(targetStore.getAll()).thenReturn(Collections.singletonList(mockTarget));
-
+        when(targetStore.getProbeTypeForTarget(targetId)).thenReturn(Optional.of(SDKProbeType.VCENTER));
         uploader.sendTemplateDeploymentProfileData();
 
         verify(backend).updateDiscoveredTemplateDeploymentProfile(uploadCaptor.capture());

@@ -62,6 +62,9 @@ spec:
           readOnly: true
         - mountPath: /tmp
           name: mediation-mssql-tmpfs0
+        - mountPath: /etc/targets
+          name: mssql-secrets
+          readOnly: true
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
     {{- if .Values.global.imagePullSecret }}
@@ -95,6 +98,10 @@ spec:
           optional: true
       - name: mediation-mssql-tmpfs0
         emptyDir: {}
+      - name: mssql-secrets
+        secret:
+          secretName: "mssql"
+          optional: true
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}

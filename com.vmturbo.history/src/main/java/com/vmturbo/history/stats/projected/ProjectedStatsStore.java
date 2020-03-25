@@ -209,7 +209,8 @@ public class ProjectedStatsStore {
             // Sort the input entity IDs using the comparator, and apply the pagination parameters
             // (i.e. limit + cursor)
             final int skipCount = paginationParams.getNextCursor().map(Integer::parseInt).orElse(0);
-            final List<Long> nextPageIds = entitiesMap.keySet().stream()
+            final Set<Long> allRecords = entitiesMap.keySet();
+            final List<Long> nextPageIds = allRecords.stream()
                     .sorted(entityComparator)
                     .skip(skipCount)
                     .limit(paginationParams.getLimit() + 1)
@@ -217,6 +218,7 @@ public class ProjectedStatsStore {
             final ProjectedEntityStatsResponse.Builder responseBuilder =
                     ProjectedEntityStatsResponse.newBuilder();
             final PaginationResponse.Builder paginationRespBuilder = PaginationResponse.newBuilder();
+            paginationRespBuilder.setTotalRecordCount(allRecords.size());
             if (nextPageIds.size() > paginationParams.getLimit()) {
                 nextPageIds.remove(paginationParams.getLimit());
                 paginationRespBuilder.setNextCursor(Integer.toString(skipCount + paginationParams.getLimit()));

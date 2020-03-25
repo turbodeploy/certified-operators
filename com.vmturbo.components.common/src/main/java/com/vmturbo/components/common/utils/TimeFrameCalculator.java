@@ -30,28 +30,38 @@ public class TimeFrameCalculator {
     /**
      * Clip a millisecond epoch number to a time frame.
      *
-     * @param millis a millisecond epoch number in the past
+     * @param startTimestamp a millisecond epoch number in the past
      * @return a time frame name.
      */
     @Nonnull
-    public TimeFrame millis2TimeFrame(final long millis) {
+    public TimeFrame millis2TimeFrame(final long startTimestamp) {
+        final Duration timeBack =
+                        Duration.between(Instant.ofEpochMilli(startTimestamp), clock.instant());
+        return range2TimeFrame(timeBack.toMillis(), retentionPeriodFetcher.getRetentionPeriods());
+    }
+
+    /**
+     * Converts a range represented in milliseconds into {@link TimeFrame} instance.
+     *
+     * @param range range in milliseconds
+     * @param retentionPeriods retention periods used for as a borders to detect the
+     *                 smallest {@link TimeFrame}.
+     * @return a time frame name.
+     */
+    @Nonnull
+    public TimeFrame range2TimeFrame(long range, @Nonnull RetentionPeriods retentionPeriods) {
         // no start date was mentioned - use latest
-        if (millis == 0) {
+        if (range == 0) {
             return TimeFrame.LATEST;
         }
-
-        final Duration timeBack = Duration.between(Instant.ofEpochMilli(millis), clock.instant());
-        final RetentionPeriods retentionPeriods = retentionPeriodFetcher.getRetentionPeriods();
-
-        if (timeBack.toMinutes() <= retentionPeriods.latestRetentionMinutes()) {
+        final Duration duration = Duration.ofMillis(range);
+        if (duration.toMinutes() <= retentionPeriods.latestRetentionMinutes()) {
             return TimeFrame.LATEST;
         }
-
-        if (timeBack.toHours() <= retentionPeriods.hourlyRetentionHours()) {
+        if (duration.toHours() <= retentionPeriods.hourlyRetentionHours()) {
             return TimeFrame.HOUR;
         }
-
-        if (timeBack.toDays() <= retentionPeriods.dailyRetentionDays()) {
+        if (duration.toDays() <= retentionPeriods.dailyRetentionDays()) {
             return TimeFrame.DAY;
         }
         return TimeFrame.MONTH;

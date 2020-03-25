@@ -130,26 +130,11 @@ import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STA
 import static com.vmturbo.history.schema.abstraction.tables.VpodStatsLatest.VPOD_STATS_LATEST;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import javax.annotation.Nullable;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableSet.Builder;
-import com.google.common.collect.Lists;
 
 import org.jooq.Table;
 
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.history.schema.abstraction.Tables;
@@ -297,209 +282,231 @@ public enum EntityType {
                     .filter(item -> !ENTITIES_EXCLUDED_FROM_ROLL_UP.contains(item))
                     .collect(Collectors.toList());
 
-    private final int value;
-    private final String clsName;
-    private final String shortName;
-    private final Table<?> latestTable;
-    private final Table<?> hourTable;
-    private final Table<?> dayTable;
-    private final Table<?> monthTable;
-
-    private EntityType(int value, String clsName, String shortName,
-            Table<?> latestTable, Table<?> hourTable, Table<?> dayTable, Table<?> monthTable) {
-        this.value = value;
-        this.clsName = clsName;
-        this.shortName = shortName;
-        this.hourTable = hourTable;
-        this.latestTable = latestTable;
-        this.dayTable = dayTable;
-        this.monthTable = monthTable;
-    }
-
-    public int getValue(){
-        return value;
-    }
-
-    public String getClsName(){
-        return clsName;
-    }
-
-    public String getTblPrfx(){
-        return shortName;
-    }
-
-    public Table<?> getLatestTable() {
-        return latestTable;
-    }
-
-    public boolean isSpendEntity() {
-        return TABLE_TO_SPEND_ENTITY_MAP.containsKey(hourTable);
-    }
-
-    public Table<?> getHourTable() { return hourTable; }
-
-    public Table<?> getDayTable() {
-        return dayTable;
-    }
-
-    public Table<?> getMonthTable() {
-        return monthTable;
-    }
+/**
+ * Instances of this type provide information that's important to history component behavior,
+ * regarding the entity types it may encounter in topologies or in API queries.
+ */
+public interface EntityType {
 
     /**
-     * Get the entity stats table for the given timeframe.
+     * Obtain an entity type instance for the given name.
      *
-     * @param timeFrame the desired timeframe
-     * @return the corresponding table
-     * @throws IllegalArgumentException if an unknown timeframe is provided
-     */
-    public Table<?> getTimeFrameTable(TimeFrame timeFrame) throws IllegalArgumentException {
-        switch (timeFrame) {
-            case LATEST:
-                return latestTable;
-            case HOUR:
-                return hourTable;
-            case DAY:
-                return dayTable;
-            case MONTH:
-                return monthTable;
-            default:
-                throw new IllegalArgumentException("Unknown entity stats timeframe: " + timeFrame.name());
-        }
-    }
-
-    public List<Table<?>> getTables() {
-        return Lists.newArrayList(hourTable, dayTable, monthTable);
-    }
-
-    /**
-     *  Given the class name, return the EntityType associate with that class Name.
+     * <p>Where applicable, names should be consistent with names used by the API, e.g. names
+     * appearing in {@link ApiEntityType} values.</p>
      *
-     * @param clsName class name
-     * @return An optional of the EntityType associated with the class name.
+     * @param name name of entity type
+     * @return corresponding entity type, if it exists
      */
-    public static Optional<EntityType> getEntityTypeByClsName(String clsName) {
-        for (EntityType type : EntityType.values()) {
-            if (type.clsName.equals(clsName)) {
-                return Optional.of(type);
-            }
-        }
-        return Optional.empty();
-    }
-
-    @Nullable
-    public static EntityType valueOf(int value) {
-        return VALUE_TO_ENTITY_TYPE_MAP.get(value);
-    }
-
-    private static Map<String, EntityType> createNameToEntity(
-                    Map<String, EntityType> specialCases) {
-        final Map<String, EntityType> result = new HashMap<>();
-        Stream.of(EntityType.values()).forEach(entityType -> result
-                        .putIfAbsent(entityType.getClsName(), entityType));
-        result.putAll(specialCases);
-        return ImmutableMap.copyOf(result);
-    }
-
-    // This method just get stats entity types, but for spend entity types call getSpendEntity
-    public static EntityType get(String clsName){
-        return checkNotNull(NAME_TO_ENTITY_TYPE_MAP.get(clsName),
-                "Invalid entity class: %s", clsName);
-    }
-
-    public static Optional<EntityType> getTypeForName(String clsName) {
-        return Optional.ofNullable(NAME_TO_ENTITY_TYPE_MAP.get(clsName));
-    }
-
-
-
-    public static EntityType getSpendEntity(String clsName){
-        return checkNotNull(NAME_TO_SPEND_ENTITY_TYPE_MAP.get(clsName),
-                "Invalid entity class: %s", clsName);
-    }
-
-    public static Optional<EntityType> getSpendTypeForName(String clsName) {
-        return Optional.ofNullable(NAME_TO_SPEND_ENTITY_TYPE_MAP.get(clsName));
+    static Optional<EntityType> named(String name) {
+        return Optional.ofNullable(EntityTypeDefinitions.NAME_TO_ENTITY_TYPE_MAP.get(name));
     }
 
     /**
-     * Returns the field name containing the times of the updates in statsTableByEntityType table
-     * of this EntityType.
+     * Obtain an entity type instance for the given name.
+     *
+     * @param name name of entity type
+     * @return corresponding entity type, if it exists
+     * @throws IllegalArgumentException if no such entity exists
      */
-    public String getTimeField() {
-        switch (this) {
-        case CLUSTER:
-            return RECORDED_ON;
-        default:
-            return SNAPSHOT_TIME;
-        }
+    static EntityType get(String name) throws IllegalArgumentException {
+        return EntityType.named(name).orElseThrow(() ->
+                new IllegalArgumentException("EntityType " + name + " not found"));
     }
 
     /**
-     * Returns the field name containing the times of the updates in statsTableByEntityType table
-     * of this EntityType.
+     * Get the name of this entity type.
+     *
+     * @return entity type name
      */
-    public String getIdField() {
-        switch (this) {
-        case CLUSTER:
-            return INTERNAL_NAME;
-        default:
-            return UUID;
-        }
+    String getName();
+
+    /**
+     * Resolve this entity type to the type to which it is aliased.
+     *
+     * <p>Multiple aliasing steps are followed, if present, so the result will be an un-aliased
+     * entity type.</p>
+     *
+     * @return this entity type if it is not aliased, else the type at the end of its aliasing chain
+     */
+    EntityType resolve();
+
+    /**
+     * Return the stats table that stores latest records for this entity type.
+     *
+     * @return the latest table, if this entity type has one
+     */
+    Optional<Table<?>> getLatestTable();
+
+    /**
+     * Return the stats table that stores hourly rollup records for this entity type.
+     *
+     * @return the hourly table, if this entity type has one
+     */
+    Optional<Table<?>> getHourTable();
+
+    /**
+     * Return the stats table that stores daily rollup records for this entity type.
+     *
+     * @return the daily table, if this entity type has one
+     */
+    Optional<Table<?>> getDayTable();
+
+    /**
+     * Return the stats table that stores monthly rollup records for this entity type.
+     *
+     * @return the monthly table, if this entity type has one
+     */
+    Optional<Table<?>> getMonthTable();
+
+    /**
+     * Get the table prefix for stats tables for this entity type.
+     *
+     * <p>This value is joined with the table suffixes for the various time frames, with an
+     * intervening underscore, to arrive at the table name.</p>
+     *
+     * <p>N.B.: For entity stats table, this includes the word "stats" - e.g. the previs for VM
+     * tables is "vm_stats", not "vm".</p>
+     *
+     * @return the table prefix for this entity, if this entity has stats tables
+     */
+    Optional<String> getTablePrefix();
+
+    /**
+     * Get the entity stats table where this table stores data for the given time frame.
+     *
+     * @param timeFrame desired time frame - "latest" or a rollup time frame
+     * @return corresponding stats table, if this entity has one
+     * @throws IllegalArgumentException if an invalid timeframe is provided
+     */
+    Optional<Table<?>> getTimeFrameTable(TimeFrame timeFrame) throws IllegalArgumentException;
+
+    /**
+     * Obtain the entity type that uses the given table for history stats (latest or rollups).
+     *
+     * @param table table
+     * @return associated entity type, if any
+     */
+    static Optional<EntityType> fromTable(Table<?> table) {
+        return Optional.ofNullable(EntityTypeDefinitions.TABLE_TO_ENTITY_TYPE_MAP.get(table));
     }
 
-    public static boolean isLatest(Table<?> tbl){
-        return LATEST_TABLES.contains(tbl);
+    /**
+     * Get the SDK entity type associated with this entity type, if any.
+     *
+     * @return associated SDK entity type, if any
+     */
+    Optional<EntityDTO.EntityType> getSdkEntityType();
+
+    /**
+     * Get the entity type that's associated with the given SDK entity type, if any.
+     *
+     * @param sdkEntityType SDK entity type
+     * @return corresponding entity type, if any
+     */
+    static Optional<EntityType> fromSdkEntityType(EntityDTO.EntityType sdkEntityType) {
+        return fromSdkEntityType(sdkEntityType.getNumber());
     }
 
-    public static final Set<Table<?>> LATEST_TABLES = getTables(EntityType::getLatestTable);
-
-    public static boolean isMonthly(Table<?> tbl){
-        return MONTHLY_TABLES.contains(tbl);
-    }
-    public static final Set<Table<?>> MONTHLY_TABLES = getTables(EntityType::getMonthTable);
-
-    public static boolean isDaily(Table<?> tbl){
-        return DAILY_TABLES.contains(tbl);
-    }
-
-    public static final Set<Table<?>> DAILY_TABLES = getTables(EntityType::getDayTable);
-
-    // note:  CLUSTER_STATS_BY_HOUR intentionally ommited from HOURLY_TABLES
-    public static boolean isHourly(Table<?> tbl){
-        return HOURLY_TABLES.contains(tbl);
+    /**
+     * Get the entity type that's associated with the given SDK entity type number, if any.
+     *
+     * @param sdkEntityTypeNo SDK entity type number
+     * @return corresponding entity type, if any
+     */
+    static Optional<EntityType> fromSdkEntityType(int sdkEntityTypeNo) {
+        return Optional.ofNullable(EntityTypeDefinitions.SDK_TO_ENTITY_TYPE_MAP.get(sdkEntityTypeNo));
     }
 
-    public static final Set<Table<?>> HOURLY_TABLES =
-                    getTables(EntityType::getHourTable, Tables.SYSTEM_LOAD);
 
-    public static EntityType fromTable(Table<?> tbl){
-        EntityType et = TABLE_TO_ENTITY_MAP.get(tbl);
-        if (et == null){
-            return TABLE_TO_SPEND_ENTITY_MAP.get(tbl);
-        }
-        return et;
+    /**
+     * Check whether the given entity type has the given use case.
+     *
+     * @param useCase use case to check
+     * @return true if the entity type has the use case
+     */
+    boolean hasUseCase(UseCase useCase);
+
+    /**
+     * Check whether entities of this type should be persisted in the {@link Entities} table.
+     *
+     * @return true if entities should be persisted
+     */
+    default boolean persistsEntity() {
+        return hasUseCase(UseCase.PersistEntity);
     }
 
-    private static Map<Table<?>, EntityType> createTableToEntityMap(
-                    Map<Table<?>, EntityType> tableToSpendEntity, EntityType... specialCases) {
-        final Map<Table<?>, EntityType> result = new HashMap<>();
-        Stream.of(EntityType.values()).forEach(entityType -> TABLE_GETTERS
-                        .forEach(tableGetter -> Optional.ofNullable(tableGetter.apply(entityType))
-                                        .filter(table -> tableToSpendEntity.get(table) == null)
-                                        .ifPresent(table -> result
-                                                        .putIfAbsent(table, entityType))));
-        Stream.of(specialCases).forEach(sc -> TABLE_GETTERS
-                        .forEach(tableGetter -> result.put(tableGetter.apply(sc), sc)));
-        return ImmutableMap.copyOf(result);
+    /**
+     * Check whether entities of this type should have commodity/attribute stats persisted to
+     * stats tables.
+     *
+     * @return true if entity stats should be persisted
+     */
+    default boolean persistsStats() {
+        return hasUseCase(UseCase.PersistStats);
     }
 
-    private static Set<Table<?>> getTables(Function<EntityType, ? extends Table<?>> tableSupplier,
-                    Table<?>... additionalTables) {
-        final Builder<Table<?>> builder = ImmutableSet.builder();
-        Stream.of(EntityType.values()).map(tableSupplier).filter(Objects::nonNull)
-                                        .forEach(builder::add);
-        builder.add(additionalTables);
-        return builder.build();
+    /**
+     * Check whether entities of this type participate in entity stats rollup processing.
+     *
+     * @return true if entity stats data should be rolled up
+     */
+    default boolean rollsUp() {
+        return hasUseCase(UseCase.RollUp);
+    }
+
+    /**
+     * Check whether entities of this type should persist price index data to stats tables.
+     *
+     * @return true if price index data should be persisted
+     */
+    default boolean persistsPriceIndex() {
+        return getSdkEntityType()
+                .map(sdkType -> !StatsUtils.SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES.contains(
+                        sdkType.getNumber()))
+                .orElse(false);
+    }
+
+    /**
+     * Check whether this is a spend entity type.
+     *
+     * @return true if this is a spend entity type
+     */
+    default boolean isSpend() {
+        return hasUseCase(UseCase.Spend);
+    }
+
+    /**
+     * Get a collection of all the defined entity types.
+     *
+     * @return all defined entity types
+     */
+    static Collection<EntityType> allEntityTypes() {
+        return EntityTypeDefinitions.ENTITY_TYPE_DEFINITIONS;
+    }
+
+    /**
+     * Use-cases that may apply to individual entity types.
+     */
+    enum UseCase {
+        /** Entities are persisted to the entities table. */
+        PersistEntity,
+        /** Entity attributes and bought/sold commodities are persisted to stats tables. */
+        PersistStats,
+        /** Price index data is persisted to stats tables. */
+        RollUp,
+        /** This is a spend entity. */
+        Spend;
+
+        static final UseCase[] STANDARD_STATS = new UseCase[]{
+                PersistEntity, PersistStats, RollUp
+        };
+
+        static final UseCase[] NON_ROLLUP_STATS = new UseCase[]{
+                PersistEntity, PersistStats
+        };
+
+        static final UseCase[] NON_PRICE_STATS = new UseCase[]{
+                PersistEntity, PersistEntity, RollUp
+        };
     }
 }

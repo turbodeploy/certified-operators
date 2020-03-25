@@ -3,9 +3,13 @@ package com.vmturbo.components.common.utils;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.Period;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalUnit;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
@@ -150,11 +154,36 @@ public class RetentionPeriodFetcher {
         }
     }
 
-
     /**
      * The retention periods for stats in XL.
      */
     public interface RetentionPeriods {
+        /**
+         * Instance of {@link RetentionPeriods} contains highest numbers for every unit, but do not
+         * cross the border of units, i.e. border value for minutes is 60, because 60 minutes means
+         * 1 hour and 0 minutes.
+         */
+        RetentionPeriods BOUNDARY_RETENTION_PERIODS =
+                        new RetentionPeriodsImpl(getBoundary(ChronoUnit.HOURS, Duration::toMinutes),
+                                        getBoundary(ChronoUnit.DAYS, Duration::toHours),
+                                        getBoundary(ChronoUnit.MONTHS, Duration::toDays),
+                                        (int)(Period.ofYears(1).toTotalMonths() - 1));
+
+        /**
+         * Calculates boundary for specified temporal unit into units specified by a converter and
+         * subtracting one from result value.
+         *
+         * @param unit source unit which needs to be converted.
+         * @param converter function applying which we will be able to convert
+         *                 source unit.
+         * @return amount of target units equal to 1 source unit, but without one target
+         *                 unit.
+         */
+        static int getBoundary(@Nonnull TemporalUnit unit,
+                        @Nonnull Function<Duration, Long> converter) {
+            return (int)(converter.apply(unit.getDuration()) - 1);
+        }
+
         /**
          * How many minutes to retain unaggregated stats for.
          */

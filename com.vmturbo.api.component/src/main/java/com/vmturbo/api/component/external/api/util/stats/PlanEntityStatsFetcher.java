@@ -36,7 +36,7 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRes
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
  * Retrieve plan entity stats from the repository.
@@ -189,7 +189,7 @@ public class PlanEntityStatsFetcher {
                                 serviceEntityMapper.toServiceEntityApiDTO(planEntity);
                             entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                             entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
-                            entityStatsApiDTO.setClassName(UIEntityType.fromType(planEntity.getEntityType()).apiStr());
+                            entityStatsApiDTO.setClassName(ApiEntityType.fromType(planEntity.getEntityType()).apiStr());
                             entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
                             final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
                                 .getStatSnapshotsList()
@@ -202,9 +202,11 @@ public class PlanEntityStatsFetcher {
                 }
             });
         if (paginationResponseReference.get().isPresent()) {
-            return PaginationProtoUtil.getNextCursor(paginationResponseReference.get().get())
-                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, null))
-                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, null));
+            final PaginationResponse paginationResponse = paginationResponseReference.get().get();
+            final int totalRecordCount = paginationResponse.getTotalRecordCount();
+            return PaginationProtoUtil.getNextCursor(paginationResponse)
+                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, totalRecordCount))
+                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, totalRecordCount));
         } else {
             return paginationRequest.allResultsResponse(entityStatsList);
         }
@@ -266,7 +268,7 @@ public class PlanEntityStatsFetcher {
                             entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
                             entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
                             entityStatsApiDTO.setClassName(
-                                UIEntityType.fromType(planEntity.getEntityType()).apiStr());
+                                ApiEntityType.fromType(planEntity.getEntityType()).apiStr());
                             entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
                             final List<StatSnapshotApiDTO> statSnapshotsList = entityAndCombinedStats
                                 .getPlanCombinedStats()
@@ -280,9 +282,11 @@ public class PlanEntityStatsFetcher {
                 }
             });
         if (paginationResponseReference.get().isPresent()) {
-            return PaginationProtoUtil.getNextCursor(paginationResponseReference.get().get())
-                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, null))
-                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, null));
+            final PaginationResponse paginationResponse = paginationResponseReference.get().get();
+            final int totalRecordCount = paginationResponse.getTotalRecordCount();
+            return PaginationProtoUtil.getNextCursor(paginationResponse)
+                .map(nextCursor -> paginationRequest.nextPageResponse(entityStatsList, nextCursor, totalRecordCount))
+                .orElseGet(() -> paginationRequest.finalPageResponse(entityStatsList, totalRecordCount));
         } else {
             return paginationRequest.allResultsResponse(entityStatsList);
         }

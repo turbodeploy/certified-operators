@@ -1,5 +1,6 @@
 package com.vmturbo.history.stats.live;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -16,6 +17,7 @@ import static org.mockito.Mockito.when;
 
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -26,9 +28,10 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -38,11 +41,15 @@ import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.DefaultTimeRang
 public class TimeRangeTest {
 
     private static final long LATEST_TABLE_TIME_WINDOW_MS = 1;
+    private static final EntityType VIRTUAL_MACHINE_ENTITY_TYPE = EntityType.named(VIRTUAL_MACHINE).get();
 
     private HistorydbIO historydbIO = mock(HistorydbIO.class);
 
-    private TimeFrameCalculator timeFrameCalculator = spy(new TimeFrameCalculator(mock(Clock.class),
-            mock(RetentionPeriodFetcher.class)));
+    private final Clock clock = mock(Clock.class);
+    private final RetentionPeriodFetcher retentionPeriodFetcher =
+                    mock(RetentionPeriodFetcher.class);
+    private TimeFrameCalculator timeFrameCalculator = spy(new TimeFrameCalculator(clock,
+                    retentionPeriodFetcher));
 
     private final TimeRangeFactory timeRangeFactory =
             new DefaultTimeRangeFactory(historydbIO,
@@ -305,7 +312,8 @@ public class TimeRangeTest {
         final long rollupPeriod = 30L;
         // Time frame not latest.
         doReturn(TimeFrame.DAY).when(timeFrameCalculator).millis2TimeFrame(startTime);
-        doReturn(TimeFrame.MONTH).when(timeFrameCalculator).millis2TimeFrame(rollupPeriod);
+        doReturn(TimeFrame.MONTH).when(timeFrameCalculator)
+                        .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
         Mockito.when(historydbIO.getTimestampsInRange(TimeFrame.MONTH,
                         startTime, endTime, Optional.empty(), Optional.empty()))
                         .thenReturn(Collections.singletonList(timestamp));

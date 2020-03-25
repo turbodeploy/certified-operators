@@ -485,7 +485,11 @@ service GroupService {
     // Returns INVALID_ARGUMENT if the group is a discovered group.
     rpc DeleteGroup (GroupID) returns (DeleteGroupResponse);
 
-    // Get the members of a group
+    // Get the members of a collection of group.
+    //
+    // There will be a response for every group ID in the request that does not have an error.
+    // If the members of a group are not resolved due to errors, the response will not contain
+    // an entry for that group.
     rpc GetMembers (GetMembersRequest) returns (stream GetMembersResponse);
 
     // Get the group the entity belongs to.

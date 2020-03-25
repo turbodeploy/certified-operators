@@ -26,12 +26,6 @@ message HistoricalInfoDTO {
         // The historical info for the commodities bought by the service entity
         repeated HistoricalCommInfoDTO hist_comm_bought = 3;
 
-        // The weight used to calculate the current used value
-        optional float used_history_weight = 4;
-
-        // The weight used to calculate the current peak value
-        optional float peak_history_weight = 5;
-
         message HistoricalCommInfoDTO {
             // The type of the commodity
             optional CommodityType comm_type = 1;

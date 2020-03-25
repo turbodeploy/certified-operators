@@ -24,11 +24,11 @@ import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredPolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
+import com.vmturbo.components.common.diagnostics.StringDiagnosable;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.ImmutableUpdateException.ImmutablePolicyUpdateException;
 import com.vmturbo.group.common.ItemNotFoundException.PolicyNotFoundException;
@@ -341,7 +341,7 @@ public class PolicyStore implements DiagsRestorable {
                 for (final PolicyDTO.Policy policy : policies) {
                     try {
                         internalCreate(transactionContext, policy);
-                    } catch (DataAccessException e) {
+                    } catch (InvalidPolicyException | DuplicateNameException | RuntimeException e) {
                         // Log the exception, but continue attempting to restore other policies.
                         logger.error("Failed to restore policy " + policy.getPolicyInfo().getName()
                                 + "!", e);

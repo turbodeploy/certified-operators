@@ -25,7 +25,6 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.group.diagnostics.GroupDiagnosticsConfig;
-import com.vmturbo.group.migration.MigrationConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
@@ -35,7 +34,6 @@ import com.vmturbo.group.setting.SettingConfig;
  */
 @Configuration("theComponent")
 @Import({IdentityProviderConfig.class,
-        MigrationConfig.class,
         RpcConfig.class,
         SettingConfig.class,
         ScheduleConfig.class,
@@ -47,9 +45,6 @@ public class GroupComponent extends BaseVmtComponent {
 
     @Autowired
     private IdentityProviderConfig identityProviderConfig;
-
-    @Autowired
-    private MigrationConfig migrationConfig;
 
     @Autowired
     private RpcConfig rpcConfig;
@@ -87,9 +82,12 @@ public class GroupComponent extends BaseVmtComponent {
     @Override
     @Nonnull
     protected SortedMap<String, Migration> getMigrations() {
-        return migrationConfig.groupMigrationsLibrary().getMigrationsList();
+        /*
+         There should never by any MigrationFramework-related migrations in group.
+         The ones that existed previously historically (up to V_01_00_05 have been removed).
+         */
+        return Collections.emptySortedMap();
     }
-
 
     @Nonnull
     @Override

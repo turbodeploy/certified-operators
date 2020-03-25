@@ -209,7 +209,7 @@ public class LiveActionStore implements ActionStore {
 
             final EntitiesAndSettingsSnapshot snapshot =
                     entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
-                            topologyContextId, topologyId);
+                            Collections.emptySet(), topologyContextId, topologyId);
 
             // This call requires some computation and an RPC call, so do it outside of the
             // action lock.
@@ -450,7 +450,8 @@ public class LiveActionStore implements ActionStore {
         // topology. This is safe because we only need the names of the related regions and tiers,
         // which don't change between realtime and plan.
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
-                ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()), topologyContextId);
+                ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
+                Collections.emptySet(), topologyContextId);
 
         // All RI translations should be passthrough, but we do it here anyway for consistency
         // with the "normal" action case.

@@ -1090,10 +1090,13 @@ message StartBuyRIAnalysisRequest {
     repeated int64 accounts = 5;
 
     // the RI purchase profile
-    optional RIPurchaseProfile purchaseProfile = 6;
+    optional RIPurchaseProfile purchaseProfile = 6 [deprecated = true];
+
+    // the RI purchase profile by CloudType string
+    map<string, RIPurchaseProfile> purchase_profile_by_cloudtype = 7;
 
     // the demand type
-    optional common_dto.DemandType demandType = 7;
+    optional common_dto.DemandType demandType = 8;
 }
 
 message GetTierPriceForEntitiesRequest{

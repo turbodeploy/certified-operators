@@ -64,6 +64,9 @@ spec:
           readOnly: true
         - mountPath: /tmp
           name: mediation-aws-tmpfs0
+        - mountPath: /etc/targets
+          name: aws-secrets
+          readOnly: true
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
     {{- if .Values.global.imagePullSecret }}
@@ -101,6 +104,10 @@ spec:
           optional: true
       - name: mediation-aws-tmpfs0
         emptyDir: {}
+      - name: aws-secrets
+        secret:
+          secretName: "aws"
+          optional: true
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}

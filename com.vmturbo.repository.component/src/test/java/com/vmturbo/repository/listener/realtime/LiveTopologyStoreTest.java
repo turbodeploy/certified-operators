@@ -17,7 +17,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.listener.realtime.SourceRealtimeTopology.SourceRealtimeTopologyBuilder;
 import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
 
@@ -36,16 +36,16 @@ public class LiveTopologyStoreTest {
 
     private final TopologyEntityDTO storage = TopologyEntityDTO.newBuilder()
         .setOid(1)
-        .setEntityType(UIEntityType.STORAGE.typeNumber())
+        .setEntityType(ApiEntityType.STORAGE.typeNumber())
         .setDisplayName("storage")
         .build();
 
     private final TopologyEntityDTO host1 = TopologyEntityDTO.newBuilder()
         .setOid(2)
-        .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+        .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
         .setDisplayName("pm")
         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-            .setProviderEntityType(UIEntityType.STORAGE.typeNumber())
+            .setProviderEntityType(ApiEntityType.STORAGE.typeNumber())
             .setProviderId(storage.getOid())
             .addCommodityBought(CommodityBoughtDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()
@@ -54,10 +54,10 @@ public class LiveTopologyStoreTest {
 
     private final TopologyEntityDTO host2 = TopologyEntityDTO.newBuilder()
         .setOid(3)
-        .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+        .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
         .setDisplayName("pm")
         .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-            .setProviderEntityType(UIEntityType.STORAGE.typeNumber())
+            .setProviderEntityType(ApiEntityType.STORAGE.typeNumber())
             .setProviderId(storage.getOid())
             .addCommodityBought(CommodityBoughtDTO.newBuilder()
                 .setCommodityType(CommodityType.newBuilder()

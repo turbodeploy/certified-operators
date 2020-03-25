@@ -16,17 +16,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotDayRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotHourRecord;
@@ -40,23 +36,27 @@ import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler.A
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher;
 import com.vmturbo.components.common.utils.RetentionPeriodFetcher.RetentionPeriods;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Integration-level test for greater confidence that the {@link ActionStatCleanupScheduler}
  * actually removes rows from the proper {@link ActionStatTable}s.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    loader = AnnotationConfigContextLoader.class,
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class ActionStatCleanupIntegrationTest {
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
-    private DSLContext dsl;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private RollupTestUtils rollupTestUtils;
 
@@ -78,17 +78,11 @@ public class ActionStatCleanupIntegrationTest {
 
     @Before
     public void setup() {
-        dsl = dbConfig.prepareDatabase();
         rollupTestUtils = new RollupTestUtils(dsl);
 
         rollupTestUtils.insertMgmtUnit(MGMT_SUBGROUP_ID);
         rollupTestUtils.insertActionGroup(ACTION_GROUP_ID);
         when(retentionPeriodFetcher.getRetentionPeriods()).thenReturn(retentionPeriods);
-    }
-
-    @After
-    public void teardown() {
-        dbConfig.clean();
     }
 
     @Test

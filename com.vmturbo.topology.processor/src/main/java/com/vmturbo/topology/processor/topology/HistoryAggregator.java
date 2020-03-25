@@ -116,7 +116,7 @@ public class HistoryAggregator {
                         gatherEligibleCommodities(graph.getTopologyGraph(), editorsToRun);
         // store reference to the current settings for policies access
         // set up commodity builders lazy/fast access
-        HistoryAggregationContext context = new HistoryAggregationContext(graph, !CollectionUtils
+        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo, graph, !CollectionUtils
                         .isEmpty(changes));
 
         // this may initiate background loading of certain data

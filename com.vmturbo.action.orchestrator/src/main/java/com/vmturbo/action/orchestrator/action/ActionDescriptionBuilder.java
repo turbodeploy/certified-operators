@@ -124,6 +124,7 @@ public class ActionDescriptionBuilder {
      *
      * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
      * information.
+     * @param recommendation {@link ActionDTO.Action} the action object.
      * @return The final action description string that will be displayed in the UI.
      */
     public static String buildActionDescription(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
@@ -147,7 +148,7 @@ public class ActionDescriptionBuilder {
             case DEACTIVATE:
                 return getDeactivateActionDescription(entitiesSnapshot, recommendation);
             case DELETE:
-                return getDeleteActionDescription(entitiesSnapshot, recommendation);
+                 return getDeleteActionDescription(entitiesSnapshot, recommendation);
             case BUYRI:
                 return getRIBuyActionDescription(entitiesSnapshot, recommendation);
             default:
@@ -432,7 +433,7 @@ public class ActionDescriptionBuilder {
      * {@link ActionDescriptionBuilder#buildActionDescription(EntitiesAndSettingsSnapshot, ActionDTO.Action)}
      *
      * @param entitiesSnapshot {@link EntitiesAndSettingsSnapshot} object that contains entities
-     * information.
+     * information specific to detached volumes.
      * @param recommendation {@link ActionDTO.Action} the action object
      * @return The Delete action description.
      */

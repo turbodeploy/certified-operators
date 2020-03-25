@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.repository.api.RepositoryListener;
 
@@ -189,7 +189,7 @@ public class MagicScopeGateway implements RepositoryListener  {
             final GroupApiDTO allOnPremHostGroup = new GroupApiDTO();
             allOnPremHostGroup.setScope(Collections.singletonList(UuidMapper.UI_REAL_TIME_MARKET_STR));
             allOnPremHostGroup.setEnvironmentType(EnvironmentType.ONPREM);
-            allOnPremHostGroup.setGroupType(UIEntityType.PHYSICAL_MACHINE.apiStr());
+            allOnPremHostGroup.setGroupType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
             allOnPremHostGroup.setTemporary(true);
             allOnPremHostGroup.setDisplayName("Magic Group: " + ALL_ON_PREM_HOSTS);
             try {

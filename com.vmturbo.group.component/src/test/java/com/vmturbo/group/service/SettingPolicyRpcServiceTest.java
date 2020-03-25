@@ -6,7 +6,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -21,18 +20,21 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
 
+import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
 import io.grpc.stub.StreamObserver;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
@@ -75,20 +77,23 @@ import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
+import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.EntitySettingStore;
 import com.vmturbo.group.setting.EntitySettingStore.NoSettingsForTopologyException;
 import com.vmturbo.group.setting.SettingPolicyFilter;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
 
+/**
+ * Unit test for {@link SettingPolicyRpcService}.
+ */
 public class SettingPolicyRpcServiceTest {
 
     private long realtimeTopologyContextId = 777777;
 
-    private SettingStore settingStore = mock(SettingStore.class);
+    private SettingStore settingStore;
 
     private SettingSpecStore settingSpecStore = mock(SettingSpecStore.class);
 
@@ -109,6 +114,7 @@ public class SettingPolicyRpcServiceTest {
     private SettingPolicy settingPolicy = SettingPolicy.newBuilder()
             .setId(7L)
             .setInfo(settingPolicyInfo)
+            .setSettingPolicyType(Type.USER)
             .build();
 
     private SettingSpec automationSettingSpec =
@@ -129,6 +135,7 @@ public class SettingPolicyRpcServiceTest {
             SettingPolicy.newBuilder()
                     .setId(100L)
                     .setInfo(automationSettingPolicyInfo)
+                    .setSettingPolicyType(Type.DEFAULT)
                     .build();
 
     private final EntitySettingStore entitySettingStore = mock(EntitySettingStore.class);
@@ -140,13 +147,17 @@ public class SettingPolicyRpcServiceTest {
             GrpcTestServer.newServer(actionServiceMole);
 
     private SettingPolicyRpcService settingPolicyService;
+    private MockTransactionProvider transactionProvider;
 
     @Before
     public void setup() {
+        final IdentityProvider identityProvider = new IdentityProvider(0);
+        transactionProvider = new MockTransactionProvider();
+        this.settingStore = Mockito.mock(SettingStore.class);
         settingPolicyService =
                 new SettingPolicyRpcService(settingStore, settingSpecStore, entitySettingStore,
                         ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-                        realtimeTopologyContextId, 1);
+                        identityProvider, transactionProvider, realtimeTopologyContextId, 1);
     }
 
     @Test
@@ -154,8 +165,6 @@ public class SettingPolicyRpcServiceTest {
 
         final StreamObserver<CreateSettingPolicyResponse> responseObserver =
                 (StreamObserver<CreateSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.createUserSettingPolicy(eq(settingPolicyInfo)))
-                .thenReturn(settingPolicy);
 
         settingPolicyService.createSettingPolicy(CreateSettingPolicyRequest.newBuilder()
                 .setSettingPolicyInfo(settingPolicyInfo)
@@ -168,7 +177,8 @@ public class SettingPolicyRpcServiceTest {
 
         CreateSettingPolicyResponse response = responseCaptor.getValue();
         assertTrue(response.hasSettingPolicy());
-        assertEquals(settingPolicy, response.getSettingPolicy());
+        Assert.assertEquals(settingPolicyInfo, response.getSettingPolicy().getInfo());
+        Assert.assertEquals(Type.USER, response.getSettingPolicy().getSettingPolicyType());
     }
 
     @Test
@@ -193,16 +203,17 @@ public class SettingPolicyRpcServiceTest {
         final String errorMsg = "ERR";
         final StreamObserver<CreateSettingPolicyResponse> responseObserver =
                 (StreamObserver<CreateSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.createUserSettingPolicy(eq(settingPolicyInfo)))
-                .thenThrow(new InvalidItemException(errorMsg));
 
+        Mockito.doThrow(new StoreOperationException(Status.INVALID_ARGUMENT, errorMsg))
+                .when(transactionProvider.getSettingPolicyStore())
+                .createSettingPolicies(Mockito.any());
         settingPolicyService.createSettingPolicy(CreateSettingPolicyRequest.newBuilder()
                 .setSettingPolicyInfo(settingPolicyInfo)
                 .build(), responseObserver);
 
         final ArgumentCaptor<StatusException> exceptionCaptor =
                 ArgumentCaptor.forClass(StatusException.class);
-        verify(responseObserver).onError(exceptionCaptor.capture());
+        Mockito.verify(responseObserver).onError(exceptionCaptor.capture());
 
         StatusException exception = exceptionCaptor.getValue();
         assertThat(exception,
@@ -213,8 +224,9 @@ public class SettingPolicyRpcServiceTest {
     public void testCreatePolicyDuplicateName() throws Exception {
         final StreamObserver<CreateSettingPolicyResponse> responseObserver =
                 (StreamObserver<CreateSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.createUserSettingPolicy(eq(settingPolicyInfo)))
-                .thenThrow(new DuplicateNameException(1, "foo"));
+        Mockito.doThrow(new StoreOperationException(Status.ALREADY_EXISTS, "foo"))
+                .when(transactionProvider.getSettingPolicyStore())
+                        .createSettingPolicies(Mockito.any());
 
         settingPolicyService.createSettingPolicy(CreateSettingPolicyRequest.newBuilder()
                 .setSettingPolicyInfo(settingPolicyInfo)
@@ -447,6 +459,8 @@ public class SettingPolicyRpcServiceTest {
     @Test
     public void testDeletePolicy() throws Exception {
         final long id = 7;
+        transactionProvider.getSettingPolicyStore()
+                .createSettingPolicies(Collections.singletonList(settingPolicy));
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
         settingPolicyService.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
@@ -457,9 +471,11 @@ public class SettingPolicyRpcServiceTest {
                 ArgumentCaptor.forClass(DeleteSettingPolicyResponse.class);
         verify(responseObserver).onNext(responseCaptor.capture());
         verify(responseObserver).onCompleted();
+        Mockito.verify(responseObserver, Mockito.never()).onError(Mockito.any());
 
         assertEquals(DeleteSettingPolicyResponse.getDefaultInstance(), responseCaptor.getValue());
-        verify(settingStore).deleteUserSettingPolicy(eq(id));
+        Mockito.verify(transactionProvider.getSettingPolicyStore()).deletePolicies(
+                Collections.singletonList(id), Type.USER);
     }
 
     @Test
@@ -467,8 +483,6 @@ public class SettingPolicyRpcServiceTest {
         final long id = 7;
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.deleteUserSettingPolicy(eq(id)))
-            .thenThrow(new SettingPolicyNotFoundException(id));
         settingPolicyService.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
                 .setId(id)
                 .build(), responseObserver);
@@ -488,8 +502,6 @@ public class SettingPolicyRpcServiceTest {
         final String error = "ERRORMSG";
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.deleteUserSettingPolicy(eq(id)))
-                .thenThrow(new ImmutableSettingPolicyUpdateException(error));
         settingPolicyService.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
                 .setId(id)
                 .build(), responseObserver);
@@ -499,19 +511,19 @@ public class SettingPolicyRpcServiceTest {
         verify(responseObserver).onError(exceptionCaptor.capture());
 
         final StatusException exception = exceptionCaptor.getValue();
-        assertThat(exception, GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT)
-                .descriptionContains(error));
+        Assert.assertThat(exception, GrpcExceptionMatcher.hasCode(Code.NOT_FOUND)
+                .descriptionContains(Long.toString(id)));
     }
 
     @Test
     public void testDeletePolicyCheckCancelActionsInvocation() throws Exception {
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
-        when(settingStore.deleteUserSettingPolicy(eq(100L)))
-                .thenReturn(automationSettingPolicy);
+        transactionProvider.getSettingPolicyStore()
+                .createSettingPolicies(Collections.singletonList(automationSettingPolicy));
 
         settingPolicyService.deleteSettingPolicy(DeleteSettingPolicyRequest.newBuilder()
-                .setId(100L)
+                .setId(automationSettingPolicy.getId())
                 .build(), responseObserver);
 
         verify(actionServiceMole).cancelQueuedActions(any());
@@ -522,7 +534,6 @@ public class SettingPolicyRpcServiceTest {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
 
-        when(settingStore.getSettingPolicy(anyLong())).thenReturn(Optional.empty());
         settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
                 .setId(7L)
                 .build(), responseObserver);
@@ -535,7 +546,8 @@ public class SettingPolicyRpcServiceTest {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
 
-        when(settingStore.getSettingPolicy(eq("name"))).thenReturn(Optional.of(settingPolicy));
+        transactionProvider.getSettingPolicyStore()
+                .createSettingPolicies(Collections.singletonList(settingPolicy));
         settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
                 .setName("name")
                 .build(), responseObserver);
@@ -546,11 +558,12 @@ public class SettingPolicyRpcServiceTest {
     }
 
     @Test
-    public void testGetPolicyById() {
+    public void testGetPolicyById() throws Exception {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
 
-        when(settingStore.getSettingPolicy(eq(7L))).thenReturn(Optional.of(settingPolicy));
+        transactionProvider.getSettingPolicyStore()
+                .createSettingPolicies(Collections.singletonList(settingPolicy));
         settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
                 .setId(7L)
                 .build(), responseObserver);
@@ -561,11 +574,12 @@ public class SettingPolicyRpcServiceTest {
     }
 
     @Test
-    public void testGetPolicyWithSpec() {
+    public void testGetPolicyWithSpec() throws Exception {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
 
-        when(settingStore.getSettingPolicy(eq(7L))).thenReturn(Optional.of(settingPolicy));
+        transactionProvider.getSettingPolicyStore()
+                .createSettingPolicies(Collections.singletonList(settingPolicy));
         when(settingSpecStore.getSettingSpec(settingSpec.getName()))
             .thenReturn(Optional.of(settingSpec));
         settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
@@ -580,11 +594,11 @@ public class SettingPolicyRpcServiceTest {
     }
 
     @Test
-    public void testGetPolicyWithMissingSpec() {
+    public void testGetPolicyWithMissingSpec() throws Exception {
         final StreamObserver<GetSettingPolicyResponse> responseObserver =
                 (StreamObserver<GetSettingPolicyResponse>)mock(StreamObserver.class);
-
-        when(settingStore.getSettingPolicy(eq(7L))).thenReturn(Optional.of(settingPolicy));
+        transactionProvider.getSettingPolicyStore()
+                .createSettingPolicies(Collections.singletonList(settingPolicy));
         when(settingSpecStore.getSettingSpec(settingSpec.getName()))
                 .thenReturn(Optional.empty());
         settingPolicyService.getSettingPolicy(GetSettingPolicyRequest.newBuilder()
@@ -599,16 +613,21 @@ public class SettingPolicyRpcServiceTest {
     }
 
     @Test
-    public void testListPolicies() {
+    public void testListPolicies() throws Exception {
         final StreamObserver<SettingPolicy> responseObserver =
                 (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
-        when(settingStore.getSettingPolicies(eq(SettingPolicyFilter.newBuilder().build())))
-            // Just return the same one twice - that's fine for the purpose of the test.
-            .thenReturn(Stream.of(settingPolicy, settingPolicy));
+        transactionProvider.getSettingPolicyStore()
+                .createSettingPolicies(Arrays.asList(settingPolicy,
+                        SettingPolicy.newBuilder(settingPolicy).setId(8L).build()));
+
         settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.getDefaultInstance(),
                 responseObserver);
-
-        verify(responseObserver, times(2)).onNext(eq(settingPolicy));
+        final ArgumentCaptor<SettingPolicy> result = ArgumentCaptor.forClass(SettingPolicy.class);
+        verify(responseObserver, times(2)).onNext(result.capture());
+        Assert.assertEquals(Sets.newHashSet(7L, 8L), result.getAllValues()
+                .stream()
+                .map(SettingPolicy::getId)
+                .collect(Collectors.toSet()));
         verify(responseObserver).onCompleted();
     }
 
@@ -616,38 +635,43 @@ public class SettingPolicyRpcServiceTest {
     public void testListPolicyForPlan() throws Exception {
         final StreamObserver<SettingPolicy> responseObserver =
                         (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
-        when(settingStore.getSettingPolicies(eq(SettingPolicyFilter.newBuilder()
-                .withType(Type.DEFAULT).build())))
-        // Just return the same one twice - that's fine for the purpose of the test.
-                .thenReturn(Stream.of(automationSettingPolicy));
+        transactionProvider.getSettingPolicyStore()
+                .createSettingPolicies(Collections.singletonList(automationSettingPolicy));
+
        settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
                 .setTypeFilter(Type.DEFAULT).setContextId(111).build(), responseObserver);
 
        Setting newSetting = automationSettingPolicy.toBuilder().getInfoBuilder().getSettingsBuilder(0)
                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.toString())
                         .build()).build();
-       SettingPolicy newPolicy = SettingPolicy.newBuilder().setId(100L).setInfo(SettingPolicyInfo
-                .newBuilder().setName("automationSettingPolicy").addSettings(newSetting).build()).build();
+        final SettingPolicy newPolicy = SettingPolicy.newBuilder()
+                .setId(100L)
+                .setInfo(SettingPolicyInfo.newBuilder()
+                        .setName("automationSettingPolicy")
+                        .addSettings(newSetting)
+                        .build())
+                .setSettingPolicyType(Type.DEFAULT)
+                .build();
 
        verify(responseObserver, times(1)).onNext(eq(newPolicy));
        verify(responseObserver).onCompleted();
     }
 
     @Test
-    public void testListPoliciesTypeFilter() {
+    public void testListPoliciesTypeFilter() throws Exception {
         final StreamObserver<SettingPolicy> responseObserver =
                 (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
-        when(settingStore.getSettingPolicies(eq(SettingPolicyFilter.newBuilder()
+        when(transactionProvider.getSettingPolicyStore().getPolicies(eq(SettingPolicyFilter.newBuilder()
                 .withType(Type.DEFAULT)
                 .build())))
             // Just return the same one twice - that's fine for the purpose of the test.
-            .thenReturn(Stream.of(settingPolicy, settingPolicy));
+            .thenReturn(Arrays.asList(automationSettingPolicy, automationSettingPolicy));
         settingPolicyService.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
                     .setTypeFilter(Type.DEFAULT)
                     .build(),
                 responseObserver);
 
-        verify(responseObserver, times(2)).onNext(eq(settingPolicy));
+        verify(responseObserver, times(2)).onNext(eq(automationSettingPolicy));
         verify(responseObserver).onCompleted();
     }
 
@@ -807,7 +831,7 @@ public class SettingPolicyRpcServiceTest {
     }
 
     @Test
-    public void testGetEntitySettings() throws NoSettingsForTopologyException {
+    public void testGetEntitySettings() throws Exception {
         final StreamObserver<GetEntitySettingsResponse> responseObserver =
                 (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
 
@@ -833,8 +857,8 @@ public class SettingPolicyRpcServiceTest {
         when(entitySettingStore.getEntitySettings(eq(topologyFilter), eq(settingsFilter)))
                 .thenReturn(ImmutableMap.of(7L, Collections.singletonList(settingToPolicyId)));
 
-        when(settingStore.getSettingPolicies(any())).thenReturn(
-                Stream.of(SettingPolicy.newBuilder()
+        when(transactionProvider.getSettingPolicyStore().getPolicies(any())).thenReturn(
+                Arrays.asList(SettingPolicy.newBuilder()
                         .setId(1L)
                         .setInfo(SettingPolicyInfo.newBuilder()
                                 .setName("Test-SP")
@@ -861,7 +885,7 @@ public class SettingPolicyRpcServiceTest {
     }
 
     @Test
-    public void testGetEntitySettingsWithPolicy() throws NoSettingsForTopologyException {
+    public void testGetEntitySettingsWithPolicy() throws Exception {
         final StreamObserver<GetEntitySettingsResponse> responseObserver =
             (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
 
@@ -887,8 +911,8 @@ public class SettingPolicyRpcServiceTest {
         when(entitySettingStore.getEntitySettings(eq(topologyFilter), eq(settingsFilter)))
             .thenReturn(ImmutableMap.of(7L, Collections.singletonList(settingToPolicyId)));
 
-        when(settingStore.getSettingPolicies(any())).thenReturn(
-            Stream.of(SettingPolicy.newBuilder()
+        Mockito.when(settingStore.getSettingPolicies(any())).thenReturn(
+            Arrays.asList(SettingPolicy.newBuilder()
                 .setId(1L)
                 .setSettingPolicyType(Type.DISCOVERED)
                 .setInfo(SettingPolicyInfo.newBuilder()
@@ -935,11 +959,11 @@ public class SettingPolicyRpcServiceTest {
      *     EntitySettingGroup1, for {entityOid1, entityOid2}, excludes {tier1, tier2} and is resolved from {sp1, sp2},
      *     EntitySettingGroup2, for {entityOid3}, excludes {tier1, tier2} and is resolved from {sp2, sp3}
      *
-     * @throws NoSettingsForTopologyException NoSettingsForTopologyException
+     * @throws Exception on exceptions occurred
      */
     @Test
     public void testGetEntitySettingsWithPolicySortedSetOfOidSetting()
-            throws NoSettingsForTopologyException {
+            throws Exception {
         final StreamObserver<GetEntitySettingsResponse> responseObserver =
             (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
 
@@ -988,7 +1012,8 @@ public class SettingPolicyRpcServiceTest {
                 entityOid2, Collections.singletonList(settingToPolicyId2),
                 entityOid3, Collections.singletonList(settingToPolicyId3)));
 
-        when(settingStore.getSettingPolicies(any())).thenReturn(Stream.of(
+        Mockito.when(settingStore.getSettingPolicies(any()))
+                .thenReturn(Arrays.asList(
             SettingPolicy.newBuilder().setId(sp1)
                 .setSettingPolicyType(Type.USER)
                 .setInfo(SettingPolicyInfo.newBuilder().setName("Test-SP1").build())
@@ -1084,8 +1109,10 @@ public class SettingPolicyRpcServiceTest {
         final StreamObserver<SettingPolicy> responseObserver =
             (StreamObserver<SettingPolicy>)mock(StreamObserver.class);
         final long scheduleId = 11L;
-        when(settingStore.getSettingPoliciesUsingSchedule(scheduleId))
-            .thenReturn(Stream.of(settingPolicy, settingPolicy));
+        Mockito.when(transactionProvider.getSettingPolicyStore()
+                .getPolicies(SettingPolicyFilter.newBuilder()
+                        .withScheduleId(scheduleId)
+                        .build())).thenReturn(Arrays.asList(settingPolicy, settingPolicy));
         settingPolicyService.getSettingPoliciesUsingSchedule(
             GetSettingPoliciesUsingScheduleRequest.newBuilder()
                 .setScheduleId(scheduleId)

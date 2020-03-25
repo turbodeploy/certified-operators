@@ -52,11 +52,14 @@ message PriceTableKey {
     // of the cloud provider (e.g. AWS, Azure). This group is a short-term implementation for scoping
     // the keys, which is expected to be replaced by a CloudServiceProvider entity identifier in the
     // near future
-    optional string pricing_group = 1;
+    optional string pricing_group = 1 [deprecated = true];
 
     // probe_key_material is a map of miscellaneous information about the price table which helps to
     // uniquely identify a price table and to which account it might be related to.
     map<string, string> probe_key_material = 2;
+
+    // The service provider id
+    optional int64 service_provider_id = 3;
 }
 
 // Simple MapFieldEntry to capture checksum of each priceTableKey and to

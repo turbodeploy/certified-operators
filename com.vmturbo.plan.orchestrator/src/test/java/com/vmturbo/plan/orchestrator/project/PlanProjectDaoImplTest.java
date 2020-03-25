@@ -8,18 +8,12 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import org.flywaydb.core.Flyway;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
@@ -33,37 +27,31 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.plan.orchestrator.db.Plan;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Unit test for {@link PlanProjectDaoImpl}
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=plan"})
 public class PlanProjectDaoImplTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
 
-    @Autowired
-    private TestSQLDatabaseConfig dbConfig;
-    private PlanProjectDao planProjectDao;
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    private PlanProjectDao planProjectDao = new PlanProjectDaoImpl(dbConfig.getDslContext(), new IdentityInitializer(0));
 
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        planProjectDao = new PlanProjectDaoImpl(dbConfig.dsl(), new IdentityInitializer(0));
-        prepareDatabase();
-    }
-
-    private void prepareDatabase() throws Exception {
-        flyway = dbConfig.flyway();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
     }
 
     @Test
@@ -172,10 +160,5 @@ public class PlanProjectDaoImplTest {
             result
         );
 
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 }

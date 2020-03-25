@@ -1,6 +1,6 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_HOSTS;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -146,7 +147,7 @@ public class MarketStatsAccumulatorTest {
         when(loaderFactory.getLoader(HistUtilization.HIST_UTILIZATION)).thenReturn(mockBulkLoader);
         this.marketStatsAccumulator =
                 new MarketStatsAccumulator(TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
-                        historydbIO, commoditiesToExclude, loaderFactory);
+                        historydbIO, commoditiesToExclude, loaderFactory, new HashSet<>());
     }
 
 

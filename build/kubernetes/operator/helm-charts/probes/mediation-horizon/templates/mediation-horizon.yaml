@@ -62,6 +62,9 @@ spec:
           readOnly: true
         - mountPath: /tmp
           name: mediation-horizon-tmpfs0
+        - mountPath: /etc/targets
+          name: horizon-secrets
+          readOnly: true
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
     {{- if .Values.global.imagePullSecret }}
@@ -95,6 +98,10 @@ spec:
           optional: true
       - name: mediation-horizon-tmpfs0
         emptyDir: {}
+      - name: horizon-secrets
+        secret:
+          secretName: "horizon"
+          optional: true
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}

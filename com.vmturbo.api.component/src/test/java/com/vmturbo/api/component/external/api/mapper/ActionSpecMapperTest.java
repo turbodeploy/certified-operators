@@ -124,7 +124,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -409,7 +409,7 @@ public class ActionSpecMapperTest {
      */
     @Test
     public void testMapStorageMoveWithoutSourceId() throws Exception {
-        ActionInfo moveInfo = getMoveActionInfo(UIEntityType.STORAGE.apiStr(), false);
+        ActionInfo moveInfo = getMoveActionInfo(ApiEntityType.STORAGE.apiStr(), false);
         Explanation compliance = Explanation.newBuilder()
                 .setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -442,7 +442,7 @@ public class ActionSpecMapperTest {
      */
     @Test
     public void testMapDiskArrayMoveWithoutSourceId() throws Exception {
-        ActionInfo moveInfo = getMoveActionInfo(UIEntityType.DISKARRAY.apiStr(), false);
+        ActionInfo moveInfo = getMoveActionInfo(ApiEntityType.DISKARRAY.apiStr(), false);
         Explanation compliance = Explanation.newBuilder()
                 .setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -1414,14 +1414,14 @@ public class ActionSpecMapperTest {
     @Test
     public void testCreateActionFilterWithInvolvedEntityTypes() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
-        inputDto.setRelatedEntityTypes(Arrays.asList(UIEntityType.VIRTUAL_MACHINE.apiStr(),
-            UIEntityType.PHYSICAL_MACHINE.apiStr()));
+        inputDto.setRelatedEntityTypes(Arrays.asList(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
+            ApiEntityType.PHYSICAL_MACHINE.apiStr()));
 
         final ActionQueryFilter filter = createFilter(inputDto);
 
         assertThat(filter.getEntityTypeList(),
-            containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.typeNumber(),
-                UIEntityType.PHYSICAL_MACHINE.typeNumber()));
+            containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
     }
 
 
@@ -1724,11 +1724,11 @@ public class ActionSpecMapperTest {
     }
 
     private ActionInfo getHostMoveActionInfo() {
-        return getMoveActionInfo(UIEntityType.PHYSICAL_MACHINE.apiStr(), true);
+        return getMoveActionInfo(ApiEntityType.PHYSICAL_MACHINE.apiStr(), true);
     }
 
     private ActionInfo getStorageMoveActionInfo() {
-        return getMoveActionInfo(UIEntityType.STORAGE.apiStr(), true);
+        return getMoveActionInfo(ApiEntityType.STORAGE.apiStr(), true);
     }
 
     private ActionInfo getMoveActionInfo(final String srcAndDestType, boolean hasSource) {
@@ -1749,8 +1749,8 @@ public class ActionSpecMapperTest {
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
             topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO(SOURCE, 1L, UIEntityType.fromString(srcAndDestType).typeNumber()),
-            topologyEntityDTO(DESTINATION, 2L, UIEntityType.fromString(srcAndDestType).typeNumber())));
+            topologyEntityDTO(SOURCE, 1L, ApiEntityType.fromString(srcAndDestType).typeNumber()),
+            topologyEntityDTO(DESTINATION, 2L, ApiEntityType.fromString(srcAndDestType).typeNumber())));
         when(repositoryApi.entitiesRequest(any()))
             .thenReturn(req);
 
@@ -1768,8 +1768,8 @@ public class ActionSpecMapperTest {
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
             topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO(SOURCE, 1L, UIEntityType.COMPUTE_TIER.typeNumber()),
-            topologyEntityDTO(DESTINATION, 2L, UIEntityType.COMPUTE_TIER.typeNumber())));
+            topologyEntityDTO(SOURCE, 1L, ApiEntityType.COMPUTE_TIER.typeNumber()),
+            topologyEntityDTO(DESTINATION, 2L, ApiEntityType.COMPUTE_TIER.typeNumber())));
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         return scaleInfo;
@@ -1784,7 +1784,7 @@ public class ActionSpecMapperTest {
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
                 topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-                topologyEntityDTO(SOURCE, 4L, UIEntityType.COMPUTE_TIER.typeNumber())));
+                topologyEntityDTO(SOURCE, 4L, ApiEntityType.COMPUTE_TIER.typeNumber())));
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         return allocateInfo;
@@ -1804,7 +1804,7 @@ public class ActionSpecMapperTest {
         final ServiceEntityApiDTO mappedE = new ServiceEntityApiDTO();
         mappedE.setDisplayName(displayName);
         mappedE.setUuid(Long.toString(oid));
-        mappedE.setClassName(UIEntityType.fromType(entityType).apiStr());
+        mappedE.setClassName(ApiEntityType.fromType(entityType).apiStr());
         when(serviceEntityMapper.toServiceEntityApiDTO(e)).thenReturn(mappedE);
 
         return e;
@@ -1857,7 +1857,7 @@ public class ActionSpecMapperTest {
 
     private SupplyChainNode makeSupplyChainNode(long oid) {
         return SupplyChainNode.newBuilder()
-            .setEntityType(UIEntityType.DATACENTER.apiStr())
+            .setEntityType(ApiEntityType.DATACENTER.apiStr())
             .putMembersByState(EntityState.ACTIVE.ordinal(),
                 MemberList.newBuilder().addMemberOids(oid).build())
             .build();

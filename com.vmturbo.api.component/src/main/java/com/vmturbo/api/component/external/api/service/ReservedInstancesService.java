@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.validation.constraints.NotNull;
 
 import com.google.common.collect.Lists;
 
@@ -59,7 +60,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 public class ReservedInstancesService implements IReservedInstancesService {
 
@@ -117,6 +118,10 @@ public class ReservedInstancesService implements IReservedInstancesService {
     @Override
     public List<ReservedInstanceApiDTO> getReservedInstances(
             @Nullable String scopeUuid, @Nullable Boolean includeAllUsable) throws Exception {
+        // default to the real time market as the scope
+        scopeUuid = Optional.ofNullable(scopeUuid)
+            .orElse(UuidMapper.UI_REAL_TIME_MARKET_STR);
+
         final ApiId scope = uuidMapper.fromUuid(scopeUuid);
         final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(
                 scope, Objects.isNull(includeAllUsable) ? false : includeAllUsable);

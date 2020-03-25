@@ -56,7 +56,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
@@ -203,7 +203,7 @@ public class SettingPoliciesServiceTest {
 
         List<SettingsPolicyApiDTO> ret =
                 settingsPoliciesService.getSettingsPolicies(false,
-                    Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+                    Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
         assertThat(ret, containsInAnyOrder(RET_SP_DTO));
     }
 

@@ -1,19 +1,19 @@
 package com.vmturbo.history.stats.live;
 
-import static com.vmturbo.components.common.utils.StringConstants.AVG_VALUE;
-import static com.vmturbo.components.common.utils.StringConstants.CAPACITY;
-import static com.vmturbo.components.common.utils.StringConstants.COMMODITY_KEY;
-import static com.vmturbo.components.common.utils.StringConstants.EFFECTIVE_CAPACITY;
-import static com.vmturbo.components.common.utils.StringConstants.ENTITY_TYPE;
-import static com.vmturbo.components.common.utils.StringConstants.ENVIRONMENT_TYPE;
-import static com.vmturbo.components.common.utils.StringConstants.MAX_VALUE;
-import static com.vmturbo.components.common.utils.StringConstants.MIN_VALUE;
-import static com.vmturbo.components.common.utils.StringConstants.PRODUCER_UUID;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.components.common.utils.StringConstants.RELATION;
-import static com.vmturbo.components.common.utils.StringConstants.SNAPSHOT_TIME;
-import static com.vmturbo.components.common.utils.StringConstants.UUID;
+import static com.vmturbo.common.protobuf.utils.StringConstants.AVG_VALUE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CAPACITY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.EFFECTIVE_CAPACITY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.ENTITY_TYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.ENVIRONMENT_TYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.MAX_VALUE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.MIN_VALUE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PRODUCER_UUID;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.SNAPSHOT_TIME;
+import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
 import static org.jooq.impl.DSL.avg;
 import static org.jooq.impl.DSL.max;
 import static org.jooq.impl.DSL.min;
@@ -149,12 +149,12 @@ public interface StatsQueryFactory {
         @Override
         public Optional<Condition> environmentTypeCond(@Nonnull final EnvironmentType environmentType, @Nonnull final Table<?> table) {
             // We only record the environment type in the database for the aggregate
-            // market stats tables.
-            if (HistoryStatsUtils.isMarketStatsTable(table)) {
-                return Optional.of(JooqUtils.getEnvField(table, MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE.getName()).eq(environmentType));
-            } else {
+            // market stats tables. Those results on-prem and cloud.  For Hybrid envType
+            // we remove the conditional.
+            if (EnvironmentType.HYBRID.equals(environmentType) || !HistoryStatsUtils.isMarketStatsTable(table)) {
                 return Optional.empty();
             }
+            return Optional.of(JooqUtils.getEnvField(table, MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE.getName()).eq(environmentType));
         }
 
         @Override

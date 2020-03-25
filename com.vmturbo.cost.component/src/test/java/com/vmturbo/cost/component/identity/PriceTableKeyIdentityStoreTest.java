@@ -20,20 +20,13 @@ import com.google.common.collect.ImmutableMap;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTable;
@@ -44,6 +37,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.identity.PriceTableKeyIdentityStore.PriceTableKeyOid;
 import com.vmturbo.cost.component.pricing.PriceTableMerge.PriceTableMergeFactory;
@@ -53,19 +47,25 @@ import com.vmturbo.identity.attributes.IdentityMatchingAttribute;
 import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.PricingDTO.ReservedInstancePrice;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
  * Context Configuration for this test class.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class PriceTableKeyIdentityStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private final Type type = new TypeToken<Map<String, String>>() {
     }.getType();
@@ -73,12 +73,13 @@ public class PriceTableKeyIdentityStoreTest {
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000), ZoneId.systemDefault());
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private Flyway flyway;
-    private DSLContext dsl;
-    private PriceTableKeyIdentityStore testIdentityStore;
+    private PriceTableKeyIdentityStore testIdentityStore = new PriceTableKeyIdentityStore(dsl,
+                new IdentityProvider(0));
+
+    private final Long awsServiceProviderOid = 123456L;
+    private final Long azureServiceProviderOid = 9876543L;
 
     /**
      * Set up identity generator.
@@ -87,29 +88,6 @@ public class PriceTableKeyIdentityStoreTest {
     public static void setupClass() {
         IdentityGenerator.initPrefix(0L);
     }
-
-    /**
-     * Setup for this test class.
-     */
-    @Before
-    public void setup() {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        testIdentityStore = new PriceTableKeyIdentityStore(dsl,
-                new IdentityProvider(0));
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
-    }
-
-    /**
-     * Teardown after test finishes.
-     */
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
-
 
     /**
      * Test Empty set of oids.
@@ -130,7 +108,7 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testOidWithIdentifiers() throws IdentityStoreException, DbException {
-        PriceTableKey priceTableKey = mockPriceTableKey("aws");
+        PriceTableKey priceTableKey = mockPriceTableKey(awsServiceProviderOid);
 
         testIdentityStore.fetchOrAssignOid(priceTableKey);
         Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore
@@ -147,7 +125,7 @@ public class PriceTableKeyIdentityStoreTest {
 
         assertThat(identityMatchingAttributeMap.get("enrollmentId"), is("123"));
         assertThat(identityMatchingAttributeMap.get("offerId"), is("456"));
-        assertThat(identityMatchingAttributeMap.get("pricing_group"), is("aws"));
+        assertThat(identityMatchingAttributeMap.get("service_provider_oid"), is("123456"));
     }
 
 
@@ -159,7 +137,7 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testOidWithSameIdentifier() throws IdentityStoreException, DbException {
-        PriceTableKey priceTableKey = mockPriceTableKey("aws");
+        PriceTableKey priceTableKey = mockPriceTableKey(awsServiceProviderOid);
         testIdentityStore.fetchOrAssignOid(priceTableKey);
         testIdentityStore.fetchOrAssignOid(priceTableKey);
         Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore
@@ -175,10 +153,10 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testOidWithUniqueIdentifiers() throws IdentityStoreException {
-        PriceTableKey priceTableKey = mockPriceTableKey("azure");
+        PriceTableKey priceTableKey = mockPriceTableKey(azureServiceProviderOid);
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
-        priceTableKey = priceTableKey.newBuilderForType().setPricingGroup("aws").build();
+        priceTableKey = priceTableKey.newBuilderForType().setServiceProviderId(awsServiceProviderOid).build();
         testIdentityStore.fetchOrAssignOid(priceTableKey);
 
         Map<IdentityMatchingAttributes, Long> matchingAttributesLongMap = testIdentityStore.fetchAllOidMappings(dsl);
@@ -193,7 +171,7 @@ public class PriceTableKeyIdentityStoreTest {
      */
     @Test
     public void testCascadeDeleteOnPriceTableKeyOidDelete() throws IdentityStoreException, DbException {
-        PriceTableKey priceTableKey = mockPriceTableKey("azure");
+        PriceTableKey priceTableKey = mockPriceTableKey(awsServiceProviderOid);
         final long oid = testIdentityStore.fetchOrAssignOid(priceTableKey);
 
         final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
@@ -232,8 +210,8 @@ public class PriceTableKeyIdentityStoreTest {
         final PriceTable priceTable1 = mockPriceTable(2L);
         final PriceTable priceTable2 = mockPriceTable(2L);
 
-        final PriceTableKey priceTableKey1 = mockPriceTableKey("Aws");
-        final PriceTableKey priceTableKey2 = mockPriceTableKey("Azure");
+        final PriceTableKey priceTableKey1 = mockPriceTableKey(awsServiceProviderOid);
+        final PriceTableKey priceTableKey2 = mockPriceTableKey(azureServiceProviderOid);
 
         final long oid1 = testIdentityStore.fetchOrAssignOid(priceTableKey1);
         final long oid2 = testIdentityStore.fetchOrAssignOid(priceTableKey2);
@@ -334,7 +312,7 @@ public class PriceTableKeyIdentityStoreTest {
     }
 
     private void insertAzurePriceTable() {
-        PriceTableKey priceTableKey = mockPriceTableKey("azure");
+        PriceTableKey priceTableKey = mockPriceTableKey(azureServiceProviderOid);
         final PriceTableMergeFactory mergeFactory = mock(PriceTableMergeFactory.class);
         //add new price Table.
         SQLPriceTableStore sqlPriceTableStore = new SQLPriceTableStore(clock, dsl, new PriceTableKeyIdentityStore(dsl,
@@ -349,9 +327,9 @@ public class PriceTableKeyIdentityStoreTest {
 
     }
 
-    private PriceTableKey mockPriceTableKey(final String pricingGroup) {
+    private PriceTableKey mockPriceTableKey(final Long serviceProviderId) {
         return PriceTableKey.newBuilder()
-                .setPricingGroup(pricingGroup)
+                .setServiceProviderId(serviceProviderId)
                 .putProbeKeyMaterial("enrollmentId", "123")
                 .putProbeKeyMaterial("offerId", "456")
                 .build();

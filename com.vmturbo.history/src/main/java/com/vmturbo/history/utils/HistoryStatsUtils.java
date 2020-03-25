@@ -30,7 +30,6 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -431,7 +430,7 @@ public class HistoryStatsUtils {
     }
 
     @SuppressWarnings("unchecked")
-    public static Field<Timestamp> timestamp(Field<?> field){
+    public static Field<Timestamp> timestamp(Field<?> field) {
         checkNotNull(field);
         checkFieldType(field.getType(), Timestamp.class);
         return (Field<Timestamp>)field;
@@ -440,12 +439,12 @@ public class HistoryStatsUtils {
     /*
      * Type-safe wrappers for casting Fields to the required generic type.
      */
-    private static void checkFieldType(Class<?> given, Class<?> expected){
+    private static void checkFieldType(Class<?> given, Class<?> expected) {
         checkFieldType(given, expected, false);
     }
 
-    private static void checkFieldType(Class<?> given, Class<?> expected, boolean subClsOK){
-        checkArgument(subClsOK ? expected.isAssignableFrom(given) : given==expected,
+    private static void checkFieldType(Class<?> given, Class<?> expected, boolean subClsOK) {
+        checkArgument(subClsOK ? expected.isAssignableFrom(given) : given == expected,
                 "Incorrect field type %s (expected %s)",
                 given.getName(), expected.getName());
     }

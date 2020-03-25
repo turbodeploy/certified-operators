@@ -9,21 +9,21 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
@@ -35,74 +35,118 @@ import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.test.annotation.DirtiesContext;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
+import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
+import com.vmturbo.common.protobuf.cost.CostMoles.PlanReservedInstanceServiceMole;
+import com.vmturbo.common.protobuf.cost.CostMoles.RIBuyContextFetchServiceMole;
+import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
+import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.plan.orchestrator.plan.PlanDaoImpl.OldPlanCleanup;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDaoImpl;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.repository.api.RepositoryClient;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
- * Unit test for {@link PlanProjectDaoImpl}
+ * Unit test for {@link PlanProjectDaoImpl}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {PlanTestConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=plan"})
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class PlanDaoImplTest {
-    private static final long GENERATION_TIME = 111111111L;
-    @Autowired
-    private TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
 
-    @Autowired
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    private static final long GENERATION_TIME = 111111111L;
+
+    private DSLContext dsl = dbConfig.getDslContext();
+
+    private Clock clock = new MutableFixedClock(10_000_000);
+
     private PlanDao planDao;
 
-    @Autowired
-    private SettingServiceMole settingServer;
+    private RepositoryClient reposOkClient = mock(RepositoryClient.class);
+    private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
-    @Autowired
-    private ScheduledExecutorService planCleanupExecutor;
+    private ActionsServiceMole actionsBackend = spy(ActionsServiceMole.class);
+    private StatsHistoryServiceMole statsBackend = spy(StatsHistoryServiceMole.class);
+    private SettingServiceMole settingBackend = spy(SettingServiceMole.class);
+    private SearchServiceMole searchBackend = spy(SearchServiceMole.class);
+    private RIBuyContextFetchServiceMole riBuyBackend = spy(RIBuyContextFetchServiceMole.class);
+    private PlanReservedInstanceServiceMole planRiBackend = spy(PlanReservedInstanceServiceMole.class);
+    private CostServiceMole costBackend = spy(CostServiceMole.class);
+    private ScheduledExecutorService planCleanupExecutor = mock(ScheduledExecutorService.class);
 
-    @Autowired
-    private Clock clock;
-
-    private DSLContext dsl;
+    /**
+     * gRPC server to mock out gRPC dependencies.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsBackend, statsBackend,
+        settingBackend, searchBackend, riBuyBackend, planRiBackend, costBackend);
 
     @Before
     public void setup() throws Exception {
-        dsl = dbConfig.dsl();
+        IdentityGenerator.initPrefix(0);
+        when(reposOkClient.deleteTopology(Mockito.anyLong(), Mockito.anyLong(), Mockito.any()))
+            .thenReturn(RepositoryOperationResponse.newBuilder()
+                .setResponseCode(RepositoryOperationResponseCode.OK)
+                .build());
+
+        planDao = new PlanDaoImpl(dsl, reposOkClient,
+            ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            grpcServer.getChannel(),
+            userSessionContext, SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            RIBuyContextFetchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            clock, planCleanupExecutor,
+            1, TimeUnit.HOURS, 1, TimeUnit.HOURS);
     }
 
     @After
@@ -255,8 +299,7 @@ public class PlanDaoImplTest {
         // we need to change the defaultTimeOut value here too
         final int defaultTimeOutHour = 1;
         //avoid failing for daylight savings
-        final LocalDateTime createdTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(GENERATION_TIME),
-        TimeZone.getDefault().toZoneId()).minusHours(defaultTimeOutHour + 1);
+        final LocalDateTime createdTime = LocalDateTime.now(clock).minusHours(defaultTimeOutHour + 1);
         // create 6 time outed plan instance.
         createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS, createdTime);
         createHeadroomPlanInstance(PlanStatus.CONSTRUCTING_TOPOLOGY, createdTime);
@@ -331,16 +374,15 @@ public class PlanDaoImplTest {
 
     @Test
     public void testQueuePlanInstance() throws Exception {
-        when(settingServer.getGlobalSetting(GetSingleGlobalSettingRequest.newBuilder()
+        doReturn(GetGlobalSettingResponse.newBuilder()
+            .setSetting(Setting.newBuilder()
+                .setNumericSettingValue(NumericSettingValue.newBuilder()
+                    .setValue(1)
+                    .build()))
+            .build()).when(settingBackend).getGlobalSetting(GetSingleGlobalSettingRequest.newBuilder()
                 .setSettingSpecName(GlobalSettingSpecs.MaxConcurrentPlanInstances
                         .getSettingName())
-                .build()))
-                .thenReturn(GetGlobalSettingResponse.newBuilder()
-                        .setSetting(Setting.newBuilder()
-                                .setNumericSettingValue(NumericSettingValue.newBuilder()
-                                        .setValue(1)
-                                        .build()))
-                        .build());
+                .build());
 
         // create 3 Headroom plan instances, 2 running and 1 ready
         createHeadroomPlanInstance(PlanStatus.RUNNING_ANALYSIS, null);
@@ -375,7 +417,7 @@ public class PlanDaoImplTest {
     @Test
     public void testListeners() throws Exception {
         PlanInstanceQueue planInstanceQueue = mock(PlanInstanceQueue.class);
-        PlanInstanceCompletionListener listener = Mockito.spy(
+        PlanInstanceCompletionListener listener = spy(
                 new PlanInstanceCompletionListener(planInstanceQueue));
         planDao.addStatusListener(listener);
         PlanDTO.PlanInstance inst = planDao.createPlanInstance(CreatePlanRequest.newBuilder()

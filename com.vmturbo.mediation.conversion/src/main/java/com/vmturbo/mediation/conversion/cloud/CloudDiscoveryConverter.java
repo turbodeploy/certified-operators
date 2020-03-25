@@ -198,7 +198,7 @@ public class CloudDiscoveryConverter {
             // if not, then we need to create new volume and set fields
             final EntityDTO.Builder volume = newEntityBuildersById.computeIfAbsent(volumeId, k ->
                     EntityDTO.newBuilder().setEntityType(EntityType.VIRTUAL_VOLUME).setId(volumeId));
-            updateVolumeDTO(volume, subDivisionData);
+            updateVolumeDTO(volume, subDivisionData, true);
         });
         // Create volumes for each instance store attached to a VM.
         if (entityDTO.hasVirtualMachineData()) {
@@ -232,9 +232,11 @@ public class CloudDiscoveryConverter {
      *
      * @param volume the volume EntityDTO to update
      * @param subDivisionData the {@link SubDivisionData} object containing volume info
+     * @param fromVM if information of volume is from VM
      */
     private void updateVolumeDTO(@Nonnull EntityDTO.Builder volume,
-                                 @Nonnull SubDivisionData subDivisionData) {
+                                 @Nonnull SubDivisionData subDivisionData,
+                                 boolean fromVM) {
         if (subDivisionData.hasDisplayName()) {
             volume.setDisplayName(subDivisionData.getDisplayName());
         }
@@ -252,6 +254,10 @@ public class CloudDiscoveryConverter {
             } catch (IllegalArgumentException e) {
                 logger.error("Unsupported redundancy type: {}", subDivisionData.getRedundancyType());
             }
+        }
+        // if information of volume is from VM, it is attached to the VM
+        if (fromVM) {
+            volumeData.setAttachmentState(AttachmentState.ATTACHED);
         }
         volume.setVirtualVolumeData(volumeData.build());
     }

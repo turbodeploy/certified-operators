@@ -113,7 +113,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             journalRecorder.recordCostJournals(costs);
 
             try {
-                entityCostStore.persistEntityCost(costs, cloudTopology);
+                entityCostStore.persistEntityCost(costs, cloudTopology, topologyInfo.getCreationTime());
             } catch (DbException e) {
                 logger.error("Failed to persist entity costs.", e);
             }

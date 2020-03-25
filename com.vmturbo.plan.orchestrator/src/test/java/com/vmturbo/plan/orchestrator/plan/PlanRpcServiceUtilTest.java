@@ -16,16 +16,21 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope.Builder;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -35,7 +40,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
@@ -79,17 +84,21 @@ public class PlanRpcServiceUtilTest {
         final TopologyInfo topologyInfo = request.getTopologyInfo();
         Assert.assertEquals(PLAN_ID, topologyInfo.getTopologyContextId());
         Assert.assertEquals(StringConstants.OPTIMIZE_CLOUD_PLAN, topologyInfo.getPlanInfo().getPlanType());
-        Assert.assertEquals(EXPECTED_RI_TYPE, request.getPurchaseProfile().getRiType());
+        Assert.assertEquals(EXPECTED_RI_TYPE, request.getPurchaseProfileByCloudtypeOrThrow(CloudType.AWS.name())
+                .getRiType());
         Assert.assertEquals(Collections.emptyList(), request.getRegionsList());
         Assert.assertEquals(BUSINESS_ACCOUNTS_OIDS, request.getAccountsList());
         Assert.assertEquals(DemandType.CONSUMPTION, request.getDemandType());
     }
 
     private StartBuyRIAnalysisRequest createBuyRIAnalysisRequest(List<Long> scopeOids, String scopeClassName) {
+        final RIProviderSetting riProviderSetting = RIProviderSetting.newBuilder()
+                .setPreferredOfferingClass(OfferingClass.STANDARD)
+                .setPreferredPaymentOption(PaymentOption.PARTIAL_UPFRONT)
+                .setPreferredTerm(PreferredTerm.YEARS_3.getYears())
+                .build();
         final RISetting riSetting = RISetting.newBuilder()
-                        .setPreferredOfferingClass(OfferingClass.STANDARD)
-                        .setPreferredPaymentOption(PaymentOption.PARTIAL_UPFRONT)
-                        .setPreferredTerm(PreferredTerm.YEARS_3.getYears())
+                .putRiSettingByCloudtype(CloudType.AWS.name(), riProviderSetting)
                         .setDemandType(DemandType.ALLOCATION)
                         .build();
         final Builder planScopeBuilder = PlanScope.newBuilder();
@@ -100,7 +109,7 @@ public class PlanRpcServiceUtilTest {
         final ScenarioChange riScenario = ScenarioChange.newBuilder()
                         .setRiSetting(riSetting).build();
         final ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
-                        .addChanges(getResizeScenarioChanges())
+                        .addChanges(getResizeScenarioChanges(StringConstants.AUTOMATIC))
                         .addChanges(riScenario)
                         .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
                         .setScope(planScopeBuilder.build()).build();
@@ -110,15 +119,16 @@ public class PlanRpcServiceUtilTest {
         return request;
     }
 
-    private static ScenarioChange getResizeScenarioChanges() {
+    private ScenarioChange getResizeScenarioChanges(String actionSetting) {
         final EnumSettingValue settingValue = EnumSettingValue.newBuilder()
-                        .setValue(StringConstants.AUTOMATIC).build();
-        final Setting resizeSetting = Setting.newBuilder()
-                        .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName())
-                        .setEnumSettingValue(settingValue).build();
+            .setValue(actionSetting).build();
+        final String resizeSettingName = EntitySettingSpecs.Resize.getSettingName();
+        final Setting resizeSetting = Setting.newBuilder().setSettingSpecName(resizeSettingName)
+            .setEnumSettingValue(settingValue).build();
         return ScenarioChange.newBuilder()
-                        .setSettingOverride(SettingOverride.newBuilder().setSetting(resizeSetting).build())
-                        .build();
+            .setSettingOverride(SettingOverride.newBuilder()
+                .setSetting(resizeSetting).build())
+            .build();
     }
 
     /**
@@ -154,9 +164,43 @@ public class PlanRpcServiceUtilTest {
         final TopologyInfo topologyInfo = request.getTopologyInfo();
         Assert.assertEquals(PLAN_ID, topologyInfo.getTopologyContextId());
         Assert.assertEquals(StringConstants.OPTIMIZE_CLOUD_PLAN, topologyInfo.getPlanInfo().getPlanType());
-        Assert.assertEquals(EXPECTED_RI_TYPE, request.getPurchaseProfile().getRiType());
+        Assert.assertEquals(EXPECTED_RI_TYPE, request.getPurchaseProfileByCloudtypeOrThrow(CloudType.AWS.name())
+                .getRiType());
         Assert.assertEquals(REGION_OIDS, request.getRegionsList());
         Assert.assertEquals(Collections.emptyList(), request.getAccountsList());
         Assert.assertEquals(DemandType.CONSUMPTION, request.getDemandType());
     }
+
+    /**
+     * Verify that resizeEnabled is calculated correctly based on ScenarioChanges.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testResizeEnabled() throws Exception {
+        PlanInstance planInstance = PlanInstance.newBuilder().setPlanId(1L).setStatus(PlanStatus.QUEUED)
+            .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
+                .addChanges(getResizeScenarioChanges(StringConstants.AUTOMATIC))
+                .addChanges(ScenarioChange.newBuilder()
+                    .setRiSetting(RISetting.newBuilder().build())))).build();
+        Assert.assertTrue(PlanRpcServiceUtil.isScalingEnabled(planInstance.getScenario().getScenarioInfo()));
+    }
+
+    /**
+     * Verify that resizeEnabled is calculated correctly based on ScenarioChanges.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testResizeDisabled() throws Exception {
+        PlanInstance planInstance = PlanInstance.newBuilder().setPlanId(3L).setStatus(PlanStatus.QUEUED)
+            .setScenario(Scenario.newBuilder().setScenarioInfo(ScenarioInfo.newBuilder()
+                .setType(StringConstants.OPTIMIZE_CLOUD_PLAN)
+                .addChanges(getResizeScenarioChanges(StringConstants.DISABLED))
+                .addChanges(ScenarioChange.newBuilder()
+                    .setRiSetting(RISetting.newBuilder().build())))).build();
+        Assert.assertTrue(!PlanRpcServiceUtil.isScalingEnabled(planInstance.getScenario().getScenarioInfo()));
+    }
+
 }

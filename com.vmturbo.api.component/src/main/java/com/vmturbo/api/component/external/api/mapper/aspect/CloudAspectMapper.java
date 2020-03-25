@@ -48,8 +48,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData;
@@ -105,7 +105,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
             return null;
         }
         final CloudAspectApiDTO aspect = new CloudAspectApiDTO();
-        searchConnectedFromEntity(entity.getOid(), UIEntityType.BUSINESS_ACCOUNT).ifPresent(
+        searchConnectedFromEntity(entity.getOid(), ApiEntityType.BUSINESS_ACCOUNT).ifPresent(
                 e -> aspect.setBusinessAccount(createBaseApiDTO(e)));
         return aspect;
     }
@@ -156,7 +156,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                         EntityType.AVAILABILITY_ZONE_VALUE) {
                     // AWS case
                     searchConnectedFromEntity(availabilityZoneOrRegion.getOid(),
-                            UIEntityType.REGION).ifPresent(
+                            ApiEntityType.REGION).ifPresent(
                             e -> aspect.setRegion(createBaseApiDTO(e)));
                     aspect.setZone(baseApiDTO);
                 } else if (availabilityZoneOrRegion.getEntityType() == EntityType.REGION_VALUE) {
@@ -170,7 +170,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
             }
         });
 
-        searchConnectedFromEntity(entity.getOid(), UIEntityType.BUSINESS_ACCOUNT).ifPresent(
+        searchConnectedFromEntity(entity.getOid(), ApiEntityType.BUSINESS_ACCOUNT).ifPresent(
                 e -> aspect.setBusinessAccount(createBaseApiDTO(e)));
 
         if (entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
@@ -368,7 +368,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
      */
     @Nonnull
     private Optional<MinimalEntity> searchConnectedFromEntity(final long entityOid,
-            @Nonnull UIEntityType entityType) {
+            @Nonnull ApiEntityType entityType) {
         final List<MinimalEntity> entities = repositoryApi.newSearchRequest(
                 SearchProtoUtil.neighborsOfType(entityOid, TraversalDirection.CONNECTED_FROM,
                         entityType)).getMinimalEntities().collect(Collectors.toList());

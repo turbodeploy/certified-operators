@@ -48,8 +48,8 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -558,7 +558,7 @@ public class EntityFilterMapper {
 
         Iterator<String> iterator = elements.iterator();
         final String firstToken = iterator.next();
-        if (UIEntityType.fromString(firstToken) != UIEntityType.UNKNOWN) {
+        if (ApiEntityType.fromString(firstToken) != ApiEntityType.UNKNOWN) {
             parametersBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(firstToken));
         } else {
             parametersBuilder.setStartingFilter(SearchProtoUtil.entityTypeFilter(entityTypesList));
@@ -631,7 +631,7 @@ public class EntityFilterMapper {
 
         if (filterApiDtoProcessor != null) {
             return filterApiDtoProcessor.apply(filterContext);
-        } else if (UIEntityType.fromString(currentToken) != UIEntityType.UNKNOWN) {
+        } else if (ApiEntityType.fromString(currentToken) != ApiEntityType.UNKNOWN) {
             return ImmutableList.of(SearchProtoUtil.searchFilterProperty(
                     SearchProtoUtil.entityTypeFilter(currentToken)));
         } else {
@@ -988,7 +988,7 @@ public class EntityFilterMapper {
          */
         private void setVerticesCondition(@Nonnull StoppingCondition.Builder stopperBuilder,
                 @Nonnull String stoppingEntityType, @Nonnull SearchFilterContext context) {
-            int vertexEntityType = UIEntityType.fromString(stoppingEntityType).typeNumber();
+            int vertexEntityType = ApiEntityType.fromString(stoppingEntityType).typeNumber();
             stopperBuilder.setVerticesCondition(VerticesCondition.newBuilder()
                     .setNumConnectedVertices(NumericFilter.newBuilder()
                             .setValue(Long.valueOf(context.getFilter().getExpVal()))

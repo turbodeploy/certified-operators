@@ -19,15 +19,12 @@ import io.grpc.stub.StreamObserver;
 
 import org.jooq.DSLContext;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
@@ -37,26 +34,31 @@ import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverag
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.expenses.AccountExpensesStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceBoughtStore;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceCoverageUpdate;
 import com.vmturbo.cost.component.reserved.instance.ReservedInstanceSpecStore;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * This class tests methods in the RIAndExpenseUploadRpcService class.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class RIAndExpenseUploadRpcServiceTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private final AccountExpensesStore accountExpensesStore =
             mock(AccountExpensesStore.class);
@@ -92,9 +94,6 @@ public class RIAndExpenseUploadRpcServiceTest {
     public void setup() throws CommunicationException {
 
         MockitoAnnotations.initMocks(this);
-
-        // we just need the DSL setup
-        dsl = dbConfig.dsl();
 
         riAndExpenseUploadRpcService = new RIAndExpenseUploadRpcService(
                 dsl, accountExpensesStore, reservedInstanceSpecStore,

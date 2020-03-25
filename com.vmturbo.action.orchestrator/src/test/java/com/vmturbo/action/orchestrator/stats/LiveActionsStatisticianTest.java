@@ -29,23 +29,18 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.flywaydb.core.Flyway;
-import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.InOrder;
-import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.jooq.DSLContext;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.InOrder;
+import org.mockito.Mockito;
+
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionGroupRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotLatestRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
@@ -61,28 +56,27 @@ import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSub
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatCleanupScheduler;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class LiveActionsStatisticianTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
-
-    private DSLContext dsl;
-
-    private LiveActionsStatistician statistician;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private StatsActionViewFactory snapshotFactory = mock(StatsActionViewFactory.class);
 
@@ -103,22 +97,9 @@ public class LiveActionsStatisticianTest {
      */
     private MutableFixedClock clock = new MutableFixedClock(Instant.ofEpochMilli(1_000_000_000), ZoneId.systemDefault());
 
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-
-        statistician = new LiveActionsStatistician(dsl, 2, actionGroupStore,
-            mgmtUnitSubgroupStore, snapshotFactory, Collections.singletonList(aggregatorFactory),
+    private LiveActionsStatistician statistician = new LiveActionsStatistician(dsl, 2, actionGroupStore,
+           mgmtUnitSubgroupStore, snapshotFactory, Collections.singletonList(aggregatorFactory),
             clock, rollupScheduler, cleanupScheduler);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
 
     @Test
     public void testRecordActions() throws UnsupportedActionException {

@@ -34,14 +34,4 @@ public class ProjectedPlanTopologyIngester extends TopologyIngesterBase<Projecte
         super(chunkProcessorFactories, topologyIngesterConfig, loaderFactorySupplier,
                 TOPOLOGY_TYPE);
     }
-
-    /**
-     * Create a summary of this topology for use in logging.
-     *
-     * @param topologyInfo topology info
-     * @return summary string
-     */
-    public static String getTopologyInfoSummary(TopologyInfo topologyInfo) {
-        return getTopologyInfoSummary(topologyInfo, TOPOLOGY_TYPE.getReadableName());
-    }
 }

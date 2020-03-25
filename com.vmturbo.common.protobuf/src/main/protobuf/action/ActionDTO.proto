@@ -1360,6 +1360,9 @@ message CurrentActionStatsQuery {
 
         // Group by the cost type of the action to bucket SAVINGS/INVESTMENT actions.
         COST_TYPE = 11;
+
+        // Group by the risk severity of actions.
+        SEVERITY = 12;
     }
 }
 
@@ -1566,6 +1569,9 @@ message CurrentActionStat {
         // Cost Type of the action, only present if the "group_by" in the query contains
         // "COST_TYPE".
         optional ActionCostType cost_type = 10;
+
+        // Assigned Severity level of the Action used for the "group_by" "severity" query
+        optional Severity severity = 11;
     }
 
     // The stat group this action stat is in.

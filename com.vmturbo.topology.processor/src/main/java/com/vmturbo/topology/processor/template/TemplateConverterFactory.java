@@ -5,18 +5,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.commons.lang.NotImplementedException;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 
@@ -40,6 +42,9 @@ import com.vmturbo.topology.processor.topology.TopologyEditorException;
  * {@link Template} and them convert them to {@link TopologyEntityDTO}.
  */
 public class TemplateConverterFactory {
+
+    private static final Logger logger = LogManager.getLogger();
+
     private final TemplateServiceBlockingStub templateService;
 
     private final IdentityProvider identityProvider;
@@ -81,6 +86,7 @@ public class TemplateConverterFactory {
         final Set<Long> templateIds = Sets.union(templateAdditions.keySet(), templateToReplacedEntity.keySet());
         final Stream<Template> templates = getTemplatesByIds(templateIds);
         return templates.flatMap(template -> {
+            final Stopwatch stopwatch = Stopwatch.createStarted();
             final long additionCount = templateAdditions.getOrDefault(template.getId(), 0L);
             final Collection<Long> replacedEntities =
                     templateToReplacedEntity.get(template.getId());
@@ -88,6 +94,9 @@ public class TemplateConverterFactory {
                     generateEntityByTemplateAddition(template, topology, additionCount, false);
             final Stream<TopologyEntityDTO.Builder> replacedTemplates =
                     generateEntityByTemplateReplaced(template, topology, replacedEntities);
+            stopwatch.stop();
+            logger.info("Generating entities from templates took {} ms.",
+                stopwatch.elapsed(TimeUnit.MILLISECONDS));
             return Stream.concat(additionTemplates, replacedTemplates);
         });
     }

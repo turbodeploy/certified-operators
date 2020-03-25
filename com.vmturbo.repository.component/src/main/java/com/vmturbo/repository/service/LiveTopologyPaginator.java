@@ -2,6 +2,7 @@ package com.vmturbo.repository.service;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -106,7 +107,13 @@ public class LiveTopologyPaginator {
             limit = defaultPaginationLimit;
         }
 
+        // Set up a counter to get the size of the entire result set as we process the stream
+        final AtomicInteger totalRecordCount = new AtomicInteger();
+
+        // Perform the pagination
         final List<RepoGraphEntity> results = fullResults
+            // Count every record, pre-pagination to get the total record count
+            .peek(actionView -> totalRecordCount.incrementAndGet())
             // Sort according to sort parameter
             .sorted(paginationParameters.getAscending() ? NAME_COMPARATOR : NAME_COMPARATOR.reversed())
             .skip(skipCount)
@@ -115,6 +122,7 @@ public class LiveTopologyPaginator {
             .collect(Collectors.toList());
 
         PaginationResponse.Builder respBuilder = PaginationResponse.newBuilder();
+        respBuilder.setTotalRecordCount(totalRecordCount.get());
         if (results.size() > limit) {
             final String nextCursor = Long.toString(skipCount + limit);
             // Remove the last element to conform to limit boundaries.

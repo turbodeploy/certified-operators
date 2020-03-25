@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -134,7 +135,8 @@ public class TopologyConverter {
 
     private static final Set<Integer> CONTAINER_TYPES = ImmutableSet.of(
         // TODO: Add container collection
-        EntityType.CONTAINER_VALUE);
+        EntityType.CONTAINER_VALUE,
+        EntityType.CONTAINER_POD_VALUE);
 
     // If a cloud entity buys from this set of cloud entity types, then we need to create DataCenter
     // commodity bought for it.
@@ -496,7 +498,7 @@ public class TopologyConverter {
                         skippedEntities.put(entity.getOid(), entity);
                     }
                     entityOidToDto.put(entity.getOid(), entity);
-                    if (isPlan() && CONTAINER_TYPES.contains(entityType)) {
+                    if (CONTAINER_TYPES.contains(entityType)) {
                         // VMs and ContainerPods
                         providersOfContainers.addAll(entity.getCommoditiesBoughtFromProvidersList()
                             .stream()
@@ -1095,8 +1097,23 @@ public class TopologyConverter {
         for (EconomyDTOs.ShoppingListTO sl : traderTO.getShoppingListsList()) {
             List<TopologyDTO.CommodityBoughtDTO> commList = new ArrayList<>();
 
-
-            for (CommodityDTOs.CommodityBoughtTO commBought : sl.getCommoditiesBoughtList()) {
+            // Map to keep timeslot commodities from the generated timeslot families
+            // This is needed because we need to add those timeslots coming from the market later
+            // to generated commodity DTOs
+            final Map<CommodityType, List<Double>> timeSlotsByCommType = Maps.newHashMap();
+            // First we merge timeslot commodities
+            final Collection<CommodityDTOs.CommodityBoughtTO.Builder> commBuilders =
+                sl.getCommoditiesBoughtList().stream().map(CommodityBoughtTO::toBuilder)
+                .collect(Collectors.toList());
+            final Collection<CommodityDTOs.CommodityBoughtTO> mergedCommoditiesBought =
+                mergeTimeSlotCommodities(commBuilders, timeSlotsByCommType,
+                    CommodityBoughtTO.Builder::getSpecification,
+                    CommodityBoughtTO.Builder::getQuantity,
+                    CommodityBoughtTO.Builder::getPeakQuantity,
+                    CommodityBoughtTO.Builder::setQuantity,
+                    CommodityBoughtTO.Builder::setPeakQuantity)
+                .stream().map(CommodityBoughtTO.Builder::build).collect(Collectors.toList());
+            for (CommodityDTOs.CommodityBoughtTO commBought : mergedCommoditiesBought) {
                 // if the commodity bought DTO type is biclique, create new
                 // DSPM and Datastore bought
                 if ( commodityConverter.isSpecBiClique(commBought.getSpecification().getBaseType())) {
@@ -1118,7 +1135,7 @@ public class TopologyConverter {
                     continue;
                 } else {
                     commBoughtTOtoCommBoughtDTO(traderTO.getOid(), sl.getSupplier(), sl.getOid(),
-                        commBought, reservedCapacityAnalysis, originalEntity).ifPresent(commList::add);
+                        commBought, reservedCapacityAnalysis, originalEntity, timeSlotsByCommType).ifPresent(commList::add);
                 }
             }
             // the shopping list might not exist in shoppingListOidToInfos, because it might be
@@ -1180,6 +1197,7 @@ public class TopologyConverter {
                 .setDesiredUtilizationRange(traderSetting.getMaxDesiredUtilization()
                        - traderSetting.getMinDesiredUtilization())
                 .setProviderMustClone(traderSetting.getProviderMustClone())
+                .setDaemon(traderSetting.getDaemon())
             .build();
         TopologyDTO.TopologyEntityDTO.Builder entityDTOBuilder =
                 TopologyDTO.TopologyEntityDTO.newBuilder()
@@ -1230,6 +1248,117 @@ public class TopologyConverter {
         topologyEntityDTOs.add(entityDTO);
         topologyEntityDTOs.addAll(createResources(entityDTO));
         return topologyEntityDTOs;
+    }
+
+    /**
+     * Merge timeslot commodities from the original commodities list.
+     *
+     * <p>Timeslot commodities from the same family generated for a specific {@link CommodityType} are merged
+     * by averaging their use and peak values.
+     * Non-timeslot commodities are left unchanged.
+     * @param commodityBuilderTOs Original commodity builders bought or sold by trader
+     * @param timeSlotsByCommType Holder for timeslot values arranged by commodity type
+     * @param commoditySpecExtractor Function to extract commodity TO specification
+     * @param quantityExtractor Function to extract commodity TO quantity
+     * @param peakQuantityExtractor Function to extract commodity TO peak quantity
+     * @param quantitySetter Function to set commodity TO quantity
+     * @param peakQuantitySetter Function to set commodity TO peak quantity
+     * @param <T> {@link CommodityBoughtTO.Builder} or {@link CommoditySoldTO.Builder}.
+     * @return Merged commodity builders
+     */
+    @Nonnull
+    @VisibleForTesting
+    <T> Collection<T> mergeTimeSlotCommodities(
+        @Nonnull final Collection<T> commodityBuilderTOs,
+        @Nonnull final Map<CommodityType, List<Double>> timeSlotsByCommType,
+        @Nonnull final Function<T, CommoditySpecificationTO> commoditySpecExtractor,
+        @Nonnull final Function<T, Float> quantityExtractor,
+        @Nonnull final Function<T, Float> peakQuantityExtractor,
+        @Nonnull final BiFunction<T, Float, T> quantitySetter,
+        @Nonnull final BiFunction<T, Float, T> peakQuantitySetter) {
+        final List<T> mergedComms = Lists.newArrayListWithCapacity(
+            commodityBuilderTOs.size());
+        //final boolean isBought = commodityTOs.iterator().next() instanceof CommodityBoughtTO;
+        final Map<CommodityType, List<T>> timeSlotCommoditiesByCommType = Maps.newHashMap();
+        // group time slot commodities by CommodityType
+        commodityBuilderTOs.forEach(commTO -> {
+            final CommoditySpecificationTO commSpec = commoditySpecExtractor.apply(commTO);
+            if (commodityConverter.isTimeSlotCommodity(commSpec.getType())) {
+                final Optional<TopologyDTO.CommodityType> commTypeOptional =
+                    commodityConverter.marketToTopologyCommodity(commSpec);
+                if (commTypeOptional.isPresent()) {
+                    final CommodityType commType = commTypeOptional.get();
+                    timeSlotCommoditiesByCommType.computeIfAbsent(commType,
+                        k -> Lists.newLinkedList()).add(commTO);
+                } else {
+                    logger.error("Unknown commodity type returned by analysis for market id {}",
+                        () -> commSpec.getType());
+                }
+            } else {
+                mergedComms.add(commTO);
+            }
+        });
+        mergeTimeSlotCommoditiesByType(timeSlotCommoditiesByCommType, timeSlotsByCommType, mergedComms,
+            quantityExtractor, peakQuantityExtractor, quantitySetter, peakQuantitySetter);
+
+        return mergedComms;
+    }
+
+    /**
+     * Merge timeslot commodities arranged by {@link CommodityType}.
+     *
+     * @param timeSlotCmmoditiesByCommType Commodity TOs arranged by {@link CommodityType}
+     * @param timeSlotsByCommType Holder for timeslot values arranged by commodity type
+     * @param mergedCommodities Holder for merged commodities
+     * @param quantityExtractor Function to extract commodity TO quantity
+     * @param peakQuantityExtractor Function to extract commodity TO peak quantity
+     * @param quantitySetter Function to set commodity TO quantity
+     * @param peakQuantitySetter Function to set commodity TO peak quantity
+     * @param <T> {@link CommodityBoughtTO} or {@link CommoditySoldTO}
+     */
+    private static <T> void mergeTimeSlotCommoditiesByType(
+        @Nonnull final Map<CommodityType, List<T>> timeSlotCmmoditiesByCommType,
+        @Nonnull final Map<CommodityType, List<Double>> timeSlotsByCommType,
+        @Nonnull final Collection<T> mergedCommodities,
+        @Nonnull final Function<T, Float> quantityExtractor,
+        @Nonnull final Function<T, Float> peakQuantityExtractor,
+        @Nonnull final BiFunction<T, Float, T> quantitySetter,
+        @Nonnull final BiFunction<T, Float, T> peakQuantitySetter) {
+       /* Sample timeSlotComms content with 2 time slots for pool CPU commodity (base type = 89):
+               [type: 89 => [
+                   specification {
+                      type: 100
+                      base_type: 89
+                    }
+                    quantity: 0.5
+                    peak_quantity: 0.55,
+                    specification {
+                      type: 101
+                      base_type: 89
+                    }
+                    quantity: 0.6
+                    peak_quantity: 0.65
+                ]
+        */
+        timeSlotCmmoditiesByCommType.forEach((commType, groupedCommodities) -> {
+            final List<Double> timeSlotValues = Lists.newLinkedList();
+            // ensure the generated family is sorted in the right order of slots
+            groupedCommodities.sort(Comparator.comparing(comm -> commType.getType()));
+            // we merge commodities from each generated family by averaging up used/peak values
+            float totalQuantity = 0.0f;
+            float totalPeak = 0.0f;
+            for (final T comm : groupedCommodities) {
+                final float currQuantity = quantityExtractor.apply(comm);
+                timeSlotValues.add(Double.valueOf(currQuantity));
+                totalQuantity += currQuantity;
+                totalPeak += peakQuantityExtractor.apply(comm);
+            }
+            final T mergedCommBuilder = groupedCommodities.iterator().next();
+            quantitySetter.apply(mergedCommBuilder, totalQuantity / groupedCommodities.size());
+            peakQuantitySetter.apply(mergedCommBuilder, totalPeak / groupedCommodities.size());
+            mergedCommodities.add(mergedCommBuilder);
+            timeSlotsByCommType.put(commType, timeSlotValues);
+        });
     }
 
     /**
@@ -1453,8 +1582,24 @@ public class TopologyConverter {
      */
     private Set<TopologyDTO.CommoditySoldDTO> retrieveCommSoldList(
             @Nonnull final TraderTO traderTO) {
-        return traderTO.getCommoditiesSoldList().stream()
-                    .map(commoditySoldTO -> commSoldTOtoCommSoldDTO(traderTO.getOid(), commoditySoldTO))
+
+        // First we merge all timeslot commdities
+        final Map<CommodityType, List<Double>> timeSlotsByCommType = Maps.newHashMap();
+        final Collection<CommodityDTOs.CommoditySoldTO.Builder> commBuilders =
+            traderTO.getCommoditiesSoldList().stream().map(CommoditySoldTO::toBuilder)
+                .collect(Collectors.toList());
+        final Collection<CommoditySoldTO> mergedCommodities =
+            mergeTimeSlotCommodities(commBuilders,
+                timeSlotsByCommType,
+                CommoditySoldTO.Builder::getSpecification,
+                CommoditySoldTO.Builder::getQuantity,
+                CommoditySoldTO.Builder::getPeakQuantity,
+                CommoditySoldTO.Builder::setQuantity,
+                CommoditySoldTO.Builder::setPeakQuantity)
+                .stream().map(CommoditySoldTO.Builder::build).collect(Collectors.toList());
+        return mergedCommodities.stream()
+                    .map(commoditySoldTO -> commSoldTOtoCommSoldDTO(traderTO.getOid(), commoditySoldTO,
+                        timeSlotsByCommType))
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .collect(Collectors.toSet());
@@ -1700,9 +1845,10 @@ public class TopologyConverter {
      * 'topology' value if there is a 'scaleFactor' for that commodity (e.g. CPU, CPU_Provisioned).
      *
      * @param commBoughtTO {@link CommodityBoughtTO} that is to be converted to
-     * {@link TopologyDTO.CommodityBoughtDTO}
+     * {@link CommodityBoughtDTO}
      * @param reservedCapacityAnalysis the reserved capacity information
      * @param originalEntity the original entity DTO
+     * @param timeSlotsByCommType Timeslot values arranged by {@link CommodityBoughtTO}
      * @return {@link TopologyDTO.CommoditySoldDTO} that the trader sells
      */
     @Nonnull
@@ -1710,7 +1856,8 @@ public class TopologyConverter {
             final long traderOid, final long supplierOid, final long slOid,
             @Nonnull final CommodityBoughtTO commBoughtTO,
             @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
-            final TopologyEntityDTO originalEntity) {
+            final TopologyEntityDTO originalEntity,
+            @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType) {
 
 
         float peak = commBoughtTO.getPeakQuantity();
@@ -1746,9 +1893,24 @@ public class TopologyConverter {
                         //TODO Lakshmi - Set the projected percentile as exsitingPercentile * (existing capacity/new caapcity)
                         // this wil be required by the VDI Image commodites.
                         builder.setHistoricalUsed(HistoricalValues.newBuilder()
-                                .setPercentile(originalCommodityBoughtDTO.get().getHistoricalUsed().getPercentile())
-                                .build());
+                            .setPercentile(originalCommodityBoughtDTO.get().getHistoricalUsed().getPercentile())
+                            .build());
                     }
+
+                    // Set timeslot values if applies
+                    if (timeSlotsByCommType.containsKey(commType)) {
+                        if (builder.hasHistoricalUsed()) {
+                            builder.setHistoricalUsed(
+                                builder.getHistoricalUsed().toBuilder()
+                                    .addAllTimeSlot(timeSlotsByCommType.get(commType))
+                                    .build());
+                        } else {
+                            builder.setHistoricalUsed(HistoricalValues.newBuilder()
+                                .addAllTimeSlot(timeSlotsByCommType.get(commType))
+                                .build());
+                        }
+                    }
+
                     return builder.build(); });
     }
 
@@ -1823,40 +1985,34 @@ public class TopologyConverter {
             boolean clonable = EntitySettings.BooleanKey.ENABLE_PROVISION.value(topologyDTO);
             /*
              * Whether trader is suspendable in market or not depends on multiple conditions
-             * 1. Topology settings - policy sends suspendable flag as false
+             * 1. Topology settings - policy sends the suspendable flag
              * (entity settings and analysis settings (happens later))
-             * 2. Topology sends controllable flag as false
+             * 2. Topology sends controllable flag
              * 3. Whether entity is a VM in plan (to improve)
-             * 4. Whether in plan the VM hosts containers (in which case trump 3)
+             * 4. Whether in plan the VM hosts containers (in which case 3 is overridden)
              * 5. Whether entity is top of supply chain (to improve)
              * 6. Whether it is a DB or DBServer on cloud
              */
-            boolean suspendable = EntitySettings.BooleanKey.ENABLE_SUSPEND.value(topologyDTO);
+            // If topologyEntity set suspendable value, we should directly use it.
+            boolean suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
+                            ? topologyDTO.getAnalysisSettings().getSuspendable()
+                            : EntitySettings.BooleanKey.ENABLE_SUSPEND.value(topologyDTO);
             boolean isProviderMustClone = EntitySettings.BooleanKey
                     .PROVIDER_MUST_CLONE.value(topologyDTO);
-            if (bottomOfSupplyChain && active) {
-                suspendable = false;
-            }
-            if ((isPlan() && entityType == EntityType.VIRTUAL_MACHINE_VALUE)) {
-                suspendable = false;
-            }
-            // Checking isPlan here is redundant, but since Set.contains(.) might be expensive,
-            // (even for an empty Set) it is worth checking again. Also improves readability.
-            if (isPlan() && providersOfContainers.contains(topologyDTO.getOid())) {
-                clonable = true;
-                suspendable = true;
-            }
-            if (topOfSupplyChain) { // Workaround for OM-25254. Should be set by mediation.
-                suspendable = false;
+            // If the entity hosts containers, use the entity setting.  Otherwise, force VM
+            // suspension to false. In the future, mediation needs to set the suspend/clone setting
+            // so that this override is not required.
+            if (!providersOfContainers.contains(topologyDTO.getOid())) {
+                if ((bottomOfSupplyChain && active) ||
+                        topOfSupplyChain ||   // Workaround for OM-25254. Should be set by mediation
+                        entityType == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    suspendable = false;
+                }
             }
             // If topologyEntity set clonable value, we should directly use it.
             clonable = topologyDTO.getAnalysisSettings().hasCloneable()
                             ? topologyDTO.getAnalysisSettings().getCloneable()
                                             : clonable;
-            // If topologyEntity set suspendable value, we should directly use it.
-            suspendable = topologyDTO.getAnalysisSettings().hasSuspendable()
-                            ? topologyDTO.getAnalysisSettings().getSuspendable()
-                                            : suspendable;
             // If topologyEntity set providerMustClone, we need to use its value.
             isProviderMustClone = topologyDTO.getAnalysisSettings().hasProviderMustClone()
                 ? topologyDTO.getAnalysisSettings().getProviderMustClone()
@@ -1891,7 +2047,14 @@ public class TopologyConverter {
                     .setMoveCostFactor((isPlan() || isEntityFromCloud)
                             ? PLAN_MOVE_COST_FACTOR
                             : liveMarketMoveCostFactor)
-                    .setProviderMustClone(isProviderMustClone);
+                    .setProviderMustClone(isProviderMustClone)
+                    .setDaemon(topologyDTO.getAnalysisSettings().getDaemon());
+
+            // Overwrite flags for vSAN
+            if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {
+                settingsBuilder.setGuaranteedBuyer(true).setProviderMustClone(true)
+                        .setClonable(false).setSuspendable(false).setResizeThroughSupplier(true);
+            }
 
             // Overwrite flags for vSAN
             if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {
@@ -2559,16 +2722,19 @@ public class TopologyConverter {
             final Map<Long, Long> providers,
             final Optional<ScalingGroupUsage> scalingGroupUsage) {
         CommodityType type = topologyCommBought.getCommodityType();
-        return CommodityConverter.isBicliqueCommodity(type)
-            ? shopTogether || cloudTc.isMarketTier(providerOid)
+        if (CommodityConverter.isBicliqueCommodity(type)) {
+            if (shopTogether || cloudTc.isMarketTier(providerOid)) {
                 // skip DSPMAcess and Datastore commodities in the case of shop-together
                 // or cloud provider
-                ? null
-                // convert them to biclique commodities if not shop-together
-                : ImmutableList.of(generateBcCommodityBoughtTO(
-                    providers.getOrDefault(providerOid, providerOid), type))
-            // all other commodities - convert to DTO regardless of shop-together
-            : createAndValidateCommBoughtTO(buyer, topologyCommBought, providerOid,
+                return null;
+            }
+            // convert them to biclique commodities if not shop-together
+            CommodityBoughtTO bc = generateBcCommodityBoughtTO(
+                    providers.getOrDefault(providerOid, providerOid), type);
+            return bc != null ? ImmutableList.of(bc) : null;
+        }
+        // all other commodities - convert to DTO regardless of shop-together
+        return createAndValidateCommBoughtTO(buyer, topologyCommBought, providerOid,
                 scalingGroupUsage);
     }
 
@@ -2732,12 +2898,14 @@ public class TopologyConverter {
      *
      * @param traderOid The ID of the trader selling the commodity.
      * @param commSoldTO the market CommdditySoldTO to convert
+     * @param timeSlotsByCommType Timeslot values arranged by {@link CommodityBoughtTO}
      * @return a {@link CommoditySoldDTO} equivalent to the original.
      */
     @Nonnull
     private Optional<TopologyDTO.CommoditySoldDTO> commSoldTOtoCommSoldDTO(
             final long traderOid,
-            @Nonnull final CommoditySoldTO commSoldTO) {
+            @Nonnull final CommoditySoldTO commSoldTO,
+            @Nonnull Map<CommodityType, List<Double>> timeSlotsByCommType) {
 
         float peak = commSoldTO.getPeakQuantity();
         if (peak < 0) {
@@ -2797,15 +2965,29 @@ public class TopologyConverter {
             .map(CommoditySoldDTO::getHotResizeInfo)
             .ifPresent(commoditySoldBuilder::setHotResizeInfo);
         if (originalCommoditySold.isPresent()
-                && originalCommoditySold.get().hasHistoricalUsed()
-                && originalCommoditySold.get().getHistoricalUsed().hasPercentile()) {
+            && originalCommoditySold.get().hasHistoricalUsed()
+            && originalCommoditySold.get().getHistoricalUsed().hasPercentile()) {
             float existingPercentile = (float)originalCommoditySold.get().getHistoricalUsed()
-                                        .getPercentile();
+                .getPercentile();
             double existingCapacity = originalCommoditySold.get().getCapacity();
             float projectedPercentile = (float)(existingCapacity / capacity) * existingPercentile;
             commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
-                    .setPercentile(projectedPercentile)
+                .setPercentile(projectedPercentile)
+                .build());
+        }
+
+        // Set timeslot values if applies
+        if (timeSlotsByCommType.containsKey(commType)) {
+            if (commoditySoldBuilder.hasHistoricalUsed()) {
+                commoditySoldBuilder.setHistoricalUsed(
+                    commoditySoldBuilder.getHistoricalUsed().toBuilder()
+                        .addAllTimeSlot(timeSlotsByCommType.get(commType))
+                        .build());
+            } else {
+                commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
+                    .addAllTimeSlot(timeSlotsByCommType.get(commType))
                     .build());
+            }
         }
 
         return Optional.of(commoditySoldBuilder.build());

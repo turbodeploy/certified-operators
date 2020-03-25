@@ -8,13 +8,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
+
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisScope;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
@@ -25,6 +26,8 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  * Test the ReservedInstanceAnalysisScope functionality.
  */
 public class ReservedInstanceAnalysisScopeTest {
+
+    private static final String PROVIDER_TYPE = "CloudType";
 
     /**
      * Build a StartBuyRIAnalysisRequest which is a list of OSType, list of Tenancy,
@@ -66,7 +69,8 @@ public class ReservedInstanceAnalysisScopeTest {
         profileBuilder.setRiType(typeBuilder.build());
         RIPurchaseProfile riPurchaseProfile = profileBuilder.build();
 
-        requestBuilder.setPurchaseProfile(riPurchaseProfile);
+        requestBuilder.putAllPurchaseProfileByCloudtype(
+                ImmutableMap.of(PROVIDER_TYPE, riPurchaseProfile));
 
         /*
          * build request and generate scope
@@ -80,7 +84,8 @@ public class ReservedInstanceAnalysisScopeTest {
         assertTrue(longListEqual(accounts, scope.getAccounts()));
         assertFalse(osTypeListEqual(platforms, scope.getPlatforms()));
         assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
-        assertTrue(riPurchaseProfilesEqual(riPurchaseProfile, scope.getRiPurchaseProfile()));
+        assertTrue(riPurchaseProfilesEqual(riPurchaseProfile,
+                scope.getRiPurchaseProfiles().get(PROVIDER_TYPE)));
     }
 
     /**
@@ -124,7 +129,8 @@ public class ReservedInstanceAnalysisScopeTest {
         profileBuilder.setRiType(typeBuilder.build());
         RIPurchaseProfile riPurchaseProfile = profileBuilder.build();
 
-        requestBuilder.setPurchaseProfile(riPurchaseProfile);
+        requestBuilder.putAllPurchaseProfileByCloudtype(
+                ImmutableMap.of(PROVIDER_TYPE, riPurchaseProfile));
 
         StartBuyRIAnalysisRequest request = requestBuilder.build();
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(request);
@@ -133,7 +139,8 @@ public class ReservedInstanceAnalysisScopeTest {
         assertTrue(tenancyListEqual(tenancies, scope.getTenancies()));
         assertTrue(longListEqual(accounts, scope.getAccounts()));
         assertTrue(osTypeListEqual(platforms, scope.getPlatforms()));
-        assertTrue(riPurchaseProfilesEqual(riPurchaseProfile, scope.getRiPurchaseProfile()));
+        assertTrue(riPurchaseProfilesEqual(riPurchaseProfile,
+                scope.getRiPurchaseProfiles().get(PROVIDER_TYPE)));
 
     }
 
@@ -151,7 +158,8 @@ public class ReservedInstanceAnalysisScopeTest {
 
         RIPurchaseProfile riPurchaseProfile = profileBuilder.build();
 
-        requestBuilder.setPurchaseProfile(riPurchaseProfile);
+        requestBuilder.putAllPurchaseProfileByCloudtype(
+                ImmutableMap.of(PROVIDER_TYPE, riPurchaseProfile));
 
         StartBuyRIAnalysisRequest request = requestBuilder.build();
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(request);
@@ -163,8 +171,9 @@ public class ReservedInstanceAnalysisScopeTest {
         assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
         assertTrue(scope.getAccounts().isEmpty());
         assertTrue(scope.getRegions().isEmpty());
-        assertTrue("scope.getRiPurchaseProfile()=" + scope.getRiPurchaseProfile() + " != null",
-                riPurchaseProfilesEqual(riPurchaseProfile, scope.getRiPurchaseProfile()));
+        assertTrue("scope.getRiPurchaseProfiles()=" + scope.getRiPurchaseProfiles() + " != null",
+                riPurchaseProfilesEqual(riPurchaseProfile,
+                        scope.getRiPurchaseProfiles().get(PROVIDER_TYPE)));
     }
 
     /**

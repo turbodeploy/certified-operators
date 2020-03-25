@@ -65,7 +65,7 @@ public class CostFlywayCallback extends BaseFlywayCallback {
             if (needsFix(connection, dbName, migrationUpdate.getNewChecksum(), version)) {
                 logger.info("Applying fix for {} migration", version);
 
-                applyFix(connection, migrationUpdate, version);
+                applyFix(connection, migrationUpdate);
             } else {
                 logger.info("Fixing is not required for {} migration.", version);
             }
@@ -119,10 +119,11 @@ public class CostFlywayCallback extends BaseFlywayCallback {
     }
 
     private void applyFix(@Nonnull Connection connection,
-                          @Nonnull final MigrationUpdate migrationUpdate,
-                          @Nonnull final String version)
+                          @Nonnull final MigrationUpdate migrationUpdate)
             throws SQLException {
         //check if this migration sql failed.
+        String version  = migrationUpdate.getVersion();
+        String migrationDescription = migrationUpdate.getDescription();
         final String getSucessQuery = String.format(
                 "SELECT success FROM %s WHERE version=%s",
                 FLYWAY_TABLE_NAME, version);
@@ -138,9 +139,16 @@ public class CostFlywayCallback extends BaseFlywayCallback {
                     FLYWAY_TABLE_NAME, version);
             connection.createStatement().executeUpdate(deleteMigrationRun);
         } else {
-            final String updateChecksumStmt = String.format(
-                    "UPDATE %s SET checksum = %s WHERE version='%s'",
-                    FLYWAY_TABLE_NAME, migrationUpdate.getNewChecksum(), version);
+            final String updateChecksumStmt;
+            if (migrationDescription != null && !migrationDescription.isEmpty()) {
+                updateChecksumStmt = String.format(
+                        "UPDATE %s SET checksum = %s , description = '%s' WHERE version='%s'",
+                        FLYWAY_TABLE_NAME, migrationUpdate.getNewChecksum(), migrationDescription, version);
+            } else {
+                updateChecksumStmt = String.format(
+                        "UPDATE %s SET checksum = %s WHERE version='%s'",
+                        FLYWAY_TABLE_NAME, migrationUpdate.getNewChecksum(), version);
+            }
             connection.createStatement().executeUpdate(updateChecksumStmt);
         }
     }
@@ -166,6 +174,7 @@ public class CostFlywayCallback extends BaseFlywayCallback {
     public static class MigrationUpdate {
         private String version;
         private Long newChecksum;
+        private String description;
 
         private String getVersion() {
             return version;
@@ -181,6 +190,14 @@ public class CostFlywayCallback extends BaseFlywayCallback {
 
         public void setNewChecksum(final Long newChecksum) {
             this.newChecksum = newChecksum;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+
+        public void setDescription(final String description) {
+            this.description = description;
         }
     }
 }

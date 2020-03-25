@@ -392,9 +392,10 @@ public class Action implements ActionView {
                 logger.error("Unexpected unsupported action exception while refreshing action:" +
                     " {}. Error: {}", recommendation, e.getMessage());
             }
-
+            // in real-time, entitiesSnapshot has information on all action types, hence the second
+            // parameter specific to detached volumes is not needed as in plans.
             setDescription(ActionDescriptionBuilder.buildActionDescription(entitiesSnapshot,
-                actionTranslation.getTranslationResultOrOriginal()));
+               actionTranslation.getTranslationResultOrOriginal()));
         }
     }
 

@@ -117,9 +117,6 @@ CALL ADD_INDEX_IF_NOT_EXISTS_V__32('entity_cost_by_month', 'account_id', 'entity
 CALL ADD_INDEX_IF_NOT_EXISTS_V__32('entity_cost_by_month', 'region_id', 'entity_cost_by_month_region_id_index');
 CALL ADD_INDEX_IF_NOT_EXISTS_V__32('entity_cost_by_month', 'availability_zone_id', 'entity_cost_by_month_availability_zone_id_index');
 
--- add primary key constraint to entity_cost table.
-ALTER TABLE entity_cost ADD PRIMARY KEY (associated_entity_id, created_time, cost_type, cost_source);
-
 -- Dropping temporary procedures
 DROP PROCEDURE IF EXISTS CREATE_AND_REPLACE_TABLE_V__32;
 DROP PROCEDURE IF EXISTS ADD_INDEX_IF_NOT_EXISTS_V__32;

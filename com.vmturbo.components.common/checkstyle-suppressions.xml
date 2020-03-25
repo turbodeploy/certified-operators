@@ -3,6 +3,11 @@
         "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
         "https://checkstyle.org/dtds/suppressions_1_0.dtd">
 
+<!--
+Files should be removed from this list as they become clear of violations. Files should not be added.
+The goal is for the module to become - and remain - clear of violations.
+-->
+
 <suppressions>
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/components/common/metrics/ScheduledMetricsTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/components/common/pagination/EntityStatsPaginatorTest.java" />
@@ -67,7 +72,6 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/components/common/health/sql/SQLDBHealthMonitor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/components/common/ComponentController.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/components/common/ComponentGrpcServer.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/components/common/utils/StringConstants.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/components/common/utils/Strings.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/components/common/utils/RetentionPeriodFetcher.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/components/common/utils/LoggingUtils.java" />

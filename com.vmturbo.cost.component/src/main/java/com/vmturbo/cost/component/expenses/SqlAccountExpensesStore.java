@@ -4,9 +4,7 @@ import static com.vmturbo.cost.component.db.tables.AccountExpenses.ACCOUNT_EXPEN
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,8 +15,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
 import org.jooq.Configuration;
 import org.jooq.DSLContext;
@@ -48,8 +44,6 @@ import com.vmturbo.sql.utils.DbException;
  * {@link AccountExpensesStore} that stores expenses to the SQL database.
  */
 public class SqlAccountExpensesStore implements AccountExpensesStore {
-
-    private static final Logger logger = LogManager.getLogger();
 
     private final DSLContext dsl;
 

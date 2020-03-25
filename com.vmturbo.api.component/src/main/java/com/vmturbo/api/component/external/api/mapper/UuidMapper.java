@@ -43,7 +43,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -185,19 +185,19 @@ public class UuidMapper implements RepositoryListener {
      */
     public static class CachedEntityInfo {
         private final String displayName;
-        private final UIEntityType entityType;
+        private final ApiEntityType entityType;
         private final EnvironmentType environmentType;
         private final Set<Long> discoveringTargetIds;
 
         public CachedEntityInfo(final MinimalEntity entity) {
             this.displayName = entity.getDisplayName();
-            this.entityType = UIEntityType.fromType(entity.getEntityType());
+            this.entityType = ApiEntityType.fromType(entity.getEntityType());
             this.environmentType = entity.getEnvironmentType();
             this.discoveringTargetIds = Sets.newHashSet(entity.getDiscoveringTargetIdsList());
         }
 
         @Nonnull
-        public UIEntityType getEntityType() {
+        public ApiEntityType getEntityType() {
             return entityType;
         }
 
@@ -234,17 +234,17 @@ public class UuidMapper implements RepositoryListener {
 
         private final Set<Long> discoveringTargetIds;
 
-        private final Map<UIEntityType, Set<Long>> entityOidsByType;
+        private final Map<ApiEntityType, Set<Long>> entityOidsByType;
 
         /**
          * @param envTypeFromMember the environment type of a member of the group, or
          *                          EnvironmentType.UNKNOWN_ENV if it could not be determined. It
          *                          is used if the group's environment type is not already provided.
          * @param entityOidsByType The entity OIDs contained within the group, indexed by their
-         *                         {@link UIEntityType}.
+         *                         {@link ApiEntityType}.
          */
         private CachedGroupInfo(Grouping group, final Set<Long> discoveringTargetIds,
-                EnvironmentType envTypeFromMember, Map<UIEntityType, Set<Long>> entityOidsByType) {
+                EnvironmentType envTypeFromMember, Map<ApiEntityType, Set<Long>> entityOidsByType) {
 
             this.nestedGroupTypes = group.getExpectedTypesList().stream()
                 .filter(GroupDTO.MemberType::hasGroup)
@@ -272,7 +272,7 @@ public class UuidMapper implements RepositoryListener {
         }
 
         @Nonnull
-        public Set<UIEntityType> getEntityTypes() {
+        public Set<ApiEntityType> getEntityTypes() {
             return Collections.unmodifiableSet(entityOidsByType.keySet());
         }
 
@@ -310,7 +310,7 @@ public class UuidMapper implements RepositoryListener {
                     .collect(Collectors.toSet());
         }
 
-        public Map<UIEntityType, Set<Long>> getEntityOidsByType() {
+        public Map<ApiEntityType, Set<Long>> getEntityOidsByType() {
             return Collections.unmodifiableMap(entityOidsByType);
         }
     }
@@ -389,8 +389,8 @@ public class UuidMapper implements RepositoryListener {
          * @return types in the scope.
          */
         @Nonnull
-        public Optional<Set<UIEntityType>> getScopeTypes() {
-            Optional<Set<UIEntityType>> scopeTypes = Optional.empty();
+        public Optional<Set<ApiEntityType>> getScopeTypes() {
+            Optional<Set<ApiEntityType>> scopeTypes = Optional.empty();
             if (isRealtimeMarket()) {
                 return Optional.empty();
             } else if (isGroup()) {
@@ -606,9 +606,9 @@ public class UuidMapper implements RepositoryListener {
                         final Set<MinimalEntity> minimalMembers =
                             repositoryApi.entitiesRequest(Sets.newHashSet(entityOids)).getMinimalEntities()
                                 .collect(Collectors.toSet());
-                        final Map<UIEntityType, Set<Long>> entityOidsByType = minimalMembers.stream()
+                        final Map<ApiEntityType, Set<Long>> entityOidsByType = minimalMembers.stream()
                                 .collect(Collectors.groupingBy(
-                                        UIEntityType::fromMinimalEntity,
+                                        ApiEntityType::fromMinimalEntity,
                                         Collectors.mapping(MinimalEntity::getOid,
                                                 Collectors.toSet())));
 
@@ -721,7 +721,7 @@ public class UuidMapper implements RepositoryListener {
         }
 
         @Nonnull
-        public Map<UIEntityType, Set<Long>> getScopeEntitiesByType() {
+        public Map<ApiEntityType, Set<Long>> getScopeEntitiesByType() {
             return getCachedGroupInfo()
                     .map(CachedGroupInfo::getEntityOidsByType)
                     .orElseGet(() ->

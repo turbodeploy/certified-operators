@@ -7,6 +7,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -127,6 +128,9 @@ public class ActionPaginator {
 
         final Comparator<ActionView> comparator = getComparator(paginationParameters.getOrderBy());
 
+        // Set up a counter to get the size of the entire result set as we process the stream
+        final AtomicInteger totalRecordCount = new AtomicInteger();
+
         // Apply pagination parameters after sorting.
         // Unfortunately, because we do filtering here instead of in the individual action stores
         // we can't apply pagination parameters at the action store yet.
@@ -134,6 +138,8 @@ public class ActionPaginator {
         // It's better to do the sort + limit + offset calculation after filtering, so that we're
         // working with a (potentially) smaller data set.
         final List<ActionView> results = actionViews
+            // Count every record, pre-pagination to get the total record count
+            .peek(actionView -> totalRecordCount.incrementAndGet())
             // Sort according to sort parameter
             .sorted(paginationParameters.getAscending() ? comparator : comparator.reversed())
             .skip(skipCount)
@@ -144,10 +150,10 @@ public class ActionPaginator {
             final String nextCursor = Long.toString(skipCount + limit);
             // Remove the last element to conform to limit boundaries.
             results.remove(results.size() - 1);
-            return new PaginatedActionViews(results, Optional.of(nextCursor));
+            return new PaginatedActionViews(results, Optional.of(nextCursor), totalRecordCount.get());
         } else {
-            // No more results.
-            return new PaginatedActionViews(results, Optional.empty());
+            // Final page of results.
+            return new PaginatedActionViews(results, Optional.empty(), totalRecordCount.get());
         }
     }
 
@@ -204,11 +210,14 @@ public class ActionPaginator {
     public static class PaginatedActionViews {
         private final List<ActionView> views;
         private final Optional<String> nextCursor;
+        private final int totalRecordCount;
 
         private PaginatedActionViews(@Nonnull final List<ActionView> views,
-                                     @Nonnull Optional<String> nextCursor) {
+                                     @Nonnull Optional<String> nextCursor,
+                                     int totalRecordCount) {
             this.views = views;
             this.nextCursor = nextCursor;
+            this.totalRecordCount = totalRecordCount;
         }
 
         @Nonnull
@@ -219,6 +228,10 @@ public class ActionPaginator {
         @Nonnull
         public List<ActionView> getResults() {
             return views;
+        }
+
+        public int getTotalRecordCount() {
+            return totalRecordCount;
         }
     }
 

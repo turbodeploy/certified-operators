@@ -1,9 +1,12 @@
 package com.vmturbo.api.component.external.api.service;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
+
+import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -12,8 +15,8 @@ import org.springframework.validation.Errors;
 import com.vmturbo.api.component.external.api.mapper.PolicyMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.IPoliciesService;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -80,15 +83,20 @@ public class PoliciesService implements IPoliciesService {
     public PolicyApiDTO toPolicyApiDTO(PolicyDTO.Policy policy)
             throws ConversionException, InterruptedException {
         final Set<Long> groupingIDS = GroupProtoUtil.getPolicyGroupIds(policy);
-        final Map<Long, Grouping> involvedGroups = new HashMap<>(groupingIDS.size());
-        if (!groupingIDS.isEmpty()) {
-            groupService.getGroups(GetGroupsRequest.newBuilder()
+        final Collection<Grouping> involvedGroups;
+        if (groupingIDS.isEmpty()) {
+            involvedGroups = Collections.emptyList();
+        } else {
+            final Iterator<Grouping> iterator = groupService.getGroups(GetGroupsRequest.newBuilder()
                     .setGroupFilter(
                             GroupFilter.newBuilder().addAllId(groupingIDS).setIncludeHidden(true))
-                    .build()).forEachRemaining(group -> involvedGroups.put(group.getId(), group));
+                    .build());
+            involvedGroups = Lists.newArrayList(iterator);
         }
 
-        return policyMapper.policyToApiDto(policy, involvedGroups);
+        return policyMapper.policyToApiDto(Collections.singletonList(policy), involvedGroups)
+                .iterator()
+                .next();
     }
 
     @Override

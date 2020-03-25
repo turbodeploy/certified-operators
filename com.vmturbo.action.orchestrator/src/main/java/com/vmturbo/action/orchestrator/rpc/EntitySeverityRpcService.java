@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.action.EntitySeverityDTO.SeverityCountsRespon
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc.EntitySeverityServiceImplBase;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse.Builder;
 
 /**
  * Implements the RPC calls supported by the action orchestrator for retrieving and executing actions.
@@ -108,21 +109,26 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
                 .collect(Collectors.toList());
         }
 
+        final int totalRecordCount = sortedEntityOids.size();
         final List<EntitySeverity> results = sortedEntityOids.stream()
             .skip(skipCount)
             .limit(paginationParameters.getLimit())
             .map(oid -> generateEntitySeverity(oid, optionalCache))
             .collect(Collectors.toList());
 
+        final EntitySeveritiesResponse.Builder entitySeveritiesPaginationResponseBuilder =
+            EntitySeveritiesResponse.newBuilder()
+                .setPaginationResponse(PaginationResponse.newBuilder());
+        final Builder paginationResponseBuilder =
+            entitySeveritiesPaginationResponseBuilder.getPaginationResponseBuilder();
+        paginationResponseBuilder.setTotalRecordCount(totalRecordCount);
+        // if there are more results left, set the cursor
         if ((skipCount + results.size()) < request.getEntityIdsCount()) {
-            EntitySeveritiesResponse.Builder paginationResponseBuilder =
-                EntitySeveritiesResponse.newBuilder()
-                    .setPaginationResponse(PaginationResponse.newBuilder());
-            // if there are more results left.
-            paginationResponseBuilder.getPaginationResponseBuilder()
+            paginationResponseBuilder
                     .setNextCursor(String.valueOf(skipCount + paginationParameters.getLimit()));
-            responseObserver.onNext(paginationResponseBuilder.build());
         }
+        responseObserver.onNext(entitySeveritiesPaginationResponseBuilder.build());
+
         Iterators.partition(results.iterator(), maxAmountOfEntitiesPerGrpcMessage)
             .forEachRemaining(chunk -> {
                 EntitySeveritiesResponse.Builder responseBuilder = EntitySeveritiesResponse.newBuilder();
