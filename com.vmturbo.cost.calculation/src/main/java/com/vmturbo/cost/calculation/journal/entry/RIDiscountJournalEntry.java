@@ -105,10 +105,13 @@ public class RIDiscountJournalEntry<E> implements QualifiedJournalEntry<E> {
 
     @Override
     public int compareTo(final Object o) {
+        // Make sure RIDiscountJournalEntries always come after OnDemandJournalEntries in order
+        // to properly calculate the RI discount based on the on-demand cost recorded in the cost
+        // journal
         if (o instanceof OnDemandJournalEntry) {
             return Integer.MAX_VALUE;
         } else {
-            return 0;
+            return QualifiedJournalEntry.super.compareTo(o);
         }
     }
 }
