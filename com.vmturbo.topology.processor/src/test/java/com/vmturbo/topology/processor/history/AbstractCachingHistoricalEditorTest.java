@@ -31,7 +31,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
@@ -284,12 +283,12 @@ public class AbstractCachingHistoricalEditorTest {
      */
     private class TestLoadingTask implements IHistoryLoadingTask<CachingHistoricalEditorConfig, Float> {
 
-        private TestLoadingTask(@Nonnull StatsHistoryServiceBlockingStub statsHistoryClient,
-                        @Nonnull Pair<Long, Long> range) {}
+        public TestLoadingTask(StatsHistoryServiceBlockingStub statsHistoryClient) {}
 
         @Override
         public Map<EntityCommodityFieldReference, Float>
-               load(Collection<EntityCommodityReference> commodities, CachingHistoricalEditorConfig config) {
+               load(Collection<EntityCommodityReference> commodities, CachingHistoricalEditorConfig config)
+                               throws HistoryCalculationException {
             seenCommRefs.addAll(commodities);
             return commodities.stream()
                             .map(comm -> new EntityCommodityFieldReference(comm,

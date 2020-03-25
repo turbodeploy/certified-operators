@@ -81,6 +81,7 @@
         <consul-client.version>0.16.3</consul-client.version>
         <gson.version>2.8.0</gson.version>
         <httpclient.version>4.5.10</httpclient.version>
+        <sshd.core.version>2.1.0</sshd.core.version>
         <httpclient.async.version>4.1.3</httpclient.async.version>
         <jackson.version>2.10.0</jackson.version>
         <commons-lang3.version>3.8.1</commons-lang3.version>
@@ -2060,6 +2061,32 @@
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.gcp</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.google.protobuf</groupId>
+                        <artifactId>protobuf-java-util</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-netty</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-protobuf</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-stub</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>io.grpc</groupId>
+                        <artifactId>grpc-core</artifactId>
+                    </exclusion>
+                </exclusions>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
@@ -2471,6 +2498,21 @@
                 <version>${mariadb.client.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>org.apache.sshd</groupId>
+                <artifactId>sshd-core</artifactId>
+                <version>${sshd.core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.sshd</groupId>
+                <artifactId>sshd-common</artifactId>
+                <version>${sshd.core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.sshd</groupId>
+                <artifactId>sshd-sftp</artifactId>
+                <version>${sshd.core.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.apache.httpcomponents</groupId>
                 <artifactId>httpclient</artifactId>
