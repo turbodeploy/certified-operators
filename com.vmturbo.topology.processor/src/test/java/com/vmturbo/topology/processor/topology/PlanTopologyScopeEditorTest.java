@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -48,7 +49,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -690,7 +690,7 @@ public class PlanTopologyScopeEditorTest {
      * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnVMWithClone() throws PipelineStageException {
+    public void testScopeOnpremTopologyOnVMWithCloneInScope() throws PipelineStageException {
         long originalVMOid = 30002L;
         final PlanScope planScope = PlanScope.newBuilder()
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
@@ -702,7 +702,7 @@ public class PlanTopologyScopeEditorTest {
             .setOrigin(Origin.newBuilder()
                     .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder().setPlanId(99))
                 .build()))
-            .setClonedFromEntityOid(originalVMOid);
+            .setClonedFromEntity(vm2InDc1.getEntityBuilder());
         TopologyGraph<TopologyEntity> graphWithClone = TopologyEntityUtils.topologyGraphOf(vm2InDc1, cloneOfVM1);
         // populate InvertedIndex
         InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
@@ -716,7 +716,46 @@ public class PlanTopologyScopeEditorTest {
         assertEquals(2, result.size());
         assertTrue(result.getEntity(cloneOid).isPresent());
         // Make sure clone has original entity Oid
-        assertEquals(originalVMOid, result.getEntity(cloneOid).get().getClonedFromEntityOid());
+        assertTrue(result.getEntity(cloneOid).isPresent());
+        assertTrue(result.getEntity(cloneOid).get().getClonedFromEntity().isPresent());
+        assertEquals(originalVMOid, result.getEntity(cloneOid).get().getClonedFromEntity().get().getOid());
+}
+
+    /**
+     * Scenario: scope on VM2 and a clone added of out of scope VM1_clone (VM1 is out of scope) via plan scenario.
+     * Expected: the entities in scope should be the clone and VM2.
+     *
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     */
+    @Test
+    public void testScopeOnpremTopologyOnClonedVMFromOutOfScope() throws PipelineStageException {
+        long originalVMOid = 30002L;
+        final PlanScope planScope = PlanScope.newBuilder()
+                .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
+                        .setScopeObjectOid(originalVMOid).setDisplayName("VM2").build()).build();
+        long cloneOid = 3456L;
+        TopologyEntity.Builder cloneOfVM1 =  TopologyEntityUtils.topologyEntityBuilder(TopologyEntityDTO.newBuilder()
+                .setOid(cloneOid)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOrigin(Origin.newBuilder()
+                        .setPlanScenarioOrigin(PlanScenarioOrigin.newBuilder().setPlanId(99))
+                        .build()))
+                .setClonedFromEntity(vm1InDc1.getEntityBuilder());
+        TopologyGraph<TopologyEntity> graphWithClone = TopologyEntityUtils.topologyGraphOf(vm2InDc1, cloneOfVM1, vm1InDc1);
+        // populate InvertedIndex
+        InvertedIndex<TopologyEntity, TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider>
+                index = planTopologyScopeEditor.createInvertedIndex();
+        graphWithClone.entities().forEach(entity -> index.add(entity));
+        // scope using inverted index
+        TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
+                .indexBasedScoping(index, graphWithClone, groupResolver, planScope, PlanProjectType.USER);
+
+        result.entities().forEach(e -> System.out.println(e.getOid() + " "));
+        assertEquals(2, result.size());
+        // Make sure clone is in scope and it still references original OID.
+        assertTrue(result.getEntity(cloneOid).isPresent());
+        assertTrue(result.getEntity(cloneOid).get().getClonedFromEntity().isPresent());
+        assertEquals(vm1InDc1.getOid(), result.getEntity(cloneOid).get().getClonedFromEntity().get().getOid());
     }
 
     private static TopologyEntity.Builder createHypervisorTopologyEntity(long oid,
