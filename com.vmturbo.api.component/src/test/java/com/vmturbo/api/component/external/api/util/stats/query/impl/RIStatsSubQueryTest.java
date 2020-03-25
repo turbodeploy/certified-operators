@@ -7,9 +7,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -20,6 +20,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
@@ -48,12 +49,15 @@ import com.vmturbo.common.protobuf.cost.CostMoles.ReservedInstanceUtilizationCov
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -67,6 +71,7 @@ public class RIStatsSubQueryTest {
             ImmutableTimeWindow.builder().startTime(500_000).endTime(600_000).build();
 
     private static final Set<Long> SCOPE_ENTITIES = ImmutableSet.of(1L, 2L);
+    private static final Set<Long> SCOPE_ACCOUNT_ENTITY = ImmutableSet.of(1L);
     private static final StatApiInputDTO CVG_INPUT =
             StatsTestUtil.statInput(StringConstants.RI_COUPON_COVERAGE);
     private static final StatApiInputDTO UTL_INPUT =
@@ -184,6 +189,39 @@ public class RIStatsSubQueryTest {
                 stats.stream().collect(Collectors.toMap(StatApiDTO::getName, e -> e));
         Assert.assertTrue(stringStatApiDTOMap.containsKey(StringConstants.RI_COUPON_UTILIZATION));
         Assert.assertTrue(stringStatApiDTOMap.containsKey(StringConstants.RI_COUPON_COVERAGE));
+    }
+
+    /**
+     * Tests for getAggregatedStats when the account does not support RI as in Azure PAYG.
+     *
+     * @throws Exception exception thrown by the getAggregatesStats.
+     */
+    @Test
+    public void testAggregateStatsForNoRISupport() throws Exception {
+
+        Mockito.when(scope.getScopeTypes())
+                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)));
+        final StatsQueryScope queryScope = Mockito.mock(StatsQueryScope.class);
+        Mockito.when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        Mockito.when(queryScope.getExpandedOids()).thenReturn(SCOPE_ACCOUNT_ENTITY);
+        Mockito.when(queryScope.getScopeOids()).thenReturn(SCOPE_ACCOUNT_ENTITY);
+        Mockito.when(context.getQueryScope()).thenReturn(queryScope);
+        SingleEntityRequest accountRequest = Mockito.mock(SingleEntityRequest.class);
+        TopologyEntityDTO accountDTO = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setOid(1L)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                        .setBusinessAccount(BusinessAccountInfo.newBuilder()
+                                .setRiSupported(false).build()).build())
+                .build();
+        Mockito.when(accountRequest.getFullEntity()).thenReturn(Optional.of(accountDTO));
+        Mockito.when(repositoryApi.entityRequest(SCOPE_ACCOUNT_ENTITY.iterator().next()))
+                .thenReturn(accountRequest);
+
+        final List<StatSnapshotApiDTO> results =
+                riStatsSubQuery.getAggregateStats(Sets.newHashSet(CVG_INPUT, UTL_INPUT), context);
+
+        Assert.assertTrue(results.isEmpty());
     }
 
     /**
