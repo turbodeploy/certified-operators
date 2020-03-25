@@ -35,16 +35,6 @@ public class TimeSlotCommodityData
     private SlotStatistics currentSlot = new SlotStatistics();
     // oldest moment of time recorded in current slot
     private long timestamp;
-    private long lastMaintenanceTimestamp;
-
-    /**
-     * Returns last successful maintenance timestamp or 0L in case maintenance did not happen yet.
-     *
-     * @return last successful maintenance timestamp.
-     */
-    public long getLastMaintenanceTimestamp() {
-        return lastMaintenanceTimestamp;
-    }
 
     @Override
     public synchronized void init(@Nonnull EntityCommodityFieldReference field,
@@ -55,7 +45,10 @@ public class TimeSlotCommodityData
             logger.trace("{}initializing timeslot cache for {} and {} slots", LOG_PREFIX, field, slotCount);
         }
         if (slotCount > 1) {
-            previousSlots = createSlots(slotCount);
+            previousSlots = new SlotStatistics[slotCount];
+            for (int i = 0; i < slotCount; ++i) {
+                previousSlots[i] = new SlotStatistics();
+            }
             if (CollectionUtils.isNotEmpty(dbValue)) {
                 // expect to be ordered and rounded to hourly points as sent from persistence
                 recordsToSlots(dbValue, previousSlots);
@@ -64,14 +57,6 @@ public class TimeSlotCommodityData
             previousSlots = null;
             currentSlot.clear();
         }
-    }
-
-    private static SlotStatistics[] createSlots(int slotCount) {
-        final SlotStatistics[] result = new SlotStatistics[slotCount];
-        for (int i = 0; i < slotCount; ++i) {
-            result[i] = new SlotStatistics();
-        }
-        return result;
     }
 
     @Override
@@ -92,9 +77,6 @@ public class TimeSlotCommodityData
 
         if (!context.isPlan()) {
             long now = config.getClock().millis();
-            if (lastMaintenanceTimestamp <= 0) {
-                lastMaintenanceTimestamp = now;
-            }
             if (currentSlot.count == 0) {
                 timestamp = now;
             } else if (timestamp > 0
@@ -136,14 +118,13 @@ public class TimeSlotCommodityData
             return null;
         }
         // subtract outdated from previous slots
-        final SlotStatistics[] outdatedSlots = createSlots(previousSlots.length);
+        SlotStatistics[] outdatedSlots = new SlotStatistics[previousSlots.length];
         for (List<Pair<Long, StatRecord>> outdatedPage : outdated) {
             recordsToSlots(outdatedPage, outdatedSlots);
         }
         for (int i = 0; i < previousSlots.length; ++i) {
             previousSlots[i].subtract(outdatedSlots[i]);
         }
-        lastMaintenanceTimestamp = 0;
         // do not save anything
         return null;
     }
