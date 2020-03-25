@@ -192,7 +192,8 @@ public class MapperConfig {
                         magicScopeGateway(), communicationConfig.repositoryApi(),
                         communicationConfig.topologyProcessor(),
                         communicationConfig.planRpcService(), communicationConfig.groupRpcService(),
-                        communicationConfig.groupExpander());
+                        communicationConfig.groupExpander(), communicationConfig.thinTargetCache(),
+                        cloudTypeMapper());
         repositoryClientConfig.repository().addListener(uuidMapper);
         return uuidMapper;
     }

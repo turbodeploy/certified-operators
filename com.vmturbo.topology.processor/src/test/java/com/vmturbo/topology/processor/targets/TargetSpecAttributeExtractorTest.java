@@ -60,32 +60,4 @@ public class TargetSpecAttributeExtractorTest {
         assertThat(matchingAttributes.size(), equalTo(2));
         assertThat(matchingAttributes, containsInAnyOrder(nameAttr, targetAttr));
     }
-
-    /**
-     * Test that FQDN address field will be extracted into the IdentityMatchingAttributes as IP address.
-     */
-    @Test
-    public void testFQDNAddressExtractAttributes() {
-        ProbeInfo probe = ProbeInfo.newBuilder().setProbeType(PROBE_TYPE_NAME).setProbeCategory("probeCategory")
-                .addTargetIdentifierField(ADDR_NAME).build();
-        String targetFQDNAddress = "www.google.com";
-        TargetSpec testItem = TargetSpec.newBuilder()
-                .setProbeId(1L)
-                .addAccountValue(AccountValue.newBuilder().setKey(ADDR_NAME).setStringValue(targetFQDNAddress))
-                .build();
-        String targetIPAddress = targetFQDNAddress;
-        try {
-            targetIPAddress = InetAddress.getByName(targetFQDNAddress).getHostAddress();
-        } catch (UnknownHostException e) {
-            logger.error("Converting FQDN {} to IP address encounters exception, and test may fail", targetFQDNAddress);
-        }
-        IdentityMatchingAttribute nameAttr = new IdentityMatchingAttribute(PROBE_TYPE_IDENTIFIER, PROBE_TYPE_NAME);
-        IdentityMatchingAttribute targetAttr = new IdentityMatchingAttribute(ADDR_NAME, targetIPAddress);
-        TargetSpecAttributeExtractor extractorToTest = new TargetSpecAttributeExtractor(probeStore);
-        Mockito.when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probe));
-        IdentityMatchingAttributes attributesExtracted = extractorToTest.extractAttributes(testItem);
-        final Set<IdentityMatchingAttribute> matchingAttributes = attributesExtracted.getMatchingAttributes();
-        assertThat(matchingAttributes.size(), equalTo(2));
-        assertThat(matchingAttributes, containsInAnyOrder(nameAttr, targetAttr));
-    }
 }

@@ -591,6 +591,7 @@ public class PriceTableUploader implements DiagsRestorable {
                         .setTenancy(sourceRiSpec.getTenancy())
                         .setType(sourceRiSpec.getType())
                         .setSizeFlexible(sourceRiSpec.getSizeFlexible())
+                        .setPlatformFlexible(sourceRiSpec.getPlatformFlexible())
                         .build();
                 // does this already exist? If so, log a warning
                 if (riPricesBySpec.containsKey(riSpecInfo)) {

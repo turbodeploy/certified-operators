@@ -390,17 +390,18 @@ public class PlanTopologyScopeEditor {
         Map<Long, TopologyEntity.Builder> scopingResult = new HashMap<>();
         // return the subset of the original TraderTOs that correspond to the scoped topology
         scopedTopologyOIDs.stream().forEach(oid -> scopingResult.put(oid,
-                TopologyEntity.newBuilder(topology.getEntity(oid).get().getTopologyEntityDtoBuilder())
-                    .setClonedFromEntityOid(topology.getEntity(oid).get().getClonedFromEntityOid())));
+                TopologyEntity.newBuilder(topology.getEntity(oid).get().getTopologyEntityDtoBuilder())));
+
         // including addedEntities into the scope
         topology.entities().filter(entity -> entity.getTopologyEntityDtoBuilder().hasOrigin() &&
                 (entity.getTopologyEntityDtoBuilder().getOrigin().hasPlanScenarioOrigin() ||
                 entity.getTopologyEntityDtoBuilder().getOrigin().hasReservationOrigin()))
                 .forEach(entity -> scopingResult.put(entity.getOid(),
-                        entity.getTopologyEntityDtoBuilder().getOrigin().hasPlanScenarioOrigin() ?
+                        (entity.getClonedFromEntity().isPresent() ?
+                        // For plan origin set cloned from entity
                         TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder())
-                            .setClonedFromEntityOid(entity.getClonedFromEntityOid())
-                        : TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder())));
+                            .setClonedFromEntity(entity.getClonedFromEntity().get())
+                        : TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder()))));
         logger.info("Completed scoping stage for on-prem topology .....");
         return new TopologyGraphCreator<>(scopingResult).build();
     }

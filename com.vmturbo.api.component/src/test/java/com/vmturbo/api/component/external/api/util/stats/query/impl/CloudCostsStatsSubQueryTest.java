@@ -66,8 +66,9 @@ import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -163,26 +164,23 @@ public class CloudCostsStatsSubQueryTest {
             .build();
 
     @Before
-    public void setup() throws OperationFailedException {
+    public void setup() {
         MockitoAnnotations.initMocks(this);
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         when(thinTargetCache.getTargetInfo(TARGET_ID_1)).thenReturn(Optional.of(targetInfo1));
         when(thinTargetCache.getTargetInfo(TARGET_ID_2)).thenReturn(Optional.of(targetInfo2));
-        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
-                mockSupplyChainNodeFetcherBuilder();
-        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
         query = spy(new CloudCostsStatsSubQuery(repositoryApi, costRpc,
                 supplyChainFetcherFactory, thinTargetCache, new BuyRiScopeHandler(), storageStatsSubQuery, userSessionContext ));
     }
 
-    private SupplyChainNodeFetcherBuilder mockSupplyChainNodeFetcherBuilder()
-            throws OperationFailedException {
+    private SupplyChainNodeFetcherBuilder mockSupplyChainNodeFetcherBuilder(
+            Set<Long> fetchEntityIds) throws OperationFailedException {
         final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
                 mock(SupplyChainNodeFetcherBuilder.class);
         when(nodeFetcherBuilder.addSeedOids(any())).thenReturn(nodeFetcherBuilder);
         when(nodeFetcherBuilder.environmentType(any())).thenReturn(nodeFetcherBuilder);
         when(nodeFetcherBuilder.entityTypes(any())).thenReturn(nodeFetcherBuilder);
-        when(nodeFetcherBuilder.fetchEntityIds()).thenReturn(billingFamilyEntityIds);
+        when(nodeFetcherBuilder.fetchEntityIds()).thenReturn(fetchEntityIds);
         return nodeFetcherBuilder;
     }
 
@@ -389,13 +387,15 @@ public class CloudCostsStatsSubQueryTest {
     }
 
     /**
-     * Test getAggregatedStats for resource group. Resource group contains only Virtual Volume as
+     * Test getAggregatedStats for resource group. Resource group contains only Virtual Machines as
      * member, so request cost cloud stats only for this entity type.
+     * Test count of workloads.
      *
      * @throws OperationFailedException on exceptions occur
      */
     @Test
     public void testGetAggregateStatsForResourceGroupScope() throws OperationFailedException {
+        final Set<Long> rgMembersOids = Sets.newHashSet(1L, 2L);
         final Set<StatApiInputDTO> requestedStats = createRequestStatsForResourceGroup();
 
         final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
@@ -405,16 +405,22 @@ public class CloudCostsStatsSubQueryTest {
 
         final ApiId apiId = mock(ApiId.class);
         when(apiId.getScopeTypes()).thenReturn(
-                Optional.of(Sets.newHashSet(ApiEntityType.VIRTUAL_VOLUME)));
+                Optional.of(Sets.newHashSet(ApiEntityType.VIRTUAL_MACHINE)));
         when(apiId.isCloud()).thenReturn(true);
         when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        when(apiId.isRealtimeMarket()).thenReturn(false);
+        when(apiId.uuid()).thenReturn("123");
         when(context.getInputScope()).thenReturn(apiId);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
 
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
-        when(queryScope.getScopeOids()).thenReturn(Sets.newHashSet(1L, 2L));
+        when(queryScope.getScopeOids()).thenReturn(rgMembersOids);
         when(context.getQueryScope()).thenReturn(queryScope);
         when(context.getPlanInstance()).thenReturn(Optional.empty());
+
+        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
+                mockSupplyChainNodeFetcherBuilder(rgMembersOids);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
 
         // test that there is no scope expanding for resource groups
         verify(context.getQueryScope(), times(0)).getExpandedOids();
@@ -425,18 +431,29 @@ public class CloudCostsStatsSubQueryTest {
                 Cost.GetCloudCostStatsResponse.getDefaultInstance();
         when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
 
-        query.getAggregateStats(requestedStats, context);
+        final List<StatSnapshotApiDTO> aggregateStats =
+                query.getAggregateStats(requestedStats, context);
         final List<CloudCostStatsQuery> cloudCostStatsQueryList =
                 costParamCaptor.getValue().getCloudCostStatsQueryList();
 
         // Check that requests cost only for entity types existed in resource group.
-        // In our case request only stats for volume and don't request for vms, dbs and
+        // In our case request only stats for VMs and don't request for volumes, dbs and
         // dbServers
         Assert.assertEquals(cloudCostStatsQueryList.size(), 1);
         final List<Integer> entityTypeIds =
                 cloudCostStatsQueryList.get(0).getEntityTypeFilter().getEntityTypeIdList();
         Assert.assertEquals(entityTypeIds.size(), 1);
-        Assert.assertEquals(EntityType.VIRTUAL_VOLUME.getNumber(), entityTypeIds.get(0).intValue());
+        Assert.assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(),
+                entityTypeIds.get(0).intValue());
+
+        // check that count of workloads is calculated correctly (test RG has 2 VM as members)
+        final Optional<StatApiDTO> numWorkloadsStat = aggregateStats.iterator()
+                .next()
+                .getStatistics()
+                .stream()
+                .filter(stat -> stat.getName().equals(StringConstants.NUM_WORKLOADS))
+                .findFirst();
+        Assert.assertEquals(Float.valueOf(rgMembersOids.size()), numWorkloadsStat.get().getValue());
     }
 
     /**
@@ -455,6 +472,10 @@ public class CloudCostsStatsSubQueryTest {
         final StatsQueryContext context = createStatsQueryContextMock(apiId);
 
         // when
+        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
+                mockSupplyChainNodeFetcherBuilder(billingFamilyEntityIds);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
+
         final List<StatSnapshotApiDTO> result = query.getAggregateStats(requestedStats, context);
 
         // then
@@ -479,6 +500,8 @@ public class CloudCostsStatsSubQueryTest {
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(apiId);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.getInputScope().isRealtimeMarket()).thenReturn(false);
+        when(context.getInputScope().uuid()).thenReturn("1");
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
         when(queryScope.getScopeOids()).thenReturn(Sets.newHashSet(1L));
         when(context.getQueryScope()).thenReturn(queryScope);
@@ -488,10 +511,10 @@ public class CloudCostsStatsSubQueryTest {
 
     private StatApiInputDTO createNumWorkloadsInputDto() {
         final StatFilterApiDTO filterApiDTO = new StatFilterApiDTO();
-        filterApiDTO.setType("environmentType");
-        filterApiDTO.setValue("CLOUD");
+        filterApiDTO.setType(StringConstants.ENVIRONMENT_TYPE);
+        filterApiDTO.setValue(EnvironmentType.CLOUD.name());
         final StatApiInputDTO inputDTO = new StatApiInputDTO();
-        inputDTO.setName("numWorkloads");
+        inputDTO.setName(StringConstants.NUM_WORKLOADS);
         inputDTO.setFilters(Collections.singletonList(filterApiDTO));
         return inputDTO;
     }
@@ -572,6 +595,11 @@ public class CloudCostsStatsSubQueryTest {
                 ApiEntityType.VIRTUAL_MACHINE.apiStr()));
     }
 
+    private Set<StatApiInputDTO> createRequestStatsForCloudTab() {
+        return Sets.newHashSet(createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                ApiEntityType.VIRTUAL_MACHINE.apiStr()), createNumWorkloadsInputDto());
+    }
+
     private Set<StatApiInputDTO> createRequestStatsForResourceGroup() {
         final StatApiInputDTO vmStat =
                 createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
@@ -585,7 +613,8 @@ public class CloudCostsStatsSubQueryTest {
         final StatApiInputDTO volumeStat =
                 createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
                         ApiEntityType.VIRTUAL_VOLUME.apiStr());
-        return Sets.newHashSet(vmStat, dbStat, dbServerStat, volumeStat);
+        final StatApiInputDTO numWorkloads = createNumWorkloadsInputDto();
+        return Sets.newHashSet(vmStat, dbStat, dbServerStat, volumeStat, numWorkloads);
     }
 
     private StatApiInputDTO createRequestStat(String statName, String relatedEntityType) {
@@ -661,15 +690,16 @@ public class CloudCostsStatsSubQueryTest {
            .build()).build()));
     }
 
-    /**gi
-     * Tests getting the costs for for cloud tab of realtime market.
+    /**
+     * Tests getting the costs and count of workloads for for cloud tab of realtime market.
      *
      * @throws Exception if something goes wrong.
      */
     @Test
     public void testGetAggregateStatsCloudTab() throws Exception {
         // ARRANGE
-        final Set<StatApiInputDTO> requestedStats = createRequestStats();
+        Set<Long> cloudTabWorkloads = Collections.singleton(1L);
+        final Set<StatApiInputDTO> requestedStats = createRequestStatsForCloudTab();
         requestedStats.iterator().next().setRelatedEntityType(null);
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
@@ -700,9 +730,13 @@ public class CloudCostsStatsSubQueryTest {
         // Behaviors associated to query scope
         when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
 
+        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
+                mockSupplyChainNodeFetcherBuilder(cloudTabWorkloads);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
+
 
         // ACT
-        query.getAggregateStats(requestedStats, context);
+        List<StatSnapshotApiDTO> aggregateStats = query.getAggregateStats(requestedStats, context);
 
         // ASSERT
         // make sure we made correct call to cost service
@@ -715,6 +749,16 @@ public class CloudCostsStatsSubQueryTest {
                         .build())
             .build()
         ));
+
+        // check that count of workloads is calculated correctly (test cloud tab has 1 workload)
+        final Optional<StatApiDTO> numWorkloadsStat = aggregateStats.iterator()
+                .next()
+                .getStatistics()
+                .stream()
+                .filter(stat -> stat.getName().equals(StringConstants.NUM_WORKLOADS))
+                .findFirst();
+        Assert.assertEquals(Float.valueOf(cloudTabWorkloads.size()),
+                numWorkloadsStat.get().getValue());
     }
 
     /**

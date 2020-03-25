@@ -568,6 +568,7 @@ public class TopologyEntitiesHandlerTest {
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1LargePrices));
         when(marketPriceTable.getComputePriceBundle(m1Medium, region.getOid(), accountPricingData))
                         .thenReturn(mockComputePriceBundle(ba.getOid(), m1MediumPrices));
+        when(ccd.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
         when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
         final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                         marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
@@ -678,6 +679,7 @@ public class TopologyEntitiesHandlerTest {
             when(marketPriceTable.getDatabasePriceBundle(dbm3Large.getOid(), region.getOid(), accountPricingData))
                             .thenReturn(mockDatabasePriceBundle(ba.getOid(), dbm3LargePrices));
             when(ccd.getRiCoverageForEntity(anyLong())).thenReturn(Optional.empty());
+            when(ccd.getFilteredRiCoverage(anyLong())).thenReturn(Optional.empty());
             final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO,
                             marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory);

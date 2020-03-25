@@ -414,7 +414,7 @@ public class HistoricalEditorTest {
             HistoricalValues.getDefaultInstance(), HistoricalValues.getDefaultInstance(),
             -1L, HistoricalValues.getDefaultInstance(), HistoricalValues.getDefaultInstance(),
             -2L, HistoricalValues.getDefaultInstance(), HistoricalValues.getDefaultInstance())
-            .setClonedFromEntityOid(100L);
+            .setClonedFromEntity(origin.getEntityBuilder());
         final Map<Long, Long> oldProvidersMap = ImmutableMap.of(-1L, 101L, -2L, 102L);
         clone.getEntityBuilder().putEntityPropertyMap("oldProviders", new Gson().toJson(oldProvidersMap));
 

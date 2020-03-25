@@ -23,6 +23,10 @@ public class BusinessAccountInfoMapper extends TypeSpecificInfoMapper {
             return TypeSpecificInfo.getDefaultInstance();
         }
         final BusinessAccountData baData = sdkEntity.getBusinessAccountData();
+        boolean riSupported = true;
+        if (entityPropertyMap.containsKey("riSupported")) {
+            riSupported = Boolean.valueOf(entityPropertyMap.get("riSupported"));
+        }
         BusinessAccountInfo.Builder baInfoBuilder = BusinessAccountInfo.newBuilder();
         if (baData.getDataDiscovered()) {
             baInfoBuilder.setAssociatedTargetId(Long.parseLong(
@@ -32,6 +36,7 @@ public class BusinessAccountInfoMapper extends TypeSpecificInfoMapper {
             baInfoBuilder.setAccountId(baData.getAccountId());
         }
         baInfoBuilder.addAllPricingIdentifiers(baData.getPricingIdentifiersList());
+        baInfoBuilder.setRiSupported(riSupported);
         return TypeSpecificInfo.newBuilder()
             .setBusinessAccount(baInfoBuilder.build())
             .build();

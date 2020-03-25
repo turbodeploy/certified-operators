@@ -390,7 +390,7 @@ public class ReservedInstanceConverterTest {
                     false));
         }
         when(cloudCostData.getExistingRiBought()).thenReturn(riDataList);
-        when(cloudCostData.getCurrentRiCoverage()).thenReturn(getRiCoverageMap());
+        when(cloudCostData.getFilteredRiCoverageByEntityId()).thenReturn(getRiCoverageMap());
         final Map<Long, TopologyEntityDTO> topology = ImmutableMap.of(
                 REGION_ID, mockRegion(REGION_ID, REGION_NAME),
                 REGION_ID_2, mockRegion(REGION_ID_2, REGION_NAME_2),

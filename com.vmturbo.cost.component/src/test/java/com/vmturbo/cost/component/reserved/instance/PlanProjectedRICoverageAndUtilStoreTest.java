@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -83,6 +84,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
             EntityReservedInstanceCoverage.newBuilder()
                     .setEntityId(1L)
                     .putCouponsCoveredByRi(10L, 100.0)
+                    .setEntityCouponCapacity(10)
                     .build();
     private final TopologyInfo topoInfo = TopologyInfo.newBuilder()
             .setTopologyContextId(PLAN_ID)
@@ -195,6 +197,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
             .newBuilder()
             .setEntityId(101L)
             .putAllCouponsCoveredByRi(riUsage)
+            .setEntityCouponCapacity(5)
             .build());
         when(repositoryService.retrieveTopologyEntities(any()))
             .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
@@ -272,6 +275,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .newBuilder()
                         .setEntityId(101L)
                         .putAllCouponsCoveredByRi(riUsage)
+                        .setEntityCouponCapacity(5)
                         .build());
         when(repositoryService.retrieveTopologyEntities(any()))
             .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
@@ -341,7 +345,8 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
     @Test
     public void testGetReservedInstanceUtilizationStatsRecords() {
         mockPlanRIUtilizationTables();
-        final List<ReservedInstanceStatsRecord> statsRecords = store.getPlanReservedInstanceUtilizationStatsRecords(PLAN_ID);
+        final List<ReservedInstanceStatsRecord> statsRecords =
+                store.getPlanReservedInstanceUtilizationStatsRecords(PLAN_ID, Collections.emptyList());
         assertEquals(1, statsRecords.size());
         final ReservedInstanceStatsRecord record = statsRecords.get(0);
         assertEquals(100, record.getCapacity().getAvg(), DELTA);
@@ -355,10 +360,11 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
     public void testGetReservedInstanceCoverageStatsRecords() {
         mockPlanRIUtilizationTables();
         mockPlanProjectedRICoverageTable(PLAN_ID);
-        final List<ReservedInstanceStatsRecord> statsRecords = store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID);
+        final List<ReservedInstanceStatsRecord> statsRecords =
+                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
         assertEquals(1, statsRecords.size());
         final ReservedInstanceStatsRecord record = statsRecords.get(0);
-        assertEquals(10, record.getCapacity().getAvg(), DELTA);
+        assertEquals(5, record.getCapacity().getAvg(), DELTA);
         assertEquals(0.2, record.getValues().getAvg(), DELTA);
     }
 

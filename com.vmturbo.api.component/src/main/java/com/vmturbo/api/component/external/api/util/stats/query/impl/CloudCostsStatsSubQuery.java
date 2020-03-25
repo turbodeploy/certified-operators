@@ -651,7 +651,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      */
     private List<StatApiDTO> getNumWorkloadStatSnapshot(@Nonnull final Set<StatApiInputDTO> statsFilters,
                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
-        final Set<Long> scopeIds = context.getQueryScope().getScopeOids();
         List<StatApiDTO> stats = Lists.newArrayList();
         for (StatApiInputDTO statApiInputDTO : statsFilters) {
             if (isVirtualVolumeCount(statApiInputDTO)) {
@@ -676,8 +675,12 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     }
                 }
                 if (entityTypes != null && !entityTypes.isEmpty()) {
+                    final Set<Long> scopeIds = context.getQueryScope().getScopeOids();
+                    final Set<Long> fetchedScope =
+                            context.getInputScope().isRealtimeMarket() ? scopeIds :
+                                    Collections.singleton(Long.valueOf(context.getInputScope().uuid()));
                     final float numWorkloads = supplyChainFetcherFactory.newNodeFetcher()
-                            .addSeedOids(scopeIds)
+                            .addSeedOids(fetchedScope)
                             .entityTypes(entityTypes)
                             .environmentType(EnvironmentType.CLOUD)
                             .fetchEntityIds()

@@ -275,10 +275,15 @@ public class StatsQueryScopeExpander {
             // supply chain search for related entities has the correct starting point (the original
             // entities in the request, rather than the replacement entities).
             try {
+                // we should use scopeOid(without scope expanding) in case of resource group or
+                // group of resource groups otherwise we miss special resource group logic for supplyChain
+                final Set<Long> fetchedScope =
+                        !scope.isResourceGroupOrGroupOfResourceGroups() ? immediateOidsInScope :
+                                Collections.singleton(scope.oid());
                 expandedOidsInScope = supplyChainFetcherFactory.expandAggregatedEntities(
-                    supplyChainFetcherFactory.expandScope(immediateOidsInScope, relatedTypes.stream()
-                        .map(ApiEntityType::apiStr)
-                        .collect(Collectors.toList())));
+                        supplyChainFetcherFactory.expandScope(fetchedScope, relatedTypes.stream()
+                                .map(ApiEntityType::apiStr)
+                                .collect(Collectors.toList())));
             } catch (OperationFailedException ex) {
                 logger.error("The operation to get the expanded entities associated with list of " +
                         "OIDs {}, with types {} failed. Going with unexpanded entities.",
@@ -323,7 +328,7 @@ public class StatsQueryScopeExpander {
         final Set<Long> scopeOids;
 
         if (globalScope == null) {
-            scopeOids = scope.getScopeOids(userSessionContext);
+            scopeOids = scope.getScopeOids(userSessionContext, statistics);
         } else {
             scopeOids = null;
         }

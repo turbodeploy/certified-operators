@@ -655,7 +655,7 @@ public class TopologyConverter {
                 @Nonnull final List<EconomyDTOs.TraderTO> projectedTraders,
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology,
                 @Nonnull final PriceIndexMessage priceIndexMessage,
-                @Nonnull final CloudCostData cloudCostData,
+                @Nonnull final CloudCostData<TopologyEntityDTO> cloudCostData,
                 @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
                 @Nonnull final WastedFilesAnalysis wastedFileAnalysis) {
 
@@ -820,7 +820,8 @@ public class TopologyConverter {
      * @param projectedTraders All the projected traders
      * @param cloudCostData Cloud cost data which is used to get original ri coverage
      */
-    private void relinquishCoupons(@Nonnull final List<TraderTO> projectedTraders, CloudCostData cloudCostData) {
+    private void relinquishCoupons(@Nonnull final List<TraderTO> projectedTraders,
+                                   CloudCostData<TopologyEntityDTO> cloudCostData) {
         for (TraderTO projectedTrader : projectedTraders) {
             TraderTO originalTrader = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
             // Original trader might be null in case of a provisioned trader
@@ -835,16 +836,37 @@ public class TopologyConverter {
                     RiDiscountedMarketTier originalRiTier = (RiDiscountedMarketTier)
                             cloudTc.getMarketTier(originalRiTierSl.get().getSupplier());
                     Optional<EntityReservedInstanceCoverage> originalRiCoverage = cloudCostData
-                            .getRiCoverageForEntity(originalTrader.getOid());
+                            .getFilteredRiCoverage(originalTrader.getOid());
                     if (!originalRiCoverage.isPresent()) {
                         logger.error("{} does not have original RI coverage", originalTrader.getDebugInfoNeverUseInCode());
                         return;
                     }
+                    final Set<Long> originalRiIds = originalRiCoverage.get()
+                            .getCouponsCoveredByRiMap().keySet();
+                    final Set<RiDiscountedMarketTier> originalRiTiers = originalRiIds.stream()
+                            .map(riId -> cloudTc.getRiDataById(riId))
+                            .filter(Objects::nonNull)
+                            .map(riData ->
+                                    getRIDiscountedMarketTierIDFromRIData(riData,
+                                            entityOidToDto.get(riData.getReservedInstanceSpec()
+                                                    .getReservedInstanceSpecInfo().getRegionId())))
+                            .filter(Objects::nonNull)
+                            .map(cloudTc::getMarketTier)
+                            .filter(Objects::nonNull)
+                            .filter(RiDiscountedMarketTier.class::isInstance)
+                            .map(RiDiscountedMarketTier.class::cast)
+                            .collect(Collectors.toSet());
+                    logger.debug("Original RIDiscountedMarketTiers for projected trader {} are {}",
+                            originalTrader::getDebugInfoNeverUseInCode,
+                            () -> originalRiTiers.stream()
+                                    .map(tier -> tier.getRiAggregate().getDisplayName())
+                    .collect(Collectors.toList()));
                     Optional<ShoppingListTO> projectedRiTierSl = getShoppingListSuppliedByRiTier(projectedTrader, true);
-                    if (projectedRiTierSl.isPresent()) {
+                    if (projectedRiTierSl.isPresent() && originalRiTier != null) {
                         if (projectedRiTierSl.get().getCouponId() != originalRiTierSl.get().getSupplier()) {
                             // Entity moved from one RI to another.
-                            originalRiTier.relinquishCoupons(originalRiCoverage.get());
+                            originalRiTiers.forEach(ri ->
+                                    ri.relinquishCoupons(originalRiCoverage.get()));
                         } else {
                             // Entity stayed on same RI. Did coverage change? If yes relinquish
                             Optional<CommodityBoughtTO> projectedCouponCommBought = getCouponCommBought(projectedRiTierSl.get());
@@ -857,12 +879,14 @@ public class TopologyConverter {
                             if (!TopologyConversionUtils.areFloatsEqual(
                                     projectedCouponCommBought.get().getQuantity(),
                                     originalNumberOfCouponsBought)) {
-                                originalRiTier.relinquishCoupons(originalRiCoverage.get());
+                                originalRiTiers.forEach(ri ->
+                                        ri.relinquishCoupons(originalRiCoverage.get()));
                             }
                         }
                     } else {
                         // Moved from RI to on demand
-                        originalRiTier.relinquishCoupons(originalRiCoverage.get());
+                        originalRiTiers.forEach(ri ->
+                                ri.relinquishCoupons(originalRiCoverage.get()));
                     }
                 }
             }
@@ -2657,6 +2681,8 @@ public class TopologyConverter {
             if (providerTopologyEntity.getEntityType() == EntityType.COMPUTE_TIER_VALUE &&
                     coverage.isPresent() && region != null &&
                     !coverage.get().getCouponsCoveredByRiMap().isEmpty()) {
+                // The entity may be covered by multiple RIs - the first RI is picked as the
+                // provider
                 long riId = coverage.get().getCouponsCoveredByRiMap().keySet().iterator().next();
                 final ReservedInstanceData riData = cloudTc.getRiDataById(riId);
                 if (riData != null) {
@@ -2684,6 +2710,7 @@ public class TopologyConverter {
      * @param region the region of the RI
      * @return the oid of the RIDiscountedMarketTier.
      */
+    @Nullable
     public Long getRIDiscountedMarketTierIDFromRIData(ReservedInstanceData riData,
                                                       TopologyEntityDTO region) {
         final TopologyEntityDTO computeTier =

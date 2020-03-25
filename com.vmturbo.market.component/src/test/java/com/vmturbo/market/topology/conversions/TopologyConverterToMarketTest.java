@@ -114,7 +114,7 @@ public class TopologyConverterToMarketTest {
     private CommoditySpecificationTO economyCommodity2;
     private CommodityType topologyCommodity2;
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
-    private CloudCostData ccd = spy(new CloudCostData<>(new HashMap<>(), new HashMap<>(),
+    private CloudCostData ccd = spy(new CloudCostData<>(new HashMap<>(), new HashMap<>(), new HashMap<>(),
             new HashMap<>(), new HashMap<>(), new HashMap<>()));
     private TierExcluderFactory tierExcluderFactory = mock(TierExcluderFactory.class);
     private AccountPricingData accountPricingData = mock(AccountPricingData.class);

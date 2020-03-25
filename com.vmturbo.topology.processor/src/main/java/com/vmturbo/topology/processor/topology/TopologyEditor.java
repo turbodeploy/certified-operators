@@ -14,15 +14,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -259,7 +259,8 @@ public class TopologyEditor {
                         clone.getAnalysisSettingsBuilder().setSuspendable(false);
                     }
                     topology.put(clone.getOid(),
-                        TopologyEntity.newBuilder(clone).setClonedFromEntityOid(oid));
+                        TopologyEntity.newBuilder(clone)
+                            .setClonedFromEntity(entity.getEntityBuilder()));
                 }
             }
         });

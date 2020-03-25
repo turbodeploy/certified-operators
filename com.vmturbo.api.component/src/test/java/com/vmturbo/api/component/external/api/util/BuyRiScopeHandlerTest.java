@@ -56,6 +56,14 @@ public class BuyRiScopeHandlerTest {
     }
 
     /**
+     * Test {@link BuyRiScopeHandler#extractActionTypes} method for group of Billing Family scope.
+     */
+    @Test
+    public void testExtractActionTypesForGroupOfBillingFamily() {
+        testExtractActionTypesIncludingBuyRi(apiIdForGroupOfBillingFamily());
+    }
+
+    /**
      * Test {@link BuyRiScopeHandler#extractActionTypes} method for Region scope.
      */
     @Test
@@ -190,6 +198,20 @@ public class BuyRiScopeHandlerTest {
     }
 
     /**
+     * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId)} method for a group of
+     * Billing Family.
+     */
+    @Test
+    public void testExtractBuyRiEntitiesForGroupOfBillingFamily() {
+        // Act
+        final Set<Long> result = buyRiScopeHandler.extractBuyRiEntities(
+            apiIdForGroupOfBillingFamily());
+
+        // Assert
+        assertThat(result, is(ImmutableSet.of(OID_ACCOUNT_1, OID_ACCOUNT_2)));
+    }
+
+    /**
      * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId)} method for Region.
      */
     @Test
@@ -251,6 +273,20 @@ public class BuyRiScopeHandlerTest {
         final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
         when(groupInfo.getEntityTypes()).thenReturn(Collections.emptySet());
         when(groupInfo.getGroupType()).thenReturn(GroupType.BILLING_FAMILY);
+        when(groupInfo.getEntityIds()).thenReturn(ImmutableSet.of(OID_ACCOUNT_1, OID_ACCOUNT_2));
+        when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
+        return apiId;
+    }
+
+    private static ApiId apiIdForGroupOfBillingFamily() {
+        final ApiId apiId = mock(ApiId.class);
+        when(apiId.isRealtimeMarket()).thenReturn(false);
+        when(apiId.isEntity()).thenReturn(false);
+        when(apiId.isGroup()).thenReturn(true);
+        final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
+        when(groupInfo.getEntityTypes()).thenReturn(Collections.emptySet());
+        when(groupInfo.getGroupType()).thenReturn(GroupType.REGULAR);
+        when(groupInfo.getNestedGroupTypes()).thenReturn(ImmutableSet.of(GroupType.BILLING_FAMILY));
         when(groupInfo.getEntityIds()).thenReturn(ImmutableSet.of(OID_ACCOUNT_1, OID_ACCOUNT_2));
         when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
         return apiId;

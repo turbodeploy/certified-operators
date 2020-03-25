@@ -4,13 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
 
+import com.google.common.collect.Sets;
 import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -18,6 +19,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -37,6 +39,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.Reserv
 import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc.ReservedInstanceCostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
@@ -100,6 +103,21 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
             @Nonnull final StatsQueryContext context)
             throws OperationFailedException, InterruptedException {
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
+        // Return an empty list when scoped to an account that does not support RIs
+        if (context.getQueryScope().getScopeOids().size() == 1 &&
+                StatsQueryExecutor.scopeHasBusinessAccounts(context.getInputScope())) {
+            final long accountId = context.getQueryScope().getScopeOids().iterator().next();
+            final Optional<TopologyEntityDTO> scopeAccount =
+                    getRepositoryApi().entityRequest(accountId).getFullEntity();
+            if (scopeAccount.isPresent()) {
+                final TopologyEntityDTO account = scopeAccount.get();
+                if (account.hasTypeSpecificInfo() &&
+                        account.getTypeSpecificInfo().hasBusinessAccount() &&
+                        !account.getTypeSpecificInfo().getBusinessAccount().getRiSupported()) {
+                    return snapshots;
+                }
+            }
+        }
 
         if (StatsUtils.isValidScopeForRIBoughtQuery(context.getInputScope())) {
             if (containsStat(StringConstants.NUM_RI, stats)) {

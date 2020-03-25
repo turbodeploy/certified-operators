@@ -19,6 +19,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -54,6 +55,8 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
     private static final Logger logger = LogManager.getLogger();
 
     private static final String PLAN_ID = "plan_id";
+
+    private static final String REGION_ID = "region_id";
 
     private final DSLContext context;
 
@@ -219,35 +222,31 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
             List<TopologyEntityDTO> ba =
                     getConnectedEntityofType(allBa, EntityType.VIRTUAL_MACHINE_VALUE, entity.getOid());
             // find compute tier consumed by entity
-            List<TopologyEntityDTO> computeTiers = getEntityConsumedComputeTiers(entity, entityMap);
-            if (computeTiers.size() != 1) {
-                logger.warn("Entity {} consumes wrong number of compute tiers {}!", entity.getOid(),
-                        computeTiers.size());
-                continue;
-            }
-            final double totalCoupons =
-                    computeTiers.iterator().next().getTypeSpecificInfo().getComputeTier()
-                            .getNumCoupons();
+            final Optional<Integer> optionalCouponCapacity = entityRICoverage.stream().filter(s -> s.getEntityId() == entityId)
+                    .map(a -> a.getEntityCouponCapacity()).findFirst();
             // The aggregated RI coverage of the entity
             final Double usedCoupons = aggregatedEntityRICoverage.getValue();
-            if (usedCoupons > totalCoupons) {
-                // Used coupons should be less than or equals total coupons.
-                logger.error("Used coupons are greater than total coupons for " +
-                                "entityId {}, topologyContextId {}, region id {}, az id {}" +
-                                ", ba id {}, total coupon {}, used coupon {}.",
-                        entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
-                        ba.get(0).getOid(), totalCoupons, usedCoupons);
-            } else {
-                // Used coupons are less than or equals total coupons.
-                coverageRcd.add(context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
-                        new PlanProjectedReservedInstanceCoverageRecord(
-                                entityId, topologyContextId, region.get(0).getOid(),
-                                az.get(0).getConnectedEntityId(), ba.get(0).getOid(),
-                                totalCoupons, usedCoupons)));
-                logger.debug("Projected reserved instance coverage record with entityId {}, topologyContextId {}, "
-                                + "region id {}, az id {}, ba id {}, total coupon {}, used coupon {}.",
-                        entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
-                        ba.get(0).getOid(), totalCoupons, usedCoupons);
+            if (optionalCouponCapacity.isPresent()) {
+                Double totalCoupons = Double.valueOf(optionalCouponCapacity.get());
+                if (usedCoupons > totalCoupons) {
+                    // Used coupons should be less than or equals total coupons.
+                    logger.error("Used coupons are greater than total coupons for " +
+                                    "entityId {}, topologyContextId {}, region id {}, az id {}" +
+                                    ", ba id {}, total coupon {}, used coupon {}.",
+                            entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
+                            ba.get(0).getOid(), totalCoupons, usedCoupons);
+                } else {
+                    // Used coupons are less than or equals total coupons.
+                    coverageRcd.add(context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
+                            new PlanProjectedReservedInstanceCoverageRecord(
+                                    entityId, topologyContextId, region.get(0).getOid(),
+                                    az.get(0).getConnectedEntityId(), ba.get(0).getOid(),
+                                    totalCoupons, usedCoupons)));
+                    logger.debug("Projected reserved instance coverage record with entityId {}, topologyContextId {}, "
+                                    + "region id {}, az id {}, ba id {}, total coupon {}, used coupon {}.",
+                            entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
+                            ba.get(0).getOid(), totalCoupons, usedCoupons);
+                }
             }
         }
         Lists.partition(coverageRcd, chunkSize).forEach(entityChunk -> context.batchInsert(coverageRcd).execute());
@@ -265,14 +264,12 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         Map<Long, Double> aggregatedEntityRICoverages = new HashMap<>();
         for (final EntityReservedInstanceCoverage riCoverage : entityRICoverage) {
             long entityId = riCoverage.getEntityId();
-            riCoverage.getCouponsCoveredByRiMap().forEach((key, value) -> {
-                if (aggregatedEntityRICoverages.containsKey(entityId)) {
-                    aggregatedEntityRICoverages.put(entityId,
-                            aggregatedEntityRICoverages.get(entityId) + value);
-                } else {
-                    aggregatedEntityRICoverages.put(entityId, value);
-                }
-            });
+            final double totalCouponsUsed = riCoverage.getCouponsCoveredByRiMap()
+                    .values()
+                    .stream()
+                    .reduce(0D, Double::sum);
+            aggregatedEntityRICoverages.compute(entityId, (k,v) ->
+            v == null ? totalCouponsUsed : totalCouponsUsed + v);
         }
         return aggregatedEntityRICoverages;
     }
@@ -410,17 +407,22 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
      * utilization table.
      *
      * @param planId plan ID.
+     * @param regions a list of regions.
      * @return a list of {@link ReservedInstanceStatsRecord}.
      */
-    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceUtilizationStatsRecords(long planId) {
-        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION);
+    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceUtilizationStatsRecords(long planId, List<Long> regions) {
+        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION, regions);
     }
 
-    private List<ReservedInstanceStatsRecord> getPlanRIStatsRecords(long planId, final Table<?> table) {
+    private List<ReservedInstanceStatsRecord> getPlanRIStatsRecords(long planId, final Table<?> table, List<Long> regions) {
+        Condition conditions = table.field(PLAN_ID, Long.class).eq(planId);
+        if (regions != null && !regions.isEmpty()) {
+            conditions.and(table.field(REGION_ID, Long.class).in(regions));
+        }
         final Result<Record> records =
                         context.select(ReservedInstanceUtil.createSelectFieldsForPlanRIUtilizationCoverage(table))
                                         .from(table)
-                                        .where(table.field(PLAN_ID, Long.class).eq(planId))
+                                        .where(conditions)
                                         .fetch();
         return records.stream().filter(r -> r.getValue(0) != null)
                         .map(ReservedInstanceUtil::convertPlanRIUtilizationCoverageRecordToRIStatsRecord)
@@ -432,10 +434,11 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
      * coverage table.
      *
      * @param planId plan ID.
+     * @param regions a list of regions.
      * @return a list of {@link ReservedInstanceStatsRecord}.
      */
-    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceCoverageStatsRecords(long planId) {
-        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE);
+    public List<ReservedInstanceStatsRecord> getPlanReservedInstanceCoverageStatsRecords(long planId, List<Long> regions) {
+        return getPlanRIStatsRecords(planId, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE, regions);
     }
 
     @Override
