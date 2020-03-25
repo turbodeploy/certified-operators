@@ -136,13 +136,13 @@ public class ClusterHeadroomPostProcessorTest {
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
                 .setClusterId(CLUSTER_ID)
                 // Template Value CPU_SPEED = 10, consumedFactor = 0.5, effectiveUsed = 5
-                // PM CPU value : used = 50, capacity = 100
+                // PM CPU value : used = 50 * 2 (scalingFactor), capacity = 100 * 2 (scalingFactor)
                 // CPU headroom calculation :
-                // headroomCapacity = capacity / effectiveUsed = 20, headroomAvailable = (capacity - used) / effectiveUsed = 10
+                // headroomCapacity = capacity / effectiveUsed = 40, headroomAvailable = (capacity - used) / effectiveUsed = 20
                 // daysToExhaust = MORE_THAN_A_YEAR because VmGrowth = 0
                 .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
-                    .setHeadroom(10)
-                    .setCapacity(20)
+                    .setHeadroom(20)
+                    .setCapacity(40)
                     .setDaysToExhaustion(MORE_THAN_A_YEAR))
                 // Template Value MEMORY_SIZE = 100, consumedFactor = 0.4, effectiveUsed = 40
                 // PM MEM value : used = 40, capacity = 200
@@ -180,8 +180,8 @@ public class ClusterHeadroomPostProcessorTest {
         verify(historyServiceMole).saveClusterHeadroom(SaveClusterHeadroomRequest.newBuilder()
                         .setClusterId(CLUSTER_ID)
                         .setCpuHeadroomInfo(CommodityHeadroom.newBuilder()
-                            .setHeadroom(10)
-                            .setCapacity(20)
+                            .setHeadroom(20)
+                            .setCapacity(40)
                             .setDaysToExhaustion(MORE_THAN_A_YEAR))
                         .setMemHeadroomInfo(CommodityHeadroom.newBuilder()
                             .setCapacity(5)
@@ -301,6 +301,7 @@ public class ClusterHeadroomPostProcessorTest {
                     .setActive(true)
                     .setCommodityType(com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType.newBuilder()
                         .setType(CommodityType.CPU_VALUE))
+                    .setScalingFactor(2)
                     .setCapacity(100)
                     .setUsed(50))
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()

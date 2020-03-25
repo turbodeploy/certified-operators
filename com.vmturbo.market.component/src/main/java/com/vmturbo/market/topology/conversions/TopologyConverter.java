@@ -1911,14 +1911,19 @@ public class TopologyConverter {
                     .setCommodityType(commType)
                     .setPeak(reverseScaleComm(peakQuantity, originalCommodityBoughtDTO,
                             CommodityBoughtDTO::getScalingFactor));
-                    if (originalCommodityBoughtDTO.isPresent()
-                            && originalCommodityBoughtDTO.get().hasHistoricalUsed()
+
+                    if (originalCommodityBoughtDTO.isPresent()) {
+                        builder.setScalingFactor(originalCommodityBoughtDTO.get().getScalingFactor());
+                        if(originalCommodityBoughtDTO.get().hasHistoricalUsed()
                             && originalCommodityBoughtDTO.get().getHistoricalUsed().hasPercentile()) {
-                        //TODO Lakshmi - Set the projected percentile as exsitingPercentile * (existing capacity/new caapcity)
-                        // this wil be required by the VDI Image commodites.
-                        builder.setHistoricalUsed(HistoricalValues.newBuilder()
-                            .setPercentile(originalCommodityBoughtDTO.get().getHistoricalUsed().getPercentile())
-                            .build());
+                            //TODO Lakshmi - Set the projected percentile as exsitingPercentile * (existing capacity/new caapcity)
+                            // this wil be required by the VDI Image commodites.
+                            builder.setHistoricalUsed(HistoricalValues.newBuilder()
+                                    .setPercentile(originalCommodityBoughtDTO.get()
+                                            .getHistoricalUsed()
+                                            .getPercentile())
+                                    .build());
+                        }
                     }
 
                     // Set timeslot values if applies
@@ -2988,16 +2993,20 @@ public class TopologyConverter {
             .filter(CommoditySoldDTO::hasHotResizeInfo)
             .map(CommoditySoldDTO::getHotResizeInfo)
             .ifPresent(commoditySoldBuilder::setHotResizeInfo);
-        if (originalCommoditySold.isPresent()
-            && originalCommoditySold.get().hasHistoricalUsed()
-            && originalCommoditySold.get().getHistoricalUsed().hasPercentile()) {
-            float existingPercentile = (float)originalCommoditySold.get().getHistoricalUsed()
-                .getPercentile();
-            double existingCapacity = originalCommoditySold.get().getCapacity();
-            float projectedPercentile = (float)(existingCapacity / capacity) * existingPercentile;
-            commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
-                .setPercentile(projectedPercentile)
-                .build());
+
+        if (originalCommoditySold.isPresent()) {
+            commoditySoldBuilder.setScalingFactor(originalCommoditySold.get().getScalingFactor());
+
+            if (originalCommoditySold.get().hasHistoricalUsed()
+                    && originalCommoditySold.get().getHistoricalUsed().hasPercentile()) {
+                    float existingPercentile = (float)originalCommoditySold.get().getHistoricalUsed()
+                        .getPercentile();
+                    double existingCapacity = originalCommoditySold.get().getCapacity();
+                    float projectedPercentile = (float)(existingCapacity / capacity) * existingPercentile;
+                    commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
+                        .setPercentile(projectedPercentile)
+                        .build());
+            }
         }
 
         // Set timeslot values if applies
