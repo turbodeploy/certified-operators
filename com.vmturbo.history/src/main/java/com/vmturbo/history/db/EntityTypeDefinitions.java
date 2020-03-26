@@ -1,5 +1,6 @@
 package com.vmturbo.history.db;
 
+import static com.vmturbo.common.protobuf.topology.ApiEntityType.RESERVED_INSTANCE;
 import static com.vmturbo.history.db.EntityType.UseCase.NON_PRICE_STATS;
 import static com.vmturbo.history.db.EntityType.UseCase.NON_ROLLUP_STATS;
 import static com.vmturbo.history.db.EntityType.UseCase.PersistEntity;
@@ -80,6 +81,7 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.NETWORK),
             PHYSICAL_MACHINE_ENTITY_TYPE,
             create(ApiEntityType.REGION),
+            create(RESERVED_INSTANCE, "ri_stats"),
             create(ApiEntityType.STORAGE, "ds_stats", STANDARD_STATS),
             create(ApiEntityType.STORAGECONTROLLER, "sc_stats", STANDARD_STATS),
             create(ApiEntityType.STORAGE_TIER, PersistEntity),

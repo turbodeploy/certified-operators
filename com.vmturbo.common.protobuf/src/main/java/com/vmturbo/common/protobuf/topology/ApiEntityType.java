@@ -73,6 +73,8 @@ public enum ApiEntityType {
     NETWORK(StringConstants.NETWORK, EntityType.NETWORK),
     /** PhysicalMachine entity type. */
     PHYSICAL_MACHINE(StringConstants.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE),
+    /** ReservedInstance entity type. */
+    RESERVED_INSTANCE(StringConstants.RESERVED_INSTANCE, EntityType.RESERVED_INSTANCE),
     /** ProcessorPool entity type. */
     PROCESSOR_POOL(StringConstants.PROCESSOR_POOL, EntityType.PROCESSOR_POOL),
     /** Region entity type. */
