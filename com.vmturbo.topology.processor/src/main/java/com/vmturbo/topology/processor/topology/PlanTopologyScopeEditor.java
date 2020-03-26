@@ -250,7 +250,7 @@ public class PlanTopologyScopeEditor {
                 .boxed().collect(Collectors.toList());
         // When the seed is a set of entities, we start traversing upwards till top of the supply-chain by successively
         // adding all the customers of one entity into the suppliersToExpand and recursively epanding upwards
-        Queue<Long> suppliersToExpand = Lists.newLinkedList(seedOids);
+        Set<Long> suppliersToExpand = Sets.newHashSet(seedOids);
 
         // the queue of entities to expand "downwards".
         Queue<Long> buyersToSatisfy = Lists.newLinkedList();
@@ -261,7 +261,11 @@ public class PlanTopologyScopeEditor {
 
         // starting with the seed, expand "up"
         while (!suppliersToExpand.isEmpty()) {
-            long traderOid = suppliersToExpand.remove();
+            // the traversal is going to be in a random order in this version.
+            // We do not lose any functionality or performance by having a random order.
+            final Iterator<Long> iter = suppliersToExpand.iterator();
+            long traderOid = iter.next();
+            iter.remove();
             Optional<TopologyEntity> optionalEntity = topology.getEntity(traderOid);
             if (!optionalEntity.isPresent()) {
                 // not all entities are guaranteed to be in the traders set -- the
