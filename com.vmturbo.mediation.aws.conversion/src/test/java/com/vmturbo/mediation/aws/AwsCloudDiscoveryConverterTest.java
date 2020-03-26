@@ -11,14 +11,11 @@ import static org.junit.Assert.assertTrue;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -30,15 +27,11 @@ import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
-import com.vmturbo.mediation.conversion.util.CloudService;
-import com.vmturbo.mediation.conversion.util.ConverterUtils;
 import com.vmturbo.mediation.conversion.util.TestUtils;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -220,10 +213,6 @@ public class AwsCloudDiscoveryConverterTest {
             assertFalse(newDBS.getCommoditiesBought(0).getBoughtList().stream().anyMatch(
                     commodityDTO -> commodityDTO.getCommodityType() == CommodityType.APPLICATION));
 
-            // check providers changed
-            verifyProvidersChanged(oldDBS, newDBS, ImmutableMap.of(
-                    EntityType.VIRTUAL_MACHINE, EntityType.DATABASE_SERVER_TIER), Collections.emptyList());
-
             // connected to AZ
             assertEquals(0, oldDBS.getLayeredOverCount());
             assertEquals(1, newDBS.getLayeredOverCount());
@@ -242,86 +231,6 @@ public class AwsCloudDiscoveryConverterTest {
             // check that db is removed for AWS
             assertFalse(converter.convert(newEntity, awsConverter))
         );
-    }
-
-    @Test
-    public void testDatabaseServerTierConverter() {
-        IEntityConverter converter = new DatabaseServerTierConverter();
-        newEntitiesByType.get(EntityType.DATABASE_SERVER_TIER).forEach(entity -> {
-            String entityId = entity.getId();
-            EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);
-
-            // check dt not removed
-            assertTrue(converter.convert(newEntity, awsConverter));
-
-            // connected to region
-            Set<EntityType> connectedEntityTypes = newEntity.getLayeredOverList().stream()
-                    .map(id -> awsConverter.getNewEntityBuilder(id).getEntityType())
-                    .collect(Collectors.toSet());
-            assertThat(connectedEntityTypes, containsInAnyOrder(EntityType.REGION));
-
-            // check bought commodities
-            assertEquals(0, newEntity.getCommoditiesBoughtCount());
-
-            // check sold commodities
-            assertThat(newEntity.getCommoditiesSoldList().stream()
-                    .map(CommodityDTO::getCommodityType)
-                    .collect(Collectors.toSet()), containsInAnyOrder(CommodityType.VMEM,
-                    CommodityType.VCPU, CommodityType.VSTORAGE, CommodityType.IO_THROUGHPUT,
-                    CommodityType.LICENSE_ACCESS));
-
-            // check that database server tier is owned by cloud service
-            assertThat(awsConverter.getNewEntityBuilder(
-                    CloudService.AWS_RDS.getId()).getConsistsOfList(), hasItem(entityId));
-        });
-    }
-
-    @Test
-    public void testAvailabilityZoneConverter() {
-        IEntityConverter converter = new DefaultConverter();
-        newEntitiesByType.get(EntityType.AVAILABILITY_ZONE).forEach(entity -> {
-            String entityId = entity.getId();
-            EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);
-
-            // check az not removed
-            assertTrue(converter.convert(newEntity, awsConverter));
-
-            // check no bought commodities
-            assertEquals(0, newEntity.getCommoditiesBoughtCount());
-            // check 1 sold commodity which is ZONE
-            assertEquals(1, newEntity.getCommoditiesSoldCount());
-            assertEquals(CommodityType.ZONE, newEntity.getCommoditiesSold(0).getCommodityType());
-
-            // check no connected to
-            assertEquals(0, newEntity.getLayeredOverCount());
-
-            // check region owns AZ
-            assertEquals(Sets.newHashSet(EntityType.AVAILABILITY_ZONE),
-                    awsConverter.getNewEntityBuilder(awsConversionContext.getRegionIdFromAzId(entityId))
-                            .getConsistsOfList().stream()
-                            .map(id -> awsConverter.getNewEntityBuilder(id).getEntityType())
-                            .collect(Collectors.toSet()));
-        });
-    }
-
-    @Test
-    public void testRegionConverter() {
-        IEntityConverter converter = new DefaultConverter();
-        newEntitiesByType.get(EntityType.REGION).forEach(entity -> {
-            String entityId = entity.getId();
-            EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);
-
-            // check region not removed
-            assertTrue(converter.convert(newEntity, awsConverter));
-
-            // check no bought commodities
-            assertEquals(0, newEntity.getCommoditiesBoughtCount());
-            // check only one sold commodities: DataCenter
-            assertEquals(1, newEntity.getCommoditiesSoldCount());
-            assertEquals(CommodityType.DATACENTER, newEntity.getCommoditiesSold(0).getCommodityType());
-            assertEquals(ConverterUtils.DATACENTER_ACCESS_COMMODITY_PREFIX + entityId,
-                    newEntity.getCommoditiesSold(0).getKey());
-        });
     }
 
     @Test

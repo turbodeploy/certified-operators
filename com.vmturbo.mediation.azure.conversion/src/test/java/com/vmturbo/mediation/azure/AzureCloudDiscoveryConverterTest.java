@@ -10,7 +10,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -25,14 +24,9 @@ import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseTierConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
-import com.vmturbo.mediation.conversion.util.CloudService;
-import com.vmturbo.mediation.conversion.util.ConverterUtils;
 import com.vmturbo.mediation.conversion.util.TestUtils;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -190,63 +184,6 @@ public class AzureCloudDiscoveryConverterTest {
 
             // check db owned by BusinessAccount
             assertThat(azureConverter.getNewEntityBuilder(businessAccountId).getConsistsOfList(), hasItem(dbId));
-        });
-    }
-
-    @Test
-    public void testDatabaseTierConverter() {
-        IEntityConverter converter = new DatabaseTierConverter();
-        newEntitiesByType.get(EntityType.DATABASE_TIER).forEach(entity -> {
-            String entityId = entity.getId();
-            EntityDTO.Builder newEntity = azureConverter.getNewEntityBuilder(entityId);
-
-            // check dt not removed
-            assertTrue(converter.convert(newEntity, azureConverter));
-
-            // connected to region
-            Set<EntityType> connectedEntityTypes = newEntity.getLayeredOverList().stream()
-                    .map(id -> azureConverter.getNewEntityBuilder(id).getEntityType())
-                    .collect(Collectors.toSet());
-            assertThat(connectedEntityTypes, containsInAnyOrder(EntityType.REGION));
-
-            // check bought commodities
-            assertEquals(0, newEntity.getCommoditiesBoughtCount());
-
-            // check sold commodities
-            assertThat(newEntity.getCommoditiesSoldList().stream()
-                    .map(CommodityDTO::getCommodityType)
-                    .collect(Collectors.toSet()), containsInAnyOrder(CommodityType.DB_MEM,
-                    CommodityType.TRANSACTION, CommodityType.TRANSACTION_LOG,
-                    CommodityType.CONNECTION, CommodityType.DB_CACHE_HIT_RATE,
-                    CommodityType.RESPONSE_TIME, CommodityType.LICENSE_ACCESS));
-
-            // check that database tier is owned by cloud service
-            assertThat(azureConverter.getNewEntityBuilder(CloudService.AZURE_DATA_SERVICES.getId())
-                            .getConsistsOfList(), hasItem(entityId));
-        });
-    }
-
-    @Test
-    public void testRegionConverter() {
-        IEntityConverter converter = new DefaultConverter();
-        newEntitiesByType.get(EntityType.REGION).forEach(entity -> {
-            String entityId = entity.getId();
-            EntityDTO.Builder newEntity = azureConverter.getNewEntityBuilder(entityId);
-
-            // check region not removed
-            assertTrue(converter.convert(newEntity, azureConverter));
-
-            // check entity property list
-            assertEquals(azureConverter.getNewEntityBuilder(entityId).getEntityPropertiesList(),
-                newEntity.getEntityPropertiesList());
-
-            // check no bought commodities
-            assertEquals(0, newEntity.getCommoditiesBoughtCount());
-            // check only one sold commodities: DataCenter
-            assertEquals(1, newEntity.getCommoditiesSoldCount());
-            assertEquals(CommodityType.DATACENTER, newEntity.getCommoditiesSold(0).getCommodityType());
-            assertEquals(ConverterUtils.DATACENTER_ACCESS_COMMODITY_PREFIX + entityId,
-                    newEntity.getCommoditiesSold(0).getKey());
         });
     }
 
