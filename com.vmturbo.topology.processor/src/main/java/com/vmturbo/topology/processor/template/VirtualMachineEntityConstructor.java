@@ -30,7 +30,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -261,6 +263,11 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
             createCommoditySoldDTO(CommodityDTO.CommodityType.VMEM_VALUE, Optional.ofNullable(memorySize));
         topologyEntityBuilder.addCommoditySoldList(cpuSoldCommodity);
         topologyEntityBuilder.addCommoditySoldList(memorySizeCommodity);
+
+        if (numOfCpu > 0) {
+            topologyEntityBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setVirtualMachine(VirtualMachineInfo.newBuilder().setNumCpus((int)numOfCpu)));
+        }
     }
 
     /**
