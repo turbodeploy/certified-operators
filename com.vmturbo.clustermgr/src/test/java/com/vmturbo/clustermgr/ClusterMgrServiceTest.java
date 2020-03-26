@@ -23,11 +23,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import com.google.common.base.Optional;
+
 import com.google.common.collect.ImmutableMap;
 import com.orbitz.consul.model.kv.Value;
 
@@ -121,7 +122,7 @@ public class ClusterMgrServiceTest {
     public void getComponentTypePropertyTest() {
         // Arrange
         when(consulServiceMock.getValueAsString("vmturbo/components/c1/defaults/p1"))
-            .thenReturn(Optional.fromNullable("defaultVal1"));
+            .thenReturn(Optional.ofNullable("defaultVal1"));
         // Act
         String val = clusterMgrService.getDefaultComponentProperty("c1", "p1");
         // Assert
@@ -137,7 +138,7 @@ public class ClusterMgrServiceTest {
         String componentTypeKeyStem = "vmturbo/components/c1/";
         String defaultPropertiesKeyStem = componentTypeKeyStem + "defaults/";
         when(consulServiceMock.getValueAsString("c1-1/component.version"))
-            .thenReturn(Optional.fromNullable("1.0.0"));
+            .thenReturn(Optional.ofNullable("1.0.0"));
 
         // Act
         clusterMgrService.putDefaultPropertiesForComponentType("c1", newProperties);
@@ -164,13 +165,13 @@ public class ClusterMgrServiceTest {
     public void testGetPropertyforComponentInstance() {
         // Arrange
         when(consulServiceMock.getValueAsString("vmturbo/components/c1/instances/c1_1/properties/prop1"))
-            .thenReturn(Optional.fromNullable("val1"));
+            .thenReturn(Optional.ofNullable("val1"));
         when(consulServiceMock.getValueAsString("vmturbo/components/c1/instances/c1_1/properties/prop2"))
-            .thenReturn(Optional.fromNullable("val2"));
+            .thenReturn(Optional.ofNullable("val2"));
         when(consulServiceMock.getValueAsString("vmturbo/components/c2/instances/c2_1/properties/prop1"))
-            .thenReturn(Optional.fromNullable("val1b"));
+            .thenReturn(Optional.ofNullable("val1b"));
         when(consulServiceMock.getValueAsString("vmturbo/components/c2/instances/c2_1/properties/prop2"))
-            .thenReturn(Optional.fromNullable(null));
+            .thenReturn(Optional.ofNullable(null));
         // Act
         String prop1Val = clusterMgrService.getComponentInstanceProperty("c1", "c1_1", "prop1");
         String prop2Val = clusterMgrService.getComponentInstanceProperty("c1", "c1_1", "prop2");
@@ -192,7 +193,7 @@ public class ClusterMgrServiceTest {
         String COMPONENT_INSTANCE_PROPERTY_FORMAT = "vmturbo/components/%s/instances/%s/properties/%s";
         String expectedKey = String.format(COMPONENT_INSTANCE_PROPERTY_FORMAT, componentType, instanceId, propertyName);
         String newValue = "new-value";
-        when(consulServiceMock.getValueAsString(anyString())).thenReturn(Optional.fromNullable(newValue));
+        when(consulServiceMock.getValueAsString(anyString())).thenReturn(Optional.ofNullable(newValue));
         // Act
         clusterMgrService.setPropertyForComponentInstance(componentType, instanceId, propertyName, newValue);
         // Assert
@@ -218,7 +219,7 @@ public class ClusterMgrServiceTest {
         if (val != null) {
             when(v.getValueAsString()).thenReturn(Optional.of(val));
         } else {
-            when(v.getValueAsString()).thenReturn(Optional.absent());
+            when(v.getValueAsString()).thenReturn(Optional.empty());
         }
         return v;
     }
