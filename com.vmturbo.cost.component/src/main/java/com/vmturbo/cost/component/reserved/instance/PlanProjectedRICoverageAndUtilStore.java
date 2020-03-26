@@ -416,8 +416,9 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
 
     private List<ReservedInstanceStatsRecord> getPlanRIStatsRecords(long planId, final Table<?> table, List<Long> regions) {
         Condition conditions = table.field(PLAN_ID, Long.class).eq(planId);
+        // If there is no region filter, return data for all regions.
         if (regions != null && !regions.isEmpty()) {
-            conditions.and(table.field(REGION_ID, Long.class).in(regions));
+            conditions = conditions.and(table.field(REGION_ID, Long.class).in(regions));
         }
         final Result<Record> records =
                         context.select(ReservedInstanceUtil.createSelectFieldsForPlanRIUtilizationCoverage(table))
