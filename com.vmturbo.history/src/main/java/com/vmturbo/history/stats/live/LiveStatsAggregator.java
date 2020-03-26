@@ -39,7 +39,7 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
-import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
+import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -93,7 +93,7 @@ public class LiveStatsAggregator {
      * is not yet known. The key is the provider oid and the value is a list of
      * functions that would be executed when the provider capacities become available.
      */
-    private Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought
+    private Multimap<Long, MarketStatsAccumulator.DelayedCommodityBoughtWriter> delayedCommoditiesBought
             = HashMultimap.create();
 
     /**
@@ -192,7 +192,7 @@ public class LiveStatsAggregator {
         MarketStatsAccumulator marketStatsAccumulator =
                 accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType());
         if (marketStatsAccumulator == null) {
-            marketStatsAccumulator = MarketStatsAccumulator.create(topologyInfo, baseEntityType,
+            marketStatsAccumulator = new MarketStatsAccumulator(topologyInfo, baseEntityType,
                     entityDTO.getEnvironmentType(), historydbIO, commoditiesToExclude, loaders,
                     longCommodityKeys);
             accumulatorsByEntityAndEnvType.put(baseEntityType, entityDTO.getEnvironmentType(), marketStatsAccumulator);
@@ -235,9 +235,6 @@ public class LiveStatsAggregator {
         }
     }
 
-    /**
-     * Log a list of commodities that were shortened to fit in the database, if any.
-     */
     public void logShortenedCommodityKeys() {
         if (!longCommodityKeys.isEmpty()) {
             logger.error("Following commodity keys needed to be shortened when persisted; " +
@@ -259,12 +256,8 @@ public class LiveStatsAggregator {
         cacheCapacities(entityDTO);
         // provide commodity sold capacitites for previously unsatisfied commodity bought
         handleDelayedCommoditiesBought(entityDTO.getOid());
-        if (EntityType.fromSdkEntityType(entityDTO.getEntityType())
-                .map(EntityType::persistsStats)
-                .orElse(false)) {
-            // schedule the stats for the entity for persisting to db
-            aggregateEntityStats(entityDTO, entityByOid);
-        }
+        // schedule the stats for the entity for persisting to db
+        aggregateEntityStats(entityDTO, entityByOid);
     }
 
     /**
