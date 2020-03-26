@@ -43,7 +43,8 @@ public class SecretPropertiesReaderTest {
     @Parameterized.Parameters
     public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][]{
-                {"action-orchestrator"}, {"auth"}, {"cost"}, {"group"}, {"history"}, {"plan-orchestrator"}, {"topology-processor"}
+                {"action-orchestrator"}, {"auth"}, {"cost"}, {"group"}, {"history"},
+                {"plan-orchestrator"}, {"topology-processor"}, {"repository"}
         });
     }
 
