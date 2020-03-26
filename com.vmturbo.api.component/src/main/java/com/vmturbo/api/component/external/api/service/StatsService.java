@@ -505,6 +505,10 @@ public class StatsService implements IStatsService {
                             .map(cursor -> NumberUtils.toInt(cursor, 0))
                             .orElse(0);
         int endIdx = startIdx + paginationRequest.getLimit();
+
+        // check for pagination response:
+        // note we subtract one because if 0 items are remaining then this should be
+        // a final page response
         if (endIdx >= (results.size() - 1)) {
             return paginationRequest.finalPageResponse(results.subList(startIdx, results.size()),
                                                        results.size());
