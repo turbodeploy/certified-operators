@@ -1205,4 +1205,14 @@ public class Analysis {
     public void setEconomy(Economy economy) {
         this.economy.trySetValue(economy);
     }
+
+    /**
+     * Gets the original cloud topology.
+     *
+     * @return The original cloud topology
+     */
+    protected CloudTopology<TopologyEntityDTO> getOriginalCloudTopology() {
+        return originalCloudTopology;
+    }
+
 }
