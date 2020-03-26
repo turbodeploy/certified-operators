@@ -485,7 +485,7 @@ public class Analysis {
                 List<TraderTO> projectedTraderDTO = new ArrayList<>();
 
                 try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
-                    if (isM2AnalysisEnabled) {
+                    if (isM2AnalysisEnabled) { // Includes the case of both Market and BuyRiImpactAnalysis running in real-time
                         if (enableThrottling) {
                             // remove the fake entities used in suspension throttling
                             // we need to remove it both from the projected topology and the source topology
@@ -509,38 +509,43 @@ public class Analysis {
                             smaConverter.updateWithSMAOutput(projectedTraderDTO);
                             projectedTraderDTO = smaConverter.getProjectedTraderDTOsWithSMA();
                         }
-                    }
-                    // Set projectedTraderDTO identical to topologyDTOs if we run
-                    // buyRI only plan
-                    if (!isM2AnalysisEnabled && isBuyRIImpactAnalysis) {
-                        projectedTraderDTO.addAll(converter.convertToMarket(topologyDTOs));
-                    }
-                    // results can be null if M2Analysis is not run
-                    PriceIndexMessage priceIndexMessage = results != null ?
-                            results.getPriceIndexMsg() : PriceIndexMessage.getDefaultInstance();
-                    projectedEntities = converter.convertFromMarket(
-                            projectedTraderDTO,
-                            topologyDTOs,
-                            priceIndexMessage, topologyCostCalculator.getCloudCostData(),
-                            reservedCapacityAnalysis,
-                            wastedFilesAnalysis);
-                    final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
-                            .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
-                            .map(ActionEntity::getId).collect(Collectors.toSet());
 
-                    copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds, oidsToRemove);
+                        // results can be null if M2Analysis is not run
+                        final PriceIndexMessage priceIndexMessage = results != null ?
+                                results.getPriceIndexMsg() : PriceIndexMessage.getDefaultInstance();
+                        projectedEntities = converter.convertFromMarket(
+                                projectedTraderDTO,
+                                topologyDTOs,
+                                priceIndexMessage, topologyCostCalculator.getCloudCostData(),
+                                reservedCapacityAnalysis,
+                                wastedFilesAnalysis);
+                        final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
+                                .map(Action::getInfo).map(ActionInfo::getDelete).map(Delete::getTarget)
+                                .map(ActionEntity::getId).collect(Collectors.toSet());
 
-                    // Calculate the projected entity costs.
-                    projectedCloudTopology =
-                            cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
-                                    .filter(ProjectedTopologyEntity::hasEntity)
-                                    .map(ProjectedTopologyEntity::getEntity));
+                        copySkippedEntitiesToProjectedTopology(wastedStorageActionsVolumeIds, oidsToRemove);
+
+                        // Calculate the projected entity costs.
+                        projectedCloudTopology =
+                                cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
+                                        .filter(ProjectedTopologyEntity::hasEntity)
+                                        .map(ProjectedTopologyEntity::getEntity));
+                    } else if (isBuyRIImpactAnalysis) { // OCP Plan Option 3 only
+                        final CloudCostData cloudCostData = topologyCostCalculator.getCloudCostData();
+                        projectedEntities = converter.createProjectedEntitiesAsCopyOfOriginalEntities(topologyDTOs);
+
+                        // Calculate the projected entity costs.
+                        projectedCloudTopology =
+                                cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
+                                        .filter(ProjectedTopologyEntity::hasEntity)
+                                        .map(ProjectedTopologyEntity::getEntity));
+                        converter.addRICoverageToProjectedRICoverage(cloudCostData.getCurrentRiCoverage());
+                    }
 
                     // Invoke buy RI impact analysis after projected entity creation, but prior to
                     // projected cost calculations
-                    runBuyRIImpactAnalysis(
-                            projectedCloudTopology,
-                            topologyCostCalculator.getCloudCostData());
+                    // PS:  OCP Plan Option#2 (Market Only) will not be processed within runBuyRIImpactAnalysis.
+                    runBuyRIImpactAnalysis(projectedCloudTopology, topologyCostCalculator.getCloudCostData());
 
                     // Projected RI coverage has been calculated by convertFromMarket
                     // Get it from TopologyConverter and pass it along to use for calculation of
@@ -757,7 +762,7 @@ public class Analysis {
      * @param projectedCloudTopology The projected cloud topology
      * @param cloudCostData The {@link CloudCostData}, used to lookup buy RI recommendations in creating
      *                      an instance of {@link BuyRIImpactAnalysis}
-.     */
+.    */
     private void runBuyRIImpactAnalysis(@Nonnull CloudTopology<TopologyEntityDTO> projectedCloudTopology,
                                         @Nonnull CloudCostData cloudCostData) {
 
@@ -765,15 +770,15 @@ public class Analysis {
                 projectedCloudTopology.size() > 0) {
 
             try (DataMetricTimer timer = BUY_RI_IMPACT_ANALYSIS_SUMMARY.startTimer()) {
-
-                final BuyRIImpactAnalysis buyRIImpactAnalysis =
-                        buyRIImpactAnalysisFactory.createAnalysis(
-                                topologyInfo,
-                                projectedCloudTopology,
-                                cloudCostData,
-                                converter.getProjectedReservedInstanceCoverage());
+                final BuyRIImpactAnalysis buyRIImpactAnalysis = buyRIImpactAnalysisFactory
+                              .createAnalysis(
+                                              topologyInfo,
+                                              projectedCloudTopology,
+                                              cloudCostData,
+                                              converter.getProjectedReservedInstanceCoverage());
                 final Table<Long, Long, Double> entityBuyRICoverage =
-                        buyRIImpactAnalysis.allocateCoverageFromBuyRIImpactAnalysis();
+                                    buyRIImpactAnalysis
+                                                    .allocateCoverageFromBuyRIImpactAnalysis();
 
                 converter.addBuyRICoverageToProjectedRICoverage(entityBuyRICoverage);
             } catch (Exception e) {

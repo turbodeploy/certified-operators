@@ -707,6 +707,33 @@ public class TopologyConverter {
     }
 
     /**
+     * Convert the {@link EconomyDTOs.TraderTO}s to {@link TopologyDTO.ProjectedTopologyEntity}s for
+     * Buy RI Impact Analysis.
+     *
+     * <p>Here just create projected entities by copying the original entities.
+     *
+     * {@link TopologyDTO.TopologyEntityDTO}s
+     * @param originalTopology the original set of {@link TopologyDTO.TopologyEntityDTO}s by OID.
+     * @return list of {@link TopologyDTO.ProjectedTopologyEntity}s
+     */
+    @Nonnull
+    public Map<Long, TopologyDTO.ProjectedTopologyEntity> createProjectedEntitiesAsCopyOfOriginalEntities(
+                @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology) {
+        final Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopologyEntities = new HashMap<>(
+                        originalTopology.size());
+        try {
+            for (TopologyEntityDTO projectedEntity : originalTopology.values()) {
+                final ProjectedTopologyEntity.Builder projectedEntityBuilder =
+                    ProjectedTopologyEntity.newBuilder().setEntity(projectedEntity);
+                projectedTopologyEntities.put(projectedEntity.getOid(), projectedEntityBuilder.build());
+            }
+        } catch (Exception e) {
+            logger.error("Exception in createProjectedEntitiesAsCopyOfOriginalEntities", e);
+        }
+        return projectedTopologyEntities;
+    }
+
+    /**
      * Calculates the projected RI coverage for the given projected trader and adds it to
      * projectedReservedInstanceCoverage.
      * The existing RI Coverage is used if the trader stayed on the same RI and the coverage
@@ -3203,7 +3230,7 @@ public class TopologyConverter {
     }
 
     /**
-     * Adds the provided RI coverage to the projected RI coverage.
+     * Adds the provided Buy RI coverage to the projected RI coverage.
      * @param entityBuyRICoverage The RI coverage to add, formatted as
      * {@literal <Entity OID, RI ID, Coverage Amount>}
      */
@@ -3230,6 +3257,16 @@ public class TopologyConverter {
                         "(Entity OID={})", entityOid);
             }
         });
+    }
+
+    /**
+     * Adds the provided Existing RI coverage to the projected RI coverage.
+     * @param entityExistingRICoverage The RI coverage to add to projected coverage.
+     */
+    public void addRICoverageToProjectedRICoverage(@Nonnull Map<Long, EntityReservedInstanceCoverage> entityExistingRICoverage) {
+        // With Market not running as in OCP Plan Option #3, the projected RI Coverage map is empty.
+        projectedReservedInstanceCoverage.putAll(entityExistingRICoverage);
+        logger.debug("Updated projected RI coverage for entity with existing RI coverage");
     }
 
     /**
