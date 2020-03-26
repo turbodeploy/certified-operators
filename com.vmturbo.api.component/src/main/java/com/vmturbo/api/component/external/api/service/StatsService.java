@@ -22,6 +22,7 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -500,10 +501,17 @@ public class StatsService implements IStatsService {
         }
         results.sort(comparator);
 
-        // since sorting is implemented in this method,
-        // we override it and create a pagination response
-        // that does not change our sorting
-        return new EntityStatsPaginationRequest(null, null, true, null).allResultsResponse(results);
+        int startIdx = paginationRequest.getCursor()
+                            .map(cursor -> NumberUtils.toInt(cursor, 0))
+                            .orElse(0);
+        int endIdx = startIdx + paginationRequest.getLimit();
+        if (endIdx >= (results.size() - 1)) {
+            return paginationRequest.finalPageResponse(results.subList(startIdx, results.size()),
+                                                       results.size());
+        } else {
+            return paginationRequest.nextPageResponse(results.subList(startIdx, endIdx),
+                                                      Integer.toString(endIdx), endIdx - startIdx);
+        }
     }
 
     /**
