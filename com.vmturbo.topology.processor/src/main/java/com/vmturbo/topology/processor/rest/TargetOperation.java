@@ -23,11 +23,11 @@ public enum TargetOperation {
 
     // Setting invalid creation mode for each target operation.
     static {
-        ADD.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.INTERNAL, CreationMode.OTHER);
+        ADD.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.OTHER);
         DISCOVER.invalidForCreationMode = Collections.emptySet();
         VALIDATE.invalidForCreationMode = Collections.emptySet();
-        REMOVE.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.INTERNAL, CreationMode.OTHER);
-        UPDATE.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.INTERNAL, CreationMode.OTHER);
+        REMOVE.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.OTHER);
+        UPDATE.invalidForCreationMode = Sets.newHashSet(CreationMode.DERIVED, CreationMode.OTHER);
     }
 
     /**
