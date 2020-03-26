@@ -3,10 +3,14 @@ package com.vmturbo.history;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ThreadFactory;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import io.grpc.BindableService;
 import io.grpc.ServerInterceptor;
@@ -28,6 +32,7 @@ import com.vmturbo.history.api.ApiSecurityConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.dbmonitor.DbMonitorConfig;
 import com.vmturbo.history.diagnostics.HistoryDiagnosticsConfig;
 import com.vmturbo.history.ingesters.IngestersConfig;
 import com.vmturbo.history.stats.StatsConfig;
@@ -37,13 +42,14 @@ import com.vmturbo.history.stats.StatsConfig;
  */
 @Configuration("theComponent")
 @Import({
-    HistoryDbConfig.class,
-    IngestersConfig.class,
-    StatsConfig.class,
-    HistoryApiConfig.class,
-    ApiSecurityConfig.class,
-    SpringSecurityConfig.class,
-    HistoryDiagnosticsConfig.class,
+        HistoryDbConfig.class,
+        IngestersConfig.class,
+        StatsConfig.class,
+        HistoryApiConfig.class,
+        ApiSecurityConfig.class,
+        SpringSecurityConfig.class,
+        HistoryDiagnosticsConfig.class,
+        DbMonitorConfig.class
 })
 public class HistoryComponent extends BaseVmtComponent {
 
@@ -63,6 +69,9 @@ public class HistoryComponent extends BaseVmtComponent {
 
     @Autowired
     private HistoryDiagnosticsConfig diagnosticsConfig;
+
+    @Autowired
+    private DbMonitorConfig dbMonitorConfig;
 
     /**
      * This gives us access to the TopologyCoordinator instance, which manages ingestion and
@@ -119,8 +128,30 @@ public class HistoryComponent extends BaseVmtComponent {
 
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(
-            new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds, historyDbConfig.historyDbIO()::connection));
+                new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds, historyDbConfig.historyDbIO()::connection));
         getHealthMonitor().addHealthCheck(historyApiConfig.kafkaProducerHealthMonitor());
+        if (dbMonitorConfig.isEnabled()) {
+            log.info("Starting Database monitor");
+            startDbMonitor();
+        }
+    }
+
+    private void startDbMonitor() {
+        final ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("db-monitor-%d")
+                .setDaemon(true)
+                .build();
+        threadFactory.newThread(() -> runDbMonitor()).start();
+    }
+
+    private void runDbMonitor() {
+        try {
+            dbMonitorConfig.dbMonitorLoop().run();
+        } catch (InterruptedException e) {
+            log.error("Monitoring interrupted; db monitoring suspended");
+        } catch (JsonProcessingException e) {
+            log.error("Malformed processListClassification value; db monitoring disabled", e.getMessage());
+        }
     }
 
     @Nonnull

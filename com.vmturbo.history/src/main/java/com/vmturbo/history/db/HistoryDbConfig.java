@@ -1,5 +1,6 @@
 package com.vmturbo.history.db;
 
+import org.jooq.DSLContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -73,23 +74,43 @@ public class HistoryDbConfig {
     @Bean
     public BulkInserterConfig bulkLoaderConfig() {
         return ImmutableBulkInserterConfig.builder()
-            .batchSize(batchSize)
-            .maxBatchRetries(matchBatchRetries)
-            .maxRetryBackoffMsec(maxRetryBackoffMsec)
-            .maxPendingBatches(maxPendingBatches)
-            .build();
+                .batchSize(batchSize)
+                .maxBatchRetries(matchBatchRetries)
+                .maxRetryBackoffMsec(maxRetryBackoffMsec)
+                .maxPendingBatches(maxPendingBatches)
+                .build();
     }
 
+    /**
+     * Get the shared, initialized instance of {@link HistorydbIO}.
+     *
+     * @return the instance
+     */
     @Bean
     public HistorydbIO historyDbIO() {
         final HistorydbIO dbIO
-            = new HistorydbIO(dbPasswordUtil(), databaseConfig.getSQLConfigObject());
+                = new HistorydbIO(dbPasswordUtil(), databaseConfig.getSQLConfigObject());
         HistorydbIO.setSharedInstance(dbIO);
         return dbIO;
     }
 
+    /**
+     * Get an instance of {@link DBPasswordUtil} from which we can get needed DB credentials.
+     *
+     * @return the instance
+     */
     @Bean
     public DBPasswordUtil dbPasswordUtil() {
         return new DBPasswordUtil(authHost, authPort, authRoute, authRetryDelaySecs);
+    }
+
+    /**
+     * Get a {@link DSLContext} configured with a connection factory that will connect to the
+     * database as needed.
+     *
+     * @return the instance
+     */
+    public DSLContext dsl() {
+        return databaseConfig.dsl();
     }
 }
