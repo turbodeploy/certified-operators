@@ -112,6 +112,8 @@ public class PriceTableUploaderTest {
 
     private TargetStore targetStore = mock(TargetStore.class);
 
+    private CloudEntitiesMap cloudEntitiesMap = mock(CloudEntitiesMap.class);
+
     private Map<String, Long> cloudOidByLocalId;
 
     private SpotPriceTableConverter spotPriceTableConverter;
@@ -153,7 +155,7 @@ public class PriceTableUploaderTest {
                                                     .setPriceAmount(CurrencyAmount.newBuilder()
                                                             .setAmount(1.0)))))))
                 .build();
-        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
+        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, cloudEntitiesMap.getExtraneousIdLookUps(), SDKProbeType.AWS_COST);
         verify(spotPriceTableConverter, times(1)).convertSpotPrices(any(), any());
         // check the results.
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
@@ -186,7 +188,7 @@ public class PriceTableUploaderTest {
                                                         .setPriceAmount(CurrencyAmount.newBuilder()
                                                                 .setAmount(2.0)))))))
                 .build();
-        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
+        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, cloudEntitiesMap.getExtraneousIdLookUps(), SDKProbeType.AWS_COST);
         // check the results.
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
         // should have an entry for region 1
@@ -214,7 +216,7 @@ public class PriceTableUploaderTest {
                                                         .setPriceAmount(CurrencyAmount.newBuilder()
                                                                 .setAmount(10)))))))
                 .build();
-        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, SDKProbeType.AWS_COST);
+        PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable, cloudOidByLocalId, cloudEntitiesMap.getExtraneousIdLookUps(), SDKProbeType.AWS_COST);
         // check the results.
         Assert.assertEquals(1, priceTable.getOnDemandPriceByRegionIdCount());
         // should have an entry for region 1
@@ -239,7 +241,7 @@ public class PriceTableUploaderTest {
                         .addReservedLicensePriceTable(windowsLicense)
                 .build();
         PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable,
-                cloudOidByLocalId, SDKProbeType.AZURE_COST);
+                cloudOidByLocalId, cloudEntitiesMap.getExtraneousIdLookUps(), SDKProbeType.AZURE_COST);
         // should have an entry for RHEL licenses
         Assert.assertEquals(1, priceTable.getOnDemandLicensePricesCount());
         Assert.assertEquals(OSType.RHEL, priceTable.getOnDemandLicensePricesList().get(0).getOsType());
@@ -286,7 +288,7 @@ public class PriceTableUploaderTest {
                             .setAmount(IP_PRICE_AMOUNT))))))
             .build();
         PriceTable priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable,
-            cloudOidByLocalId, SDKProbeType.AZURE_COST);
+            cloudOidByLocalId, cloudEntitiesMap.getExtraneousIdLookUps(), SDKProbeType.AZURE_COST);
         OnDemandPriceTable onDemandPriceTable = priceTable.getOnDemandPriceByRegionIdMap().get(INDEX_ONE);
         Assert.assertNotNull(onDemandPriceTable);
         Assert.assertEquals(IP_PRICE_AMOUNT, onDemandPriceTable.getIpPrices().getIpPrice(0)
@@ -426,11 +428,11 @@ public class PriceTableUploaderTest {
         probePriceData.probeType = "AWS";
         probePriceData.priceTableKey = priceTableKey.build();
         probePriceData.priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable,
-                cloudOidByLocalId, SDKProbeType.AWS);
+                cloudOidByLocalId, cloudEntitiesMap.getExtraneousIdLookUps(), SDKProbeType.AWS);
         ProbePriceData anotherprobePriceData = new ProbePriceData();
         anotherprobePriceData.priceTableKey = priceTableKey.build();
         anotherprobePriceData.priceTable = priceTableUploader.priceTableToCostPriceTable(sourcePriceTable,
-                cloudOidByLocalId, SDKProbeType.AWS);
+                cloudOidByLocalId, cloudEntitiesMap.getExtraneousIdLookUps(), SDKProbeType.AWS);
         anotherprobePriceData.probeType = "AWS";
         anotherprobePriceData.riSpecPrices = Collections.emptyList();
         assertEquals("ProbePriceData are not equal", probePriceData, anotherprobePriceData);
