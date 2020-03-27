@@ -948,6 +948,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         for (Operation operation : targetOperations) {
             notifyOperationCancelled(operation, "Target removed.");
         }
+        currentTargetDiscoveryContext.remove(targetId);
         pendingDiscoveries.remove(targetId);
         lastCompletedTargetValidations.remove(targetId);
         lastCompletedTargetDiscoveries.remove(targetId);
