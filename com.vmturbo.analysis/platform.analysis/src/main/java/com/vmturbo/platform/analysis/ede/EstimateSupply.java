@@ -254,7 +254,7 @@ public class EstimateSupply {
             // Reactivate current inactive host first (if there is one)
             if (!commResourceHighestRev.getInactiveCandidateHeap().isEmpty()) {
                 newSeller = commResourceHighestRev.getInactiveCandidateHeap().poll();
-                action = (new Activate(economy_, newSeller, market, newSeller,
+                action = (new Activate(economy_, newSeller, market.getBasket(), newSeller,
                     commResourceHighestRev.getCommoditySpecification())).take();
                 logger.debug("Activating trader " + newSeller);
             } else { // clone existing
@@ -306,7 +306,8 @@ public class EstimateSupply {
             suspendCandidate = commResourceLowestRev.getCandidateSuspendHeap().poll();
             suspendedSet.add(suspendCandidate);
             // Suspend
-            Deactivate deactivateAction = new Deactivate(economy_, suspendCandidate, market);
+            Deactivate deactivateAction =
+                new Deactivate(economy_, suspendCandidate, market.getBasket());
             deactivateAction.take();
 
             // Update capacity and revenues of superSeller

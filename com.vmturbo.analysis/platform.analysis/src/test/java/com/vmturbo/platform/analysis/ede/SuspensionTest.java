@@ -165,7 +165,8 @@ public class SuspensionTest {
 
         List<Action> actions = new ArrayList<>();
         Suspension suspension = new Suspension();
-        suspension.suspendTrader(economy, economy.getMarketsAsSeller(seller).iterator().next(), seller, actions);
+        suspension.suspendTrader(economy,
+            economy.getMarketsAsSeller(seller).iterator().next().getBasket(), seller, actions);
 
         // verify that we have 1 deactivate action when suspendTrader is called
         assertTrue(actions.size() == 1);

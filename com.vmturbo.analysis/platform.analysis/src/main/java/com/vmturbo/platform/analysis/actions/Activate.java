@@ -14,9 +14,9 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -34,14 +34,14 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
      * Constructs a new Activate action with the specified target.
      *
      * @param target The trader that will be activated as a result of taking {@code this} action.
-     * @param sourceMarket The market that benefits from activating target.
+     * @param triggeringBasket The basket of the market that benefits from activating target.
      * @param modelSeller The trader whose high profits led to activation.
      * @param commCausingActivation commodity that led to activation
      */
-    public Activate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket,
-                    @NonNull Trader modelSeller,
+    public Activate(@NonNull Economy economy, @NonNull Trader target,
+                    @NonNull Basket triggeringBasket, @NonNull Trader modelSeller,
                     @Nullable CommoditySpecification commCausingActivation) {
-        super(economy, target, sourceMarket);
+        super(economy, target, triggeringBasket);
         modelSeller_ = modelSeller;
         reasonCommodity = commCausingActivation;
     }
@@ -99,8 +99,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
             @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
                                                                         destinationShoppingList) {
         return new Activate(destinationEconomy, destinationTrader.apply(getTarget()),
-            destinationEconomy.getMarket(getSourceMarket().getBasket()),
-            destinationTrader.apply(getModelSeller()), getReason());
+            getTriggeringBasket(), destinationTrader.apply(getModelSeller()), getReason());
     }
 
     /**
@@ -136,7 +135,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {
         return new StringBuilder()
-            .append("To satisfy increased demand for ").append(getSourceMarket().getBasket())
+            .append("To satisfy increased demand for ").append(getTriggeringBasket())
             .append(".").toString(); // TODO: print basket in human-readable form.
     }
 
@@ -152,7 +151,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
         Activate otherActivate = (Activate)other;
         return otherActivate.getEconomy() == getEconomy()
                         && otherActivate.getTarget() == getTarget()
-                        && otherActivate.getSourceMarket() == getSourceMarket()
+                        && otherActivate.getTriggeringBasket().equals(getTriggeringBasket())
                         && otherActivate.getModelSeller() == getModelSeller();
     }
 
@@ -163,7 +162,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Pure
     public int hashCode() {
         return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
-                        .putInt(getTarget().hashCode()).putInt(getSourceMarket().hashCode())
+                        .putInt(getTarget().hashCode()).putInt(getTriggeringBasket().hashCode())
                         .putInt(getModelSeller().hashCode()).hash().asInt();
     }
 

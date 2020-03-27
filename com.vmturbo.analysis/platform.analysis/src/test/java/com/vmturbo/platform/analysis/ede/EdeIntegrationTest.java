@@ -2,9 +2,6 @@ package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.assertTrue;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-
 import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -13,6 +10,9 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
@@ -27,8 +27,8 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
-import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+import com.vmturbo.platform.analysis.topology.Topology;
 
 public class EdeIntegrationTest {
 
@@ -132,7 +132,7 @@ public class EdeIntegrationTest {
         ReplayActions replayActions = new ReplayActions();
         replayActions.setTraderOids(traderOids);
         Deactivate deactivate = new Deactivate(first, pm1,
-                first.getMarketsAsBuyer(vm1).values().iterator().next());
+                first.getMarketsAsBuyer(vm1).values().iterator().next().getBasket());
         actions.add(deactivate);
         replayActions.setActions(actions);
 
@@ -169,7 +169,7 @@ public class EdeIntegrationTest {
         ReplayActions replayActions = new ReplayActions();
         replayActions.setTraderOids(traderOids);
         Deactivate deactivate = new Deactivate(first, pm1,
-                first.getMarketsAsBuyer(vm1).values().iterator().next());
+                first.getMarketsAsBuyer(vm1).values().iterator().next().getBasket());
         actions.add(deactivate);
         replayActions.setActions(actions);
 

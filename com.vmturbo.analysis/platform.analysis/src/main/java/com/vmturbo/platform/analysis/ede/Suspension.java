@@ -10,17 +10,18 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper;
 import com.vmturbo.platform.analysis.actions.Utility;
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -94,7 +95,7 @@ public class Suspension {
                     logger.info("Suspending " + seller.getDebugInfoNeverUseInCode()
                             + " as it is not a seller in any market.");
                 }
-                suspendTrader(economy, null, seller, allActions);
+                suspendTrader(economy, seller.getBasketSold(), seller, allActions);
                 // Avoid further suspensions if setting is CLUSTER
                 if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
                     makeCoSellersNonSuspendable(economy, seller);
@@ -137,7 +138,7 @@ public class Suspension {
                             logger.info("Suspending " + sellerDebugInfo
                                 + " as there are no customers.");
                         }
-                        suspendTrader(economy, market, seller, allActions);
+                        suspendTrader(economy, market.getBasket(), seller, allActions);
                         // Avoid further suspensions if setting is CLUSTER
                         if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
                             makeCoSellersNonSuspendable(economy, seller);
@@ -203,7 +204,6 @@ public class Suspension {
             logger.info("Trying to suspend trader " + traderDebugInfo + ".");
         }
         List<Market> markets = economy.getMarketsAsSeller(trader);
-        Market market = (markets == null || markets.isEmpty()) ? null : markets.get(0);
 
         List<@NonNull Action> suspendActions = new ArrayList<>();
         if (!trader.getSettings().isSuspendable()) {
@@ -241,7 +241,9 @@ public class Suspension {
                 GuaranteedBuyerHelper.getAllSlsSponsoredByGuaranteedBuyer(economy,
                         guaranteedBuyerSls);
 
-        if (!suspendTrader(economy, market, trader, suspendActions)) {
+        if (!suspendTrader(economy,
+                            markets.isEmpty() ? trader.getBasketSold() : markets.get(0).getBasket(),
+                            trader, suspendActions)) {
             return suspendActions;
         }
 
@@ -250,7 +252,7 @@ public class Suspension {
                         + " and trying to move its customers to other traders.");
         }
 
-        if (market != null) {
+        if (!markets.isEmpty()) {
             // perform placement on just the customers on the suspensionCandidate
             // The act of suspension of chains of providerMustClone traders may clear the supplier
             // of some the customers, so remove them first.
@@ -352,12 +354,13 @@ public class Suspension {
      * Suspend the <code>bestTraderToEngage</code> and add the action to the <code>actions</code> list
      *
      * @param economy - the {@link Economy} in which the suspend action is performed
-     * @param market - the {@link Market} in which the suspend action takes place
+     * @param triggeringBasket - The {@link Basket} of the {@link Market} in which the suspend
+     *                         action takes place
      * @param traderToSuspend - the trader that satisfies the engagement criteria best
      * @param actions - a list that the suspend action would be added to
      */
-    public boolean suspendTrader(Economy economy, Market market, Trader traderToSuspend,
-                              List<@NonNull Action> actions) {
+    public boolean suspendTrader(Economy economy, @NonNull Basket triggeringBasket,
+                                 Trader traderToSuspend, List<@NonNull Action> actions) {
         final List<@NonNull Trader> guaranteedBuyers = GuaranteedBuyerHelper
                 .findGuaranteedBuyers(traderToSuspend);
         // Do not allow a suspension if the trader's guaranteed buyer already had a supplier
@@ -370,7 +373,7 @@ public class Suspension {
             return false;
         }
 
-        Deactivate deactivateAction = new Deactivate(economy, traderToSuspend, market);
+        Deactivate deactivateAction = new Deactivate(economy, traderToSuspend, triggeringBasket);
         // If this trader is supplying guaranteed buyers, add them to the list of guaranteed
         // buyers who have had a suspension this pass.
         guaranteedBuyersWithSuspensions.addAll(guaranteedBuyers);

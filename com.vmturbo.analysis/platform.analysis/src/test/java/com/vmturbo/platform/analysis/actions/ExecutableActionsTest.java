@@ -234,7 +234,7 @@ public class ExecutableActionsTest {
         Ledger ledger = new Ledger(economy);
 
         for (Market market : economy.getMarkets()) {
-            suspension.takeActionAndUpdateLedger(economy, market, ledger, p1,
+            suspension.takeActionAndUpdateLedger(economy, market.getBasket(), ledger, p1,
                                   actions);
         }
         logger.info(actions.size());

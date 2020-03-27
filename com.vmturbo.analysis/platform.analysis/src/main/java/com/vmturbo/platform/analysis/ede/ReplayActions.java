@@ -153,7 +153,8 @@ public class ReplayActions {
                     // as entities may not be able to move out of the trader with controllable false.
                     List<Market> marketsAsSeller = economy.getMarketsAsSeller(newTrader);
                     Deactivate replayedSuspension = new Deactivate(economy, newTrader,
-                                    !marketsAsSeller.isEmpty() ? marketsAsSeller.get(0) : null);
+                        !marketsAsSeller.isEmpty() ? marketsAsSeller.get(0).getBasket()
+                                                   : newTrader.getBasketSold());
                     suspendActions.add(replayedSuspension.take());
                     suspendActions.addAll(replayedSuspension.getSubsequentActions());
                 }

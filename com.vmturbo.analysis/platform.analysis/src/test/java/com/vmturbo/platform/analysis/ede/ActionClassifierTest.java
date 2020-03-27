@@ -170,11 +170,11 @@ public class ActionClassifierTest {
         pmShoppingList.setMovable(true);
         Move move = new Move(first, pmShoppingList, pm2);
         actions.add(move);
-        Deactivate deactivate = new Deactivate(first, pm1, buying.get(pmShoppingList));
+        Deactivate deactivate = new Deactivate(first, pm1, pmShoppingList.getBasket());
         actions.add(deactivate);
-        actions.add(new Deactivate(first, app1, null));
-        actions.add(new Deactivate(first, container1, null));
-        actions.add(new Deactivate(first, pod1, null));
+        actions.add(new Deactivate(first, app1, app1.getBasketSold()));
+        actions.add(new Deactivate(first, container1, container1.getBasketSold()));
+        actions.add(new Deactivate(first, pod1, pod1.getBasketSold()));
 
         classifier.classify(actions);
         assertEquals(true, actions.get(0).isExecutable());
@@ -190,7 +190,7 @@ public class ActionClassifierTest {
             ReplayActions thirdReplayActions = new ReplayActions();
             thirdReplayActions.setTraderOids(traderOids);
             thirdReplayActions.setActions(thirdActions);
-            Deactivate thirdDeactivate = new Deactivate(first, pm1, buying.get(pmShoppingList));
+            Deactivate thirdDeactivate = new Deactivate(first, pm1, pmShoppingList.getBasket());
             thirdActions.add(thirdDeactivate);
             third.populateMarketsWithSellersAndMergeConsumerCoverage();
             thirdReplayActions.replayActions(third, new Ledger(third));

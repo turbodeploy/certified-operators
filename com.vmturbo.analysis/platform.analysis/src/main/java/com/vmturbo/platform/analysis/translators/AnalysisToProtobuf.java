@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.translators;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -426,7 +425,7 @@ public final class AnalysisToProtobuf {
             ActivateTO.Builder activateBuilder = ActivateTO.newBuilder()
                     .setTraderToActivate(traderOid.get(activate.getTarget()))
                     .setModelSeller(traderOid.get(activate.getModelSeller()))
-                    .addAllTriggeringBasket(specificationTOs(activate.getSourceMarket().getBasket()));
+                    .addAllTriggeringBasket(specificationTOs(activate.getTriggeringBasket()));
             if (activate.getReason() != null) {
                 activateBuilder.setMostExpensiveCommodity(activate.getReason().getBaseType());
             }
@@ -434,9 +433,8 @@ public final class AnalysisToProtobuf {
         } else if (input instanceof Deactivate) {
             Deactivate deactivate = (Deactivate)input;
             builder.setDeactivate(DeactivateTO.newBuilder()
-                            .setTraderToDeactivate(traderOid.get(deactivate.getTarget()))
-                            .addAllTriggeringBasket(specificationTOs(deactivate.getSourceMarket() != null ?
-                                            deactivate.getSourceMarket().getBasket() : new Basket(Collections.emptyList()))));
+                   .setTraderToDeactivate(traderOid.get(deactivate.getTarget()))
+                   .addAllTriggeringBasket(specificationTOs(deactivate.getTriggeringBasket())));
         } else if (input instanceof ProvisionByDemand) {
             ProvisionByDemand provDemand = (ProvisionByDemand)input;
             ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()

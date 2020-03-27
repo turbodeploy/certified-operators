@@ -6,12 +6,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.Activate;
@@ -146,7 +147,7 @@ public class Provision {
                     List<Trader> copiedInactiveSellers = new ArrayList<>(market.getInactiveSellers());
                     for (Trader seller : copiedInactiveSellers) {
                         if (isEligibleForActivation(seller, mostProfitableTrader, economy, market)) {
-                            provisionAction = new Activate(economy, seller, market,
+                            provisionAction = new Activate(economy, seller, market.getBasket(),
                                     mostProfitableTrader,
                                     pb.getMostProfitableCommoditySpecification());
                             actions.add(provisionAction.take());

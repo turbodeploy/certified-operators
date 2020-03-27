@@ -18,8 +18,8 @@ import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -38,11 +38,13 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
      * Constructs a new Deactivate action with the specified target.
      *
      * @param target The trader that will be deactivated as a result of taking {@code this} action.
-     * @param sourceMarket The market that benefits from deactivating target.
-     *                     The sourceMarket can be NULL when the target doesn't sell in any market
+     * @param triggeringBasket The basket bought of the market that benefits from deactivating
+     *                         target or the basket sold by the trader that doesn't sell in any
+     *                         market.
      */
-    public Deactivate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket) {
-        super(economy, target, sourceMarket);
+    public Deactivate(@NonNull Economy economy, @NonNull Trader target,
+                      @NonNull Basket triggeringBasket) {
+        super(economy, target, triggeringBasket);
     }
 
     // Methods
@@ -123,9 +125,8 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
             @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
             @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
                                                                         destinationShoppingList) {
-        // TODO: do I need to check if market doesn't exist any more or replace market with basket?
         return new Deactivate(destinationEconomy, destinationTrader.apply(getTarget()),
-            destinationEconomy.getMarket(getSourceMarket().getBasket()));
+            getTriggeringBasket());
     }
 
     /**
@@ -159,12 +160,9 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                     @NonNull Function<@NonNull Trader, @NonNull String> name,
                     @NonNull IntFunction<@NonNull String> commodityType,
                     @NonNull IntFunction<@NonNull String> traderType) {
-        if (getSourceMarket() != null) {
-            return new StringBuilder().append("Because of insufficient demand for ")
-                            .append(getSourceMarket().getBasket()).append(".").toString(); // TODO: print basket in human-readable form.
-        } else {
-            return new StringBuilder().append("Because trader has no customers.").toString();
-        }
+        return new StringBuilder().append("Because of insufficient demand for ")
+                                  .append(getTriggeringBasket()).append(".").toString();
+                                  // TODO: print basket in human-readable form.
     }
 
     /**
@@ -179,7 +177,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
         Deactivate otherDeactivate = (Deactivate)other;
         return otherDeactivate.getEconomy() == getEconomy()
                         && otherDeactivate.getTarget() == getTarget()
-                        && otherDeactivate.getSourceMarket() == getSourceMarket();
+                        && otherDeactivate.getTriggeringBasket().equals(getTriggeringBasket());
     }
 
     /**
@@ -189,10 +187,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
     @Pure
     public int hashCode() {
         return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
-                        .putInt(getTarget().hashCode()).putInt(
-                                        ((getSourceMarket() != null) ? getSourceMarket()
-                                        : getTarget()).hashCode()).hash()
-                        .asInt();
+            .putInt(getTarget().hashCode()).putInt(getTriggeringBasket().hashCode()).hash().asInt();
     }
 
     @Override

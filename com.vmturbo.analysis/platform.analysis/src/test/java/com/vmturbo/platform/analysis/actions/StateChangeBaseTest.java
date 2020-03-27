@@ -20,11 +20,11 @@ public class StateChangeBaseTest {
 //    @Parameters
 //    @TestCaseName("Test #{index}: new MoveBase({0},{1},{2})")
 //    public final void testStateChangeBase(@NonNull Economy economy, @NonNull Trader target,
-//                                          @NonNull Market sourceMarket) {
-//        @NonNull StateChangeBase scb = new StateChangeBase(economy, target, sourceMarket);
+//                                          @NonNull Basket triggeringBasket) {
+//        @NonNull StateChangeBase scb = new StateChangeBase(economy, target, triggeringBasket);
 //
 //        assertSame(target, scb.getTarget());
-//        assertSame(sourceMarket, scb.getSourceMarket());
+//        assertSame(triggeringBasket, scb.getTriggeringBasket());
 //    }
 //
 //    @SuppressWarnings("unused") // it is used reflectively
@@ -33,7 +33,7 @@ public class StateChangeBaseTest {
 //        Trader t1 = e1.addTrader(0, TraderState.ACTIVE, EMPTY, EMPTY);
 //        Trader t2 = e1.addTrader(0, TraderState.INACTIVE, EMPTY, EMPTY);
 //
-//        return new Object[][]{{e1, t1, e1.getMarket(EMPTY)}, {e1, t2, e1.getMarket(EMPTY)}};
+//        return new Object[][]{{e1, t1, EMPTY}, {e1, t2, EMPTY}};
 //    }
 
 } // end StateChangeBaseTest class
