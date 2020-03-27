@@ -1,5 +1,7 @@
 package com.vmturbo.platform.analysis.ede;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.lang.reflect.Field;
@@ -116,8 +118,8 @@ public class EdeIntegrationTest {
         Map<Long, Set<Long>> providerList =
                 engine.getProviderLists(shoppingListSet, first);
         // pm3 can only fit shoppingListOfVm2
-        assertTrue(providerList.get(1L).size() == 2);
-        assertTrue(providerList.get(2L).size() == 3);
+        assertEquals(2, providerList.get(1L).size());
+        assertEquals(3, providerList.get(2L).size());
     }
 
     /**
@@ -139,7 +141,7 @@ public class EdeIntegrationTest {
         Ledger ledger = new Ledger(first);
         List<Action> resizes = Resizer.resizeDecisions(first, ledger);
         // assert presence of resizes
-        assertTrue(!resizes.isEmpty());
+        assertFalse(resizes.isEmpty());
 
         Ede engine = new Ede();
         engine.setReplayActions(replayActions);
@@ -178,15 +180,15 @@ public class EdeIntegrationTest {
         engine.setReplayActions(replayActions);
         replayActions.replayActions(first, ledger);
         // validate that suspension was replayed
-        assertTrue(!replayActions.getActions().isEmpty());
+        assertFalse(replayActions.getActions().isEmpty());
 
         // validate that there is a resize
         List<Action> resizes = Resizer.resizeDecisions(first, ledger);
-        assertTrue(!resizes.isEmpty());
+        assertFalse(resizes.isEmpty());
 
         // assert presence of 1 activate
         List<Action> provisionActions = Provision.provisionDecisions(first, ledger, engine);
-        assertTrue(provisionActions.stream().filter(Activate.class::isInstance).count() == 1);
+        assertEquals(1, provisionActions.stream().filter(Activate.class::isInstance).count());
 
         // assert absence of 1 suspension
         Suspension suspension = new Suspension();
