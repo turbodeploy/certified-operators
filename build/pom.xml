@@ -273,6 +273,7 @@
             <id>topology-processor</id>
             <modules>
                 <module>../com.vmturbo.auth.api</module>
+                <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.processor.api</module>
                 <module>../com.vmturbo.topology.processor</module>

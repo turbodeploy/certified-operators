@@ -46,13 +46,13 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
 
     private final ProbeRestClient getProbeClient;
 
-    private final TargetRestClient addTargetClient;
+    private final SensitiveDataTargetRestClient addTargetClient;
 
     private final TargetRestClient getTargetClient;
 
     private final NoExceptionsRestClient<GetAllTargetsResponse> getAllTargetsClient;
 
-    private final TargetRestClient updateTargetsClient;
+    private final SensitiveDataTargetRestClient updateTargetsClient;
 
     private final TargetRestClient remoteTargetsClient;
 
@@ -72,10 +72,10 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
 
         getAllProbesClient = new NoExceptionsRestClient<>(GetAllProbes.class);
         getProbeClient = new ProbeRestClient();
-        addTargetClient = new TargetRestClient(HttpStatus.BAD_REQUEST);
+        addTargetClient = new SensitiveDataTargetRestClient(HttpStatus.BAD_REQUEST);
         getTargetClient = new TargetRestClient(HttpStatus.NOT_FOUND);
         getAllTargetsClient = new NoExceptionsRestClient<>(GetAllTargetsResponse.class);
-        updateTargetsClient = new TargetRestClient(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND,
+        updateTargetsClient = new SensitiveDataTargetRestClient(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND,
                         HttpStatus.SERVICE_UNAVAILABLE);
         remoteTargetsClient =
                         new TargetRestClient(HttpStatus.NOT_FOUND, HttpStatus.SERVICE_UNAVAILABLE);
@@ -197,6 +197,20 @@ public class TopologyProcessorRestClient extends ComponentRestClient {
         }
     }
 
+    /**
+     * TargetRestClient that omits the body of the request in the message of any
+     * CommunicationExceptions that are generated during execution.
+     */
+    private class SensitiveDataTargetRestClient extends TargetRestClient {
+        SensitiveDataTargetRestClient(HttpStatus... apiStatusCodes) {
+            super(apiStatusCodes);
+        }
+
+        @Override
+        protected String createCommunicationExceptionMessage(final RequestEntity<?> request) {
+            return "Error executing target request " + request.getUrl();
+        }
+    }
     /**
      * Rest client, returning {@link TargetInfo} response.
      */

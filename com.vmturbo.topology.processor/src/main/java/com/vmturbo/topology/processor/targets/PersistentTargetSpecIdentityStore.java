@@ -59,8 +59,9 @@ public class PersistentTargetSpecIdentityStore implements PersistentIdentityStor
                 .fetchInto(TargetSpecHeader.class)
                 .stream()
                 .collect(Collectors.toMap(targetHeader -> deserializeTargetSpecIdentityMatchingAttrs(
-                            targetHeader.getIdentityMatchingAttributes()),
-                            TargetSpecHeader::getId));
+                    targetHeader.getIdentityMatchingAttributes()),
+                    TargetSpecHeader::getId,
+                    (id1, id2) -> id1 <= id2 ? id1 : id2));
     }
 
     /**

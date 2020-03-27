@@ -52,6 +52,8 @@ public class PersistentTargetSpecIdentityStoreTest {
 
     private static final long TARGET_OID_1 = 2333L;
     private static final long TARGET_OID_2 = 666L;
+    private static final long TARGET_OID_3 = 123L;
+
     private static final SimpleMatchingAttributes ATTR_1 = SimpleMatchingAttributes.newBuilder()
             .addAttribute("probeId", Long.toString(1))
             .addAttribute("address", "aaa.com")
@@ -86,6 +88,29 @@ public class PersistentTargetSpecIdentityStoreTest {
         assertThat(attrToOidMap.size(), equalTo(2));
         assertThat(attrToOidMap.keySet(), containsInAnyOrder(ATTR_1, ATTR_2));
         assertThat(attrToOidMap.values(), containsInAnyOrder(TARGET_OID_1, TARGET_OID_2));
+    }
+
+    /**
+     * Test that when there are two entries for the same attributes in the DB, we handle it
+     * gracefully and just keep the entry with the lower OID.
+     *
+     * @throws IdentityStoreException if PersistentTargetSpecIdentityStore throws it.
+     */
+    @Test
+    public void testFetchAllOidMappingsWithDuplicateTarget() throws IdentityStoreException {
+        // arrange
+        final PersistentIdentityStore testIdentityStore = new PersistentTargetSpecIdentityStore(dsl);
+        persistTargetSpecOids();
+        // add a new OID, TARGET_OID_3, whose attributes match TARGET_OID_1
+        persistDuplicateTargetSpecOid();
+        // act
+        Map<IdentityMatchingAttributes, Long> attrToOidMap = testIdentityStore.fetchAllOidMappings();
+        // assert
+        assertThat(attrToOidMap.size(), equalTo(2));
+        assertThat(attrToOidMap.keySet(), containsInAnyOrder(ATTR_1, ATTR_2));
+        // since TARGET_OID_3 < TARGET_OID_1, we keep that TARGET_OID_3 in favor of TARGET_OID_1
+        assertTrue( attrToOidMap.get(ATTR_1) == TARGET_OID_3);
+        assertTrue( attrToOidMap.get(ATTR_2) == TARGET_OID_2);
     }
 
     /**
@@ -201,5 +226,15 @@ public class PersistentTargetSpecIdentityStoreTest {
                 .set(TARGETSPEC_OID.ID, TARGET_OID_2)
                 .set(TARGETSPEC_OID.IDENTITY_MATCHING_ATTRIBUTES, TARGET_IDENTITY_ATTRS_2)
                 .execute();
+    }
+
+    /**
+     * Persist a record in the DB that conflicts with the record for TARGET_OID_1.
+     */
+    private void persistDuplicateTargetSpecOid() {
+        dsl.insertInto(TARGETSPEC_OID)
+            .set(TARGETSPEC_OID.ID, TARGET_OID_3)
+            .set(TARGETSPEC_OID.IDENTITY_MATCHING_ATTRIBUTES, TARGET_IDENTITY_ATTRS_1)
+            .execute();
     }
 }
