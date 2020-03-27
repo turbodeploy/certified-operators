@@ -57,6 +57,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -110,7 +111,7 @@ import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
-import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
+import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.PropertySubType;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -457,7 +458,7 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * Populate a {@link Record} instance with commodity values
+     * Populate a {@link Record} instance with commodity values.
      *
      * @param propertyType      the string name of the property (mixed case)
      * @param snapshotTime      the time of the snapshot
@@ -519,10 +520,10 @@ public class HistorydbIO extends BasedbIO {
 
     /**
      * Set the used and peak values for the subtype of this property.
-     * <p>
-     * For commodities that have peak values set, peak will contain a
+     *
+     * <p>For commodities that have peak values set, peak will contain a
      * non-zero value while for attributes that do not have peak value,
-     * (Produces/PriceIndex etc.) 0 will be sent as parameter
+     * (Produces/PriceIndex etc.) 0 will be sent as parameter</p>
      *`
      * @param propertySubtype the subtype of the property, e.g. "used" or "utilization"
      * @param used           the average used value of the commodity
@@ -548,13 +549,13 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Get the list of {@link Timestamp} objects describing the stat snapshot times in a
      * requested time range.
-     * <p>
-     * Note: This currently assumes each topology has at least one virtual machine.
+     *
+     * <p>Note: This currently assumes each topology has at least one virtual machine.
      * Todo: We assume at least one PM before, but for new cloud model there is no PM, if user only
      * adds cloud target, it will not be able to get correct timestamp. Thus we change it to VM.
      * We should considering handling this better, when serverless is down the road. One possible
      * solution is keep a separate table which just has the updated timestamps. Opened OM-40052 for
-     * future improvement.
+     * future improvement.</p>
      *
      * @param timeFrame          The {@link TimeFrame} to look in.
      * @param startTime          The start time, in epoch millis.
@@ -632,7 +633,7 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Whether a given list contains only price index or current price index request.
      *
-     * Note: If the request is empty, returns false.
+     * <p>Note: If the request is empty, returns false.</p>
      *
      * @param commRequestsList a given commodity request list
      * @return true if the commRequestsList contains price index or current price index
@@ -924,8 +925,9 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Return the display name for the Entity for the given entity ID (OID).
      *
-     * <p>If the entity ID is not known, then return null.
-     * <p>TODO: should be changed to use Optional
+     * <p>If the entity ID is not known, then return null.</p>
+     *
+     * <p>TODO: should be changed to use Optional</p>
      *
      * @param entityId the entity OID (as a string)
      * @return the display name for the Entity, as stored in the "display_name" for the given
@@ -1003,7 +1005,7 @@ public class HistorydbIO extends BasedbIO {
                     "unexpectedly; topologyContextId " +
                     topologyContextId + "...using first");
             }
-            return Optional.of((ScenariosRecord) answer.iterator().next());
+            return Optional.of((ScenariosRecord)answer.iterator().next());
         } catch (VmtDbException e) {
             return Optional.empty();
         }
@@ -1034,16 +1036,17 @@ public class HistorydbIO extends BasedbIO {
                 topologyInfo.getTopologyContextId()));
     }
 
-
     /**
      * Create entries in the SCENARIOS and MKT_SNAPSHOTS table for this topology, if required.
      * Each of the insert statments specifies "onDuplicateKeyIgnore", so there's no error
      * signalled if either row already exists.
+     *
      * <p>Note that the topologyContextId is used for both the ID and the scenario_id in the
-     * SCENARIOS table.
+     * SCENARIOS table.</p>
+     *
      * <p>Note that there is insufficient information to populate the displayName, the state,
      * and the times. This may be provided in the future by adding a listener to the
-     * Plan Orchestrator.
+     * Plan Orchestrator.</p>
      *
      * @param topologyInfo the information about this topology, including the
      *                     context id and snapshot time.
@@ -1076,9 +1079,9 @@ public class HistorydbIO extends BasedbIO {
      * Persist multiple entitites (insert or update, depending on the record source). If a record
      * has been initially returned from the DB, UPDATE will be executed. If a record is a newly
      * created INSERT will be executed.
-     * <p>
-     * Queries are splitted into smaller batches of 4k (settable by {@link #entitiesChunkSize}
-     * property.
+     *
+     * <p>Queries are splitted into smaller batches of 4k (settable by {@link #entitiesChunkSize}
+     * property.</p>
      *
      * @param entitiesRecords records, containing entities, required to update
      * @throws VmtDbException if DB error occurred
@@ -1500,10 +1503,10 @@ public class HistorydbIO extends BasedbIO {
     /**
      * A helper class to construct a seek pagination cursor to track pagination through a large
      * number of entities. This not the same as a MySQL cursor!
-     * <p>
-     * We use the seek method for pagination, so the cursor is a serialized version of the
+     *
+     * <p>We use the seek method for pagination, so the cursor is a serialized version of the
      * last value and ID:
-     * (https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/)
+     * (https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/)</p>
      */
     @VisibleForTesting
     static class SeekPaginationCursor {

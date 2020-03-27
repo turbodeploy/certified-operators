@@ -16,6 +16,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class StatsUtils {
 
+    private StatsUtils() {
+    }
+
     /**
      * Collect just the stats names to fetch from the list of commodities listed in this filter.
      *
@@ -65,5 +68,11 @@ public class StatsUtils {
                     .add(EntityType.REGION.getNumber())
                     .add(EntityType.AVAILABILITY_ZONE.getNumber())
                     .add(EntityType.BUSINESS_ACCOUNT.getNumber())
+                    .add(EntityType.CLOUD_SERVICE.getNumber())
+                    .add(EntityType.COMPUTE_TIER.getNumber())
+                    .add(EntityType.DATABASE_TIER.getNumber())
+                    .add(EntityType.DATABASE_SERVER_TIER.getNumber())
+                    .add(EntityType.STORAGE_TIER.getNumber())
+                    .add(EntityType.LOAD_BALANCER.getNumber())
                     .build();
 }

@@ -21,6 +21,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType.UseCase;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -80,6 +81,7 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.NETWORK),
             PHYSICAL_MACHINE_ENTITY_TYPE,
             create(ApiEntityType.REGION),
+            create(ApiEntityType.RESERVED_INSTANCE, "ri_stats"),
             create(ApiEntityType.STORAGE, "ds_stats", STANDARD_STATS),
             create(ApiEntityType.STORAGECONTROLLER, "sc_stats", STANDARD_STATS),
             create(ApiEntityType.STORAGE_TIER, PersistEntity),

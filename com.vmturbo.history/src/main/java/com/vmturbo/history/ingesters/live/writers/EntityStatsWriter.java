@@ -79,10 +79,7 @@ public class EntityStatsWriter extends TopologyWriterBase {
         final Map<Long, TopologyEntityDTO> entityByOid = entities.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Functions.identity()));
         for (TopologyEntityDTO entity : entities) {
-            if (EntityType.fromSdkEntityType(entity.getEntityType())
-                    .map(EntityType::persistsStats).orElse(false)) {
-                getAggregator().aggregateEntity(entity, entityByOid);
-            }
+            getAggregator().aggregateEntity(entity, entityByOid);
         }
         return ChunkDisposition.SUCCESS;
     }
