@@ -10,8 +10,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.lang.reflect.Field;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -40,11 +40,13 @@ import com.vmturbo.platform.analysis.topology.Topology;
 public class ActionClassifierTest {
 
     private static final CommoditySpecification CPU = new CommoditySpecification(0);
-    private static final Basket PMtoVM = new Basket(CPU, new CommoditySpecification(1), // MEM
-                                                    new CommoditySpecification(2), // Datastore commodity with key 1
-                                                    new CommoditySpecification(3));// Datastore commodity with key 2
-    private static final Basket STtoVM = new Basket(new CommoditySpecification(4), // Storage Amount (no key)
-                                                    new CommoditySpecification(5));// DSPM access commodity with key A
+    private static final Basket VMtoPM = new Basket(CPU,
+                            new CommoditySpecification(1), // MEM
+                            new CommoditySpecification(2), // Datastore commodity with key 1
+                            new CommoditySpecification(3));// Datastore commodity with key 2
+    private static final Basket VMtoST = new Basket(
+                            new CommoditySpecification(4), // Storage Amount (no key)
+                            new CommoditySpecification(5));// DSPM access commodity with key A
 
     private @NonNull Economy first;
     private @NonNull Economy second;
@@ -61,24 +63,31 @@ public class ActionClassifierTest {
 
     @Before
     public void setUp() throws Exception {
-        first = new Economy();
-        vm = first.addTrader(0, TraderState.ACTIVE, new Basket(), PMtoVM, STtoVM, STtoVM);
-        pm1 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
-        pm2 = first.addTrader(1, TraderState.ACTIVE, PMtoVM);
-        Trader st1 = first.addTrader(2, TraderState.ACTIVE, STtoVM);
-        Trader st2 = first.addTrader(2, TraderState.ACTIVE, STtoVM);
-        traderOids.put(vm, 1L);
-        traderOids.put(pm1, 2L);
-        traderOids.put(pm2, 3L);
-        traderOids.put(st1, 4L);
-        traderOids.put(st2, 5L);
+        firstTopology = new Topology();
+        first = firstTopology.getEconomyForTesting();
+
+        vm = firstTopology.addTrader(1L, 0, TraderState.ACTIVE, new Basket(),
+                                        Collections.emptyList());
+        final ShoppingList[] shoppingLists = {
+            firstTopology.addBasketBought(100, vm, VMtoPM),
+            firstTopology.addBasketBought(101, vm, VMtoST),
+            firstTopology.addBasketBought(102, vm, VMtoST)
+        };
+        pm1 = firstTopology.addTrader(2L, 1, TraderState.ACTIVE, VMtoPM,
+                                        Collections.singletonList(0L));
+        pm2 = firstTopology.addTrader(3L, 1, TraderState.ACTIVE, VMtoPM,
+                                        Collections.singletonList(0L));
+        Trader st1 = firstTopology.addTrader(4L, 2, TraderState.ACTIVE, VMtoST,
+                                        Collections.singletonList(0L));
+        Trader st2 = firstTopology.addTrader(5L, 2, TraderState.ACTIVE, VMtoST,
+                                        Collections.singletonList(0L));
+
         vm.setDebugInfoNeverUseInCode("VirtualMachine|1");
         pm1.setDebugInfoNeverUseInCode("PhysicalMachine|2");
         pm2.setDebugInfoNeverUseInCode("PhysicalMachine|3");
         st1.setDebugInfoNeverUseInCode("Storage|4");
         st2.setDebugInfoNeverUseInCode("Storage|5");
-        ShoppingList[] shoppingLists = first.getMarketsAsBuyer(vm).keySet()
-                        .toArray(new ShoppingList[3]);
+
         shoppingLists[0].move(pm1);
         shoppingLists[0].setQuantity(0, 42);
         shoppingLists[0].setPeakQuantity(0, 42);
@@ -89,18 +98,21 @@ public class ActionClassifierTest {
         shoppingLists[0].setQuantity(3, 1);
         shoppingLists[0].setPeakQuantity(3, 1);
         shoppingLists[0].setMovable(true);
+
         shoppingLists[1].move(st1);
         shoppingLists[1].setQuantity(0, 1000);
         shoppingLists[1].setPeakQuantity(0, 1000);
         shoppingLists[1].setQuantity(0, 1);
         shoppingLists[1].setPeakQuantity(0, 1);
         shoppingLists[1].setMovable(true);
+
         shoppingLists[2].move(st2);
         shoppingLists[2].setQuantity(0, 1000);
         shoppingLists[2].setPeakQuantity(0, 1000);
         shoppingLists[2].setQuantity(0, 1);
         shoppingLists[2].setPeakQuantity(0, 1);
         shoppingLists[2].setMovable(true);
+
         pm1.getCommoditySold(CPU).setCapacity(100);
         pm1.getCommoditySold(CPU).setCapacity(100);
         first.getCommodityBought(shoppingLists[0], CPU).setQuantity(42);
@@ -114,15 +126,8 @@ public class ActionClassifierTest {
         // Make sure suspendable is true on it
         pm1.getSettings().setSuspendable(true);
 
-        firstTopology = new Topology();
         first.setTopology(firstTopology);
-        Field traderOidField = Topology.class.getDeclaredField("traderOids_");
-        traderOidField.setAccessible(true);
-        traderOidField.set(firstTopology, traderOids);
-        Field unmodifiableTraderOidField =
-                                         Topology.class.getDeclaredField("unmodifiableTraderOids_");
-        unmodifiableTraderOidField.setAccessible(true);
-        unmodifiableTraderOidField.set(firstTopology, traderOids);
+        traderOids = firstTopology.getTraderOids();
 
         // providerMustClone segment testing
 
@@ -163,12 +168,9 @@ public class ActionClassifierTest {
     @Test
     public void testClassifySuspension() {
         List<Action> actions = new LinkedList<>();
-        Map<ShoppingList, Market> buying = first.getMarketsAsBuyer(vm);
-        ShoppingList pmShoppingList = null;
-        for (ShoppingList sl : buying.keySet()) {
-            pmShoppingList = sl;
-            break;
-        }
+        ShoppingList pmShoppingList =
+            first.getMarketsAsBuyer(vm).keySet().toArray(new ShoppingList[3])[0];
+
         pmShoppingList.setMovable(true);
         Move move = new Move(first, pmShoppingList, pm2);
         actions.add(move);
