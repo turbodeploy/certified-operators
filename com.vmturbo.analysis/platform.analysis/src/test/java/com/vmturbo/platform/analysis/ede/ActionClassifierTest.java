@@ -1,7 +1,9 @@
 package com.vmturbo.platform.analysis.ede;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -177,11 +179,11 @@ public class ActionClassifierTest {
         actions.add(new Deactivate(first, pod1, pod1.getBasketSold()));
 
         classifier.classify(actions);
-        assertEquals(true, actions.get(0).isExecutable());
-        assertEquals(false, actions.get(1).isExecutable());
-        assertEquals(false, actions.get(2).isExecutable());  // app1 suspend
-        assertEquals(false, actions.get(3).isExecutable());  // container1 suspend
-        assertEquals(true, actions.get(4).isExecutable());   // pod1 suspend
+        assertTrue(actions.get(0).isExecutable());
+        assertFalse(actions.get(1).isExecutable());
+        assertFalse(actions.get(2).isExecutable());  // app1 suspend
+        assertFalse(actions.get(3).isExecutable());  // container1 suspend
+        assertTrue(actions.get(4).isExecutable());   // pod1 suspend
         move.take();
         try {
             @NonNull
@@ -196,7 +198,7 @@ public class ActionClassifierTest {
             thirdReplayActions.replayActions(third, new Ledger(third));
             assertEquals(1, thirdReplayActions.getActions().size());
         } catch (ClassNotFoundException | IOException e) {
-            assertTrue(false);
+            fail();
         }
     }
 
