@@ -3,12 +3,16 @@ package com.vmturbo.platform.analysis.ledger;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import com.vmturbo.commons.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -23,6 +27,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
@@ -447,13 +452,13 @@ public class Ledger {
                         + " the desired revenues are " + desiredRevenues + ".");
             }
 
-            List<Integer> typeOfCommsBought = economy.getRawMaterials(buyer.getBasketSold()
+            Optional<RawMaterials> rawMaterials = economy.getRawMaterials(buyer.getBasketSold()
                     .get(commSoldIndex).getBaseType());
 
-            if (typeOfCommsBought == null) {
+            if (!rawMaterials.isPresent()) {
                 continue;
             }
-
+            int[] typeOfCommsBought = rawMaterials.get().getMaterials();
             boolean relevantShoppingListProcessed = false;
             for (ShoppingList shoppingList : economy.getMarketsAsBuyer(buyer).keySet()) {
 
@@ -469,8 +474,8 @@ public class Ledger {
                 // TODO: make indexOf return 2 values minIndex and the maxIndex.
                 // All comm's btw these indices will be of this type
                 // (needed when we have 2 commodities of same type bought)
-                boolean commBoughtExists = typeOfCommsBought.stream()
-                        .anyMatch(commType -> basketBought.indexOfBaseType(commType.intValue()) != -1);
+                boolean commBoughtExists = Arrays.stream(typeOfCommsBought)
+                        .anyMatch(commType -> basketBought.indexOfBaseType(commType) != -1);
                 for (Integer typeOfCommBought : typeOfCommsBought) {
 
                     int boughtIndex = basketBought.indexOfBaseType(typeOfCommBought.intValue());
@@ -561,8 +566,9 @@ public class Ledger {
                     }
 
                     // find the right provider comm and use it to compute the expenses
-                    CommoditySold commSoldBySeller = supplier.getCommoditySold(basketBought
-                            .get(boughtIndex));
+                    Pair<CommoditySold, Trader> rawMaterial = RawMaterials.findResoldRawMaterialOnSeller(economy,
+                            supplier, basketBought.get(boughtIndex));
+                    CommoditySold commSoldBySeller = rawMaterial.first;
                     String commBoughtInformationForLogs = basketBought.get(boughtIndex).getDebugInfoNeverUseInCode();
                     if (commSoldBySeller == null) {
                         logger.warn("Trying to set expenses for commodity sold " + commSoldInformationForLogs

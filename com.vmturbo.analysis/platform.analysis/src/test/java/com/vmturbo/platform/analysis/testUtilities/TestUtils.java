@@ -22,12 +22,14 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
 import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.CbtpCostDTO;
 import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.ComputeTierCostDTO;
@@ -447,11 +449,23 @@ public class TestUtils {
      * @param economy - Economy for which you want to setup the raw commodity map.
      */
     public static void setupRawCommodityMap(Economy economy) {
-        Map<Integer, List<Integer>> rawMaterialMap = economy.getModifiableRawCommodityMap();
-        rawMaterialMap.put(TestUtils.VCPU.getType(), Arrays.asList(TestUtils.CPU.getType()));
-        rawMaterialMap.put(TestUtils.VMEM.getType(), Arrays.asList(TestUtils.MEM.getType()));
-        rawMaterialMap.put(TestUtils.DBMEM.getType(), Arrays.asList(TestUtils.VMEM.getType()));
-        rawMaterialMap.put(TestUtils.HEAP.getType(), Arrays.asList(TestUtils.VMEM.getType()));
+                Map<Integer, RawMaterials> rawMap = economy.getModifiableRawCommodityMap();
+        rawMap.put(TestUtils.VCPU.getType(),
+                new RawMaterials(Lists.newArrayList(
+                        CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                                .newBuilder().setCommodityType(TestUtils.CPU.getType()).build(),
+                        CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                                .newBuilder().setCommodityType(TestUtils.VCPU.getType()).build()
+                )));
+        rawMap.put(TestUtils.VMEM.getType(),
+                new RawMaterials(Lists.newArrayList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                        .newBuilder().setCommodityType(TestUtils.MEM.getType()).build())));
+        rawMap.put(TestUtils.DBMEM.getType(),
+                new RawMaterials(Lists.newArrayList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                        .newBuilder().setCommodityType(TestUtils.VMEM.getType()).build())));
+        rawMap.put(TestUtils.HEAP.getType(),
+                new RawMaterials(Lists.newArrayList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                        .newBuilder().setCommodityType(TestUtils.VMEM.getType()).build())));
     }
 
     /**
