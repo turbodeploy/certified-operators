@@ -64,6 +64,14 @@ message CommoditySoldSettingsTO {
 
     // Should utilization be checked to determine if there is congestion.
     optional bool utilizationCheckForCongestion = 8;
+
+    // A resold commodity is designed to model situations in which the true source of supply for that resold commodity
+    // is further down the supply chain rather than directly at the trader providing the commodity. In these cases, the
+    // true supplier is responsible for setting the price of the resold commodity. For a real-life economic analogy,
+    // consider the case of buying a BigMac at McDonald's - the individual restaurant does not get to set the price.
+    // Instead, the price may be set by the franchise based on national or regional prices of its ingredients along
+    // with other factors.
+    optional bool resold = 9 [default = false];
 }
 
 // A commodity sold by a single trader. It includes the quantity(s) sold and a number of settings.
