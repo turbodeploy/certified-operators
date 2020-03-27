@@ -92,6 +92,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -597,23 +598,28 @@ public class HistorydbIO extends BasedbIO {
      * @param timepPointOpt        time point to specify end time. If not present, the result is
      *                             the most recent time stamp.
      * @param timeFrameOpt         required timeframe, or LATEST if not specified
+     * @param paginationParams     The option to use for getting the time based on pagination sort commodity.
      * @return a {@link Timestamp} for the snapshot recorded in the xxx_stats_latest table having
      *                             closest time to a given time point.
      * @throws IllegalArgumentException
      */
     public Optional<Timestamp> getClosestTimestampBefore(@Nonnull final StatsFilter statsFilter,
-            @Nonnull final Optional<Long> timepPointOpt, @Nonnull final Optional<TimeFrame> timeFrameOpt)
+                                                         @Nonnull final Optional<Long> timepPointOpt,
+                                                         @Nonnull final Optional<TimeFrame> timeFrameOpt,
+                                                         @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
             throws IllegalArgumentException {
         try {
             Timestamp exclusiveUpperTimeBound =
                     // timePointOpt, if provided, is inclusive; we need an exclusive upper bound
                     timepPointOpt.map(t -> new Timestamp(t + 1))
                             .orElse(null);
-            // check the commodity request list, if it only contains PI, fetch data for PI,
-            // otherwise, get the timestamp of the most recent ingested topology. PI needs to be
-            // treated differently because it doesn't get persisted when a topology is ingested.
-            final HistoryVariety historyVariety = isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList())
-                ? HistoryVariety.PRICE_DATA : HistoryVariety.ENTITY_STATS;
+            // PI timestamp needs to be treated differently because it doesn't get persisted when a topology is ingested.
+            // Check the commodity request list, if it only contains PI, fetch data for PI.
+            // Check if query is sorted by PI, if so, fetch timestamp for PI.
+            // Otherwise, get the timestamp of the most recent ingested topology.
+            final boolean usePriceDataBasedVariety = isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList())
+                    || isPaginationParamsSortByPI(paginationParams);
+            final HistoryVariety historyVariety = usePriceDataBasedVariety ? HistoryVariety.PRICE_DATA : HistoryVariety.ENTITY_STATS;
 
             final Query query = new AvailableTimestampsQuery(timeFrameOpt.orElse(TimeFrame.LATEST),
                     historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
@@ -649,6 +655,10 @@ public class HistorydbIO extends BasedbIO {
         return !commRequestsList.isEmpty() && commRequestsList.stream()
                 .allMatch(c -> c.getCommodityName().equals(PRICE_INDEX)
                         || c.getCommodityName().equals(CURRENT_PRICE_INDEX));
+    }
+
+    private boolean isPaginationParamsSortByPI(@Nonnull final Optional<EntityStatsPaginationParams> paginationParams) {
+        return paginationParams.isPresent() && StringConstants.PRICE_INDEX.equals(paginationParams.get().getSortCommodity());
     }
 
     private Set<String> getRequestedScopeIds(EntityStatsScope entityScope) {
