@@ -300,7 +300,7 @@ public class TopologyEntitiesHandler {
 
             // Update replay actions
             ReplayActions newReplayActions = ede.getReplayActions();
-            newReplayActions.setTraderOids(topology.getTraderOids());
+            newReplayActions.setTopology(topology);
             newReplayActions.setActions(actions.stream()
                             .filter(action -> action.getType().equals(ActionType.DEACTIVATE))
                             .collect(Collectors.toList()));
