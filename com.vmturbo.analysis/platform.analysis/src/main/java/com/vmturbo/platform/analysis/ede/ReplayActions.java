@@ -9,9 +9,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -40,8 +37,9 @@ public class ReplayActions {
     private @NonNull List<Action> actions_ = new LinkedList<>();
     // The traders which could not be suspended
     private @NonNull Set<Trader> rolledBackSuspensionCandidates_ = new HashSet<>();
-    // The trader to OID map needed for translating traders between economies
-    private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids_ = HashBiMap.create();
+    // The topology that contains the above traders and targets of above actions.
+    // It is needed to map traders from old economy to new using OIDs.
+    private @NonNull Topology topology_ = new Topology();
 
     public List<Action> getActions() {
         return actions_;
@@ -55,11 +53,13 @@ public class ReplayActions {
     public void setRolledBackSuspensionCandidates(Set<Trader> rolledBackSuspensionCandidates) {
         rolledBackSuspensionCandidates_ = rolledBackSuspensionCandidates;
     }
-    public BiMap<Trader, Long> getTraderOids() {
-        return traderOids_;
+
+    public @NonNull Topology getTopology() {
+        return topology_;
     }
-    public void setTraderOids(BiMap<Trader, Long> traderOids) {
-        traderOids_ = traderOids;
+
+    public void setTopology(@NonNull Topology topology) {
+        topology_ = topology;
     }
 
     /**
@@ -213,7 +213,7 @@ public class ReplayActions {
     public @Nullable Trader translateTrader(Trader trader, Economy newEconomy,
                                             String callerName) {
         Topology newTopology = newEconomy.getTopology();
-        Long oid = traderOids_.get(trader);
+        Long oid = topology_.getTraderOids().get(trader);
         Trader newTrader = newTopology.getTraderOids().inverse().get(oid);
         if (newTrader == null) {
             logger.info("Could not find trader with oid " + oid + " " + callerName + " " +

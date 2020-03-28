@@ -467,7 +467,7 @@ public class AnalysisServer implements AutoCloseable {
             if (isReplayOrRealTime) {
                 ReplayActions newReplayActions = ede.getReplayActions();
                 // the OIDs have to be updated after analysisResults
-                newReplayActions.setTraderOids(lastComplete.getTraderOids());
+                newReplayActions.setTopology(lastComplete);
                 if (instInfo.isReplayActions()) {
                     newReplayActions.setActions(actions);
                 } else if (instInfo.isRealTime()) {

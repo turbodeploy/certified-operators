@@ -16,9 +16,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
@@ -58,7 +55,6 @@ public class ActionClassifierTest {
     private @NonNull Trader container1;
     private @NonNull Trader pod1;
 
-    private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
     ActionClassifier classifier;
 
     @Before
@@ -127,7 +123,6 @@ public class ActionClassifierTest {
         pm1.getSettings().setSuspendable(true);
 
         first.setTopology(firstTopology);
-        traderOids = firstTopology.getTraderOids();
 
         // providerMustClone segment testing
 
@@ -192,7 +187,7 @@ public class ActionClassifierTest {
             Economy third = cloneEconomy(first);
             List<Action> thirdActions = new LinkedList<>();
             ReplayActions thirdReplayActions = new ReplayActions();
-            thirdReplayActions.setTraderOids(traderOids);
+            thirdReplayActions.setTopology(firstTopology);
             thirdReplayActions.setActions(thirdActions);
             Deactivate thirdDeactivate = new Deactivate(first, pm1, pmShoppingList.getBasket());
             thirdActions.add(thirdDeactivate);
@@ -219,7 +214,7 @@ public class ActionClassifierTest {
     @Test
     public void testTranslateTrader() {
         ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
+        replayActions.setTopology(firstTopology);
         Trader newVm = replayActions.translateTrader(vm, second, "testTranslateTrader");
         assertEquals(vm.getEconomyIndex(), newVm.getEconomyIndex());
     }
@@ -227,7 +222,7 @@ public class ActionClassifierTest {
     @Test
     public void testTranslateMarket() {
         ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
+        replayActions.setTopology(firstTopology);
         Trader newVm = replayActions.translateTrader(vm, second, "testTranslateMarket");
         Map<ShoppingList, Market> buying = first.getMarketsAsBuyer(vm);
         Map<ShoppingList, Market> newBuying = first.getMarketsAsBuyer(newVm);

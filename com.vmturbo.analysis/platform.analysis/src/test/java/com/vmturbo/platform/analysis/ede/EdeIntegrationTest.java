@@ -13,9 +13,6 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,8 +38,6 @@ public class EdeIntegrationTest {
     private @NonNull Topology firstTopology;
     private @Nonnull Trader vm1, vm2, pm1, pm2, pm3;
     ShoppingList shoppingListOfVm2, shoppingListOfVm1;
-
-    private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
 
     @Before
     public void setUp() {
@@ -98,8 +93,6 @@ public class EdeIntegrationTest {
 
         TestUtils.setupRawCommodityMap(first);
         TestUtils.setupCommodityResizeDependencyMap(first);
-
-        traderOids = firstTopology.getTraderOids();
     }
 
     @Test
@@ -124,7 +117,7 @@ public class EdeIntegrationTest {
 
         List<Action> actions = new LinkedList<>();
         ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
+        replayActions.setTopology(firstTopology);
         Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
         actions.add(deactivate);
         replayActions.setActions(actions);
@@ -160,7 +153,7 @@ public class EdeIntegrationTest {
 
         List<Action> actions = new LinkedList<>();
         ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
+        replayActions.setTopology(firstTopology);
         Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
         actions.add(deactivate);
         replayActions.setActions(actions);

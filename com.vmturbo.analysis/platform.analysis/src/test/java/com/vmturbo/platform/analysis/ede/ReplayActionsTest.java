@@ -13,9 +13,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
@@ -49,11 +46,10 @@ public class ReplayActionsTest {
     private @NonNull Trader pm1;
     private @NonNull Trader pm2;
 
-    private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
+    private @NonNull Topology firstTopology = new Topology();
 
     @Before
     public void setUp() throws Exception {
-        final @NonNull Topology firstTopology = new Topology();
         first = firstTopology.getEconomyForTesting();
 
         vm = firstTopology.addTrader(0, 0, TraderState.ACTIVE, new Basket(),
@@ -113,7 +109,6 @@ public class ReplayActionsTest {
         st1.getSettings().setCanAcceptNewCustomers(true);
         st2.getSettings().setCanAcceptNewCustomers(true);
 
-        traderOids = firstTopology.getTraderOids();
         second = cloneEconomy(first);
     }
 
@@ -132,7 +127,7 @@ public class ReplayActionsTest {
     @Test
     public void testTranslateTrader() {
         ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
+        replayActions.setTopology(firstTopology);
         Trader newVm = replayActions.translateTrader(vm, second, "testTranslateTrader");
         assertEquals(vm.getEconomyIndex(), newVm.getEconomyIndex());
     }
@@ -140,7 +135,7 @@ public class ReplayActionsTest {
     @Test
     public void testTranslateMarket() {
         ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
+        replayActions.setTopology(firstTopology);
         Trader newVm = replayActions.translateTrader(vm, second, "testTranslateMarket");
         Map<ShoppingList,Market> buying = first.getMarketsAsBuyer(vm);
         Map<ShoppingList,Market> newBuying = first.getMarketsAsBuyer(newVm);
@@ -151,7 +146,7 @@ public class ReplayActionsTest {
     public void testReplayMove() {
         List<Action> actions = new LinkedList<>();
         ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
+        replayActions.setTopology(firstTopology);
         replayActions.setActions(actions);
         ShoppingList pmShoppingList =
             first.getMarketsAsBuyer(vm).keySet().toArray(new ShoppingList[3])[0];
@@ -168,7 +163,7 @@ public class ReplayActionsTest {
         // simulate move happening in main market
         List<Action> actions = new LinkedList<>();
         ReplayActions replayActions = new ReplayActions();
-        replayActions.setTraderOids(traderOids);
+        replayActions.setTopology(firstTopology);
         replayActions.setActions(actions);
         ShoppingList pmShoppingList =
             first.getMarketsAsBuyer(vm).keySet().toArray(new ShoppingList[3])[0];
@@ -182,7 +177,7 @@ public class ReplayActionsTest {
         try {
             @NonNull Economy third = cloneEconomy(second);
             ReplayActions replayActionsSecond = new ReplayActions();
-            replayActionsSecond.setTraderOids(second.getTopology().getTraderOids());
+            replayActionsSecond.setTopology(second.getTopology());
             replayActionsSecond.setActions(actions);
             replayActionsSecond.replayActions(third, new Ledger(third));
             assertEquals(0, replayActionsSecond.getActions().size());
