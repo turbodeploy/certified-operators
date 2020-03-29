@@ -39,7 +39,7 @@ import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -75,11 +75,11 @@ public class PriceIndexPopulatorTest {
                 repositoryServiceBlockingStub);
 
         vm1.setUuid("1");
-        vm1.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        vm1.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         vm2.setUuid("2");
-        vm2.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        vm2.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         network1.setUuid("3");
-        network1.setClassName(UIEntityType.NETWORK.apiStr());
+        network1.setClassName(ApiEntityType.NETWORK.apiStr());
     }
 
     /**

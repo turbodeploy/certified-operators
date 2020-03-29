@@ -2,6 +2,8 @@ package com.vmturbo.group.setting;
 
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -11,10 +13,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
+import com.google.common.collect.ImmutableList;
+
 import org.jooq.Condition;
 import org.jooq.SelectWhereStep;
-
-import com.google.common.collect.ImmutableList;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
@@ -25,7 +27,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
  * meant as a utility to provide an easier way to define simple searches
  * over the policies in the table.
  *
- * Conditions in the filter are applied by AND-ing them together.
+ * <p>Conditions in the filter are applied by AND-ing them together.
  */
 @Immutable
 public class SettingPolicyFilter {
@@ -34,6 +36,7 @@ public class SettingPolicyFilter {
     private final Set<Long> desiredIds;
     private final Set<Long> desiredTargetIds;
     private final Set<Integer> desiredEntityTypes;
+    private final Set<Long> schedules;
 
     /**
      * The pre-computed jOOQ conditions representing the filter.
@@ -44,12 +47,14 @@ public class SettingPolicyFilter {
                                 @Nonnull final Set<String> name,
                                 @Nonnull final Set<Long> ids,
                                 @Nonnull final Set<Long> targetIds,
-                                @Nonnull final Set<Integer> entityTypes) {
+                                @Nonnull final Set<Integer> entityTypes,
+                                @Nonnull final Set<Long> schedules) {
         this.desiredTypes = Objects.requireNonNull(type);
         this.desiredNames = Objects.requireNonNull(name);
         this.desiredIds = Objects.requireNonNull(ids);
         this.desiredTargetIds = Objects.requireNonNull(targetIds);
         this.desiredEntityTypes = Objects.requireNonNull(entityTypes);
+        this.schedules = Objects.requireNonNull(schedules);
 
         final ImmutableList.Builder<Condition> condBuilder = ImmutableList.builder();
         if (!type.isEmpty()) {
@@ -73,19 +78,21 @@ public class SettingPolicyFilter {
         if (!entityTypes.isEmpty()) {
             condBuilder.add(SETTING_POLICY.ENTITY_TYPE.in(entityTypes));
         }
-
+        if (!schedules.isEmpty()) {
+            condBuilder.add(SETTING_POLICY.SCHEDULE_ID.in(schedules));
+        }
         conditions = condBuilder.build();
     }
 
     /**
-     * Get the array of {@link Condition}s representing the conditions of
-     * this filter. This can be passed into {@link SelectWhereStep#where(Condition...)}
+     * Get the collection of {@link Condition}s representing the conditions of
+     * this filter. This can be passed into {@link SelectWhereStep#where(Collection)}
      * when constructing the jOOQ query.
      *
      * @return The array of {@link Condition}s representing the filter.
      */
-    public Condition[] getConditions() {
-        return conditions.toArray(new Condition[conditions.size()]);
+    public Collection<Condition> getConditions() {
+        return Collections.unmodifiableList(conditions);
     }
 
     /**
@@ -99,7 +106,8 @@ public class SettingPolicyFilter {
 
     @Override
     public int hashCode() {
-        return Objects.hash(desiredTypes, desiredNames, desiredIds, desiredTargetIds, desiredEntityTypes);
+        return Objects.hash(desiredTypes, desiredNames, desiredIds, desiredTargetIds,
+                desiredEntityTypes, schedules);
     }
 
     @Override
@@ -110,19 +118,44 @@ public class SettingPolicyFilter {
                 && otherFilter.desiredNames.equals(desiredNames)
                 && otherFilter.desiredIds.equals(desiredIds)
                 && otherFilter.desiredTargetIds.equals(desiredTargetIds)
-                && otherFilter.desiredEntityTypes.equals(desiredEntityTypes);
+                && otherFilter.desiredEntityTypes.equals(desiredEntityTypes)
+                && otherFilter.schedules.equals(schedules);
         } else {
             return false;
         }
     }
 
+    public Set<Type> getDesiredTypes() {
+        return desiredTypes;
+    }
+
+    public Set<String> getDesiredNames() {
+        return desiredNames;
+    }
+
+    public Set<Long> getDesiredIds() {
+        return desiredIds;
+    }
+
+    public Set<Long> getDesiredTargetIds() {
+        return desiredTargetIds;
+    }
+
+    public Set<Integer> getDesiredEntityTypes() {
+        return desiredEntityTypes;
+    }
+
+    public Set<Long> getSchedules() {
+        return schedules;
+    }
+
     /**
      * Builder for a {@link SettingPolicyFilter}.
      *
-     * Multiple values on the same "with" condition are OR'ed together.
+     * <p>Multiple values on the same "with" condition are OR'ed together.
      * Multiple conditions on the filter are "AND'ed together.
      *
-     * For example,
+     * <p>For example,
      * SettingPolicyFilter.newBuilder()
      *     .withType(Type.USER)
      *     .withType(Type.DEFAULT)
@@ -130,9 +163,9 @@ public class SettingPolicyFilter {
      *     .withName("bar)
      *     .build()
      *
-     * will create a filter that finds all USER or DEFAULT settings that ALSO have the name "foo" or "bar".
+     * <p>will create a filter that finds all USER or DEFAULT settings that ALSO have the name "foo" or "bar".
      *
-     * An empty filter can be used to find all settings.
+     * <p>An empty filter can be used to find all settings.
      */
     public static class Builder {
         private Set<Type> type = new HashSet<>();
@@ -140,6 +173,7 @@ public class SettingPolicyFilter {
         private Set<String> names = new HashSet<>();
         private Set<Long> targetIds = new HashSet<>();
         private Set<Integer> entityTypes = new HashSet<>();
+        private Set<Long> schedules = new HashSet<>();
 
         /**
          * Add a type that the filter will match. This method can be called
@@ -201,8 +235,26 @@ public class SettingPolicyFilter {
             return this;
         }
 
+        /**
+         * Add a schedule to be used in the setting policy. This method can be called
+         * multiple times with different entity types. Unscheduled policies may only be
+         * queried if this method is not called
+         *
+         * @param scheduleId The schedule id of the policy to match
+         * @return The builder, for chaining.
+         */
+        public Builder withScheduleId(final long scheduleId) {
+            this.schedules.add(scheduleId);
+            return this;
+        }
+
+        /**
+         * Creates a filted based on the builder.
+         *
+         * @return a filter suitable for {@link ISettingPolicyStore}
+         */
         public SettingPolicyFilter build() {
-            return new SettingPolicyFilter(type, names, ids, targetIds, entityTypes);
+            return new SettingPolicyFilter(type, names, ids, targetIds, entityTypes, schedules);
         }
     }
 }

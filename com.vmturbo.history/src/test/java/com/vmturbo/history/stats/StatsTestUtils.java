@@ -1,5 +1,7 @@
 package com.vmturbo.history.stats;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -43,8 +45,11 @@ import com.vmturbo.platform.common.dto.CommonDTO;
  * Static utility methods to support stats class testing.
  **/
 public class StatsTestUtils {
-    public static final Table<?> PM_LATEST_TABLE = EntityType.PHYSICAL_MACHINE.getLatestTable();
-    public static final Table<?> APP_LATEST_TABLE = EntityType.APPLICATION.getLatestTable();
+    private StatsTestUtils(){}
+
+    private static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = EntityType.named(PHYSICAL_MACHINE).get();
+    /** stats_latest table for PM entities. */
+    public static final Table<?> PM_LATEST_TABLE = PHYSICAL_MACHINE_ENTITY_TYPE.getLatestTable().get();
     private static final Gson GSON = ComponentGsonFactory.createGsonNoPrettyPrint();
     public static final String TEST_VM_PATH = "topology/tak_test1_vm_dto.json";
     public static final String TEST_APP_PATH = "topology/guestload_tak_test1_app_dto.json";

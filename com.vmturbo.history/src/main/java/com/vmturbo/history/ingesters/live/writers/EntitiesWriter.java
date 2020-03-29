@@ -54,13 +54,13 @@ public class EntitiesWriter extends TopologyWriterBase {
 
     @Override
     public ChunkDisposition processEntities(@Nonnull final Collection<TopologyEntityDTO> entities,
-            @Nonnull final String infoSummary)
-            throws InterruptedException {
+                                            @Nonnull final String infoSummary)
+        throws InterruptedException {
 
         final List<String> entityOids = entities.stream()
-                .map(TopologyEntityDTO::getOid)
-                .map(String::valueOf)
-                .collect(Collectors.toList());
+            .map(TopologyEntityDTO::getOid)
+            .map(String::valueOf)
+            .collect(Collectors.toList());
 
         // get current saved info for each of these entities
         final Map<Long, EntitiesRecord> knownChunkEntities;
@@ -68,8 +68,8 @@ public class EntitiesWriter extends TopologyWriterBase {
             knownChunkEntities = new HashMap<>(historydbIO.getEntities(entityOids));
         } catch (VmtDbException e) {
             logger.warn("Failed to retrieve known entities from topology broadcast chunk; " +
-                            "will discontinue writing entities for broadcast {}",
-                    infoSummary);
+                    "will discontinue writing entities for broadcast {}",
+                infoSummary);
             return ChunkDisposition.DISCONTINUE;
         }
 
@@ -78,10 +78,10 @@ public class EntitiesWriter extends TopologyWriterBase {
         // new records for the rest
         final long snapshotTime = topologyInfo.getCreationTime();
         final List<EntitiesRecord> entityRecordsToPersist = entities.stream().map(entity ->
-                createRecord(entity.getOid(), snapshotTime, entity, knownChunkEntities))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .collect(Collectors.toList());
+            createRecord(entity.getOid(), snapshotTime, entity, knownChunkEntities))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toList());
 
         // persist this chunk's entities
         entitiesLoader.insertAll(entityRecordsToPersist);
@@ -123,7 +123,7 @@ public class EntitiesWriter extends TopologyWriterBase {
             return Optional.empty();
         }
 
-        final String entityType = entityDBInfo.get().getClsName();
+        final String entityType = entityDBInfo.get().getName();
         final long entityOid = entityDTO.getOid();
 
         final EntitiesRecord record;

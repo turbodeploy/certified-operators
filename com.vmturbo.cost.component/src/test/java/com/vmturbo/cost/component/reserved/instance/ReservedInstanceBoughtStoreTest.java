@@ -17,18 +17,13 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.jooq.Result;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
@@ -55,32 +50,35 @@ import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.Off
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
 import com.vmturbo.platform.sdk.common.PricingDTO;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Class to test ReservedInstanceBoughtStore methods.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class ReservedInstanceBoughtStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(com.vmturbo.cost.component.db.Cost.COST);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
+    private ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
 
-    private ReservedInstanceSpecStore reservedInstanceSpecStore;
-
+    private ReservedInstanceCostCalculator reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
 
     private PriceTableStore priceTableStore = Mockito.mock(PriceTableStore.class);
-    private ReservedInstanceCostCalculator reservedInstanceCostCalculator;
 
-    private DSLContext dsl;
+    private ReservedInstanceBoughtStore reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
+                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
 
     private static final int REGION_VALUE = 54;
     private static final int AVAILABILITYZONE_VALUE = 55;
@@ -140,24 +138,11 @@ public class ReservedInstanceBoughtStoreTest {
 
     @Before
     public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
         Map<Long, PricingDTO.ReservedInstancePrice> map = new HashMap<>();
         ReservedInstancePriceTable riPriceTable = ReservedInstancePriceTable.newBuilder()
                 .putAllRiPricesBySpecId(map).build();
         Mockito.when(priceTableStore.getMergedRiPriceTable()).thenReturn(riPriceTable);
-        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl, new IdentityProvider(0), 10);
-        reservedInstanceCostCalculator = new ReservedInstanceCostCalculator(reservedInstanceSpecStore);
-        reservedInstanceBoughtStore = new ReservedInstanceBoughtStore(dsl,
-                new IdentityProvider(0), reservedInstanceCostCalculator, priceTableStore);
         insertDefaultReservedInstanceSpec();
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test

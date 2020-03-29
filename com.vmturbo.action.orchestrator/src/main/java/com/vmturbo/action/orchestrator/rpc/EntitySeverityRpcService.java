@@ -87,9 +87,9 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
         }
 
         if (request.getPaginationParams().hasLimit() &&
-                request.getPaginationParams().getLimit() <= 0) {
+            request.getPaginationParams().getLimit() <= 0) {
             throw new IllegalArgumentException("Illegal pagination limit: " +
-                    request.getPaginationParams().getLimit() + " must be be a positive integer");
+                request.getPaginationParams().getLimit() + " must be be a positive integer");
         }
 
         final PaginationParameters paginationParameters = resetPaginationWithDefaultLimit(request);
@@ -120,7 +120,7 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
                     .setPaginationResponse(PaginationResponse.newBuilder());
             // if there are more results left.
             paginationResponseBuilder.getPaginationResponseBuilder()
-                    .setNextCursor(String.valueOf(skipCount + paginationParameters.getLimit()));
+                .setNextCursor(String.valueOf(skipCount + paginationParameters.getLimit()));
             responseObserver.onNext(paginationResponseBuilder.build());
         }
         Iterators.partition(results.iterator(), maxAmountOfEntitiesPerGrpcMessage)
@@ -155,14 +155,14 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
                 request.getEntityIdsList());
             final SeverityCountsResponse.Builder builder = SeverityCountsResponse.newBuilder();
             severities.forEach((severity, count) -> {
-                    if (severity.isPresent()) {
-                        builder.addCounts(SeverityCount.newBuilder()
-                            .setEntityCount(count)
-                            .setSeverity(severity.get()));
-                    } else {
-                        builder.setUnknownEntityCount(count);
-                    }
-                });
+                if (severity.isPresent()) {
+                    builder.addCounts(SeverityCount.newBuilder()
+                        .setEntityCount(count)
+                        .setSeverity(severity.get()));
+                } else {
+                    builder.setUnknownEntityCount(count);
+                }
+            });
             responseObserver.onNext(builder.build());
         }
 
@@ -177,12 +177,12 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
      * @return a {@link EntitySeverity}.
      */
     private EntitySeverity generateEntitySeverity(
-            @Nonnull final long oid,
-            @Nonnull final Optional<EntitySeverityCache> optionalCache) {
+        @Nonnull final long oid,
+        @Nonnull final Optional<EntitySeverityCache> optionalCache) {
         final EntitySeverity.Builder entitySeverityBuilder = EntitySeverity.newBuilder()
-                .setEntityId(oid);
+            .setEntityId(oid);
         final Optional<Severity> severityOptional =
-                optionalCache.isPresent() && optionalCache.get().getSeverity(oid).isPresent()
+            optionalCache.isPresent() && optionalCache.get().getSeverity(oid).isPresent()
                 ? Optional.of(optionalCache.get().getSeverity(oid).get())
                 : Optional.empty();
         severityOptional.ifPresent(entitySeverityBuilder::setSeverity);
@@ -198,20 +198,20 @@ public class EntitySeverityRpcService extends EntitySeverityServiceImplBase {
     }
 
     private PaginationParameters resetPaginationWithDefaultLimit(
-            @Nonnull final MultiEntityRequest request) {
+        @Nonnull final MultiEntityRequest request) {
         if (!request.getPaginationParams().hasLimit()) {
             logger.info("Search pagination with order by severity not provider a limit number, " +
-                    "set to default limit: " + entitySeverityDefaultPaginationLimit);
+                "set to default limit: " + entitySeverityDefaultPaginationLimit);
             return PaginationParameters.newBuilder(request.getPaginationParams())
-                    .setLimit(entitySeverityDefaultPaginationLimit)
-                    .build();
+                .setLimit(entitySeverityDefaultPaginationLimit)
+                .build();
         }
         if (request.getPaginationParams().getLimit() > entitySeverityDefaultPaginationMax) {
             logger.info("Search pagination with order by severity limit exceed default max limit," +
-                    " set it to default max limit number: " + entitySeverityDefaultPaginationMax);
+                " set it to default max limit number: " + entitySeverityDefaultPaginationMax);
             return PaginationParameters.newBuilder(request.getPaginationParams())
-                    .setLimit(entitySeverityDefaultPaginationMax)
-                    .build();
+                .setLimit(entitySeverityDefaultPaginationMax)
+                .build();
         }
         return request.getPaginationParams();
     }

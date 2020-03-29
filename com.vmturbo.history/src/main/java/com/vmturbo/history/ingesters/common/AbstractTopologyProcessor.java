@@ -32,8 +32,8 @@ public abstract class AbstractTopologyProcessor<T, StateT, ResultT>
      *                                inclusion in the info summary
      */
     public AbstractTopologyProcessor(
-            @Nonnull final Collection<? extends IChunkProcessorFactory<T, TopologyInfo, StateT>>
-                    chunkProcessorFactories, TopologyIngesterConfig config, String topologyType) {
+        @Nonnull final Collection<? extends IChunkProcessorFactory<T, TopologyInfo, StateT>>
+            chunkProcessorFactories, TopologyIngesterConfig config, String topologyType) {
         super(chunkProcessorFactories, config);
         this.topologyType = topologyType;
     }

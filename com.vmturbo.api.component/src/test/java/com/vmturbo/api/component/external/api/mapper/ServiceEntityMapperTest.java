@@ -51,7 +51,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
@@ -174,7 +174,7 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(oid, (long)Long.valueOf(serviceEntityApiDTO.getUuid()));
         Assert.assertEquals(
             entityType.getNumber(),
-            UIEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
+            ApiEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
         Assert.assertEquals(
             entityState,
             UIEntityState.fromString(serviceEntityApiDTO.getState()).toEntityState());
@@ -195,7 +195,7 @@ public class ServiceEntityMapperTest {
         // check consumers
         Assert.assertEquals(1, serviceEntityApiDTO.getConsumers().size());
         Assert.assertEquals(String.valueOf(consumerOid), serviceEntityApiDTO.getConsumers().get(0).getUuid());
-        Assert.assertEquals(UIEntityType.APPLICATION.apiStr(), serviceEntityApiDTO.getConsumers().get(0).getClassName());
+        Assert.assertEquals(ApiEntityType.APPLICATION.apiStr(), serviceEntityApiDTO.getConsumers().get(0).getClassName());
         Assert.assertEquals(consumerDisplayName, serviceEntityApiDTO.getConsumers().get(0).getDisplayName());
 
         // check providers
@@ -203,10 +203,10 @@ public class ServiceEntityMapperTest {
         Map<String, BaseApiDTO> providers = serviceEntityApiDTO.getProviders().stream()
                 .collect(Collectors.toMap(BaseApiDTO::getUuid, Function.identity()));
         BaseApiDTO provider1 = providers.get(String.valueOf(providerOid1));
-        Assert.assertEquals(UIEntityType.COMPUTE_TIER.apiStr(), provider1.getClassName());
+        Assert.assertEquals(ApiEntityType.COMPUTE_TIER.apiStr(), provider1.getClassName());
         Assert.assertEquals(providerDisplayName1, provider1.getDisplayName());
         BaseApiDTO provider2 = providers.get(String.valueOf(providerOid2));
-        Assert.assertEquals(UIEntityType.STORAGE_TIER.apiStr(), provider2.getClassName());
+        Assert.assertEquals(ApiEntityType.STORAGE_TIER.apiStr(), provider2.getClassName());
         Assert.assertEquals(providerDisplayName2, provider2.getDisplayName());
     }
 
@@ -222,14 +222,14 @@ public class ServiceEntityMapperTest {
         MinimalEntity minimalEntity = MinimalEntity.newBuilder()
             .setOid(7L)
             .setDisplayName("foo")
-            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .build();
 
         ServiceEntityApiDTO dto = ServiceEntityMapper.toBasicEntity(minimalEntity);
 
         assertThat(dto.getUuid(), is("7"));
         assertThat(dto.getDisplayName(), is("foo"));
-        assertThat(dto.getClassName(), is(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(dto.getClassName(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
     }
 
     /**
@@ -276,7 +276,7 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(oid, (long)Long.valueOf(serviceEntityApiDTO.getUuid()));
         Assert.assertEquals(
             entityType.getNumber(),
-            UIEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
+            ApiEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
         Assert.assertEquals(
             entityState,
             UIEntityState.fromString(serviceEntityApiDTO.getState()).toEntityState());
@@ -315,7 +315,7 @@ public class ServiceEntityMapperTest {
         Assert.assertEquals(oid, (Long.parseLong(serviceEntityApiDTO.getUuid())));
         Assert.assertEquals(
             entityType.getNumber(),
-            UIEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
+            ApiEntityType.fromString(serviceEntityApiDTO.getClassName()).typeNumber());
     }
 
     @Test
@@ -358,7 +358,7 @@ public class ServiceEntityMapperTest {
     }
 
     private SupplyChainNode makeSupplyChainNode(long oid) {
-        return SupplyChainNode.newBuilder().setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr())
+        return SupplyChainNode.newBuilder().setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
             .putMembersByState(com.vmturbo.api.enums.EntityState.ACTIVE.ordinal(),
                     MemberList.newBuilder().addMemberOids(oid).build())
             .build();

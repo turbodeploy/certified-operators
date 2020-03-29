@@ -110,7 +110,7 @@ public class LiveActionStoreTest {
         @Override
         public Action newPlanAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
                                     long actionPlanId, String description,
-                @Nullable final Long associatedAccountId, @Nullable final Long associatedResourceGroupId) {
+                                    @Nullable final Long associatedAccountId, @Nullable final Long associatedResourceGroupId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId,
                 actionModeCalculator, description, associatedAccountId, associatedResourceGroupId));
         }
@@ -272,10 +272,10 @@ public class LiveActionStoreTest {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
         ActionStore actionStore = new LiveActionStore(
-                new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
-                null, null,
-                targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, clock, userSessionContext);
+            new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
+            null, null,
+            targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+            actionsStatistician, actionTranslator, clock, userSessionContext);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -547,32 +547,32 @@ public class LiveActionStoreTest {
         ActionDTO.Action.Builder thirdMove = move(vm3, hostC, vmType, hostA, vmType);
 
         ActionPlan plan = ActionPlan.newBuilder()
-                .setInfo(ActionPlanInfo.newBuilder()
-                        .setMarket(MarketActionPlanInfo.newBuilder()
-                                .setSourceTopologyInfo(TopologyInfo.newBuilder()
-                                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
-                                        .setTopologyId(topologyId))))
-                .setId(firstPlanId)
-                .addAction(firstMove)
-                .addAction(secondMove)
-                .addAction(thirdMove)
-                .build();
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyId(topologyId))))
+            .setId(firstPlanId)
+            .addAction(firstMove)
+            .addAction(secondMove)
+            .addAction(thirdMove)
+            .build();
 
         final EntitiesAndSettingsSnapshot snapshot =
-                entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                        TOPOLOGY_CONTEXT_ID, topologyId);
+            entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
+                TOPOLOGY_CONTEXT_ID, topologyId);
         when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
 
         Action filteredActionSpy = spy(new Action(secondMove.build(), 1L, actionModeCalculator));
         when(filteredActionSpy.getState()).thenReturn(ActionState.SUCCEEDED);
         when(actionHistoryDao.getActionHistoryByDate(any(), any()))
-                .thenReturn(Collections.singletonList(filteredActionSpy));
+            .thenReturn(Collections.singletonList(filteredActionSpy));
         actionStore.populateRecommendedActions(plan);
         assertEquals(2, actionStore.size());
         assertThat(actionStore.getActionViews().getAll()
-                        .map(spec -> spec.getRecommendation().getInfo())
-                        .collect(Collectors.toList()),
-                containsInAnyOrder(firstMove.getInfo(), thirdMove.getInfo()));
+                .map(spec -> spec.getRecommendation().getInfo())
+                .collect(Collectors.toList()),
+            containsInAnyOrder(firstMove.getInfo(), thirdMove.getInfo()));
     }
 
     @Test
@@ -596,9 +596,9 @@ public class LiveActionStoreTest {
 
         actionStore.populateRecommendedActions(plan);
         assertThat(actionStore.getActionViews().getAll()
-                        .map(spec -> spec.getRecommendation().getId())
-                        .collect(Collectors.toList()),
-                containsInAnyOrder(firstMove.getId(), secondMove.getId()));
+                .map(spec -> spec.getRecommendation().getId())
+                .collect(Collectors.toList()),
+            containsInAnyOrder(firstMove.getId(), secondMove.getId()));
     }
 
     @Test

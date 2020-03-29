@@ -75,7 +75,7 @@ import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
+    classes = {TestSQLDatabaseConfig.class}
 )
 @TestPropertySource(properties = {"originalSchemaName=cost"})
 public class RIBuyAnalysisContextProviderTest {
@@ -119,30 +119,30 @@ public class RIBuyAnalysisContextProviderTest {
         grpcServer.start();
 
         when(repositoryService.retrieveTopologyEntities(any()))
-                .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
-                        .addAllEntities(entityMap.values()
-                                .stream()
-                                .map(e -> PartialEntity.newBuilder()
-                                        .setFullEntity(e)
-                                        .build())
-                                .collect(Collectors.toList()))
-                        .build()));
+            .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
+                .addAllEntities(entityMap.values()
+                    .stream()
+                    .map(e -> PartialEntity.newBuilder()
+                        .setFullEntity(e)
+                        .build())
+                    .collect(Collectors.toList()))
+                .build()));
 
         ReservedInstanceSpecInfo info = ReservedInstanceSpecInfo.newBuilder()
-                .setTierId(TIER_ID)
-                .setRegionId(REGION_ID)
-                .setOs(CloudCostDTO.OSType.LINUX)
-                .setTenancy(Tenancy.DEFAULT)
-                .setSizeFlexible(false).build();
+            .setTierId(TIER_ID)
+            .setRegionId(REGION_ID)
+            .setOs(CloudCostDTO.OSType.LINUX)
+            .setTenancy(Tenancy.DEFAULT)
+            .setSizeFlexible(false).build();
         ReservedInstanceSpec spec = ReservedInstanceSpec.newBuilder()
-                .setReservedInstanceSpecInfo(info)
-                .setId(SPEC_ID).build();
+            .setReservedInstanceSpecInfo(info)
+            .setId(SPEC_ID).build();
         ReservedInstanceSpecData data =
-                ImmutableReservedInstanceSpecData.builder().computeTier(entityMap.get(TIER_ID))
-                        .reservedInstanceSpec(spec).couponsPerInstance(1).build();
+            ImmutableReservedInstanceSpecData.builder().computeTier(entityMap.get(TIER_ID))
+                .reservedInstanceSpec(spec).couponsPerInstance(1).build();
         when(matcher.matchToPurchasingRISpecData(any(TopologyEntityDTO.class),
-                any(TopologyEntityDTO.class), any(OSType.class), any(Tenancy.class)))
-                .thenReturn(Optional.of(data));
+            any(TopologyEntityDTO.class), any(OSType.class), any(Tenancy.class)))
+            .thenReturn(Optional.of(data));
         when(matcherCache.getOrCreateRISpecMatchForRegion(REGION_ID)).thenReturn(matcher);
     }
 
@@ -161,7 +161,7 @@ public class RIBuyAnalysisContextProviderTest {
     public void testComputeAnalysisContexts() {
 
         ComputeTierDemandStatsStore computeTierDemandStatsStore =
-                new ComputeTierDemandStatsStore(dsl, 100, 100);
+            new ComputeTierDemandStatsStore(dsl, 100, 100);
 
         ComputeTierTypeHourlyByWeekRecord record1 = setupComputeTierTypeHourlyByWeekRecord(REGION_ID, ACCOUNT_ID, TIER_ID);
         ComputeTierTypeHourlyByWeekRecord record2 = setupComputeTierTypeHourlyByWeekRecord(ZONE_ID, MASTER_ACCOUNT_1_OID, TIER_ID);
@@ -173,20 +173,20 @@ public class RIBuyAnalysisContextProviderTest {
 
         RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory = mock(RegionalRIMatcherCacheFactory.class);
         when(regionalRIMatcherCacheFactory.createNewCache(any(CloudTopology.class),
-                any(ReservedInstancePurchaseConstraints.class))).thenReturn(matcherCache);
+            any(ReservedInstancePurchaseConstraints.class))).thenReturn(matcherCache);
 
 
         final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = StartBuyRIAnalysisRequest.newBuilder()
-                .addAllAccounts(Lists.newArrayList(ACCOUNT_ID, MASTER_ACCOUNT_1_OID)).build();
+            .addAllAccounts(Lists.newArrayList(ACCOUNT_ID, MASTER_ACCOUNT_1_OID)).build();
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(startBuyRIAnalysisRequest);
         RIBuyAnalysisContextProvider contextProvider =
-                new RIBuyAnalysisContextProvider(computeTierDemandStatsStore, repositoryClient,
-                        cloudTopologyFactory, regionalRIMatcherCacheFactory, CONTEXT_ID,
-                        true);
+            new RIBuyAnalysisContextProvider(computeTierDemandStatsStore, repositoryClient,
+                cloudTopologyFactory, regionalRIMatcherCacheFactory, CONTEXT_ID,
+                true);
 
 
         final RIBuyAnalysisContextInfo contexts =
-                contextProvider.computeAnalysisContexts(scope, null);
+            contextProvider.computeAnalysisContexts(scope, null);
         Assert.assertNotNull(contexts);
         Assert.assertNotNull(contexts.regionalContexts());
         Assert.assertTrue(contexts.regionalContexts().size() == 2);
@@ -201,7 +201,7 @@ public class RIBuyAnalysisContextProviderTest {
     public void testComputeAnalysisContextsWithBillingFamily() {
 
         ComputeTierDemandStatsStore computeTierDemandStatsStore =
-                new ComputeTierDemandStatsStore(dsl, 100, 100);
+            new ComputeTierDemandStatsStore(dsl, 100, 100);
 
         ComputeTierTypeHourlyByWeekRecord record1 = setupComputeTierTypeHourlyByWeekRecord(REGION_ID, ACCOUNT_ID, TIER_ID);
         ComputeTierTypeHourlyByWeekRecord record2 = setupComputeTierTypeHourlyByWeekRecord(ZONE_ID, MASTER_ACCOUNT_1_OID, TIER_ID);
@@ -216,20 +216,20 @@ public class RIBuyAnalysisContextProviderTest {
 
         RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory = mock(RegionalRIMatcherCacheFactory.class);
         when(regionalRIMatcherCacheFactory.createNewCache(any(CloudTopology.class),
-                any(ReservedInstancePurchaseConstraints.class))).thenReturn(matcherCache);
+            any(ReservedInstancePurchaseConstraints.class))).thenReturn(matcherCache);
 
 
         final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = StartBuyRIAnalysisRequest.newBuilder()
-                .addAllAccounts(Lists.newArrayList(ACCOUNT_ID, MASTER_ACCOUNT_1_OID)).build();
+            .addAllAccounts(Lists.newArrayList(ACCOUNT_ID, MASTER_ACCOUNT_1_OID)).build();
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(startBuyRIAnalysisRequest);
         RIBuyAnalysisContextProvider contextProvider =
-                new RIBuyAnalysisContextProvider(computeTierDemandStatsStore, repositoryClient,
-                        cloudTopologyFactory, regionalRIMatcherCacheFactory, CONTEXT_ID,
-                        true);
+            new RIBuyAnalysisContextProvider(computeTierDemandStatsStore, repositoryClient,
+                cloudTopologyFactory, regionalRIMatcherCacheFactory, CONTEXT_ID,
+                true);
 
 
         final RIBuyAnalysisContextInfo contexts =
-                contextProvider.computeAnalysisContexts(scope, null);
+            contextProvider.computeAnalysisContexts(scope, null);
         Assert.assertNotNull(contexts);
         Assert.assertNotNull(contexts.regionalContexts());
         Assert.assertTrue(contexts.regionalContexts().size() == 1);
@@ -273,68 +273,68 @@ public class RIBuyAnalysisContextProviderTest {
         // computeTier connectedTo region,
         // ba connectedTo vm
         TopologyEntityDTO az = TopologyEntityDTO.newBuilder()
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
-                .setOid(ZONE_ID)
-                .build();
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+            .setOid(ZONE_ID)
+            .build();
         TopologyEntityDTO region = TopologyEntityDTO.newBuilder()
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setEntityType(EntityType.REGION_VALUE)
-                .setOid(REGION_ID)
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectionType(ConnectionType.OWNS_CONNECTION)
-                        .setConnectedEntityId(ZONE_ID)
-                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
-                .build();
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setEntityType(EntityType.REGION_VALUE)
+            .setOid(REGION_ID)
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectionType(ConnectionType.OWNS_CONNECTION)
+                .setConnectedEntityId(ZONE_ID)
+                .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
+            .build();
         TopologyEntityDTO ba = TopologyEntityDTO.newBuilder()
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-                .setOid(ACCOUNT_ID)
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(VM_ID)
-                        .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
-                .build();
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+            .setOid(ACCOUNT_ID)
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityId(VM_ID)
+                .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+            .build();
         TopologyEntityDTO ma = TopologyEntityDTO.newBuilder()
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
-                .setOid(MASTER_ACCOUNT_1_OID)
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(MASTER_VM_ID)
-                        .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
-                .build();
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+            .setOid(MASTER_ACCOUNT_1_OID)
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityId(MASTER_VM_ID)
+                .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE))
+            .build();
 
         TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setEntityType(EntityType.COMPUTE_TIER_VALUE)
-                .setOid(TIER_ID)
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(REGION_ID)
-                        .setConnectedEntityType(EntityType.REGION_VALUE))
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-                        .setComputeTier(ComputeTierInfo.newBuilder().setNumCoupons(10)))
-                .build();
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setEntityType(EntityType.COMPUTE_TIER_VALUE)
+            .setOid(TIER_ID)
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityId(REGION_ID)
+                .setConnectedEntityType(EntityType.REGION_VALUE))
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                .setComputeTier(ComputeTierInfo.newBuilder().setNumCoupons(10)))
+            .build();
         TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOid(VM_ID)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderId(TIER_ID)
-                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE))
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(ZONE_ID)
-                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
-                .build();
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(VM_ID)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(TIER_ID)
+                .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE))
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityId(ZONE_ID)
+                .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
+            .build();
         TopologyEntityDTO vm2 = TopologyEntityDTO.newBuilder()
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOid(MASTER_VM_ID)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderId(TIER_ID)
-                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE))
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(ZONE_ID)
-                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
-                .build();
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(MASTER_VM_ID)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(TIER_ID)
+                .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE))
+            .addConnectedEntityList(ConnectedEntity.newBuilder()
+                .setConnectedEntityId(ZONE_ID)
+                .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
+            .build();
         entityMap.put(ZONE_ID, az);
         entityMap.put(REGION_ID, region);
         entityMap.put(ACCOUNT_ID, ba);

@@ -14,22 +14,16 @@ import java.util.Optional;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
-import org.flywaydb.core.Flyway;
-import org.junit.After;
+import org.jooq.DSLContext;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.Trigger;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.support.CronTrigger;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
@@ -42,24 +36,33 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.TimeOfR
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.Recurrence.Weekly;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanProject;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDao;
 import com.vmturbo.plan.orchestrator.project.PlanProjectDaoImpl;
 import com.vmturbo.plan.orchestrator.project.PlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.project.PlanProjectInfoNotFoundException;
 import com.vmturbo.plan.orchestrator.project.PlanProjectNotFoundException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Tests for the {@link PlanProjectScheduler} class.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=plan"})
 public class PlanProjectSchedulerTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private static final long DAILY_PLAN_PROJECT_ID = 1000L;
     private static final long WEEKLY_PLAN_PROJECT_ID = 1001L;
@@ -70,10 +73,7 @@ public class PlanProjectSchedulerTest {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    @Autowired
-    private TestSQLDatabaseConfig dbConfig;
     private ThreadPoolTaskScheduler threadPoolTaskScheduler;
-    private Flyway flyway;
     private PlanProjectScheduler planProjectScheduler;
     private PlanProjectDao planProjectDao;
     private SystemPlanProjectLoader systemPlanProjectLoader;
@@ -83,7 +83,7 @@ public class PlanProjectSchedulerTest {
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        planProjectDao = new PlanProjectDaoImpl(dbConfig.dsl(), new IdentityInitializer(0));
+        planProjectDao = new PlanProjectDaoImpl(dsl, new IdentityInitializer(0));
         threadPoolTaskScheduler = new ThreadPoolTaskScheduler();
         threadPoolTaskScheduler.setPoolSize(1);
         threadPoolTaskScheduler.setThreadFactory(new ThreadFactoryBuilder()
@@ -102,18 +102,7 @@ public class PlanProjectSchedulerTest {
                 defaultHeadroomPlanProjectJsonFile);
     }
 
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
-
     private void prepareDatabase() throws Exception {
-        flyway = dbConfig.flyway();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
-
         Recurrence dailyRecurrence = Recurrence.newBuilder()
                 .setSchedule(Recurrence.Schedule.newBuilder().setDaily(Daily.newBuilder()))
                 .setTimeOfRun(TimeOfRun.newBuilder().setHour(19))
@@ -197,7 +186,7 @@ public class PlanProjectSchedulerTest {
                 .build();
         PlanProject planProject = new
                 PlanProject(planProjectId, curTime, curTime, toCreate, PlanProjectType.USER.name());
-        dbConfig.dsl().newRecord(PLAN_PROJECT, planProject).store();
+        dsl.newRecord(PLAN_PROJECT, planProject).store();
         expectedException.expect(PlanProjectInfoNotFoundException.class);
         planProjectScheduler.setPlanProjectSchedule(planProjectId);
     }
@@ -255,7 +244,7 @@ public class PlanProjectSchedulerTest {
 
         PlanProject planProject = new
                 PlanProject(planProjecId, curTime, curTime, toCreate, PlanProjectType.USER.name());
-        dbConfig.dsl().newRecord(PLAN_PROJECT, planProject).store();
+        dsl.newRecord(PLAN_PROJECT, planProject).store();
     }
 
     // Test run daily at 7PM

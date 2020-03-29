@@ -46,7 +46,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 
 /**
@@ -135,7 +135,7 @@ public class EntitySettingQueryExecutor {
     public List<SettingsManagerApiDTO> getEntitySettings(@Nonnull final ApiId scope,
                                                          final boolean includePolicyBreakdown,
                                                          @Nullable Collection<String> settingNames) {
-        final Set<UIEntityType> types = scope.getScopeTypes().isPresent() ?
+        final Set<ApiEntityType> types = scope.getScopeTypes().isPresent() ?
                 scope.getScopeTypes().get() : Collections.emptySet();
         final Set<Long> oids;
         if (scope.isGroup()) {
@@ -178,7 +178,7 @@ public class EntitySettingQueryExecutor {
 
             final List<SettingApiDTO<String>> settingRet = new ArrayList<>();
 
-            for (UIEntityType type : types) {
+            for (ApiEntityType type : types) {
                 final Optional<SettingApiDTO<String>> setting = entitySettingGroupMapper.toSettingApiDto(
                     settingGroups, settingSpec, Optional.of(type), includePolicyBreakdown, rawSettingPoliciesById);
                 if (!setting.isPresent()) {
@@ -264,14 +264,14 @@ public class EntitySettingQueryExecutor {
 
         @Nonnull
         private Optional<SettingApiDTO<String>> dtoFromGroup(@Nonnull final EntitySettingGroup settingGroup,
-                                                     final Optional<UIEntityType> type,
+                                                     final Optional<ApiEntityType> type,
                                                      final SettingSpec settingSpec) {
             return dtoFromSetting(settingGroup.getSetting(), type, settingSpec);
         }
 
         @Nonnull
         private Optional<SettingApiDTO<String>> dtoFromSetting(@Nonnull final Setting setting,
-                                                             final Optional<UIEntityType> type,
+                                                             final Optional<ApiEntityType> type,
                                                              final SettingSpec settingSpec) {
             final SettingApiDTOPossibilities possibilities = settingsMapper.toSettingApiDto(
                 setting, settingSpec);
@@ -302,7 +302,7 @@ public class EntitySettingQueryExecutor {
         @Nonnull
         public Optional<SettingApiDTO<String>> toSettingApiDto(@Nonnull final List<EntitySettingGroup> groups,
                                                        @Nonnull final SettingSpec settingSpec,
-                                                       final Optional<UIEntityType> type,
+                                                       final Optional<ApiEntityType> type,
                                                        final boolean includePolicyBreakdown,
                                                        final Map<Long, SettingPolicy> rawSettingPoliciesById) {
             Preconditions.checkArgument(!groups.isEmpty());

@@ -1,5 +1,7 @@
 package com.vmturbo.history.stats.live;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.PHYSICAL_MACHINE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VIRTUAL_MACHINE;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
@@ -63,8 +65,10 @@ public class EntityStatsWriterTest {
     private static final EntityDTO.EntityType sdkEntityType =
             EntityDTO.EntityType.VIRTUAL_DATACENTER;
     private static final int vmEntityTypeNumber = sdkEntityType.getNumber();
-    private static final EntityType dbEntityType = EntityType.VIRTUAL_MACHINE;
-    private static final EntityType otherDbEntityType = EntityType.PHYSICAL_MACHINE;
+    private static final EntityType VIRTUAL_MACHINE_ENTITY_TYPE = EntityType.named(VIRTUAL_MACHINE).get();
+    private static final EntityType dbEntityType = VIRTUAL_MACHINE_ENTITY_TYPE;
+    private static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = EntityType.named(PHYSICAL_MACHINE).get();
+    private static final EntityType otherDbEntityType = PHYSICAL_MACHINE_ENTITY_TYPE;
     private static final String displayName = "displayName";
     private static final ImmutableList<String> commodityExcludeList = ImmutableList.of(
             "ApplicationCommodity", "CLUSTERCommodity", "DATACENTERCommodity", "DATASTORECommodity",
@@ -136,7 +140,7 @@ public class EntityStatsWriterTest {
         when(mockHistorydbIO.getEntityType(vmEntityTypeNumber)).thenReturn(
                 Optional.of(dbEntityType));
         when(mockHistorydbIO.getBaseEntityType(vmEntityTypeNumber)).thenReturn(
-                Optional.of(dbEntityType.getClsName()));
+                Optional.of(dbEntityType.getName()));
     }
 
     private void consumeDTOs() throws Exception {
@@ -165,7 +169,7 @@ public class EntityStatsWriterTest {
         // Arrange
 
         // entity found
-        setupEntitiesTableQuery(displayName, dbEntityType.getClsName());
+        setupEntitiesTableQuery(displayName, dbEntityType.getName());
 
         // Act
         consumeDTOs();
@@ -190,7 +194,7 @@ public class EntityStatsWriterTest {
 
         // entity found
         String otherDisplayName = "otherDisplayName";
-        setupEntitiesTableQuery(otherDisplayName, dbEntityType.getClsName());
+        setupEntitiesTableQuery(otherDisplayName, dbEntityType.getName());
 
         // Act
         consumeDTOs();
@@ -224,7 +228,7 @@ public class EntityStatsWriterTest {
     @Test
     public void testWhenEntityTypeChanges() throws Exception {
         // Arrange
-        setupEntitiesTableQuery(displayName, otherDbEntityType.getClsName());
+        setupEntitiesTableQuery(displayName, otherDbEntityType.getName());
 
         // Act
         consumeDTOs();

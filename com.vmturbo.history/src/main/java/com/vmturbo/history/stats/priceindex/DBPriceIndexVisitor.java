@@ -22,7 +22,7 @@ import org.jooq.Table;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.stats.StatsUtils;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.bulk.BulkLoader;
@@ -65,20 +65,20 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
      */
     @Override
     public void visit(final Integer entityType,
-               final EnvironmentType environmentType,
-               final Map<Long, Double> priceIdxByEntityId) throws InterruptedException {
+                      final EnvironmentType environmentType,
+                      final Map<Long, Double> priceIdxByEntityId) throws InterruptedException {
         final Optional<EntityType> dbEntityTypeOpt = historydbIO.getEntityType(entityType);
         if (dbEntityTypeOpt.isPresent()) {
             final Map<EnvironmentType, MarketStatsData> mktStatsByEnv =
                 mktStatsByEntityTypeAndEnv.computeIfAbsent(dbEntityTypeOpt.get(), k -> new HashMap<>(3));
             final MarketStatsData marketDataForType =
                 mktStatsByEnv.computeIfAbsent(environmentType, k ->
-                    new MarketStatsData(dbEntityTypeOpt.get().getClsName(),
+                    new MarketStatsData(dbEntityTypeOpt.get().getName(),
                         environmentType,
                         StringConstants.PRICE_INDEX,
                         StringConstants.PRICE_INDEX,
                         RelationType.METRICS));
-            final Table<Record> dbTable = (Table<Record>)dbEntityTypeOpt.get().getLatestTable();
+            final Table<Record> dbTable = (Table<Record>)dbEntityTypeOpt.get().getLatestTable().get();
             for (final Entry<Long, Double> priceIndexEntry : priceIdxByEntityId.entrySet()) {
                 final Long oid = priceIndexEntry.getKey();
                 final Double priceIndex = priceIndexEntry.getValue();
@@ -110,30 +110,30 @@ public class DBPriceIndexVisitor implements TopologyPriceIndexVisitor {
 
         // Insert the accumulated price index stats.
         final List<MarketStatsData> mktStatsData = mktStatsByEntityTypeAndEnv.values().stream()
-                .flatMap(mktStatsByEnv -> mktStatsByEnv.values().stream())
-                .collect(Collectors.toList());
+            .flatMap(mktStatsByEnv -> mktStatsByEnv.values().stream())
+            .collect(Collectors.toList());
         final BulkLoader loader = loaders.getLoader(MarketStatsLatest.MARKET_STATS_LATEST);
         for (MarketStatsData data : mktStatsData) {
             final MarketStatsLatestRecord marketStatsRecord
-                    = historydbIO.getMarketStatsRecord(data, topologyInfo);
+                = historydbIO.getMarketStatsRecord(data, topologyInfo);
             loader.insert(marketStatsRecord);
         }
 
         // log not-found types for which we expect to save prices at error level...
         Set<Integer> unexpectedNotFoundTypes = notFoundEntityTypes.stream()
-                .filter(type -> !StatsUtils.SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES.contains(type))
-                .collect(Collectors.toSet());
+            .filter(type -> !StatsUtils.SDK_ENTITY_TYPES_WITHOUT_SAVED_PRICES.contains(type))
+            .collect(Collectors.toSet());
         if (!unexpectedNotFoundTypes.isEmpty()) {
             logger.error("History DB Entity Types not found for entity types: {}",
-                    unexpectedNotFoundTypes);
+                unexpectedNotFoundTypes);
         }
         // ... and others others at trace level...
         if (logger.isTraceEnabled()) {
             Set<Integer> expectedNotFoundTypes = Sets.difference(
-                    notFoundEntityTypes, unexpectedNotFoundTypes);
+                notFoundEntityTypes, unexpectedNotFoundTypes);
             if (!expectedNotFoundTypes.isEmpty()) {
                 logger.trace("History DB Entity Types not found for entity types (expected): {}",
-                        expectedNotFoundTypes);
+                    expectedNotFoundTypes);
             }
         }
     }

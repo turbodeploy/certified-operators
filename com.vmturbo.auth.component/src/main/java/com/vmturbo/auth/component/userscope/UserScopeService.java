@@ -15,8 +15,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
 
-import com.google.common.collect.ImmutableList;
-
 import io.grpc.stub.StreamObserver;
 
 import org.apache.logging.log4j.LogManager;
@@ -31,13 +29,9 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainReq
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.common.protobuf.userscope.UserScope.CurrentUserEntityAccessScopeRequest;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeContents;
 import com.vmturbo.common.protobuf.userscope.UserScope.EntityAccessScopeRequest;
@@ -116,14 +110,6 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
             .withHelp("estimated byte size of the largest entry in the user scope cache.")
             .build()
             .register();
-
-    static final PropertyFilter STATIC_CLOUD_ENTITY_TYPES = SearchProtoUtil.entityTypeFilter(ImmutableList.of(
-            UIEntityType.REGION.apiStr(),
-            UIEntityType.COMPUTE_TIER.apiStr(),
-            UIEntityType.STORAGE_TIER.apiStr(),
-            UIEntityType.DATABASE_SERVER_TIER.apiStr(),
-            UIEntityType.DATABASE_TIER.apiStr(),
-            UIEntityType.AVAILABILITY_ZONE.apiStr()));
 
     private final GroupServiceBlockingStub groupServiceStub;
 
@@ -347,7 +333,6 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
                             });
                     contentsBuilder.putAccessibleOidsByEntityType(node.getEntityType(), typeSetBuilder.build());
                 });
-        accessibleEntities.addAll(addStaticCloudInfrastructureToAccessibleEntities(searchServiceStub));
         // convert the set to a primitive array, which we will both cache and send back to the caller
         OidArray.Builder accessibleOidArrayBuilder = OidArray.newBuilder();
         for (Long oid : accessibleEntities) {
@@ -369,14 +354,6 @@ public class UserScopeService extends UserScopeServiceImplBase implements Reposi
         contentsBuilder.setHash(accessibleEntities.hashCode());
 
         return new AccessScopeDataCacheEntry(contentsBuilder.build());
-    }
-
-    private static Collection<? extends Long> addStaticCloudInfrastructureToAccessibleEntities(
-            @Nonnull final SearchServiceBlockingStub searchServiceStub) {
-        return searchServiceStub.searchEntityOids(
-                SearchEntityOidsRequest.newBuilder()
-                        .addSearchParameters(SearchParameters.newBuilder()
-                                .setStartingFilter(STATIC_CLOUD_ENTITY_TYPES)).build()).getEntitiesList();
     }
 
     // update the cache metrics

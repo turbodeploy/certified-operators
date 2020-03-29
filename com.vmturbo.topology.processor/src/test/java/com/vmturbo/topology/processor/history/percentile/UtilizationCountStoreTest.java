@@ -14,6 +14,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
@@ -31,6 +32,7 @@ public class UtilizationCountStoreTest {
     private Clock clock;
     private GraphWithSettings graph;
     private HistoryAggregationContext context;
+    private TopologyInfo topologyInfo;
 
     /**
      * Set up the test.
@@ -47,7 +49,8 @@ public class UtilizationCountStoreTest {
         Mockito.when(clock.millis()).thenReturn(Instant.now().toEpochMilli());
         store = new UtilizationCountStore(new PercentileBuckets(), ref);
         graph = Mockito.mock(GraphWithSettings.class);
-        context = new HistoryAggregationContext(graph, false);
+        topologyInfo = TopologyInfo.newBuilder().setTopologyId(77777L).build();
+        context = new HistoryAggregationContext(topologyInfo, graph, false);
     }
 
     /**

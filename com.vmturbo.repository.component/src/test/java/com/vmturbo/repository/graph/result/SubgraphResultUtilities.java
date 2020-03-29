@@ -9,7 +9,7 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.graph.result.SupplyChainSubgraph.ResultVertex;
 
 public class SubgraphResultUtilities {
@@ -46,7 +46,7 @@ public class SubgraphResultUtilities {
                                   String provider,
                                   String consumer) {
         return new ResultVertex (oid,
-                UIEntityType.VIRTUAL_MACHINE.apiStr(),
+                ApiEntityType.VIRTUAL_MACHINE.apiStr(),
                 UIEntityState.ACTIVE.apiStr(),
                 provider,
                 consumer);
@@ -64,7 +64,7 @@ public class SubgraphResultUtilities {
                                   String provider,
                                   String consumer) {
         return new ResultVertex (oid,
-                UIEntityType.PHYSICAL_MACHINE.apiStr(),
+                ApiEntityType.PHYSICAL_MACHINE.apiStr(),
                 UIEntityState.ACTIVE.apiStr(),
                 provider,
                 consumer);
@@ -82,7 +82,7 @@ public class SubgraphResultUtilities {
                                   String provider,
                                   String consumer) {
         return new ResultVertex (oid,
-                UIEntityType.DATACENTER.apiStr(),
+                ApiEntityType.DATACENTER.apiStr(),
                 UIEntityState.ACTIVE.apiStr(),
                 provider,
                 consumer);
@@ -100,7 +100,7 @@ public class SubgraphResultUtilities {
                                   String provider,
                                   String consumer) {
         return new ResultVertex (oid,
-                UIEntityType.STORAGE.apiStr(),
+                ApiEntityType.STORAGE.apiStr(),
                 UIEntityState.ACTIVE.apiStr(),
                 provider,
                 consumer);
@@ -118,7 +118,7 @@ public class SubgraphResultUtilities {
                                 String provider,
                                 String consumer) {
         return new ResultVertex (oid,
-                UIEntityType.DISKARRAY.apiStr(),
+                ApiEntityType.DISKARRAY.apiStr(),
                 UIEntityState.ACTIVE.apiStr(),
                 provider,
                 consumer);
@@ -136,7 +136,7 @@ public class SubgraphResultUtilities {
                                   String provider,
                                   String consumer) {
         return new ResultVertex (oid,
-                UIEntityType.LOGICALPOOL.apiStr(),
+                ApiEntityType.LOGICALPOOL.apiStr(),
                 UIEntityState.ACTIVE.apiStr(),
                 provider,
                 consumer);

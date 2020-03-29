@@ -6,6 +6,7 @@ import static org.mockito.Matchers.any;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -40,6 +41,7 @@ public class ConsulKeyValueStoreTest {
     private final long timeout = 1000L;
     private KeyValueClient keyValueClient;
     private ConsulKeyValueStore consulKeyValueStore;
+    private static final String USER_IN_CHINESE = "用户";
 
     @Before
     public void setup() {
@@ -59,6 +61,16 @@ public class ConsulKeyValueStoreTest {
         byte[] base64String = Base64.getEncoder().encode("hello world".getBytes());
         Assert.assertEquals("hello world",
                 ConsulKeyValueStore.decodeBase64(new String(base64String)));
+    }
+
+    /**
+     * Test that the decode function works with non-ASCII characters.
+     */
+    @Test
+    public void testDecodeBase64Globalization() {
+       byte[] base64String = Base64.getEncoder().encode(USER_IN_CHINESE.getBytes());
+        Assert.assertEquals(USER_IN_CHINESE, ConsulKeyValueStore.decodeBase64(new String(base64String,
+                StandardCharsets.UTF_8)));
     }
 
     /**

@@ -1,6 +1,8 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -27,6 +29,29 @@ public interface IAspectMapper {
     @Nullable
     EntityAspect mapEntityToAspect(@Nonnull TopologyEntityDTO entity)
             throws InterruptedException, ConversionException;
+
+    /**
+     * Map a list of {@link TopologyEntityDTO} into map of oid -> {@link EntityAspect}.
+     * This function generates aspects for a list of entities.
+     * This function is for performance improvement. In some cases, it may be more efficient to
+     * generate aspects for all topology entities in a single function. Eg: We can do a single RPC call
+     * for all topology entities, vs doing one RPC call per entity (serially), which is very slow.
+     * EntityAspectMapper will call aspect.mapEntityToAspectBatch() first, and pass in all supported entities (as
+     * defined in EntityAspectMapper). If mapEntityToAspectBatch() returns aspects, we will use that
+     * to set aspects on service entities.
+     * If it returns empty, EntityAspectMapper will revert to mapEntityToAspect(), which handles a single
+     * entity at a time.
+     *
+     * @param entities the list of {@link TopologyEntityDTO} to get aspects for
+     * @return optional: a map containing all aspects for the list of entities, keyed by oid
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
+     */
+    @Nonnull
+    default Optional<Map<Long, EntityAspect>> mapEntityToAspectBatch(@Nonnull List<TopologyEntityDTO> entities)
+            throws InterruptedException, ConversionException {
+        return Optional.empty();
+    }
 
     /**
      * Map a single {@link ApiPartialEntity} into one entity aspect object.

@@ -11,6 +11,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.longThat;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -18,17 +19,21 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.lang.reflect.Field;
 import java.net.URL;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.protobuf.util.JsonFormat;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -41,6 +46,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -171,6 +177,15 @@ public class TopologyConverterFromMarketTest {
      * Construct default TopologyConverter.
      */
     private void constructTopologyConverter() {
+        constructTopologyConverter(CommodityIndex.newFactory());
+    }
+
+    /**
+     * Construct TopologyConverter wit provided {@link CommodityIndexFactory}.
+     *
+     * @param commodityIndexFactory Commodity index factory
+     */
+    private void constructTopologyConverter(final CommodityIndexFactory commodityIndexFactory) {
         converter = Mockito.spy(new TopologyConverter(
             REALTIME_TOPOLOGY_INFO,
             false,
@@ -180,7 +195,7 @@ public class TopologyConverterFromMarketTest {
             marketPriceTable,
             mockCommodityConverter,
             mockCCD,
-            CommodityIndex.newFactory(),
+            commodityIndexFactory,
             tierExcluderFactory,
             consistentScalingHelperFactory, cloudTopology));
     }
@@ -657,36 +672,36 @@ public class TopologyConverterFromMarketTest {
 
         // Arrange
         final TopologyDTO.CommoditySoldDTO topologyCPUSold = TopologyDTO.CommoditySoldDTO
-                .newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
-                        .setType(CommodityDTO.CommodityType.CPU_VALUE).build())
-                .setUsed(RAW_PM_USED).setCapacity(RAW_PM_CAPACITY)
-                .setScalingFactor(SCALING_FACTOR).build();
+            .newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.CPU_VALUE).build())
+            .setUsed(RAW_PM_USED).setCapacity(RAW_PM_CAPACITY)
+            .setScalingFactor(SCALING_FACTOR).build();
         final List<CommodityBoughtDTO> topologyDSPMBought = Lists.newArrayList(CommodityBoughtDTO
-                .newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
-                        .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE))
-                .build());
+            .newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE))
+            .build());
 
         // create a PM topology entity DTO that seels CPU (with scalingFactor set)
         TopologyDTO.TopologyEntityDTO expectedEntity = TopologyDTO.TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).setOid(PM_OID)
-                .addCommoditySoldList(topologyCPUSold)
-                .putEntityPropertyMap("dummy", "dummy").build();
+            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE).setOid(PM_OID)
+            .addCommoditySoldList(topologyCPUSold)
+            .putEntityPropertyMap("dummy", "dummy").build();
         // add a VM to buy CPU from the PM
         // create a topology entity DTO with CPU bought
         final List<CommodityBoughtDTO> topologyCpuBought = Lists.newArrayList(CommodityBoughtDTO
-                .newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
-                        .setType(CommodityDTO.CommodityType.CPU_VALUE))
-                .setUsed(RAW_VM_USED).setScalingFactor(SCALING_FACTOR).build());
+            .newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                .setType(CommodityDTO.CommodityType.CPU_VALUE))
+            .setUsed(RAW_VM_USED).setScalingFactor(SCALING_FACTOR).build());
         TopologyDTO.TopologyEntityDTO expectedEntity2 = TopologyDTO.TopologyEntityDTO.newBuilder()
-                .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .addCommoditySoldList(topologyCPUSold)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
-                        .newBuilder().setProviderId(PM_OID).setVolumeId(VOLUME_ID)
-                        .addAllCommodityBought(topologyCpuBought))
-                .putEntityPropertyMap("dummy", "dummy").build();
+            .setOid(VM_OID).setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .addCommoditySoldList(topologyCPUSold)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
+                .newBuilder().setProviderId(PM_OID).setVolumeId(VOLUME_ID)
+                .addAllCommodityBought(topologyCpuBought))
+            .putEntityPropertyMap("dummy", "dummy").build();
 
         // Add the entities to the commodity index. Normally this would get done prior to the
         // conversion from market.
@@ -698,84 +713,83 @@ public class TopologyConverterFromMarketTest {
 
         // converter under test
         TopologyConverter converter = Mockito.spy(new TopologyConverter(REALTIME_TOPOLOGY_INFO,
-                false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
-                marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory,
+            false, MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+            marketPriceTable, mockCommodityConverter, indexFactory, tierExcluderFactory,
             consistentScalingHelperFactory));
 
         // warning: introspection follows...
         Map<Long, ShoppingListInfo> shoppingListMap = new HashMap<>();
         shoppingListMap.put(VM_OID, new ShoppingListInfo(DSPM_TYPE_ID, DS_OID, PM_OID, VOLUME_ID,
-                EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
+            EntityType.PHYSICAL_MACHINE_VALUE, topologyDSPMBought));
         Field shoppingListInfos =
-                TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
+            TopologyConverter.class.getDeclaredField("shoppingListOidToInfos");
         shoppingListInfos.setAccessible(true);
         shoppingListInfos.set(converter, shoppingListMap);
         // ... end introspection
 
         final CommodityDTOs.CommoditySoldTO economyCPUSold = CommodityDTOs.CommoditySoldTO
-                .newBuilder()
-                .setSpecification(CommoditySpecificationTO.newBuilder()
-                        .setBaseType(DSPM_TYPE_ID).setType(CPU_TYPE_ID).build())
-                .setQuantity(MARKET_PM_USED).setCapacity(MARKET_PM_CAPACITY).build();
+            .newBuilder()
+            .setSpecification(CommoditySpecificationTO.newBuilder()
+                .setBaseType(DSPM_TYPE_ID).setType(CPU_TYPE_ID).build())
+            .setQuantity(MARKET_PM_USED).setCapacity(MARKET_PM_CAPACITY).build();
 
         Mockito.doReturn(Optional.of(topologyCPUSold.getCommodityType()))
-                .when(mockCommodityConverter)
-                .marketToTopologyCommodity(Mockito.eq(economyCPUSold.getSpecification()));
+            .when(mockCommodityConverter)
+            .marketToTopologyCommodity(Mockito.eq(economyCPUSold.getSpecification()));
 
         // create trader TO (i.e. as returned from Market) that corresponds to expected PM Entity
         EconomyDTOs.TraderTO pmTrader = EconomyDTOs.TraderTO.newBuilder().setOid(PM_OID)
-                .addCommoditiesSold(economyCPUSold)
-                .addShoppingLists(ShoppingListTO.newBuilder().setOid(VM_OID)
-                        .addCommoditiesBought(CommodityBoughtTO.newBuilder()
-                                .setSpecification(CommoditySpecificationTO
-                                        .newBuilder()
-                                        .setBaseType(DSPM_TYPE_ID)
-                                        .setType(CPU_TYPE_ID)
-                                        .build())
-                                .setQuantity(MARKET_VM_USED).build())
+            .addCommoditiesSold(economyCPUSold)
+            .addShoppingLists(ShoppingListTO.newBuilder().setOid(VM_OID)
+                .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                    .setSpecification(CommoditySpecificationTO
+                        .newBuilder()
+                        .setBaseType(DSPM_TYPE_ID)
+                        .setType(CPU_TYPE_ID)
                         .build())
-                .build();
+                    .setQuantity(MARKET_VM_USED).build())
+                .build())
+            .build();
 
         // create trader TO (i.e. as returned from Market) that corresponds to expectedVM Entity
         EconomyDTOs.TraderTO vmTrader = EconomyDTOs.TraderTO.newBuilder().setOid(VM_OID)
-                .addShoppingLists(ShoppingListTO.newBuilder().setOid(VM_OID)
-                        .setSupplier(PM_OID)
-                        .addCommoditiesBought(CommodityBoughtTO.newBuilder()
-                                .setSpecification(CommoditySpecificationTO
-                                        .newBuilder()
-                                        .setBaseType(DSPM_TYPE_ID)
-                                        .setType(CPU_TYPE_ID)
-                                        .build())
-                                .setQuantity(MARKET_VM_USED).build())
+            .addShoppingLists(ShoppingListTO.newBuilder().setOid(VM_OID)
+                .setSupplier(PM_OID)
+                .addCommoditiesBought(CommodityBoughtTO.newBuilder()
+                    .setSpecification(CommoditySpecificationTO
+                        .newBuilder()
+                        .setBaseType(DSPM_TYPE_ID)
+                        .setType(CPU_TYPE_ID)
                         .build())
-                .build();
+                    .setQuantity(MARKET_VM_USED).build())
+                .build())
+            .build();
 
         // Act
         Map<Long, TopologyDTO.ProjectedTopologyEntity> entity = converter.convertFromMarket(
-                // the traders in the market
-                Lists.newArrayList(pmTrader, vmTrader),
-                // map back to original TopologyEntityDTOs
-                ImmutableMap.of(expectedEntity.getOid(), expectedEntity,
-                        expectedEntity2.getOid(), expectedEntity2),
-                PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
-                setUpWastedFileAnalysis());
+            // the traders in the market
+            Lists.newArrayList(pmTrader, vmTrader),
+            // map back to original TopologyEntityDTOs
+            ImmutableMap.of(expectedEntity.getOid(), expectedEntity,
+                expectedEntity2.getOid(), expectedEntity2),
+            PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+            setUpWastedFileAnalysis());
 
         // Assert two entities returned - they will be in the original order - VM and PM
         assertEquals(2L, entity.size());
         // check that the PM expected capacity and used matches the actual converted capacity and used
         final CommoditySoldDTO actualCpuCommodity =
-                entity.get(pmTrader.getOid()).getEntity().getCommoditySoldList(0);
+            entity.get(pmTrader.getOid()).getEntity().getCommoditySoldList(0);
         assertEquals(topologyCPUSold.getCapacity(), actualCpuCommodity.getCapacity(), epsilon);
         assertEquals(topologyCPUSold.getUsed(), actualCpuCommodity.getUsed(), epsilon);
         // check that the VM expected used matches the actual converted used
         assertEquals(1, entity.get(vmTrader.getOid()).getEntity()
-                .getCommoditiesBoughtFromProvidersList().size());
+            .getCommoditiesBoughtFromProvidersList().size());
         final List<CommodityBoughtDTO> actualBoughtCommodityList = entity.get(vmTrader.getOid())
-                .getEntity().getCommoditiesBoughtFromProvidersList().iterator().next()
-                .getCommodityBoughtList();
+            .getEntity().getCommoditiesBoughtFromProvidersList().iterator().next()
+            .getCommodityBoughtList();
         assertEquals(1, actualBoughtCommodityList.size());
         assertEquals(RAW_VM_USED, actualBoughtCommodityList.iterator().next().getUsed(), epsilon);
-
     }
 
     /**
@@ -1447,30 +1461,436 @@ public class TopologyConverterFromMarketTest {
 
     }
 
+    /**
+     * Test timeslot bought commodities merge.
+     */
+    @Test
+    public void testMergeTimeSlotCommoditiesBought() {
+        final float[] used = {0.5f, 0.6f, 0.65f};
+        final float[] peak = {0.55f, 0.65f, 0.75f};
+
+        final float averageUsed = (used[0] + used[1] + used[2]) / 3;
+        final float averagePeak = (peak[0] + peak[1] + peak[2]) / 3;
+
+        final CommodityType vCpuCommType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VCPU_VALUE).build();
+
+        final CommodityType vMemCommType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
+
+        final CommodityType poolCpuCommType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build();
+
+        final CommodityBoughtTO vcpu = createBoughtTO(CommodityDTO.CommodityType.VCPU_VALUE,
+            0.5f);
+        final CommodityBoughtTO vMem = createBoughtTO(CommodityDTO.CommodityType.VMEM_VALUE,
+            0.6f);
+        final CommodityBoughtTO poolCpu1 = createBoughtTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            used[0], peak[0]);
+        final CommodityBoughtTO poolCpu2 = createBoughtTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            used[1], peak[1]);
+        final CommodityBoughtTO poolCpu3 = createBoughtTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            used[2], peak[2]);
+        final Collection<CommodityBoughtTO> commoditiesBought = ImmutableList.of(vcpu, vMem, poolCpu1,
+            poolCpu2, poolCpu3);
+
+        doReturn(Optional.of(vCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(vcpu.getSpecification()));
+        doReturn(Optional.of(vMemCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(vMem.getSpecification()));
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu1.getSpecification()));
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu2.getSpecification()));
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu3.getSpecification()));
+
+        doReturn(false).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(vcpu.getSpecification().getType()));
+        doReturn(false).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(vMem.getSpecification().getType()));
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu1.getSpecification().getType()));
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu2.getSpecification().getType()));
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu3.getSpecification().getType()));
+
+        final Map<CommodityType, List<Double>> timeSlotsByCommType = Maps.newHashMap();
+        final Collection<CommodityBoughtTO> mergedComms = converter.mergeTimeSlotCommodities(
+            commoditiesBought.stream().map(CommodityBoughtTO::toBuilder)
+                .collect(Collectors.toList()),
+            timeSlotsByCommType,
+            CommodityBoughtTO.Builder::getSpecification,
+            CommodityBoughtTO.Builder::getQuantity,
+            CommodityBoughtTO.Builder::getPeakQuantity,
+            CommodityBoughtTO.Builder::setQuantity,
+            CommodityBoughtTO.Builder::setPeakQuantity)
+            .stream().map(CommodityBoughtTO.Builder::build).collect(Collectors.toList());
+        assertEquals(3, mergedComms.size());
+        List<CommodityBoughtTO> mergedComm = mergedComms.stream().filter(comm ->
+            CommodityDTO.CommodityType.POOL_CPU_VALUE == comm.getSpecification().getBaseType())
+            .collect(Collectors.toList());
+        assertEquals(1, mergedComm.size());
+        assertEquals(averageUsed, mergedComm.get(0).getQuantity(), DELTA);
+        assertEquals(averagePeak, mergedComm.get(0).getPeakQuantity(), DELTA);
+        assertEquals(1, timeSlotsByCommType.size());
+        final List<Double> timeSlotValues = timeSlotsByCommType.get(poolCpuCommType);
+        assertNotNull(timeSlotValues);
+        assertEquals(3, timeSlotValues.size());
+        assertEquals(used[0], timeSlotValues.get(0), DELTA);
+        assertEquals(used[1], timeSlotValues.get(1), DELTA);
+        assertEquals(used[2], timeSlotValues.get(2), DELTA);
+    }
+
+    /**
+     * Test timeslot bought commodities merge.
+     */
+    @Test
+    public void testMergeTimeSlotCommoditiesSold() {
+        final float used = 0.01f;
+        final float peak = 0.05f;
+        final float capacity = 1.0f;
+
+        final CommodityType vCpuCommType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VCPU_VALUE).build();
+
+        final CommodityType vMemCommType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
+
+        final CommodityType poolCpuCommType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build();
+
+        final CommoditySoldTO vcpu = createSoldTO(CommodityDTO.CommodityType.VCPU_VALUE,
+            capacity, true);
+        final CommoditySoldTO vMem = createSoldTO(CommodityDTO.CommodityType.VMEM_VALUE,
+            capacity, true);
+        final CommoditySoldTO poolCpu1 = createSoldTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            capacity, used, peak, true);
+        final CommoditySoldTO poolCpu2 = createSoldTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            capacity, used, peak, true);
+        final CommoditySoldTO poolCpu3 = createSoldTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            capacity, used, peak, true);
+        Collection<CommoditySoldTO> commditiesSold = ImmutableList.of(vcpu, vMem, poolCpu1, poolCpu2,
+            poolCpu3);
+
+        doReturn(Optional.of(vCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(vcpu.getSpecification()));
+        doReturn(Optional.of(vMemCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(vMem.getSpecification()));
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu1.getSpecification()));
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu2.getSpecification()));
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu3.getSpecification()));
+
+        doReturn(false).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(vcpu.getSpecification().getType()));
+        doReturn(false).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(vMem.getSpecification().getType()));
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu1.getSpecification().getType()));
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu2.getSpecification().getType()));
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu3.getSpecification().getType()));
+
+        final Map<CommodityType, List<Double>> timeSlotsByCommType = Maps.newHashMap();
+        final Collection<CommoditySoldTO> mergedComms = converter.mergeTimeSlotCommodities(
+            commditiesSold.stream().map(CommoditySoldTO::toBuilder)
+                .collect(Collectors.toList()),
+            timeSlotsByCommType,
+            CommoditySoldTO.Builder::getSpecification,
+            CommoditySoldTO.Builder::getQuantity,
+            CommoditySoldTO.Builder::getPeakQuantity,
+            CommoditySoldTO.Builder::setQuantity,
+            CommoditySoldTO.Builder::setPeakQuantity)
+            .stream().map(CommoditySoldTO.Builder::build).collect(Collectors.toList());
+        assertEquals(3, mergedComms.size());
+        List<CommoditySoldTO> mergedComm = mergedComms.stream().filter(comm ->
+            CommodityDTO.CommodityType.POOL_CPU_VALUE == comm.getSpecification().getBaseType())
+            .collect(Collectors.toList());
+        assertEquals(1, mergedComm.size());
+        assertEquals(used, mergedComm.get(0).getQuantity(), DELTA);
+        assertEquals(peak, mergedComm.get(0).getPeakQuantity(), DELTA);
+        assertEquals(1, timeSlotsByCommType.size());
+        final List<Double> timeSlotValues = timeSlotsByCommType.get(poolCpuCommType);
+        assertNotNull(timeSlotValues);
+        assertEquals(3, timeSlotValues.size());
+        assertEquals(used, timeSlotValues.get(0), DELTA);
+        assertEquals(used, timeSlotValues.get(1), DELTA);
+        assertEquals(used, timeSlotValues.get(2), DELTA);
+    }
+
+    /**
+     * Test timeslot bought commodities.
+     */
+    @Test
+    public void testConvertFromMarketTimeSlotCommoditiesBought() {
+        final float[] used = {0.5f, 0.6f, 0.65f};
+        final float[] peak = {0.55f, 0.65f, 0.75f};
+
+        final float averageUsed = (used[0] + used[1] + used[2]) / 3;
+        final float averagePeak = (peak[0] + peak[1] + peak[2]) / 3;
+
+        final float percentile = 0.7f;
+
+        final CommodityIndex mockIndex = mock(CommodityIndex.class);
+        final CommodityIndexFactory indexFactory = mock(CommodityIndexFactory.class);
+        doReturn(mockIndex).when(indexFactory).newIndex();
+        constructTopologyConverter(indexFactory);
+
+        final CommodityType poolCpuCommType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build();
+
+        // Bought commodities
+        final CommodityBoughtTO poolCpu1 = createBoughtTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            used[0], peak[0]);
+        final CommodityBoughtTO poolCpu2 = createBoughtTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            used[1], peak[1]);
+        final CommodityBoughtTO poolCpu3 = createBoughtTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            used[2], peak[2]);
+        final Collection<CommodityBoughtTO> boughtCommodities = ImmutableList.of(poolCpu1, poolCpu2, poolCpu3);
+
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu1.getSpecification()));
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu2.getSpecification()));
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu3.getSpecification()));
+
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu1.getSpecification().getType()));
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu2.getSpecification().getType()));
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu3.getSpecification().getType()));
+
+        final long businessUserId = 10L;
+        final long shoppinglistId = 20L;
+        final long supplierId = 30L;
+        final long desktopPoolId = 40L;
+        final EconomyDTOs.TraderTO businessUserTO = EconomyDTOs.TraderTO.newBuilder()
+            .setOid(businessUserId)
+            .setState(TraderStateTO.ACTIVE)
+            .setType(EntityType.BUSINESS_USER_VALUE)
+            .addShoppingLists(ShoppingListTO.newBuilder().setOid(shoppinglistId)
+                .setSupplier(supplierId)
+                .addAllCommoditiesBought(boughtCommodities)
+                .build())
+            .build();
+
+        // For testing percentile
+        final HistoricalValues historicalValues = HistoricalValues.newBuilder()
+                .setPercentile(percentile)
+            .build();
+        final TopologyDTO.CommodityBoughtDTO originalCommodityBought = createBoughtDTO(
+            CommodityDTO.CommodityType.POOL_CPU_VALUE, 0.01, 0.05, historicalValues);
+
+        doReturn(Optional.of(originalCommodityBought)).when(mockIndex).getCommBought(
+            Mockito.eq(businessUserId), Mockito.eq(supplierId),
+            Mockito.eq(poolCpuCommType), Mockito.eq(0L));
+
+        final TopologyDTO.TopologyEntityDTO originalEntityDTO = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(businessUserId)
+            .setEntityType(EntityType.BUSINESS_USER_VALUE)
+            .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider
+                .newBuilder().setProviderId(desktopPoolId)
+                .addCommodityBought(originalCommodityBought)
+                .setProviderEntityType(EntityType.DESKTOP_POOL_VALUE)
+                .build())
+            .build();
+
+        final Map<Long, ProjectedTopologyEntity> projectedTOs =
+            converter.convertFromMarket(Collections.singletonList(businessUserTO),
+                ImmutableMap.of(originalEntityDTO.getOid(), originalEntityDTO),
+                PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                setUpWastedFileAnalysis());
+
+        assertEquals(1, projectedTOs.size());
+        assertTrue(projectedTOs.containsKey(businessUserId));
+        final ProjectedTopologyEntity projectedTopologyEntity = projectedTOs.get(businessUserId);
+        assertNotNull(projectedTopologyEntity);
+        final TopologyEntityDTO topologyEntityDTO = projectedTopologyEntity.getEntity();
+        assertEquals(1, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
+        final CommoditiesBoughtFromProvider commoditiesBoughtFromProvider =
+            topologyEntityDTO.getCommoditiesBoughtFromProvidersList().get(0);
+        assertEquals(1, commoditiesBoughtFromProvider.getCommodityBoughtCount());
+        final CommodityBoughtDTO commodityBoughtDTO =
+            commoditiesBoughtFromProvider.getCommodityBoughtList().get(0);
+        assertTrue(commodityBoughtDTO.hasHistoricalUsed());
+        assertEquals(percentile, commodityBoughtDTO.getHistoricalUsed().getPercentile(), DELTA);
+        assertEquals(averageUsed, commodityBoughtDTO.getUsed(), DELTA);
+        assertEquals(averagePeak, commodityBoughtDTO.getPeak(), DELTA);
+        assertEquals(used.length, commodityBoughtDTO.getHistoricalUsed().getTimeSlotCount());
+        assertEquals(used[0], commodityBoughtDTO.getHistoricalUsed().getTimeSlot(0), DELTA);
+        assertEquals(used[1], commodityBoughtDTO.getHistoricalUsed().getTimeSlot(1), DELTA);
+        assertEquals(used[2], commodityBoughtDTO.getHistoricalUsed().getTimeSlot(2), DELTA);
+    }
+
+    /**
+     * Test timeslot sold commodities.
+     */
+    @Test
+    public void testConvertFromMarketTimeSlotCommoditiesSold() {
+        final float used = 0.01f;
+        final float peak = 0.05f;
+        final float capacity = 1.0f;
+        final float percentile = 0.7f;
+
+        final CommodityIndex mockIndex = mock(CommodityIndex.class);
+        final CommodityIndexFactory indexFactory = mock(CommodityIndexFactory.class);
+        doReturn(mockIndex).when(indexFactory).newIndex();
+        constructTopologyConverter(indexFactory);
+
+        final CommodityType poolCpuCommType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build();
+
+        // Sold commodities
+        final CommoditySoldTO poolCpu1 = createSoldTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+           capacity, used, peak, true);
+        final CommoditySoldTO poolCpu2 = createSoldTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            capacity, used, peak, true);
+        final CommoditySoldTO poolCpu3 = createSoldTO(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            capacity, used, peak, true);
+
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu1.getSpecification()));
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu2.getSpecification()));
+        doReturn(Optional.of(poolCpuCommType)).when(mockCommodityConverter).marketToTopologyCommodity(
+            Mockito.eq(poolCpu3.getSpecification()));
+
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu1.getSpecification().getType()));
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu2.getSpecification().getType()));
+        doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
+            Mockito.eq(poolCpu3.getSpecification().getType()));
+
+        final long shoppinglistId = 20L;
+        final long supplierId = 30L;
+        final long desktopPoolId = 40L;
+        final EconomyDTOs.TraderTO desktopPoolTO = EconomyDTOs.TraderTO.newBuilder()
+            .setOid(desktopPoolId)
+            .setState(TraderStateTO.ACTIVE)
+            .setType(EntityType.DESKTOP_POOL_VALUE)
+            .addShoppingLists(ShoppingListTO.newBuilder().setOid(shoppinglistId)
+                .setSupplier(supplierId)
+                .build())
+            .addAllCommoditiesSold(ImmutableList.of(poolCpu1, poolCpu2, poolCpu3))
+            .build();
+
+        // For testing percentile
+        final HistoricalValues historicalValues = HistoricalValues.newBuilder()
+            .setPercentile(percentile)
+        .build();
+
+        final CommoditySoldDTO originalCommoditySold = createSoldDTO(
+            CommodityDTO.CommodityType.POOL_CPU_VALUE, used, peak, historicalValues);
+
+        doReturn(Optional.of(originalCommoditySold)).when(mockIndex).getCommSold(
+            Mockito.eq(desktopPoolId), Mockito.eq(poolCpuCommType));
+
+        final TopologyDTO.TopologyEntityDTO originalEntityDTO = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setOid(desktopPoolId)
+            .setDisplayName("test")
+            .setEntityType(EntityType.DESKTOP_POOL_VALUE)
+            .addAllCommoditySoldList(ImmutableList.of(originalCommoditySold))
+            .build();
+
+        final Map<Long, ProjectedTopologyEntity> projectedTOs =
+            converter.convertFromMarket(Collections.singletonList(desktopPoolTO),
+                ImmutableMap.of(originalEntityDTO.getOid(), originalEntityDTO),
+                PriceIndexMessage.getDefaultInstance(), mockCCD, reservedCapacityAnalysis,
+                setUpWastedFileAnalysis());
+
+        assertEquals(1, projectedTOs.size());
+        assertTrue(projectedTOs.containsKey(desktopPoolId));
+        final ProjectedTopologyEntity projectedTopologyEntity = projectedTOs.get(desktopPoolId);
+        assertNotNull(projectedTopologyEntity);
+        final TopologyEntityDTO topologyEntityDTO = projectedTopologyEntity.getEntity();
+        assertEquals(1, topologyEntityDTO.getCommoditySoldListCount());
+        final CommoditySoldDTO commoditySoldDTO =
+            topologyEntityDTO.getCommoditySoldListList().get(0);
+        assertTrue(commoditySoldDTO.hasHistoricalUsed());
+        assertEquals(used, commoditySoldDTO.getUsed(), DELTA);
+        assertEquals(peak, commoditySoldDTO.getPeak(), DELTA);
+        assertEquals(3, commoditySoldDTO.getHistoricalUsed().getTimeSlotCount());
+        assertEquals(used, commoditySoldDTO.getHistoricalUsed().getTimeSlot(0), DELTA);
+        assertEquals(used, commoditySoldDTO.getHistoricalUsed().getTimeSlot(1), DELTA);
+        assertEquals(used, commoditySoldDTO.getHistoricalUsed().getTimeSlot(2), DELTA);
+    }
+
     private CommoditySoldTO createSoldTO(final int typeValue,
                                          final double capacity,
                                          final boolean resizable) {
+        return createSoldTO(typeValue, capacity, 0, 0, resizable);
+    }
+
+    private CommoditySoldTO createSoldTO(final int typeValue,
+                                         final double capacity,
+                                         final double quantity,
+                                         final double peakQuantity,
+                                         final boolean resizable) {
         CommoditySoldTO soldTO = CommoditySoldTO.newBuilder()
-                .setSpecification(CommoditySpecificationTO.newBuilder()
-                        .setBaseType(typeValue)
-                        .setType(typeValue).build())
-                .setCapacity((float)capacity)
-                .setSettings(CommoditySoldSettingsTO.newBuilder()
-                        .setResizable(resizable).build())
-                .build();
+            .setSpecification(CommoditySpecificationTO.newBuilder()
+                .setBaseType(typeValue)
+                .setType(typeValue).build())
+            .setCapacity((float)capacity)
+            .setQuantity((float)quantity)
+            .setPeakQuantity((float)peakQuantity)
+            .setSettings(CommoditySoldSettingsTO.newBuilder()
+                .setResizable(resizable).build())
+            .build();
         return soldTO;
 
     }
 
     private CommodityBoughtTO createBoughtTO(final int boughtTypeValue,
                                              final float quantity) {
+        return createBoughtTO(boughtTypeValue, quantity, 0);
+    }
+
+    private CommodityBoughtTO createBoughtTO(final int boughtTypeValue,
+             final float quantity, final float peakQuantity) {
         CommodityBoughtTO boughtTO = CommodityBoughtTO.newBuilder()
-                .setSpecification(CommoditySpecificationTO.newBuilder()
-                        .setBaseType(boughtTypeValue)
-                        .setType(boughtTypeValue).build())
-                .setQuantity(quantity)
-                .build();
+            .setSpecification(CommoditySpecificationTO.newBuilder()
+                .setBaseType(boughtTypeValue)
+                .setType(boughtTypeValue).build())
+            .setQuantity(quantity)
+            .setPeakQuantity(peakQuantity)
+            .build();
         return boughtTO;
+    }
+
+    private CommodityBoughtDTO createBoughtDTO(final int commodityTypeValue,
+            final double quantity, final double peakQuantity, final HistoricalValues historicalValues) {
+        final TopologyDTO.CommodityBoughtDTO.Builder commodityBoughtDTO =
+            CommodityBoughtDTO.newBuilder()
+            .setCommodityType(
+                CommodityType.newBuilder().setType(commodityTypeValue))
+            .setUsed(quantity)
+            .setPeak(peakQuantity);
+        if (historicalValues != null) {
+            commodityBoughtDTO.setHistoricalUsed(historicalValues);
+        }
+        return commodityBoughtDTO.build();
+    }
+
+    private CommoditySoldDTO createSoldDTO(final int commodityTypeValue,
+           final double quantity, final double peakQuantity, final HistoricalValues historicalValues) {
+        final TopologyDTO.CommoditySoldDTO.Builder commoditySoldDTO =
+            CommoditySoldDTO.newBuilder()
+                .setCommodityType(
+                    CommodityType.newBuilder().setType(commodityTypeValue))
+                .setUsed(quantity)
+                .setPeak(peakQuantity);
+        if (historicalValues != null) {
+            commoditySoldDTO.setHistoricalUsed(historicalValues);
+        }
+        return commoditySoldDTO.build();
     }
 
     private TopologyDTO.TopologyEntityDTO createOriginalDTOAndMockIndex(CommodityIndex mockINdex) {

@@ -1,5 +1,6 @@
 package com.vmturbo.group.setting;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -22,9 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -32,6 +31,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
@@ -39,25 +39,27 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.InvalidItemException;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.service.StoreOperationException;
+import com.vmturbo.group.service.TransactionProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Responsible for creating the default {@link SettingPolicyInfo} objects for the setting
  * specs loaded by the {@link SettingStore} at startup. It's abstracted into a runnable
  * (instead of a lambda) to encapsulate the retry logic.
- * <p>
- * Also responsible for merging the loaded defaults with any existing defaults in
+ *
+ * <p>Also responsible for merging the loaded defaults with any existing defaults in
  * the database.
  */
 public class DefaultSettingPolicyCreator implements Runnable {
 
     private final Logger logger = LogManager.getLogger();
     private final Map<Integer, SettingPolicyInfo> policies;
-    private final SettingStore settingStore;
+    private final TransactionProvider transactionProvider;
     private final long timeBetweenIterationsMs;
+    private final IdentityProvider identityProvider;
 
     /**
      * HACK here since we need to show for example "Host Default" as the physical machine policy
@@ -69,64 +71,105 @@ public class DefaultSettingPolicyCreator implements Runnable {
     private static final Map<Integer, String> SETTING_NAMES_MAPPER = ImmutableMap.of(
         EntityType.PHYSICAL_MACHINE_VALUE, StringConstants.HOST);
 
+    /**
+     * Constructs default setting policies creator.
+     *
+     * @param specStore setting specs store
+     * @param transactionProvider transaction provider to operate with storage backend
+     * @param timeBetweenIterationsMs iterations time
+     * @param identityProvider identity provider to assign OIDs to new created default settings
+     */
     public DefaultSettingPolicyCreator(@Nonnull final SettingSpecStore specStore,
-            @Nonnull final SettingStore settingStore, final long timeBetweenIterationsMs) {
+            @Nonnull final TransactionProvider transactionProvider,
+            final long timeBetweenIterationsMs, @Nonnull IdentityProvider identityProvider) {
         Objects.requireNonNull(specStore);
         this.policies = defaultSettingPoliciesFromSpecs(specStore.getAllSettingSpecs());
-        this.settingStore = Objects.requireNonNull(settingStore);
+        this.transactionProvider = Objects.requireNonNull(transactionProvider);
         this.timeBetweenIterationsMs = timeBetweenIterationsMs;
+        this.identityProvider = Objects.requireNonNull(identityProvider);
+    }
+
+    private boolean runIteration() throws InterruptedException {
+        if (Thread.interrupted()) {
+            throw new InterruptedException();
+        }
+        try {
+            return transactionProvider.transaction(
+                    stores -> runIteration(stores.getSettingPolicyStore()));
+        } catch (StoreOperationException e) {
+            logger.error("Failed to create default policies", e);
+        }
+        return true;
     }
 
     /**
      * Attempt to save the default policies into the database. Only save policies that
-     * are different from those already in the DB (to handle upgrades). Don't remove
-     * existing policies or policy specs (even if they were removed from EntitySettingSpec,
-     * which is not supposed to happen) - only add new ones.
+     * are different from those already in the DB (to handle upgrades). New set of
+     * default settings is expected to be exactly the one that is in {@code policies}.
      *
+     * @param settingStore setting policy store to operate with
      * @return True if another iteration is required. False otherwise (i.e. when all policies
      * have either been written, or failed with unrecoverable errors).
+     * @throws StoreOperationException if failed operating with setting store
      */
-    private boolean runIteration() {
-        settingStore.getSettingPolicies(
-                SettingPolicyFilter.newBuilder().withType(Type.DEFAULT).build())
-                    .map(SettingProto.SettingPolicy::getInfo)
-                    .forEach(this::mergePolicies);
-        logger.debug("Creating default setting policies: {}", () -> policies.values()
+    private boolean runIteration(@Nonnull ISettingPolicyStore settingStore)
+            throws StoreOperationException {
+        final Collection<SettingPolicy> existingPolicies = settingStore.getPolicies(
+                SettingPolicyFilter.newBuilder().withType(Type.DEFAULT).build());
+        final Collection<SettingPolicy> policiesToInsert = new ArrayList<>();
+        final Set<Long> policiesToDelete = new HashSet<>(
+                existingPolicies.stream().map(SettingPolicy::getId).collect(Collectors.toSet()));
+        final Set<Integer> missedEntityTypes = new HashSet<>(policies.keySet());
+        for (SettingPolicy existingPolicy: existingPolicies) {
+            final int entityType = existingPolicy.getInfo().getEntityType();
+            missedEntityTypes.remove(entityType);
+            final SettingPolicyInfo info = policies.get(entityType);
+            if (info == null) {
+                // Policy no longer exist. Removing it.
+                policiesToDelete.add(existingPolicy.getId());
+            } else {
+                if (defaultPolicyInfoEquals(info, existingPolicy.getInfo())) {
+                    policiesToDelete.remove(existingPolicy.getId());
+                } else {
+                    policiesToInsert.add(SettingPolicy.newBuilder()
+                            .setId(existingPolicy.getId())
+                            .setInfo(mergePolicies(existingPolicy.getInfo(), info))
+                            .setSettingPolicyType(Type.DEFAULT)
+                            .build());
+                }
+            }
+        }
+        for (Integer entityType : missedEntityTypes) {
+            final SettingPolicyInfo info = policies.get(entityType);
+            policiesToInsert.add(SettingPolicy.newBuilder()
+                    .setId(identityProvider.next())
+                    .setInfo(info)
+                    .setSettingPolicyType(Type.DEFAULT)
+                    .build());
+        }
+        logger.debug("Removing obsolete/updated setting policies: {}", policiesToDelete);
+        settingStore.deletePolicies(policiesToDelete, Type.DEFAULT);
+        logger.debug("Creating/updating default setting policies: {}", () -> policies.values()
                 .stream()
                 .map(SettingPolicyInfo::getName)
                 .collect(Collectors.toList()));
-        final Set<Integer> retrySet = new HashSet<>();
-        policies.forEach((entityType, policyInfo) -> {
-            try {
-                settingStore.createDefaultSettingPolicy(policyInfo);
-            } catch (InvalidItemException e) {
-                // This indicates a problem with the code!
-                // No point trying to create it again.
-                logger.error("Failed to create policy " + policyInfo.getName() +
-                        " because the default policy was invalid!", e);
-            } catch (DuplicateNameException e) {
-                // This indicates that the setting policy already exists.
-                // This should never happen, because we should have filtered out the
-                // policy earlier in the iteration. However, it's not fatal, so no need
-                // to throw an IllegalStateException.
-                logger.error("The policy: {} already exists! This should never happen!",
-                        policyInfo.getName(), e);
-            } catch (DataAccessException e) {
-                // Some other error connecting to the database - worth trying again!
-                retrySet.add(entityType);
-                // Stack trace for DataAccessException is useless, just print the error.
-                logger.error("Failed to create policy " + policyInfo.getName() + " due to DB error",
-                        e);
-            }
-        });
-        // Retain the policies we want to retry.
-        policies.keySet().retainAll(retrySet);
-        return !policies.isEmpty();
+        settingStore.createSettingPolicies(policiesToInsert);
+        return false;
+    }
+
+    private static boolean defaultPolicyInfoEquals(@Nonnull SettingPolicyInfo left, @Nonnull SettingPolicyInfo right) {
+        if (!(left.getDisplayName().equals(right.getDisplayName()))) {
+            return false;
+        }
+        if (!(left.getName().equals(right.getName()))) {
+            return false;
+        }
+        return new HashSet<>(left.getSettingsList()).equals(new HashSet<>(right.getSettingsList()));
     }
 
     /**
-     * Given a policy from the DB, look for the corresponding entry in policies (generated from
-     * EntitySettingSpec for the same entity type - it is assumed that one exists). If it has the
+     * Given a policy from the DB, and policy generated from
+     * EntitySettingSpec for the same entity type. If it has the
      * same specs as the one from the DB then don't do anything. If it has extra specs then add
      * the extra specs to the db policy.
      * The cases where there is a policy for an entity type in the db, but no corresponding
@@ -134,35 +177,43 @@ public class DefaultSettingPolicyCreator implements Runnable {
      * EntitySettingSpec (i.e. policy specs were removed) are not handled.
      *
      * @param dbPolicyInfo a policy info from the database
+     * @param policyFromSpec a policy from setting spec store
+     * @return a resulting setting policy
      */
-    private void mergePolicies(@Nonnull SettingProto.SettingPolicyInfo dbPolicyInfo) {
-        int entityType = dbPolicyInfo.getEntityType();
-        SettingPolicyInfo defaultPolicy = policies.get(entityType);
-        List<String> dbSpecsNames = specNames(dbPolicyInfo);
-        List<String> defaultSpecsNames = specNames(defaultPolicy);
-        if (dbSpecsNames.equals(defaultSpecsNames)) {
-            // Default policies in EntitySettingSpec has the same names as in the DB
-            policies.remove(dbPolicyInfo.getEntityType());
-        } else {
-            // Create a new policy with all specs from the DB and new specs from EntitySettingSpec
-            defaultSpecsNames.removeAll(dbSpecsNames);
-            SettingPolicyInfo merged = SettingPolicyInfo.newBuilder(dbPolicyInfo)
-                    .addAllSettings(defaultPolicy.getSettingsList().stream()
-                        .filter(setting -> defaultSpecsNames.contains(setting.getSettingSpecName()) )
+    @Nonnull
+    private static SettingPolicyInfo mergePolicies(@Nonnull SettingPolicyInfo dbPolicyInfo,
+            @Nonnull SettingPolicyInfo policyFromSpec) {
+        final Set<String> dbSpecsNames = specNames(dbPolicyInfo);
+        final Set<String> defaultSpecsNames = specNames(policyFromSpec);
+        final Set<String> settingsToAdd = new HashSet<>(defaultSpecsNames);
+        // Create a new policy with all specs from the DB and new specs from EntitySettingSpec
+        settingsToAdd.removeAll(dbSpecsNames);
+        final Set<String> settingsToRemove = new HashSet<>(dbSpecsNames);
+        settingsToRemove.removeAll(defaultSpecsNames);
+        final SettingPolicyInfo merged;
+        merged = SettingPolicyInfo.newBuilder(dbPolicyInfo)
+                .setDisplayName(policyFromSpec.getDisplayName())
+                .setName(policyFromSpec.getName())
+                .clearSettings()
+                .addAllSettings(dbPolicyInfo.getSettingsList()
+                        .stream()
+                        .filter(setting -> !settingsToRemove.contains(setting.getSettingSpecName()))
                         .collect(Collectors.toList()))
-                    .build();
-            policies.put(entityType, merged);
-        }
+                .addAllSettings(policyFromSpec.getSettingsList()
+                        .stream()
+                        .filter(setting -> settingsToAdd.contains(setting.getSettingSpecName()))
+                        .collect(Collectors.toList()))
+                .build();
+        return merged;
     }
 
     @Nonnull
-    private static List<String> specNames(@Nullable SettingPolicyInfo policy) {
+    private static Set<String> specNames(@Nullable SettingPolicyInfo policy) {
         return policy == null
-            ? Collections.emptyList()
+            ? Collections.emptySet()
             : policy.getSettingsList().stream()
                 .map(Setting::getSettingSpecName)
-                .sorted()
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -173,21 +224,19 @@ public class DefaultSettingPolicyCreator implements Runnable {
     @Override
     public void run() {
         logger.info("Creating default setting policies...");
-        while (runIteration()) {
-            try {
+        try {
+            while (runIteration()) {
                 Thread.sleep(timeBetweenIterationsMs);
-            } catch (InterruptedException e) {
-                final String policiesList = policies.values()
-                        .stream()
-                        .map(SettingPolicyInfo::getName)
-                        .collect(Collectors.joining(", "));
-                logger.error("Interrupted creation of policies! The following default" +
-                        "policies have not been created: " + policiesList);
-                Thread.currentThread().interrupt();
-                break;
             }
+            logger.info("Done creating default setting policies!");
+        } catch (InterruptedException e) {
+            final String policiesList = policies.values()
+                    .stream()
+                    .map(SettingPolicyInfo::getName)
+                    .collect(Collectors.joining(", "));
+            logger.error("Interrupted creation of policies! The following default" +
+                    "policies have not been created: " + policiesList);
         }
-        logger.info("Done creating default setting policies!");
     }
 
     /**
@@ -240,6 +289,7 @@ public class DefaultSettingPolicyCreator implements Runnable {
 
                     final SettingPolicyInfo.Builder policyBuilder = SettingPolicyInfo.newBuilder()
                             .setName(displayName)
+                            .setDisplayName(displayName)
                             .setEntityType(entry.getKey())
                             .setEnabled(true);
                     final List<SettingSpec> specsForType = entry.getValue();
@@ -254,6 +304,7 @@ public class DefaultSettingPolicyCreator implements Runnable {
      * Create a {@link Setting} representing the default value in a {@link SettingSpec}.
      *
      * @param spec The {@link SettingSpec}.
+     * @param entityType entity type to create a setting for
      * @return The {@link Setting} representing the spec's default value, or an empty
      * optional if the {@link SettingSpec} is malformed.
      */
@@ -300,7 +351,7 @@ public class DefaultSettingPolicyCreator implements Runnable {
                     .addAllOids(valueType.getDefaultList()));
                 break;
             default: {
-                /**
+                /*
                  * It is a error, if we have pre-defined settings wrongly configured.
                  */
                 throw new RuntimeException("Setting spec " + spec.getName() +

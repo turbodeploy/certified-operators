@@ -47,7 +47,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupB
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat.StatGroup;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
@@ -65,11 +65,11 @@ public class SupplyChainStatistician {
      * This holds the mapping from a type of tier that represent the template of
      * that entity.
      */
-    private static final Map<UIEntityType, UIEntityType> TYPE_TO_TIER = ImmutableMap.of(
-            UIEntityType.VIRTUAL_MACHINE, UIEntityType.COMPUTE_TIER,
-            UIEntityType.DATABASE, UIEntityType.DATABASE_TIER,
-            UIEntityType.DATABASE_SERVER, UIEntityType.DATABASE_SERVER_TIER,
-            UIEntityType.VIRTUAL_VOLUME, UIEntityType.STORAGE_TIER
+    private static final Map<ApiEntityType, ApiEntityType> TYPE_TO_TIER = ImmutableMap.of(
+            ApiEntityType.VIRTUAL_MACHINE, ApiEntityType.COMPUTE_TIER,
+            ApiEntityType.DATABASE, ApiEntityType.DATABASE_TIER,
+            ApiEntityType.DATABASE_SERVER, ApiEntityType.DATABASE_SERVER_TIER,
+            ApiEntityType.VIRTUAL_VOLUME, ApiEntityType.STORAGE_TIER
         );
 
     /**
@@ -176,7 +176,7 @@ public class SupplyChainStatistician {
             groupByList.forEach(groupBy -> {
                 switch (groupBy) {
                     case ENTITY_TYPE:
-                        statGroupKey.setEntityType(UIEntityType.fromType(entity.getEntityType()));
+                        statGroupKey.setEntityType(ApiEntityType.fromType(entity.getEntityType()));
                         break;
                     case ENTITY_STATE:
                         statGroupKey.setEntityState(entity.getEntityState());
@@ -206,7 +206,7 @@ public class SupplyChainStatistician {
                             // Traverse up ownership until we get no owner, or until we hit
                             // a business account.
                         } while (firstBaOwner.isPresent() &&
-                            firstBaOwner.get().getEntityType() != UIEntityType.BUSINESS_ACCOUNT.typeNumber());
+                            firstBaOwner.get().getEntityType() != ApiEntityType.BUSINESS_ACCOUNT.typeNumber());
 
                         if (firstBaOwner.isPresent()) {
                             statGroupKey.setOwnerBusinessAccount(firstBaOwner.get().getOid());
@@ -222,8 +222,8 @@ public class SupplyChainStatistician {
 
     @Nonnull
     private Optional<String> getTemplate(@Nonnull RepoGraphEntity entity) {
-        final UIEntityType tierType =
-            TYPE_TO_TIER.get(UIEntityType.fromType(entity.getEntityType()));
+        final ApiEntityType tierType =
+            TYPE_TO_TIER.get(ApiEntityType.fromType(entity.getEntityType()));
 
         // If there is no tier defined for this entity type just return the template type as unknown
         if (tierType == null) {
@@ -504,7 +504,7 @@ public class SupplyChainStatistician {
      */
     private static class StatGroupKey {
 
-        private UIEntityType entityType = null;
+        private ApiEntityType entityType = null;
 
         private EntityState entityState = null;
 
@@ -594,7 +594,7 @@ public class SupplyChainStatistician {
         }
 
         @Nonnull
-        StatGroupKey setEntityType(final UIEntityType entityType) {
+        StatGroupKey setEntityType(final ApiEntityType entityType) {
             this.entityType = entityType;
             return this;
         }

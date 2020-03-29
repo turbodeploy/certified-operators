@@ -62,6 +62,9 @@ spec:
           readOnly: true
         - mountPath: /tmp
           name: mediation-intersighthyperflex-tmpfs0
+        - mountPath: /etc/targets
+          name: intersight-secrets
+          readOnly: true
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
     {{- if .Values.global.imagePullSecret }}
@@ -95,6 +98,10 @@ spec:
           optional: true
       - name: mediation-intersighthyperflex-tmpfs0
         emptyDir: {}
+      - name: intersight-secrets
+        secret:
+          secretName: "intersight"
+          optional: true
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}

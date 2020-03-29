@@ -1,7 +1,18 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import static org.mockito.Mockito.spy;
+
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
+
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
@@ -11,6 +22,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.RegionInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+
 
 /**
  * RegionAspectMapperTest test class for Region aspect mapper.
@@ -25,8 +37,16 @@ public class RegionAspectMapperTest extends BaseAspectMapperTest {
     private TopologyEntityDTO regionTopologyEntityDTO3;
 
     /**
-     * Set up test and create a topology entity dto.
+     * Mock server.
      */
+    @Rule
+    public GrpcTestServer mockServer = GrpcTestServer.newServer(spy(new SupplyChainServiceMole()));
+
+    private SupplyChainServiceBlockingStub supplyChainServiceClient;
+
+    /**
+     * Set up test and create a topology entity dto.
+     **/
     @Before
     public void setUp() {
         regionTopologyEntityDTO1 = TopologyEntityDTO.newBuilder()
@@ -56,23 +76,26 @@ public class RegionAspectMapperTest extends BaseAspectMapperTest {
                                 .setRegion(RegionInfo.newBuilder())
                 )
                 .build();
+
+        supplyChainServiceClient = SupplyChainServiceGrpc.newBlockingStub(mockServer.getChannel());
     }
 
     /**
      * Map entity to its aspect and verify if the information is correct.
-     */
+     **/
     @Test
     public void testMapEntityToAspect() {
-        RegionAspectMapper testMapper = new RegionAspectMapper();
+        RegionAspectMapper testMapper = new RegionAspectMapper(supplyChainServiceClient);
 
         // act
-        final EntityAspect resultAspect1 = testMapper.mapEntityToAspect(regionTopologyEntityDTO1);
+        final Optional<Map<Long, EntityAspect>> resultAspect1 = testMapper.mapEntityToAspectBatch(Collections.singletonList(regionTopologyEntityDTO1));
 
         // assert
-        final RegionAspectApiDTO regionAspectApiDTO1 = (RegionAspectApiDTO)resultAspect1;
+        final RegionAspectApiDTO regionAspectApiDTO1 = (RegionAspectApiDTO)resultAspect1.get().get(REGION_OID);
         assert regionAspectApiDTO1 != null;
         Assert.assertEquals(10.0, regionAspectApiDTO1.getLatitude(), 0);
         Assert.assertEquals(10.0, regionAspectApiDTO1.getLongitude(), 0);
+        Assert.assertEquals(0, regionAspectApiDTO1.getNumWorkloads());
 
         // act
         final EntityAspect resultAspect2 = testMapper.mapEntityToAspect(regionTopologyEntityDTO2);

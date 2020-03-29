@@ -30,13 +30,12 @@ import com.vmturbo.topology.processor.history.AbstractStatsLoadingTask;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
-import com.vmturbo.topology.processor.history.IHistoryLoadingTask;
 
 /**
  * Loader of time slot data from historydb.
  */
-public class TimeSlotLoadingTask extends AbstractStatsLoadingTask<TimeslotHistoricalEditorConfig, List<Pair<Long, StatRecord>>>
-        implements IHistoryLoadingTask<TimeslotHistoricalEditorConfig, List<Pair<Long, StatRecord>>> {
+public class TimeSlotLoadingTask extends
+                AbstractStatsLoadingTask<TimeslotHistoricalEditorConfig, List<Pair<Long, StatRecord>>> {
     private static final Logger logger = LogManager.getLogger();
 
     private final StatsHistoryServiceBlockingStub statsHistoryClient;

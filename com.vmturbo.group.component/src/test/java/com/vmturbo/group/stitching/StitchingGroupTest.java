@@ -12,7 +12,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
  * Unit tests for {@link StitchingGroup}.
@@ -71,7 +71,7 @@ public class StitchingGroupTest {
             .setStaticGroupMembers(StaticMembers.newBuilder()
                 .addMembersByType(StaticMembersByType.newBuilder()
                     .setType(MemberType.newBuilder()
-                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                        .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                     .addAllMembers(Arrays.asList(members))))
             .build();
     }

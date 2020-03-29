@@ -373,6 +373,9 @@ public class AccountExpensesUploaderTest {
 
          Mockito.when(mockStitchingContext.getEntitiesByEntityTypeAndTarget())
                  .thenReturn(entitiesByEntityTypeAndTarget.build());
+
+         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.SERVICE_PROVIDER)).thenAnswer(
+                 invocationOnMock -> Stream.empty());
      }
 
     /**

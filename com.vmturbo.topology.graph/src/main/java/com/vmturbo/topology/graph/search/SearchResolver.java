@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
 import com.vmturbo.topology.graph.search.filter.TopologyFilterFactory;
@@ -88,7 +88,7 @@ public class SearchResolver<E extends TopologyGraphEntity<E>> {
             Map<Long, E> result = new HashMap<>();
 
             // map entity type to SearchParameters
-            Map<UIEntityType, List<SearchParameters>> paramsPerEntityType = searchParameters.stream()
+            Map<ApiEntityType, List<SearchParameters>> paramsPerEntityType = searchParameters.stream()
                     .collect(Collectors.groupingBy(SearchProtoUtil::getEntityTypeFromSearchParameters));
 
             // for each entity type, get the entities which match all the criteria for
@@ -128,7 +128,7 @@ public class SearchResolver<E extends TopologyGraphEntity<E>> {
             } else if (startingFilter.hasStringFilter()) {
                 StringFilter strFilter = startingFilter.getStringFilter();
                 if (!StringUtils.isEmpty(strFilter.getStringPropertyRegex())) {
-                    final UIEntityType entityType = UIEntityType.fromString(
+                    final ApiEntityType entityType = ApiEntityType.fromString(
                         startingFilter.getStringFilter().getStringPropertyRegex());
                     if (startingFilter.getStringFilter().getPositiveMatch()) {
                         return graph.entitiesOfType(entityType.typeNumber());
@@ -140,7 +140,7 @@ public class SearchResolver<E extends TopologyGraphEntity<E>> {
                     } else {
                         // Use the indices for the types.
                         return strFilter.getOptionsList().stream()
-                            .map(UIEntityType::fromString)
+                            .map(ApiEntityType::fromString)
                             .flatMap(type -> graph.entitiesOfType(type.typeNumber()));
                     }
                 }

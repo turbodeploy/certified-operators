@@ -7,19 +7,19 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -27,6 +27,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.ConstraintGroup;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -74,11 +75,13 @@ public class ConstraintsEditor {
      * @param graph to resolve groups members
      * @param changes with ignore constraint settings
      * @param isPressurePlan is true if plan is of type alleviate pressure
+     * @throws ConstraintsEditorException thrown if {@link IgnoreConstraint} has unsupported configs.
      */
     public void editConstraints(@Nonnull final TopologyGraph<TopologyEntity> graph,
-            @Nonnull final List<ScenarioChange> changes, boolean isPressurePlan) {
+            @Nonnull final List<ScenarioChange> changes, boolean isPressurePlan)
+            throws ConstraintsEditorException {
         final Multimap<Long, String> entitiesToIgnoredCommodities = HashMultimap.create();
-        changes.forEach(change -> {
+        for (ScenarioChange change: changes) {
             if (change.hasPlanChanges()) {
                 final List<IgnoreConstraint> ignoreConstraints = change
                         .getPlanChanges().getIgnoreConstraintsList();
@@ -92,19 +95,53 @@ public class ConstraintsEditor {
                             });
                 }
             }
-        });
+        }
 
         deactivateCommodities(graph, entitiesToIgnoredCommodities);
     }
 
+    /**
+     * Checks if plan configured with unsupported {@link IgnoreConstraint}s options.
+     *
+     * @param ignoredCommodities the list of ignoreConstraints to check for proper configuration
+     * @return true if any ignoreCommodities is not supported.
+     */
+    @VisibleForTesting
+    static boolean hasUnsupportedIgnoreConstraintConfigurations(@Nonnull List<IgnoreConstraint> ignoredCommodities) {
+        return ignoredCommodities.stream()
+                .anyMatch(ignoreConstraint ->  {
+                    boolean deprecatedFieldConfiguration = ignoreConstraint.hasDeprecatedIgnoreEntityTypes();
+                    boolean misConfiguredGroup = ignoreConstraint.hasIgnoreGroup() && !ignoreConstraint.getIgnoreGroup().hasGroupUuid();
+                    return deprecatedFieldConfiguration || misConfiguredGroup;
+                });
+    }
+
+    /**
+     * Maps entityOids to commodities to ignore based on ignoreConstraints.
+     *
+     * @param ignoredCommodities ignoreConstraint changes
+     * @param graph to resolve groups members
+     * @param isPressurePlan is true if plan is of type alleviate pressure
+     * @return entityOids to commodities to ignore
+     * @throws ConstraintsEditorException thrown if {@link IgnoreConstraint} has unsupported configs.
+     */
     @Nonnull
     private Multimap<Long, String> getEntitiesOidsForIgnoredCommodities(
         @Nonnull List<IgnoreConstraint> ignoredCommodities,
-        @Nonnull TopologyGraph<TopologyEntity> graph, boolean isPressurePlan) {
+        @Nonnull TopologyGraph<TopologyEntity> graph, boolean isPressurePlan)
+            throws ConstraintsEditorException {
 
         final Multimap<Long, String> entitesToIgnoredCommodities = HashMultimap.create();
         boolean hasIgnoreAllEntities = ignoredCommodities.stream()
                 .anyMatch(IgnoreConstraint::hasIgnoreAllEntities);
+
+        // Older IgnoreConstraints configurations no longer supported.  We are trying
+        // to detect them here, in which case we fail plan and prompt user to create a new one
+        // rather then running a plan without applying ignoreConstraints as originally intended.
+        if (hasUnsupportedIgnoreConstraintConfigurations(ignoredCommodities)) {
+            throw new ConstraintsEditorException("Ignore Constraint configurations not longer supported," +
+                    "please reconfigure a new plan");
+        }
 
         // First check if all entities have to be ignored.
         if (hasIgnoreAllEntities) {
@@ -118,51 +155,21 @@ public class ConstraintsEditor {
                     });
             return entitesToIgnoredCommodities;
         }
-
+        
         // Check if all entities of specific types have to be ignored.
         ignoredCommodities.stream()
-                .filter(IgnoreConstraint::hasIgnoreEntityTypes)
-                .map(IgnoreConstraint::getIgnoreEntityTypes)
-                .flatMap(entityTypes -> entityTypes.getEntityTypesList().stream())
+                .filter(IgnoreConstraint::hasGlobalIgnoreEntityType)
+                .map(IgnoreConstraint::getGlobalIgnoreEntityType)
+                .map(GlobalIgnoreEntityType::getEntityType)
                 .map(entityType -> graph.entitiesOfType(entityType))
                 .flatMap(Function.identity())
                 .forEach(entity -> {
-                        entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
-                        if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                            entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                    entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
+                    if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                        entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
                                 .setShopTogether(true);
-                        }
+                    }
                 });
-
-        // HACK : Ignore All constraints at global level.
-        // This is done because currently there is a gap in UI where not enough information is
-        // sent at global level to apply ignore constraints generically. IgnoreConstraint
-        // without group only exists for ALL_COMMODITIES and applies to VMs/Containers/ContainerPods.
-        // TODO : Revisit this with OM-55303 to consume changes made in UI for Ignore Constraints.
-        ignoredCommodities.stream()
-            .filter(IgnoreConstraint::hasIgnoreGroup)
-            .map(IgnoreConstraint::getIgnoreGroup)
-            .filter(ConstraintGroup::hasCommodityType)
-            .map(ConstraintGroup::getCommodityType)
-            .filter(commType -> ConstraintType.GlobalIgnoreConstraint.name().equals(commType))
-            .findFirst()
-            .ifPresent(comm -> {
-                    Stream.of(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE),
-                        graph.entitiesOfType(EntityType.CONTAINER),
-                        graph.entitiesOfType(EntityType.CONTAINER_POD))
-                            .flatMap(Function.identity())
-                            .forEach(entity -> {
-                                entitesToIgnoredCommodities.put(entity.getOid(), ALL_COMMODITIES);
-                                // VMs should shop together when all constraints are ignored
-                                // in order to place on Storage/Host pairing and prevent
-                                // incorrect placing on entities that the VM should not place on
-                                // such as a Disk Array that sells the same non access commodities.
-                                if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                                    entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
-                                        .setShopTogether(true);
-                                }
-                            });
-            });
 
         Set<Long> groups = ignoredCommodities.stream()
                 .filter(IgnoreConstraint::hasIgnoreGroup)
@@ -304,6 +311,21 @@ public class ConstraintsEditor {
             }
         }
         return deactivatedCommodities.build();
+    }
+
+    /**
+     * An exception thrown {@link ConstraintsEditor} stage fails.
+     */
+    public static class ConstraintsEditorException extends Exception {
+
+        /**
+         * Create a new {@link ConstraintsEditorException}.
+         *
+         * @param message The message describing the exception.
+         */
+        public ConstraintsEditorException(@Nonnull final String message) {
+            super(message);
+        }
     }
 
 }

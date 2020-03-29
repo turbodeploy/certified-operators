@@ -47,7 +47,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -86,11 +86,11 @@ public class EntitySeverityCache {
     private static final RetrieveTopologyEntitiesRequest GET_ENTITIES_DIRECTLY_ATTACHED_TO_BAPP =
         RetrieveTopologyEntitiesRequest.newBuilder()
             .addEntityType(EntityType.APPLICATION_COMPONENT_VALUE)
-                    .addEntityType(EntityType.DATABASE_SERVER_VALUE)
-                    .addEntityType(EntityType.CONTAINER_VALUE)
-                    .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                    .setReturnType(Type.MINIMAL)
-                    .build();
+            .addEntityType(EntityType.DATABASE_SERVER_VALUE)
+            .addEntityType(EntityType.CONTAINER_VALUE)
+            .addEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setReturnType(Type.MINIMAL)
+            .build();
 
     private final Logger logger = LogManager.getLogger();
 
@@ -116,13 +116,13 @@ public class EntitySeverityCache {
      * </pre>
      */
     private static final List<String> PROPAGATED_ENTITY_TYPES = Arrays.asList(
-        UIEntityType.APPLICATION_COMPONENT.apiStr(),
-        UIEntityType.VIRTUAL_MACHINE.apiStr(),
-        UIEntityType.DATABASE_SERVER.apiStr(),
-        UIEntityType.VIRTUAL_VOLUME.apiStr(),
-        UIEntityType.STORAGE.apiStr(),
-        UIEntityType.VIRTUAL_VOLUME.apiStr(),
-        UIEntityType.PHYSICAL_MACHINE.apiStr());
+        ApiEntityType.APPLICATION_COMPONENT.apiStr(),
+        ApiEntityType.VIRTUAL_MACHINE.apiStr(),
+        ApiEntityType.DATABASE_SERVER.apiStr(),
+        ApiEntityType.VIRTUAL_VOLUME.apiStr(),
+        ApiEntityType.STORAGE.apiStr(),
+        ApiEntityType.VIRTUAL_VOLUME.apiStr(),
+        ApiEntityType.PHYSICAL_MACHINE.apiStr());
 
     /**
      * Constructs the EntitySeverityCache that uses grpc to calculation risk propagation.
@@ -247,7 +247,7 @@ public class EntitySeverityCache {
             long oid = getMultiSupplyChainsResponse.getSeedOid();
             SeverityCount severityBreakdown = new SeverityCount();
             for (SupplyChainNode node : getMultiSupplyChainsResponse.getSupplyChain()
-                    .getSupplyChainNodesList()) {
+                .getSupplyChainNodesList()) {
                 for (MemberList memberList : node.getMembersByStateMap().values()) {
                     for (long entityOid : memberList.getMemberOidsList()) {
                         Severity entitySeverity = severities.get(entityOid);
@@ -493,8 +493,8 @@ public class EntitySeverityCache {
      * @return sorted entity oids
      */
     public List<Long> sortEntityOids(
-            @Nonnull final Collection<Long> entityOids,
-            final boolean ascending) {
+        @Nonnull final Collection<Long> entityOids,
+        final boolean ascending) {
         synchronized (severities) {
             OrderOidBySeverity orderOidBySeverity = new OrderOidBySeverity(this);
             return entityOids.stream()
@@ -512,7 +512,7 @@ public class EntitySeverityCache {
     private void handleActionSeverity(@Nonnull final ActionView actionView) {
         try {
             final long severityEntity = ActionDTOUtil.getSeverityEntity(
-                    actionView.getTranslationResultOrOriginal());
+                actionView.getTranslationResultOrOriginal());
             final Severity nextSeverity = ActionDTOUtil.mapActionCategoryToSeverity(
                 actionView.getActionCategory());
 
@@ -535,11 +535,11 @@ public class EntitySeverityCache {
      *         False if there is no match or the severity entity for the spec cannot be determined.
      */
     private boolean matchingSeverityEntity(
-            long severityEntity,
-            @Nonnull final ActionView actionView) {
+        long severityEntity,
+        @Nonnull final ActionView actionView) {
         try {
             long specSeverityEntity = ActionDTOUtil.getSeverityEntity(
-                    actionView.getTranslationResultOrOriginal());
+                actionView.getTranslationResultOrOriginal());
             return specSeverityEntity == severityEntity;
         } catch (UnsupportedActionException e) {
             return false;

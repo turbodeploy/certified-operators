@@ -26,6 +26,9 @@ public class HistoricalCommodityInfo {
     // A flag indicating if this commodity is existing in the present cycle
     private boolean existing;
 
+    // A flag indicating if this commodity is updated in the present cycle
+    private boolean updated;
+
     public HistoricalCommodityInfo() {
     }
 
@@ -47,6 +50,10 @@ public class HistoricalCommodityInfo {
 
     public boolean getMatched() {
         return matched;
+    }
+
+    public boolean getUpdated() {
+        return updated;
     }
 
     public boolean getExisting() {
@@ -76,5 +83,10 @@ public class HistoricalCommodityInfo {
     public void setExisting(boolean existing) {
         this.existing = existing;
     }
+
+    public void setUpdated(boolean updated) {
+        this.updated = updated;
+    }
+
 }
 

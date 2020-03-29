@@ -110,7 +110,7 @@ public class ReservedInstanceAnalyzer {
     private final RIBuyAnalysisContextProvider analysisContextProvider;
 
     /*
-    * Needed to create the RIBuyRateProvider.
+     * Needed to create the RIBuyRateProvider.
      */
     private final PriceTableStore priceTableStore;
     private final BusinessAccountPriceTableKeyStore baPriceTableStore;
@@ -123,7 +123,7 @@ public class ReservedInstanceAnalyzer {
      * @param baPriceTableStore Business Account oids to their respective price table key store
      * @param analysisContextProvider Provides unique analysis contexts based on the analysis scope.
      * @param demandCalculatorFactory A factory for demand calculators, used to merge recorded demand
-    *                                with RI inventory, in order to calculate uncovered demand for analysis.
+     *                                with RI inventory, in order to calculate uncovered demand for analysis.
      * @param actionsSender used to broadcast the actions.
      * @param buyRiStore Place to store all the buy RIs suggested by this algorithm
      * @param actionContextRIBuyStore the class to perform database operation on the cost.action_context_ri_buy
@@ -177,9 +177,9 @@ public class ReservedInstanceAnalyzer {
      *                              and the thread is interrupted, either before or during the activity.
      */
     public void runRIAnalysisAndSendActions(final long topologyContextId,
-                @Nonnull ReservedInstanceAnalysisScope scope,
-                @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
-                                throws CommunicationException, InterruptedException {
+                                            @Nonnull ReservedInstanceAnalysisScope scope,
+                                            @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType)
+        throws CommunicationException, InterruptedException {
         ActionPlan actionPlan;
         // If the analysis is for real time delete all entries for real time from
         // action_context_ri_buy table.
@@ -209,11 +209,11 @@ public class ReservedInstanceAnalyzer {
      */
     private ActionPlan createEmptyActionPlan(long topologyContextId) {
         return ActionPlan.newBuilder()
-                .setId(IdentityGenerator.next())
-                .setInfo(ActionPlanInfo.newBuilder()
-                        .setBuyRi(BuyRIActionPlanInfo.newBuilder()
-                                .setTopologyContextId(topologyContextId)))
-                .build();
+            .setId(IdentityGenerator.next())
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setBuyRi(BuyRIActionPlanInfo.newBuilder()
+                    .setTopologyContextId(topologyContextId)))
+            .build();
     }
 
     /**
@@ -230,8 +230,8 @@ public class ReservedInstanceAnalyzer {
      */
     @Nullable
     public ReservedInstanceAnalysisResult analyze(final long topologyContextId,
-            @Nonnull ReservedInstanceAnalysisScope scope,
-            @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType) {
+                                                  @Nonnull ReservedInstanceAnalysisScope scope,
+                                                  @Nonnull ReservedInstanceHistoricalDemandDataType historicalDemandDataType) {
         Objects.requireNonNull(scope);
         Objects.requireNonNull(historicalDemandDataType);
 
@@ -240,19 +240,19 @@ public class ReservedInstanceAnalyzer {
         try {
             // Describes what kind of RIs can be considered for purchase
             final ReservedInstancePurchaseConstraints purchaseConstraints =
-                    getPurchaseConstraints(scope);
+                getPurchaseConstraints(scope);
 
             // Find the historical demand by context and create analysis clusters.
             final Stopwatch stopWatch = Stopwatch.createStarted();
             final RIBuyAnalysisContextInfo analysisContextInfo =
-                    analysisContextProvider.computeAnalysisContexts(scope, purchaseConstraints);
+                analysisContextProvider.computeAnalysisContexts(scope, purchaseConstraints);
             if (analysisContextInfo.regionalContexts().isEmpty()) {
                 logger.info("Something went wrong: discovered 0 Analyzer clusters, time: {} ms",
                     stopWatch.elapsed(TimeUnit.MILLISECONDS));
             } else {
                 logger.info("discovered {} Analyzer clusters, time: {} ms",
-                        analysisContextInfo.regionalContexts().size(),
-                        stopWatch.elapsed(TimeUnit.MILLISECONDS));
+                    analysisContextInfo.regionalContexts().size(),
+                    stopWatch.elapsed(TimeUnit.MILLISECONDS));
 
 
                 // A count of the number of separate contexts that were analyzed -- separate
@@ -262,20 +262,20 @@ public class ReservedInstanceAnalyzer {
 
                 // compute the recommendations
                 List<ReservedInstanceAnalysisRecommendation> recommendations = computeRecommendations(
-                        analysisContextInfo,
-                        clustersAnalyzed,
-                        historicalDemandDataType);
+                    analysisContextInfo,
+                    clustersAnalyzed,
+                    historicalDemandDataType);
                 logRecommendations(recommendations);
                 removeBuyZeroRecommendations(recommendations);
                 ReservedInstanceAnalysisResult result =
-                        new ReservedInstanceAnalysisResult(scope, purchaseConstraints, recommendations,
-                                topologyContextId, analysisStartTime.getTime(),
-                                (new Date()).getTime(), clustersAnalyzed, buyRiStore, actionContextRIBuyStore);
+                    new ReservedInstanceAnalysisResult(scope, purchaseConstraints, recommendations,
+                        topologyContextId, analysisStartTime.getTime(),
+                        (new Date()).getTime(), clustersAnalyzed, buyRiStore, actionContextRIBuyStore);
 
                 logger.info("process {} Analyzer clusters for {} recommendations, in time: {} ms",
-                        analysisContextInfo.regionalContexts().size(),
-                        recommendations.size(),
-                        overallTime.elapsed(TimeUnit.MILLISECONDS));
+                    analysisContextInfo.regionalContexts().size(),
+                    recommendations.size(),
+                    overallTime.elapsed(TimeUnit.MILLISECONDS));
                 return result;
             }
         } catch (Exception e) {
@@ -324,9 +324,9 @@ public class ReservedInstanceAnalyzer {
      * @return list of RIs to buy
      */
     private List<ReservedInstanceAnalysisRecommendation> computeRecommendations(
-            @Nonnull RIBuyAnalysisContextInfo analysisContextInfo,
-            @Nonnull Integer clustersAnalyzed,
-            @Nonnull ReservedInstanceHistoricalDemandDataType demandDataType) {
+        @Nonnull RIBuyAnalysisContextInfo analysisContextInfo,
+        @Nonnull Integer clustersAnalyzed,
+        @Nonnull ReservedInstanceHistoricalDemandDataType demandDataType) {
 
         Preconditions.checkNotNull(analysisContextInfo);
         Preconditions.checkNotNull(clustersAnalyzed);
@@ -335,32 +335,32 @@ public class ReservedInstanceAnalyzer {
         List<ReservedInstanceAnalysisRecommendation> recommendations = new ArrayList<>();
 
         final RIBuyDemandCalculator demandCalculator = demandCalculatorFactory.newCalculator(
-                analysisContextInfo.regionalRIMatcherCache(),
-                demandDataType);
+            analysisContextInfo.regionalRIMatcherCache(),
+            demandDataType);
         //get all the BA oids from analysis context
         final Set<Long> primaryAccounts =  analysisContextInfo.regionalContexts().stream()
-                .map(e -> demandCalculator.calculateUncoveredDemand(e))
-                .map(RIBuyDemandCalculationInfo::primaryAccountOid).collect(Collectors.toSet());
+            .map(e -> demandCalculator.calculateUncoveredDemand(e))
+            .map(RIBuyDemandCalculationInfo::primaryAccountOid).collect(Collectors.toSet());
         final RIBuyRateProvider rateProvider =
-                new RIBuyRateProvider(priceTableStore, baPriceTableStore, primaryAccounts);
+            new RIBuyRateProvider(priceTableStore, baPriceTableStore, primaryAccounts);
         // For each cluster
         for (RIBuyRegionalContext regionalContext : analysisContextInfo.regionalContexts()) {
             final RIBuyDemandCalculationInfo demandCalculationInfo =
-                    demandCalculator.calculateUncoveredDemand(regionalContext);
+                demandCalculator.calculateUncoveredDemand(regionalContext);
 
             if (demandCalculationInfo.activeHours() < riMinimumDataPoints) {
                 logger.debug("{}activeHours={} < riMinimumDataPoints={}, regionalContext={}, continue",
-                        regionalContext.analysisTag(),
-                        demandCalculationInfo.activeHours(),
-                        riMinimumDataPoints, regionalContext.contextTag());
+                    regionalContext.analysisTag(),
+                    demandCalculationInfo.activeHours(),
+                    riMinimumDataPoints, regionalContext.contextTag());
                 continue;
             }
 
             logger.debug("{}Buy RIs for profile={} in {} from cluster={}",
-                    regionalContext.analysisTag(),
-                    regionalContext.computeTier().getDisplayName(),
-                    regionalContext.region().getDisplayName(),
-                    regionalContext.contextTag());
+                regionalContext.analysisTag(),
+                regionalContext.computeTier().getDisplayName(),
+                regionalContext.region().getDisplayName(),
+                regionalContext.contextTag());
             final long primaryAccountOid = demandCalculationInfo.primaryAccountOid();
             // Get the rates for the first instance type we're considering.
             // This will either be the only one, or if instance size flexible
@@ -373,27 +373,27 @@ public class ReservedInstanceAnalyzer {
             clustersAnalyzed++;
             RecommendationKernelAlgorithmResult kernelResult;
             kernelResult = RecommendationKernelAlgorithm.computation(
-                    rates.onDemandRate(),
-                    rates.reservedInstanceRate(),
-                    removeNegativeDataPoints(demandCalculationInfo.aggregateUncoveredDemand()),
-                    regionalContext.contextTag(),
-                    regionalContext.analysisTag());
+                rates.onDemandRate(),
+                rates.reservedInstanceRate(),
+                removeNegativeDataPoints(demandCalculationInfo.aggregateUncoveredDemand()),
+                regionalContext.contextTag(),
+                regionalContext.analysisTag());
             if (kernelResult == null) {
                 continue;
             }
             ReservedInstanceAnalysisRecommendation recommendation = generateRecommendation(
-                    regionalContext, demandCalculationInfo, kernelResult, rates);
+                regionalContext, demandCalculationInfo, kernelResult, rates);
             if (recommendation != null) {
                 recommendations.add(recommendation);
                 if (recommendation.getCount() > 0) {
                     // Get the graph data.
                     Map<TopologyEntityDTO, float[]> riBuyChartDemand =
-                            demandCalculationInfo.uncoveredDemandByComputeTier();
+                        demandCalculationInfo.uncoveredDemandByComputeTier();
                     float hourlyOnDemandCost =
-                            getHourlyOnDemandCost(primaryAccountOid, regionalContext, riBuyChartDemand, rateProvider);
+                        getHourlyOnDemandCost(primaryAccountOid, regionalContext, riBuyChartDemand, rateProvider);
                     recommendation.setEstimatedOnDemandCost(hourlyOnDemandCost *
-                            RIBuyRateProvider.HOURS_IN_A_MONTH
-                            * 12 * recommendation.getTermInYears());
+                        RIBuyRateProvider.HOURS_IN_A_MONTH
+                        * 12 * recommendation.getTermInYears());
                     recommendation.setTemplateTypeHourlyDemand(riBuyChartDemand);
                 }
             }
@@ -414,10 +414,10 @@ public class ReservedInstanceAnalyzer {
      * @return the average hourly charges for the weekly demand.
      */
     public float getHourlyOnDemandCost(
-            long primaryAccountOid,
-            @Nonnull RIBuyRegionalContext regionalContext,
-            @Nonnull final Map<TopologyEntityDTO, float[]> templateTypeHourlyDemand,
-            @Nonnull final RIBuyRateProvider rateProvider) {
+        long primaryAccountOid,
+        @Nonnull RIBuyRegionalContext regionalContext,
+        @Nonnull final Map<TopologyEntityDTO, float[]> templateTypeHourlyDemand,
+        @Nonnull final RIBuyRateProvider rateProvider) {
 
         float totalCostAcrossWorkloads = 0f;
         for (Entry<TopologyEntityDTO, float[]> entry : templateTypeHourlyDemand.entrySet()) {
@@ -493,8 +493,8 @@ public class ReservedInstanceAnalyzer {
      * If RI hourly cost is 0, then don't log, because logged previously.  Otherwise log.
      */
     private boolean logExplanation(RecommendationKernelAlgorithmResult kernelResult, String logTag,
-                                RIBuyRegionalContext regionalContext, float hourlyCostSavings,
-                                int numberOfRIsToBuy) {
+                                   RIBuyRegionalContext regionalContext, float hourlyCostSavings,
+                                   int numberOfRIsToBuy) {
         boolean result = true;
         float riHourlyCost = kernelResult.getRiHourlyCost();
         if (riHourlyCost <= 0) {
@@ -543,18 +543,18 @@ public class ReservedInstanceAnalyzer {
     }
 
     private ReservedInstancePurchaseConstraints getPurchaseConstraints(
-                    ReservedInstanceAnalysisScope scope) throws IllegalArgumentException {
+        ReservedInstanceAnalysisScope scope) throws IllegalArgumentException {
         if (scope.getRiPurchaseProfile() == null) {
             return getPurchaseConstraints();
         } else {
             RIPurchaseProfile profile = scope.getRiPurchaseProfile();
             if (!profile.hasRiType()) {
                 throw new IllegalArgumentException(
-                                "No ReservedInstanceType is defined in ReservedInstanceAnalysisScope");
+                    "No ReservedInstanceType is defined in ReservedInstanceAnalysisScope");
             }
             ReservedInstanceType type = profile.getRiType();
             return new ReservedInstancePurchaseConstraints(type.getOfferingClass(),
-                            type.getTermYears(), type.getPaymentOption());
+                type.getTermYears(), type.getPaymentOption());
 
         }
     }
@@ -564,32 +564,32 @@ public class ReservedInstanceAnalyzer {
      *
      * @return RI Purchase Settings constraints object.
      */
-    private ReservedInstancePurchaseConstraints getPurchaseConstraints() {
+    public ReservedInstancePurchaseConstraints getPurchaseConstraints() {
         List<String> settingNames =
-                Arrays.asList(GlobalSettingSpecs.AWSPreferredOfferingClass,
-                        GlobalSettingSpecs.AWSPreferredPaymentOption,
-                        GlobalSettingSpecs.AWSPreferredTerm)
-                    .stream()
-                    .map(GlobalSettingSpecs::getSettingName)
-                    .collect(Collectors.toList());
+            Arrays.asList(GlobalSettingSpecs.AWSPreferredOfferingClass,
+                GlobalSettingSpecs.AWSPreferredPaymentOption,
+                GlobalSettingSpecs.AWSPreferredTerm)
+                .stream()
+                .map(GlobalSettingSpecs::getSettingName)
+                .collect(Collectors.toList());
 
         Map<String, Setting> settings = new HashMap<>();
         settingsServiceClient.getMultipleGlobalSettings(
-                GetMultipleGlobalSettingsRequest.newBuilder().build().newBuilder()
-                        .addAllSettingSpecName(settingNames)
-                        .build())
-        .forEachRemaining( setting -> {
-            settings.put(setting.getSettingSpecName(), setting);
-        });
+            GetMultipleGlobalSettingsRequest.newBuilder().build().newBuilder()
+                .addAllSettingSpecName(settingNames)
+                .build())
+            .forEachRemaining( setting -> {
+                settings.put(setting.getSettingSpecName(), setting);
+            });
 
         ReservedInstancePurchaseConstraints reservedInstancePurchaseConstraints =
-                new ReservedInstancePurchaseConstraints(
-                        OfferingClass.valueOf(
-                                settings.get(GlobalSettingSpecs.AWSPreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
-                        PreferredTerm.valueOf(
-                                settings.get(GlobalSettingSpecs.AWSPreferredTerm.getSettingName()).getEnumSettingValue().getValue()).getYears(),
-                        PaymentOption.valueOf(
-                                settings.get(GlobalSettingSpecs.AWSPreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
+            new ReservedInstancePurchaseConstraints(
+                OfferingClass.valueOf(
+                    settings.get(GlobalSettingSpecs.AWSPreferredOfferingClass.getSettingName()).getEnumSettingValue().getValue()),
+                PreferredTerm.valueOf(
+                    settings.get(GlobalSettingSpecs.AWSPreferredTerm.getSettingName()).getEnumSettingValue().getValue()).getYears(),
+                PaymentOption.valueOf(
+                    settings.get(GlobalSettingSpecs.AWSPreferredPaymentOption.getSettingName()).getEnumSettingValue().getValue()));
 
         return reservedInstancePurchaseConstraints;
 

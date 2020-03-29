@@ -32,7 +32,7 @@ import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO;
@@ -95,14 +95,14 @@ public class GroupProtoUtil {
     /**
      * The entity types that we consider WORKLOAD.
      */
-    public static final Set<UIEntityType> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
-        UIEntityType.VIRTUAL_MACHINE, UIEntityType.DATABASE, UIEntityType.DATABASE_SERVER);
+    public static final Set<ApiEntityType> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(
+        ApiEntityType.VIRTUAL_MACHINE, ApiEntityType.DATABASE, ApiEntityType.DATABASE_SERVER);
 
     /**
      * The API String for entity types that we consider as workload.
      */
     public static final Set<String> WORKLOAD_ENTITY_TYPES_API_STR = WORKLOAD_ENTITY_TYPES
-        .stream().map(UIEntityType::apiStr).collect(Collectors.toSet());
+        .stream().map(ApiEntityType::apiStr).collect(Collectors.toSet());
 
     /**
      * Match the name with filter. If the filter has case sensitive set to true,
@@ -128,7 +128,7 @@ public class GroupProtoUtil {
      * @throws IllegalArgumentException If the {@link Grouping} does not have a valid entity type.
      */
     public static void checkEntityTypeForPolicy(@Nonnull final GroupingOrBuilder group) {
-        final Set<UIEntityType> entityTypes = getEntityTypes(group);
+        final Set<ApiEntityType> entityTypes = getEntityTypes(group);
         if (entityTypes.isEmpty()) {
             throw new IllegalArgumentException(String.format("Cannot define policy for group " +
                     "'%s' (ID: %s). Entity types are empty.",
@@ -146,12 +146,12 @@ public class GroupProtoUtil {
      * @param group group to analyze
      * @return set of entity types.
      */
-    public static Set<UIEntityType> getEntityTypes(GroupingOrBuilder group) {
+    public static Set<ApiEntityType> getEntityTypes(GroupingOrBuilder group) {
         return group.getExpectedTypesList()
                         .stream()
                         .filter(MemberType::hasEntity)
                         .map(MemberType::getEntity)
-                        .map(UIEntityType::fromType)
+                        .map(ApiEntityType::fromType)
                         .collect(Collectors.toSet());
 
     }
@@ -421,19 +421,19 @@ public class GroupProtoUtil {
      * @param entityFilter the entity filter
      * @return all the entity types of the filter
      */
-    public static Set<UIEntityType> getEntityTypesFromEntityFilter(EntityFilter entityFilter) {
+    public static Set<ApiEntityType> getEntityTypesFromEntityFilter(EntityFilter entityFilter) {
         // first try to get the entity types from the search parameters (criteria)
-        Set<UIEntityType> entityTypes = entityFilter
+        Set<ApiEntityType> entityTypes = entityFilter
                 .getSearchParametersCollection()
                 .getSearchParametersList()
                 .stream()
                 .map(SearchProtoUtil::getEntityTypeFromSearchParameters)
-                .filter(uiEntityType -> uiEntityType != UIEntityType.UNKNOWN)
+                .filter(uiEntityType -> uiEntityType != ApiEntityType.UNKNOWN)
                 .collect(Collectors.toSet());
 
         // if the search parameters have no entity types, get the type from the entity filter
         if (entityTypes.isEmpty()) {
-            entityTypes = Collections.singleton(UIEntityType.fromType(
+            entityTypes = Collections.singleton(ApiEntityType.fromType(
                     entityFilter.getEntityType()));
         }
 

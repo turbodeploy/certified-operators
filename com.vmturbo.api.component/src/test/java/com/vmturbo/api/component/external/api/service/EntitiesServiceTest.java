@@ -74,7 +74,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.reporting.api.protobuf.ReportingMoles.ReportingServiceMole;
@@ -278,12 +278,12 @@ public class EntitiesServiceTest {
         Assert.assertEquals(1, providers.size());
         Assert.assertEquals(ST_ID, (long)Long.valueOf(providers.get(0).getUuid()));
         Assert.assertEquals(ST_DISPLAY_NAME, providers.get(0).getDisplayName());
-        Assert.assertEquals(UIEntityType.STORAGE.apiStr(), providers.get(0).getClassName());
+        Assert.assertEquals(ApiEntityType.STORAGE.apiStr(), providers.get(0).getClassName());
         final List<BaseApiDTO> consumers = result.getConsumers();
         Assert.assertEquals(1, consumers.size());
         Assert.assertEquals(VM_ID, (long)Long.valueOf(consumers.get(0).getUuid()));
         Assert.assertEquals(VM_DISPLAY_NAME, consumers.get(0).getDisplayName());
-        Assert.assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), consumers.get(0).getClassName());
+        Assert.assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), consumers.get(0).getClassName());
 
         // check that priceIndexPopulator has been called correctly
         verify(priceIndexPopulator).populateRealTimeEntities(eq(Collections.singletonList(result)));
@@ -523,7 +523,7 @@ public class EntitiesServiceTest {
 
         final MinimalEntity minimalEntityVM = MinimalEntity.newBuilder()
                 .setOid(VM_ID)
-                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setDisplayName("VM")
                 .build();
 
@@ -540,7 +540,7 @@ public class EntitiesServiceTest {
 
         ApiId apiId = mock(ApiId.class);
         when(apiId.oid()).thenReturn(VM_ID);
-        when(apiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
+        when(apiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE)));
         when(uuidMapper.fromUuid(Long.toString(VM_ID))).thenReturn(apiId);
 
         RepositoryApi.MultiEntityRequest minimalEntityVMRequest = ApiTestUtils.mockMultiMinEntityReq(Lists.newArrayList(minimalEntityVM));
@@ -564,12 +564,12 @@ public class EntitiesServiceTest {
         long regionId = 2L;
         ApiId regionApiId = mock(ApiId.class);
         when(regionApiId.oid()).thenReturn(regionId);
-        when(regionApiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.REGION)));
+        when(regionApiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(ApiEntityType.REGION)));
         when(uuidMapper.fromUuid(Long.toString(regionId))).thenReturn(regionApiId);
 
         final MinimalEntity minimalEntityRegion = MinimalEntity.newBuilder()
                 .setOid(regionId)
-                .setEntityType(UIEntityType.REGION.typeNumber())
+                .setEntityType(ApiEntityType.REGION.typeNumber())
                 .setDisplayName("Region1")
                 .build();
 

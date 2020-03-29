@@ -4,7 +4,7 @@ import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_SOCKETS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.NUM_VCPUS;
 import static com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits.PRODUCES;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_SUBTYPE_USED;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE_USED;
 import static com.vmturbo.history.utils.HistoryStatsUtils.countSEsMetrics;
 
 import java.math.BigDecimal;
@@ -133,19 +133,19 @@ public class MarketStatsAccumulator {
      */
     private static final Function<TypeSpecificInfo, Optional<Double>> NUM_CPU_CORES_FUNC =
         typeSpecificInfo -> typeSpecificInfo.hasPhysicalMachine()
-                && typeSpecificInfo.getPhysicalMachine().hasNumCpus()
-                ? Optional.of((double)typeSpecificInfo.getPhysicalMachine().getNumCpus())
-                : Optional.empty();
+            && typeSpecificInfo.getPhysicalMachine().hasNumCpus()
+            ? Optional.of((double)typeSpecificInfo.getPhysicalMachine().getNumCpus())
+            : Optional.empty();
     private static final Function<TypeSpecificInfo, Optional<Double>> NUM_CPU_SOCKETS_FUNC =
         typeSpecificInfo -> typeSpecificInfo.hasPhysicalMachine()
-                && typeSpecificInfo.getPhysicalMachine().hasNumCpuSockets()
-                ? Optional.of((double)typeSpecificInfo.getPhysicalMachine().getNumCpuSockets())
-                : Optional.empty();
+            && typeSpecificInfo.getPhysicalMachine().hasNumCpuSockets()
+            ? Optional.of((double)typeSpecificInfo.getPhysicalMachine().getNumCpuSockets())
+            : Optional.empty();
     private static final Function<TypeSpecificInfo, Optional<Double>> NUM_VCPU_FUNC =
         typeSpecificInfo -> typeSpecificInfo.hasVirtualMachine()
-                && typeSpecificInfo.getVirtualMachine().hasNumCpus()
-                ? Optional.of((double)typeSpecificInfo.getVirtualMachine().getNumCpus())
-                : Optional.empty();
+            && typeSpecificInfo.getVirtualMachine().hasNumCpus()
+            ? Optional.of((double)typeSpecificInfo.getVirtualMachine().getNumCpus())
+            : Optional.empty();
 
 
     /**
@@ -155,11 +155,11 @@ public class MarketStatsAccumulator {
      */
     private static final Map<Function<TypeSpecificInfo, Optional<Double>>, CommodityTypeUnits>
         PERSISTED_ATTRIBUTE_MAP = new ImmutableMap.Builder<Function<TypeSpecificInfo,
-            Optional<Double>>, CommodityTypeUnits>()
-                .put(NUM_CPU_CORES_FUNC, NUM_CPUS)
-                .put(NUM_CPU_SOCKETS_FUNC, NUM_SOCKETS)
-                .put(NUM_VCPU_FUNC, NUM_VCPUS)
-                .build();
+        Optional<Double>>, CommodityTypeUnits>()
+        .put(NUM_CPU_CORES_FUNC, NUM_CPUS)
+        .put(NUM_CPU_SOCKETS_FUNC, NUM_SOCKETS)
+        .put(NUM_VCPU_FUNC, NUM_VCPUS)
+        .build();
 
     /**
      * Set of commodities which were set to inactive, but we still want to persist them since they
@@ -198,12 +198,12 @@ public class MarketStatsAccumulator {
 
         final ImmutableSet.Builder<String> builder = ImmutableSet.builder();
         commoditiesToExclude.stream()
-                .map(String::toLowerCase)
-                .forEach(builder::add);
+            .map(String::toLowerCase)
+            .forEach(builder::add);
         this.commoditiesToExclude = builder.build();
 
         // the entity type determines which xxx_stats_yyy stats table these stats should go to
-        dbTable = (Table<Record>)EntityType.get(entityType).getLatestTable();
+        dbTable = (Table<Record>)EntityType.get(entityType).getLatestTable().get();
         if (dbTable == null) {
             // should only be called if this entity type is persisted to _latest table
             throw new RuntimeException("Cannot accumulate stats for entity type: " + entityType);
@@ -220,7 +220,7 @@ public class MarketStatsAccumulator {
      */
     private void addEntityCountStat(String countStatsName, double count) {
         internalAddCommodity(countStatsName, countStatsName, count, count, count, count,
-                RelationType.METRICS);
+            RelationType.METRICS);
     }
 
     /**
@@ -243,12 +243,12 @@ public class MarketStatsAccumulator {
                                       double peak,
                                       RelationType relationType) {
         String commodityKey = MessageFormat.format("{0}::{1}::{2}",
-                propertyType, propertySubtype, RelationType.METRICS.getValue());
+            propertyType, propertySubtype, RelationType.METRICS.getValue());
 
         synchronized (statsMap) {
             MarketStatsData statsData = statsMap.computeIfAbsent(commodityKey, key ->
-                    new MarketStatsData(entityType, environmentType, propertyType, propertySubtype,
-                            relationType));
+                new MarketStatsData(entityType, environmentType, propertyType, propertySubtype,
+                    relationType));
             // accumulate the values from this stat item
             statsData.accumulate(used, peak, capacity, effectiveCapacity);
         }
@@ -350,7 +350,7 @@ public class MarketStatsAccumulator {
             // do not persist commodity if it is not active, but we want to persist some special
             // inactive commodities like Swapping and Ballooning
             if (!commoditySoldDTO.getActive() &&
-                    !INACTIVE_COMMODITIES_TO_PERSIST.contains(intCommodityType)) {
+                !INACTIVE_COMMODITIES_TO_PERSIST.contains(intCommodityType)) {
                 logger.debug("Skipping inactive sold commodity type {}", intCommodityType);
                 continue;
             }
@@ -369,63 +369,63 @@ public class MarketStatsAccumulator {
             // otherwise set it to capacity.
             Double capacity = adjustCapacity(commoditySoldDTO.getCapacity());
             Double effectiveCapacity
-                    = (commoditySoldDTO.hasEffectiveCapacityPercentage() && (capacity != null))
-                    ? (commoditySoldDTO.getEffectiveCapacityPercentage() / 100.0 * capacity)
-                    : capacity;
+                = (commoditySoldDTO.hasEffectiveCapacityPercentage() && (capacity != null))
+                ? (commoditySoldDTO.getEffectiveCapacityPercentage() / 100.0 * capacity)
+                : capacity;
             Record record = dbTable.newRecord();
             final String key = commoditySoldDTO.getCommodityType().getKey();
             historydbIO.initializeCommodityRecord(mixedCaseCommodityName, snapshotTime,
-                    entityId, RelationType.COMMODITIES, /*providerId*/null, capacity,
-                    effectiveCapacity, key, record,
-                    dbTable);
+                entityId, RelationType.COMMODITIES, /*providerId*/null, capacity,
+                effectiveCapacity, key, record,
+                dbTable);
             // set the values specific to used component of commodity and write
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED, commoditySoldDTO.getUsed(),
-                            commoditySoldDTO.getPeak(), record, dbTable);
+                commoditySoldDTO.getPeak(), record, dbTable);
             // mark the end of this row of values
             loader.insert(record);
 
             // aggregate this stats value as part of the Market-wide stats
             internalAddCommodity(mixedCaseCommodityName, PROPERTY_SUBTYPE_USED,
-                    commoditySoldDTO.getUsed(), capacity, effectiveCapacity, commoditySoldDTO.getPeak(),
-                    RelationType.COMMODITIES);
+                commoditySoldDTO.getUsed(), capacity, effectiveCapacity, commoditySoldDTO.getPeak(),
+                RelationType.COMMODITIES);
 
             if (commoditySoldDTO.hasHistoricalUsed()) {
                 createPercentileAndTimeslotsQueries(intCommodityType, entityId, null,
-                        key, capacity, commoditySoldDTO.getHistoricalUsed());
+                    key, capacity, commoditySoldDTO.getHistoricalUsed());
             }
         }
     }
 
     private void createPercentileAndTimeslotsQueries(int commodityTypeId, long entityId,
-            Long providerId, String commodityKey, Double capacity,
-            HistoricalValues historicalUsed) throws InterruptedException {
+                                                     Long providerId, String commodityKey, Double capacity,
+                                                     HistoricalValues historicalUsed) throws InterruptedException {
         final ImmutableTable.Builder<HistoryUtilizationType, Integer, BigDecimal> tableBuilder =
-                ImmutableTable.builder();
+            ImmutableTable.builder();
         for (int i = 0; i < historicalUsed.getTimeSlotCount(); i++) {
             tableBuilder.put(HistoryUtilizationType.Timeslot, i,
-                    BigDecimal.valueOf(historicalUsed.getTimeSlot(i)));
+                BigDecimal.valueOf(historicalUsed.getTimeSlot(i)));
         }
         if (historicalUsed.hasPercentile()) {
             tableBuilder.put(HistoryUtilizationType.Percentile, 0,
-                    BigDecimal.valueOf(historicalUsed.getPercentile()));
+                BigDecimal.valueOf(historicalUsed.getPercentile()));
         }
         formInsertOrUpdateQueries(entityId, providerId, commodityKey, capacity, commodityTypeId,
-                tableBuilder.build().cellSet());
+            tableBuilder.build().cellSet());
     }
 
     private void formInsertOrUpdateQueries(@Nonnull long entityId, @Nullable Long providerId,
-            @Nullable String commodityKey, @Nonnull Double capacity, @Nonnull int commodityTypeId,
-            @Nonnull Collection<Cell<HistoryUtilizationType, Integer, BigDecimal>> cells)
-            throws InterruptedException {
+                                           @Nullable String commodityKey, @Nonnull Double capacity, @Nonnull int commodityTypeId,
+                                           @Nonnull Collection<Cell<HistoryUtilizationType, Integer, BigDecimal>> cells)
+        throws InterruptedException {
         final Long providerIdValue = providerId == null ? DEFAULT_VALUE_PROVIDER_ID : providerId;
         final String commodityKeyValue =
-                commodityKey == null ? DEFAULT_VALUE_COMMODITY_KEY : commodityKey;
+            commodityKey == null ? DEFAULT_VALUE_COMMODITY_KEY : commodityKey;
         for (Cell<HistoryUtilizationType, Integer, BigDecimal> cell : cells) {
             historicalUtilizationLoader.insert(
-                    new HistUtilizationRecord(entityId, providerIdValue, commodityTypeId,
-                            PropertySubType.Utilization.ordinal(), commodityKeyValue,
-                            cell.getRowKey().ordinal(), cell.getColumnKey(), cell.getValue(),
-                            capacity));
+                new HistUtilizationRecord(entityId, providerIdValue, commodityTypeId,
+                    PropertySubType.Utilization.ordinal(), commodityKeyValue,
+                    cell.getRowKey().ordinal(), cell.getColumnKey(), cell.getValue(),
+                    capacity));
         }
     }
 
@@ -458,17 +458,17 @@ public class MarketStatsAccumulator {
      */
     @VisibleForTesting
     void persistCommoditiesBought(
-            @Nonnull final TopologyDTO.TopologyEntityDTO entityDTO,
-            @Nonnull final CapacityCache capacityCache,
-            @Nonnull final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought,
-            @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
+        @Nonnull final TopologyDTO.TopologyEntityDTO entityDTO,
+        @Nonnull final CapacityCache capacityCache,
+        @Nonnull final Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought,
+        @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) throws InterruptedException {
         for (CommoditiesBoughtFromProvider commodityBoughtGrouping : entityDTO.getCommoditiesBoughtFromProvidersList()) {
             Long providerId = commodityBoughtGrouping.hasProviderId() ?
-                    commodityBoughtGrouping.getProviderId() : null;
+                commodityBoughtGrouping.getProviderId() : null;
             DelayedCommodityBoughtWriter queueCommoditiesBlock = new DelayedCommodityBoughtWriter(
-                    topologyInfo.getCreationTime(),
-                    entityDTO, providerId, commodityBoughtGrouping,
-                    capacityCache, entityByOid);
+                topologyInfo.getCreationTime(),
+                entityDTO, providerId, commodityBoughtGrouping,
+                capacityCache, entityByOid);
 
             if (providerId != null && !capacityCache.hasEntityCapacities(providerId)) {
                 delayedCommoditiesBought.put(providerId, queueCommoditiesBlock);
@@ -502,11 +502,11 @@ public class MarketStatsAccumulator {
          * @param entityByOid       map of entities by oid
          */
         public DelayedCommodityBoughtWriter(final long snapshotTime,
-                                    @Nonnull final TopologyEntityDTO entityDTO,
-                                    @Nullable final Long providerId,
-                                    @Nonnull final CommoditiesBoughtFromProvider commoditiesBought,
-                                    @Nonnull final CapacityCache capacityCache,
-                                    @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) {
+                                            @Nonnull final TopologyEntityDTO entityDTO,
+                                            @Nullable final Long providerId,
+                                            @Nonnull final CommoditiesBoughtFromProvider commoditiesBought,
+                                            @Nonnull final CapacityCache capacityCache,
+                                            @Nonnull final Map<Long, TopologyEntityDTO> entityByOid) {
             this.snapshotTime = snapshotTime;
             this.entityDTO = entityDTO;
             this.providerId = providerId;
@@ -546,7 +546,7 @@ public class MarketStatsAccumulator {
 
         // persist "Produces" == # of commodities sold
         persistEntityAttribute(entityId, PRODUCES.getMixedCase(),
-                entityDTO.getCommoditySoldListCount(), loader, dbTable);
+            entityDTO.getCommoditySoldListCount(), loader, dbTable);
 
         // scan entity attributes for specific attributes to persist as commodities
         for (Map.Entry<Function<TypeSpecificInfo, Optional<Double>>, CommodityTypeUnits>
@@ -596,7 +596,7 @@ public class MarketStatsAccumulator {
         // set the values specific to used component of commodity and write
         // since there is no peak value, that parameter is sent as 0
         historydbIO.setCommodityValues(mixedCaseCommodityName, valueToPersist, 0,
-                        record, dbTable);
+            record, dbTable);
         writer.insert(record);
     }
 
@@ -618,14 +618,14 @@ public class MarketStatsAccumulator {
                                         @Nonnull CommoditiesBoughtFromProvider commoditiesBought,
                                         @Nonnull CapacityCache capacityCache,
                                         @Nonnull Map<Long, TopologyEntityDTO> entityByOid)
-                throws InterruptedException {
+        throws InterruptedException {
         for (CommodityBoughtDTO commodityBoughtDTO : commoditiesBought.getCommodityBoughtList()) {
             final int commType = commodityBoughtDTO.getCommodityType().getType();
             final String commKey = commodityBoughtDTO.getCommodityType().getKey();
             // do not persist commodity if it is not active, but we want to persist some special
             // inactive commodities like Swapping and Ballooning
             if (!commodityBoughtDTO.getActive() &&
-                    !INACTIVE_COMMODITIES_TO_PERSIST.contains(commType)) {
+                !INACTIVE_COMMODITIES_TO_PERSIST.contains(commType)) {
                 logger.debug("Skipping inactive bought commodity type {}", commType);
                 continue;
             }
@@ -654,9 +654,9 @@ public class MarketStatsAccumulator {
                     soldCapacities = capacityCache.getEntityCapacities(providerId);
                 }
                 if (soldCapacities == null || !soldCapacities.containsKey(commType)
-                        || !soldCapacities.get(commType).containsKey(commKey)) {
+                    || !soldCapacities.get(commType).containsKey(commKey)) {
                     logger.warn("Missing commodity sold {} of buyer entity {}, seller entity {}",
-                            mixedCaseCommodityName, entityDTO.getOid(), providerId);
+                        mixedCaseCommodityName, entityDTO.getOid(), providerId);
                     continue;
                 }
                 capacity = soldCapacities.get(commType).get(commKey);
@@ -677,18 +677,18 @@ public class MarketStatsAccumulator {
                 entityDTO.getOid(), RelationType.COMMODITIESBOUGHT, providerId, capacity, null,
                 key, record, dbTable);
             historydbIO.setCommodityValues(PROPERTY_SUBTYPE_USED,
-                    used, peak, record, dbTable);
+                used, peak, record, dbTable);
             // mark the end of this row to be inserted
             loader.insert(record);
 
             // aggregate this stats value as part of the Market-wide stats
             internalAddCommodity(mixedCaseCommodityName, PROPERTY_SUBTYPE_USED,
-                    commodityBoughtDTO.getUsed(), capacity, null, commodityBoughtDTO.getPeak(),
-                    RelationType.COMMODITIESBOUGHT);
+                commodityBoughtDTO.getUsed(), capacity, null, commodityBoughtDTO.getPeak(),
+                RelationType.COMMODITIESBOUGHT);
 
             if (commodityBoughtDTO.hasHistoricalUsed()) {
                 createPercentileAndTimeslotsQueries(commType, entityDTO.getOid(),
-                        providerId, key, capacity, commodityBoughtDTO.getHistoricalUsed());
+                    providerId, key, capacity, commodityBoughtDTO.getHistoricalUsed());
             }
         }
     }
@@ -704,7 +704,7 @@ public class MarketStatsAccumulator {
      * @return key generated from volume information, if any is present/relevant
      */
     private Optional<String> extractVolumeKey(@Nonnull final TopologyEntityDTO entityDTO,
-            @Nonnull final CommoditiesBoughtFromProvider commoditiesBought) {
+                                              @Nonnull final CommoditiesBoughtFromProvider commoditiesBought) {
         if (HistoryStatsUtils.isCloudEntity(entityDTO) && commoditiesBought.hasVolumeId()) {
             return Optional.of(Long.toString(commoditiesBought.getVolumeId()));
         }

@@ -60,92 +60,92 @@ public class ReservedInstanceSpecMatcherFactory {
      * @return A newly created {@link ReservedInstanceSpecMatcher}, scoped to the target region
      */
     public ReservedInstanceSpecMatcher createRegionalMatcher(
-            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-            @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
-            long regionOid) {
+        @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+        @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+        long regionOid) {
 
         return  createMatcherForRISpecs(
-                cloudTopology,
-                purchaseConstraints,
-                riSpecStore.getAllRISpecsForRegion(regionOid));
+            cloudTopology,
+            purchaseConstraints,
+            riSpecStore.getAllRISpecsForRegion(regionOid));
 
     }
 
     private ReservedInstanceSpecMatcher createMatcherForRISpecs(
-            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-            @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
-            @Nonnull Collection<ReservedInstanceSpec> riSpecs) {
+        @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+        @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+        @Nonnull Collection<ReservedInstanceSpec> riSpecs) {
 
         // First convert each RI spec to an RI spec data instance (containing the associated compute
         // tier).
         final Map<ReservedInstanceSpecKey, Set<ReservedInstanceSpecData>> riSpecsByKey =
-                riSpecs.stream()
-                        ///First convert each RI spec to an RI spec data instance,
-                        // containing the associated compute tier of the RI spec.
-                        .map(riSpec -> convertRISpecToData(cloudTopology, riSpec))
-                        // Group the RI specs by an RI spec key, indicating the scope the RI spec
-                        // could cover
-                        .collect(Collectors.groupingBy(
-                                this::convertRISpecDataToKey,
-                                Collectors.toSet()));
+            riSpecs.stream()
+                ///First convert each RI spec to an RI spec data instance,
+                // containing the associated compute tier of the RI spec.
+                .map(riSpec -> convertRISpecToData(cloudTopology, riSpec))
+                // Group the RI specs by an RI spec key, indicating the scope the RI spec
+                // could cover
+                .collect(Collectors.groupingBy(
+                    this::convertRISpecDataToKey,
+                    Collectors.toSet()));
 
         // Collect the set of RI specs which fit within the purchase constraints.
         final Map<ReservedInstanceSpecKey, ReservedInstanceSpecData> riSpecsToPurchaseByKey = riSpecsByKey.entrySet()
-                .stream()
-                .map(riSpecKeyEntry -> ImmutablePair.of(
-                        riSpecKeyEntry.getKey(),
-                        resolvePurchasingSpec(riSpecKeyEntry.getValue(), purchaseConstraints)))
-                // It's possible none of the RI specs within this key fit the purchase constraints.
-                // Therefore, ignore this key if it doesn't have a viable RI spec to recommend.
-                .filter(riSpeKeyData -> riSpeKeyData.getRight() != null)
-                .collect(ImmutableMap.toImmutableMap(
-                        ImmutablePair::getLeft,
-                        ImmutablePair::getRight));
+            .stream()
+            .map(riSpecKeyEntry -> ImmutablePair.of(
+                riSpecKeyEntry.getKey(),
+                resolvePurchasingSpec(riSpecKeyEntry.getValue(), purchaseConstraints)))
+            // It's possible none of the RI specs within this key fit the purchase constraints.
+            // Therefore, ignore this key if it doesn't have a viable RI spec to recommend.
+            .filter(riSpeKeyData -> riSpeKeyData.getRight() != null)
+            .collect(ImmutableMap.toImmutableMap(
+                ImmutablePair::getLeft,
+                ImmutablePair::getRight));
 
         // Normalize the full set of RI specs to only the RI spec ID, given this is all that is required
         // after the key has been created to match RI inventory to demand clusters.
         final Map<ReservedInstanceSpecKey, Set<Long>> riSpecIdsByKey = riSpecsByKey.entrySet()
-                .stream()
-                .collect(ImmutableMap.toImmutableMap(
-                        Map.Entry::getKey,
-                        e -> FluentIterable.from(e.getValue())
-                                .transform(ReservedInstanceSpecData::reservedInstanceSpecId)
-                                .toSet()));
+            .stream()
+            .collect(ImmutableMap.toImmutableMap(
+                Map.Entry::getKey,
+                e -> FluentIterable.from(e.getValue())
+                    .transform(ReservedInstanceSpecData::reservedInstanceSpecId)
+                    .toSet()));
 
         return new ReservedInstanceSpecMatcher(riSpecsToPurchaseByKey, riSpecIdsByKey);
     }
 
     private boolean isRISpecWithinPurchaseConstraints(
-            @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
-            @Nonnull ReservedInstanceSpec riSpec) {
+        @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+        @Nonnull ReservedInstanceSpec riSpec) {
 
         final ReservedInstanceType riSpecType = riSpec.getReservedInstanceSpecInfo().getType();
 
         return purchaseConstraints.getOfferingClass() == riSpecType.getOfferingClass() &&
-                purchaseConstraints.getPaymentOption() == riSpecType.getPaymentOption() &&
-                purchaseConstraints.getTermInYears() == riSpecType.getTermYears();
+            purchaseConstraints.getPaymentOption() == riSpecType.getPaymentOption() &&
+            purchaseConstraints.getTermInYears() == riSpecType.getTermYears();
     }
 
     @Nullable
     private ReservedInstanceSpecData convertRISpecToData(
-            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-            @Nonnull ReservedInstanceSpec riSpec) {
+        @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+        @Nonnull ReservedInstanceSpec riSpec) {
 
         final Optional<TopologyEntityDTO> computeTier =
-                cloudTopology.getEntity(riSpec.getReservedInstanceSpecInfo().getTierId());
+            cloudTopology.getEntity(riSpec.getReservedInstanceSpecInfo().getTierId());
         final boolean isConnectedToComputeTier =
-                computeTier.map(tier -> tier.getEntityType() == EntityType.COMPUTE_TIER_VALUE &&
-                        tier.getTypeSpecificInfo().hasComputeTier()).orElse(false);
+            computeTier.map(tier -> tier.getEntityType() == EntityType.COMPUTE_TIER_VALUE &&
+                tier.getTypeSpecificInfo().hasComputeTier()).orElse(false);
 
         if (isConnectedToComputeTier) {
             return ImmutableReservedInstanceSpecData.builder()
-                    .computeTier(computeTier.get())
-                    .couponsPerInstance(computeTier.get()
-                            .getTypeSpecificInfo()
-                            .getComputeTier()
-                            .getNumCoupons())
-                    .reservedInstanceSpec(riSpec)
-                    .build();
+                .computeTier(computeTier.get())
+                .couponsPerInstance(computeTier.get()
+                    .getTypeSpecificInfo()
+                    .getComputeTier()
+                    .getNumCoupons())
+                .reservedInstanceSpec(riSpec)
+                .build();
         } else {
             return null;
         }
@@ -154,15 +154,15 @@ public class ReservedInstanceSpecMatcherFactory {
     private ReservedInstanceSpecKey convertRISpecDataToKey(@Nonnull ReservedInstanceSpecData riSpecData) {
 
         final ComputeTierInfo computeTierInfo = riSpecData.computeTier()
-                .getTypeSpecificInfo()
-                .getComputeTier();
+            .getTypeSpecificInfo()
+            .getComputeTier();
         final ReservedInstanceSpecInfo riSpecInfo =
-                riSpecData.reservedInstanceSpec().getReservedInstanceSpecInfo();
+            riSpecData.reservedInstanceSpec().getReservedInstanceSpecInfo();
 
         final ImmutableReservedInstanceSpecKey.Builder riSpecKeyBuilder = ImmutableReservedInstanceSpecKey.builder()
-                .family(computeTierInfo.getFamily())
-                .tenancy(riSpecInfo.getTenancy())
-                .regionOid(riSpecInfo.getRegionId());
+            .family(computeTierInfo.getFamily())
+            .tenancy(riSpecInfo.getTenancy())
+            .regionOid(riSpecInfo.getRegionId());
 
         if (!riSpecInfo.getSizeFlexible()) {
             riSpecKeyBuilder.computerTierOid(riSpecData.computeTier().getOid());
@@ -177,20 +177,20 @@ public class ReservedInstanceSpecMatcherFactory {
 
     @Nullable
     private ReservedInstanceSpecData resolvePurchasingSpec(
-            @Nonnull Collection<ReservedInstanceSpecData> riSpecDataGrouping,
-            @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints) {
+        @Nonnull Collection<ReservedInstanceSpecData> riSpecDataGrouping,
+        @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints) {
         return riSpecDataGrouping.stream()
-                .filter(riSpecData -> riSpecData.couponsPerInstance() > 0)
-                .filter(riSpecData -> isRISpecWithinPurchaseConstraints(
-                        purchaseConstraints,
-                        riSpecData.reservedInstanceSpec()))
-                // Sort the RI specs by smallest to largest and then by OID as a tie-breaker.
-                // In selecting the first RI spec, we'll recommend the smallest instance type
-                // within a family.
-                .sorted(Comparator.comparing(ReservedInstanceSpecData::couponsPerInstance)
-                        .thenComparing(ReservedInstanceSpecData::reservedInstanceSpecId))
-                .findFirst()
-                .orElse(null);
+            .filter(riSpecData -> riSpecData.couponsPerInstance() > 0)
+            .filter(riSpecData -> isRISpecWithinPurchaseConstraints(
+                purchaseConstraints,
+                riSpecData.reservedInstanceSpec()))
+            // Sort the RI specs by smallest to largest and then by OID as a tie-breaker.
+            // In selecting the first RI spec, we'll recommend the smallest instance type
+            // within a family.
+            .sorted(Comparator.comparing(ReservedInstanceSpecData::couponsPerInstance)
+                .thenComparing(ReservedInstanceSpecData::reservedInstanceSpecId))
+            .findFirst()
+            .orElse(null);
     }
 
 }

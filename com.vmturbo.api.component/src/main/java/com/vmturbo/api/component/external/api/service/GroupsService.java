@@ -1,13 +1,12 @@
 package com.vmturbo.api.component.external.api.service;
 
-import static com.vmturbo.components.common.utils.StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME;
+import static com.vmturbo.common.protobuf.utils.StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +54,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ObjectsPage;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -132,9 +132,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGro
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -150,8 +150,8 @@ public class GroupsService implements IGroupsService {
      * grouping entity in classic.
      */
     private static final Map<Integer, List<String>> GROUPING_ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-        EntityType.DATACENTER_VALUE, ImmutableList.of(UIEntityType.PHYSICAL_MACHINE.apiStr()),
-        EntityType.VIRTUAL_DATACENTER_VALUE, ImmutableList.of(UIEntityType.VIRTUAL_DATACENTER.apiStr())
+        EntityType.DATACENTER_VALUE, ImmutableList.of(ApiEntityType.PHYSICAL_MACHINE.apiStr()),
+        EntityType.VIRTUAL_DATACENTER_VALUE, ImmutableList.of(ApiEntityType.VIRTUAL_DATACENTER.apiStr())
     );
 
     private static final Collection<String> GLOBAL_SCOPE_SUPPLY_CHAIN = ImmutableList.of(
@@ -740,7 +740,7 @@ public class GroupsService implements IGroupsService {
                 inputDto.setRelatedEntityTypes(
                     // all types. cannot make it empty because extractMgmtUnitSubgroupFilter will
                     // replace it with the groups entity types.
-                    Arrays.stream(UIEntityType.values()).map(UIEntityType::apiStr).collect(Collectors.toList()));
+                    Arrays.stream(ApiEntityType.values()).map(ApiEntityType::apiStr).collect(Collectors.toList()));
 
                 final Map<ApiId, List<StatSnapshotApiDTO>> retStats =
                     actionStatsQueryExecutor.retrieveActionStats(ImmutableActionStatsQuery.builder()
@@ -779,9 +779,9 @@ public class GroupsService implements IGroupsService {
             return false;
         }
         CachedGroupInfo groupInfo = opt.get();
-        Set<UIEntityType> entityTypes = groupInfo.getEntityTypes();
+        Set<ApiEntityType> entityTypes = groupInfo.getEntityTypes();
         return apiScopeId.isGlobalTempGroup()
-            && (entityTypes.contains(UIEntityType.REGION) || entityTypes.contains(UIEntityType.AVAILABILITY_ZONE));
+            && (entityTypes.contains(ApiEntityType.REGION) || entityTypes.contains(ApiEntityType.AVAILABILITY_ZONE));
     }
 
     @Override
@@ -937,7 +937,7 @@ public class GroupsService implements IGroupsService {
                 .build(), true);
              return request.allResultsResponse(Lists.newArrayList(groups));
         } else if (ENTITY_DEFINITION.equals(uuid)) { // Get all entities definitions
-            final Collection<GroupApiDTO> entities = getAllEntitiesDefinitions(GetGroupsRequest.newBuilder()
+            final Collection<GroupApiDTO> entities = getGroupApiDTOS(GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder().setOriginFilter(OriginFilter
                     .newBuilder().addOrigin(Type.SYSTEM)))
                 .build(), true);
@@ -1057,7 +1057,7 @@ public class GroupsService implements IGroupsService {
                         .stream()
                         .filter(group -> !isHiddenGroup(group.group()))
                         .collect(Collectors.toList());
-        final List<GroupApiDTO> result;
+        final ObjectsPage<GroupApiDTO> result;
         try {
             result = groupMapper.toGroupApiDto(groupsWithMembers, populateSeverity, null, environmentType);
         } catch (InvalidOperationException e) {
@@ -1067,13 +1067,7 @@ public class GroupsService implements IGroupsService {
                             .map(Grouping::getId)
                             .collect(Collectors.toList()), e);
         }
-        if ((environmentType == null) || (environmentType == EnvironmentType.HYBRID)) {
-            return result;
-        } else {
-            return result.stream()
-                    .filter(group -> group.getEnvironmentType() == environmentType)
-                    .collect(Collectors.toList());
-        }
+        return result.getObjects();
     }
 
     /**
@@ -1092,36 +1086,6 @@ public class GroupsService implements IGroupsService {
     public List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
             final boolean populateSeverity) throws ConversionException, InterruptedException {
         return getGroupApiDTOS(groupsRequest, populateSeverity, null);
-    }
-
-    /**
-     * Get the groups matching a {@link GetGroupsRequest} from the group component, and convert
-     * them to the associated {@link GroupApiDTO} format.
-     *
-     * @param groupsRequest The request.
-     * @param populateSeverity Whether or not to populate the severity in the response. Populating
-     *                         severity requires another relatively expensive RPC call, so use this
-     *                         only when necessary.
-     * @return The list of {@link GroupApiDTO} objects.
-     */
-    @Nonnull
-    public List<GroupApiDTO> getAllEntitiesDefinitions(final GetGroupsRequest groupsRequest,
-                                             final boolean populateSeverity) {
-        final List<GroupAndMembers> groupsWithMembers =
-            groupExpander.getGroupsWithMembers(groupsRequest)
-                .stream()
-                .filter(group -> !isHiddenGroup(group.group()))
-                .collect(Collectors.toList());
-        final List<GroupApiDTO> result;
-        try {
-            result = groupMapper.toGroupApiDto(groupsWithMembers, populateSeverity,
-                    null, null);
-        } catch (Exception e) {
-            logger.error(e.getLocalizedMessage(), e);
-            return Collections.emptyList();
-        }
-
-        return result;
     }
 
     /**
@@ -1165,7 +1129,7 @@ public class GroupsService implements IGroupsService {
             } else {
                 // group of entities
                 groupMembersType = MemberType.newBuilder()
-                        .setEntity(UIEntityType.fromString(groupType).typeNumber())
+                        .setEntity(ApiEntityType.fromString(groupType).typeNumber())
                         .build();
             }
             final List<GroupAndMembers> rawGroups = groupExpander.getGroupsWithMembers(groupsRequest);
@@ -1178,13 +1142,8 @@ public class GroupsService implements IGroupsService {
         } else {
             groupsWithMembers = groupExpander.getGroupsWithMembers(groupsRequest);
         }
-
-        Map<String, GroupAndMembers> idToGroupAndMembers = new HashMap<>();
-
-        groupsWithMembers.stream()
-            .forEach((group) -> idToGroupAndMembers.put(Long.toString(group.group().getId()), group));
-
-        return nextGroupPage(groupsWithMembers, idToGroupAndMembers, paginationRequest, environmentType);
+        // Paginate the response and return it.
+        return nextGroupPage(groupsWithMembers, paginationRequest, environmentType);
     }
 
     /**
@@ -1301,7 +1260,6 @@ public class GroupsService implements IGroupsService {
      * paginationRequest parameters.
      *
      * @param groupsWithMembers The groups to populate and order.
-     * @param idToGroupAndMembers A mapping from a group id to the group with its members.
      * @param paginationRequest Contains the parameters for the pagination.
      * @param environmentType type of the environment to include in response, if null, all are included
      * @return The {@link SearchPaginationResponse} containing the groups.
@@ -1310,42 +1268,23 @@ public class GroupsService implements IGroupsService {
      * @throws InterruptedException if current thread has been interrupted
      */
     private SearchPaginationResponse nextGroupPage(final List<GroupAndMembers> groupsWithMembers,
-            final Map<String, GroupAndMembers> idToGroupAndMembers,
-            final SearchPaginationRequest paginationRequest,
-            @Nullable final EnvironmentType environmentType)
+                                                   final SearchPaginationRequest paginationRequest,
+                                                   @Nullable final EnvironmentType environmentType)
             throws InvalidOperationException, ConversionException, InterruptedException {
-
-        final long skipCount;
-        if (paginationRequest.getCursor().isPresent()) {
-            try {
-                skipCount = Long.parseLong(paginationRequest.getCursor().get());
-                if (skipCount < 0) {
-                    throw new InvalidOperationException("Illegal cursor: " +
-                        skipCount + ". Must be be a positive integer");
-                }
-            } catch (InvalidOperationException e) {
-                throw new InvalidOperationException("Cursor " + paginationRequest.getCursor() +
-                    " is invalid. Should be a number.");
-            }
-
-        } else {
-            skipCount = 0;
-        }
-
-        final List<GroupApiDTO> paginatedGroupApiDTOs =
+        final ObjectsPage<GroupApiDTO> paginatedGroupApiDTOs =
                 groupMapper.toGroupApiDto(groupsWithMembers, true, paginationRequest,
                         environmentType);
-        final List<BaseApiDTO> retList = new ArrayList<>(paginatedGroupApiDTOs);
+        final int totalRecordCount = paginatedGroupApiDTOs.getTotalCount();
+        final List<BaseApiDTO> retList = new ArrayList<>(paginatedGroupApiDTOs.getObjects());
 
-        long nextCursor = skipCount + paginatedGroupApiDTOs.size();
-        if (nextCursor == idToGroupAndMembers.values().size()) {
-            return paginationRequest.finalPageResponse(retList, null);
+        // Determine if this is the final page
+        long nextCursor = paginatedGroupApiDTOs.getNextCursor();
+        if (nextCursor == totalRecordCount) {
+            return paginationRequest.finalPageResponse(retList, totalRecordCount);
+        } else {
+            return paginationRequest.nextPageResponse(retList, Long.toString(nextCursor),
+                    totalRecordCount);
         }
-        if (nextCursor > idToGroupAndMembers.values().size()) {
-            logger.warn("Illegal cursor: the value is bigger than the total amount of groups");
-            return paginationRequest.finalPageResponse(retList, null);
-        }
-        return paginationRequest.nextPageResponse(retList, Long.toString(nextCursor), null);
     }
 
     /**
@@ -1625,8 +1564,8 @@ public class GroupsService implements IGroupsService {
             final Set<Integer> relatedEntityTypesInt = relatedEntityTypes == null
                 ? Collections.emptySet()
                 : relatedEntityTypes.stream()
-                    .map(UIEntityType::fromString)
-                    .map(UIEntityType::typeNumber)
+                    .map(ApiEntityType::fromString)
+                    .map(ApiEntityType::typeNumber)
                     .collect(Collectors.toSet());
             final Predicate<MinimalEntity> filterByType = relatedEntityTypesInt.isEmpty()
                 ? entity -> true

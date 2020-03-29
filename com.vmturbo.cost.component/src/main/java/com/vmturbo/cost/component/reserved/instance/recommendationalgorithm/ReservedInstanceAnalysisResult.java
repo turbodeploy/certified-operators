@@ -112,20 +112,20 @@ public class ReservedInstanceAnalysisResult {
     private final ImmutableList<ReservedInstanceAnalysisRecommendation> recommendations;
 
     public ReservedInstanceAnalysisResult(@Nonnull ReservedInstanceAnalysisScope analysisScope,
-                          @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
-                          @Nonnull List<ReservedInstanceAnalysisRecommendation> recommendations,
-                          long topologyId,
-                          long analysisStartTime,
-                          long analysisCompletionTime,
-                          int contextsAnalyzed,
-                          @Nonnull BuyReservedInstanceStore buyRiStore,
-                          @Nonnull ActionContextRIBuyStore actionContextRIBuyStore) {
+                                          @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+                                          @Nonnull List<ReservedInstanceAnalysisRecommendation> recommendations,
+                                          long topologyId,
+                                          long analysisStartTime,
+                                          long analysisCompletionTime,
+                                          int contextsAnalyzed,
+                                          @Nonnull BuyReservedInstanceStore buyRiStore,
+                                          @Nonnull ActionContextRIBuyStore actionContextRIBuyStore) {
 
         Objects.requireNonNull(analysisScope);
         Objects.requireNonNull(purchaseConstraints);
         Objects.requireNonNull(recommendations);
         this.manifest = new Manifest(analysisStartTime, analysisCompletionTime, analysisScope,
-                purchaseConstraints, topologyId, contextsAnalyzed);
+            purchaseConstraints, topologyId, contextsAnalyzed);
         this.recommendations = ImmutableList.copyOf(recommendations);
         this.buyRiStore = buyRiStore;
         this.actionContextRIBuyStore = actionContextRIBuyStore;
@@ -226,6 +226,6 @@ public class ReservedInstanceAnalysisResult {
      */
     public void insertActionsIntoContextTable(Map<Action, ReservedInstanceAnalysisRecommendation> actionToRecommendationMapping) {
         actionContextRIBuyStore.insertIntoActionContextRIBuy(actionToRecommendationMapping,
-                manifest.getTopologyContextId());
+            manifest.getTopologyContextId());
     }
 }

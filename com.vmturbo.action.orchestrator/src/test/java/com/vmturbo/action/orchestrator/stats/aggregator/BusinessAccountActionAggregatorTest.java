@@ -47,7 +47,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWith
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -164,14 +164,14 @@ public class BusinessAccountActionAggregatorTest {
 
     private PartialEntity makeAccount(final long id, final long... ownedVms) {
         EntityWithConnections.Builder bldr = EntityWithConnections.newBuilder()
-            .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+            .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
             .setDisplayName(Long.toString(id))
             .setOid(id);
         for (long ownedVm : ownedVms) {
             bldr.addConnectedEntities(ConnectedEntity.newBuilder()
                 .setConnectedEntityId(ownedVm)
                 .setConnectionType(ConnectionType.OWNS_CONNECTION)
-                .setConnectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setConnectedEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build());
         }
         return PartialEntity.newBuilder()
@@ -181,7 +181,7 @@ public class BusinessAccountActionAggregatorTest {
 
     private ActionEntity makeVm(final long vmId) {
         return ActionEntity.newBuilder()
-            .setType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .setEnvironmentType(EnvironmentType.CLOUD)
             .setId(vmId)
             .build();

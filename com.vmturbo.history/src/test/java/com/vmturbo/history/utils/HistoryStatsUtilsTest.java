@@ -79,7 +79,5 @@ public class HistoryStatsUtilsTest {
 
         // Assert
         assertThat(formattedName, is(nullValue()));
-
     }
-
 }

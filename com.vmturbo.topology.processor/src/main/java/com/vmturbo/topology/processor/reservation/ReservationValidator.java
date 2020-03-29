@@ -20,7 +20,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
 import com.vmturbo.common.protobuf.group.PolicyServiceGrpc.PolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
  * Utility class to validate reservation constraints.
@@ -50,13 +50,13 @@ public class ReservationValidator {
                         visitor.onClusterConstraint(rId, constraintId);
                         break;
                     case DATA_CENTER:
-                        visitor.onEntityConstraint(rId, UIEntityType.DATACENTER, constraintId);
+                        visitor.onEntityConstraint(rId, ApiEntityType.DATACENTER, constraintId);
                         break;
                     case VIRTUAL_DATA_CENTER:
-                        visitor.onEntityConstraint(rId, UIEntityType.VIRTUAL_DATACENTER, constraintId);
+                        visitor.onEntityConstraint(rId, ApiEntityType.VIRTUAL_DATACENTER, constraintId);
                         break;
                     case NETWORK:
-                        visitor.onEntityConstraint(rId, UIEntityType.NETWORK, constraintId);
+                        visitor.onEntityConstraint(rId, ApiEntityType.NETWORK, constraintId);
                         break;
                     case POLICY:
                         visitor.onPolicyConstraint(rId, constraintId);
@@ -89,7 +89,7 @@ public class ReservationValidator {
             }
 
             @Override
-            public void onEntityConstraint(final long reservationId, @Nonnull final UIEntityType type, final long entityId) {
+            public void onEntityConstraint(final long reservationId, @Nonnull final ApiEntityType type, final long entityId) {
                 requiredEntities.add(entityId);
             }
 
@@ -143,7 +143,7 @@ public class ReservationValidator {
             }
 
             @Override
-            public void onEntityConstraint(final long reservationId, final UIEntityType type, final long entityId) {
+            public void onEntityConstraint(final long reservationId, final ApiEntityType type, final long entityId) {
                 if (!presentEntities.contains(entityId)) {
                     errors.recordReferenceError(reservationId, type.name(), entityId);
                 }
@@ -197,7 +197,7 @@ public class ReservationValidator {
 
         void onClusterConstraint(long reservationId, long clusterId);
 
-        void onEntityConstraint(long reservationId, UIEntityType type, long entityId);
+        void onEntityConstraint(long reservationId, ApiEntityType type, long entityId);
 
         void onPolicyConstraint(long reservationId, long policyId);
     }

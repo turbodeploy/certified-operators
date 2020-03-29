@@ -18,9 +18,9 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -91,6 +91,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -107,6 +108,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
@@ -123,8 +125,8 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreEntityTypes;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioId;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest;
@@ -419,9 +421,11 @@ public class MarketsService implements IMarketsService {
                         .filter(ActionOrchestratorAction::hasActionSpec)
                         .map(ActionOrchestratorAction::getActionSpec)
                         .collect(Collectors.toList()), apiId.oid(), inputDto.getDetailLevel());
-        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))
-                .orElseGet(() -> paginationRequest.finalPageResponse(results, null));
+        final PaginationResponse paginationResponse = response.getPaginationResponse();
+        final int totalRecordCount = paginationResponse.getTotalRecordCount();
+        return PaginationProtoUtil.getNextCursor(paginationResponse)
+                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, totalRecordCount))
+                .orElseGet(() -> paginationRequest.finalPageResponse(results, totalRecordCount));
     }
 
     /**
@@ -557,28 +561,28 @@ public class MarketsService implements IMarketsService {
         try {
             final Iterator<PolicyDTO.PolicyResponse> allPolicyResps = policyRpcService
                     .getAllPolicies(PolicyDTO.PolicyRequest.getDefaultInstance());
-            ImmutableList<PolicyResponse> policyRespList = ImmutableList.copyOf(allPolicyResps);
+            final List<Policy> policies = Streams.stream(allPolicyResps)
+                    .filter(PolicyResponse::hasPolicy)
+                    .map(PolicyResponse::getPolicy)
+                    .collect(Collectors.toList());
 
-            Set<Long> groupingIDS = policyRespList.stream()
-                    .filter(PolicyDTO.PolicyResponse::hasPolicy)
-                    .flatMap(resp -> GroupProtoUtil.getPolicyGroupIds(resp.getPolicy()).stream())
+            final Set<Long> groupingIDS = policies.stream()
+                    .map(GroupProtoUtil::getPolicyGroupIds)
+                    .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
-            final Map<Long, Grouping> groupings = new HashMap<>();
-            if (!groupingIDS.isEmpty()) {
-                groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder()
-                                .addAllId(groupingIDS)
-                                .setIncludeHidden(true))
-                        .build()).forEachRemaining(group -> groupings.put(group.getId(), group));
+            final Collection<Grouping> groupings;
+            if (groupingIDS.isEmpty()) {
+                groupings = Collections.emptySet();
+            } else {
+                final Iterator<Grouping> iterator = groupRpcService.getGroups(
+                        GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter.newBuilder()
+                                        .addAllId(groupingIDS)
+                                        .setIncludeHidden(true))
+                                .build());
+                groupings = Sets.newHashSet(iterator);
             }
-            final List<PolicyApiDTO> result = new ArrayList<>();
-            for (PolicyResponse response: policyRespList) {
-                if (response.hasPolicy()) {
-                    final PolicyApiDTO policy =
-                            policyMapper.policyToApiDto(response.getPolicy(), groupings);
-                    result.add(policy);
-                }
-            }
+            final List<PolicyApiDTO> result = policyMapper.policyToApiDto(policies, groupings);
             return result;
         } catch (RuntimeException e) {
             logger.error("Problem getting policies", e);
@@ -785,9 +789,9 @@ public class MarketsService implements IMarketsService {
                 updatedScenarioInfo.addChanges(ScenarioChange.newBuilder()
                         .setPlanChanges(PlanChanges.newBuilder()
                                 .addIgnoreConstraints(IgnoreConstraint.newBuilder()
-                                        .setIgnoreEntityTypes(IgnoreEntityTypes.newBuilder()
-                                                .addEntityTypes(EntityType.VIRTUAL_MACHINE)
-                                                .build())
+                                        .setGlobalIgnoreEntityType(
+                                                GlobalIgnoreEntityType.newBuilder()
+                                                .setEntityType(EntityType.VIRTUAL_MACHINE))
                                         .build())));
             } else {
                 logger.warn("Ignoring \"ignore constraints\" option because the scenario already has ignored "

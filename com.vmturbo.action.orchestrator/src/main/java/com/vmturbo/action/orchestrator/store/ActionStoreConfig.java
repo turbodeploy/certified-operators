@@ -158,7 +158,7 @@ public class ActionStoreConfig {
     @Bean
     public ActionStorehouse actionStorehouse() {
         return new ActionStorehouse(actionStoreFactory(), automatedActionExecutor(),
-                actionStoreLoader(), actionModeCalculator());
+            actionStoreLoader(), actionModeCalculator());
     }
 
     @Bean

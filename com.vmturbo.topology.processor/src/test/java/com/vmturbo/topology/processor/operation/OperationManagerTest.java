@@ -26,24 +26,18 @@ import com.google.common.collect.Lists;
 
 import org.hamcrest.CoreMatchers;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.identity.store.IdentityStore;
-import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
@@ -65,7 +59,8 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
@@ -75,6 +70,7 @@ import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
+import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.topology.processor.db.enums.EntityActionActionType;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
@@ -88,10 +84,12 @@ import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationResult;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
+import com.vmturbo.topology.processor.targets.KvTargetDao;
 import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
@@ -101,17 +99,20 @@ import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 /**
  * Testing the {@link OperationManager} functionality.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=topology_processor"})
 public class OperationManagerTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(TopologyProcessor.TOPOLOGY_PROCESSOR);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private EntityActionDao entityActionDao;
 
@@ -122,7 +123,7 @@ public class OperationManagerTest {
     private final IdentityStore<TopologyProcessorDTO.TargetSpec> targetIdentityStore = new TestIdentityStore<>(
             new TargetSpecAttributeExtractor(probeStore));
 
-    private final KeyValueStore kvStore = new MapKeyValueStore();
+    private final TargetDao kvStore = new KvTargetDao(new MapKeyValueStore(), probeStore);
 
     private final GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
 
@@ -130,7 +131,7 @@ public class OperationManagerTest {
 
     private final SystemNotificationProducer systemNotificationProducer = Mockito.mock(SystemNotificationProducer.class);
 
-    private final TargetStore targetStore = new KVBackedTargetStore(kvStore, probeStore,
+    private final TargetStore targetStore = new CachingTargetStore(kvStore, probeStore,
             targetIdentityStore);
 
     private final RemoteMediationServer mockRemoteMediationServer = Mockito.mock(RemoteMediationServer.class);
@@ -171,7 +172,6 @@ public class OperationManagerTest {
 
     @Before
     public void setup() throws Exception {
-        dsl = dbConfig.prepareDatabase();
         entityActionDao = new EntityActionDaoImp(dsl, 100, 300,
                 360, 360, 360);
         operationManager = new OperationManager(identityProvider, targetStore, probeStore,
@@ -196,14 +196,6 @@ public class OperationManagerTest {
 
         when(targetDumpingSettings.getDumpsToHold(any())).thenReturn(0);
         doNothing().when(targetDumpingSettings).refreshSettings();
-    }
-
-    /**
-     * Release all resources occupied by test.
-     */
-    @After
-    public void tearDown() {
-        dbConfig.clean();
     }
 
     /**

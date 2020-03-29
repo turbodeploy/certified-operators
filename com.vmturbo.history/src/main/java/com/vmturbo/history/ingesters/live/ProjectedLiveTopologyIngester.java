@@ -33,14 +33,4 @@ public class ProjectedLiveTopologyIngester extends TopologyIngesterBase<Projecte
         super(chunkProcessorFactories, topologyIngesterConfig, loaderFactorySupplier,
                 TOPOLOGY_TYPE);
     }
-
-    /**
-     * Summarize the topology being ingested.
-     *
-     * @param topologyInfo topology info object
-     * @return topology summary string
-     */
-    public static String getTopologyInfoSummary(TopologyInfo topologyInfo) {
-        return getTopologyInfoSummary(topologyInfo, TOPOLOGY_TYPE.getReadableName());
-    }
 }

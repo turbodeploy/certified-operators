@@ -5,34 +5,34 @@ import static org.springframework.test.util.AssertionErrors.fail;
 
 import java.util.List;
 
-import org.flywaydb.core.Flyway;
-import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.Discount;
 import com.vmturbo.common.protobuf.cost.Cost.DiscountInfo;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
+import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.discount.DuplicateAccountIdException;
 import com.vmturbo.cost.component.discount.SQLDiscountStore;
-import com.vmturbo.cost.component.discount.DiscountStore;
 import com.vmturbo.cost.component.identity.IdentityProvider;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class SQLDiscountStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     public static final long ASSOCIATED_ACCOUNT_ID = 1111l;
     public static final double DISCOUNT_PERCENTAGE2 = 20.0;
@@ -56,26 +56,8 @@ public class SQLDiscountStoreTest {
                     .setDiscountPercentage(DISCOUNT_PERCENTAGE2)
                     .build())
             .build();
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-    private Flyway flyway;
-    private DiscountStore discountDao;
-    private DSLContext dsl;
-
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        discountDao = new SQLDiscountStore(dsl,
+    private DiscountStore discountDao = new SQLDiscountStore(dbConfig.getDslContext(),
                 new IdentityProvider(0));
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
 
     @Test
     public void testCRUD() throws DbException, DiscountNotFoundException, DuplicateAccountIdException {

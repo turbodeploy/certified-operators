@@ -154,11 +154,11 @@ public class ReservedInstanceAnalysisScope {
         // TODO: Should the default values of preferred coverage and override coverage come from
         // startBuyAnalysisRequest?
         this(startAnalysisRequest.getPlatformsList(),
-                startAnalysisRequest.getRegionsList(),
-                startAnalysisRequest.getTenanciesList(),
-                startAnalysisRequest.getAccountsList(), -1, false,
-                startAnalysisRequest.getPurchaseProfile(),
-                startAnalysisRequest.getTopologyInfo());
+            startAnalysisRequest.getRegionsList(),
+            startAnalysisRequest.getTenanciesList(),
+            startAnalysisRequest.getAccountsList(), -1, false,
+            startAnalysisRequest.getPurchaseProfile(),
+            startAnalysisRequest.getTopologyInfo());
     }
 
     /**

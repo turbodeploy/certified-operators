@@ -140,6 +140,10 @@
             <artifactId>sql-utils</artifactId>
         </dependency>
         <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.retry</groupId>
             <artifactId>spring-retry</artifactId>
         </dependency>
@@ -281,20 +285,20 @@
                             </schemata>
                             <customTypes>
                                 <customType>
-                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo</name>
-                                    <converter>com.vmturbo.group.setting.SettingPolicyInfoConverter</converter>
-                                </customType>
-                                <customType>
                                     <name>com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo</name>
                                     <converter>com.vmturbo.group.policy.PolicyInfoConverter</converter>
+                                </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase</name>
+                                    <converter>com.vmturbo.group.setting.SettingTypeConverter</converter>
                                 </customType>
                             </customTypes>
 
                             <!-- Then, associate custom types with database columns -->
                             <forcedTypes>
                                 <forcedType>
-                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo</name>
-                                    <expression>.*\.setting_policy\.setting_policy_data</expression>
+                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase</name>
+                                    <expression>.*\.setting_policy_setting\.setting_type</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo</name>

@@ -20,19 +20,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.db.Tables;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotDayRecord;
 import com.vmturbo.action.orchestrator.db.tables.records.ActionSnapshotHourRecord;
@@ -44,21 +39,23 @@ import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsByMonthRecor
 import com.vmturbo.action.orchestrator.db.tables.records.ActionStatsLatestRecord;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatRollupScheduler.ActionStatRollup;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    loader = AnnotationConfigContextLoader.class,
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class ScheduledRollupIntegrationTest {
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private RollupTestUtils rollupTestUtils;
 
@@ -71,21 +68,7 @@ public class ScheduledRollupIntegrationTest {
 
     @Before
     public void setup() {
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway = dbConfig.flyway();
-        flyway.clean();
-        flyway.migrate();
-
-        // Grab a handle for JOOQ DB operations
-        dsl = dbConfig.dsl();
-
         rollupTestUtils = new RollupTestUtils(dsl);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test

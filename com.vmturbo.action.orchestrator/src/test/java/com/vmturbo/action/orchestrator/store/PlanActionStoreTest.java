@@ -106,10 +106,10 @@ public class PlanActionStoreTest {
         @Override
         public Action newPlanAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
                                     long actionPlanId, String description,
-                @Nullable final Long associatedAccountId,
-                @Nullable final Long associatedResourceGroupId) {
+                                    @Nullable final Long associatedAccountId,
+                                    @Nullable final Long associatedResourceGroupId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId,
-                    actionModeCalculator, description, associatedAccountId, associatedResourceGroupId));
+                actionModeCalculator, description, associatedAccountId, associatedResourceGroupId));
         }
     }
 
@@ -140,11 +140,11 @@ public class PlanActionStoreTest {
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
         when(actionFactory.newPlanAction(any(ActionDTO.Action.class),
-                any(LocalDateTime.class), anyLong(), anyString(), any(), any())).thenAnswer(
+            any(LocalDateTime.class), anyLong(), anyString(), any(), any())).thenAnswer(
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
-                        actionModeCalculator, "Move VM from H1 to H2", 321L, 121L);
+                    actionModeCalculator, "Move VM from H1 to H2", 321L, 121L);
             });
         setEntitiesOIDs();
     }
@@ -257,7 +257,7 @@ public class PlanActionStoreTest {
 
         ActionOrchestratorTestUtils.assertActionsEqual(
             actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "", null,
-                    null),
+                null),
             actionStore.getAction(1L).get()
         );
     }
@@ -277,7 +277,7 @@ public class PlanActionStoreTest {
         actionList.forEach(action ->
             ActionOrchestratorTestUtils.assertActionsEqual(
                 actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "",
-                        null, null),
+                    null, null),
                 actionsMap.get(action.getId())
             )
         );
@@ -287,16 +287,16 @@ public class PlanActionStoreTest {
     public void testOverwriteActionsEmptyStore() throws Exception {
         final List<Action> actionList = actionList(3).stream()
             .map(marketAction -> actionFactory.newPlanAction(marketAction, actionRecommendationTime,
-                    firstPlanId, "", null, null))
+                firstPlanId, "", null, null))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, actionList));
         Map<Long, Action> actionsMap = actionStore.getActions();
         actionList.forEach(action ->
-                ActionOrchestratorTestUtils.assertActionsEqual(
-                    action,
-                    actionsMap.get(action.getId())
-                )
+            ActionOrchestratorTestUtils.assertActionsEqual(
+                action,
+                actionsMap.get(action.getId())
+            )
         );
     }
 
@@ -389,7 +389,7 @@ public class PlanActionStoreTest {
         // Load the stores from DB
         List<ActionStore> loadedStores =
             new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
-                 null, null).loadActionStores();
+                null, null).loadActionStores();
         loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
 
         // Assert that what we load from DB is the same as what we setup initially
@@ -461,7 +461,7 @@ public class PlanActionStoreTest {
     }
 
     private static ActionPlan buyRIActionPlan(final long planId, final long topologyContextId,
-                                               @Nonnull final Collection<ActionDTO.Action> actions) {
+                                              @Nonnull final Collection<ActionDTO.Action> actions) {
 
         return ActionPlan.newBuilder()
             .setId(planId)

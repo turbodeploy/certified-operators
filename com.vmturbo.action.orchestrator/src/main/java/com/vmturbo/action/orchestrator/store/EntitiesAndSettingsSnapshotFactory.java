@@ -44,7 +44,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -105,11 +105,11 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         private final TopologyType topologyType;
 
         public EntitiesAndSettingsSnapshot(@Nonnull final Map<Long, Map<String, Setting>> settings,
-                @Nonnull final Map<Long, ActionPartialEntity> entityMap,
-                @Nonnull final OwnershipGraph<EntityWithConnections> ownershipGraph,
-                @Nonnull final Map<Long, Long> entityToResourceGroupMap,
-                final long topologyContextId,
-                @Nonnull final TopologyType targetTopologyType) {
+                                           @Nonnull final Map<Long, ActionPartialEntity> entityMap,
+                                           @Nonnull final OwnershipGraph<EntityWithConnections> ownershipGraph,
+                                           @Nonnull final Map<Long, Long> entityToResourceGroupMap,
+                                           final long topologyContextId,
+                                           @Nonnull final TopologyType targetTopologyType) {
             this.settingsByEntityAndSpecName = settings;
             this.oidToEntityMap = entityMap;
             this.ownershipGraph = ownershipGraph;
@@ -251,16 +251,16 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         }
 
         return new EntitiesAndSettingsSnapshot(newSettings, entityMap, ownershipGraph,
-                entityToResourceGroupMap, topologyContextId, targetTopologyType);
+            entityToResourceGroupMap, topologyContextId, targetTopologyType);
     }
 
     @Nonnull
     private Map<Long, Long> retrieveResourceGroupsForEntities(@Nonnull Set<Long> entities) {
         final GetGroupsForEntitiesResponse response = groupService.getGroupsForEntities(
-                GetGroupsForEntitiesRequest.newBuilder()
-                        .addAllEntityId(entities)
-                        .addGroupType(GroupType.RESOURCE)
-                        .build());
+            GetGroupsForEntitiesRequest.newBuilder()
+                .addAllEntityId(entities)
+                .addGroupType(GroupType.RESOURCE)
+                .build());
         final Map<Long, Long> resultMap = new HashMap<>();
         for (Entry<Long, Groupings> groupingsEntry : response.getEntityGroupMap().entrySet()) {
             final long entityId = groupingsEntry.getKey();
@@ -268,7 +268,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                 final Long oldGroupId = resultMap.put(entityId, groupId);
                 if (oldGroupId != null) {
                     logger.warn("Found multiple resource groups for entity {}: {} and {}", entityId,
-                            oldGroupId, groupId);
+                        oldGroupId, groupId);
                 }
             }
         }
@@ -277,9 +277,9 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     @Nonnull
     private OwnershipGraph<EntityWithConnections> retrieveOwnershipGraph(@Nonnull final Set<Long> entities,
-                     final long topologyContextId,
-                     @Nullable final Long topologyId,
-                     @Nonnull final TopologyType topologyType) {
+                                                                         final long topologyContextId,
+                                                                         @Nullable final Long topologyId,
+                                                                         @Nonnull final TopologyType topologyType) {
         final OwnershipGraph.Builder<EntityWithConnections> graphBuilder =
             OwnershipGraph.newBuilder(EntityWithConnections::getOid);
 
@@ -287,7 +287,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
             .setReturnType(Type.WITH_CONNECTIONS)
             .setTopologyContextId(topologyContextId)
             .setTopologyType(topologyType)
-            .addEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber());
+            .addEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber());
         // Set the topologyId if its non null. Else it defaults to real time.
         if (topologyId != null) {
             entitiesReqBldr.setTopologyId(topologyId);
@@ -333,9 +333,9 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      * @return mapping with oid as key and {@link ActionPartialEntity} as value.
      */
     private Map<Long, ActionPartialEntity> retrieveOidToEntityMap(Set<Long> entities,
-                    long topologyContextId,
-                    @Nullable final Long topologyId,
-                    @Nonnull final TopologyType targetTopologyType) {
+                                                                  long topologyContextId,
+                                                                  @Nullable final Long topologyId,
+                                                                  @Nonnull final TopologyType targetTopologyType) {
         if (entities.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -365,8 +365,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     @Nonnull
     private Map<Long, Map<String, Setting>> retrieveEntityToSettingListMap(final Set<Long> entities,
-                                                                    final long topologyContextId,
-                                                                    @Nullable final Long topologyId) {
+                                                                           final long topologyContextId,
+                                                                           @Nullable final Long topologyId) {
         // We don't currently upload settings in plans, so no point trying to get them.
         if (topologyContextId != realtimeTopologyContextId) {
             return Collections.emptyMap();
@@ -374,15 +374,15 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
         try {
             final Builder builder = TopologySelection.newBuilder()
-                    .setTopologyContextId(topologyContextId);
+                .setTopologyContextId(topologyContextId);
             if (topologyId != null) {
                 builder.setTopologyId(topologyId);
             }
             final GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
-                    .setTopologySelection(builder)
-                    .setSettingFilter(EntitySettingFilter.newBuilder()
-                            .addAllEntities(entities))
-                    .build();
+                .setTopologySelection(builder)
+                .setSettingFilter(EntitySettingFilter.newBuilder()
+                    .addAllEntities(entities))
+                .build();
             return Collections.unmodifiableMap(SettingDTOUtil.indexSettingsByEntity(
                 SettingDTOUtil.flattenEntitySettings(
                     settingPolicyService.getEntitySettings(request))));

@@ -35,7 +35,7 @@ public class SettingConfig {
     private GroupConfig groupConfig;
 
     @Value("${createDefaultSettingPolicyRetryIntervalSec}")
-    private long createDefaultSettingPolicyRetryIntervalSec;
+    public long createDefaultSettingPolicyRetryIntervalSec;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -54,7 +54,6 @@ public class SettingConfig {
     public SettingStore settingStore() {
         return new SettingStore(settingSpecsStore(),
                 databaseConfig.dsl(),
-                identityProviderConfig.identityProvider(),
                 settingPolicyValidator(),
                 new SettingsUpdatesSender(settingMessageSender()));
     }
@@ -71,22 +70,9 @@ public class SettingConfig {
                 .messageSender(SettingsUpdatesReciever.SETTINGS_UPDATES_TOPIC);
     }
 
-    @Bean
-    public DefaultSettingPolicyCreator defaultSettingPoliciesCreator() {
-        final DefaultSettingPolicyCreator creator =
-                new DefaultSettingPolicyCreator(settingSpecsStore(), settingStore(),
-                        TimeUnit.SECONDS.toMillis(createDefaultSettingPolicyRetryIntervalSec));
-        /*
-         * Asynchronously create the default setting policies.
-         * This is asynchronous so that DB availability doesn't prevent the group component from
-         * starting up.
-         */
-        settingsCreatorThreadPool().execute(creator);
-        return creator;
-    }
 
     @Bean(destroyMethod = "shutdownNow")
-    protected ExecutorService settingsCreatorThreadPool() {
+    public ExecutorService settingsCreatorThreadPool() {
         final ThreadFactory tf =
                 new ThreadFactoryBuilder().setNameFormat("default-settings-creator-%d").build();
         return Executors.newCachedThreadPool(tf);

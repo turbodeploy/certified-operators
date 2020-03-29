@@ -12,7 +12,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
  * Abstract {@link IAspectMapper} with common logic needed in derived classes.
@@ -56,7 +56,7 @@ public abstract class AbstractAspectMapper implements IAspectMapper {
         final BaseApiDTO baseApiDTO = new BaseApiDTO();
         baseApiDTO.setUuid(String.valueOf(minimalEntity.getOid()));
         baseApiDTO.setDisplayName(minimalEntity.getDisplayName());
-        baseApiDTO.setClassName(UIEntityType.fromType(minimalEntity.getEntityType()).apiStr());
+        baseApiDTO.setClassName(ApiEntityType.fromType(minimalEntity.getEntityType()).apiStr());
         return baseApiDTO;
     }
 

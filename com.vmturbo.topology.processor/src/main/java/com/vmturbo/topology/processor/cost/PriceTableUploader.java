@@ -287,21 +287,24 @@ public class PriceTableUploader implements DiagsRestorable {
                 SDKProbeType sdkProbeType = probeTypesForTargetId.get(targetId);
                 ProbePriceData probePriceData = new ProbePriceData();
                 probePriceData.probeType = sdkProbeType.getProbeType();
-                // convert the price table for this probe type
-                probePriceData.priceTable = priceTableToCostPriceTable(priceTable, cloudEntitiesMap,
-                        SDKProbeType.create(sdkProbeType.getProbeType()));
-                // add the RI price table for this probe type
-                probePriceData.riSpecPrices = getRISpecPrices(priceTable, cloudEntitiesMap);
-
-                final Optional<PriceTableKey> optPriceTableKey =
-                        generatePriceTableKey(priceTable, targetId);
-
-                if (optPriceTableKey.isPresent()) {
-                    probePriceData.priceTableKey = optPriceTableKey.get();
-                    probePricesList.add(probePriceData);
+                if (priceTable.hasServiceProviderId()) {
+                    // convert the price table for this probe type
+                    probePriceData.priceTable = priceTableToCostPriceTable(priceTable, cloudEntitiesMap,
+                            SDKProbeType.create(sdkProbeType.getProbeType()));
+                    // add the RI price table for this probe type
+                    probePriceData.riSpecPrices = getRISpecPrices(priceTable, cloudEntitiesMap);
+                    final Optional<PriceTableKey> optPriceTableKey =
+                            generatePriceTableKey(priceTable, cloudEntitiesMap);
+                    if (optPriceTableKey.isPresent()) {
+                        probePriceData.priceTableKey = optPriceTableKey.get();
+                        probePricesList.add(probePriceData);
+                    } else {
+                        logger.error("Unable to create price table key for price table (TargetID={})",
+                                targetId);
+                    }
                 } else {
-                    logger.error("Unable to create price table key for price table (TargetID={})",
-                            targetId);
+                    logger.error("Unable to create price table key for price table (TargetID={})." +
+                            "The price table is missing a service provider id.");
                 }
             });
         }
@@ -315,24 +318,25 @@ public class PriceTableUploader implements DiagsRestorable {
      * Generate {@link PriceTableKey} from a given priceTableKeyList and its probeType.
      *
      * @param priceTable used to extract priceTableKeys.
-     * @param targetId  targetId to which priceTable belongs to. Used to determine {@link SDKProbeType}.
+     * @param cloudEntitiesMap The map containing mapping of cloud entities to oids.
+     *
      * @return {@link PriceTableKey} which is sent to cost component.
      */
     @Nonnull
     private Optional<PriceTableKey> generatePriceTableKey(@Nonnull final PricingDTO.PriceTable priceTable,
-                                                @Nonnull final Long targetId) {
+                                                          final CloudEntitiesMap cloudEntitiesMap) {
         Builder priceTableKeyBuilder = PriceTableKey.newBuilder();
+        Long serviceProviderOid = cloudEntitiesMap.get(priceTable.getServiceProviderId());
+        if (serviceProviderOid != null) {
+            priceTableKeyBuilder.setServiceProviderId(serviceProviderOid);
+        } else {
+            logger.error("Service Provider not found in cloud entities map for {}", priceTable.getServiceProviderId());
+        }
         priceTable.getPriceTableKeysList().forEach(pricingIdentifier -> {
             priceTableKeyBuilder.putProbeKeyMaterial(pricingIdentifier.getIdentifierName().name(),
                     pricingIdentifier.getIdentifierValue());
         });
-
-        return targetStore.getProbeTypeForTarget(targetId)
-                .map(PricingGroupMapper::getPricingGroupForProbeType)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .map(priceTableKeyBuilder::setPricingGroup)
-                .map(PriceTableKey.Builder::build);
+        return Optional.of(priceTableKeyBuilder.build());
     }
 
     @VisibleForTesting
@@ -719,7 +723,7 @@ public class PriceTableUploader implements DiagsRestorable {
      */
     public static class ProbePriceData {
         public String probeType;
-        public  PriceTable priceTable;
+        public PriceTable priceTable;
         public PriceTableKey priceTableKey;
         public List<ReservedInstanceSpecPrice> riSpecPrices;
 

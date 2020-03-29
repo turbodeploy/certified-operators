@@ -49,24 +49,24 @@ public class EntityStatsWriter extends TopologyWriterBase {
      * @param loaders              bulk loader factory
      */
     private EntityStatsWriter(TopologyInfo topologyInfo,
-            Set<String> commoditiesToExclude,
-            HistorydbIO historydbIO,
-            SimpleBulkLoaderFactory loaders) {
+                              Set<String> commoditiesToExclude,
+                              HistorydbIO historydbIO,
+                              SimpleBulkLoaderFactory loaders) {
         this.loaders = loaders;
         this.topologyInfo = topologyInfo;
         // create an aggregator to do all the real work of matching buyers and sellers and
         // recording stats
         this.aggregator = new LiveStatsAggregator(
-                historydbIO, topologyInfo, commoditiesToExclude, loaders);
+            historydbIO, topologyInfo, commoditiesToExclude, loaders);
     }
 
     @Override
     public ChunkDisposition processEntities(@Nonnull final Collection<TopologyEntityDTO> entities,
-            @Nonnull final String infoSummary)
-            throws InterruptedException {
+                                            @Nonnull final String infoSummary)
+        throws InterruptedException {
 
         final Map<Long, TopologyEntityDTO> entityByOid = entities.stream()
-                .collect(Collectors.toMap(TopologyEntityDTO::getOid, Functions.identity()));
+            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Functions.identity()));
         for (TopologyEntityDTO entity : entities) {
             aggregator.aggregateEntity(entity, entityByOid);
         }
@@ -75,14 +75,14 @@ public class EntityStatsWriter extends TopologyWriterBase {
 
     @Override
     public void finish(int entityCount, boolean expedite, String infoSummary)
-            throws InterruptedException {
+        throws InterruptedException {
 
         if (!expedite) {
             try {
                 aggregator.writeFinalStats();
             } catch (VmtDbException e) {
                 logger.warn("EntityStatsWriter failed to record final stats for topology {}",
-                        infoSummary);
+                    infoSummary);
             }
             // assuming we wrote any records to entity_stats tables, record this topology's snapshot_time in
             // available_timestamps table
@@ -93,7 +93,7 @@ public class EntityStatsWriter extends TopologyWriterBase {
                 record.setTimeFrame(TimeFrame.LATEST.name());
                 record.setHistoryVariety(HistoryVariety.ENTITY_STATS.name());
                 record.setExpiresAt(
-                        Timestamp.from(RetentionPolicy.LATEST_STATS.getExpiration(snapshot_time.toInstant())));
+                    Timestamp.from(RetentionPolicy.LATEST_STATS.getExpiration(snapshot_time.toInstant())));
                 loaders.getLoader(Tables.AVAILABLE_TIMESTAMPS).insert(record);
             }
         }
@@ -120,9 +120,9 @@ public class EntityStatsWriter extends TopologyWriterBase {
         @Override
         public Optional<IChunkProcessor<Topology.DataSegment>>
         getChunkProcessor(final TopologyInfo topologyInfo,
-                SimpleBulkLoaderFactory loaders) {
+                          SimpleBulkLoaderFactory loaders) {
             return Optional.of(new EntityStatsWriter(
-                    topologyInfo, commoditiesToExclude, historydbIO, loaders));
+                topologyInfo, commoditiesToExclude, historydbIO, loaders));
         }
     }
 }

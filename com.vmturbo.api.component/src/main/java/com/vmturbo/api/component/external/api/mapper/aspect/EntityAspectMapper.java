@@ -1,9 +1,12 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -11,7 +14,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -94,6 +96,28 @@ public class EntityAspectMapper {
     }
 
     /**
+     * Get a map of aspectMapper -> list of entity types supported.
+     *
+     * @param requestedAspects restrict result to these aspects, if non-null
+     * @return a map containing aspectMapper -> supported entity types
+     */
+    public Map<IAspectMapper, List<Integer>> getMappersAndEntityTypes(@Nullable Collection<String> requestedAspects) {
+        Map<IAspectMapper, List<Integer>> reverseMap = new HashMap();
+
+        aspectMappers.forEach((entityType, mappers) -> {
+            mappers.forEach(mapper -> {
+                if (requestedAspects == null ||
+                    requestedAspects.isEmpty() ||
+                    requestedAspects.contains(mapper.getAspectName().getApiName())) {
+                    reverseMap.computeIfAbsent(mapper, e -> new ArrayList<>()).add(entityType);
+                }
+            });
+        });
+
+        return reverseMap;
+    }
+
+    /**
      * Get a group of aspects specified by {@param mappers} for a given entity.
      *
      * @param entity the entity to get aspect for
@@ -132,14 +156,14 @@ public class EntityAspectMapper {
     @Nonnull
     public Map<AspectName, EntityAspect> getAspectsByEntity(@Nonnull TopologyEntityDTO entity)
             throws InterruptedException, ConversionException {
-        return getAspectsByEntityUsingMappers(entity, aspectMappers.get(entity.getEntityType()));
+        return getAspectsByEntities(Collections.singletonList(entity), null).get(entity.getOid());
     }
 
     /**
      * Get a specific aspect for a given entity.
      *
      * @param entity the entity to get aspect for
-     * @param aspectName the name of the aspect to get
+     * @param aspectName the name of the aspect to gets
      * @return {@link EntityAspect} for the given entity and aspect name
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
@@ -267,41 +291,6 @@ public class EntityAspectMapper {
     }
 
     /**
-     * To optimize performance, certain {@link IAspectMapper} implementations support generating a single aspect
-     * representing a group of entities, then mapping that aspect to a collection where each element represents a
-     * unique entity. If this functionality is supported by all the mappers that correspond to a given entity type,
-     * it should be leveraged.
-     *
-     * @param classInstances of a given {@link TopologyEntityDTO} implementation for which to retrieve aspects
-     * @param groupAspectEnabledMappers a list of {@link IAspectMapper} used to compute aspects of {@param classInstances}
-     * @return a map of UUID to map of aspect name to aspect value
-     * @throws InterruptedException if thread has been interrupted
-     * @throws ConversionException if errors faced during converting data to API DTOs
-     */
-    @Nonnull
-    public Map<String, Map<AspectName, EntityAspect>> getExpandedAspectsByGroupUsingMappers(
-            @Nonnull List<TopologyEntityDTO> classInstances,
-            @Nullable List<IAspectMapper> groupAspectEnabledMappers)
-            throws InterruptedException, ConversionException {
-        final Map<String, Map<AspectName, EntityAspect>> uuidToAspectMap = new HashMap<>();
-        if (CollectionUtils.isEmpty(groupAspectEnabledMappers)) {
-            return uuidToAspectMap;
-        }
-        Map<AspectName, EntityAspect> aspectsByGroup = getAspectsByGroupUsingMappers(classInstances, groupAspectEnabledMappers);
-        groupAspectEnabledMappers.forEach(mapper -> {
-            AspectName aspectName = mapper.getAspectName();
-            if (aspectsByGroup.containsKey(aspectName)) {
-                Map<String, EntityAspect> uuidToAspect = mapper.mapOneToManyAspects(
-                    classInstances, aspectsByGroup.get(aspectName));
-                uuidToAspect.entrySet().stream().forEach(uuidToAspectEntry ->
-                    uuidToAspectMap.computeIfAbsent(uuidToAspectEntry.getKey(), key -> Maps.newHashMap())
-                        .put(aspectName, uuidToAspectEntry.getValue()));
-            }
-        });
-        return uuidToAspectMap;
-    }
-
-    /**
      * Get a specific aspect for a group, given all members of the group and the name of the aspect
      * to get.
      *
@@ -324,7 +313,7 @@ public class EntityAspectMapper {
     }
 
     /**
-     * Get aspects for an arbitrary {@link TopologyEntityDTO} and return as
+     * Get aspects for a list of arbitrary {@link TopologyEntityDTO} and return as
      * a mapping from OID to aspect name to aspect DTO.
      *
      * @param entities the entities for which to return aspects
@@ -335,17 +324,48 @@ public class EntityAspectMapper {
      */
     @Nonnull
     public Map<Long, Map<AspectName, EntityAspect>> getAspectsByEntities(
-            @Nonnull List<TopologyEntityDTO> entities, @Nonnull List<IAspectMapper> aspectsList)
+            @Nonnull List<TopologyEntityDTO> entities, @Nullable Collection<String> aspectsList)
             throws InterruptedException, ConversionException {
-        final Map<Long, Map<AspectName, EntityAspect>> oidToAspectMapMap = new HashMap<>();
-        for (TopologyEntityDTO entity: entities) {
-            Map<AspectName, EntityAspect> aspects =
-                    getAspectsByEntityUsingMappers(entity, aspectsList);
-            if (!aspects.isEmpty()) {
-                oidToAspectMapMap.put(entity.getOid(), aspects);
+        // a mapping from aspectMapper -> list of entity types supported by that aspect mapper.
+        Map<IAspectMapper, List<Integer>> mappers = getMappersAndEntityTypes(aspectsList);
+        Map<IAspectMapper, List<TopologyEntityDTO>> entitiesByMapper = new HashMap<>();
+        entities.forEach(entity -> {
+            mappers.forEach((mapper, supportedEntityTypes) -> {
+                if (supportedEntityTypes.contains(entity.getEntityType())) {
+                    entitiesByMapper.computeIfAbsent(mapper, x -> new ArrayList<>()).add(entity);
+                }
+            });
+        });
+
+        // initialize the map that we will return
+        Map<Long, Map<AspectName, EntityAspect>> aspects = entities.stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid, e -> new HashMap<>()));
+
+        // iterate through aspect mappers, and feed each mapper all entities supported by that mapper.
+        for (Map.Entry<IAspectMapper, List<TopologyEntityDTO>> entry : entitiesByMapper.entrySet()) {
+            IAspectMapper mapper = entry.getKey();
+            List<TopologyEntityDTO> matchingEntities = entry.getValue();
+
+            // We will first call mapper.mapEntityToAspectBatch(), which handles entities in bulk.
+            // If mapEntityToAspectBatch() is not implemented for this mapper, it will return an empty Optional.
+            // In that case, revert to mapper.mapEntityToAspect(), which handles entities one at a time.
+
+            Optional<Map<Long, EntityAspect>> aspectMap = mapper.mapEntityToAspectBatch(matchingEntities);
+            if (aspectMap.isPresent()) {
+                aspectMap.get().forEach((oid, aspect) -> {
+                    aspects.get(oid).put(mapper.getAspectName(), aspect);
+                });
+            } else {
+                for (TopologyEntityDTO entity : matchingEntities) {
+                    EntityAspect aspect = mapper.mapEntityToAspect(entity);
+                    if (aspect != null) {
+                        aspects.get(entity.getOid()).put(mapper.getAspectName(), aspect);
+                    }
+                }
             }
         }
-        return oidToAspectMapMap;
+
+        return aspects;
     }
 
     /**

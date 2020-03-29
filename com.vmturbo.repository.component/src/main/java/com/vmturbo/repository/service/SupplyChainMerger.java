@@ -20,7 +20,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.SetOnce;
 
 /**
@@ -131,11 +131,11 @@ public class SupplyChainMerger {
          * chain starting from BusinessAccount, but we don't want to show BusinessAccount node in
          * the supply chain, then we need to remove the BusinessAccount node and modify related nodes.
          *
-         * @param repoEntityTypes the set of entity types {@link UIEntityType} to remove SupplyChainNode for
+         * @param repoEntityTypes the set of entity types {@link ApiEntityType} to remove SupplyChainNode for
          */
-        void removeSupplyChainNodes(@Nonnull Set<UIEntityType> repoEntityTypes) {
+        void removeSupplyChainNodes(@Nonnull Set<ApiEntityType> repoEntityTypes) {
             final Set<String> entityTypes = repoEntityTypes.stream()
-                .map(UIEntityType::apiStr)
+                .map(ApiEntityType::apiStr)
                 .collect(Collectors.toSet());
 
             final List<SupplyChainNode> newSupplyChainNodes = supplyChainNodes.stream()

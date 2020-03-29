@@ -17,14 +17,14 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 public class SearchProtoUtilTest {
 
     private static final String FOO = "foo";
     private static final String BAR = "bar";
     private static final String VM = "VirtualMachine";
-    private static final UIEntityType VM_TYPE = UIEntityType.fromString(VM);
+    private static final ApiEntityType VM_TYPE = ApiEntityType.fromString(VM);
 
     /**
      * Check the value of {@link SearchProtoUtil#SEARCH_ALL_TYPES}.
@@ -33,7 +33,7 @@ public class SearchProtoUtilTest {
     public void testSearchAllTypes() {
         ImmutableList<String> expectedTypes = ImmutableList.of(
                 "VirtualMachine", "PhysicalMachine", "Storage", "DiskArray", "DataCenter", "VirtualDataCenter",
-                "BusinessApplication", "ApplicationServer", "Application", "ApplicationComponent",
+                "BusinessApplication", "ApplicationServer", "Application", "ApplicationComponent", "VirtualApplication",
                 "Container", "ContainerPod", "VPod", "DPod", "StorageController", "IOModule", "Switch", "Chassis",
                 "Network", "LogicalPool", "Database", "DatabaseServer", "LoadBalancer",
                 "BusinessAccount", "CloudService", "ComputeTier", "StorageTier", "DatabaseTier",

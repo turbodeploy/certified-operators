@@ -57,6 +57,11 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>auth-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>compile</scope>
+        </dependency>
         <!-- END Database-related dependencies -->
     </dependencies>
 </project>

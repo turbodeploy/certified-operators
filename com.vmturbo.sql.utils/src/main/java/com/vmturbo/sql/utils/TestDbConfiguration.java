@@ -43,20 +43,20 @@ public class TestDbConfiguration {
      * @param mariaDBProperties maria DB connection properties, if any.
      */
     public TestDbConfiguration(@Nonnull String originalSchemaName,
-            @Nullable String mariaDBProperties) {
+                               @Nullable String mariaDBProperties) {
         testSchemaName = String.join("_", originalSchemaName, "test",
-                String.valueOf(Instant.now().toEpochMilli()));
+            String.valueOf(Instant.now().toEpochMilli()));
         dbUrl = createDbUrl(mariaDBProperties);
         final DataSource dataSource = dataSource(dbUrl);
         flyway = new Flyway();
         flyway.setSchemas(testSchemaName);
         flyway.setDataSource(dataSource);
         final LazyConnectionDataSourceProxy lazyConnectionDataSourceProxy =
-                new LazyConnectionDataSourceProxy(dataSource);
+            new LazyConnectionDataSourceProxy(dataSource);
         final TransactionAwareDataSourceProxy transactionAwareDataSourceProxy =
-                new TransactionAwareDataSourceProxy(lazyConnectionDataSourceProxy);
+            new TransactionAwareDataSourceProxy(lazyConnectionDataSourceProxy);
         final DataSourceConnectionProvider connectionProvider =
-                new DataSourceConnectionProvider(transactionAwareDataSourceProxy);
+            new DataSourceConnectionProvider(transactionAwareDataSourceProxy);
         configuration = createConfiguration(connectionProvider, originalSchemaName, testSchemaName);
         this.dslContext = new DefaultDSLContext(configuration);
     }
@@ -76,17 +76,17 @@ public class TestDbConfiguration {
     @Nonnull
     private static String createDbUrl(@Nullable String mariadbDriverProperties) {
         return UriComponentsBuilder.newInstance()
-                .scheme("jdbc:mariadb")
-                .host("localhost")
-                .port(3306)
-                .query(mariadbDriverProperties == null ? "" : mariadbDriverProperties)
-                .build()
-                .toUriString();
+            .scheme("jdbc:mariadb")
+            .host("localhost")
+            .port(3306)
+            .query(mariadbDriverProperties == null ? "" : mariadbDriverProperties)
+            .build()
+            .toUriString();
     }
 
     private static DefaultConfiguration createConfiguration(
-            @Nonnull DataSourceConnectionProvider connectionProvider,
-            @Nonnull String originalSchemaName, @Nonnull String testSchemaName) {
+        @Nonnull DataSourceConnectionProvider connectionProvider,
+        @Nonnull String originalSchemaName, @Nonnull String testSchemaName) {
         DefaultConfiguration jooqConfiguration = new DefaultConfiguration();
 
         jooqConfiguration.set(connectionProvider);
@@ -95,7 +95,7 @@ public class TestDbConfiguration {
         // for the original schema produces SQL targetted at the test schema.
         // See: https://www.jooq.org/doc/3.10/manual/sql-building/dsl-context/custom-settings/settings-render-mapping/
         jooqConfiguration.set(new Settings().withRenderMapping(new RenderMapping().withSchemata(
-                new MappedSchema().withInput(originalSchemaName).withOutput(testSchemaName))));
+            new MappedSchema().withInput(originalSchemaName).withOutput(testSchemaName))));
 
         jooqConfiguration.set(SQLDialect.MARIADB);
 

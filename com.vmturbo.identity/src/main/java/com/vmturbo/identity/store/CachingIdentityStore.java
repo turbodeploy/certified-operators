@@ -151,9 +151,9 @@ public class CachingIdentityStore<ITEM_TYPE> implements IdentityStore<ITEM_TYPE>
     public void removeItemOids(@Nonnull final Set<Long> oidsToRemove) throws IdentityStoreException {
         synchronized (oidMap) {
             initializeFromPersistentStore();
-            oidsToRemove.forEach(oid -> oidMap.inverse()
-                    .remove(oid));
             persistentStore.removeOidMappings(oidsToRemove);
+            // only remove from cache if the they are removed from db successfully
+            oidsToRemove.forEach(oid -> oidMap.inverse().remove(oid));
         }
     }
 

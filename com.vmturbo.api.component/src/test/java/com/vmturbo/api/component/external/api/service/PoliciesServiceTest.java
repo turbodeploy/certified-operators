@@ -5,6 +5,8 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -110,7 +112,8 @@ public class PoliciesServiceTest {
                         .setPolicyInfo(PolicyInfo.getDefaultInstance())
                         .build())
                 .build();
-        when(policyMapper.policyToApiDto(eq(response.getPolicy()), any())).thenReturn(mapperResponse);
+        when(policyMapper.policyToApiDto(eq(Collections.singletonList(response.getPolicy())),
+                any())).thenReturn(Collections.singletonList(mapperResponse));
         when(policyServiceSpy.getPolicy(eq(request))).thenReturn(response);
         PolicyApiDTO policyApiDTO = policiesService.getPolicyByUuid(testUuidLong.toString());
         Assert.assertEquals(testUuidLong, Long.valueOf(policyApiDTO.getUuid()));

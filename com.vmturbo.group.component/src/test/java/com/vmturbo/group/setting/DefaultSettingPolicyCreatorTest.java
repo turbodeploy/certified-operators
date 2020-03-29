@@ -5,15 +5,18 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.lessThan;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.Sets;
 
 import org.hamcrest.Matchers;
 import org.junit.Assert;
@@ -39,6 +42,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.group.identity.IdentityProvider;
+import com.vmturbo.group.service.MockTransactionProvider;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 /**
@@ -46,18 +51,22 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
  */
 public class DefaultSettingPolicyCreatorTest {
 
-    private SettingStore settingStore;
+    private ISettingPolicyStore settingStore;
     private SettingSpecStore settingSpecStore;
     private DefaultSettingPolicyCreator settingPolicyCreator;
     private static final BooleanSettingValueType TRUE =
             BooleanSettingValueType.newBuilder().setDefault(true).build();
     private static final String SPEC_NAME = "specNameFoo";
     private SettingSpec defaultSetting;
+    private MockTransactionProvider transactionProvider;
 
+    /**
+     * Initialises the tests.
+     */
     @Before
     public void setUp() {
-        settingStore = Mockito.mock(SettingStore.class);
-        Mockito.when(settingStore.getSettingPolicies(Mockito.any())).thenReturn(Stream.empty());
+        transactionProvider = new MockTransactionProvider();
+        settingStore = transactionProvider.getSettingPolicyStore();
         settingSpecStore = Mockito.mock(SettingSpecStore.class);
         defaultSetting = SettingSpec.newBuilder()
                 .setName(SPEC_NAME)
@@ -173,9 +182,15 @@ public class DefaultSettingPolicyCreatorTest {
                 .build();
         Mockito.when(settingSpecStore.getAllSettingSpecs())
                 .thenReturn(Arrays.asList(globalSpec, allEntityTypeSpec));
-        settingPolicyCreator = new DefaultSettingPolicyCreator(settingSpecStore, settingStore, 10);
+        settingPolicyCreator =
+                new DefaultSettingPolicyCreator(settingSpecStore, transactionProvider, 10,
+                        new IdentityProvider(0));
         settingPolicyCreator.run();
-        Mockito.verify(settingStore, Mockito.never()).createDefaultSettingPolicy(Mockito.any());
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<Collection<SettingPolicy>> policyCaptor =
+                (ArgumentCaptor)ArgumentCaptor.forClass(Collection.class);
+        Mockito.verify(settingStore).createSettingPolicies(policyCaptor.capture());
+        Assert.assertEquals(Collections.emptySet(), new HashSet<>(policyCaptor.getValue()));
     }
 
     /**
@@ -216,6 +231,11 @@ public class DefaultSettingPolicyCreatorTest {
                 0.0001);
     }
 
+    /**
+     * Tests creating of default setting policies from specifications.
+     *
+     * @throws Exception on exceptions faced
+     */
     @Test
     public void testDefSettingPoliciesFromSpec() throws Exception {
         final SettingSpec spec1 = SettingSpec.newBuilder()
@@ -269,19 +289,28 @@ public class DefaultSettingPolicyCreatorTest {
      */
     @Test
     public void testDefaultSettingPolicyExist() throws Exception {
-        final SettingPolicyInfo info =
-                SettingPolicyInfo.newBuilder().setName("test").setEntityType(10)
-                        .addSettings(Setting.newBuilder().setSettingSpecName(SPEC_NAME))
-                        .build();
+        final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
+                .setName("Virtual Machine Defaults")
+                .setDisplayName("Virtual Machine Defaults")
+                .setEntityType(10)
+                .addSettings(Setting.newBuilder()
+                        .setSettingSpecName(SPEC_NAME)
+                        .setBooleanSettingValue(
+                                BooleanSettingValue.newBuilder().setValue(true).build()))
+                .setEnabled(true)
+                .build();
 
         final SettingSpec spec = SettingSpec.newBuilder(defaultSetting)
                 .setEntitySettingSpec(EntitySettingSpec.newBuilder()
                         .setEntitySettingScope(EntitySettingScope.newBuilder()
                                 .setEntityTypeSet(EntityTypeSet.newBuilder().addEntityType(10))))
                 .build();
-        Mockito.when(settingStore.getSettingPolicies(
-                eq(SettingPolicyFilter.newBuilder().withType(Type.DEFAULT).build())))
-                .thenReturn(Stream.of(SettingPolicy.newBuilder().setInfo(info).build()));
+        transactionProvider.getSettingPolicyStore()
+                .addSettingPolicies(SettingPolicy.newBuilder()
+                        .setInfo(info)
+                        .setId(3L)
+                        .setSettingPolicyType(Type.DEFAULT)
+                        .build());
         getPolicyInfo(0, spec);
     }
 
@@ -301,9 +330,12 @@ public class DefaultSettingPolicyCreatorTest {
                         .setEntitySettingScope(EntitySettingScope.newBuilder()
                                 .setEntityTypeSet(EntityTypeSet.newBuilder().addEntityType(10))))
                 .build();
-        Mockito.when(settingStore.getSettingPolicies(
-                eq(SettingPolicyFilter.newBuilder().withType(Type.DEFAULT).build())))
-                .thenReturn(Stream.of(SettingPolicy.newBuilder().setInfo(info).build()));
+        transactionProvider.getSettingPolicyStore()
+                .addSettingPolicies(SettingPolicy.newBuilder()
+                        .setInfo(info)
+                        .setId(100L)
+                        .setSettingPolicyType(Type.DEFAULT)
+                        .build());
         getPolicyInfo(1, spec);
     }
 
@@ -329,7 +361,7 @@ public class DefaultSettingPolicyCreatorTest {
                 .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
                 .build();
 
-        final List<SettingPolicyInfo> defaultPolicyInfos = getPolicyInfo(2, spec1);
+        final Collection<SettingPolicyInfo> defaultPolicyInfos = getPolicyInfo(2, spec1);
         Assert.assertTrue(
                 defaultPolicyInfos.stream().anyMatch(policy -> policy.getEntityType() == 10));
         Assert.assertTrue(
@@ -369,6 +401,11 @@ public class DefaultSettingPolicyCreatorTest {
         validator.validateSettingPolicy(info2, Type.DEFAULT);
     }
 
+    /**
+     * Tests invalid default setting policy.
+     *
+     * @throws Exception on exceptions faced
+     */
     @Test
     public void testDefaultSettingPolicyInvalid() throws Exception {
 
@@ -380,6 +417,11 @@ public class DefaultSettingPolicyCreatorTest {
         getPolicyInfo(0, spec);
     }
 
+    /**
+     * Tests default setting policy with duplicated name.
+     *
+     * @throws Exception on exceptions faced
+     */
     @Test
     public void testDefaultSettingPolicyDuplicateName() throws Exception {
         final SettingSpec spec2 =
@@ -402,6 +444,11 @@ public class DefaultSettingPolicyCreatorTest {
         getPolicyInfo(0, spec);
     }
 
+    /**
+     * Tests that unnecessary policies are not created.
+     *
+     * @throws Exception on exceptions faced
+     */
     @Test
     public void testDoesNotCreateUnnecessaryPolicies() throws Exception {
         final Map<Integer, SettingPolicyInfo> defaultsMap =
@@ -412,20 +459,124 @@ public class DefaultSettingPolicyCreatorTest {
         assertThat(defaultsMap.keySet(), not(contains(EntityType.UNKNOWN.getValue())));
     }
 
-    private List<SettingPolicyInfo> getPolicyInfo(int expectedCount, SettingSpec... specs)
+    /**
+     * Ensures, that policy is removed from the DB if new policy configuration does not contain the
+     * policy any more.
+     *
+     * @throws Exception on exceptions occurred.
+     */
+    @Test
+    public void testRemoveDefaultPolicyFromDB() throws Exception {
+        final SettingPolicyInfo info =
+                SettingPolicyInfo.newBuilder().setName("test").setEntityType(10).build();
+        final SettingPolicy existingPolicy = SettingPolicy.newBuilder()
+                .setInfo(info)
+                .setId(3L)
+                .setInfo(info)
+                .setSettingPolicyType(Type.DEFAULT)
+                .build();
+        transactionProvider.getSettingPolicyStore().addSettingPolicies(existingPolicy);
+        getPolicyInfo(0);
+        Mockito.verify(settingStore).deletePolicies(Collections.singleton(3L), Type.DEFAULT);
+    }
+
+    /**
+     * Tests new setting spec added to a default policy. It is expected that DB representation
+     * will be reviewed.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testNewSettingAddedToPolicy() throws Exception {
+        final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
+                .setName("Policy Info")
+                .setEntityType(11)
+                .addSettings(Setting.newBuilder()
+                        .setSettingSpecName(SPEC_NAME)
+                        .setBooleanSettingValue(
+                                BooleanSettingValue.newBuilder().setValue(false).build())
+                        .build())
+                .build();
+        final SettingPolicy existingPolicy = SettingPolicy.newBuilder()
+                .setId(3L)
+                .setInfo(info)
+                .setSettingPolicyType(Type.DEFAULT)
+                .build();
+        final SettingSpec spec1 = SettingSpec.newBuilder(defaultSetting)
+                .setName("additional spec")
+                .setEntitySettingSpec(entitySettingSpec(11))
+                .build();
+        transactionProvider.getSettingPolicyStore().addSettingPolicies(existingPolicy);
+        final SettingPolicyInfo policy = getPolicyInfo(1, defaultSetting, spec1).iterator().next();
+        Assert.assertEquals(Sets.newHashSet(SPEC_NAME, "additional spec"), policy.getSettingsList()
+                .stream()
+                .map(Setting::getSettingSpecName)
+                .collect(Collectors.toSet()));
+        Mockito.verify(settingStore).deletePolicies(Collections.singleton(3L), Type.DEFAULT);
+    }
+
+    /**
+     * Tests covers the case, when setting spec is removed from the default settings. We have to
+     * remote the setting spec from the DB.
+     *
+     * @throws Exception on exceptions faced
+     */
+    @Test
+    public void testSettingSpecRemoved() throws Exception {
+        final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
+                .setName("Policy Info")
+                .setEntityType(11)
+                .addSettings(Setting.newBuilder()
+                        .setSettingSpecName(SPEC_NAME)
+                        .setBooleanSettingValue(
+                                BooleanSettingValue.newBuilder().setValue(false).build())
+                        .build())
+                .addSettings(Setting.newBuilder()
+                        .setSettingSpecName("new setting")
+                        .setBooleanSettingValue(
+                                BooleanSettingValue.newBuilder().setValue(false).build())
+                        .build())
+                .build();
+        final SettingPolicy existingPolicy = SettingPolicy.newBuilder()
+                .setId(3L)
+                .setInfo(info)
+                .setSettingPolicyType(Type.DEFAULT)
+                .build();
+        transactionProvider.getSettingPolicyStore().addSettingPolicies(existingPolicy);
+        Assert.assertEquals(Sets.newHashSet(SPEC_NAME, "new setting"), settingStore.getPolicy(3L)
+                .get()
+                .getInfo()
+                .getSettingsList()
+                .stream()
+                .map(Setting::getSettingSpecName)
+                .collect(Collectors.toSet()));
+        final SettingPolicyInfo policy = getPolicyInfo(1, defaultSetting).iterator().next();
+        Assert.assertEquals(Collections.singleton(SPEC_NAME), policy.getSettingsList()
+                .stream()
+                .map(Setting::getSettingSpecName)
+                .collect(Collectors.toSet()));
+    }
+
+    private Collection<SettingPolicyInfo> getPolicyInfo(int expectedCount, SettingSpec... specs)
             throws Exception {
         Mockito.when(settingSpecStore.getAllSettingSpecs()).thenReturn(Arrays.asList(specs));
         for (SettingSpec spec : specs) {
             Mockito.when(settingSpecStore.getSettingSpec(spec.getName()))
                     .thenReturn(Optional.of(spec));
         }
-        settingPolicyCreator = new DefaultSettingPolicyCreator(settingSpecStore, settingStore, 10);
+        settingPolicyCreator =
+                new DefaultSettingPolicyCreator(settingSpecStore, transactionProvider, 10,
+                        new IdentityProvider(0));
         settingPolicyCreator.run();
-        final ArgumentCaptor<SettingPolicyInfo> policyInfoCaptor =
-                ArgumentCaptor.forClass(SettingPolicyInfo.class);
-        Mockito.verify(settingStore, Mockito.times(expectedCount))
-                .createDefaultSettingPolicy(policyInfoCaptor.capture());
-        return policyInfoCaptor.getAllValues();
+        @SuppressWarnings("unchecked")
+        final ArgumentCaptor<Collection<SettingPolicy>> policyCaptor =
+                (ArgumentCaptor)ArgumentCaptor.forClass(Collection.class);
+        Mockito.verify(settingStore).createSettingPolicies(policyCaptor.capture());
+        Assert.assertEquals(expectedCount, policyCaptor.getValue().size());
+        return policyCaptor.getValue()
+                .stream()
+                .map(SettingPolicy::getInfo)
+                .collect(Collectors.toList());
     }
 
     private SettingPolicyInfo getPolicyInfo(SettingSpec... specs) throws Exception {

@@ -131,7 +131,7 @@ public class PlanActionStore implements ActionStore {
      * @return Always true.
      */
     public static final Predicate<ActionView> VISIBILITY_PREDICATE = actionView ->
-            actionView.getVisibilityLevel().checkVisibility(null);
+        actionView.getVisibilityLevel().checkVisibility(null);
 
     public static final String STORE_TYPE_NAME = "Plan";
 
@@ -232,7 +232,7 @@ public class PlanActionStore implements ActionStore {
             .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
                 action.getActionPlanId(), action.getDescription(),
-                    action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()));
+                action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()));
     }
 
     /**
@@ -378,7 +378,7 @@ public class PlanActionStore implements ActionStore {
                         // If we expand the Market Action table we need to modify this insert
                         // statement and the subsequent "values" bindings.
                         InsertValuesStep7<MarketActionRecord, Long, Long, Long, ActionDTO.Action,
-                                                        String, Long, Long> step =
+                            String, Long, Long> step =
                             transactionDsl.insertInto(MARKET_ACTION,
                                 MARKET_ACTION.ID,
                                 MARKET_ACTION.ACTION_PLAN_ID,
@@ -419,9 +419,9 @@ public class PlanActionStore implements ActionStore {
      * @return A list of translated actions and their descriptions.
      */
     private List<ActionAndInfo> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
-                                                            @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
+                                                     @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
         final Set<Long> entitiesToRetrieve =
-                new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
+            new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
         // snapshot contains the entities information that is required for the actions descriptions
         long planContextId = planData.getTopologyContextId();
         // TODO: a temp fix to get the  entities used for buy RI.
@@ -442,7 +442,7 @@ public class PlanActionStore implements ActionStore {
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
 
         final Stream<Action> translatedActions = actionTranslator.translate(actions.stream()
-            .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId())),
+                .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId())),
             snapshot);
 
         final List<ActionAndInfo> translatedActionsToAdd = new ArrayList<>();

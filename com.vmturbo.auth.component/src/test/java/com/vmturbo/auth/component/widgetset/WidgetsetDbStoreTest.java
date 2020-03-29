@@ -19,38 +19,36 @@ import java.util.Optional;
 import com.google.common.collect.ImmutableList;
 
 import org.assertj.core.util.Lists;
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.jooq.exception.NoDataFoundException;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
+import com.vmturbo.auth.component.store.db.Auth;
 import com.vmturbo.auth.component.store.db.tables.records.WidgetsetRecord;
 import com.vmturbo.common.protobuf.widgets.Widgets;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class})
-@TestPropertySource(properties = {"originalSchemaName=auth"})
 public class WidgetsetDbStoreTest {
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Auth.AUTH);
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
+
     private WidgetsetDbStore testDbStore;
 
     private static final long USER_OID_1 = 111L;
@@ -64,22 +62,9 @@ public class WidgetsetDbStoreTest {
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
 
         // create the test instance
         testDbStore = new WidgetsetDbStore(dsl);
-
-    }
-
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test

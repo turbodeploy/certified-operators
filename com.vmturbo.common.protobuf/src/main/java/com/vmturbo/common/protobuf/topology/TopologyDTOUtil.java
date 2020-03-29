@@ -2,6 +2,9 @@ package com.vmturbo.common.protobuf.topology;
 
 import static com.vmturbo.platform.common.builders.SDKConstants.FREE_STORAGE_CLUSTER;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -18,16 +21,22 @@ import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Utilities for dealing with protobuf messages in topology/TopologyDTO.proto.
  */
 public final class TopologyDTOUtil {
+
+    private static DateTimeFormatter hmsFormat = DateTimeFormatter
+        .ofPattern("HH:mm:ss")
+        .withZone(ZoneOffset.UTC);
+
     private static final String STORAGE_CLUSTER_WITH_GROUP = "group";
+
     private static final String STORAGE_CLUSTER_ISO = "iso-";
 
     /**
@@ -307,5 +316,32 @@ public final class TopologyDTOUtil {
     public static boolean areEntitiesConnected(TopologyEntityDTO marketTier, long entityId) {
         return marketTier.getConnectedEntityListList().stream()
                 .map(ConnectedEntity::getConnectedEntityId).anyMatch(id -> id == entityId);
+    }
+
+    /**
+     * Create a label for a source topology given its {@link TopologyInfo}. Used for logging.
+     *
+     * @param topologyInfo topology info
+     * @return label string
+     */
+    public static String getSourceTopologyLabel(@Nonnull final TopologyInfo topologyInfo) {
+        return getTopologyInfoSummary(topologyInfo, false);
+    }
+
+    /**
+     * Create a label for a projected topology given its {@link TopologyInfo}. Used for logging.
+     *
+     * @param topologyInfo topology info
+     * @return label string
+     */
+    public static String getProjectedTopologyLabel(@Nonnull final TopologyInfo topologyInfo) {
+        return getTopologyInfoSummary(topologyInfo, true);
+    }
+
+    private static String getTopologyInfoSummary(TopologyInfo topologyInfo, boolean projected) {
+        String topologyType = (projected ? "PROJECTED" : "SOURCE") + " " + topologyInfo.getTopologyType().name();
+        final String hms = hmsFormat.format(Instant.ofEpochMilli(topologyInfo.getCreationTime()));
+        return String.format("%s Topology @%s[id: %s; ctx: %s]",
+            topologyType, hms, topologyInfo.getTopologyId(), topologyInfo.getTopologyContextId());
     }
 }

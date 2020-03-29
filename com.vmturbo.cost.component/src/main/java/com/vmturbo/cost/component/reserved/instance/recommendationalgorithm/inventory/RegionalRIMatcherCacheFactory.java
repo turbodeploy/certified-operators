@@ -42,9 +42,9 @@ public class RegionalRIMatcherCacheFactory {
     public RegionalRIMatcherCache createNewCache(@Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
                                                  @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints) {
         return new RegionalRIMatcherCache(
-                riSpecMatcherFactory,
-                riInventoryMatcherFactory,
-                cloudTopology,
-                purchaseConstraints);
+            riSpecMatcherFactory,
+            riInventoryMatcherFactory,
+            cloudTopology,
+            purchaseConstraints);
     }
 }

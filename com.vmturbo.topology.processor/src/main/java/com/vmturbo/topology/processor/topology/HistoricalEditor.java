@@ -44,7 +44,6 @@ import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.historical.Conversions;
 import com.vmturbo.topology.processor.historical.HistoricalCommodityInfo;
 import com.vmturbo.topology.processor.historical.HistoricalInfo;
-import com.vmturbo.topology.processor.historical.HistoricalInfoRecord;
 import com.vmturbo.topology.processor.historical.HistoricalServiceEntityInfo;
 import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
 
@@ -85,10 +84,10 @@ public class HistoricalEditor {
      * A metric that tracks the time taken to load the historical used and peak values.
      */
     private static final DataMetricSummary HISTORICAL_USED_AND_PEAK_VALUES_LOAD_TIME_SUMMARY =
-            DataMetricSummary.builder()
-                    .withName("historical_used_and_peak_values_load_time_seconds")
-                    .withHelp("Time taken to load the historical used and peak values from history.")
-                    .build();
+        DataMetricSummary.builder()
+            .withName("historical_used_and_peak_values_load_time_seconds")
+            .withHelp("Time taken to load the historical used and peak values from history.")
+            .build();
 
     /**
      * A set that holds the commodities that do not use historical values.
@@ -96,7 +95,7 @@ public class HistoricalEditor {
      * or any other types of noises so data smoothing is not needed.
      */
     private static final ImmutableSet<Integer> COMMODITIES_TO_SKIP_HISTORICAL_EDITOR =
-            ImmutableSet.<Integer>builder()
+        ImmutableSet.<Integer>builder()
             // Access commodities
             .add(CommonDTO.CommodityDTO.CommodityType.CLUSTER_VALUE)
             .add(CommonDTO.CommodityDTO.CommodityType.SEGMENTATION_VALUE)
@@ -137,21 +136,19 @@ public class HistoricalEditor {
 
         final DataMetricTimer loadDurationTimer =
             HISTORICAL_USED_AND_PEAK_VALUES_LOAD_TIME_SUMMARY.startTimer();
-        HistoricalInfoRecord record = historicalUtilizationDatabase.getInfo();
+        byte[] bytes = historicalUtilizationDatabase.getInfo();
         loadDurationTimer.observe();
 
-        if (record != null) {
-            byte[] bytes = record.getInfo();
-            if (bytes != null) {
-                HistoricalInfoDTO histInfo = null;
-                try {
-                    histInfo = HistoricalInfoDTO.parseFrom(bytes);
-                } catch (InvalidProtocolBufferException e) {
-                    logger.error(e.getMessage());
-                }
-                historicalInfo = Conversions.convertFromDto(histInfo);
+        if (bytes != null) {
+            HistoricalInfoDTO histInfo = null;
+            try {
+                histInfo = HistoricalInfoDTO.parseFrom(bytes);
+            } catch (InvalidProtocolBufferException e) {
+                logger.error(e.getMessage());
             }
+            historicalInfo = Conversions.convertFromDto(histInfo);
         }
+        logger.info("Time taken to load historical utilization data is " + loadDurationTimer.getTimeElapsedSecs());
     }
 
     /**
@@ -166,8 +163,8 @@ public class HistoricalEditor {
      * @param topologyInfo to identify if it is a cluster headroom plan
      */
     public synchronized void applyCommodityEdits(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                                    @Nonnull final List<ScenarioChange> changes,
-                                    @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
+                                                 @Nonnull final List<ScenarioChange> changes,
+                                                 @Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
         // Don't allow historical editor to update commodities for headroom or historicalBaseline plan.
         if (TopologyDTOUtil.isPlanType(PlanProjectType.CLUSTER_HEADROOM, topologyInfo) ||
             changes.stream().anyMatch(change -> change.getPlanChanges().hasHistoricalBaseline())) {
@@ -350,7 +347,7 @@ public class HistoricalEditor {
         float used = (float) topoCommSold.getUsed();
         float peak = (float) topoCommSold.getPeak();
         logger.trace("Entity={}, Sold commodity={}, Used from mediation={}, Peak from mediation={}", topoEntity.getOid(),
-                topoCommSold.getCommodityType().getType(), used, peak);
+            topoCommSold.getCommodityType().getType(), used, peak);
 
         // Using historical values in calculation of used and peak
         if (useHistoricalValues(commodityType.getType())) {
@@ -377,9 +374,9 @@ public class HistoricalEditor {
                                 peak = peakHistWeight * histSoldInfo.getHistoricalPeak() + (1 - peakHistWeight) * peak;
                             }
                             logger.trace("Entity={}, Sold commodity={}, Historical used={}, Historical peak={}", topoEntity.getOid(),
-                                    topoCommSold.getCommodityType().getType(), histSoldInfo.getHistoricalUsed(), histSoldInfo.getHistoricalPeak());
+                                topoCommSold.getCommodityType().getType(), histSoldInfo.getHistoricalUsed(), histSoldInfo.getHistoricalPeak());
                             logger.trace("Entity={}, Sold commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
-                                    topoCommSold.getCommodityType().getType(), used, peak);
+                                topoCommSold.getCommodityType().getType(), used, peak);
                         }
 
                         if (!isPlan) {
@@ -469,8 +466,8 @@ public class HistoricalEditor {
                         for (int i = 0; i < histBoughtInfoList.size(); i++) {
                             HistoricalCommodityInfo histBoughtInfo = histBoughtInfoList.get(i);
                             if (histBoughtInfo.getCommodityTypeAndKey().equals(commBought.getCommodityType()) &&
-                                    (histBoughtInfo.getSourceId() == sourceId) &&
-                                    !histBoughtInfo.getMatched()) {
+                                (histBoughtInfo.getSourceId() == sourceId) &&
+                                !histBoughtInfo.getMatched()) {
                                 histBoughtInfo.setMatched(true);
                                 histBoughtInfoList.set(i, histBoughtInfo);
                                 histSeInfo.setHistoricalCommodityBought(histBoughtInfoList);
@@ -507,7 +504,7 @@ public class HistoricalEditor {
         float usedQuantity = (float) topoCommBought.getUsed();
         float peakQuantity = (float) topoCommBought.getPeak();
         logger.trace("Entity={}, Bought commodity={}, Used from mediation={}, Peak from mediation={}", topoEntity.getOid(),
-                topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
+            topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
 
         if (useHistoricalValues(topoCommBought.getCommodityType().getType())) {
             // Using historical values in calculation of used and peak
@@ -535,9 +532,9 @@ public class HistoricalEditor {
                             peakQuantity = peakHistWeight * histBoughtInfo.getHistoricalPeak() + (1 - peakHistWeight) * peakQuantity;
                         }
                         logger.trace("Entity={}, Bought commodity={}, Historical used={}, Historical peak={}", topoEntity.getOid(),
-                                topoCommBought.getCommodityType().getType(), histBoughtInfo.getHistoricalUsed(), histBoughtInfo.getHistoricalPeak());
+                            topoCommBought.getCommodityType().getType(), histBoughtInfo.getHistoricalUsed(), histBoughtInfo.getHistoricalPeak());
                         logger.trace("Entity={}, Bought commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
-                                topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
+                            topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
 
                         if (!isPlan) {
                             histBoughtInfo.setHistoricalUsed(usedQuantity);
@@ -589,9 +586,9 @@ public class HistoricalEditor {
                             peakQuantity = peakHistWeight * previousComm.getHistoricalPeak() + (1 - peakHistWeight) * peakQuantity;
                         }
                         logger.trace("Entity={}, Bought commodity={}, Historical used={}, Historical peak={}", topoEntity.getOid(),
-                                topoCommBought.getCommodityType().getType(), previousComm.getHistoricalUsed(), previousComm.getHistoricalPeak());
+                            topoCommBought.getCommodityType().getType(), previousComm.getHistoricalUsed(), previousComm.getHistoricalPeak());
                         logger.trace("Entity={}, Bought commodity={}, Calculated used={}, Calculated peak={}", topoEntity.getOid(),
-                                topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
+                            topoCommBought.getCommodityType().getType(), usedQuantity, peakQuantity);
                         newComm.setHistoricalUsed(usedQuantity);
                         newComm.setHistoricalPeak(peakQuantity);
                         newComm.setExisting(true);
@@ -632,11 +629,11 @@ public class HistoricalEditor {
      */
     @VisibleForTesting
     static void copyHistoricalValuesToClonedEntities(
-            @Nonnull final TopologyGraph<TopologyEntity> graph,
-            @Nonnull final List<ScenarioChange> changes) {
+        @Nonnull final TopologyGraph<TopologyEntity> graph,
+        @Nonnull final List<ScenarioChange> changes) {
         // Skip if it's not add workload plan.
         if (changes.stream().filter(Objects::nonNull).noneMatch(ScenarioChange::hasTopologyAddition)) {
-           return;
+            return;
         }
 
         final Stopwatch stopwatch = Stopwatch.createStarted();
@@ -670,8 +667,8 @@ public class HistoricalEditor {
      * @param originalEntityBuilder the original entity builder
      */
     private static void copyCommSoldHistoricalValuesToClonedEntities(
-            @Nonnull final TopologyEntityDTO.Builder clonedEntityBuilder,
-            @Nonnull final TopologyEntityDTO.Builder originalEntityBuilder) {
+        @Nonnull final TopologyEntityDTO.Builder clonedEntityBuilder,
+        @Nonnull final TopologyEntityDTO.Builder originalEntityBuilder) {
         // Construct the commType to commSold map of the cloned entity.
         final Map<CommodityType, CommoditySoldDTO.Builder> clonedCommTypeToCommSold =
             getCommTypeToCommSold(clonedEntityBuilder);
@@ -694,12 +691,12 @@ public class HistoricalEditor {
      * @return the commType to commSold map
      */
     private static Map<CommodityType, CommoditySoldDTO.Builder> getCommTypeToCommSold(
-            @Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        @Nonnull final TopologyEntityDTO.Builder entityBuilder) {
         return entityBuilder.getCommoditySoldListBuilderList().stream()
             .collect(Collectors.toMap(CommoditySoldDTO.Builder::getCommodityType, Function.identity(),
                 (commSold1, commSold2) -> {
                     logger.warn("Two commSold {} and {} with same commType {} of entity {} ({}) appear. " +
-                        "Keep the first one.", commSold1.getDisplayName(), commSold2.getDisplayName(),
+                            "Keep the first one.", commSold1.getDisplayName(), commSold2.getDisplayName(),
                         entityBuilder.getDisplayName(), entityBuilder.getOid(),
                         commSold1.getCommodityType());
                     return commSold1;
@@ -713,8 +710,8 @@ public class HistoricalEditor {
      * @param originalEntityBuilder the original entity builder
      */
     private static void copyCommBoughtHistoricalValuesToClonedEntities(
-            @Nonnull final TopologyEntityDTO.Builder clonedEntityBuilder,
-            @Nonnull final TopologyEntityDTO.Builder originalEntityBuilder) {
+        @Nonnull final TopologyEntityDTO.Builder clonedEntityBuilder,
+        @Nonnull final TopologyEntityDTO.Builder originalEntityBuilder) {
         // Construct the provider oid to commType to commBought map of the cloned entity.
         final Map<Long, Map<CommodityType, CommodityBoughtDTO.Builder>> clonedProviderToCommTypeToCommBought =
             getProviderToCommTypeToCommBought(clonedEntityBuilder);
@@ -769,7 +766,7 @@ public class HistoricalEditor {
      * @return the provider oid to commType to commBought map
      */
     private static Map<Long, Map<CommodityType, CommodityBoughtDTO.Builder>> getProviderToCommTypeToCommBought(
-            @Nonnull final TopologyEntityDTO.Builder entityBuilder) {
+        @Nonnull final TopologyEntityDTO.Builder entityBuilder) {
         return entityBuilder.getCommoditiesBoughtFromProvidersBuilderList().stream()
             .collect(Collectors.toMap(CommoditiesBoughtFromProvider.Builder::getProviderId,
                 commBought -> commBought.getCommodityBoughtBuilderList().stream()
@@ -796,12 +793,12 @@ public class HistoricalEditor {
      *            It can be CommoditySoldDTO.Builder or CommodityBoughtDTO.Builder.
      */
     private static <T> void copyCommodityHistoricalValuesToClonedEntities(
-            @Nonnull final TopologyEntityDTO.Builder clonedEntityBuilder,
-            @Nonnull final TopologyEntityDTO.Builder originalEntityBuilder,
-            @Nonnull final Map<CommodityType, T> clonedCommTypeToCommodity,
-            @Nonnull final Map<CommodityType, T> originalCommTypeToCommodity,
-            @Nonnull final Function<T, HistoricalValues.Builder> historicalUsedExtractor,
-            @Nonnull final Function<T, HistoricalValues.Builder> historicalPeakExtractor) {
+        @Nonnull final TopologyEntityDTO.Builder clonedEntityBuilder,
+        @Nonnull final TopologyEntityDTO.Builder originalEntityBuilder,
+        @Nonnull final Map<CommodityType, T> clonedCommTypeToCommodity,
+        @Nonnull final Map<CommodityType, T> originalCommTypeToCommodity,
+        @Nonnull final Function<T, HistoricalValues.Builder> historicalUsedExtractor,
+        @Nonnull final Function<T, HistoricalValues.Builder> historicalPeakExtractor) {
         // Iterate over the map to copy historical values from original entities to cloned entities.
         for (Entry<CommodityType, T> entry : clonedCommTypeToCommodity.entrySet()) {
             if (!originalCommTypeToCommodity.containsKey(entry.getKey())) {

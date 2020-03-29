@@ -17,7 +17,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.plan.orchestrator.project.headroom.SystemLoadCalculatedProfile.Operation;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -292,7 +292,7 @@ public class SystemLoadCalculatedProfileTest {
     private Grouping getClusterWithId(long clusterId) {
         return Grouping.newBuilder()
             .setId(clusterId)
-            .addExpectedTypes(MemberType.newBuilder().setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+            .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
                             .setDisplayName("Cluster1")
                             .setType(GroupType.COMPUTE_HOST_CLUSTER))

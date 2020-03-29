@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.template;
 
+import static com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil.CLOUD_PROBE_TYPES;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,6 +46,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.ProfileDTO.DeploymentProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.typespecific.DesktopPoolInfoMapper;
 import com.vmturbo.topology.processor.deployment.profile.DeploymentProfileMapper;
@@ -302,24 +305,28 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         // Synchronized map iterate operation in order to prevent other thread modify map in same time.
         synchronized (storeLock) {
             discoveredTemplateToDeploymentProfile.forEach((targetId, discoveredData) -> {
-                final UpdateTargetDiscoveredTemplateDeploymentProfileRequest.Builder targetRequest =
-                    UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
-                        .setTargetId(targetId);
-                addEntityProfileToDeploymentProfile(discoveredData, targetRequest);
-                targetRequest.addAllDeploymentProfileWithoutTemplates(
-                    orphanedDeploymentProfile.getOrDefault(targetId, Collections.emptySet()));
-                targetRequest.build();
-                // Sending the template
-                requestObserver.onNext(targetRequest.build());
+                if (isTargetEligibleForUpload(targetId)) {
+                    final UpdateTargetDiscoveredTemplateDeploymentProfileRequest.Builder targetRequest =
+                        UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
+                            .setTargetId(targetId);
+                    addEntityProfileToDeploymentProfile(discoveredData, targetRequest);
+                    targetRequest.addAllDeploymentProfileWithoutTemplates(
+                        orphanedDeploymentProfile.getOrDefault(targetId, Collections.emptySet()));
+                    targetRequest.build();
+                    // Sending the template
+                    requestObserver.onNext(targetRequest.build());
+                }
             });
 
             // Send information about targets that have no discovered templates (yet). This will
             // prevent any existing data for those targets from being deleted on restart.
             targetsWithoutDiscoveredTemplateData.forEach(targetId -> {
-                requestObserver.onNext(UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
-                    .setTargetId(targetId)
-                    .setDataAvailable(false)
-                    .build());
+                if (isTargetEligibleForUpload(targetId)) {
+                    requestObserver.onNext(UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
+                        .setTargetId(targetId)
+                        .setDataAvailable(false)
+                        .build());
+                }
             });
         }
         // After sending all the templates continue the logic in Plan Orchestrator
@@ -330,6 +337,19 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         } catch (ExecutionException | TimeoutException e) {
             throw new UploadException(e.getCause());
         }
+    }
+
+    /**
+     * Is the target eligible for uploading templates? Cloud targets should not upload templates
+     * and deployment profiles.
+     * @param targetId the target id
+     * @return true if the target is eligible for uploading templates. False otherwise.
+     */
+    private boolean isTargetEligibleForUpload(long targetId) {
+        // We directly check for the probe type here instead of the probe category of CLOUD_MANAGEMENT
+        // because CLOUD_MANAGEMENT probe category includes VMM which might have templates.
+        Optional<SDKProbeType> probeType = targetStore.getProbeTypeForTarget(targetId);
+        return probeType.isPresent() && !CLOUD_PROBE_TYPES.contains(probeType.get());
     }
 
     /**

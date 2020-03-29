@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -39,7 +40,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.stats.StatsTestUtils;
 import com.vmturbo.history.stats.projected.ProjectedPriceIndexSnapshot.PriceIndexSnapshotFactory;
 import com.vmturbo.history.stats.projected.ProjectedStatsStore.EntityStatsCalculator;
@@ -211,7 +212,6 @@ public class ProjectedStatsStoreTest {
     @Test
     public void testCalculateNextPageSortByCommodity() {
         final TopologyCommoditiesSnapshot snapshot = mock(TopologyCommoditiesSnapshot.class);
-        final ProjectedPriceIndexSnapshot projectedPriceIndexSnapshot = mock(ProjectedPriceIndexSnapshot.class);
         final StatSnapshotCalculator snapshotCalculator = mock(StatSnapshotCalculator.class);
 
         final EntityStatsPaginationParams paginationParams = mock(EntityStatsPaginationParams.class);
@@ -244,6 +244,7 @@ public class ProjectedStatsStoreTest {
                 EntityStats.newBuilder().setOid(2L).addStatSnapshots(snapshot2).build()));
         assertThat(response.getPaginationResponse(), is(PaginationResponse.newBuilder()
                 .setNextCursor("2")
+                .setTotalRecordCount(3)
                 .build()));
     }
 
@@ -274,7 +275,7 @@ public class ProjectedStatsStoreTest {
             commodities, paginationParams);
         assertThat(response.getEntityStatsList(), contains(
                 EntityStats.newBuilder().setOid(1L).addStatSnapshots(snapshot1).build()));
-        assertThat(response.getPaginationResponse(), is(PaginationResponse.newBuilder()
-                .build()));
+        assertTrue(response.getPaginationResponse().hasTotalRecordCount());
+        assertFalse(response.getPaginationResponse().hasNextCursor());
     }
 }

@@ -10,6 +10,7 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
@@ -17,7 +18,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.HeadroomPlanPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.TypeSpecificPartialEntity;
@@ -31,7 +31,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 
 public class PartialEntityConverterTest {
@@ -47,31 +46,31 @@ public class PartialEntityConverterTest {
         .build();
 
     private static final TopologyEntityDTO CONSUMER = TopologyEntityDTO.newBuilder()
-        .setEntityType(UIEntityType.APPLICATION.typeNumber())
+        .setEntityType(ApiEntityType.APPLICATION.typeNumber())
         .setDisplayName("consumer")
         .setOid(666L)
         .build();
 
     private static final TopologyEntityDTO PROVIDER = TopologyEntityDTO.newBuilder()
-        .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+        .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
         .setDisplayName("provider")
         .setOid(888L)
         .build();
 
     private static final TopologyEntityDTO CONNECTED_TO = TopologyEntityDTO.newBuilder()
-        .setEntityType(UIEntityType.VIRTUAL_DATACENTER.typeNumber())
+        .setEntityType(ApiEntityType.VIRTUAL_DATACENTER.typeNumber())
         .setDisplayName("connection")
         .setOid(1777L)
         .build();
 
     private static final TopologyEntityDTO OWNS = TopologyEntityDTO.newBuilder()
-        .setEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+        .setEntityType(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
         .setDisplayName("owns")
         .setOid(17777L)
         .build();
 
     private static final TopologyEntityDTO ENTITY = TopologyEntityDTO.newBuilder()
-        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
         .setDisplayName("foo")
         .setOid(7L)
         .setEnvironmentType(EnvironmentType.CLOUD)
@@ -184,49 +183,6 @@ public class PartialEntityConverterTest {
         assertThat(withConnections.getDisplayName(), is(ENTITY.getDisplayName()));
         assertThat(withConnections.getEntityType(), is(ENTITY.getEntityType()));
         assertThat(withConnections.getConnectedEntitiesList(), is(ENTITY.getConnectedEntityListList()));
-    }
-
-    @Test
-    public void testTopoEntityToHeadroomPlan() {
-        final HeadroomPlanPartialEntity headroomPlanEntity =
-            converter.createPartialEntity(ENTITY, Type.HEADROOM_PLAN).getHeadroomPlanPartialEntity();
-        assertThat(headroomPlanEntity.getOid(), is(ENTITY.getOid()));
-        assertThat(headroomPlanEntity.getDisplayName(), is(ENTITY.getDisplayName()));
-        assertThat(headroomPlanEntity.getEntityType(), is(ENTITY.getEntityType()));
-        assertThat(headroomPlanEntity.getEntityState(), is(ENTITY.getEntityState()));
-        assertThat(headroomPlanEntity.getCommoditySoldCount(), is(0));
-
-        final CommoditySoldDTO memSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder()
-                .setType(UICommodityType.MEM.typeNumber()))
-            .setCapacity(1)
-            .build();
-        final CommoditySoldDTO cpuSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder()
-                .setType(UICommodityType.CPU.typeNumber()))
-            .setCapacity(2)
-            .build();
-        final CommoditySoldDTO ioThroughputSold = CommoditySoldDTO.newBuilder()
-            .setCommodityType(CommodityType.newBuilder()
-                .setType(UICommodityType.IO_THROUGHPUT.typeNumber()))
-            .setCapacity(3)
-            .build();
-        final TopologyEntityDTO pmEntityDTO = TopologyEntityDTO.newBuilder()
-            .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
-            .setOid(7L)
-            .setEntityState(EntityState.POWERED_OFF)
-            .addCommoditySoldList(memSold)
-            .addCommoditySoldList(cpuSold)
-            .addCommoditySoldList(ioThroughputSold)
-            .build();
-        final HeadroomPlanPartialEntity pm =
-            converter.createPartialEntity(pmEntityDTO, Type.HEADROOM_PLAN).getHeadroomPlanPartialEntity();
-        assertThat(pm.getOid(), is(pmEntityDTO.getOid()));
-        assertThat(pm.getDisplayName(), is(pmEntityDTO.getDisplayName()));
-        assertThat(pm.getEntityType(), is(pmEntityDTO.getEntityType()));
-        assertThat(pm.getEntityState(), is(pmEntityDTO.getEntityState()));
-        assertThat(pm.getCommoditySoldCount(), is(2));
-        assertThat(pm.getCommoditySoldList(), contains(memSold, cpuSold));
     }
 
     @Test

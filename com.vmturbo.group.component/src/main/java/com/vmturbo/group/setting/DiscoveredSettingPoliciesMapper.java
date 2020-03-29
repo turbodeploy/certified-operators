@@ -22,12 +22,23 @@ public class DiscoveredSettingPoliciesMapper {
     private final Logger logger = LogManager.getLogger();
 
     /**
+     * The id of the target whose setting policy is being mapped.
+     */
+    private final long targetId;
+    /**
      * Discovered setting policies reference groups by their identifying key. We need to map
      * from this identifying key to the group OID. The groupOids map holds this mapping.
      */
     private final Map<String, Long> groupNamesToOids;
 
-    public DiscoveredSettingPoliciesMapper(@Nonnull final Map<String, Long> groupNamesToOids) {
+    /**
+     * Cpmstricts setting policy mapper.
+     *
+     * @param targetId target to operate on
+     * @param groupNamesToOids map of srcId -> groupId for the target
+     */
+    public DiscoveredSettingPoliciesMapper(long targetId, @Nonnull final Map<String, Long> groupNamesToOids) {
+        this.targetId = targetId;
         this.groupNamesToOids = Objects.requireNonNull(groupNamesToOids);
     }
 
@@ -35,17 +46,15 @@ public class DiscoveredSettingPoliciesMapper {
      * Convert a discovered setting policy to a {@link com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo}.
      *
      * @param info the description discovered setting policy.
-     * @param targetId The id of the target whose setting policy is being mapped.
      * @return an equivalent {@link com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo}.
      */
-    public Optional<SettingPolicyInfo> mapToSettingPolicyInfo(@Nonnull final DiscoveredSettingPolicyInfo info,
-                                                              final long targetId) {
+    public Optional<SettingPolicyInfo> mapToSettingPolicyInfo(@Nonnull final DiscoveredSettingPolicyInfo info) {
         if (info.getDiscoveredGroupNamesCount() == 0) {
-            logger.warn("Invalid setting policy {}. Must be associated with at least one group.", info);
+            logger.warn("Invalid setting policy (must be associated with at least one group): {}", info);
             return Optional.empty();
         }
         if (info.getSettingsCount() == 0) {
-            logger.warn("Invalid setting policy {}. Must be associated with at least one setting.", info);
+            logger.warn("Invalid setting policy (must be associated with at least one setting): {}", info);
             return Optional.empty();
         }
 
@@ -53,7 +62,8 @@ public class DiscoveredSettingPoliciesMapper {
         for (String groupIdentifyingKey : info.getDiscoveredGroupNamesList()) {
             final Long oid = groupNamesToOids.get(groupIdentifyingKey);
             if (oid == null) {
-                logger.warn("Invalid setting policy {}. Group {} not found.", info, groupIdentifyingKey);
+                logger.warn("Invalid setting policy (group {} not found in target {}): {}",
+                        groupIdentifyingKey, targetId, info);
                 // Valid group names could be large, they are 300+ in BoA environment. Stop printing them
                 // out by default
                 logger.debug("Valid group discovered source ids are: {}", groupNamesToOids.keySet());

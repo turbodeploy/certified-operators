@@ -15,17 +15,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -47,26 +42,33 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class PlanProjectedRICoverageAndUtilStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+
     private static final long PLAN_ID = 20L;
     private static final double DELTA = 0.01;
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-    private DSLContext dsl;
-    private Flyway flyway;
+
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private ReservedInstanceBoughtStore reservedInstanceBoughtStore = mock(ReservedInstanceBoughtStore.class);
     private ReservedInstanceSpecStore reservedInstanceSpecStore = mock(ReservedInstanceSpecStore.class);
@@ -74,8 +76,9 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
     private RepositoryClient repositoryClient = mock(RepositoryClient.class);
     private SupplyChainServiceBlockingStub  supplyChainService;
     private final Long realtimeTopologyContextId = 777777L;
-    private GrpcTestServer testServer = GrpcTestServer.newServer(repositoryService);
+
     private PlanProjectedRICoverageAndUtilStore store;
+
     private static final EntityReservedInstanceCoverage ENTITY_RI_COVERAGE =
             EntityReservedInstanceCoverage.newBuilder()
                     .setEntityId(1L)
@@ -87,13 +90,14 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
             .build();
     private final int chunkSize = 10;
 
+    /**
+     * Test gRPC server for mocking gRPC dependencies.
+     */
+    @Rule
+    public GrpcTestServer testServer = GrpcTestServer.newServer(repositoryService);
+
     @Before
     public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        testServer.start();
         supplyChainService = SupplyChainServiceGrpc.newBlockingStub(testServer.getChannel());
         // set time out on topology available or failure for 1 seconds
         store = Mockito.spy(new PlanProjectedRICoverageAndUtilStore(dsl, 1, RepositoryServiceGrpc
@@ -101,11 +105,6 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                reservedInstanceBoughtStore, reservedInstanceSpecStore, supplyChainService, chunkSize,
                realtimeTopologyContextId));
 
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     @Test

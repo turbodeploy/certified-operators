@@ -66,8 +66,8 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 
 /**
@@ -88,7 +88,6 @@ public class StatsMapper {
      * This is a special "group by" sent in by the probe and transferred directly to/from history
      * component.
      */
-    private static final String PERCENTILE = "percentile";
     private final ConcurrentHashMap<Long, TargetApiDTO> uuidToTargetApiDtoMap = new ConcurrentHashMap<>();
 
     private static final ImmutableSet<String> apiRelationTypes = ImmutableSet.of(
@@ -138,8 +137,8 @@ public class StatsMapper {
      * The related type in the api request which should be normalized to another type.
      */
     private static final Map<String, String> RELATED_TYPES_TO_NORMALIZE = ImmutableMap.of(
-        UIEntityType.DATACENTER.apiStr(), UIEntityType.PHYSICAL_MACHINE.apiStr(),
-        StringConstants.CLUSTER, UIEntityType.PHYSICAL_MACHINE.apiStr()
+        ApiEntityType.DATACENTER.apiStr(), ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+        StringConstants.CLUSTER, ApiEntityType.PHYSICAL_MACHINE.apiStr()
     );
 
     private final PaginationMapper paginationMapper;
@@ -406,8 +405,8 @@ public class StatsMapper {
         }
         if (convertedStatRecord.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
             StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
-            resultsTypeFilter.setType(com.vmturbo.components.common.utils.StringConstants.RESULTS_TYPE);
-            resultsTypeFilter.setValue(com.vmturbo.components.common.utils.StringConstants.BEFORE_PLAN);
+            resultsTypeFilter.setType(StringConstants.RESULTS_TYPE);
+            resultsTypeFilter.setValue(StringConstants.BEFORE_PLAN);
             filters.add(resultsTypeFilter);
         }
 
@@ -421,7 +420,7 @@ public class StatsMapper {
         if (!convertedStatRecord.getHistUtilizationValueList().isEmpty()) {
             final Optional<HistUtilizationValue> percentileValue =
                             convertedStatRecord.getHistUtilizationValueList().stream()
-                                            .filter(value -> PERCENTILE.equals(value.getType()))
+                                            .filter(value -> StringConstants.PERCENTILE.equals(value.getType()))
                                             .findAny();
             percentileValue.map(StatsMapper::calculatePercentile)
                             .map(StatsMapper::createPercentileApiDto)
@@ -936,7 +935,7 @@ public class StatsMapper {
                     }
                     // set related entity type
                     if (statRecord.hasAssociatedEntityType()) {
-                        statApiDTO.setRelatedEntityType(UIEntityType.fromType(
+                        statApiDTO.setRelatedEntityType(ApiEntityType.fromType(
                             statRecord.getAssociatedEntityType()).apiStr());
                     }
                     return statApiDTO;

@@ -22,7 +22,7 @@ import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -53,23 +53,23 @@ public class TraversalToPropertyFilterTest {
     @Before
     public void setup() {
         topologyGraph = TestGraphEntity.newGraph(
-            TestGraphEntity.newBuilder(1L, UIEntityType.PHYSICAL_MACHINE),
-            TestGraphEntity.newBuilder(2L, UIEntityType.PHYSICAL_MACHINE),
-            TestGraphEntity.newBuilder(3L, UIEntityType.PHYSICAL_MACHINE),
-            TestGraphEntity.newBuilder(4L, UIEntityType.PHYSICAL_MACHINE),
-            TestGraphEntity.newBuilder(5L, UIEntityType.VIRTUAL_DATACENTER)
+            TestGraphEntity.newBuilder(1L, ApiEntityType.PHYSICAL_MACHINE),
+            TestGraphEntity.newBuilder(2L, ApiEntityType.PHYSICAL_MACHINE),
+            TestGraphEntity.newBuilder(3L, ApiEntityType.PHYSICAL_MACHINE),
+            TestGraphEntity.newBuilder(4L, ApiEntityType.PHYSICAL_MACHINE),
+            TestGraphEntity.newBuilder(5L, ApiEntityType.VIRTUAL_DATACENTER)
                 .addProviderId(1L),
-            TestGraphEntity.newBuilder(6L, UIEntityType.VIRTUAL_DATACENTER)
+            TestGraphEntity.newBuilder(6L, ApiEntityType.VIRTUAL_DATACENTER)
                 .addProviderId(1L),
-            TestGraphEntity.newBuilder(7L, UIEntityType.VIRTUAL_DATACENTER)
+            TestGraphEntity.newBuilder(7L, ApiEntityType.VIRTUAL_DATACENTER)
                 .addProviderId(2L),
-            TestGraphEntity.newBuilder(8L, UIEntityType.VIRTUAL_MACHINE)
+            TestGraphEntity.newBuilder(8L, ApiEntityType.VIRTUAL_MACHINE)
                 .addProviderId(3L)
                 .addProviderId(4L),
-            TestGraphEntity.newBuilder(9L, UIEntityType.VIRTUAL_DATACENTER)
+            TestGraphEntity.newBuilder(9L, ApiEntityType.VIRTUAL_DATACENTER)
                 .addProviderId(5L)
                 .addProviderId(6L),
-            TestGraphEntity.newBuilder(10L, UIEntityType.VIRTUAL_MACHINE)
+            TestGraphEntity.newBuilder(10L, ApiEntityType.VIRTUAL_MACHINE)
                 .addProviderId(9L)
         );
     }
@@ -196,14 +196,14 @@ public class TraversalToPropertyFilterTest {
         final Map<Long, TestGraphEntity.Builder> topologyMap = new HashMap<>();
         // Builds a graph that is a long chain
         // 0 <-- 1 <-- 2 <-- ... <-- (MAX_RECURSION_DEPTH + 1)
-        topologyMap.put(0L, TestGraphEntity.newBuilder(0L, UIEntityType.VIRTUAL_DATACENTER));
+        topologyMap.put(0L, TestGraphEntity.newBuilder(0L, ApiEntityType.VIRTUAL_DATACENTER));
 
         LongStream.range(1, TraversalToPropertyFilter.MAX_RECURSION_DEPTH + 1).forEach(i -> {
-            topologyMap.put(i, TestGraphEntity.newBuilder(i, UIEntityType.VIRTUAL_DATACENTER)
+            topologyMap.put(i, TestGraphEntity.newBuilder(i, ApiEntityType.VIRTUAL_DATACENTER)
                 .addProviderId(i - 1));
         });
         long lastOid = TraversalToPropertyFilter.MAX_RECURSION_DEPTH + 1;
-        topologyMap.put(lastOid, TestGraphEntity.newBuilder(lastOid, UIEntityType.VIRTUAL_MACHINE)
+        topologyMap.put(lastOid, TestGraphEntity.newBuilder(lastOid, ApiEntityType.VIRTUAL_MACHINE)
             .addProviderId( - 1));
 
         // This will cause us to exceed the max traversal depth, which should cause an early exit

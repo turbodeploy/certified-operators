@@ -15,15 +15,15 @@ import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
-
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.action.orchestrator.db.tables.pojos.Workflow;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
@@ -78,28 +78,29 @@ public class PersistentWorkflowStore implements WorkflowStore {
                 throw new WorkflowStoreException("Error fetching workflow oids", e);
             }
 
-            // wrap the entire process in a DB transaction
+            // first fetch the "old oids" for this target
+            // fetch the OIDs for each workflowInfo; as a side effect, new OIDs will be created and
+            // persisted if necessary.
+            final Map<WorkflowInfo, Long> workflowOids = Maps.newHashMap();
+            try {
+                final IdentityStoreUpdate identityStoreUpdate =
+                    identityStore.fetchOrAssignItemOids(workflowInfos);
+                workflowOids.putAll(identityStoreUpdate.getNewItems());
+                workflowOids.putAll(identityStoreUpdate.getOldItems());
+
+                logger.info("{} previous workflow items, {} new workflow items",
+                    identityStoreUpdate.getOldItems().size(),
+                    identityStoreUpdate.getNewItems().size());
+            } catch (IdentityStoreException | DataAccessException e) {
+                logger.error("Identity Store Error fetching ItemOIDs for: " + workflowInfos, e);
+                throw new WorkflowStoreException("Identity Store Error fetching ItemOIDs for: " +
+                    workflowInfos, e);
+            }
+
+            // wrap the insert/update process in a DB transaction
             dsl.transaction(configuration -> {
                 // set up a DSLContext for this transaction to use in all Jooq operations
                 DSLContext transactionDsl = DSL.using(configuration);
-                // first fetch the "old oids" for this target
-                // fetch the OIDs for each workflowInfo; as a side effect, new OIDs will be created and
-                // persisted if necessary.
-                final Map<WorkflowInfo, Long> workflowOids = Maps.newHashMap();
-                try {
-                    final IdentityStoreUpdate identityStoreUpdate =
-                            identityStore.fetchOrAssignItemOids(workflowInfos);
-                    workflowOids.putAll(identityStoreUpdate.getNewItems());
-                    workflowOids.putAll(identityStoreUpdate.getOldItems());
-
-                    logger.info("{} previous workflow items, {} new workflow items",
-                            identityStoreUpdate.getOldItems().size(),
-                            identityStoreUpdate.getNewItems().size());
-                } catch (IdentityStoreException | DataAccessException e) {
-                    logger.error("Identity Store Error fetching ItemOIDs for: " + workflowInfos, e);
-                    throw new WorkflowStoreException("Identity Store Error fetching ItemOIDs for: " +
-                            workflowInfos, e);
-                }
 
                 // capture the time now - use to set last_update_time and then to remove old records
                 final LocalDateTime dateTimeNow = LocalDateTime.now(clock);
@@ -124,17 +125,17 @@ public class PersistentWorkflowStore implements WorkflowStore {
                                 + " %s for target id %s", workflowInfo.getName(), targetId), e);
                     }
                 }
-
-                // now remove all the OIDs that were present before but not in the batch being persisted
-                Set<Long> oidsToRemove = Sets.difference(previousOidsForThisTarget,
-                        Sets.newHashSet(workflowOids.values()));
-                // if any left, they are old; remove them
-                if (!oidsToRemove.isEmpty()) {
-                    logger.info("Previous workflows removed: {}", oidsToRemove.size());
-                    identityStore.removeItemOids(Sets.newHashSet(oidsToRemove));
-                }
             });
-        } catch (DataAccessException e) {
+
+            // now remove all the OIDs that were present before but not in the batch being persisted
+            Set<Long> oidsToRemove = Sets.difference(previousOidsForThisTarget,
+                    Sets.newHashSet(workflowOids.values()));
+            // if any left, they are old; remove them
+            if (!oidsToRemove.isEmpty()) {
+                identityStore.removeItemOids(Sets.newHashSet(oidsToRemove));
+                logger.info("Previous workflows removed: {}", oidsToRemove.size());
+            }
+        } catch (DataAccessException | IdentityStoreException e) {
             throw new WorkflowStoreException(e.getMessage(), e);
         }
     }

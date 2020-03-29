@@ -114,7 +114,8 @@ public final class MarketAnalysisUtils {
      */
     public static final Set<Integer> CLONABLE_TYPES =
                     ImmutableSet.of(EntityType.PHYSICAL_MACHINE_VALUE, EntityType.STORAGE_VALUE,
-                                    EntityType.STORAGE_CONTROLLER_VALUE, EntityType.CHASSIS_VALUE);
+                                    EntityType.STORAGE_CONTROLLER_VALUE, EntityType.CHASSIS_VALUE,
+                                    EntityType.DISK_ARRAY_VALUE);
 
     /**
      * Flow commodities set for identifying flow commodities used in NCM.

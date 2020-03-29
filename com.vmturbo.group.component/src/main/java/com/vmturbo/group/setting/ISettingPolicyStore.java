@@ -1,13 +1,13 @@
 package com.vmturbo.group.setting;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredSettingPolicyInfo;
-import com.vmturbo.group.common.TargetCollectionUpdate.TargetPolicyUpdate;
-import com.vmturbo.group.db.tables.pojos.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.group.service.StoreOperationException;
 
 /**
@@ -15,27 +15,56 @@ import com.vmturbo.group.service.StoreOperationException;
  */
 public interface ISettingPolicyStore {
     /**
-     * Update the set of {@link SettingPolicy}s discovered by a particular target.
-     * The new set of setting policies will completely replace the old, even if the new set is
-     * empty.
+     * Returns a collection of discovered policies that already exist in the database.
      *
-     * <p>See {@link TargetPolicyUpdate} for details on the update behavior.
-     *
-     * @param targetId The ID of the target that discovered the setting policies.
-     * @param settingPolicyInfos The new set of {@link DiscoveredSettingPolicyInfo}s.
-     * @param groupOids a mapping of group name to group oid.
-     * @throws StoreOperationException If there is an error interacting with the database.
+     * @return map of policy id by policy name, groupped by target id
      */
-    void updateTargetSettingPolicies(long targetId,
-            @Nonnull List<DiscoveredSettingPolicyInfo> settingPolicyInfos,
-            @Nonnull Map<String, Long> groupOids) throws StoreOperationException;
+    @Nonnull
+    Map<Long, Map<String, Long>> getDiscoveredPolicies();
 
     /**
-     * Handle the event of a group being deleted. When a user-created group is removed, we'll remove
-     * references to the group being removed from all user-created {@link SettingPolicy} instances.
+     * Deletes the setting policies from the store identified by OIDs. {@code allowedType}
+     * is an additional restriction to specify which types of policies are expected to be deleted.
+     * It will cause a {@link StoreOperationException} if one of the requested OIDs refers to
+     * another policy type.
      *
-     * @param deletedGroupId the group that was removed.
-     * @return the number of setting policies affected by the change.
+     * @param oids OIDs of policies to delete
+     * @param allowedType type of the policies. Used as an additional check to ensure, that
+     *         client is expecting removal of a specific type of policies only
+     * @throws StoreOperationException if some operation failed with this store.
      */
-    int onGroupDeleted(long deletedGroupId);
+    void deletePolicies(@Nonnull Collection<Long> oids, @Nonnull Type allowedType)
+            throws StoreOperationException;
+
+    /**
+     * Creates policies as defined in the parameter. Store does not perform any cleanup or merging.
+     * It is up to a client to remove the policy before calling this method it it is expected to
+     * substitute some other policies.
+     *
+     * @param settingPolicies policies to create
+     * @throws StoreOperationException if some storage exception occurred.
+     */
+    void createSettingPolicies(@Nonnull Collection<SettingPolicy> settingPolicies)
+            throws StoreOperationException;
+
+    /**
+     * Returns a policy by OID, if it exists.
+     *
+     * @param id policy OID to return.
+     * @return setting policy, if any, otherwise - an empty {@link Optional}
+     * @throws StoreOperationException if store operation failed
+     */
+    @Nonnull
+    Optional<SettingPolicy> getPolicy(long id) throws StoreOperationException;
+
+    /**
+     * Search for policies using the specified filter.
+     *
+     * @param filter filter to apply on the policies
+     * @return all the policies matching the filter.
+     * @throws StoreOperationException if store operation failed
+     */
+    @Nonnull
+    Collection<SettingPolicy> getPolicies(@Nonnull SettingPolicyFilter filter)
+            throws StoreOperationException;
 }

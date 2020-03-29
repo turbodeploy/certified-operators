@@ -57,7 +57,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 
 public class EntitySettingQueryExecutorTest {
@@ -111,7 +111,7 @@ public class EntitySettingQueryExecutorTest {
         final EntitySettingQueryExecutor executor = newExecutor();
         final ApiId scope = mock(ApiId.class);
         final long scopeId = 7;
-        final UIEntityType scopeType = UIEntityType.VIRTUAL_MACHINE;
+        final ApiEntityType scopeType = ApiEntityType.VIRTUAL_MACHINE;
         when(scope.isGroup()).thenReturn(false);
         when(scope.oid()).thenReturn(scopeId);
         when(scope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(scopeType)));
@@ -159,7 +159,7 @@ public class EntitySettingQueryExecutorTest {
         final ApiId scope = mock(ApiId.class);
         final long scopeId = 7;
         final long groupMember = 77;
-        final UIEntityType scopeType = UIEntityType.VIRTUAL_MACHINE;
+        final ApiEntityType scopeType = ApiEntityType.VIRTUAL_MACHINE;
         when(scope.isGroup()).thenReturn(true);
         when(scope.oid()).thenReturn(scopeId);
         when(scope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(scopeType)));
@@ -199,7 +199,7 @@ public class EntitySettingQueryExecutorTest {
         final ApiId scope = mock(ApiId.class);
         final long scopeId = 7;
         final long groupMember = 77;
-        final UIEntityType scopeType = UIEntityType.VIRTUAL_MACHINE;
+        final ApiEntityType scopeType = ApiEntityType.VIRTUAL_MACHINE;
         when(scope.isGroup()).thenReturn(true);
         when(scope.oid()).thenReturn(scopeId);
         when(scope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(scopeType)));
@@ -297,7 +297,7 @@ public class EntitySettingQueryExecutorTest {
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
         final SettingApiDTO settingApi = new SettingApiDTO();
         settingApi.setValue("1,2");
-        when(possibilities.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+        when(possibilities.getSettingForEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
             .thenReturn(Optional.of(settingApi));
         when(settingsMapper.toSettingApiDto(group2WithSinglePolicyId.getSetting(), FOO_SETTING_SPEC))
             .thenReturn(possibilities);
@@ -309,7 +309,7 @@ public class EntitySettingQueryExecutorTest {
         final SettingApiDTOPossibilities possibilities1 = mock(SettingApiDTOPossibilities.class);
         final SettingApiDTO settingApi1 = new SettingApiDTO();
         settingApi1.setValue("1,2");
-        when(possibilities1.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+        when(possibilities1.getSettingForEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
             .thenReturn(Optional.of(settingApi1));
         when(settingsMapper.toSettingApiDto(policy1Setting, FOO_SETTING_SPEC))
             .thenReturn(possibilities1);
@@ -321,7 +321,7 @@ public class EntitySettingQueryExecutorTest {
         final SettingApiDTOPossibilities possibilities2 = mock(SettingApiDTOPossibilities.class);
         final SettingApiDTO settingApi2 = new SettingApiDTO();
         settingApi2.setValue("3,4");
-        when(possibilities2.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+        when(possibilities2.getSettingForEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
             .thenReturn(Optional.of(settingApi2));
         when(settingsMapper.toSettingApiDto(policy2Setting, FOO_SETTING_SPEC))
             .thenReturn(possibilities2);
@@ -335,7 +335,7 @@ public class EntitySettingQueryExecutorTest {
         final Optional<SettingApiDTO<String>> resultOpt = groupMapper.toSettingApiDto(
             Arrays.asList(group1WithMultiplePolicyIds, group2WithSinglePolicyId),
             FOO_SETTING_SPEC,
-            Optional.of(UIEntityType.VIRTUAL_MACHINE), true, rawSettingPoliciesById);
+            Optional.of(ApiEntityType.VIRTUAL_MACHINE), true, rawSettingPoliciesById);
 
         assertEquals(2, resultOpt.get().getActiveSettingsPolicies().size());
         assertEquals(3, (int)resultOpt.get().getActiveSettingsPolicies().get(0).getNumEntities());
@@ -375,14 +375,14 @@ public class EntitySettingQueryExecutorTest {
 
         final SettingApiDTOPossibilities smallerPossibilities = mock(SettingApiDTOPossibilities.class);
         final SettingApiDTO smallerSetting = new SettingApiDTO();
-        when(smallerPossibilities.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+        when(smallerPossibilities.getSettingForEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
             .thenReturn(Optional.of(smallerSetting));
         when(settingsMapper.toSettingApiDto(smallerGroup.getSetting(), FOO_SETTING_SPEC))
             .thenReturn(smallerPossibilities);
 
         final SettingApiDTOPossibilities dominantPossibilities = mock(SettingApiDTOPossibilities.class);
         final SettingApiDTO dominantSetting = new SettingApiDTO();
-        when(dominantPossibilities.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+        when(dominantPossibilities.getSettingForEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
             .thenReturn(Optional.of(dominantSetting));
         when(settingsMapper.toSettingApiDto(dominantGroup.getSetting(), FOO_SETTING_SPEC))
             .thenReturn(dominantPossibilities);
@@ -390,7 +390,7 @@ public class EntitySettingQueryExecutorTest {
         final Optional<SettingApiDTO<String>> result = groupMapper.toSettingApiDto(
             Arrays.asList(smallerGroup, dominantGroup),
             FOO_SETTING_SPEC,
-            Optional.of(UIEntityType.VIRTUAL_MACHINE), false, Collections.emptyMap());
+            Optional.of(ApiEntityType.VIRTUAL_MACHINE), false, Collections.emptyMap());
 
         // Relying on object equality.
         assertThat(result.get(), is(dominantSetting));
@@ -431,7 +431,7 @@ public class EntitySettingQueryExecutorTest {
         final SettingApiDTOPossibilities smallerPossibilities = mock(SettingApiDTOPossibilities.class);
         final SettingApiDTO smallerSetting = new SettingApiDTO();
         smallerSetting.setValue("true");
-        when(smallerPossibilities.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+        when(smallerPossibilities.getSettingForEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
             .thenReturn(Optional.of(smallerSetting));
         when(settingsMapper.toSettingApiDto(smallerGroup.getSetting(), FOO_SETTING_SPEC))
             .thenReturn(smallerPossibilities);
@@ -439,7 +439,7 @@ public class EntitySettingQueryExecutorTest {
         final SettingApiDTOPossibilities dominantPossibilities = mock(SettingApiDTOPossibilities.class);
         final SettingApiDTO dominantSetting = new SettingApiDTO();
         dominantSetting.setValue("false");
-        when(dominantPossibilities.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+        when(dominantPossibilities.getSettingForEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
             .thenReturn(Optional.of(dominantSetting));
         when(settingsMapper.toSettingApiDto(dominantGroup.getSetting(), FOO_SETTING_SPEC))
             .thenReturn(dominantPossibilities);
@@ -447,7 +447,7 @@ public class EntitySettingQueryExecutorTest {
         final Optional<SettingApiDTO<String>> resultOpt = groupMapper.toSettingApiDto(
             Arrays.asList(smallerGroup, dominantGroup),
             FOO_SETTING_SPEC,
-            Optional.of(UIEntityType.VIRTUAL_MACHINE), true, Collections.emptyMap());
+            Optional.of(ApiEntityType.VIRTUAL_MACHINE), true, Collections.emptyMap());
 
         // Relying on object equality - the "base" should still be the dominant setting.
         final SettingApiDTO<String> result = resultOpt.get();
@@ -508,7 +508,7 @@ public class EntitySettingQueryExecutorTest {
         final SettingApiDTOPossibilities defaultPossibilities = mock(SettingApiDTOPossibilities.class);
         final SettingApiDTO defaultSetting = new SettingApiDTO();
         defaultSetting.setValue("true");
-        when(defaultPossibilities.getSettingForEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+        when(defaultPossibilities.getSettingForEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
             .thenReturn(Optional.of(defaultSetting));
         when(settingsMapper.toSettingApiDto(defaultGroup.getSetting(), FOO_SETTING_SPEC))
             .thenReturn(defaultPossibilities);
@@ -516,7 +516,7 @@ public class EntitySettingQueryExecutorTest {
         final Optional<SettingApiDTO<String>> resultOpt = groupMapper.toSettingApiDto(
             Collections.singletonList(defaultGroup),
             FOO_SETTING_SPEC,
-            Optional.of(UIEntityType.VIRTUAL_MACHINE), true, Collections.emptyMap());
+            Optional.of(ApiEntityType.VIRTUAL_MACHINE), true, Collections.emptyMap());
 
         // Relying on object equality - the "base" should still be the dominant setting.
         final SettingApiDTO result = resultOpt.get();

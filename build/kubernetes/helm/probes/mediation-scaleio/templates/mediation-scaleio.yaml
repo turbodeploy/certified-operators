@@ -62,6 +62,9 @@ spec:
           readOnly: true
         - mountPath: /tmp
           name: mediation-scaleio-tmpfs0
+        - mountPath: /etc/targets
+          name: scaleio-secrets
+          readOnly: true
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
     {{- if .Values.global.imagePullSecret }}
@@ -95,6 +98,10 @@ spec:
           optional: true
       - name: mediation-scaleio-tmpfs0
         emptyDir: {}
+      - name: scaleio-secrets
+        secret:
+          secretName: "scaleio"
+          optional: true
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}

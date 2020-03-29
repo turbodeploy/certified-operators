@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 
 /**
  * Unit tests for AbstractCachingHistoricalEditor.
@@ -45,7 +46,9 @@ public class AbstractCachingHistoricalEditorTest {
                     new CachingHistoricalEditorConfig(2, 3, Clock.systemUTC());
     private static final CachingHistoricalEditorConfig CONFIG2 =
                     new CachingHistoricalEditorConfig(10, 10, Clock.systemUTC());
-    private static final HistoryAggregationContext CONTEXT = new HistoryAggregationContext(null, false);
+    private static final HistoryAggregationContext CONTEXT = new HistoryAggregationContext(
+                    TopologyInfo.newBuilder().setTopologyId(77777L).build(),
+                    Mockito.mock(GraphWithSettings.class), false);
 
     private EntityCommodityReference cref1;
     private EntityCommodityReference cref2;

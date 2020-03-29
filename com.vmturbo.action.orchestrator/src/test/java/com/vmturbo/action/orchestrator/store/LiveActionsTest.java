@@ -21,11 +21,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
 import org.junit.Rule;
@@ -49,8 +51,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.identity.ArrayOidSet;
+import com.vmturbo.components.common.identity.OidSet;
 
 public class LiveActionsTest {
 
@@ -528,8 +532,32 @@ public class LiveActionsTest {
         liveActions.replaceRiActions(Stream.of(action2));
 
         assertThat(liveActions.getActionsByPlanType().keySet(),
-            containsInAnyOrder(ActionPlanType.MARKET, ActionPlanType.BUY_RI));
+                containsInAnyOrder(ActionPlanType.MARKET, ActionPlanType.BUY_RI));
         assertThat(liveActions.getActionsByPlanType().get(ActionPlanType.MARKET), containsInAnyOrder(action1));
         assertThat(liveActions.getActionsByPlanType().get(ActionPlanType.BUY_RI), containsInAnyOrder(action2));
+    }
+
+    @Test
+    public void getActionsInvolvingCloudStaticOids() {
+        final Action move12Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(1, 0, 1, 0, 2, 0),
+                1);
+        final Action move13Action = ActionOrchestratorTestUtils.actionFromRecommendation(
+                ActionOrchestratorTestUtils.createMoveRecommendation(2, 0, 1, 0, 3, 0),
+                1);
+
+        liveActions.replaceMarketActions(Stream.of(move12Action, move13Action));
+
+        Map<String, OidSet> cloudStaticOidSet = ImmutableMap.of(ApiEntityType.COMPUTE_TIER.apiStr(),
+                new ArrayOidSet(Arrays.asList(0L, 1L, 3L)));
+        // verify that a user with access to entities 0,1 and 2 can fetch move12  but not move13
+        when(userSessionContext.isUserScoped()).thenReturn(true);
+        when(userSessionContext.getUserAccessScope()).thenReturn(new EntityAccessScope(null, null,
+                new ArrayOidSet(Arrays.asList(0L, 1L, 2L)), cloudStaticOidSet ));
+
+        assertThat(liveActions.getAction(move12Action.getId()).get(), is(move12Action));
+        // scoped user can access move 13, even though only one involved entity is in scope
+        expectedException.expect(UserAccessScopeException.class);
+        assertThat(liveActions.getAction(move13Action.getId()).get(), is(move13Action));
     }
 }

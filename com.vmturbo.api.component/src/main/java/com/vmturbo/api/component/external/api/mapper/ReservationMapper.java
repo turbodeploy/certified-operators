@@ -65,7 +65,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplateRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -76,9 +76,9 @@ public class ReservationMapper {
 
     private static final Map<Integer, ReservationConstraintInfo.Type> ENTITY_TYPE_TO_CONSTRAINT_TYPE =
         ImmutableMap.<Integer, ReservationConstraintInfo.Type>builder()
-            .put(UIEntityType.DATACENTER.typeNumber(), ReservationConstraintInfo.Type.DATA_CENTER)
-            .put(UIEntityType.VIRTUAL_DATACENTER.typeNumber(), ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER)
-            .put(UIEntityType.NETWORK.typeNumber(), ReservationConstraintInfo.Type.NETWORK)
+            .put(ApiEntityType.DATACENTER.typeNumber(), ReservationConstraintInfo.Type.DATA_CENTER)
+            .put(ApiEntityType.VIRTUAL_DATACENTER.typeNumber(), ReservationConstraintInfo.Type.VIRTUAL_DATA_CENTER)
+            .put(ApiEntityType.NETWORK.typeNumber(), ReservationConstraintInfo.Type.NETWORK)
             .build();
 
     private static final Map<Integer, String> COMMODITY_TYPE_NAME_MAP =
@@ -432,7 +432,7 @@ public class ReservationMapper {
     private BaseApiDTO generateTemplateBaseApiDTO(@Nonnull final Template template) {
         BaseApiDTO templateApiDTO = new BaseApiDTO();
         templateApiDTO.setDisplayName(template.getTemplateInfo().getName());
-        templateApiDTO.setClassName(UIEntityType.fromType(
+        templateApiDTO.setClassName(ApiEntityType.fromType(
                 template.getTemplateInfo().getEntityType()).apiStr() + TemplatesUtils.PROFILE);
         templateApiDTO.setUuid(String.valueOf(template.getId()));
         return templateApiDTO;
@@ -475,7 +475,7 @@ public class ReservationMapper {
         if (!serviceEntityApiDTO.isPresent()) {
             throw  new ProviderIdNotRecognizedException(providerInfo.getProviderId());
         }
-        final int entityType = UIEntityType.fromString(serviceEntityApiDTO.get().getClassName()).typeNumber();
+        final int entityType = ApiEntityType.fromString(serviceEntityApiDTO.get().getClassName()).typeNumber();
         switch (entityType) {
             case EntityType.PHYSICAL_MACHINE_VALUE:
                 final List<ResourceApiDTO> computeResources =

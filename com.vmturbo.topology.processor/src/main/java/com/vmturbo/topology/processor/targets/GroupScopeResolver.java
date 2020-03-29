@@ -42,7 +42,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -187,13 +187,13 @@ public class GroupScopeResolver {
                 groupService.getGroup(
                                 GroupID.newBuilder().setId(Long.parseLong(groupId)).build());
             if (!GroupProtoUtil.getEntityTypes(groupResponse.getGroup()).contains(
-                            UIEntityType.fromType(customAcctDef
+                            ApiEntityType.fromType(customAcctDef
                                 .getGroupScope().getEntityType().getNumber()))) {
                 logger.error("Group {} contains the wrong entity type for group scope.  "
                         + "Expected type {}, but got type {}", groupId,
                     customAcctDef.getGroupScope().getEntityType(),
                     GroupProtoUtil.getEntityTypes(groupResponse.getGroup()).stream()
-                        .map(UIEntityType::apiStr).collect(Collectors.joining(",")));
+                        .map(ApiEntityType::apiStr).collect(Collectors.joining(",")));
                 return Collections.emptySet();
             }
             logger.trace("Group type matches group scope type.");
