@@ -40,7 +40,7 @@ import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.components.common.stats.StatsUtils;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.repository.topology.util.PlanEntityStatsExtractorUtil;
 
 /**
@@ -141,9 +141,10 @@ interface PlanEntityStatsExtractor {
                     // stats. So setting histUtilizationValue to null.
                     final StatRecord statRecord =
                         buildStatRecord(commodityName, key, usedValues,
-                                PlanEntityStatsExtractorUtil.buildStatValue(0), providerOidString,
-                                StringConstants.RELATION_BOUGHT);
+                            PlanEntityStatsExtractorUtil.buildStatValue(0), providerOidString,
+                            StringConstants.RELATION_BOUGHT, null);
                     snapshot.addStatRecords(statRecord);
+
                 });
             }
             // commodities sold
@@ -299,9 +300,12 @@ interface PlanEntityStatsExtractor {
                 .setCapacity(capacity)
                 .setStatKey(key)
                 .setProviderUuid(providerOidString)
-                .setRelation(relation)
-                .build();
-            return statRecord;
+                .setRelation(relation);
+            if (histUtilizationValue != null) {
+                statRecordBuilder.addHistUtilizationValue(histUtilizationValue);
+            }
+            return statRecordBuilder.build();
+
         }
     }
 }

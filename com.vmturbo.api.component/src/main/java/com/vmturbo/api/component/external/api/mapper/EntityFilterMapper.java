@@ -1029,8 +1029,8 @@ public class EntityFilterMapper {
         filterApiDTO.setFilterType(Objects.requireNonNull(sourceFilter.getFilterType()));
         filterApiDTO.setCaseSensitive(Objects.requireNonNull(sourceFilter.getIsCaseSensitive()));
 
-        UIEntityType entityType = SearchProtoUtil.getEntityTypeFromSearchParameters(searchParameters);
-        if (entityType != UIEntityType.UNKNOWN) {
+        ApiEntityType entityType = SearchProtoUtil.getEntityTypeFromSearchParameters(searchParameters);
+        if (entityType != ApiEntityType.UNKNOWN) {
             filterApiDTO.setEntityType(Objects.requireNonNull(entityType.apiStr()));
         }
 

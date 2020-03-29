@@ -12,16 +12,7 @@ import java.util.Optional;
 import org.jooq.DSLContext;
 import org.junit.ClassRule;
 import org.junit.Rule;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestName;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.GroupBy;
@@ -50,8 +41,6 @@ import com.vmturbo.sql.utils.DbConfigurationRule;
  * Unit tests for the plan projected entity cost store.
  */
 public class PlanProjectedEntityCostStoreTest {
-    @Rule
-    public TestName name = new TestName();
     /**
      * Rule to create the DB schema and migrate it.
      */
@@ -69,22 +58,22 @@ public class PlanProjectedEntityCostStoreTest {
 
     private final int chunkSize = 10;
     private static final EntityCost VM_COST = EntityCost.newBuilder()
-                    .setAssociatedEntityId(7L)
-                    .setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .addComponentCost(ComponentCost.newBuilder()
-                    .setCategory(CostCategory.ON_DEMAND_COMPUTE)
-                    .setAmount(CurrencyAmount.newBuilder()
-                            .setAmount(100).setCurrency(840)))
-            .build();
+        .setAssociatedEntityId(7L)
+        .setAssociatedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+        .addComponentCost(ComponentCost.newBuilder()
+            .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+            .setAmount(CurrencyAmount.newBuilder()
+                .setAmount(100).setCurrency(840)))
+        .build();
 
     private static final EntityCost VOLUME_COST = EntityCost.newBuilder()
-                    .setAssociatedEntityId(8L)
-                    .setAssociatedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-            .addComponentCost(ComponentCost.newBuilder()
-                    .setCategory(CostCategory.STORAGE)
-                    .setAmount(CurrencyAmount.newBuilder()
-                            .setAmount(50).setCurrency(840)))
-            .build();
+        .setAssociatedEntityId(8L)
+        .setAssociatedEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
+        .addComponentCost(ComponentCost.newBuilder()
+            .setCategory(CostCategory.STORAGE)
+            .setAmount(CurrencyAmount.newBuilder()
+                .setAmount(50).setCurrency(840)))
+        .build();
 
     private DSLContext dsl = dbConfig.getDslContext();
 
@@ -103,21 +92,8 @@ public class PlanProjectedEntityCostStoreTest {
     }
 
     private void commonUpdateProjectedEntityCostsTableVerification() {
-        commonUpdateProjectedEntityCostsTableVerification();
-    }
-
-    @Test
-    public void testChunkedUpdateProjectedEntityCostsTable() {
-        // This is a chunk test, so need to complete test setup. Use a chunk size of 1 to force
-        // processing in multiple chunks.
-        store = new PlanProjectedEntityCostStore(dsl, 1);
-        updateCostsTable();
-        commonUpdateProjectedEntityCostsTableVerification();
-    }
-
-    private void commonUpdateProjectedEntityCostsTableVerification() {
         final List<PlanProjectedEntityCostRecord> records = dsl
-                .selectFrom(Tables.PLAN_PROJECTED_ENTITY_COST).fetch();
+            .selectFrom(Tables.PLAN_PROJECTED_ENTITY_COST).fetch();
         assertEquals(2, records.size());
         final Optional<PlanProjectedEntityCostRecord> rcdOpt = records.stream().filter(r -> r.getAssociatedEntityId() == 7).findAny();
         assertTrue(rcdOpt.isPresent());
@@ -134,23 +110,23 @@ public class PlanProjectedEntityCostStoreTest {
     private PlanProjectedEntityCostStore initializeCostStore(final int chunkSize) {
         PlanProjectedEntityCostStore store = new PlanProjectedEntityCostStore(dsl, chunkSize);
         TopologyInfo topoInfo = TopologyInfo.newBuilder()
-                .setTopologyContextId(PLAN_ID)
-                .setTopologyId(0l)
-                .setTopologyType(TopologyType.PLAN)
-                .build();
+            .setTopologyContextId(PLAN_ID)
+            .setTopologyId(0l)
+            .setTopologyType(TopologyType.PLAN)
+            .build();
         List<EntityCost> cost = Arrays.asList(VM_COST, VOLUME_COST);
         store.updatePlanProjectedEntityCostsTableForPlan(topoInfo, cost);
 
         // Insert 1 row into plan_projected_entity_to_reserved_instance_mapping.
         List<PlanProjectedEntityToReservedInstanceMappingRecord> entityToRiMappingRecords =
-                new ArrayList<>();
+            new ArrayList<>();
         long entityId = 73320835644009L;
         long reservedInstanceId = 706683383732672L;
         double usedCoupons = 4d;
         entityToRiMappingRecords.add(dsl.newRecord(
-                Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING,
-                new PlanProjectedEntityToReservedInstanceMappingRecord(entityId,
-                        topoInfo.getTopologyContextId(),  reservedInstanceId, usedCoupons)));
+            Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING,
+            new PlanProjectedEntityToReservedInstanceMappingRecord(entityId,
+                topoInfo.getTopologyContextId(),  reservedInstanceId, usedCoupons)));
         dsl.batchInsert(entityToRiMappingRecords).execute();
 
         // Insert 1 row into plan_projected_reserved_instance_coverage.
@@ -160,21 +136,22 @@ public class PlanProjectedEntityCostStoreTest {
         long accountId = 73320835644295L;
         double totalCoupons = 4d;
         riCoverageRecords.add(dsl.newRecord(
-                Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
-                new PlanProjectedReservedInstanceCoverageRecord(entityId,
-                        topoInfo.getTopologyContextId(), regionId, zoneId, accountId, totalCoupons,
-                        usedCoupons)));
+            Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
+            new PlanProjectedReservedInstanceCoverageRecord(entityId,
+                topoInfo.getTopologyContextId(), regionId, zoneId, accountId, totalCoupons,
+                usedCoupons)));
         dsl.batchInsert(riCoverageRecords).execute();
 
         // Insert 1 row into plan_projected_reserved_instance_utilization.
         List<PlanProjectedReservedInstanceUtilizationRecord> riUtilizationRecords =
-                new ArrayList<>();
+            new ArrayList<>();
         riUtilizationRecords.add(dsl.newRecord(
-                Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION,
-                new PlanProjectedReservedInstanceUtilizationRecord(reservedInstanceId,
-                        topoInfo.getTopologyContextId(), regionId, zoneId,
-                        accountId, totalCoupons, usedCoupons)));
+            Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION,
+            new PlanProjectedReservedInstanceUtilizationRecord(reservedInstanceId,
+                topoInfo.getTopologyContextId(), regionId, zoneId,
+                accountId, totalCoupons, usedCoupons)));
         dsl.batchInsert(riUtilizationRecords).execute();
+        return store;
     }
 
     /**
@@ -182,6 +159,7 @@ public class PlanProjectedEntityCostStoreTest {
      */
     @Test
     public void testDeletePlanProjectedEntityCosts() {
+        final PlanProjectedEntityCostStore store = initializeCostStore(chunkSize);
         int rows = store.deletePlanProjectedCosts(PLAN_ID);
         // 2 rows in plan_projected_entity_cost, 1 each in
         // plan_projected_entity_to_reserved_instance_mapping,
@@ -197,11 +175,11 @@ public class PlanProjectedEntityCostStoreTest {
     public void testGetPlanProjectedStatRecordsByGroup() {
         final PlanProjectedEntityCostStore store = initializeCostStore(chunkSize);
         final EntityCostFilter filter = EntityCostFilterBuilder.newBuilder(TimeFrame.LATEST)
-                        .latestTimestampRequested(true)
-                        .entityIds(Arrays.asList(7L, 8L))
-                        .costCategoryFilter(CostCategoryFilter.newBuilder().addCostCategory(CostCategory.STORAGE)
-                                        .build())
-                        .build();
+            .latestTimestampRequested(true)
+            .entityIds(Arrays.asList(7L, 8L))
+            .costCategoryFilter(CostCategoryFilter.newBuilder().addCostCategory(CostCategory.STORAGE)
+                .build())
+            .build();
         final List<GroupBy> groupByList = Arrays.asList(GroupBy.ENTITY_TYPE, GroupBy.COST_CATEGORY);
         final Collection<StatRecord> records = store.getPlanProjectedStatRecordsByGroup(groupByList, filter, PLAN_ID);
         assertEquals(1, records.size());

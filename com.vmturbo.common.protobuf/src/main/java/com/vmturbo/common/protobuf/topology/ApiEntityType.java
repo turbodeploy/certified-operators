@@ -21,6 +21,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * the underlying SDK entity types.
  */
 public enum ApiEntityType {
+    /** Application Component entity type. */
+    APPLICATION_COMPONENT(StringConstants.APPLICATION_COMPONENT, EntityType.APPLICATION_COMPONENT),
+    /** Service entity type. */
+    SERVICE(StringConstants.SERVICE, EntityType.SERVICE),
     /** Application entity type. */
     APPLICATION(StringConstants.APPLICATION, EntityType.APPLICATION),
     /** ApplicationServer entity type. */
@@ -31,6 +35,8 @@ public enum ApiEntityType {
     BUSINESS_ACCOUNT(StringConstants.BUSINESS_ACCOUNT, EntityType.BUSINESS_ACCOUNT),
     /** BusinessApplication entity type. */
     BUSINESS_APPLICATION(StringConstants.BUSINESS_APPLICATION, EntityType.BUSINESS_APPLICATION),
+    /** Business Transaction entity type. */
+    BUSINESS_TRANSACTION(StringConstants.BUSINESS_TRANSACTION, EntityType.BUSINESS_TRANSACTION),
     /** BusinessUser entity type. */
     BUSINESS_USER(StringConstants.BUSINESS_USER, EntityType.BUSINESS_USER),
     /** Chassis entity type. */

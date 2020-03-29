@@ -937,7 +937,7 @@ public class GroupsService implements IGroupsService {
                 .build(), true);
              return request.allResultsResponse(Lists.newArrayList(groups));
         } else if (ENTITY_DEFINITION.equals(uuid)) { // Get all entities definitions
-            final Collection<GroupApiDTO> entities = getAllEntitiesDefinitions(GetGroupsRequest.newBuilder()
+            final Collection<GroupApiDTO> entities = getGroupApiDTOS(GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder().setOriginFilter(OriginFilter
                     .newBuilder().addOrigin(Type.SYSTEM)))
                 .build(), true);
@@ -1086,36 +1086,6 @@ public class GroupsService implements IGroupsService {
     public List<GroupApiDTO> getGroupApiDTOS(final GetGroupsRequest groupsRequest,
             final boolean populateSeverity) throws ConversionException, InterruptedException {
         return getGroupApiDTOS(groupsRequest, populateSeverity, null);
-    }
-
-    /**
-     * Get the groups matching a {@link GetGroupsRequest} from the group component, and convert
-     * them to the associated {@link GroupApiDTO} format.
-     *
-     * @param groupsRequest The request.
-     * @param populateSeverity Whether or not to populate the severity in the response. Populating
-     *                         severity requires another relatively expensive RPC call, so use this
-     *                         only when necessary.
-     * @return The list of {@link GroupApiDTO} objects.
-     */
-    @Nonnull
-    public List<GroupApiDTO> getAllEntitiesDefinitions(final GetGroupsRequest groupsRequest,
-                                             final boolean populateSeverity) {
-        final List<GroupAndMembers> groupsWithMembers =
-            groupExpander.getGroupsWithMembers(groupsRequest)
-                .stream()
-                .filter(group -> !isHiddenGroup(group.group()))
-                .collect(Collectors.toList());
-        final List<GroupApiDTO> result;
-        try {
-            result = groupMapper.toGroupApiDto(groupsWithMembers, populateSeverity,
-                    null, null);
-        } catch (Exception e) {
-            logger.error(e.getLocalizedMessage(), e);
-            return Collections.emptyList();
-        }
-
-        return result;
     }
 
     /**

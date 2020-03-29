@@ -25,7 +25,6 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -148,13 +147,13 @@ public class SupplyChainFetcherFactory {
         ApiEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
         ApiEntityType.VIRTUAL_DATACENTER, Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
 
-    private static final Map<UIEntityType, Set<UIEntityType>> ENTITY_TYPES_TO_EXPAND_FOR_ACTION_PROPAGATION =
+    private static final Map<ApiEntityType, Set<ApiEntityType>> ENTITY_TYPES_TO_EXPAND_FOR_ACTION_PROPAGATION =
         ImmutableMap.of(
-            UIEntityType.BUSINESS_APPLICATION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
-                ImmutableSet.of(UIEntityType.BUSINESS_APPLICATION, UIEntityType.BUSINESS_TRANSACTION)),
-            UIEntityType.BUSINESS_TRANSACTION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
-                Collections.singleton(UIEntityType.BUSINESS_TRANSACTION)),
-            UIEntityType.SERVICE, SCOPE_EXPANSION_TYPES_FOR_RISK);
+            ApiEntityType.BUSINESS_APPLICATION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
+                ImmutableSet.of(ApiEntityType.BUSINESS_APPLICATION, ApiEntityType.BUSINESS_TRANSACTION)),
+            ApiEntityType.BUSINESS_TRANSACTION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
+                Collections.singleton(ApiEntityType.BUSINESS_TRANSACTION)),
+            ApiEntityType.SERVICE, SCOPE_EXPANSION_TYPES_FOR_RISK);
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -249,7 +248,7 @@ public class SupplyChainFetcherFactory {
      * @return the input set with oids of aggregating entities substituted by their expansions.
      */
     public Set<Long> expandAggregatingAndActionPropagatingEntities(Collection<Long> entityOidsToExpand) {
-        Map<UIEntityType, Set<UIEntityType>> mergeEntityMap = new HashMap<>();
+        Map<ApiEntityType, Set<ApiEntityType>> mergeEntityMap = new HashMap<>();
         mergeEntityMap.putAll(ENTITY_TYPES_TO_EXPAND);
         mergeEntityMap.putAll(ENTITY_TYPES_TO_EXPAND_FOR_ACTION_PROPAGATION);
         return expandAggregatedEntities(entityOidsToExpand, mergeEntityMap);
@@ -270,7 +269,7 @@ public class SupplyChainFetcherFactory {
      * @return the input set with oids of aggregating entities substituted by their expansions
      */
     private Set<Long> expandAggregatedEntities(Collection<Long> entityOidsToExpand,
-                                              Map<UIEntityType, Set<UIEntityType>>  expandingMap) {
+                                              Map<ApiEntityType, Set<ApiEntityType>>  expandingMap) {
         // Early return if the input is empty, to prevent making
         // the initial RPC call.
         if (entityOidsToExpand.isEmpty()) {
@@ -303,7 +302,7 @@ public class SupplyChainFetcherFactory {
                         final List<String> relatedEntityTypes =
                             expandingMap.get(ApiEntityType.fromType(expandEntity.getEntityType()))
                                 .stream()
-                                .map(UIEntityType::apiStr)
+                                .map(ApiEntityType::apiStr)
                                 .collect(Collectors.toList());
                         // fetch the supply chain map:  entity type -> SupplyChainNode
                         Map<String, SupplyChainNode> supplyChainMap = newNodeFetcher()

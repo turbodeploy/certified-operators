@@ -101,22 +101,22 @@ public class SettingStoreTest {
     private final ScheduleValidator scheduleValidator = mock(ScheduleValidator.class);
 
     private final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
-            .setName("test")
-            .setDisplayName("Some very helpfull policy")
-            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-            .setEnabled(true)
-            .setScope(Scope.newBuilder().build())
-            .addSettings(Setting.newBuilder()
-                    .setSettingSpecName("TestSetting")
-                    .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(123.45F)))
-            .build();
+        .setName("test")
+        .setDisplayName("Some very helpfull policy")
+        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+        .setEnabled(true)
+        .setScope(Scope.newBuilder().build())
+        .addSettings(Setting.newBuilder()
+            .setSettingSpecName("TestSetting")
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(123.45F)))
+        .build();
     private final SettingPolicyInfo updatedInfo = SettingPolicyInfo.newBuilder(info)
-            .setName("test2")
-            .build();
+        .setName("test2")
+        .build();
     private SettingPolicy userPolicy;
 
     private static final String SETTING_TEST_JSON_SETTING_SPEC_JSON =
-            "setting-test-json/setting-spec.json";
+        "setting-test-json/setting-spec.json";
 
     private SettingPolicyValidator settingPolicyValidator = mock(SettingPolicyValidator.class);
 
@@ -127,14 +127,14 @@ public class SettingStoreTest {
     @Before
     public void setUp() {
         userPolicy = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(info)
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(info)
+            .setSettingPolicyType(Type.USER)
+            .build();
         settingSpecStore = new FileBasedSettingsSpecStore(SETTING_TEST_JSON_SETTING_SPEC_JSON);
         settingStore =
-                new SettingStore(settingSpecStore, dbConfig.getDslContext(), settingPolicyValidator,
-                        settingsUpdatesSender);
+            new SettingStore(settingSpecStore, dbConfig.getDslContext(), settingPolicyValidator,
+                settingsUpdatesSender);
         scheduleStore = new ScheduleStore(dbConfig.getDslContext(), scheduleValidator,
             identityProviderSpy, settingStore);
     }
@@ -147,20 +147,20 @@ public class SettingStoreTest {
     @Test
     public void testCreateDuplicatePolicyOneByOne() throws Exception {
         final SettingPolicy policy1 = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(info)
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(info)
+            .setSettingPolicyType(Type.USER)
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(policy1));
+            Collections.singleton(policy1));
         final SettingPolicy policy2 = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(info)
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(info)
+            .setSettingPolicyType(Type.USER)
+            .build();
         expectedException.expect(StoreOperationException.class);
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(policy2));
+            Collections.singleton(policy2));
     }
 
     /**
@@ -171,18 +171,18 @@ public class SettingStoreTest {
     @Test
     public void testCreateDuplicatePolicyAtOnce() throws Exception {
         final SettingPolicy policy1 = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(info)
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(info)
+            .setSettingPolicyType(Type.USER)
+            .build();
         final SettingPolicy policy2 = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(info)
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(info)
+            .setSettingPolicyType(Type.USER)
+            .build();
         expectedException.expect(StoreOperationException.class);
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Arrays.asList(policy1, policy2));
+            Arrays.asList(policy1, policy2));
     }
 
     /**
@@ -196,20 +196,20 @@ public class SettingStoreTest {
             .when(settingPolicyValidator).validateSettingPolicy(any(), any());
         expectedException.expect(StoreOperationException.class);
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(userPolicy));
+            Collections.singleton(userPolicy));
     }
 
     @Test
     public void testCreateUserThenGetById() throws Exception {
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(userPolicy));
+            Collections.singleton(userPolicy));
         final SettingPolicy policy = settingStore.getSettingPolicies(dbConfig.getDslContext(),
-                SettingPolicyFilter.newBuilder().build()).iterator().next();
+            SettingPolicyFilter.newBuilder().build()).iterator().next();
 
         Assert.assertEquals(userPolicy, policy);
 
         final Optional<SettingPolicy> gotPolicy =
-                settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
+            settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
         assertTrue(gotPolicy.isPresent());
         assertEquals(policy, gotPolicy.get());
     }
@@ -234,14 +234,14 @@ public class SettingStoreTest {
         long scheduleId = savedSchedule.getId();
         SettingPolicyInfo infoWithSchedule = info.toBuilder().setScheduleId(scheduleId).build();
         final SettingPolicy policy = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(infoWithSchedule)
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(infoWithSchedule)
+            .setSettingPolicyType(Type.USER)
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
 
         final Optional<SettingPolicy> savedPolicy =
-                settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
+            settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
         assertTrue(savedPolicy.isPresent());
         assertEquals(policy, savedPolicy.get());
         assertTrue(savedPolicy.get().getInfo().hasScheduleId());
@@ -256,17 +256,17 @@ public class SettingStoreTest {
     @Test
     public void testGetByNameMissing() throws Exception {
         Assert.assertEquals(Collections.emptySet(), new HashSet<>(
-                settingStore.getSettingPolicies(dbConfig.getDslContext(),
-                        SettingPolicyFilter.newBuilder().withName(info.getName()).build())));
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().withName(info.getName()).build())));
     }
 
     @Test
     public void testCreateThenGetByName() throws Exception {
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(userPolicy));
+            Collections.singleton(userPolicy));
 
         final Collection<SettingPolicy> gotPolicy = settingStore.getSettingPolicies(
-                SettingPolicyFilter.newBuilder().withName(info.getName()).build());
+            SettingPolicyFilter.newBuilder().withName(info.getName()).build());
         Assert.assertEquals(Collections.singleton(userPolicy), new HashSet<>(gotPolicy));
     }
 
@@ -274,13 +274,13 @@ public class SettingStoreTest {
     @Test
     public void testUpdateSettingPolicy() throws Exception {
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(userPolicy));
+            Collections.singleton(userPolicy));
 
         final SettingPolicy updatedPolicy =
-                settingStore.updateSettingPolicy(userPolicy.getId(), updatedInfo);
+            settingStore.updateSettingPolicy(userPolicy.getId(), updatedInfo);
         assertEquals(updatedInfo, updatedPolicy.getInfo());
         final Optional<SettingPolicy> gotPolicy =
-                settingStore.getSettingPolicy(dbConfig.getDslContext(), userPolicy.getId());
+            settingStore.getSettingPolicy(dbConfig.getDslContext(), userPolicy.getId());
         assertTrue(gotPolicy.isPresent());
         assertEquals(updatedPolicy, gotPolicy.get());
     }
@@ -309,15 +309,15 @@ public class SettingStoreTest {
         long scheduleId1 = savedSchedule1.getId();
         SettingPolicyInfo infoWithSchedule = info.toBuilder().setScheduleId(scheduleId1).build();
         final SettingPolicy policy = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(infoWithSchedule)
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(infoWithSchedule)
+            .setSettingPolicyType(Type.USER)
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(policy));
+            Collections.singleton(policy));
 
         final Optional<SettingPolicy> savedPolicy =
-                settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
+            settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
         assertTrue(savedPolicy.isPresent());
         assertEquals(policy, savedPolicy.get());
         assertTrue(savedPolicy.get().getInfo().hasScheduleId());
@@ -332,7 +332,7 @@ public class SettingStoreTest {
         assertEquals(updatedPolicy, updatedSavedPolicy);
         assertEquals(scheduleId2, updatedSavedPolicy.getInfo().getScheduleId());
         Optional<SettingPolicy> refetchedUpdatedSavedPolicy =
-                settingStore.getSettingPolicy(dbConfig.getDslContext(), updatedSavedPolicy.getId());
+            settingStore.getSettingPolicy(dbConfig.getDslContext(), updatedSavedPolicy.getId());
         assertTrue(refetchedUpdatedSavedPolicy.isPresent());
         assertEquals(scheduleId2, refetchedUpdatedSavedPolicy.get().getInfo().getScheduleId());
     }
@@ -345,7 +345,7 @@ public class SettingStoreTest {
     @Test(expected = InvalidItemException.class)
     public void testUpdateSettingPolicyWithInvalidInfo() throws Exception {
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(userPolicy));
+            Collections.singleton(userPolicy));
 
         doThrow(new InvalidItemException(""))
             .when(settingPolicyValidator).validateSettingPolicy(eq(updatedInfo), any());
@@ -356,12 +356,12 @@ public class SettingStoreTest {
     @Test(expected = DuplicateNameException.class)
     public void testUpdateSettingPolicyToDuplicateName() throws Exception {
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(userPolicy));
+            Collections.singleton(userPolicy));
         final SettingPolicy duplicatedPolicy = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(SettingPolicyInfo.newBuilder().setName(updatedInfo.getName()).build())
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(SettingPolicyInfo.newBuilder().setName(updatedInfo.getName()).build())
+            .setSettingPolicyType(Type.USER)
+            .build();
 
         // Make sure there is another setting policy with the same name as the updated info.
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(duplicatedPolicy));
@@ -376,17 +376,17 @@ public class SettingStoreTest {
                 settingSpecStore.getAllSettingSpecs());
         final SettingPolicyInfo vmSettingPolicy = defaultSettingPolicies.get(10);
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(
-                SettingPolicy.newBuilder()
-                        .setId(identityProviderSpy.next())
-                        .setInfo(vmSettingPolicy)
-                        .setSettingPolicyType(Type.DEFAULT)
-                        .build()));
+            SettingPolicy.newBuilder()
+                .setId(identityProviderSpy.next())
+                .setInfo(vmSettingPolicy)
+                .setSettingPolicyType(Type.DEFAULT)
+                .build()));
         final SettingPolicy settingPolicy =
-                settingStore.getSettingPolicies(dbConfig.getDslContext(),
-                        SettingPolicyFilter.newBuilder().build()).iterator().next();
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().build()).iterator().next();
 
         final SettingProto.SettingPolicy postResetPolicy =
-                settingStore.resetSettingPolicy(settingPolicy.getId());
+            settingStore.resetSettingPolicy(settingPolicy.getId());
         Assert.assertEquals(postResetPolicy.getId(), settingPolicy.getId());
         Assert.assertEquals(postResetPolicy.getInfo(), vmSettingPolicy);
     }
@@ -399,32 +399,32 @@ public class SettingStoreTest {
     @Test(expected = IllegalArgumentException.class)
     public void testResetNonDefaultSettingPolicy() throws Exception {
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(userPolicy));
+            Collections.singleton(userPolicy));
         settingStore.resetSettingPolicy(userPolicy.getId());
     }
 
     @Test
     public void testCreateAndGetDefaultSettingPolicy() throws Exception {
         final SettingPolicy policy = SettingPolicy.newBuilder()
-                .setId(7L)
-                .setInfo(info)
-                .setSettingPolicyType(Type.DEFAULT)
-                .build();
+            .setId(7L)
+            .setInfo(info)
+            .setSettingPolicyType(Type.DEFAULT)
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(policy));
+            Collections.singleton(policy));
         Assert.assertEquals(policy,
-                settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build())
-                        .iterator()
-                        .next());
+            settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build())
+                .iterator()
+                .next());
     }
 
     @Test(expected = InvalidItemException.class)
     public void testUpdateDiscoveredSettingPolicyFail() throws Exception {
         final SettingPolicy policy = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setSettingPolicyType(Type.DISCOVERED)
-                .setInfo(info)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setSettingPolicyType(Type.DISCOVERED)
+            .setInfo(info)
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
         settingStore.updateSettingPolicy(policy.getId(), policy.getInfo());
     }
@@ -437,22 +437,22 @@ public class SettingStoreTest {
     @Test
     public void testDeleteSettingPolicy() throws Exception {
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(userPolicy));
+            Collections.singleton(userPolicy));
         Assert.assertEquals(Collections.singleton(userPolicy.getId()),
-                settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build())
-                        .stream()
-                        .map(SettingPolicy::getId)
-                        .collect(Collectors.toSet()));
+            settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build())
+                .stream()
+                .map(SettingPolicy::getId)
+                .collect(Collectors.toSet()));
         settingStore.deleteSettingPolcies(dbConfig.getDslContext(),
-                Collections.singleton(userPolicy.getId()), Type.USER);
+            Collections.singleton(userPolicy.getId()), Type.USER);
         Assert.assertEquals(Collections.emptySet(),
-                settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build())
-                        .stream()
-                        .map(SettingPolicy::getId)
-                        .collect(Collectors.toSet()));
+            settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build())
+                .stream()
+                .map(SettingPolicy::getId)
+                .collect(Collectors.toSet()));
         Assert.assertFalse(
-                settingStore.getSettingPolicy(dbConfig.getDslContext(), userPolicy.getId())
-                        .isPresent());
+            settingStore.getSettingPolicy(dbConfig.getDslContext(), userPolicy.getId())
+                .isPresent());
     }
 
     /**
@@ -464,24 +464,24 @@ public class SettingStoreTest {
     @Test
     public void testDeleteIncorrectType() throws Exception {
         final SettingPolicy policy = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(info)
-                .setSettingPolicyType(Type.DEFAULT)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(info)
+            .setSettingPolicyType(Type.DEFAULT)
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(policy));
+            Collections.singleton(policy));
         try {
             settingStore.deleteSettingPolcies(dbConfig.getDslContext(),
-                    Collections.singleton(policy.getId()), Type.DISCOVERED);
+                Collections.singleton(policy.getId()), Type.DISCOVERED);
             Assert.fail("StoreOperationException is expected");
         } catch (StoreOperationException e) {
             Assert.assertEquals(Status.INVALID_ARGUMENT, e.getStatus());
         }
         Assert.assertEquals(Collections.singleton(policy.getId()), new HashSet<>(
-                settingStore.getSettingPolicies(dbConfig.getDslContext(),
-                        SettingPolicyFilter.newBuilder().build())).stream()
-                .map(SettingPolicy::getId)
-                .collect(Collectors.toSet()));
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().build())).stream()
+            .map(SettingPolicy::getId)
+            .collect(Collectors.toSet()));
     }
 
     /**
@@ -492,42 +492,42 @@ public class SettingStoreTest {
     @Test
     public void testDeleteNonExistingPolicy() throws Exception {
         final SettingPolicy policy = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setSettingPolicyType(Type.DISCOVERED)
-                .setInfo(info)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setSettingPolicyType(Type.DISCOVERED)
+            .setInfo(info)
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
         try {
             settingStore.deleteSettingPolcies(dbConfig.getDslContext(),
-                    Collections.singleton(policy.getId() + 1), Type.DISCOVERED);
+                Collections.singleton(policy.getId() + 1), Type.DISCOVERED);
             Assert.fail("StoreOperationException is expected");
         } catch (StoreOperationException e) {
             Assert.assertEquals(Status.NOT_FOUND, e.getStatus());
         }
         Assert.assertEquals(Collections.singleton(policy.getId()), new HashSet<>(
-                settingStore.getSettingPolicies(dbConfig.getDslContext(),
-                        SettingPolicyFilter.newBuilder().build())).stream()
-                .map(SettingPolicy::getId)
-                .collect(Collectors.toSet()));
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().build())).stream()
+            .map(SettingPolicy::getId)
+            .collect(Collectors.toSet()));
     }
 
     @Test
     public void testGetAllPolicies() throws Exception {
         final SettingPolicy policy2 = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(SettingPolicyInfo.newBuilder()
-                        .setName("bar")
-                        .setDisplayName("some-new-policy")
-                        .setScope(Scope.newBuilder())
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .setEnabled(true))
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(SettingPolicyInfo.newBuilder()
+                .setName("bar")
+                .setDisplayName("some-new-policy")
+                .setScope(Scope.newBuilder())
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnabled(true))
+            .setSettingPolicyType(Type.USER)
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Arrays.asList(userPolicy, policy2));
+            Arrays.asList(userPolicy, policy2));
 
         final Collection<SettingPolicy> allPolicies =
-                settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build());
+            settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder().build());
         Assert.assertEquals(Sets.newHashSet(userPolicy, policy2), new HashSet<>(allPolicies));
     }
 
@@ -623,121 +623,6 @@ public class SettingStoreTest {
         assertEquals(retrievedSettingSpecs.size(), 5);
     }
 
-    @Test
-    public void testUpdateTargetSettingPoliciesUpdate() {
-        final long targetId = 12345L;
-        final Setting originalSetting = Setting.newBuilder()
-                .setSettingSpecName("some-spec")
-                .setBooleanSettingValue(BooleanSettingValue.newBuilder()
-                    .setValue(true))
-                .build();
-        final Setting updatedSetting = originalSetting.toBuilder()
-                .setBooleanSettingValue(BooleanSettingValue.newBuilder()
-                        .setValue(false))
-                .build();
-
-        final DiscoveredSettingPolicyInfo spInfo = DiscoveredSettingPolicyInfo.newBuilder()
-                .setEntityType(1)
-                .setName("a")
-                .addDiscoveredGroupNames("0-group-a")
-                .build();
-
-        final Map<String, Long> groupOids = ImmutableMap.of(spInfo.getDiscoveredGroupNames(0), 1L);
-
-        // Create a discovered setting policies, a and b.
-        settingStore.updateTargetSettingPolicies(dbConfig.getDslContext(), targetId,
-                Collections.singletonList(spInfo.toBuilder().addSettings(originalSetting).build()),
-                groupOids);
-
-        final SettingPolicy policy = settingStore.getSettingPolicy(spInfo.getName()).get();
-
-        assertThat(policy.getInfo().getSettings(0), is(originalSetting));
-        settingStore.updateTargetSettingPolicies(dbConfig.getDslContext(), targetId,
-                Collections.singletonList(spInfo.toBuilder().addSettings(updatedSetting).build()),
-                groupOids);
-
-        final SettingPolicy updatedPolicy = settingStore.getSettingPolicy(policy.getId()).get();
-        assertThat(updatedPolicy.getInfo().getSettings(0), is(updatedSetting));
-    }
-
-    @Test
-    public void testUpdateTargetSettingPolicies() {
-        final long targetId = 12345L;
-        final Setting setting = Setting.newBuilder()
-            .setSettingSpecName("some-spec")
-            .setBooleanSettingValue(BooleanSettingValue.getDefaultInstance())
-            .build();
-
-        final DiscoveredSettingPolicyInfo settingPolicyA = DiscoveredSettingPolicyInfo.newBuilder()
-            .setEntityType(1)
-            .setName("a")
-            .addSettings(setting)
-            .addDiscoveredGroupNames("0-group-a")
-            .build();
-
-        final DiscoveredSettingPolicyInfo settingPolicyB = DiscoveredSettingPolicyInfo.newBuilder()
-            .setEntityType(2)
-            .setName("b")
-            .addSettings(setting)
-            .addDiscoveredGroupNames("0-group-b")
-            .build();
-
-        final DiscoveredSettingPolicyInfo settingPolicyC = DiscoveredSettingPolicyInfo.newBuilder()
-            .setEntityType(1)
-            .setName("c")
-            .addSettings(setting)
-            .addDiscoveredGroupNames("0-group-c")
-            .build();
-
-        final Map<String, Long> groupOids = ImmutableMap.of(
-                settingPolicyA.getDiscoveredGroupNames(0), 1L,
-                settingPolicyB.getDiscoveredGroupNames(0), 2L,
-                settingPolicyC.getDiscoveredGroupNames(0), 3L);
-
-        // Create 2 discovered setting policies, a and b.
-        settingStore.updateTargetSettingPolicies(dbConfig.getDslContext(), targetId,
-            Arrays.asList(settingPolicyA, settingPolicyB),
-            groupOids);
-
-        // Make sure they are created.
-        final Collection<SettingPolicy> firstCreated =
-                settingStore.getSettingPoliciesDiscoveredByTarget(dbConfig.getDslContext(),
-                        targetId);
-        assertEquals(targetId, (long)firstCreated.stream()
-            .map(settingPolicy -> settingPolicy.getInfo().getTargetId())
-            .distinct()
-            .findFirst()
-            .get());
-        assertThat(firstCreated.stream()
-            .flatMap(settingPolicy -> settingPolicy.getInfo().getScope().getGroupsList().stream())
-            .collect(Collectors.toList()), containsInAnyOrder(1L, 2L));
-        assertThat(firstCreated.stream()
-            .map(settingPolicy -> settingPolicy.getInfo().getName())
-            .collect(Collectors.toList()), containsInAnyOrder("a", "b"));
-
-        // Have 2 discovered setting policies, b and c.
-        // a should be deleted, b should be retained, c should be created.
-        settingStore.updateTargetSettingPolicies(dbConfig.getDslContext(), targetId,
-            Arrays.asList(settingPolicyC, settingPolicyB),
-            groupOids);
-
-        final Collection<SettingPolicy> secondCreated =
-                settingStore.getSettingPoliciesDiscoveredByTarget(dbConfig.getDslContext(),
-                        targetId);
-        assertEquals(targetId, (long)secondCreated.stream()
-            .map(settingPolicy -> settingPolicy.getInfo().getTargetId())
-            .distinct()
-            .findFirst()
-            .get());
-        assertThat(secondCreated.stream()
-            .flatMap(settingPolicy -> settingPolicy.getInfo().getScope().getGroupsList().stream())
-            .collect(Collectors.toList()), containsInAnyOrder(2L, 3L));
-        assertThat(secondCreated.stream()
-            .map(settingPolicy -> settingPolicy.getInfo().getName())
-            .collect(Collectors.toList()), containsInAnyOrder("b", "c"));
-        assertEquals(retrievedSettingSpecs.size(), 5);
-    }
-
 
     /**
      * Test get setting policies using schedule.
@@ -758,27 +643,27 @@ public class SettingStoreTest {
 
         // No policies using this schedule yet
         Collection<SettingPolicy> settingPolicies =
-                settingStore.getSettingPoliciesUsingSchedule(dbConfig.getDslContext(),
-                        savedSchedule.getId());
+            settingStore.getSettingPoliciesUsingSchedule(dbConfig.getDslContext(),
+                savedSchedule.getId());
         assertTrue(settingPolicies.isEmpty());
 
         final SettingPolicy policy1 = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(info)
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(info)
+            .setSettingPolicyType(Type.USER)
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
-                Collections.singleton(policy1));
+            Collections.singleton(policy1));
         // TODO
         assertTrue(policy1.hasId());
         scheduleStore.assignScheduleToSettingPolicy(policy1.getId(), savedSchedule.getId());
 
         final SettingPolicyInfo info2 = info.toBuilder().setName("test2").build();
         final SettingPolicy policy2 = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(info2)
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(info2)
+            .setSettingPolicyType(Type.USER)
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy2));
 
         // TODO
@@ -788,28 +673,28 @@ public class SettingStoreTest {
 
         // Now 2 policies should be using this schedule
         settingPolicies = settingStore.getSettingPoliciesUsingSchedule(dbConfig.getDslContext(),
-                savedSchedule.getId());
+            savedSchedule.getId());
         assertEquals(2, settingPolicies.size());
         settingPolicies.forEach(sPolicy -> assertTrue(sPolicy.getInfo().hasScheduleId()));
 
         // Add 1 more policy without schedule
         final SettingPolicyInfo info3 = info.toBuilder().setName("test3").build();
         final SettingPolicy policy3 = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setInfo(info3)
-                .setSettingPolicyType(Type.USER)
-                .build();
+            .setId(identityProviderSpy.next())
+            .setInfo(info3)
+            .setSettingPolicyType(Type.USER)
+            .build();
         // TODO
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy3));
         assertTrue(policy3.hasId());
 
         final Collection<SettingPolicy> allPolicies = settingStore.getSettingPolicies(dbConfig.getDslContext(),
-                SettingPolicyFilter.newBuilder().build());
+            SettingPolicyFilter.newBuilder().build());
         assertEquals(3, allPolicies.size());
 
         // Still 2 policies should be using this schedule
         settingPolicies = settingStore.getSettingPoliciesUsingSchedule(dbConfig.getDslContext(),
-                savedSchedule.getId());
+            savedSchedule.getId());
         assertEquals(2, settingPolicies.size());
         settingPolicies.forEach(sPolicy -> assertTrue(sPolicy.getInfo().hasScheduleId()));
     }
@@ -833,9 +718,9 @@ public class SettingStoreTest {
         settingStore.updateGlobalSetting(settingWithStringValue(NAME, STR_VALUE));
         assertEquals(1, settingStore.getAllGlobalSettings().size());
         String value = settingStore.getGlobalSetting(NAME)
-                .map(Setting::getStringSettingValue)
-                .map(SettingProto.StringSettingValue::getValue)
-                .get();
+            .map(Setting::getStringSettingValue)
+            .map(SettingProto.StringSettingValue::getValue)
+            .get();
         assertEquals(STR_VALUE, value);
 
         // Update of a missing name should not insert
@@ -869,55 +754,55 @@ public class SettingStoreTest {
     @Test
     public void testOidSetSetting() throws Exception {
         final Setting emptySetting = Setting.newBuilder()
-                .setSettingSpecName("some-spec1")
-                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder())
-                .build();
+            .setSettingSpecName("some-spec1")
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder())
+            .build();
         final Setting singleton = Setting.newBuilder()
-                .setSettingSpecName("some-spec2")
-                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
-                        .addOids(123L))
-                .build();
+            .setSettingSpecName("some-spec2")
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addOids(123L))
+            .build();
         final Setting multiple = Setting.newBuilder()
-                .setSettingSpecName("some-spec3")
-                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
-                        .addOids(123L))
-                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
-                        .addOids(234L))
-                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
-                        .addOids(345L))
-                .build();
+            .setSettingSpecName("some-spec3")
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addOids(123L))
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addOids(234L))
+            .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                .addOids(345L))
+            .build();
         final SettingPolicy policy = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
-                .setSettingPolicyType(Type.USER)
-                .setInfo(SettingPolicyInfo.newBuilder(info)
-                        .clearSettings()
-                        .addSettings(emptySetting)
-                        .addSettings(singleton)
-                        .addSettings(multiple))
-                .build();
+            .setId(identityProviderSpy.next())
+            .setSettingPolicyType(Type.USER)
+            .setInfo(SettingPolicyInfo.newBuilder(info)
+                .clearSettings()
+                .addSettings(emptySetting)
+                .addSettings(singleton)
+                .addSettings(multiple))
+            .build();
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
         final Collection<SettingPolicy> actual =
-                settingStore.getSettingPolicies(dbConfig.getDslContext(),
-                        SettingPolicyFilter.newBuilder().build());
+            settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().build());
         Assert.assertEquals(1, actual.size());
         Assert.assertThat(actual.iterator().next(), new SettingPolicyMatcher(policy));
     }
 
     private static Setting settingWithStringValue(String name, String value) {
         return Setting.newBuilder()
-                .setSettingSpecName(name)
-                .setStringSettingValue(
-                        SettingProto.StringSettingValue.newBuilder()
-                                .setValue(value)
-                                .build())
-                .build();
+            .setSettingSpecName(name)
+            .setStringSettingValue(
+                SettingProto.StringSettingValue.newBuilder()
+                    .setValue(value)
+                    .build())
+            .build();
     }
 
     /**
      * Matcher to capture setting policy.
      */
     private static class SettingPolicyMatcher extends
-            ProtobufMessageMatcher<SettingProto.SettingPolicy> {
+        ProtobufMessageMatcher<SettingProto.SettingPolicy> {
         SettingPolicyMatcher(@Nonnull SettingPolicy expected) {
             super(expected, Collections.singleton("info.settings"));
         }

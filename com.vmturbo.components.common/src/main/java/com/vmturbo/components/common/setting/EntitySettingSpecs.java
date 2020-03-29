@@ -196,12 +196,6 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.IO_MODULE), actionExecutionModeSetToDisabled(), true),
 
     /**
-     * For some types of entities Suspend actions are disabled by default.
-     */
-    DisabledSuspend("suspendIsDisabled", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.IO_MODULE), actionExecutionModeSetToDisabled(), true),
-
-    /**
      * Delete action automation mode.
      */
     Delete("delete", "Delete", Collections.emptyList(), SettingTiebreaker.SMALLER,

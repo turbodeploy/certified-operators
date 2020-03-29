@@ -75,8 +75,9 @@ import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundExcep
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
-import com.vmturbo.group.db.tables.pojos.SettingPolicySchedule;
+//import com.vmturbo.group.db.tables.pojos.SettingPolicySchedule;
 import com.vmturbo.group.db.tables.records.GlobalSettingsRecord;
+import com.vmturbo.group.db.tables.records.SettingPolicyGroupsRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingOidsRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingRecord;
@@ -261,7 +262,7 @@ public class SettingStore implements DiagsRestorable {
 
     @Nonnull
     private Collection<SettingPolicyGroupsRecord> attachGroupsToPolicy(@Nonnull Long policyId,
-            @Nonnull Scope policyScope) {
+                                                                       @Nonnull Scope policyScope) {
         final Collection<SettingPolicyGroupsRecord> allGroups =
                 new ArrayList<>(policyScope.getGroupsCount());
         for (long groupIds : policyScope.getGroupsList()) {

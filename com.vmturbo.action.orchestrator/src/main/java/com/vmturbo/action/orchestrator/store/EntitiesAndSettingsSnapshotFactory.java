@@ -105,11 +105,11 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         private final TopologyType topologyType;
 
         public EntitiesAndSettingsSnapshot(@Nonnull final Map<Long, Map<String, Setting>> settings,
-                @Nonnull final Map<Long, ActionPartialEntity> entityMap,
-                @Nonnull final OwnershipGraph<EntityWithConnections> ownershipGraph,
-                @Nonnull final Map<Long, Long> entityToResourceGroupMap,
-                final long topologyContextId,
-                @Nonnull final TopologyType targetTopologyType) {
+                                           @Nonnull final Map<Long, ActionPartialEntity> entityMap,
+                                           @Nonnull final OwnershipGraph<EntityWithConnections> ownershipGraph,
+                                           @Nonnull final Map<Long, Long> entityToResourceGroupMap,
+                                           final long topologyContextId,
+                                           @Nonnull final TopologyType targetTopologyType) {
             this.settingsByEntityAndSpecName = settings;
             this.oidToEntityMap = entityMap;
             this.ownershipGraph = ownershipGraph;
@@ -180,7 +180,6 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      *
      * @param entities The new set of entities to get settings for. This set should contain
      *                 the IDs of all entities involved in all actions we expose to the user.
-     * @param nonProjectedEntities entities not in projected topology such as detached volume OIDs.
      * @param topologyContextId The topology context of the topology broadcast that
      *                          triggered the cache update.
      * @param topologyId The topology id of the topology, the broadcast of which triggered the
@@ -191,39 +190,27 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
-                                                   @Nonnull final Set<Long> nonProjectedEntities,
                                                    final long topologyContextId,
                                                    final long topologyId) {
-        return internalNewSnapshot(entities, nonProjectedEntities, topologyContextId, topologyId);
+        return internalNewSnapshot(entities, topologyContextId, topologyId);
     }
 
     /**
      * A version of {@link EntitiesAndSettingsSnapshotFactory#newSnapshot(Set, long, long)}
      * that waits for the latest topology in a particular context.
-     * @param nonProjectedEntities entities not in projected topology such as detached volume OIDs.
+     *
      * @param entities See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, long, long)} .
      * @param topologyContextId See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, long, long)}.
      * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings and entities.
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
-                                                   @Nonnull final Set<Long> nonProjectedEntities,
                                                    final long topologyContextId) {
-        return internalNewSnapshot(entities, nonProjectedEntities, topologyContextId, null);
+        return internalNewSnapshot(entities, topologyContextId, null);
     }
 
-    /**
-     * internalNewSnapshot.
-     *
-     * @param entities See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, long, long)} .
-     * @param nonProjectedEntities entities not in projected topology such as detached volume OIDs.
-     * @param topologyContextId topologyContextId See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, long, long)}.
-     * @param topologyId The topology Id.
-     * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings and entities.
-     */
     @Nonnull
     private EntitiesAndSettingsSnapshot internalNewSnapshot(@Nonnull final Set<Long> entities,
-                                                            @Nonnull final Set<Long> nonProjectedEntities,
                                                             final long topologyContextId,
                                                             @Nullable final Long topologyId) {
         final Map<Long, Map<String, Setting>> newSettings = retrieveEntityToSettingListMap(entities,
@@ -252,14 +239,6 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                 topologyAvailabilityTracker.queueAnyTopologyRequest(topologyContextId, targetTopologyType)
                     .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
             }
-            // This will be the case for plans with detached volume actions only.
-            // We need to get the information for these entities from the real-time SOURCE topology,
-            // as they're not added to the plan projected topology.
-            if (!nonProjectedEntities.isEmpty()) {
-                topologyAvailabilityTracker.queueAnyTopologyRequest(topologyContextId, TopologyType.SOURCE)
-                .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
-            }
-
             entityMap = retrieveOidToEntityMap(entities,
                 topologyContextId, topologyId, targetTopologyType);
             ownershipGraph = retrieveOwnershipGraph(entities, topologyContextId, topologyId, targetTopologyType);
@@ -271,36 +250,17 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
             logger.error("Failed to wait for repository to return data due to exception : " + e);
         }
 
-        if (!nonProjectedEntities.isEmpty()) {
-            Map<Long, ActionPartialEntity> entityMapNonProjected = Collections.emptyMap();
-            try {
-                topologyAvailabilityTracker
-                                .queueAnyTopologyRequest(topologyContextId, TopologyType.SOURCE)
-                                .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
-
-                entityMapNonProjected = retrieveOidToEntityMap(nonProjectedEntities, realtimeTopologyContextId,
-                                                   topologyId, TopologyType.SOURCE);
-                entityMap.putAll(entityMapNonProjected);
-            } catch (TopologyUnavailableException e) {
-                logger.error("Topology not available. Entity snapshot won't have entity information." +
-                                " Error: {}", e.getMessage());
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt(); // Set the interrupt status on the thread.
-                logger.error("Failed to wait for repository to return data due to exception : " + e);
-            }
-        }
-
         return new EntitiesAndSettingsSnapshot(newSettings, entityMap, ownershipGraph,
-                entityToResourceGroupMap, topologyContextId, targetTopologyType);
+            entityToResourceGroupMap, topologyContextId, targetTopologyType);
     }
 
     @Nonnull
     private Map<Long, Long> retrieveResourceGroupsForEntities(@Nonnull Set<Long> entities) {
         final GetGroupsForEntitiesResponse response = groupService.getGroupsForEntities(
-                GetGroupsForEntitiesRequest.newBuilder()
-                        .addAllEntityId(entities)
-                        .addGroupType(GroupType.RESOURCE)
-                        .build());
+            GetGroupsForEntitiesRequest.newBuilder()
+                .addAllEntityId(entities)
+                .addGroupType(GroupType.RESOURCE)
+                .build());
         final Map<Long, Long> resultMap = new HashMap<>();
         for (Entry<Long, Groupings> groupingsEntry : response.getEntityGroupMap().entrySet()) {
             final long entityId = groupingsEntry.getKey();
@@ -308,7 +268,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                 final Long oldGroupId = resultMap.put(entityId, groupId);
                 if (oldGroupId != null) {
                     logger.warn("Found multiple resource groups for entity {}: {} and {}", entityId,
-                            oldGroupId, groupId);
+                        oldGroupId, groupId);
                 }
             }
         }
@@ -317,9 +277,9 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     @Nonnull
     private OwnershipGraph<EntityWithConnections> retrieveOwnershipGraph(@Nonnull final Set<Long> entities,
-                     final long topologyContextId,
-                     @Nullable final Long topologyId,
-                     @Nonnull final TopologyType topologyType) {
+                                                                         final long topologyContextId,
+                                                                         @Nullable final Long topologyId,
+                                                                         @Nonnull final TopologyType topologyType) {
         final OwnershipGraph.Builder<EntityWithConnections> graphBuilder =
             OwnershipGraph.newBuilder(EntityWithConnections::getOid);
 
@@ -373,9 +333,9 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      * @return mapping with oid as key and {@link ActionPartialEntity} as value.
      */
     private Map<Long, ActionPartialEntity> retrieveOidToEntityMap(Set<Long> entities,
-                    long topologyContextId,
-                    @Nullable final Long topologyId,
-                    @Nonnull final TopologyType targetTopologyType) {
+                                                                  long topologyContextId,
+                                                                  @Nullable final Long topologyId,
+                                                                  @Nonnull final TopologyType targetTopologyType) {
         if (entities.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -405,8 +365,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     @Nonnull
     private Map<Long, Map<String, Setting>> retrieveEntityToSettingListMap(final Set<Long> entities,
-                                                                    final long topologyContextId,
-                                                                    @Nullable final Long topologyId) {
+                                                                           final long topologyContextId,
+                                                                           @Nullable final Long topologyId) {
         // We don't currently upload settings in plans, so no point trying to get them.
         if (topologyContextId != realtimeTopologyContextId) {
             return Collections.emptyMap();
@@ -414,15 +374,15 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
         try {
             final Builder builder = TopologySelection.newBuilder()
-                    .setTopologyContextId(topologyContextId);
+                .setTopologyContextId(topologyContextId);
             if (topologyId != null) {
                 builder.setTopologyId(topologyId);
             }
             final GetEntitySettingsRequest request = GetEntitySettingsRequest.newBuilder()
-                    .setTopologySelection(builder)
-                    .setSettingFilter(EntitySettingFilter.newBuilder()
-                            .addAllEntities(entities))
-                    .build();
+                .setTopologySelection(builder)
+                .setSettingFilter(EntitySettingFilter.newBuilder()
+                    .addAllEntities(entities))
+                .build();
             return Collections.unmodifiableMap(SettingDTOUtil.indexSettingsByEntity(
                 SettingDTOUtil.flattenEntitySettings(
                     settingPolicyService.getEntitySettings(request))));

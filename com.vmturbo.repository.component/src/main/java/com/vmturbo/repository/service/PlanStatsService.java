@@ -1,8 +1,8 @@
 package com.vmturbo.repository.service;
 
-import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_HOST;
-import static com.vmturbo.components.common.utils.StringConstants.NUM_VMS_PER_STORAGE;
-import static com.vmturbo.components.common.utils.StringConstants.PRICE_INDEX;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_HOST;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_VMS_PER_STORAGE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PRICE_INDEX;
 
 import java.util.Collections;
 import java.util.HashMap;

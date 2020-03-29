@@ -50,19 +50,19 @@ public class RegionalRIMatcherCache {
     @Nonnull
     public ReservedInstanceSpecMatcher getOrCreateRISpecMatchForRegion(long regionOid) {
         return riSpecMatchersByRegionOid.computeIfAbsent(regionOid,
-                (__) -> riSpecMatcherFactory.createRegionalMatcher(
-                        cloudTopology,
-                        purchaseConstraints,
-                        regionOid));
+            (__) -> riSpecMatcherFactory.createRegionalMatcher(
+                cloudTopology,
+                purchaseConstraints,
+                regionOid));
     }
 
     @Nonnull
     public ReservedInstanceInventoryMatcher getOrCreateRIInventoryMatcherForRegion(long regionOid) {
         return riInventoryMatchersByRegionOid.computeIfAbsent(regionOid,
-                (__) -> riInventoryMatcherFactory.createRegionalMatcher(
-                        cloudTopology,
-                        getOrCreateRISpecMatchForRegion(regionOid),
-                        regionOid));
+            (__) -> riInventoryMatcherFactory.createRegionalMatcher(
+                cloudTopology,
+                getOrCreateRISpecMatchForRegion(regionOid),
+                regionOid));
     }
 
     @Nonnull

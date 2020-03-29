@@ -88,7 +88,7 @@ public class SearchResolver<E extends TopologyGraphEntity<E>> {
             Map<Long, E> result = new HashMap<>();
 
             // map entity type to SearchParameters
-            Map<UIEntityType, List<SearchParameters>> paramsPerEntityType = searchParameters.stream()
+            Map<ApiEntityType, List<SearchParameters>> paramsPerEntityType = searchParameters.stream()
                     .collect(Collectors.groupingBy(SearchProtoUtil::getEntityTypeFromSearchParameters));
 
             // for each entity type, get the entities which match all the criteria for

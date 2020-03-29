@@ -431,7 +431,7 @@ public class GroupMapper {
                     groupDto.getGroupType(), null);
             groupBuilder.setEntityFilters(EntityFilters.newBuilder()
                 .addEntityFilter(EntityFilter.newBuilder()
-                    .setEntityType(UIEntityType.fromString(groupDto.getGroupType()).typeNumber())
+                    .setEntityType(ApiEntityType.fromString(groupDto.getGroupType()).typeNumber())
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
                         .addAllSearchParameters(searchParameters)))
             );
@@ -664,7 +664,7 @@ public class GroupMapper {
 
          if (groupDefinition.getType() == GroupType.ENTITY_DEFINITION
                  && groupDefinition.getEntityDefinitionData().hasDefinedEntityType()) {
-             outputDTO.setGroupType(UIEntityType.fromType(groupDefinition.getEntityDefinitionData()
+             outputDTO.setGroupType(ApiEntityType.fromType(groupDefinition.getEntityDefinitionData()
                      .getDefinedEntityType().getNumber()).apiStr());
          } else if (!directMemberTypes.isEmpty()) {
              if (groupDefinition.getType() == GroupType.RESOURCE) {
@@ -894,10 +894,10 @@ public class GroupMapper {
                             .stream()
                             .map(GroupProtoUtil::getEntityTypesFromEntityFilter)
                             .flatMap(Collection::stream)
-                            .map(UIEntityType::apiStr)
+                            .map(ApiEntityType::apiStr)
                             .collect(Collectors.toList());
                 } else {
-                    return Collections.singletonList(UIEntityType.fromType(groupDefinition
+                    return Collections.singletonList(ApiEntityType.fromType(groupDefinition
                             .getEntityFilters()
                             .getEntityFilter(0)
                             .getEntityType())

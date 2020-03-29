@@ -421,19 +421,19 @@ public class GroupProtoUtil {
      * @param entityFilter the entity filter
      * @return all the entity types of the filter
      */
-    public static Set<UIEntityType> getEntityTypesFromEntityFilter(EntityFilter entityFilter) {
+    public static Set<ApiEntityType> getEntityTypesFromEntityFilter(EntityFilter entityFilter) {
         // first try to get the entity types from the search parameters (criteria)
-        Set<UIEntityType> entityTypes = entityFilter
+        Set<ApiEntityType> entityTypes = entityFilter
                 .getSearchParametersCollection()
                 .getSearchParametersList()
                 .stream()
                 .map(SearchProtoUtil::getEntityTypeFromSearchParameters)
-                .filter(uiEntityType -> uiEntityType != UIEntityType.UNKNOWN)
+                .filter(uiEntityType -> uiEntityType != ApiEntityType.UNKNOWN)
                 .collect(Collectors.toSet());
 
         // if the search parameters have no entity types, get the type from the entity filter
         if (entityTypes.isEmpty()) {
-            entityTypes = Collections.singleton(UIEntityType.fromType(
+            entityTypes = Collections.singleton(ApiEntityType.fromType(
                     entityFilter.getEntityType()));
         }
 

@@ -517,17 +517,17 @@ public class SearchProtoUtil {
      * @param searchParameters the search parameters
      * @return the entity type of this search parameter, if exists, UNKNOWN otherwise
      */
-    public static UIEntityType getEntityTypeFromSearchParameters(SearchParameters searchParameters) {
+    public static ApiEntityType getEntityTypeFromSearchParameters(SearchParameters searchParameters) {
         if (searchParameters.hasStartingFilter()) {
             PropertyFilter startingFilter = searchParameters.getStartingFilter();
             if (SearchableProperties.ENTITY_TYPE.equals(startingFilter.getPropertyName())) {
                 if (startingFilter.hasNumericFilter()) {
-                    return UIEntityType.fromType((int)startingFilter.getNumericFilter().getValue());
+                    return ApiEntityType.fromType((int)startingFilter.getNumericFilter().getValue());
                 } else if (startingFilter.hasStringFilter()) {
-                    return UIEntityType.fromString(startingFilter.getStringFilter().getStringPropertyRegex());
+                    return ApiEntityType.fromString(startingFilter.getStringFilter().getStringPropertyRegex());
                 }
             }
         }
-        return UIEntityType.UNKNOWN;
+        return ApiEntityType.UNKNOWN;
     }
 }

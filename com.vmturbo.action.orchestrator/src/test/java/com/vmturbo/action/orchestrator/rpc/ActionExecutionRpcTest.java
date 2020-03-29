@@ -108,7 +108,7 @@ public class ActionExecutionRpcTest {
     private final ProbeCapabilityCache probeCapabilityCache = mock(ProbeCapabilityCache.class);
     private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-            executor, actionStoreLoader, actionModeCalculator);
+        executor, actionStoreLoader, actionModeCalculator);
     private final ActionPaginatorFactory paginatorFactory = mock(ActionPaginatorFactory.class);
 
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
@@ -200,7 +200,7 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
@@ -228,14 +228,14 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
 
         actionStorehouse.storeActions(plan);
         actionStorehouse.getStore(TOPOLOGY_CONTEXT_ID).get().overwriteActions(ImmutableMap.of(
-                ActionPlanType.MARKET, Collections.emptyList())); // Clear the action from the store
+            ActionPlanType.MARKET, Collections.emptyList())); // Clear the action from the store
         AcceptActionResponse response = actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
 
         assertTrue(response.hasError());
@@ -266,7 +266,7 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
@@ -292,7 +292,7 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
@@ -322,7 +322,7 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -349,7 +349,7 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -379,7 +379,7 @@ public class ActionExecutionRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
 
-        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
         // We use a new actionTranslator for this test. This spy translator does not do the
@@ -396,26 +396,26 @@ public class ActionExecutionRpcTest {
         }, grpcServer.getChannel()));
         ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
         final ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory,
-                executor, actionStoreLoader, actionModeCalculator);
+            executor, actionStoreLoader, actionModeCalculator);
         final ActionsRpcService actionsRpcService =
-                new ActionsRpcService(clock,
-                    actionStorehouse,
-                    actionExecutor,
-                    actionTargetSelector,
-                    entitySettingsCache,
-                    actionTranslator,
-                    paginatorFactory,
-                    workflowStore,
-                    statReader,
-                    liveStatReader,
-                    userSessionContext);
+            new ActionsRpcService(clock,
+                actionStorehouse,
+                actionExecutor,
+                actionTargetSelector,
+                entitySettingsCache,
+                actionTranslator,
+                paginatorFactory,
+                workflowStore,
+                statReader,
+                liveStatReader,
+                userSessionContext);
         GrpcTestServer grpcServer = GrpcTestServer.newServer(
             actionsRpcService,
             supplyChainServiceMole,
             repositoryServiceMole);
         grpcServer.start();
         ActionsServiceBlockingStub actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(
-                grpcServer.getChannel());
+            grpcServer.getChannel());
         IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
         actionStoreSpy =
             Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,

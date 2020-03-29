@@ -66,7 +66,7 @@ public class PriceIndexWriter extends ProjectedTopologyWriterBase {
             priceIndices.visit(visitorFactory.newVisitor(topologyInfo, loaders));
             // assuming we wrote any records to entity_stats tables, record this topology's snapshot_time in
             // available_timestamps table for PRICE_DATA
-            if (loaders.getStats().getOutTables().stream().anyMatch(t -> EntityType.fromTable(t).isPresent())) {
+            if (loaders.getStats().getOutTables().stream().anyMatch(t -> EntityType.fromTable(t) != null)) {
                 AvailableTimestampsRecord record = Tables.AVAILABLE_TIMESTAMPS.newRecord();
                 Timestamp snapshot_time = new Timestamp(topologyInfo.getCreationTime());
                 record.setTimeStamp(snapshot_time);

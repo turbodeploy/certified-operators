@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -68,11 +67,9 @@ public class ReservedInstanceAnalysisScope {
     private final boolean overrideRICoverage;
 
     /**
-     * A map of purchase profiles for each cloud provider type. Each purchase profile
-     * describes the type of RI to be bought which includes offering class, payment option,
-     * term, purchase date.
+     * The type of RI to be bought which includes offering class, payment option, term, purchase date.
      */
-    private final Map<String, RIPurchaseProfile> riPurchaseProfiles;
+    private final RIPurchaseProfile riPurchaseProfile;
 
     /**
      * The topology on which this analysis is going to be performed.
@@ -95,9 +92,8 @@ public class ReservedInstanceAnalysisScope {
      * @param overrideRICoverage    The coverage can be overriden by a percentage. false override
      *                              coverage means default maximum savings and true override
      *                              coverage means specific coverage
-     * @param profiles              The type of RI to be bought which includes offering class,
-     *                              payment option, term, purchase date for each service
-     *                              provider type.
+     * @param profile               The type of RI to be bought which includes offering class,
+     *                              payment option, term, purchase date.
      * @param topologyInfo          The topology for the analysis.
      */
     @VisibleForTesting
@@ -107,7 +103,7 @@ public class ReservedInstanceAnalysisScope {
                                             @Nullable Collection<Long> accounts,
                                             float preferredCoverage,
                                             boolean overrideRICoverage,
-                                            @Nullable Map<String, RIPurchaseProfile> profiles,
+                                            @Nullable RIPurchaseProfile profile,
                                             @Nonnull TopologyInfo topologyInfo) {
         if (CollectionUtils.isNotEmpty(platforms) && platforms.contains(OSType.UNKNOWN_OS)) {
             logger.warn("ReservedInstanceAnalysisScope platform contains illegal UNKNOWN_OS, removing it");
@@ -144,7 +140,7 @@ public class ReservedInstanceAnalysisScope {
         this.accounts = (accounts == null) ? null : ImmutableSet.copyOf(accounts);
         this.preferredCoverage = preferredCoverage;
         this.overrideRICoverage = overrideRICoverage;
-        this.riPurchaseProfiles = profiles;
+        this.riPurchaseProfile = profile;
         this.topologyInfo = topologyInfo;
     }
 
@@ -158,11 +154,11 @@ public class ReservedInstanceAnalysisScope {
         // TODO: Should the default values of preferred coverage and override coverage come from
         // startBuyAnalysisRequest?
         this(startAnalysisRequest.getPlatformsList(),
-                startAnalysisRequest.getRegionsList(),
-                startAnalysisRequest.getTenanciesList(),
-                startAnalysisRequest.getAccountsList(), -1, false,
-                startAnalysisRequest.getPurchaseProfileByCloudtypeMap(),
-                startAnalysisRequest.getTopologyInfo());
+            startAnalysisRequest.getRegionsList(),
+            startAnalysisRequest.getTenanciesList(),
+            startAnalysisRequest.getAccountsList(), -1, false,
+            startAnalysisRequest.getPurchaseProfile(),
+            startAnalysisRequest.getTopologyInfo());
     }
 
     /**
@@ -212,8 +208,8 @@ public class ReservedInstanceAnalysisScope {
         return overrideRICoverage;
     }
 
-    public Map<String, RIPurchaseProfile> getRiPurchaseProfiles() {
-        return riPurchaseProfiles;
+    public RIPurchaseProfile getRiPurchaseProfile() {
+        return riPurchaseProfile;
     }
 
     public TopologyInfo getTopologyInfo() {

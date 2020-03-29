@@ -21,7 +21,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -30,23 +29,26 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import org.apache.commons.collections4.ListUtils;
+import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
+import org.junit.After;
 import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -57,26 +59,24 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.DbCleanupRule;
-import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
  * Integration tests related to the {@link PlanActionStoreTest}.
  */
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(
+    loader = AnnotationConfigContextLoader.class,
+    classes = {TestSQLDatabaseConfig.class}
+)
+@TestPropertySource(properties = {"originalSchemaName=action"})
 public class PlanActionStoreTest {
-    /**
-     * Rule to create the DB schema and migrate it.
-     */
-    @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule(com.vmturbo.action.orchestrator.db.Action.ACTION);
 
-    /**
-     * Rule to automatically cleanup DB data before each test.
-     */
-    @Rule
-    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
+    @Autowired
+    protected TestSQLDatabaseConfig dbConfig;
 
-    private DSLContext dsl = dbConfig.getDslContext();
+    private Flyway flyway;
+    private DSLContext dsl;
 
     private final long firstPlanId = 0xBEADED;
     private final long secondPlanId = 0xDADDA;
@@ -106,10 +106,10 @@ public class PlanActionStoreTest {
         @Override
         public Action newPlanAction(@Nonnull ActionDTO.Action recommendation, @Nonnull LocalDateTime recommendationTime,
                                     long actionPlanId, String description,
-                @Nullable final Long associatedAccountId,
-                @Nullable final Long associatedResourceGroupId) {
+                                    @Nullable final Long associatedAccountId,
+                                    @Nullable final Long associatedResourceGroupId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId,
-                    actionModeCalculator, description, associatedAccountId, associatedResourceGroupId));
+                actionModeCalculator, description, associatedAccountId, associatedResourceGroupId));
         }
     }
 
@@ -121,7 +121,6 @@ public class PlanActionStoreTest {
     private final EntitiesAndSettingsSnapshotFactory entitiesSnapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
-    ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
 
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
@@ -141,25 +140,19 @@ public class PlanActionStoreTest {
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
         when(actionFactory.newPlanAction(any(ActionDTO.Action.class),
-                any(LocalDateTime.class), anyLong(), anyString(), any(), any())).thenAnswer(
+            any(LocalDateTime.class), anyLong(), anyString(), any(), any())).thenAnswer(
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
-                        actionModeCalculator, "Move VM from H1 to H2", 321L, 121L);
+                    actionModeCalculator, "Move VM from H1 to H2", 321L, 121L);
             });
         setEntitiesOIDs();
-        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
-            Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
-            return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action ->
-                ImmutableActionTargetInfo.builder()
-                    .targetId(100L).supportingLevel(SupportLevel.SUPPORTED).build()));
-        });
     }
 
     public void setEntitiesOIDs() {
-        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong())).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), anyLong())).thenReturn(snapshot);
         // Hack: if plan source topology is not available, the fall back on realtime.
-        when(entitiesSnapshotFactory.newSnapshot(any(), any(), eq(realtimeId))).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), eq(realtimeId))).thenReturn(snapshot);
         for (long i=1; i<10;i++) {
             createMockEntity(i,EntityType.VIRTUAL_MACHINE.getNumber());
         }
@@ -171,6 +164,11 @@ public class PlanActionStoreTest {
         when(snapshot.getEntityFromOid(eq(id)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(id, type));
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+    }
+
+    @After
+    public void teardown() throws Exception {
+        flyway.clean();
     }
 
     @Test
@@ -259,7 +257,7 @@ public class PlanActionStoreTest {
 
         ActionOrchestratorTestUtils.assertActionsEqual(
             actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "", null,
-                    null),
+                null),
             actionStore.getAction(1L).get()
         );
     }
@@ -279,7 +277,7 @@ public class PlanActionStoreTest {
         actionList.forEach(action ->
             ActionOrchestratorTestUtils.assertActionsEqual(
                 actionFactory.newPlanAction(action, actionRecommendationTime, firstPlanId, "",
-                        null, null),
+                    null, null),
                 actionsMap.get(action.getId())
             )
         );
@@ -289,16 +287,16 @@ public class PlanActionStoreTest {
     public void testOverwriteActionsEmptyStore() throws Exception {
         final List<Action> actionList = actionList(3).stream()
             .map(marketAction -> actionFactory.newPlanAction(marketAction, actionRecommendationTime,
-                    firstPlanId, "", null, null))
+                firstPlanId, "", null, null))
             .collect(Collectors.toList());
 
         actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, actionList));
         Map<Long, Action> actionsMap = actionStore.getActions();
         actionList.forEach(action ->
-                ActionOrchestratorTestUtils.assertActionsEqual(
-                    action,
-                    actionsMap.get(action.getId())
-                )
+            ActionOrchestratorTestUtils.assertActionsEqual(
+                action,
+                actionsMap.get(action.getId())
+            )
         );
     }
 
@@ -391,7 +389,7 @@ public class PlanActionStoreTest {
         // Load the stores from DB
         List<ActionStore> loadedStores =
             new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
-                 null, null).loadActionStores();
+                null, null).loadActionStores();
         loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
 
         // Assert that what we load from DB is the same as what we setup initially
@@ -463,7 +461,7 @@ public class PlanActionStoreTest {
     }
 
     private static ActionPlan buyRIActionPlan(final long planId, final long topologyContextId,
-                                               @Nonnull final Collection<ActionDTO.Action> actions) {
+                                              @Nonnull final Collection<ActionDTO.Action> actions) {
 
         return ActionPlan.newBuilder()
             .setId(planId)

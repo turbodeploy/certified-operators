@@ -201,15 +201,15 @@ public class LiveActionStore implements ActionStore {
             }
 
             final TopologyInfo sourceTopologyInfo =
-                    actionPlan.getInfo().getMarket().getSourceTopologyInfo();
+                actionPlan.getInfo().getMarket().getSourceTopologyInfo();
 
             final Long topologyContextId = sourceTopologyInfo.getTopologyContextId();
 
             final Long topologyId = sourceTopologyInfo.getTopologyId();
 
             final EntitiesAndSettingsSnapshot snapshot =
-                    entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
-                            Collections.emptySet(), topologyContextId, topologyId);
+                entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
+                    topologyContextId, topologyId);
 
             // This call requires some computation and an RPC call, so do it outside of the
             // action lock.
@@ -302,7 +302,7 @@ public class LiveActionStore implements ActionStore {
                     // but it's useless.
                     actionsToRemove.add(action.getId());
                     logger.trace("Removed action {} with failed translation. Full action: {}",
-                            action.getId(), action);
+                        action.getId(), action);
                 } else {
                     translatedActionsToAdd.add(action);
                 }
@@ -340,8 +340,8 @@ public class LiveActionStore implements ActionStore {
             actionsStatistician.recordActionStats(sourceTopologyInfo,
                 // Only record user-visible actions.
                 Stream.concat(completedSinceLastPopulate.stream(),
-                        // Need to make a copy because it's not safe to iterate otherwise.
-                        actions.copy().values().stream())
+                    // Need to make a copy because it's not safe to iterate otherwise.
+                    actions.copy().values().stream())
                     .filter(VISIBILITY_PREDICATE), newActionIds);
         }
 
@@ -357,8 +357,8 @@ public class LiveActionStore implements ActionStore {
      */
     @Nonnull
     private Collection<ActionDTO.Action> actionsWithAdditionalInfo(
-            @Nonnull final ActionPlan actionPlan,
-            @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
+        @Nonnull final ActionPlan actionPlan,
+        @Nonnull final EntitiesAndSettingsSnapshot snapshot) {
         try (DataMetricTimer timer = Metrics.SUPPORT_LEVEL_CALCULATION.startTimer()) {
             // Attempt to fully refresh the cache - this gets the most up-to-date target and
             // probe information from the topology processor.
@@ -385,24 +385,24 @@ public class LiveActionStore implements ActionStore {
 
             RecommendationTracker lastExecutedRecommendationsTracker  = new RecommendationTracker();
             lastSuccessfullyExecutedActions.stream()
-                    .filter(actionView -> actionView.getState().equals(ActionState.SUCCEEDED))
-                    .forEach(actionView ->
-                        lastExecutedRecommendationsTracker.add(actionFactory.newAction(
-                            actionView.getRecommendation(), actionView.getActionPlanId())));
+                .filter(actionView -> actionView.getState().equals(ActionState.SUCCEEDED))
+                .forEach(actionView ->
+                    lastExecutedRecommendationsTracker.add(actionFactory.newAction(
+                        actionView.getRecommendation(), actionView.getActionPlanId())));
             List<ActionDTO.Action> newActions =
-                    actionPlan.getActionList()
-                            .stream()
-                            .filter(action -> {
-                                Optional<Action> filteredAction =
-                                        lastExecutedRecommendationsTracker.take(action.getInfo());
-                                if (filteredAction.isPresent()) {
-                                    logger.debug("Skipping action: {} as it has already been executed", action);
-                                    return false;
-                                } else {
-                                    return true;
-                                }
-                            })
-                            .collect(Collectors.toList());
+                actionPlan.getActionList()
+                    .stream()
+                    .filter(action -> {
+                        Optional<Action> filteredAction =
+                            lastExecutedRecommendationsTracker.take(action.getInfo());
+                        if (filteredAction.isPresent()) {
+                            logger.debug("Skipping action: {} as it has already been executed", action);
+                            return false;
+                        } else {
+                            return true;
+                        }
+                    })
+                    .collect(Collectors.toList());
 
             final Map<Long, ActionTargetInfo> actionAndTargetInfo =
                 actionTargetSelector.getTargetsForActions(newActions.stream(), snapshot);
@@ -450,8 +450,7 @@ public class LiveActionStore implements ActionStore {
         // topology. This is safe because we only need the names of the related regions and tiers,
         // which don't change between realtime and plan.
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
-                ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
-                Collections.emptySet(), topologyContextId);
+            ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()), topologyContextId);
 
         // All RI translations should be passthrough, but we do it here anyway for consistency
         // with the "normal" action case.

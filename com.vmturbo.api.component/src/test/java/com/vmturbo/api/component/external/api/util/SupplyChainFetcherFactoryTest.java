@@ -873,7 +873,7 @@ public class SupplyChainFetcherFactoryTest {
             .build();
         MinimalEntity bAppMinimalEntity = MinimalEntity.newBuilder()
             .setOid(12L)
-            .setEntityType(UIEntityType.BUSINESS_APPLICATION.typeNumber())
+            .setEntityType(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
             .build();
 
         SearchRequest searchRequest = mock(SearchRequest.class);
@@ -945,11 +945,11 @@ public class SupplyChainFetcherFactoryTest {
         // Creating a Zone and Business Application for the search request
         MinimalEntity zoneMinimalEntity = MinimalEntity.newBuilder()
             .setOid(0L)
-            .setEntityType(UIEntityType.AVAILABILITY_ZONE.typeNumber())
+            .setEntityType(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
             .build();
         MinimalEntity bAppMinimalEntity = MinimalEntity.newBuilder()
             .setOid(12L)
-            .setEntityType(UIEntityType.BUSINESS_APPLICATION.typeNumber())
+            .setEntityType(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
             .build();
 
         SearchRequest searchRequest = mock(SearchRequest.class);
@@ -966,9 +966,9 @@ public class SupplyChainFetcherFactoryTest {
             // Creating a Zone that can expand but should not be returned
             0L, GetSupplyChainResponse.newBuilder()
                 .setSupplyChain(SupplyChain.newBuilder()
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.VIRTUAL_MACHINE, 0, 3L))
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.DATABASE, 0, 4L))
-                    .addSupplyChainNodes(createSupplyChainNode(UIEntityType.VIRTUAL_VOLUME, 0, 5L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 3L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.DATABASE, 0, 4L))
+                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_VOLUME, 0, 5L))
                     .build())
                 .build(),
             // Creating a Business Application that should expand and return the service with oid 13

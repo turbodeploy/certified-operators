@@ -42,14 +42,11 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
 import com.vmturbo.action.orchestrator.db.tables.records.MarketActionRecord;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -134,7 +131,7 @@ public class PlanActionStore implements ActionStore {
      * @return Always true.
      */
     public static final Predicate<ActionView> VISIBILITY_PREDICATE = actionView ->
-            actionView.getVisibilityLevel().checkVisibility(null);
+        actionView.getVisibilityLevel().checkVisibility(null);
 
     public static final String STORE_TYPE_NAME = "Plan";
 
@@ -147,8 +144,6 @@ public class PlanActionStore implements ActionStore {
 
     private final ActionTranslator actionTranslator;
 
-    private final ActionTargetSelector actionTargetSelector;
-
     /**
      * Create a new {@link PlanActionStore}.
      *
@@ -159,7 +154,6 @@ public class PlanActionStore implements ActionStore {
      * @param repositoryService used for constructing the EntitySeverityCache.
      * @param actionTranslator the action translator class
      * @param realtimeTopologyContextId real time topology id
-     *
      */
     public PlanActionStore(@Nonnull final IActionFactory actionFactory,
                            @Nonnull final DSLContext dsl,
@@ -168,8 +162,7 @@ public class PlanActionStore implements ActionStore {
                            @Nonnull final RepositoryServiceBlockingStub repositoryService,
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionTranslator actionTranslator,
-                           final long realtimeTopologyContextId,
-                           @Nonnull ActionTargetSelector actionTargetSelector) {
+                           final long realtimeTopologyContextId) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.dsl = dsl;
         this.actionPlanIdByActionPlanType = Maps.newHashMap();
@@ -179,7 +172,6 @@ public class PlanActionStore implements ActionStore {
         this.entitySettingsCache = entitySettingsCache;
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
-        this.actionTargetSelector = actionTargetSelector;
     }
 
     /**
@@ -240,7 +232,7 @@ public class PlanActionStore implements ActionStore {
             .map(action -> actionFactory.newPlanAction(action.getRecommendation(),
                 recommendationTimeByActionPlanId.get(action.getActionPlanId()),
                 action.getActionPlanId(), action.getDescription(),
-                    action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()));
+                action.getAssociatedAccountId(), action.getAssociatedResourceGroupId()));
     }
 
     /**
@@ -311,7 +303,6 @@ public class PlanActionStore implements ActionStore {
      * {@inheritDoc}
      * The {@link PlanActionStore} permits the clear operation.
      */
-    @Override
     public boolean clear() {
         try {
             actionPlanIdByActionPlanType.values().forEach(planId -> cleanActions(dsl, planId));
@@ -387,7 +378,7 @@ public class PlanActionStore implements ActionStore {
                         // If we expand the Market Action table we need to modify this insert
                         // statement and the subsequent "values" bindings.
                         InsertValuesStep7<MarketActionRecord, Long, Long, Long, ActionDTO.Action,
-                                                        String, Long, Long> step =
+                            String, Long, Long> step =
                             transactionDsl.insertInto(MARKET_ACTION,
                                 MARKET_ACTION.ID,
                                 MARKET_ACTION.ACTION_PLAN_ID,
@@ -428,18 +419,9 @@ public class PlanActionStore implements ActionStore {
      * @return A list of translated actions and their descriptions.
      */
     private List<ActionAndInfo> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
-                                                            @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
-        // Check if there are any delete volume actions.  If so we need to
-        // get these from the real-time SOURCE topology as plan projected topology
-        // won't have them.
-        Set<ActionDTO.Action> deleteVolumeActions = actions.stream()
-                        .filter(action -> action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE)
-                        .collect(Collectors.toSet());
-        final Set<Long> deleteVolumesToRetrieve = ActionDTOUtil.getInvolvedEntityIds(deleteVolumeActions);
-
-        //TODO: Remove deleteVolumesToRetrieve from entitiesToRetrieve
+                                                     @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
         final Set<Long> entitiesToRetrieve =
-                new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
+            new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
         // snapshot contains the entities information that is required for the actions descriptions
         long planContextId = planData.getTopologyContextId();
         // TODO: a temp fix to get the  entities used for buy RI.
@@ -449,25 +431,18 @@ public class PlanActionStore implements ActionStore {
         // TODO: remove hack to go to realtime if source plan topology is not available.  Needed to
         // compute action descriptions.
         EntitiesAndSettingsSnapshot snapshotHack = entitySettingsCache.newSnapshot(
-            entitiesToRetrieve, deleteVolumesToRetrieve, planContextId);
+            entitiesToRetrieve, planContextId);
         if (MapUtils.isEmpty(snapshotHack.getEntityMap())) {
             // Hack: if the plan source topology is not ready, use realtime.
             // This should only occur initially when the plan  created.
             logger.warn("translatePlanActions: failed for topologyContextId={} topologyId={}, try realtime",
                 planContextId, planData.getTopologyId());
-            snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve,
-                                                           deleteVolumesToRetrieve,
-                                                           realtimeTopologyContextId);
+            snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve, realtimeTopologyContextId);
         }
-
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
 
-        Map<Long, ActionTargetInfo> actionTargetInfo = actionTargetSelector.getTargetsForActions(actions.stream(), snapshot);
-        Stream<ActionDTO.Action> actionStream = actions.stream().map(
-            action -> action.toBuilder().addAllPrerequisite(actionTargetInfo.get(action.getId()).prerequisites()).build());
-
-        final Stream<Action> translatedActions = actionTranslator.translate(actionStream
-            .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId())),
+        final Stream<Action> translatedActions = actionTranslator.translate(actions.stream()
+                .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId())),
             snapshot);
 
         final List<ActionAndInfo> translatedActionsToAdd = new ArrayList<>();
@@ -479,11 +454,9 @@ public class PlanActionStore implements ActionStore {
                 final ActionDTO.Action recommendation = action.getActionTranslation().getTranslationResultOrOriginal();
                 try {
                     final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
-
                     translatedActionsToAdd.add(ImmutableActionAndInfo.builder()
                         .translatedAction(recommendation)
-                        .description(ActionDescriptionBuilder.buildActionDescription(snapshot,
-                                                                      recommendation))
+                        .description(ActionDescriptionBuilder.buildActionDescription(snapshot, recommendation))
                         .associatedAccountId(snapshot.getOwnerAccountOfEntity(primaryEntity)
                             .map(EntityWithConnections::getOid))
                         .build());

@@ -29,14 +29,24 @@ public class LiveTopologyIngester extends TopologyIngesterBase<Topology.DataSegm
      * @param loaderFactorySupplier   supplier of new bulk loader factories
      */
     public LiveTopologyIngester(
-            @Nonnull final Collection<IChunkProcessorFactory
-                    <Topology.DataSegment, TopologyInfo, SimpleBulkLoaderFactory>>
-                    chunkProcessorFactories,
-            ExecutorService threadPool,
-            @Nonnull final TopologyIngesterConfig topologyIngesterConfig,
-            @Nonnull final Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier) {
+        @Nonnull final Collection<IChunkProcessorFactory
+            <Topology.DataSegment, TopologyInfo, SimpleBulkLoaderFactory>>
+            chunkProcessorFactories,
+        ExecutorService threadPool,
+        @Nonnull final TopologyIngesterConfig topologyIngesterConfig,
+        @Nonnull final Supplier<SimpleBulkLoaderFactory> loaderFactorySupplier) {
         super(chunkProcessorFactories, topologyIngesterConfig, loaderFactorySupplier,
-                TOPOLOGY_TYPE);
+            TOPOLOGY_TYPE);
+    }
+
+    /**
+     * Summarize topology being ingested.
+     *
+     * @param topologyInfo topology info object
+     * @return summary string
+     */
+    public static String getTopologyInfoSummary(TopologyInfo topologyInfo) {
+        return getTopologyInfoSummary(topologyInfo, TOPOLOGY_TYPE.getReadableName());
     }
 
     /**
@@ -48,8 +58,8 @@ public class LiveTopologyIngester extends TopologyIngesterBase<Topology.DataSegm
     @Override
     protected int getChunkObjectCount(final Collection<Topology.DataSegment> chunk) {
         final long count = chunk.stream()
-                .filter(item -> item.hasEntity())
-                .count();
-        return (int)count;
+            .filter(item -> item.hasEntity())
+            .count();
+        return (int) count;
     }
 }

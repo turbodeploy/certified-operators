@@ -57,6 +57,7 @@ import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -110,9 +111,11 @@ import com.vmturbo.history.schema.abstraction.tables.VmStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
+import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
 import com.vmturbo.history.stats.PropertySubType;
+import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.sql.utils.SQLDatabaseConfig.SQLConfigObject;
@@ -374,6 +377,70 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
+     * Return the "_stats_latest" table for the given Entity Type based on the ID.
+     * <p>
+     * The table prefix depends on the entity type.
+     * <p>
+     * Returns null if the table prefix cannot be determined. This may represent an entity
+     * that is not to be persisted, or an internal system configuration error.
+     *
+     * @param entityTypeId the type of the Service Entity for which stats are to be persisted
+     * @return a DB Table object for the _stats_latest table for the entity type of this entity,
+     * or null if the entity table cannot be determined.
+     */
+    public Table<?> getLatestDbTableForEntityType(int entityTypeId) {
+
+        Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
+        if (!entityDBInfo.isPresent()) {
+            logger.debug("Cannot convert {} to EntityType ", entityTypeId);
+            return null;
+        }
+        return entityDBInfo.get().getLatestTable().get();
+    }
+
+    /**
+     * Return the "_stats_by_day" table for the given Entity Type based on the ID.
+     * <p>
+     * The table prefix depends on the entity type.
+     * <p>
+     * Returns null if the table prefix cannot be determined. This may represent an entity
+     * that is not to be persisted, or an internal system configuration error.
+     *
+     * @param entityTypeId the type of the Service Entity for which stats are to be persisted
+     * @return a DB Table object for the _stats_by_day table for the entity type of this entity,
+     * or null if the entity table cannot be determined.
+     */
+    private Table<?> getDayStatsDbTableForEntityType(int entityTypeId) {
+
+        Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
+        if (!entityDBInfo.isPresent()) {
+            return null;
+        }
+        return entityDBInfo.get().getDayTable().get();
+    }
+
+    /**
+     * Return the "_stats_by_month" table for the given Entity Type based on the ID.
+     * <p>
+     * The table prefix depends on the entity type.
+     * <p>
+     * Returns null if the table prefix cannot be determined. This may represent an entity
+     * that is not to be persisted, or an internal system configuration error.
+     *
+     * @param entityTypeId the type of the Service Entity for which stats are to be persisted
+     * @return a DB Table object for the _stats_by_month table for the entity type of this entity,
+     * or null if the entity table cannot be determined.
+     */
+    private Table<?> getMonthStatsDbTableForEntityType(int entityTypeId) {
+
+        Optional<EntityType> entityDBInfo = getEntityType(entityTypeId);
+        if (!entityDBInfo.isPresent()) {
+            return null;
+        }
+        return entityDBInfo.get().getMonthTable().get();
+    }
+
+    /**
      * Convert the {@link CommonDTO.EntityDTO.EntityType} numeric id
      * to an SDK EntityType to an {@link EntityType}.
      *
@@ -394,7 +461,8 @@ public class HistorydbIO extends BasedbIO {
     public Optional<String> getBaseEntityType(int sdkEntityTypeId) {
         CommonDTO.EntityDTO.EntityType sdkEntityType = CommonDTO.EntityDTO.EntityType
             .forNumber(sdkEntityTypeId);
-        if (sdkEntityType == null || !EntityType.fromSdkEntityType(sdkEntityType).isPresent()) {
+        if (sdkEntityType == null || HistoryStatsUtils.SDK_ENTITY_TYPE_TO_ENTITY_TYPE_NO_ALIAS
+            .get(sdkEntityType) == null) {
             logger.debug("unknown entity type for entity type id {}", sdkEntityTypeId);
             return Optional.empty();
         }
@@ -429,11 +497,11 @@ public class HistorydbIO extends BasedbIO {
 
         final MarketStatsLatestRecord record = MarketStatsLatest.MARKET_STATS_LATEST.newRecord();
         record.set(MarketStatsLatest.MARKET_STATS_LATEST.SNAPSHOT_TIME,
-                new Timestamp(topologyInfo.getCreationTime()));
+            new Timestamp(topologyInfo.getCreationTime()));
         record.set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_CONTEXT_ID,
-                topologyInfo.getTopologyContextId());
+            topologyInfo.getTopologyContextId());
         record.set(MarketStatsLatest.MARKET_STATS_LATEST.TOPOLOGY_ID,
-                topologyInfo.getTopologyId());
+            topologyInfo.getTopologyId());
         record.set(MarketStatsLatest.MARKET_STATS_LATEST.ENTITY_TYPE,
             marketStatsData.getEntityType());
         record.set(MarketStatsLatest.MARKET_STATS_LATEST.ENVIRONMENT_TYPE,
@@ -470,52 +538,38 @@ public class HistorydbIO extends BasedbIO {
      * @param commodityKey      the external association key for this commodity
      * @param record            the record being populated
      * @param table             stats db table for this entity type
-     * @param longCommodityKeys for consolidated logging of shortened commodity keys
      */
     public void initializeCommodityRecord(
-            @Nonnull String propertyType,
-            long snapshotTime,
-            long entityId,
-            @Nonnull RelationType relationType,
-            @Nullable Long providerId,
-            @Nullable Double capacity,
-            @Nullable Double effectiveCapacity,
-            @Nullable String commodityKey,
-            @Nonnull Record record,
-            @Nonnull Table<?> table,
-            @Nonnull Set<String> longCommodityKeys) {
+        @Nonnull String propertyType,
+        long snapshotTime,
+        long entityId,
+        @Nonnull RelationType relationType,
+        @Nullable Long providerId,
+        @Nullable Double capacity,
+        @Nullable Double effectiveCapacity,
+        @Nullable String commodityKey,
+        @Nonnull Record record,
+        @Nonnull Table<?> table) {
         // providerId might be null
         String providerIdString = providerId != null ? Long.toString(providerId) : null;
         record.set(getStringField(table, PRODUCER_UUID), providerIdString);
         // commodity_key is limited in length
+        if (commodityKey != null && commodityKey.length() > COMMODITY_KEY_MAX_LENGTH) {
+            String longCommditiyKey = commodityKey;
+            commodityKey = commodityKey.substring(0, COMMODITY_KEY_MAX_LENGTH - 1);
+            logger.trace("shortening commodity key {} ({}) to {}", longCommditiyKey,
+                longCommditiyKey.length(), commodityKey);
+        }
         // populate the other fields; all fields are nullable based on DB design; Is that best?
         // property_subtype, avg_value, min_value, max_value are all set elsewhere
         record.set(getDateOrTimestampField(table, SNAPSHOT_TIME),
-                new java.sql.Timestamp(snapshotTime));
+            new java.sql.Timestamp(snapshotTime));
         record.set(getStringField(table, UUID), Long.toString(entityId));
         record.set(getStringField(table, PROPERTY_TYPE), propertyType);
         record.set(getDoubleField(table, CAPACITY), clipValue(capacity));
         record.set(getDoubleField(table, EFFECTIVE_CAPACITY), clipValue(effectiveCapacity));
         record.set(getRelationTypeField(table, RELATION), relationType);
-        record.set(getStringField(table, COMMODITY_KEY),
-                limitCommodityKey(commodityKey, longCommodityKeys));
-    }
-
-    /**
-     * Check that a commodity key does not exceed its maximum allowed length, and truncate it
-     * if necessary.
-     *
-     * @param commodityKey      commodity key value
-     * @param longCommodityKeys where caller keeps track of shortened keys for consolidated logging
-     * @return possibly truncated value
-     */
-    public static String limitCommodityKey(String commodityKey, Set<String> longCommodityKeys) {
-        if (commodityKey != null && commodityKey.length() > COMMODITY_KEY_MAX_LENGTH) {
-            longCommodityKeys.add(commodityKey);
-            return commodityKey.substring(0, COMMODITY_KEY_MAX_LENGTH - 1);
-        } else {
-            return commodityKey;
-        }
+        record.set(getStringField(table, COMMODITY_KEY), commodityKey);
     }
 
     /**
@@ -570,19 +624,19 @@ public class HistorydbIO extends BasedbIO {
      */
     @Nonnull
     public List<Timestamp> getTimestampsInRange(@Nonnull final TimeFrame timeFrame,
-            final long startTime,
-            final long endTime,
-            @Nonnull final Optional<EntityType> specificEntityType,
-            @Nonnull final Optional<String> specificEntityOid) throws VmtDbException {
+                                                final long startTime,
+                                                final long endTime,
+                                                @Nonnull final Optional<EntityType> specificEntityType,
+                                                @Nonnull final Optional<String> specificEntityOid) throws VmtDbException {
 
         final Query query;
         if (specificEntityType.isPresent() && specificEntityOid.isPresent()) {
             query = new AvailableEntityTimestampsQuery(
-                    timeFrame, specificEntityType.get(), specificEntityOid.get(), 0,
-                    new Timestamp(startTime), new Timestamp(endTime), false).getQuery();
+                timeFrame, specificEntityType.get(), specificEntityOid.get(), 0,
+                new Timestamp(startTime), new Timestamp(endTime), false).getQuery();
         } else {
             query = new AvailableTimestampsQuery(timeFrame, HistoryVariety.ENTITY_STATS, 0,
-                    new Timestamp(startTime), new Timestamp(endTime)).getQuery();
+                new Timestamp(startTime), new Timestamp(endTime)).getQuery();
         }
         return (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
     }
@@ -602,13 +656,13 @@ public class HistorydbIO extends BasedbIO {
      * @throws IllegalArgumentException
      */
     public Optional<Timestamp> getClosestTimestampBefore(@Nonnull final StatsFilter statsFilter,
-            @Nonnull final Optional<Long> timepPointOpt, @Nonnull final Optional<TimeFrame> timeFrameOpt)
-            throws IllegalArgumentException {
+                                                         @Nonnull final Optional<Long> timepPointOpt, @Nonnull final Optional<TimeFrame> timeFrameOpt)
+        throws IllegalArgumentException {
         try {
             Timestamp exclusiveUpperTimeBound =
-                    // timePointOpt, if provided, is inclusive; we need an exclusive upper bound
-                    timepPointOpt.map(t -> new Timestamp(t + 1))
-                            .orElse(null);
+                // timePointOpt, if provided, is inclusive; we need an exclusive upper bound
+                timepPointOpt.map(t -> new Timestamp(t + 1))
+                    .orElse(null);
             // check the commodity request list, if it only contains PI, fetch data for PI,
             // otherwise, get the timestamp of the most recent ingested topology. PI needs to be
             // treated differently because it doesn't get persisted when a topology is ingested.
@@ -616,9 +670,9 @@ public class HistorydbIO extends BasedbIO {
                 ? HistoryVariety.PRICE_DATA : HistoryVariety.ENTITY_STATS;
 
             final Query query = new AvailableTimestampsQuery(timeFrameOpt.orElse(TimeFrame.LATEST),
-                    historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
+                historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
             final List<Timestamp> snapshotTimeRecords
-                    = (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
+                = (List<Timestamp>)execute(Style.FORCED, query).getValues(0);
 
             if (!snapshotTimeRecords.isEmpty()) {
                 return Optional.of(snapshotTimeRecords.get(0));
@@ -647,14 +701,14 @@ public class HistorydbIO extends BasedbIO {
         // UX is shared between classic and XL which asks for both price index
         // and current price index commodity when populating the risk widget.
         return !commRequestsList.isEmpty() && commRequestsList.stream()
-                .allMatch(c -> c.getCommodityName().equals(PRICE_INDEX)
-                        || c.getCommodityName().equals(CURRENT_PRICE_INDEX));
+            .allMatch(c -> c.getCommodityName().equals(PRICE_INDEX)
+                || c.getCommodityName().equals(CURRENT_PRICE_INDEX));
     }
 
     private Set<String> getRequestedScopeIds(EntityStatsScope entityScope) {
         if (entityScope.hasEntityList()) {
             return Sets.newHashSet(Collections2.transform(
-                    entityScope.getEntityList().getEntitiesList(), id -> Long.toString(id)));
+                entityScope.getEntityList().getEntitiesList(), id -> Long.toString(id)));
         }
 
         return Collections.emptySet();
@@ -669,10 +723,10 @@ public class HistorydbIO extends BasedbIO {
      * @throws IllegalArgumentException if entityType resolves to multiple or invalid entityType
      */
     public EntityType getEntityTypeFromEntityStatsScope(final EntityStatsScope entityScope)
-            throws VmtDbException, IllegalArgumentException {
+        throws VmtDbException, IllegalArgumentException {
         if (!entityScope.hasEntityList()) {
             return getEntityType(entityScope.getEntityType())
-                    .orElseThrow(() -> new IllegalArgumentException("Invalid entity type: " + entityScope.getEntityType()));
+                .orElseThrow(() -> new IllegalArgumentException("Invalid entity type: " + entityScope.getEntityType()));
         }
 
         final Set<String> requestedIdSet = getRequestedScopeIds(entityScope);
@@ -685,7 +739,7 @@ public class HistorydbIO extends BasedbIO {
 
         if (entityTypes.size() > 1) {
             logger.error("Attempting to paginate across multiple entity types: {}",
-                    entityTypes);
+                entityTypes);
             throw new IllegalArgumentException("Pagination across multiple entity types not supported.");
         }
 
@@ -725,8 +779,8 @@ public class HistorydbIO extends BasedbIO {
             // scopes to an entity of a type for which we do not collect stats. We'll log
             // a warning and send back an empty result.
             logger.warn("No entity types resolved from entity IDs {}; " +
-                            "this is expected if entity type is one for which we do not collect stats.",
-                    entityScope.getEntityList().getEntitiesList());
+                    "this is expected if entity type is one for which we do not collect stats.",
+                entityScope.getEntityList().getEntitiesList());
             return NextPageInfo.EMPTY_INSTANCE;
 
         }
@@ -771,7 +825,7 @@ public class HistorydbIO extends BasedbIO {
             final Field<String> aggregateUuidField = getStringField(aggregatedStats, UUID);
             final Field<BigDecimal> aggregateValueField =
                 seekPaginationCursor.getValueField(paginationParams,
-                aggregatedStats);
+                    aggregatedStats);
 
             // This call adds the seek pagination parameters to the list of conditions.
             final List<Condition> cursorConditions = new ArrayList<>();
@@ -799,14 +853,14 @@ public class HistorydbIO extends BasedbIO {
                     results.getValues(aggregateUuidField).subList(0, paginationParams.getLimit());
                 final int lastIdx = nextPageIds.size() - 1;
                 return new NextPageInfo(nextPageIds, table,
-                        SeekPaginationCursor.nextCursor(nextPageIds.get(lastIdx),
-                                results.getValue(lastIdx, aggregateValueField)),
-                        totalRecordCount);
+                    SeekPaginationCursor.nextCursor(nextPageIds.get(lastIdx),
+                        results.getValue(lastIdx, aggregateValueField)),
+                    totalRecordCount);
             } else {
                 return new NextPageInfo(results.getValues(aggregateUuidField),
-                        table,
-                        SeekPaginationCursor.empty(),
-                        totalRecordCount);
+                    table,
+                    SeekPaginationCursor.empty(),
+                    totalRecordCount);
             }
         } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
@@ -823,6 +877,20 @@ public class HistorydbIO extends BasedbIO {
     @VisibleForTesting
     protected int getTotalRecordsCount(Connection conn, Table<Record3<String, BigDecimal, BigDecimal>> aggregatedStats) {
         return using(conn).fetchCount(aggregatedStats);
+    }
+
+    /**
+     * Return the value field used in sort by.
+     * For princeIndex, sort by the average value, because it's a compound metrics already.
+     * For others commodity, sort by the average/capacity value, because the average value
+     * is from "used", so divided by "capacity" to be utilization.
+     */
+    @VisibleForTesting
+    Field<Double> getValueField(@Nonnull final EntityStatsPaginationParams paginationParams,
+                                @Nonnull final Table<?> table) {
+        final Field<Double> avgValueField = getDoubleField(table, AVG_VALUE);
+        return paginationParams.getSortCommodity().equals(PRICE_INDEX)
+            ? avgValueField : avgValueField.divide(getDoubleField(table, CAPACITY));
     }
 
     /**
@@ -1106,6 +1174,34 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
+     * Persist a list of records in the mkt_snapshots_stats table.
+     *
+     * @param snapshotStatRecords a list of records to be inserted in the mkt_snapshots_stats
+     * @throws VmtDbException database errors
+     */
+    public void persistMarketSnapshotsStats(@Nonnull List<MktSnapshotsStatsRecord> snapshotStatRecords)
+        throws VmtDbException {
+        logger.trace("Persisting {} MktSnapshotsStatsRecord", snapshotStatRecords.size());
+        final Connection connection = transConnection();
+        try {
+            for (Collection<MktSnapshotsStatsRecord> chunk : Lists.partition(snapshotStatRecords,
+                entitiesChunkSize)) {
+                logger.trace("Persisting next chunk of {} MktSnapshotsStatsRecord to the DB",
+                    chunk::size);
+                using(connection).batchStore(chunk).execute();
+            }
+            connection.commit();
+        } catch (SQLException | DataAccessException e) {
+            rollback(connection);
+            throw new VmtDbException(VmtDbException.INSERT_ERR,
+                "Failed to insert mkt_snapshots_stats table records.", e);
+        } finally {
+            close(connection);
+        }
+        logger.trace("Successfully persisted market snapshot stats.");
+    }
+
+    /**
      * Clip a value so it fits within the decimal precision for the Stats tables.
      * This precision is currently "DECIMAL(15,3)". If the value to be clipped is null,
      * return null;
@@ -1264,7 +1360,7 @@ public class HistorydbIO extends BasedbIO {
      * @throws SQLException on DB exceptions
      */
     public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(int entityTypeNo)
-            throws VmtDbException, SQLException {
+        throws VmtDbException, SQLException {
 
         final EntityType entityType = EntityType.fromSdkEntityType(entityTypeNo).orElse(null);
         Optional<Table<?>> table = entityType != null ? entityType.getMonthTable() : Optional.empty();
@@ -1343,6 +1439,8 @@ public class HistorydbIO extends BasedbIO {
 
         // As PM and DC entities are stored in the same stats table, we have to
         // run additional query to distinguish between the PM and DC entities.
+        // Since VIRTUAL_APPLICATIONS are not yet supported in XL, there
+        // is no need for filtering them.
         Set<Long> datacenterEntities = getDatacenterEntities();
         Map<Long, EntityDTO.EntityType> entityIdToEntityTypeMap = new HashMap<>();
 
@@ -1353,7 +1451,6 @@ public class HistorydbIO extends BasedbIO {
                     .fetch()
                     .intoMap(Entities.ENTITIES.ID, Entities.ENTITIES.CREATION_CLASS);
 
-            Set<String> unresolvedCreationClasses = new HashSet<>();
             entityIdToCreationClass.entrySet()
                 .forEach(entry -> {
                     EntityDTO.EntityType type;
@@ -1363,17 +1460,14 @@ public class HistorydbIO extends BasedbIO {
                         Optional<EntityType> entityType =
                             EntityType.named(entry.getValue());
                         if (!entityType.isPresent()) {
-                            unresolvedCreationClasses.add(entry.getValue());
+                            throw new RuntimeException("Can't find entityType for creation class" +
+                                entry.getValue());
                         }
                         type = entityType.get().getSdkEntityType().orElse(null);
                     }
 
                     entityIdToEntityTypeMap.put(entry.getKey(), type);
                 });
-            if (!unresolvedCreationClasses.isEmpty()) {
-                logger.error("Failed to resolve following class names to entity types: {}",
-                        unresolvedCreationClasses);
-            }
         } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.READ_ERR, e);
         }
@@ -1455,8 +1549,8 @@ public class HistorydbIO extends BasedbIO {
         private final Optional<Integer> totalRecordCount;
 
         private NextPageInfo(final List<String> entityOids,
-                @Nullable final Table<?> table,
-                @Nullable final SeekPaginationCursor seekPaginationCursor,
+                             @Nullable final Table<?> table,
+                             @Nullable final SeekPaginationCursor seekPaginationCursor,
                              @Nullable final Integer totalRecordCount) {
             this.entityOids = Objects.requireNonNull(entityOids);
             this.table = table;
@@ -1519,7 +1613,7 @@ public class HistorydbIO extends BasedbIO {
          */
         @VisibleForTesting
         SeekPaginationCursor(final Optional<String> lastId,
-                                   final Optional<BigDecimal> lastValue) {
+                             final Optional<BigDecimal> lastValue) {
             this.lastId = lastId;
             this.lastValue = lastValue;
         }
@@ -1593,7 +1687,7 @@ public class HistorydbIO extends BasedbIO {
          */
         @VisibleForTesting
         static Field<BigDecimal> getValueField(@Nonnull final EntityStatsPaginationParams paginationParams,
-                                    @Nonnull final Table<?> table) {
+                                               @Nonnull final Table<?> table) {
             final Field<BigDecimal> avgValueField =
                 JooqUtils.getBigDecimalField(table, AVG_VALUE);
             return paginationParams.getSortCommodity().equals(PRICE_INDEX)
@@ -1614,7 +1708,7 @@ public class HistorydbIO extends BasedbIO {
          * we just want the first page of results).
          */
         public Optional<List<Condition>> toCondition(final Table<?> table,
-                                                @Nonnull final EntityStatsPaginationParams paginationParams) {
+                                                     @Nonnull final EntityStatsPaginationParams paginationParams) {
             if (lastId.isPresent() && lastValue.isPresent()) {
                 // See: https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/
                 // In some cases, because of approximations in the utilization (since it's a

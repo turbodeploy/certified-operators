@@ -366,6 +366,7 @@ message PartialEntity {
         // subsets. We opt for clarity.
         ACTION = 10;
         API = 11;
+        HEADROOM_PLAN = 12;
     }
 
     // A minimal entity contains just the bare essentials.
@@ -468,6 +469,20 @@ message PartialEntity {
             // TODO: when this field is populated for plans, changes in ArangoDB will be required as well
             optional string display_name = 3;
         }
+    }
+
+    // Contains the fields required by cluster headroom plan.
+    message HeadroomPlanPartialEntity {
+        required int64 oid = 1;
+
+        optional string display_name = 2;
+
+        required int32 entity_type = 3;
+
+        optional .topology.EntityState entity_state = 4 [default = POWERED_ON];
+
+        // list of commodities sold, which can be found in PlanDTOUtil
+        repeated CommoditySoldDTO commodity_sold = 5;
     }
 
     // The type of the entity.

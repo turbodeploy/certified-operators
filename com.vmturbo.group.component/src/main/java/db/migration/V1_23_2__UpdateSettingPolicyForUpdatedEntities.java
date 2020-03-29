@@ -23,7 +23,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * 3) Set 'resize' parameter to ex-App policies;
  * 4) Set 'autoSetResponseTimeCapacity' to Business App policies.
  */
-public class V1_23__UpdateSettingPolicyForUpdatedEntities extends BaseJdbcMigration
+public class V1_23_2__UpdateSettingPolicyForUpdatedEntities extends BaseJdbcMigration
         implements JdbcMigration {
 
     private final Logger logger = LogManager.getLogger(getClass());

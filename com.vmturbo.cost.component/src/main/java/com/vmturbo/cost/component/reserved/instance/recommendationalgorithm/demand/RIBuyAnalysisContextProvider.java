@@ -85,11 +85,11 @@ public class RIBuyAnalysisContextProvider {
      *                                               allowed.
      */
     public RIBuyAnalysisContextProvider(@Nonnull ComputeTierDemandStatsStore computeTierDemandStatsStore,
-                                     @Nonnull RepositoryServiceBlockingStub repositoryClient,
-                                     @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
-                                     @Nonnull RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory,
-                                     long realtimeTopologyContextId,
-                                     boolean allowStandaloneAccountAnalysisClusters) {
+                                        @Nonnull RepositoryServiceBlockingStub repositoryClient,
+                                        @Nonnull TopologyEntityCloudTopologyFactory cloudTopologyFactory,
+                                        @Nonnull RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory,
+                                        long realtimeTopologyContextId,
+                                        boolean allowStandaloneAccountAnalysisClusters) {
         this.computeTierDemandStatsStore = Objects.requireNonNull(computeTierDemandStatsStore);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
         this.cloudTopologyFactory = Objects.requireNonNull(cloudTopologyFactory);
@@ -126,136 +126,136 @@ public class RIBuyAnalysisContextProvider {
      */
     @Nonnull
     public RIBuyAnalysisContextInfo computeAnalysisContexts(
-            @Nonnull ReservedInstanceAnalysisScope scope,
-            ReservedInstancePurchaseConstraints purchaseConstraints) {
+        @Nonnull ReservedInstanceAnalysisScope scope,
+        ReservedInstancePurchaseConstraints purchaseConstraints) {
 
 
         final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopology();
         final RegionalRIMatcherCache regionalRIMatcherCache =
-                regionalRIMatcherCacheFactory.createNewCache(cloudTopology, purchaseConstraints);
+            regionalRIMatcherCacheFactory.createNewCache(cloudTopology, purchaseConstraints);
 
 
         Map<AnnotatedRegionalScopeKey, List<ScopedDemandCluster>> demandClustersByScopeKey =
-                // First, query the unique set of demand saved within the DB.
-                computeTierDemandStatsStore.getUniqueDemandClusters()
-                        // convert the DB records to a scoped demand cluster instance, checking that the
-                        // referenced topology entities in the demand cluster still exist in the latest topology.
-                        .map(demandRecord -> translateRecordToScopedDemandCluster(cloudTopology, demandRecord))
-                        // If any of the associated topology entities are missing or if the platform or
-                        // tenancy are invalid, filter out the record.
-                        .filter(Objects::nonNull)
-                        // Verify the cluster matches the requested analysis scope (e.g. the account associated
-                        // with the cluster is within the requested account list).
-                        .filter(scopedCluster -> filterDemandContextByAnalysisScope(scope, scopedCluster))
-                        .map(scopedCluster -> matchDemandClusterToRISpec(regionalRIMatcherCache, scopedCluster))
-                        // filter out contexts which cannot be mapped to an RISpec
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.groupingBy(
-                                this::mapDemandContextToScopeKey,
-                                Collectors.mapping(
-                                        DemandContextRISpecMatch::scopedDemandCluster,
-                                        Collectors.toList())));
+            // First, query the unique set of demand saved within the DB.
+            computeTierDemandStatsStore.getUniqueDemandClusters()
+                // convert the DB records to a scoped demand cluster instance, checking that the
+                // referenced topology entities in the demand cluster still exist in the latest topology.
+                .map(demandRecord -> translateRecordToScopedDemandCluster(cloudTopology, demandRecord))
+                // If any of the associated topology entities are missing or if the platform or
+                // tenancy are invalid, filter out the record.
+                .filter(Objects::nonNull)
+                // Verify the cluster matches the requested analysis scope (e.g. the account associated
+                // with the cluster is within the requested account list).
+                .filter(scopedCluster -> filterDemandContextByAnalysisScope(scope, scopedCluster))
+                .map(scopedCluster -> matchDemandClusterToRISpec(regionalRIMatcherCache, scopedCluster))
+                // filter out contexts which cannot be mapped to an RISpec
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(
+                    this::mapDemandContextToScopeKey,
+                    Collectors.mapping(
+                        DemandContextRISpecMatch::scopedDemandCluster,
+                        Collectors.toList())));
 
         // Convert the demand clusters, grouped by a regional scope key (which groups by region,
         // account grouping ID, and target Spec ID) to a regional context representing a single
         // iteration of RI buy analysis.
         List<RIBuyRegionalContext> regionalContexts = demandClustersByScopeKey.entrySet()
-                .stream()
-                .map(e -> mapClustersToRegionalContext(e.getKey(), e.getValue()))
-                .collect(Collectors.toList());
+            .stream()
+            .map(e -> mapClustersToRegionalContext(e.getKey(), e.getValue()))
+            .collect(Collectors.toList());
 
         return ImmutableRIBuyAnalysisContextInfo.builder()
-                .cloudTopology(cloudTopology)
-                .regionalRIMatcherCache(regionalRIMatcherCache)
-                .regionalContexts(regionalContexts)
-                .build();
+            .cloudTopology(cloudTopology)
+            .regionalRIMatcherCache(regionalRIMatcherCache)
+            .regionalContexts(regionalContexts)
+            .build();
     }
 
     @Nullable
     private ScopedDemandCluster translateRecordToScopedDemandCluster(
-            @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-            @Nonnull ComputeTierTypeHourlyByWeekRecord demandRecord) {
+        @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
+        @Nonnull ComputeTierTypeHourlyByWeekRecord demandRecord) {
 
         // Try to load all the referenced entities from the latest topology.
         final long accountOid = demandRecord.getAccountId();
         final Optional<TopologyEntityDTO> account =
-                cloudTopology.getEntity(accountOid);
+            cloudTopology.getEntity(accountOid);
         final Optional<TopologyEntityDTO> computeTier =
-                cloudTopology.getEntity(demandRecord.getComputeTierId());
+            cloudTopology.getEntity(demandRecord.getComputeTierId());
         final long regionOrZoneId = demandRecord.getRegionOrZoneId();
         final Optional<TopologyEntityDTO> locationEntity =
-                cloudTopology.getEntity(regionOrZoneId);
+            cloudTopology.getEntity(regionOrZoneId);
         final Optional<TopologyEntityDTO> connectedRegion =
-                locationEntity.flatMap(loc ->
-                        (loc.getEntityType() == EntityType.REGION_VALUE) ?
-                                Optional.of(loc) : cloudTopology.getOwner(loc.getOid()));
+            locationEntity.flatMap(loc ->
+                (loc.getEntityType() == EntityType.REGION_VALUE) ?
+                    Optional.of(loc) : cloudTopology.getOwner(loc.getOid()));
 
         final OSType platform = OSType.forNumber(demandRecord.getPlatform());
         final Tenancy tenancy = Tenancy.forNumber(demandRecord.getTenancy());
 
         final Optional<GroupAndMembers> billingFamily =
-                cloudTopology.getBillingFamilyForEntity(accountOid);
+            cloudTopology.getBillingFamilyForEntity(accountOid);
         final boolean isBillingGroupAllowed =
-                billingFamily.isPresent() || allowStandaloneAccountAnalysisClusters;
+            billingFamily.isPresent() || allowStandaloneAccountAnalysisClusters;
 
 
         // If any of the referenced entities are no longer present, return null
         if (!account.isPresent() || !computeTier.isPresent() ||
-                !locationEntity.isPresent() || !connectedRegion.isPresent() ||
-                platform == null || tenancy == null || !isBillingGroupAllowed) {
+            !locationEntity.isPresent() || !connectedRegion.isPresent() ||
+            platform == null || tenancy == null || !isBillingGroupAllowed) {
 
             logger.debug("Unable to find topology entities for RI demand record " +
-                            "(Account OID={} (isPresent={}), Compute Tier OID={} (isPresent={}), " +
-                            "Location OID={} (isPresent={}), isConnectedRegionPresent={}, " +
-                            "Platform={}, Tenancy={}, isBillingFamilyPresent={} (standaloneAccountAllowed={}))",
-                    accountOid, account.isPresent(),
-                    demandRecord.getComputeTierId(), computeTier.isPresent(),
-                    regionOrZoneId, locationEntity.isPresent(), connectedRegion.isPresent(),
-                    platform, tenancy, billingFamily.isPresent(), allowStandaloneAccountAnalysisClusters);
+                    "(Account OID={} (isPresent={}), Compute Tier OID={} (isPresent={}), " +
+                    "Location OID={} (isPresent={}), isConnectedRegionPresent={}, " +
+                    "Platform={}, Tenancy={}, isBillingFamilyPresent={} (standaloneAccountAllowed={}))",
+                accountOid, account.isPresent(),
+                demandRecord.getComputeTierId(), computeTier.isPresent(),
+                regionOrZoneId, locationEntity.isPresent(), connectedRegion.isPresent(),
+                platform, tenancy, billingFamily.isPresent(), allowStandaloneAccountAnalysisClusters);
 
             return null;
         } else {
 
             return ImmutableScopedDemandCluster.builder()
-                    .billingFamily(billingFamily.orElse(null))
-                    .account(account.get())
-                    .region(connectedRegion.get())
-                    .computeTier(computeTier.get())
-                    .regionOrZone(locationEntity.get())
-                    .platform(platform)
-                    .tenancy(tenancy)
-                    .build();
+                .billingFamily(billingFamily.orElse(null))
+                .account(account.get())
+                .region(connectedRegion.get())
+                .computeTier(computeTier.get())
+                .regionOrZone(locationEntity.get())
+                .platform(platform)
+                .tenancy(tenancy)
+                .build();
         }
     }
 
     private boolean filterDemandContextByAnalysisScope(@Nonnull ReservedInstanceAnalysisScope scope,
-                                                      @Nonnull ScopedDemandCluster demandCluster) {
+                                                       @Nonnull ScopedDemandCluster demandCluster) {
         return scope.isAccountInScope(demandCluster.account().getOid()) &&
-                scope.isRegionInScope(demandCluster.region().getOid()) &&
-                scope.isPlatformInScope(demandCluster.platform()) &&
-                scope.isTenancyInScope(demandCluster.tenancy());
+            scope.isRegionInScope(demandCluster.region().getOid()) &&
+            scope.isPlatformInScope(demandCluster.platform()) &&
+            scope.isTenancyInScope(demandCluster.tenancy());
     }
 
     @Nullable
     private DemandContextRISpecMatch matchDemandClusterToRISpec(
-            @Nonnull RegionalRIMatcherCache regionalRIMatcherCache,
-            @Nonnull ScopedDemandCluster demandCluster) {
+        @Nonnull RegionalRIMatcherCache regionalRIMatcherCache,
+        @Nonnull ScopedDemandCluster demandCluster) {
 
         final ReservedInstanceSpecMatcher riSpecMatcher =
-                regionalRIMatcherCache.getOrCreateRISpecMatchForRegion(
-                        demandCluster.region().getOid());
+            regionalRIMatcherCache.getOrCreateRISpecMatchForRegion(
+                demandCluster.region().getOid());
 
         return riSpecMatcher
-                .matchToPurchasingRISpecData(
-                        demandCluster.region(),
-                        demandCluster.computeTier(),
-                        demandCluster.platform(),
-                        demandCluster.tenancy())
-                .map(riSpecData -> ImmutableDemandContextRISpecMatch.builder()
-                        .riSpecData(riSpecData)
-                        .scopedDemandCluster(demandCluster)
-                        .build())
-                .orElse(null);
+            .matchToPurchasingRISpecData(
+                demandCluster.region(),
+                demandCluster.computeTier(),
+                demandCluster.platform(),
+                demandCluster.tenancy())
+            .map(riSpecData -> ImmutableDemandContextRISpecMatch.builder()
+                .riSpecData(riSpecData)
+                .scopedDemandCluster(demandCluster)
+                .build())
+            .orElse(null);
     }
 
     @Nonnull
@@ -263,7 +263,7 @@ public class RIBuyAnalysisContextProvider {
         @Nonnull DemandContextRISpecMatch demandContextRISpecMatch) {
 
         final ImmutableAnnotatedRegionalScopeKey.Builder scopeKeyBuilder =
-                ImmutableAnnotatedRegionalScopeKey.builder();
+            ImmutableAnnotatedRegionalScopeKey.builder();
         final ScopedDemandCluster demandCluster = demandContextRISpecMatch.scopedDemandCluster();
         final ReservedInstanceSpecData riSpecData = demandContextRISpecMatch.riSpecData();
 
@@ -273,60 +273,60 @@ public class RIBuyAnalysisContextProvider {
         if (billingFamily != null) {
 
             final String accountGroupingTag = String.format("BILLING_FAMILY[%s]",
-                    billingFamily.group().getDefinition().getDisplayName());
+                billingFamily.group().getDefinition().getDisplayName());
             accountGroupingIdentifier = ImmutableAccountGroupingIdentifier.builder()
-                    .groupingType(AccountGroupingType.BILLING_FAMILY)
-                    .id(billingFamily.group().getId())
-                    .tag(accountGroupingTag)
-                    .build();
+                .groupingType(AccountGroupingType.BILLING_FAMILY)
+                .id(billingFamily.group().getId())
+                .tag(accountGroupingTag)
+                .build();
         } else {
             final String accountGroupingTag = String.format("BUSINESS_ACCOUNT[%s]",
-                    demandCluster.account().getDisplayName());
+                demandCluster.account().getDisplayName());
             accountGroupingIdentifier = ImmutableAccountGroupingIdentifier.builder()
-                    .groupingType(AccountGroupingType.STANDALONE_ACCOUNT)
-                    .id(demandCluster.account().getOid())
-                    .tag(accountGroupingTag)
-                    .build();
+                .groupingType(AccountGroupingType.STANDALONE_ACCOUNT)
+                .id(demandCluster.account().getOid())
+                .tag(accountGroupingTag)
+                .build();
         }
 
         return scopeKeyBuilder
-                .accountGroupingId(accountGroupingIdentifier)
-                .regionOid(demandCluster.region().getOid())
-                .region(demandCluster.region())
-                .riSpecId(riSpecData.reservedInstanceSpec().getId())
-                .riSpecData(riSpecData)
-                .build();
+            .accountGroupingId(accountGroupingIdentifier)
+            .regionOid(demandCluster.region().getOid())
+            .region(demandCluster.region())
+            .riSpecId(riSpecData.reservedInstanceSpec().getId())
+            .riSpecData(riSpecData)
+            .build();
     }
 
     private RIBuyRegionalContext mapClustersToRegionalContext(
-            @Nonnull AnnotatedRegionalScopeKey scopeKey,
-            @Nonnull Collection<ScopedDemandCluster> scopedDemandContexts) {
+        @Nonnull AnnotatedRegionalScopeKey scopeKey,
+        @Nonnull Collection<ScopedDemandCluster> scopedDemandContexts) {
 
         final String contextTag = String.format("[Region=%s, RI Spec ID=%s, ComputeTier=%s, AccountGrouping=%s",
-                scopeKey.region().getDisplayName(),
-                scopeKey.riSpecId(),
-                scopeKey.riSpecData().computeTier().getDisplayName(),
-                scopeKey.accountGroupingId().tag());
+            scopeKey.region().getDisplayName(),
+            scopeKey.riSpecId(),
+            scopeKey.riSpecData().computeTier().getDisplayName(),
+            scopeKey.accountGroupingId().tag());
         final String analysisTag = generateAnalysisTag();
 
         return ImmutableRIBuyRegionalContext.builder()
-                .region(scopeKey.region())
-                .riSpecToPurchase(scopeKey.riSpecData().reservedInstanceSpec())
-                .computeTier(scopeKey.riSpecData().computeTier())
-                .accountGroupingId(scopeKey.accountGroupingId())
-                .analysisTag(analysisTag)
-                .contextTag(contextTag)
-                .addAllDemandClusters(
-                        scopedDemandContexts.stream()
-                                .map(scopedContext -> ImmutableRIBuyDemandCluster.builder()
-                                        .accountOid(scopedContext.account().getOid())
-                                        .regionOrZoneOid(scopedContext.regionOrZone().getOid())
-                                        .computeTier(scopedContext.computeTier())
-                                        .platform(scopedContext.platform())
-                                        .tenancy(scopedContext.tenancy())
-                                        .build())
-                                .collect(Collectors.toList()))
-                .build();
+            .region(scopeKey.region())
+            .riSpecToPurchase(scopeKey.riSpecData().reservedInstanceSpec())
+            .computeTier(scopeKey.riSpecData().computeTier())
+            .accountGroupingId(scopeKey.accountGroupingId())
+            .analysisTag(analysisTag)
+            .contextTag(contextTag)
+            .addAllDemandClusters(
+                scopedDemandContexts.stream()
+                    .map(scopedContext -> ImmutableRIBuyDemandCluster.builder()
+                        .accountOid(scopedContext.account().getOid())
+                        .regionOrZoneOid(scopedContext.regionOrZone().getOid())
+                        .computeTier(scopedContext.computeTier())
+                        .platform(scopedContext.platform())
+                        .tenancy(scopedContext.tenancy())
+                        .build())
+                    .collect(Collectors.toList()))
+            .build();
 
     }
 
@@ -393,15 +393,15 @@ public class RIBuyAnalysisContextProvider {
     private TopologyEntityCloudTopology createCloudTopology() {
 
         Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
-                repositoryClient.retrieveTopologyEntities(
-                        RetrieveTopologyEntitiesRequest.newBuilder()
-                                .setTopologyContextId(realtimeTopologyContextId)
-                                .setReturnType(Type.FULL)
-                                .setTopologyType(TopologyType.SOURCE)
-                                .build()))
-                .map(PartialEntity::getFullEntity);
+            repositoryClient.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                    .setTopologyContextId(realtimeTopologyContextId)
+                    .setReturnType(Type.FULL)
+                    .setTopologyType(TopologyType.SOURCE)
+                    .build()))
+            .map(PartialEntity::getFullEntity);
         TopologyEntityCloudTopology cloudTopology =
-                cloudTopologyFactory.newCloudTopology(entities);
+            cloudTopologyFactory.newCloudTopology(entities);
         return cloudTopology;
     }
 

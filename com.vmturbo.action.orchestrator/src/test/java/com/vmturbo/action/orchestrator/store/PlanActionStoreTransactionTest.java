@@ -15,7 +15,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -33,12 +32,9 @@ import org.junit.Test;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
-import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
-import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -78,7 +74,6 @@ public class PlanActionStoreTransactionTest {
     private final ActionModeCalculator actionModeCalculator = mock(ActionModeCalculator.class);
     private final EntitiesAndSettingsSnapshotFactory entitiesSnapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-    private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
     private final ActionTranslator actionTranslator = passthroughTranslator();
 
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
@@ -87,18 +82,12 @@ public class PlanActionStoreTransactionTest {
     @Before
     public void setup() {
         setEntitiesOIDs();
-        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
-            Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
-            return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action ->
-                ImmutableActionTargetInfo.builder()
-                    .targetId(100L).supportingLevel(SupportLevel.SUPPORTED).build()));
-        });
     }
 
     public void setEntitiesOIDs() {
-        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong())).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), anyLong())).thenReturn(snapshot);
         // Hack: if plan source topology is not available, the fall back on realtime.
-        when(entitiesSnapshotFactory.newSnapshot(any(), any(), eq(realtimeId))).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), eq(realtimeId))).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(snapshot.getEntityFromOid(eq(vm1)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm1,

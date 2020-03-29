@@ -24,16 +24,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Table;
 
-import com.vmturbo.common.protobuf.PlanDTOUtil;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisSummary;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.components.api.client.RemoteIteratorDrain;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
@@ -81,8 +79,8 @@ import com.vmturbo.topology.processor.api.TopologySummaryListener;
  * rollup/repartitioning operation to run, but never both at once.</p>
  */
 public class TopologyCoordinator extends TopologyListenerBase
-        implements EntitiesListener, PlanAnalysisTopologyListener, ProjectedTopologyListener,
-        TopologySummaryListener, AnalysisSummaryListener {
+    implements EntitiesListener, PlanAnalysisTopologyListener, ProjectedTopologyListener,
+    TopologySummaryListener, AnalysisSummaryListener {
     private final Logger logger = LogManager.getLogger();
 
     private final LiveTopologyIngester liveTopologyIngester;
@@ -122,25 +120,25 @@ public class TopologyCoordinator extends TopologyListenerBase
      * @param config                        config parameters
      */
     public TopologyCoordinator(
-            @Nonnull final LiveTopologyIngester liveTopologyIngester,
-            @Nonnull final ProjectedLiveTopologyIngester projectedLiveTopologyIngester,
-            @Nonnull final PlanTopologyIngester planTopologyIngester,
-            @Nonnull final ProjectedPlanTopologyIngester projectedPlanTopologyIngester,
-            @Nonnull final RollupProcessor rollupProcessor,
-            @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker,
-            @Nonnull final HistorydbIO historydbIO,
-            @Nonnull final TopologyCoordinatorConfig config) {
+        @Nonnull final LiveTopologyIngester liveTopologyIngester,
+        @Nonnull final ProjectedLiveTopologyIngester projectedLiveTopologyIngester,
+        @Nonnull final PlanTopologyIngester planTopologyIngester,
+        @Nonnull final ProjectedPlanTopologyIngester projectedPlanTopologyIngester,
+        @Nonnull final RollupProcessor rollupProcessor,
+        @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker,
+        @Nonnull final HistorydbIO historydbIO,
+        @Nonnull final TopologyCoordinatorConfig config) {
         this(
-                liveTopologyIngester,
-                projectedLiveTopologyIngester,
-                planTopologyIngester,
-                projectedPlanTopologyIngester,
-                rollupProcessor,
-                null,
-                null,
-                statsAvailabilityTracker,
-                historydbIO,
-                config
+            liveTopologyIngester,
+            projectedLiveTopologyIngester,
+            planTopologyIngester,
+            projectedPlanTopologyIngester,
+            rollupProcessor,
+            null,
+            null,
+            statsAvailabilityTracker,
+            historydbIO,
+            config
         );
     }
 
@@ -164,16 +162,16 @@ public class TopologyCoordinator extends TopologyListenerBase
      */
     @VisibleForTesting
     TopologyCoordinator(
-            @Nonnull final LiveTopologyIngester liveTopologyIngester,
-            @Nonnull final ProjectedLiveTopologyIngester projectedLiveTopologyIngester,
-            @Nonnull final PlanTopologyIngester planTopologyIngester,
-            @Nonnull final ProjectedPlanTopologyIngester projectedPlanTopologyIngester,
-            @Nonnull final RollupProcessor rollupProcessor,
-            final ProcessingStatus maybeNullProcessingStatus,
-            final Thread maybeNullProcessingLoop,
-            @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker,
-            @Nonnull final HistorydbIO historydbIO,
-            @Nonnull final TopologyCoordinatorConfig config) {
+        @Nonnull final LiveTopologyIngester liveTopologyIngester,
+        @Nonnull final ProjectedLiveTopologyIngester projectedLiveTopologyIngester,
+        @Nonnull final PlanTopologyIngester planTopologyIngester,
+        @Nonnull final ProjectedPlanTopologyIngester projectedPlanTopologyIngester,
+        @Nonnull final RollupProcessor rollupProcessor,
+        final ProcessingStatus maybeNullProcessingStatus,
+        final Thread maybeNullProcessingLoop,
+        @Nonnull final StatsAvailabilityTracker statsAvailabilityTracker,
+        @Nonnull final HistorydbIO historydbIO,
+        @Nonnull final TopologyCoordinatorConfig config) {
         this.liveTopologyIngester = Objects.requireNonNull(liveTopologyIngester);
         this.projectedLiveTopologyIngester = Objects.requireNonNull(projectedLiveTopologyIngester);
         this.planTopologyIngester = Objects.requireNonNull(planTopologyIngester);
@@ -181,35 +179,35 @@ public class TopologyCoordinator extends TopologyListenerBase
         this.rollupProcessor = Objects.requireNonNull(rollupProcessor);
         this.availabilityTracker = Objects.requireNonNull(statsAvailabilityTracker);
         this.processingStatus = maybeNullProcessingStatus != null ? maybeNullProcessingStatus
-                : new ProcessingStatus(config, historydbIO);
+            : new ProcessingStatus(config, historydbIO);
         this.ingestionTimeoutSecs = config.ingestionTimeoutSecs();
         this.realtimeTopologyContextId = config.realtimeTopologyContextId();
         // Create a processing loop that will be driven from our processing stats. We'll
         // start it the first time we receive a message
         this.processingLoop = maybeNullProcessingLoop != null ? maybeNullProcessingLoop
-                : new Thread(new ProcessingLoop(this, processingStatus, config), "tp-loop");
+            : new Thread(new ProcessingLoop(this, processingStatus, config), "tp-loop");
     }
 
     @Override
     public void onTopologyNotification(@Nonnull TopologyInfo info,
-            @Nonnull RemoteIterator<Topology.DataSegment> topology) {
+                                       @Nonnull RemoteIterator<Topology.DataSegment> topology) {
         awaitStartup();
-        String topologyLabel = TopologyDTOUtil.getSourceTopologyLabel(info);
+        String topologyLabel = LiveTopologyIngester.getTopologyInfoSummary(info);
         int count = handleTopology(info, topologyLabel, topology, liveTopologyIngester, Live);
         SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
-                .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL,
-                        SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
-                .observe((double)count);
+            .labels(SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL,
+                SharedMetrics.LIVE_CONTEXT_TYPE_LABEL)
+            .observe((double)count);
     }
 
     @Override
     public void onPlanAnalysisTopology(TopologyInfo info,
-            @Nonnull RemoteIterator<Topology.DataSegment> topology) {
+                                       @Nonnull RemoteIterator<Topology.DataSegment> topology) {
         // these have no impact on rollups, so we can just perform ingestion as they arrive (in the listener
         // thread for plan topologies topic)
         awaitStartup();
         try {
-            if (PlanDTOUtil.isTransientPlan(info)) {
+            if (info.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
                 // For the reservation plan we don't save stats, because we only care about the
                 // projected topology, as parsed by the ReservationManager in the plan orhestrator.
                 logger.info("Ignoring plan source topology for reservation plan {}",
@@ -225,11 +223,11 @@ public class TopologyCoordinator extends TopologyListenerBase
         } catch (Exception e) {
             logger.error("Plan topology ingestion failed", e);
         } finally {
-            RemoteIteratorDrain.drainIterator(topology, TopologyDTOUtil.getSourceTopologyLabel(info), true);
+            skipRestOfTopology(PlanTopologyIngester.getTopologyInfoSummary(info, info.getTopologyType().name()), topology);
         }
         try {
             availabilityTracker.topologyAvailable(
-                    info.getTopologyContextId(), TopologyContextType.PLAN, true);
+                info.getTopologyContextId(), TopologyContextType.PLAN, true);
         } catch (InterruptedException | CommunicationException e) {
             logger.warn("Failed to notify of  plan topology ingestion", e);
         }
@@ -237,30 +235,31 @@ public class TopologyCoordinator extends TopologyListenerBase
 
     @Override
     public void onProjectedTopologyReceived(final long projectedTopologyId,
-            @Nonnull final TopologyInfo info,
-            @Nonnull final RemoteIterator<ProjectedTopologyEntity>
-                    topology) {
+                                            @Nonnull final TopologyInfo info,
+                                            @Nonnull final RemoteIterator<ProjectedTopologyEntity>
+                                                topology) {
         awaitStartup();
-        final String topologyLabel = TopologyDTOUtil.getProjectedTopologyLabel(info);
         if (info.getTopologyContextId() == realtimeTopologyContextId) {
+
+            String topologyLabel = ProjectedLiveTopologyIngester.getTopologyInfoSummary(info, info.getTopologyType().name());
             int count = handleTopology(info, topologyLabel, topology,
-                    projectedLiveTopologyIngester, Projected);
+                projectedLiveTopologyIngester, Projected);
             SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
-                    .labels(SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL,
-                            SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL)
-                    .observe((double)count);
+                .labels(SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL,
+                    SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL)
+                .observe((double)count);
         } else {
             // these have no impact on rollups, so we can just perform ingestion as they arrive (in the listener
             // thread for the projected topologies topic)
             try {
-                if (PlanDTOUtil.isTransientPlan(info)) {
-                    // For some plans we don't care about saving stats, because we just need
+                if (info.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
+                    // For reservation plans we don't care about saving stats, because we just need
                     // the raw projected topology for processing in the Plan Orchestrator.
-                    logger.info("Ignoring projected topology for plan {}",
-                            info.getTopologyContextId());
+                    logger.info("Ignoring projected topology for reservation plan {}",
+                        info.getTopologyContextId());
                 } else {
                     final Pair<Integer, BulkInserterFactoryStats> result
-                            = projectedPlanTopologyIngester.processBroadcast(info, topology);
+                        = projectedPlanTopologyIngester.processBroadcast(info, topology);
                     SharedMetrics.TOPOLOGY_ENTITY_COUNT_HISTOGRAM
                         .labels(SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL,
                             SharedMetrics.PLAN_CONTEXT_TYPE_LABEL)
@@ -269,11 +268,11 @@ public class TopologyCoordinator extends TopologyListenerBase
             } catch (Exception e) {
                 logger.error("Projected plan topology ingestion failed", e);
             } finally {
-                RemoteIteratorDrain.drainIterator(topology, topologyLabel, true);
+                skipRestOfTopology(ProjectedPlanTopologyIngester.getTopologyInfoSummary(info, info.getTopologyType().name()), topology);
             }
             try {
                 availabilityTracker.projectedTopologyAvailable(
-                        info.getTopologyContextId(), TopologyContextType.PLAN, true);
+                    info.getTopologyContextId(), TopologyContextType.PLAN, true);
             } catch (InterruptedException | CommunicationException e) {
                 logger.warn("Failed to notify of projected plan topology ingestion", e);
             }
@@ -297,10 +296,10 @@ public class TopologyCoordinator extends TopologyListenerBase
      * @return number of entities processed
      */
     private <T> int handleTopology(TopologyInfo info,
-            String topologyLabel,
-            RemoteIterator<T> topology,
-            TopologyIngesterBase<T> ingester,
-            TopologyFlavor flavor) {
+                                   String topologyLabel,
+                                   RemoteIterator<T> topology,
+                                   TopologyIngesterBase<T> ingester,
+                                   TopologyFlavor flavor) {
         try {
             // note receipt of the broadcast
             logger.info("Received {}", topologyLabel);
@@ -318,18 +317,18 @@ public class TopologyCoordinator extends TopologyListenerBase
                         // perform the actual ingestion and stash the results
                         processingStatus.startIngestion(flavor, info, topologyLabel);
                         final Pair<Integer, BulkInserterFactoryStats> results
-                                = ingester.processBroadcast(info, topology, loaders);
+                            = ingester.processBroadcast(info, topology, loaders);
                         processingStatus.finishIngestion(
-                                flavor, info, topologyLabel, results.getRight());
+                            flavor, info, topologyLabel, results.getRight());
                         // announce it to the world
                         switch (flavor) {
                             case Live:
                                 availabilityTracker.topologyAvailable(
-                                        info.getTopologyContextId(), TopologyContextType.LIVE, true);
+                                    info.getTopologyContextId(), TopologyContextType.LIVE, true);
                                 break;
                             case Projected:
                                 availabilityTracker.projectedTopologyAvailable(
-                                        info.getTopologyContextId(), TopologyContextType.LIVE, true);
+                                    info.getTopologyContextId(), TopologyContextType.LIVE, true);
                                 break;
                             default:
                                 logger.warn("Unknown topology flavor: {}", flavor.name());
@@ -339,7 +338,7 @@ public class TopologyCoordinator extends TopologyListenerBase
                     } catch (Exception e) {
                         logger.info("Failed to notify availability after ingestion", e);
                         processingStatus.failIngestion(
-                                flavor, info, topologyLabel, Optional.of(loaders.getStats()), e);
+                            flavor, info, topologyLabel, Optional.of(loaders.getStats()), e);
                     } finally {
                         // don't leave without dropping our rollup-preventing lock
                         ingestionLock.unlock();
@@ -350,17 +349,17 @@ public class TopologyCoordinator extends TopologyListenerBase
                 }
             } else {
                 logger.error("Ingestion timed out waiting to be scheduled for processing, " +
-                        "so skipping it; this could indicate a serious issue with topology " +
-                        "processing in history component");
+                    "so skipping it; this could indicate a serious issue with topology " +
+                    "processing in history component");
                 processingStatus.skip(flavor, info, topologyLabel);
                 IngestionMetrics.SAFETY_VALVE_ACTIVATION_COUNTER
-                        .labels(SafetyValve.SKIP_TOPOLOGY.getLabel(), topologyLabel)
-                        .increment();
+                    .labels(SafetyValve.SKIP_TOPOLOGY.getLabel(), topologyLabel)
+                    .increment();
             }
         } finally {
             // We do this in all cases, to make sure we don't end up stuck in mid-topology.
             // If we were successful this will be a no-op.
-            RemoteIteratorDrain.drainIterator(topology, topologyLabel, true);
+            skipRestOfTopology(topologyLabel, topology);
         }
         // here on any sort of failure or skip - we'll report no entities procsesed (even though
         // this may have been a partial ingestion, so zero's not really accurate)
@@ -383,7 +382,7 @@ public class TopologyCoordinator extends TopologyListenerBase
         }
         // only process this notification if this is the first we've heard of this topology
         if (processingStatus.getIngestion(Live, topologyInfo).getState() == None) {
-            final String topologyLabel = TopologyDTOUtil.getSourceTopologyLabel(topologyInfo);
+            final String topologyLabel = LiveTopologyIngester.getTopologyInfoSummary(topologyInfo);
             logger.info("{} has been announced", topologyLabel);
             // update process status to announce this topology, and kick the processing loop
             processingStatus.expect(Live, topologyInfo, topologyLabel);
@@ -406,7 +405,8 @@ public class TopologyCoordinator extends TopologyListenerBase
             return;
         }
         if (processingStatus.getIngestion(Projected, topologyInfo).getState() == None) {
-            final String topologyLabel = TopologyDTOUtil.getProjectedTopologyLabel(topologyInfo);
+            final String topologyLabel = ProjectedLiveTopologyIngester
+                .getTopologyInfoSummary(topologyInfo, topologyInfo.getTopologyType().name());
             logger.info("{} has been announced", topologyLabel);
             // update process status to announce this topology, and kick the processing loop
             processingStatus.expect(Projected, topologyInfo, topologyLabel);
@@ -471,12 +471,12 @@ public class TopologyCoordinator extends TopologyListenerBase
      * @return true if we were awoken by a signal, else we timed out
      */
     private boolean waitForGreenLight(final TopologyFlavor flavor,
-            final TopologyInfo topologyInfo,
-            String topologyLabel) {
+                                      final TopologyInfo topologyInfo,
+                                      String topologyLabel) {
         triggerProcessingLoop();
         try {
             return processingStatus.getIngestion(flavor, topologyInfo)
-                    .await(ingestionTimeoutSecs, ChronoUnit.SECONDS);
+                .await(ingestionTimeoutSecs, ChronoUnit.SECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             processingStatus.failIngestion(flavor, topologyInfo, topologyLabel, Optional.empty(), e);
@@ -497,14 +497,14 @@ public class TopologyCoordinator extends TopologyListenerBase
      */
     private DataMetricTimer getDurationMetric(TopologyInfo info, TopologyFlavor flavor) {
         String label = flavor == Live ? SharedMetrics.SOURCE_TOPOLOGY_TYPE_LABEL
-                : flavor == Projected ? SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL
-                : "unknown";
+            : flavor == Projected ? SharedMetrics.PROJECTED_TOPOLOGY_TYPE_LABEL
+            : "unknown";
         String value = info.getTopologyContextId() == realtimeTopologyContextId
-                ? SharedMetrics.LIVE_CONTEXT_TYPE_LABEL
-                : SharedMetrics.PLAN_CONTEXT_TYPE_LABEL;
+            ? SharedMetrics.LIVE_CONTEXT_TYPE_LABEL
+            : SharedMetrics.PLAN_CONTEXT_TYPE_LABEL;
         return SharedMetrics.UPDATE_TOPOLOGY_DURATION_SUMMARY
-                .labels(label, value)
-                .startTimer();
+            .labels(label, value)
+            .startTimer();
     }
 
     /**
@@ -518,9 +518,8 @@ public class TopologyCoordinator extends TopologyListenerBase
     void runHourRollup(Instant snapshot) {
         processingStatus.startHourRollup(snapshot);
         List<Table> tables = processingStatus.getIngestionTables(snapshot)
-                .distinct()
-                .filter(t -> t == MARKET_STATS_LATEST || isRolledUpTable(t))
-                .collect(Collectors.toList());
+            .distinct()
+            .collect(Collectors.toList());
         // nothing to do if there are no stats
         if (!tables.isEmpty()) {
             // this can't execute while ingestions are in progress
@@ -547,13 +546,12 @@ public class TopologyCoordinator extends TopologyListenerBase
     void runDayMonthRollup(final Instant snapshot) {
         processingStatus.startDayMonthRollup(snapshot);
         List<Table> tables = processingStatus.getIngestionTablesForHour(snapshot)
-                .distinct()
-                .filter(this::isRolledUpTable)
-                .collect(Collectors.toList());
+            .distinct()
+            .collect(Collectors.toList());
         if (!tables.isEmpty()) {
             rollupLock.lock();
             logger.info("Running daily/monthly rollups and repartitioning for hour {}",
-                    snapshot.truncatedTo(ChronoUnit.HOURS));
+                snapshot.truncatedTo(ChronoUnit.HOURS));
             try {
                 rollupProcessor.performDayMonthRollups(tables, snapshot);
             } finally {
@@ -611,7 +609,7 @@ public class TopologyCoordinator extends TopologyListenerBase
 
         public char getProcessingStatusChar(boolean processingIsComplete) {
             return processingIsComplete ? Character.toUpperCase(processingStatusChar)
-                    : Character.toLowerCase(processingStatusChar);
+                : Character.toLowerCase(processingStatusChar);
         }
     }
 }

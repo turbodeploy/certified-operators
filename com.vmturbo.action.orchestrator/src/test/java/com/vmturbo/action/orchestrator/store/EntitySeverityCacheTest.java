@@ -340,8 +340,8 @@ public class EntitySeverityCacheTest {
     }
 
     private void checkSupplyChainSeverityCount(
-            @Nonnull List<Long> oidToSearchFor,
-            @Nonnull Map<Optional<Severity>, Long> expectedSeveritiesAndCounts) {
+        @Nonnull List<Long> oidToSearchFor,
+        @Nonnull Map<Optional<Severity>, Long> expectedSeveritiesAndCounts) {
         Map<Optional<Severity>, Long> actualSeverityCounts =
             entitySeverityCache.getSeverityCounts(oidToSearchFor);
         assertEquals(expectedSeveritiesAndCounts.size(), actualSeverityCounts.size());
@@ -351,8 +351,8 @@ public class EntitySeverityCacheTest {
     }
 
     private void checkSeverityBreakdown(
-            long oid,
-            Map<Severity, Integer> expectedSeveritiesAndCounts) {
+        long oid,
+        Map<Severity, Integer> expectedSeveritiesAndCounts) {
         Optional<SeverityCount> actualBreakdownOptional =
             entitySeverityCache.getSeverityBreakdown(oid);
         Assert.assertTrue(actualBreakdownOptional.isPresent());
@@ -403,9 +403,9 @@ public class EntitySeverityCacheTest {
          * @param repositoryServiceMole Sets up repositoryServiceMole with the scenario.
          */
         private SeverityBreakdownScenario(
-                ActionStore actionStore,
-                SupplyChainServiceMole supplyChainServiceMole,
-                RepositoryServiceMole repositoryServiceMole) {
+            ActionStore actionStore,
+            SupplyChainServiceMole supplyChainServiceMole,
+            RepositoryServiceMole repositoryServiceMole) {
             List<ActionView> actions = Arrays.asList(
                 actionView(executableMove(0, virtualMachine1Oid, 1, 2, 1, Severity.MINOR)),
                 actionView(executableMove(3, physicalMachine1Oid, 1, 4, 1, Severity.MINOR)),
@@ -648,16 +648,16 @@ public class EntitySeverityCacheTest {
     }
 
     private static ActionDTO.Action executableMove(final long targetId,
-                    final long sourceId, int sourceType,
-                    final long destinationId, int destinationType,
-                    Severity severity) {
+                                                   final long sourceId, int sourceType,
+                                                   final long destinationId, int destinationType,
+                                                   Severity severity) {
         return ActionDTO.Action.newBuilder()
             .setExecutable(true)
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setId(IdentityGenerator.next())
             .setDeprecatedImportance(mapSeverityToImportance(severity))
             .setInfo(
-                    TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType,
+                TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType,
                     destinationId, destinationType))
             .setExplanation(mapSeverityToExplanation(severity))
             .build();

@@ -8,14 +8,13 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
-
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceAnalysisScope;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
@@ -27,8 +26,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
  */
 public class ReservedInstanceAnalysisScopeTest {
 
-    private static final String PROVIDER_TYPE = "CloudType";
-
     /**
      * Build a StartBuyRIAnalysisRequest which is a list of OSType, list of Tenancy,
      * list of regions (Long), list of business accounts (Long), and purchase profile.
@@ -38,7 +35,7 @@ public class ReservedInstanceAnalysisScopeTest {
     public void testListConstructorFromRequest() {
 
         StartBuyRIAnalysisRequest.Builder requestBuilder =
-                com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest.newBuilder();
+            com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest.newBuilder();
         /*
          * lists
          */
@@ -59,18 +56,17 @@ public class ReservedInstanceAnalysisScopeTest {
         OfferingClass offeringClass = OfferingClass.STANDARD;
         PaymentOption paymentOption = PaymentOption.ALL_UPFRONT;
         ReservedInstanceType.Builder typeBuilder =
-                com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.newBuilder();
+            com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.newBuilder();
         typeBuilder.setTermYears(term);
         typeBuilder.setOfferingClass(offeringClass);
         typeBuilder.setPaymentOption(paymentOption);
 
         RIPurchaseProfile.Builder profileBuilder =
-                com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile.newBuilder();
+            com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile.newBuilder();
         profileBuilder.setRiType(typeBuilder.build());
         RIPurchaseProfile riPurchaseProfile = profileBuilder.build();
 
-        requestBuilder.putAllPurchaseProfileByCloudtype(
-                ImmutableMap.of(PROVIDER_TYPE, riPurchaseProfile));
+        requestBuilder.setPurchaseProfile(riPurchaseProfile);
 
         /*
          * build request and generate scope
@@ -84,8 +80,7 @@ public class ReservedInstanceAnalysisScopeTest {
         assertTrue(longListEqual(accounts, scope.getAccounts()));
         assertFalse(osTypeListEqual(platforms, scope.getPlatforms()));
         assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
-        assertTrue(riPurchaseProfilesEqual(riPurchaseProfile,
-                scope.getRiPurchaseProfiles().get(PROVIDER_TYPE)));
+        assertTrue(riPurchaseProfilesEqual(riPurchaseProfile, scope.getRiPurchaseProfile()));
     }
 
     /**
@@ -97,7 +92,7 @@ public class ReservedInstanceAnalysisScopeTest {
     public void testSingletonConstructorFromRequest() {
 
         StartBuyRIAnalysisRequest.Builder requestBuilder =
-                com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest.newBuilder();
+            com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest.newBuilder();
 
         /*
          * Singletons
@@ -119,18 +114,17 @@ public class ReservedInstanceAnalysisScopeTest {
         OfferingClass offeringClass = OfferingClass.CONVERTIBLE;
         PaymentOption paymentOption = PaymentOption.PARTIAL_UPFRONT;
         ReservedInstanceType.Builder typeBuilder =
-                com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.newBuilder();
+            com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.newBuilder();
         typeBuilder.setTermYears(term);
         typeBuilder.setOfferingClass(offeringClass);
         typeBuilder.setPaymentOption(paymentOption);
 
         RIPurchaseProfile.Builder profileBuilder =
-                com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile.newBuilder();
+            com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile.newBuilder();
         profileBuilder.setRiType(typeBuilder.build());
         RIPurchaseProfile riPurchaseProfile = profileBuilder.build();
 
-        requestBuilder.putAllPurchaseProfileByCloudtype(
-                ImmutableMap.of(PROVIDER_TYPE, riPurchaseProfile));
+        requestBuilder.setPurchaseProfile(riPurchaseProfile);
 
         StartBuyRIAnalysisRequest request = requestBuilder.build();
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(request);
@@ -139,8 +133,7 @@ public class ReservedInstanceAnalysisScopeTest {
         assertTrue(tenancyListEqual(tenancies, scope.getTenancies()));
         assertTrue(longListEqual(accounts, scope.getAccounts()));
         assertTrue(osTypeListEqual(platforms, scope.getPlatforms()));
-        assertTrue(riPurchaseProfilesEqual(riPurchaseProfile,
-                scope.getRiPurchaseProfiles().get(PROVIDER_TYPE)));
+        assertTrue(riPurchaseProfilesEqual(riPurchaseProfile, scope.getRiPurchaseProfile()));
 
     }
 
@@ -151,29 +144,27 @@ public class ReservedInstanceAnalysisScopeTest {
     public void testNullConstructorFromRequest() {
 
         StartBuyRIAnalysisRequest.Builder requestBuilder =
-                com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest.newBuilder();
+            com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest.newBuilder();
 
         RIPurchaseProfile.Builder profileBuilder =
-                com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile.newBuilder();
+            com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile.newBuilder();
 
         RIPurchaseProfile riPurchaseProfile = profileBuilder.build();
 
-        requestBuilder.putAllPurchaseProfileByCloudtype(
-                ImmutableMap.of(PROVIDER_TYPE, riPurchaseProfile));
+        requestBuilder.setPurchaseProfile(riPurchaseProfile);
 
         StartBuyRIAnalysisRequest request = requestBuilder.build();
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(request);
 
         assertTrue("scope.getRegions()==" + scope.getRegions() + " != Empty",
-                scope.getRegions().isEmpty());
+            scope.getRegions().isEmpty());
 
         assertTrue(tenancyListAllButHost(scope.getTenancies()));
         assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
         assertTrue(scope.getAccounts().isEmpty());
         assertTrue(scope.getRegions().isEmpty());
-        assertTrue("scope.getRiPurchaseProfiles()=" + scope.getRiPurchaseProfiles() + " != null",
-                riPurchaseProfilesEqual(riPurchaseProfile,
-                        scope.getRiPurchaseProfiles().get(PROVIDER_TYPE)));
+        assertTrue("scope.getRiPurchaseProfile()=" + scope.getRiPurchaseProfile() + " != null",
+            riPurchaseProfilesEqual(riPurchaseProfile, scope.getRiPurchaseProfile()));
     }
 
     /**
@@ -216,7 +207,7 @@ public class ReservedInstanceAnalysisScopeTest {
     public void testConstructorWithIllegalOSType() {
         ReservedInstanceAnalysisScope scope =
             new ReservedInstanceAnalysisScope(new ArrayList(Arrays.asList(OSType.values())),
-            null, null, null, 1.0f, false, null, null);
+                null, null, null, 1.0f, false, null, null);
         assertFalse(scope.getPlatforms().contains(OSType.UNKNOWN_OS));
         assertTrue(osTypeListAllButUnknown(scope.getPlatforms()));
     }

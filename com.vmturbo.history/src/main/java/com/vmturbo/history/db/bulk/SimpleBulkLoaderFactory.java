@@ -57,10 +57,10 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
 
     // cluster stats tables
     private static final Set<Table<?>> CLUSTER_STATS_TABLES = ImmutableSet.of(
-            CLUSTER_STATS_LATEST,
-            CLUSTER_STATS_BY_HOUR,
-            CLUSTER_STATS_BY_DAY,
-            CLUSTER_STATS_BY_MONTH);
+        CLUSTER_STATS_LATEST,
+        CLUSTER_STATS_BY_HOUR,
+        CLUSTER_STATS_BY_DAY,
+        CLUSTER_STATS_BY_MONTH);
 
     // we delegate to this factory for all the writers we create
     private final BulkInserterFactory factory;
@@ -127,10 +127,10 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
             return getEntityStatsInserter(table);
         } else if (Entities.ENTITIES == table || table == HistUtilization.HIST_UTILIZATION) {
             return factory.getInserter(
-                    table, table, identity(), DbInserters.simpleUpserter(table, basedbIO));
+                table, table, identity(), DbInserters.simpleUpserter(table, basedbIO));
         } else if (CLUSTER_STATS_TABLES.contains(table)) {
             return factory.getInserter(
-                    table, table, identity(), DbInserters.simpleUpserter(table, basedbIO));
+                table, table, identity(), DbInserters.simpleUpserter(table, basedbIO));
         } else {
             return factory.getInserter(table, table, identity(), valuesInserter(table, basedbIO));
         }
