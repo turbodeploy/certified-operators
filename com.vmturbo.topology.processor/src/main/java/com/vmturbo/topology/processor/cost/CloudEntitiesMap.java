@@ -101,6 +101,7 @@ public class CloudEntitiesMap implements Map<String, Long> {
                             currentList.add(databaseTierFullName);
                             return currentList;
                         });
+                        cloudEntityOidByLocalId.put(databaseTierFullName, entity.getOid());
                     } else {
                         cloudEntityOidByLocalId.put(databaseTierName, entity.getOid());
                     }
