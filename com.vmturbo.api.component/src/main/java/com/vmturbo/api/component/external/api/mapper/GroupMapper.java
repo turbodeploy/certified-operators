@@ -113,9 +113,9 @@ public class GroupMapper {
      * DiscoveryConfigService#cloudTargetTypes.
      */
     public static final Set<String> CLOUD_ENVIRONMENT_PROBE_TYPES = ImmutableSet.of(
-            SDKProbeType.AWS.getProbeType(), SDKProbeType.AZURE.getProbeType(), SDKProbeType.AZURE_EA.getProbeType(),
+            SDKProbeType.AWS.getProbeType(), SDKProbeType.GCP.getProbeType(),
+            SDKProbeType.AZURE.getProbeType(), SDKProbeType.AZURE_EA.getProbeType(),
             SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType());
-
 
     /**
      * This bimap maps from the class name that use in API level for groups to the
