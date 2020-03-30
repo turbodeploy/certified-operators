@@ -102,7 +102,7 @@
         <flyway-plugin.version>4.2.0</flyway-plugin.version>
         <google.findbugs.version>2.0.3</google.findbugs.version>
         <spotbugs.version>3.1.12</spotbugs.version>
-        <tomcat.version>8.5.15</tomcat.version>
+        <tomcat.version>9.0.33</tomcat.version>
         <start-class/>
         <api.version>${project.version}</api.version>
         <springfox.version>2.7.0</springfox.version>
@@ -2092,23 +2092,6 @@
                 <groupId>com.turbonomic</groupId>
                 <artifactId>com.turbonomic.cpucapacity</artifactId>
                 <version>${cpu.capacity.version}</version>
-            </dependency>
-
-            <!-- Embedded Tomcat -->
-            <dependency>
-                <groupId>org.apache.tomcat.embed</groupId>
-                <artifactId>tomcat-embed-core</artifactId>
-                <version>${tomcat.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.tomcat.embed</groupId>
-                <artifactId>tomcat-embed-websocket</artifactId>
-                <version>${tomcat.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.tomcat.embed</groupId>
-                <artifactId>tomcat-embed-el</artifactId>
-                <version>${tomcat.version}</version>
             </dependency>
 
             <!-- Override the version of jooq being pulled in by Spring Boot.
