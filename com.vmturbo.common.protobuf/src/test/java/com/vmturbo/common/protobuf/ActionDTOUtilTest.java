@@ -148,6 +148,32 @@ public class ActionDTOUtilTest {
     }
 
     @Test
+    public void testMapNormalSeverity() {
+        assertEquals(Severity.NORMAL,
+            ActionDTOUtil.mapActionCategoryToSeverity(ActionCategory.UNKNOWN));
+    }
+
+    @Test
+    public void testMapMinorSeverity() {
+        assertEquals(Severity.MINOR,
+            ActionDTOUtil.mapActionCategoryToSeverity(ActionCategory.EFFICIENCY_IMPROVEMENT));
+    }
+
+    @Test
+    public void testMapMajorSeverity() {
+        assertEquals(Severity.MAJOR,
+            ActionDTOUtil.mapActionCategoryToSeverity(ActionCategory.PREVENTION));
+    }
+
+    @Test
+    public void testMapCriticalSeverity() {
+        assertEquals(Severity.CRITICAL,
+            ActionDTOUtil.mapActionCategoryToSeverity(ActionCategory.PERFORMANCE_ASSURANCE));
+        assertEquals(Severity.CRITICAL,
+            ActionDTOUtil.mapActionCategoryToSeverity(ActionCategory.COMPLIANCE));
+    }
+
+    @Test
     public void testMapMoveToStart() {
         assertEquals(ActionType.ACTIVATE, ActionDTOUtil.getActionInfoActionType(action));
     }

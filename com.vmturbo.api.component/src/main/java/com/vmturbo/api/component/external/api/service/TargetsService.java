@@ -40,7 +40,6 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.GroupMapper;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
-import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -60,7 +59,10 @@ import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.api.licensing.LicenseFeature;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.communication.CommunicationException;
@@ -180,8 +182,6 @@ public class TargetsService implements ITargetsService {
 
     private final ActionsServiceBlockingStub actionOrchestratorRpc;
 
-    private final ActionSearchUtil actionSearchUtil;
-
     private final long realtimeTopologyContextId;
 
     private final ApiWebsocketHandler apiWebsocketHandler;
@@ -198,7 +198,6 @@ public class TargetsService implements ITargetsService {
                           @Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
-                          @Nonnull final ActionSearchUtil actionSearchUtil,
                           final long realtimeTopologyContextId,
                           @Nonnull final ApiWebsocketHandler apiWebsocketHandler) {
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
@@ -211,7 +210,6 @@ public class TargetsService implements ITargetsService {
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
-        this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
         logger.debug("Created TargetsService with topology processor instance {}",
@@ -394,15 +392,29 @@ public class TargetsService implements ITargetsService {
      * @param uuid the unique ID for the target
      * @param actionApiInputDTO dto used to filter the list of Actions
      * @return a List of {@link ActionApiDTO}
-     * @throws Exception should not happen
+     * @throws Exception
      */
     @Override
-    public List<ActionApiDTO> getActionsByTargetUuid(final String uuid, final ActionApiInputDTO actionApiInputDTO)
-            throws Exception {
-        final Set<Long> uuidSet = getTargetEntityIds(Long.valueOf(uuid));
+    public List<ActionApiDTO> getActionsByTargetUuid(final String uuid, final ActionApiInputDTO actionApiInputDTO) throws Exception {
+        final List<ServiceEntityApiDTO> serviceEntityList = getEntitiesByTargetUuid(uuid);
+        // Preparing entities uuid set to be passed to the action filter.
+        final Set<Long> uuidSet = serviceEntityList.stream()
+            .map(ServiceEntityApiDTO::getUuid)
+            .map(Long::parseLong)
+            .collect(Collectors.toSet());
         final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
-                                            actionApiInputDTO, Optional.of(uuidSet), null);
-        return actionSearchUtil.callActionServiceWithNoPagination(filter);
+            actionApiInputDTO, Optional.of(uuidSet), null);
+        final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
+            FilteredActionRequest.newBuilder()
+                .setTopologyContextId(realtimeTopologyContextId)
+                .setFilter(filter)
+                .build());
+        final List<ActionApiDTO> result = actionSpecMapper.mapActionSpecsToActionApiDTOs(
+            response.getActionsList().stream()
+                .map(ActionOrchestratorAction::getActionSpec)
+                    .collect(Collectors.toList()), realtimeTopologyContextId,
+                actionApiInputDTO.getDetailLevel());
+        return result;
     }
 
     /**
@@ -414,7 +426,8 @@ public class TargetsService implements ITargetsService {
      */
     @Override
     public List<ServiceEntityApiDTO> getEntitiesByTargetUuid(final String uuid) throws Exception {
-        return getTargetEntities(getTarget(uuid));
+        TargetApiDTO targetDTO = getTarget(uuid);
+        return getTargetEntities(targetDTO);
     }
 
     /**
@@ -1198,13 +1211,5 @@ public class TargetsService implements ITargetsService {
                     SearchProtoUtil.discoveredBy(Long.parseLong(targetUuid)))
                 .build())
             .getSEList();
-    }
-
-    @Nonnull
-    private Set<Long> getTargetEntityIds(long targetId) {
-        return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
-                                                    SearchProtoUtil.discoveredBy(targetId))
-                                                .build())
-                        .getOids();
     }
 }

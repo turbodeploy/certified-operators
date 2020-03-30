@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.communication;
 
 import static org.mockito.Mockito.mock;
 
-import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -50,20 +49,17 @@ public class RemoteMediationServerTest {
 
     private final ProbeStore probeStore = new TestProbeStore(identityProvider);
 
-    private final RemoteMediationServer remoteMediationServer = Mockito.spy(
+    private final RemoteMediationServer remoteMediationServer =
         new RemoteMediationServer(probeStore,
-                                  Mockito.mock(ProbePropertyStore.class)));
+                                  Mockito.mock(ProbePropertyStore.class));
 
-    private final DiscoveryMessageHandler mockOperationMessageHandler =
-        mock(DiscoveryMessageHandler.class);
+    private final DiscoveryMessageHandler mockOperationMessageHandler = mock(DiscoveryMessageHandler.class);
 
     @SuppressWarnings("unchecked")
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
-        (ITransport<MediationServerMessage, MediationClientMessage>)mock(ITransport.class);
+        (ITransport<MediationServerMessage, MediationClientMessage>) mock(ITransport.class);
 
     private long probeId;
-    private long targetId1 = 1;
-    private long targetId2 = 2;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -78,12 +74,11 @@ public class RemoteMediationServerTest {
 
     @Test
     public void testOnTransportMessage() throws Exception {
-        final DiscoveryRequest discoveryRequest = buildFullDiscoveryRequest();
+        final DiscoveryRequest discoveryRequest = buildDiscoveryRequest();
         final MediationClientMessage mediationClientMessage = buildMediationClientMessage();
         Mockito.when(mockOperationMessageHandler.onMessage(mediationClientMessage))
                 .thenReturn(HandlerStatus.IN_PROGRESS);
-        remoteMediationServer.sendDiscoveryRequest(probeId, targetId1, discoveryRequest,
-            mockOperationMessageHandler);
+        remoteMediationServer.sendDiscoveryRequest(probeId, discoveryRequest, mockOperationMessageHandler);
         remoteMediationServer.onTransportMessage(transport, mediationClientMessage);
 
         Mockito.verify(mockOperationMessageHandler).onReceive(mediationClientMessage);
@@ -99,68 +94,29 @@ public class RemoteMediationServerTest {
         expectedException.expect(ProbeException.class);
         expectedException.expectMessage("Probe for requested type is not registered: -1");
 
-        remoteMediationServer.sendDiscoveryRequest(-1, targetId1, discoveryRequest,
-            mockOperationMessageHandler);
+        remoteMediationServer.sendDiscoveryRequest(-1, discoveryRequest, mockOperationMessageHandler);
     }
 
     @Test
     public void testRemoveMessageHandlers() throws Exception {
-        final DiscoveryRequest discoveryRequest = buildFullDiscoveryRequest();
+        final DiscoveryRequest discoveryRequest = buildDiscoveryRequest();
         final MediationClientMessage mediationClientMessage = buildMediationClientMessage();
 
         Discovery mockOperation = mock(Discovery.class);
         Mockito.when(mockOperationMessageHandler.getOperation()).thenReturn(mockOperation);
         Mockito.when(mockOperationMessageHandler.onMessage(mediationClientMessage))
                 .thenReturn(HandlerStatus.IN_PROGRESS);
-        remoteMediationServer.sendDiscoveryRequest(probeId, targetId1, discoveryRequest,
-            mockOperationMessageHandler);
+        remoteMediationServer.sendDiscoveryRequest(probeId, discoveryRequest, mockOperationMessageHandler);
         remoteMediationServer.removeMessageHandlers(operation -> operation == mockOperation);
         remoteMediationServer.onTransportMessage(transport, mediationClientMessage);
 
         Mockito.verify(mockOperationMessageHandler, Mockito.never()).onReceive(mediationClientMessage);
     }
 
-    /**
-     * Register two instances of the same probe. Both of them support incremental discovery. Test
-     * that we assign the transport to the instances using getTransportForPersistentProbe, and
-     * not round robin.
-     * @throws Exception if the probe can't be found in the ProbeStore
-     */
-    @Test
-    public void testDiscoveryMessageWithPersistentProbes() throws Exception {
-        final ProbeInfo incrementalProbeInfo1 = Probes.incrementalProbe;
-        final ProbeInfo incrementalProbeInfo2 = Probes.incrementalProbe;
-        final ITransport<MediationServerMessage, MediationClientMessage> transport2 =
-            (ITransport<MediationServerMessage, MediationClientMessage>)mock(ITransport.class);
-        probeStore.registerNewProbe(incrementalProbeInfo1, transport);
-        probeStore.registerNewProbe(incrementalProbeInfo2, transport2);
-
-        long incrementalProbeId = identityProvider.getProbeId(incrementalProbeInfo1);
-
-        Assert.assertEquals(2, probeStore.getTransport(incrementalProbeId).size());
-        final DiscoveryRequest discoveryRequest = buildIncrementalDiscoveryRequest();
-
-        remoteMediationServer.sendDiscoveryRequest(incrementalProbeId, targetId1, discoveryRequest,
-            mockOperationMessageHandler);
-        remoteMediationServer.sendDiscoveryRequest(incrementalProbeId, targetId2, discoveryRequest,
-            mockOperationMessageHandler);
-        Mockito.verify(remoteMediationServer).getOrCreateTransportForTarget(incrementalProbeId,
-            targetId1);
-        Mockito.verify(remoteMediationServer).getOrCreateTransportForTarget(incrementalProbeId,
-            targetId2);
-    }
-
-    private DiscoveryRequest buildFullDiscoveryRequest() {
+    private DiscoveryRequest buildDiscoveryRequest() {
         return DiscoveryRequest.newBuilder()
             .setProbeType("probe type")
             .setDiscoveryType(DiscoveryType.FULL)
-            .build();
-    }
-
-    private DiscoveryRequest buildIncrementalDiscoveryRequest() {
-        return DiscoveryRequest.newBuilder()
-            .setProbeType("probe type")
-            .setDiscoveryType(DiscoveryType.INCREMENTAL)
             .build();
     }
 

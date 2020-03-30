@@ -42,6 +42,11 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
  * the user can see it in the UI).
  * <li>An action transitions from READY to any other state.
  * </ol>
+ *
+ * <p>TODO(davidblinn): The work being done here is somewhat specific to the API. Consider
+ * moving this responsibility to the API if possible.
+ *
+ * @see {@link ActionDTOUtil#getSeverityEntity(Action)}
  */
 @ThreadSafe
 public class EntitySeverityCache {
@@ -82,7 +87,8 @@ public class EntitySeverityCache {
 
             visibleReadyActionViews(actionStore)
                 .filter(actionView -> matchingSeverityEntity(severityEntity, actionView))
-                .map(ActionView::getActionSeverity)
+                .map(actionView ->
+                    ActionDTOUtil.mapActionCategoryToSeverity(actionView.getActionCategory()))
                 .max(severityComparator)
                 .ifPresent(severity -> severities.put(severityEntity, severity));
         } catch (UnsupportedActionException e) {
@@ -161,7 +167,8 @@ public class EntitySeverityCache {
         try {
             final long severityEntity = ActionDTOUtil.getSeverityEntity(
                     actionView.getTranslationResultOrOriginal());
-            final Severity nextSeverity = actionView.getActionSeverity();
+            final Severity nextSeverity = ActionDTOUtil.mapActionCategoryToSeverity(
+                actionView.getActionCategory());
 
             final Severity maxSeverity = getSeverity(severityEntity)
                 .map(currentSeverity -> maxSeverity(currentSeverity, nextSeverity))

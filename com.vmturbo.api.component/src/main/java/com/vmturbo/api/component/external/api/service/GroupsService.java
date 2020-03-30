@@ -396,7 +396,7 @@ public class GroupsService implements IGroupsService {
     public ActionPaginationResponse getActionsByGroupUuid(String uuid,
                                       ActionApiInputDTO inputDto,
                                       ActionPaginationRequest paginationRequest) throws Exception {
-        return actionSearchUtil.getActionsByScope(uuidMapper.fromUuid(uuid), inputDto,
+        return actionSearchUtil.getActionsByEntity(uuidMapper.fromUuid(uuid), inputDto,
                 paginationRequest);
     }
 

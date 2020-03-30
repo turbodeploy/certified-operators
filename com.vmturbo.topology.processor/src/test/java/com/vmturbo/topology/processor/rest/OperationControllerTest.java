@@ -323,10 +323,9 @@ public class OperationControllerTest {
         final OperationResponse response = postDiscovery(targetId, HttpStatus.OK);
 
         Mockito.verify(mockRemoteMediation).sendDiscoveryRequest(
-            Mockito.eq(probeId),
-            Mockito.eq(targetId),
-            Matchers.any(DiscoveryRequest.class),
-            Matchers.any(OperationMessageHandler.class));
+                Mockito.eq(probeId),
+                Matchers.any(DiscoveryRequest.class),
+                Matchers.any(OperationMessageHandler.class));
 
         final Discovery discovery = operationManager.getInProgressDiscovery(response.operation.getId()).get();
 
@@ -397,7 +396,6 @@ public class OperationControllerTest {
         Mockito.doThrow(TargetNotFoundException.class)
                 .when(mockRemoteMediation)
                 .sendDiscoveryRequest(
-                        Matchers.anyLong(),
                         Matchers.anyLong(),
                         Matchers.any(DiscoveryRequest.class),
                         Matchers.any(OperationMessageHandler.class)
@@ -494,10 +492,9 @@ public class OperationControllerTest {
         Mockito.doThrow(TargetNotFoundException.class)
                 .when(mockRemoteMediation)
                 .sendDiscoveryRequest(
-                    Matchers.eq(probeId),
-                    Matchers.anyLong(),
-                    Matchers.any(DiscoveryRequest.class),
-                    Matchers.any(OperationMessageHandler.class)
+                        Matchers.eq(probeId),
+                        Matchers.any(DiscoveryRequest.class),
+                        Matchers.any(OperationMessageHandler.class)
                 );
 
         final long secondProbeId = addProbe("second-category", "second-type");
@@ -505,7 +502,6 @@ public class OperationControllerTest {
         Mockito.doNothing().when(mockRemoteMediation)
                 .sendDiscoveryRequest(
                         Matchers.eq(secondProbeId),
-                        Matchers.anyLong(),
                         Matchers.any(DiscoveryRequest.class),
                         Matchers.any(OperationMessageHandler.class)
                 );

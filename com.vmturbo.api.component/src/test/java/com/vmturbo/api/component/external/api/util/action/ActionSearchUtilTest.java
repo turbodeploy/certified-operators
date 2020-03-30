@@ -107,7 +107,7 @@ public class ActionSearchUtilTest {
 
 
         try {
-            actionSearchUtil.getActionsByScope(scopeId, inputDto, paginationRequest);
+            actionSearchUtil.getActionsByEntity(scopeId, inputDto, paginationRequest);
         } catch (InterruptedException | UnsupportedActionException | OperationFailedException
                 | ExecutionException e) {
             e.printStackTrace();
@@ -132,7 +132,7 @@ public class ActionSearchUtilTest {
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
 
         try {
-            actionSearchUtil.getActionsByScope(scopeId, inputDto, paginationRequest);
+            actionSearchUtil.getActionsByEntity(scopeId, inputDto, paginationRequest);
         } catch (InterruptedException | UnsupportedActionException | OperationFailedException
                 | ExecutionException e) {
             e.printStackTrace();
@@ -155,7 +155,7 @@ public class ActionSearchUtilTest {
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
 
         try {
-            actionSearchUtil.getActionsByScope(scopeId, inputDto, paginationRequest);
+            actionSearchUtil.getActionsByEntity(scopeId, inputDto, paginationRequest);
         } catch (InterruptedException | UnsupportedActionException | OperationFailedException
                 | ExecutionException e) {
             e.printStackTrace();
@@ -184,7 +184,7 @@ public class ActionSearchUtilTest {
         when(inputDto.getRelatedEntityTypes())
                 .thenReturn(Collections.singletonList(EntityType.VIRTUAL_MACHINE.name()));
 
-        actionSearchUtil.getActionsByScope(scopeId, inputDto, paginationRequest);
+        actionSearchUtil.getActionsByEntity(scopeId, inputDto, paginationRequest);
 
         verifyZeroInteractions(actionSpecMapper);
     }
@@ -204,7 +204,7 @@ public class ActionSearchUtilTest {
                 .thenReturn(Collections.singletonList(EntityType.VIRTUAL_MACHINE.name()));
 
         try {
-            actionSearchUtil.getActionsByScope(scopeId, inputDto, paginationRequest);
+            actionSearchUtil.getActionsByEntity(scopeId, inputDto, paginationRequest);
         } catch (InterruptedException | UnsupportedActionException | OperationFailedException
                 | ExecutionException e) {
             e.printStackTrace();

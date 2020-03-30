@@ -9,9 +9,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
-import org.apache.commons.collections.CollectionUtils;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -64,12 +61,12 @@ public class ActionSearchUtil {
     }
 
     /**
-     * Get the actions related to the selected scope.
+     * Get the actions related to the selected entity.
      *
-     * @param scopeId scope
-     * @param inputDto query
-     * @param paginationRequest pagination request
-     * @return a pagination response with {@link ActionApiDTO} objects
+     * @param scopeId entity selected as a scope.
+     * @param inputDto query about the related actions.
+     * @param paginationRequest pagination request.
+     * @return a pagination response with {@link ActionApiDTO} objects.
      * @throws OperationFailedException if the call to the supply chain service failed
      * @throws InterruptedException if thread is interrupted during processing.
      * @throws UnsupportedActionException translation to {@link ActionApiDTO} object failed for one object,
@@ -78,9 +75,10 @@ public class ActionSearchUtil {
      * @throws ConversionException if error faced converting objects to API DTOs
      */
     @Nonnull
-    public ActionPaginationResponse getActionsByScope(@Nonnull ApiId scopeId,
-                                                      @Nonnull ActionApiInputDTO inputDto,
-                                                      @Nonnull ActionPaginationRequest paginationRequest)
+    public ActionPaginationResponse getActionsByEntity(
+            @Nonnull ApiId scopeId,
+            ActionApiInputDTO inputDto,
+            ActionPaginationRequest paginationRequest)
             throws  InterruptedException, OperationFailedException,
                     UnsupportedActionException, ExecutionException, ConversionException {
         final Set<Long> scope = groupExpander.expandOids(ImmutableSet.of(scopeId.oid()));
@@ -91,7 +89,9 @@ public class ActionSearchUtil {
         final Set<Long> expandedScope;
         // if the field "relatedEntityTypes" is not empty, then we need to fetch additional
         // entities from the scoped supply chain
-        if (!CollectionUtils.isEmpty(inputDto.getRelatedEntityTypes())) {
+        if (inputDto != null &&
+                inputDto.getRelatedEntityTypes() != null &&
+                !inputDto.getRelatedEntityTypes().isEmpty()) {
             // get the scoped supply chain
             // extract entity oids from the supply chain and add them to the scope
             expandedScope = supplyChainFetcherFactory.expandScope(scope, inputDto.getRelatedEntityTypes());
@@ -103,55 +103,25 @@ public class ActionSearchUtil {
         if (!expandedScope.isEmpty()) {
             // create filter
             final ActionQueryFilter filter = actionSpecMapper.createActionFilter(inputDto,
-                                                                                 Optional.of(expandedScope),
-                                                                                 scopeId);
+                    Optional.of(expandedScope),
+                    scopeId);
 
             // call the service and retrieve results
-            return callActionService(filter, paginationRequest, inputDto.getDetailLevel());
-        }
+            final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
+                    FilteredActionRequest.newBuilder()
+                            .setTopologyContextId(realtimeTopologyContextId)
+                            .setFilter(filter)
+                            .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
+                            .build());
 
-        return paginationRequest.finalPageResponse(Collections.emptyList(), 0);
-    }
-
-    /**
-     * Call the action RPC with a constructed {@link ActionQueryFilter}.
-     *
-     * @param filter the filter
-     * @param paginationRequest pagination request
-     * @param detailLevelOpt detail of the actions to be returned
-     *                       (if null, then defaults to {@link ActionDetailLevel#STANDARD})
-     * @return the pagination response
-     * @throws OperationFailedException if the call to the supply chain service failed
-     * @throws InterruptedException if thread is interrupted during processing.
-     * @throws UnsupportedActionException translation to {@link ActionApiDTO} object failed for one object,
-     *                                    because of action type that is not supported by the translation.
-     * @throws ExecutionException translation to {@link ActionApiDTO} object failed for one object.
-     * @throws ConversionException if error faced converting objects to API DTOs
-     */
-    @Nonnull
-    public ActionPaginationResponse callActionService(@Nonnull ActionQueryFilter filter,
-                                                      @Nonnull ActionPaginationRequest paginationRequest,
-                                                      @Nullable ActionDetailLevel detailLevelOpt)
-            throws  InterruptedException, OperationFailedException,
-                    UnsupportedActionException, ExecutionException, ConversionException {
-        final ActionDetailLevel detailLevel = detailLevelOpt != null
-                                                    ? detailLevelOpt
-                                                    : ActionDetailLevel.STANDARD;
-
-        // call the service and retrieve results
-        final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
-                FilteredActionRequest.newBuilder()
-                        .setTopologyContextId(realtimeTopologyContextId)
-                        .setFilter(filter)
-                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                        .build());
-
-        final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
-                                                response.getActionsList().stream()
-                                                        .map(ActionOrchestratorAction::getActionSpec)
-                                                        .collect(Collectors.toList()),
-                                                realtimeTopologyContextId,
-                                                detailLevel);
+            // translate results
+            ActionDetailLevel detailLevel = inputDto != null ? inputDto.getDetailLevel() : ActionDetailLevel.STANDARD;
+            final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
+                    response.getActionsList().stream()
+                        .map(ActionOrchestratorAction::getActionSpec)
+                        .collect(Collectors.toList()),
+                    realtimeTopologyContextId,
+                    detailLevel);
 
             final PaginationResponse paginationResponse = response.getPaginationResponse();
             final int totalRecordCount = paginationResponse.getTotalRecordCount();
@@ -160,32 +130,6 @@ public class ActionSearchUtil {
                     .orElseGet(() -> paginationRequest.finalPageResponse(results, totalRecordCount));
         }
 
-    /**
-     * Call the action RPC with a constructed {@link ActionQueryFilter}. No pagination involved.
-     *
-     * @param filter the filter
-     * @return the result
-     * @throws OperationFailedException if the call to the supply chain service failed
-     * @throws InterruptedException if thread is interrupted during processing.
-     * @throws UnsupportedActionException translation to {@link ActionApiDTO} object failed for one object,
-     *                                    because of action type that is not supported by the translation.
-     * @throws ExecutionException translation to {@link ActionApiDTO} object failed for one object.
-     * @throws ConversionException if error faced converting objects to API DTOs
-     */
-    @Nonnull
-    public List<ActionApiDTO> callActionServiceWithNoPagination(@Nonnull ActionQueryFilter filter)
-            throws  InterruptedException, OperationFailedException,
-                    UnsupportedActionException, ExecutionException, ConversionException {
-        final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
-                FilteredActionRequest.newBuilder()
-                        .setTopologyContextId(realtimeTopologyContextId)
-                        .setFilter(filter)
-                        .build());
-        return actionSpecMapper.mapActionSpecsToActionApiDTOs(
-                response.getActionsList().stream()
-                        .map(ActionOrchestratorAction::getActionSpec)
-                        .collect(Collectors.toList()),
-                realtimeTopologyContextId,
-                ActionDetailLevel.STANDARD);
+        return paginationRequest.finalPageResponse(Collections.emptyList(), 0);
     }
 }
