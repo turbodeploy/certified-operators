@@ -81,6 +81,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -239,13 +240,70 @@ public class PaginatedStatsExecutor {
          * Kicks off reading and processing historical or projected stats request.
          */
         void processRequest() throws OperationFailedException {
+            sanitizeStartDateOrEndDate();
             if (isHistoricalStatsRequest()) {
                 runHistoricalStatsRequest();
             } else if (isProjectedStatsRequest()) {
                 runProjectedStatsRequest();
             } else {
-                throw new OperationFailedException("Invalid start and end date combination.");
+                throw new IllegalArgumentException("Invalid start and end date combination.");
             }
+        }
+
+        /**
+         * If ONLY one of startDate/endDate is provided, adjust their values so that are
+         * consistent in what they represent. (If both of them are provided or none of them is,
+         * there is no need to modify anything so the function does nothing.)
+         * Adjustment goes as follows:
+         * - If only endDate is provided:
+         * --- if end date is in the past, throw an exception since no assumption can be made for
+         *      the start date; it is considered invalid input.
+         * --- if end date is now* , set it to null. (When both dates are null, the most recent
+         *      timestamp is returned.)
+         * --- if end date is in the future, set the start date to current time
+         * - If only startDate is provided:
+         * --- if start date is in the past, set the end date to current time.
+         * --- if start date is now* , set it to null. (When both dates are null, the most recent
+         *      timestamp is returned.)
+         * --- if start date is in the future, set the end date equal to start date.
+         *
+         * <p>*'now' is considered a small time frame of current time up to a minute ago
+         */
+        protected void sanitizeStartDateOrEndDate() {
+            if (period == null || (period.getStartDate() == null && period.getEndDate() == null)) {
+                return;
+            }
+            // Use a small tolerance time window: [clockTimeNowTolerance, clockTimeNow]
+            // Timestamps up to 1 min before 'now' are considered 'now'
+            long clockTimeNowTolerance =
+                    clockTimeNow - TimeInMillisConstants.MINUTE_LENGTH_IN_MILLIS;
+            if (period.getStartDate() == null) {        // in this case we have just endDate
+                long inputEndTime = DateTimeUtil.parseTime(period.getEndDate());
+                if (inputEndTime < clockTimeNowTolerance) {
+                    // end date in the past
+                    throw new IllegalArgumentException(
+                            "Incorrect combination of start and end date: Start date missing & end date in the past.");
+                } else if (inputEndTime <= clockTimeNow) {
+                    // end date now (belongs to [clockTimeNowTolerance, clockTimeNow])
+                    period.setEndDate(null);
+                } else {
+                    // end date in the future
+                    period.setStartDate(Long.toString(clockTimeNow));
+                }
+            } else if (period.getEndDate() == null) {   // in this case we have just startDate
+                long inputStartTime = DateTimeUtil.parseTime(period.getStartDate());
+                if (inputStartTime < clockTimeNowTolerance) {
+                    // start date in the past
+                    period.setEndDate(Long.toString(clockTimeNow));
+                } else if (inputStartTime <= clockTimeNow) {
+                    // start date now (belongs to [clockTimeNowTolerance, clockTimeNow])
+                    period.setStartDate(null);
+                } else {
+                    // start date in the future
+                    period.setEndDate(Long.toString(inputStartTime));
+                }
+            }
+            // if none of startDate, endDate is null, there is no need to modify anything
         }
 
         /**
