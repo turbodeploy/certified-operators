@@ -8,13 +8,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import org.junit.BeforeClass;
@@ -23,13 +21,8 @@ import org.junit.Test;
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -193,47 +186,6 @@ public class AwsCloudDiscoveryConverterTest {
     }
 
     @Test
-    public void testDatabaseServerConverter() {
-        DatabaseServerConverter dbsConverter = new DatabaseServerConverter(SDKProbeType.AWS);
-        // get all original VMs and compare each with new VM
-        rawEntitiesByType.get(EntityType.DATABASE_SERVER).forEach(dbs -> {
-            String dbsId = dbs.getId();
-            EntityDTO oldDBS = awsConverter.getRawEntityDTO(dbsId);
-            EntityDTO.Builder newDBS = awsConverter.getNewEntityBuilder(dbsId);
-
-            // check dbs not removed
-            assertTrue(dbsConverter.convert(newDBS, awsConverter));
-
-            // fields not modified
-            verifyUnmodifiedFields(oldDBS, newDBS);
-
-            // check bought commodities
-            assertEquals(1, newDBS.getCommoditiesBoughtCount());
-            // check DBS doesn't buy Application commodity
-            assertFalse(newDBS.getCommoditiesBought(0).getBoughtList().stream().anyMatch(
-                    commodityDTO -> commodityDTO.getCommodityType() == CommodityType.APPLICATION));
-
-            // connected to AZ
-            assertEquals(0, oldDBS.getLayeredOverCount());
-            assertEquals(1, newDBS.getLayeredOverCount());
-            assertEquals(EntityType.AVAILABILITY_ZONE, awsConverter.getNewEntityBuilder(
-                    newDBS.getLayeredOver(0)).getEntityType());
-
-            // check dbs owned by BusinessAccount
-            assertThat(awsConverter.getNewEntityBuilder(masterAccountId).getConsistsOfList(), hasItem(dbsId));
-        });
-    }
-
-    @Test
-    public void testDatabaseConverter() {
-        IEntityConverter converter = new DatabaseConverter(SDKProbeType.AWS);
-        newEntitiesByType.get(EntityType.DATABASE).forEach(newEntity ->
-            // check that db is removed for AWS
-            assertFalse(converter.convert(newEntity, awsConverter))
-        );
-    }
-
-    @Test
     public void testBusinessAccountConverter() {
         IEntityConverter converter = new BusinessAccountConverter(SDKProbeType.AWS);
         rawEntitiesByType.get(EntityType.BUSINESS_ACCOUNT).forEach(entity -> {
@@ -258,27 +210,6 @@ public class AwsCloudDiscoveryConverterTest {
             assertEquals(oldEntity.getBusinessAccountData().getDataDiscovered(),
                 newEntity.getBusinessAccountData().hasDataDiscovered());
         });
-    }
-
-    @Test
-    public void testLoadBalancerConverter() {
-        IEntityConverter converter = new LoadBalancerConverter();
-        rawEntitiesByType.get(EntityType.LOAD_BALANCER).forEach(entity ->
-                convertAndVerifyEntityUnmodified(converter, entity.getId()));
-    }
-
-    @Test
-    public void testVirtualApplicationConverter() {
-        IEntityConverter converter = new ApplicationConverter();
-        rawEntitiesByType.get(EntityType.VIRTUAL_APPLICATION).forEach(entity ->
-                convertAndVerifyEntityUnmodified(converter, entity.getId()));
-    }
-
-    @Test
-    public void testApplicationConverter() {
-        IEntityConverter converter = new VirtualApplicationConverter();
-        rawEntitiesByType.get(EntityType.APPLICATION).forEach(entity ->
-                convertAndVerifyEntityUnmodified(converter, entity.getId()));
     }
 
     @Test

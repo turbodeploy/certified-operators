@@ -61,18 +61,4 @@ public interface CloudProviderConversionContext {
      * @return optional cloud service which should own this entity type
      */
     Optional<CloudService> getCloudServiceOwner(@Nonnull EntityType entityType);
-
-    /**
-     * Get AvailabilityZone string from storage entity DTO.
-     *
-     * @param entity The Builder for the EntityDTO of a storage.
-     * @return String giving the availability zone or an analagous String for cloud providers that
-     * don't use availability zones.
-     */
-    default Optional<String> getAvailabilityZone(Builder entity) {
-        return entity.getCommoditiesSoldList().stream()
-            .filter(commodity -> commodity.getCommodityType() == CommodityType.DSPM_ACCESS)
-            .map(commodityDTO -> CloudDiscoveryConverter.keyToUuid(commodityDTO.getKey()))
-            .findAny();
-    }
 }
