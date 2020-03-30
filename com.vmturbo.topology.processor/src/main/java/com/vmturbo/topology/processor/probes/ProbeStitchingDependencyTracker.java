@@ -124,6 +124,20 @@ public class ProbeStitchingDependencyTracker {
     }
 
     /**
+     * Create a new comparator for sorting {@code StitchingOperation}s. Sort order is determined
+     * by the dependency maps tracked by this class.
+     *
+     * @param probeStore Store for probes to look up probe information.
+     * @return a new comparator for sorting {@code StitchingOperation}s.
+     * @throws ProbeException If the DFS detects a cycle in stitching dependencies.
+     */
+    public ProbeStitchingOperationComparator createOperationComparator(
+        @Nonnull final ProbeStore probeStore) throws ProbeException {
+        return new ProbeStitchingOperationComparator(probeStore,
+            probeCategoriesStitchBeforeMap, probeTypesStitchBeforeMap);
+    }
+
+    /**
      * Get a Builder for building a {@link ProbeStitchingDependencyTracker}.
      * @return Builder
      */
