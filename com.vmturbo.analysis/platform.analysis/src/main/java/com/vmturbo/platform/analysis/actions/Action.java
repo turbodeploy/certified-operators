@@ -2,9 +2,11 @@ package com.vmturbo.platform.analysis.actions;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -151,4 +153,15 @@ public interface Action {
     }
 
     @NonNull List<Action> getSubsequentActions();
+
+    /**
+     * Return the list of this action as well as any subsequent actions.  This does not recurse.
+     * @return List of all actions represented by this action.
+     */
+    default @NonNull List<Action> getAllActions() {
+        List<Action> actions = new ArrayList<>();
+        actions.add(this);
+        actions.addAll(getSubsequentActions());
+        return actions;
+    }
 } // end Action interface

@@ -738,8 +738,9 @@ public class BootstrapSupply {
         if (shoppingList.getSupplier() == null) {
             if (Double.isFinite(minimizer.getTotalBestQuote())) {
                 // on getting finiteQuote, move unplaced Trader to the best provider
-                allActions.add(new Move(economy, shoppingList, minimizer.getBestSeller())
-                        .take().setImportance(Double.POSITIVE_INFINITY));
+                allActions.addAll(new Move(economy, shoppingList, minimizer.getBestSeller())
+                        .take().setImportance(Double.POSITIVE_INFINITY)
+                        .getAllActions());
                 if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                     logger.info("{" + buyerDebugInfo + "} moves to "
                                 + sellerDebugInfo + " because it is unplaced.");
@@ -766,9 +767,10 @@ public class BootstrapSupply {
                     minimizer.getBestSeller() != shoppingList.getSupplier()) {
                 // If we have a seller that can fit the buyer getting an infiniteQuote,
                 // move buyer to this provider
-                allActions.add(new Move(economy, shoppingList, shoppingList.getSupplier(),
+                allActions.addAll(new Move(economy, shoppingList, shoppingList.getSupplier(),
                         minimizer.getBestSeller(), minimizer.getBestQuote().getContext())
-                        .take().setImportance(minimizer.getCurrentQuote().getQuoteValue()));
+                        .take().setImportance(minimizer.getCurrentQuote().getQuoteValue())
+                        .getAllActions());
                 if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                     logger.info("{" + buyerDebugInfo + "} moves to "
                             + sellerDebugInfo + " because its current quote is infinite.");
@@ -836,14 +838,14 @@ public class BootstrapSupply {
                     // resizeThroughSupplier so ensure that the provisionedSeller is added to this
                     // market's available sellers before moving the sl onto it
                     if (market.getActiveSellersAvailableForPlacement().contains(provisionedSeller)) {
-                    allActions.add(new Move(economy, sl, provisionedSeller).take()
-                            .setImportance(Double.POSITIVE_INFINITY));
+                    allActions.addAll(new Move(economy, sl, provisionedSeller).take()
+                            .setImportance(Double.POSITIVE_INFINITY).getAllActions());
                     // if the sellerThatFits is resizeThroughSupplier trader then move the sl to it
                     // if it isn't currently on it.
                     } else if (sellerThatFits.getSettings().isResizeThroughSupplier()
                                     && sl.getSupplier() != sellerThatFits) {
-                        allActions.add(new Move(economy, sl, sellerThatFits).take()
-                                        .setImportance(Double.POSITIVE_INFINITY));
+                        allActions.addAll(new Move(economy, sl, sellerThatFits).take()
+                                        .setImportance(Double.POSITIVE_INFINITY).getAllActions());
                     }
                 } else {
                     @NonNull Trader buyer = sl.getBuyer();
@@ -854,9 +856,9 @@ public class BootstrapSupply {
                 }
             } else {
                 if (minimizer.getBestSeller() != sl.getSupplier()) {
-                    allActions.add(new Move(economy, sl, minimizer.getBestSeller()).take()
+                    allActions.addAll(new Move(economy, sl, minimizer.getBestSeller()).take()
                             .setImportance(minimizer.getCurrentQuote().getQuoteValue()
-                                    - minimizer.getBestQuote().getQuoteValue()));
+                                    - minimizer.getBestQuote().getQuoteValue()).getAllActions());
                 }
             }
         }
@@ -1047,8 +1049,9 @@ public class BootstrapSupply {
                                             sl, entry.getValue(), slsThatNeedProvBySupply));
                         } else {
                             // place the sl of the clone on the seller that is able to hold it
-                            provisionRelatedActionList.add((new Move(economy, sl, minimizer.getBestSeller()))
-                                    .take());
+                            provisionRelatedActionList
+                                .addAll((new Move(economy, sl, minimizer.getBestSeller()))
+                                    .take().getAllActions());
                         }
             });
             // When the current seller can't accept new customers the active sellers are not empty
@@ -1070,7 +1073,9 @@ public class BootstrapSupply {
         // Note: This move action is to place the newly provisioned trader to a proper
         // supplier.
         if (provisionedSeller != null) {
-            actions.add(new Move(economy, shoppingList, provisionedSeller).take().setImportance(Double.POSITIVE_INFINITY));
+            actions.addAll(new Move(economy, shoppingList, provisionedSeller).take()
+                .setImportance(Double.POSITIVE_INFINITY)
+                .getAllActions());
         }
         return actions;
     }
