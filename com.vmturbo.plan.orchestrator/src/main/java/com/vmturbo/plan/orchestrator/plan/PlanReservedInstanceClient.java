@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByIdRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.RiFilter;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
@@ -22,7 +22,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IncludedCoupons;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+
 
 /**
  * Sends commands to the Plan Reserved Instance Service using gRPC.
@@ -76,15 +76,11 @@ public class PlanReservedInstanceClient {
         // TODO:  If the Plan RI store won't have RIs when first run, then one would need to
         // get them from real-time as well.
         if (includeAll) { //include all RIs in scope.
-            List<ReservedInstanceBought> allRiBought = riBoughtService
-                            .getReservedInstanceBoughtByTopology(
-                                             GetReservedInstanceBoughtByTopologyRequest
-                                                 .newBuilder()
-                                                 .setTopologyType(TopologyType.PLAN)
-                                                 .setTopologyContextId(realtimeTopologyContextId)
-                                                 .addAllScopeSeedOids(seedEntities)
-                                                 .build())
-                            .getReservedInstanceBoughtList();
+            List<ReservedInstanceBought> allRiBought =
+                    riBoughtService.getReservedInstanceBoughtForScope(
+                            GetReservedInstanceBoughtForScopeRequest.newBuilder()
+                                    .addAllScopeSeedOids(seedEntities)
+                                    .build()).getReservedInstanceBoughtList();
             insertPlanIncludedCoupons(allRiBought, topologyContextId);
         } else if (!includedCouponOidsList.isEmpty()) {  //include the selected RIs in scope.
 
