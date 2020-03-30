@@ -773,7 +773,7 @@ message ResetSettingPolicyResponse {
 // Return the setting policies associated with an entity.
 message GetEntitySettingPoliciesRequest{
 
-    optional int64 entity_oid = 1;
+    repeated int64 entity_oid_list = 1;
 }
 
 message GetEntitySettingPoliciesResponse {
@@ -849,7 +849,7 @@ service SettingPolicyService {
     // Returns a NOT_FOUND status if there is no setting information for the selected topology.
     rpc GetEntitySettings(GetEntitySettingsRequest) returns (stream GetEntitySettingsResponse);
 
-    // Get setting policies associated with an entity
+    // Get setting policies associated with entities
     rpc GetEntitySettingPolicies(GetEntitySettingPoliciesRequest) returns (GetEntitySettingPoliciesResponse);
 
     // Return the setting policies associated with a group.

@@ -124,9 +124,9 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -804,21 +804,18 @@ public class GroupsService implements IGroupsService {
         if (!StringUtils.isNumeric(uuid)) {
             throw new IllegalArgumentException("Group uuid should be numeric: " + uuid);
         }
-        final long groupId = Long.valueOf(uuid);
-        GetSettingPoliciesForGroupResponse response =
-                settingPolicyServiceBlockingStub.getSettingPoliciesForGroup(
-                        GetSettingPoliciesForGroupRequest.newBuilder()
-                                .addGroupIds(groupId)
-                                .build());
 
-        List<SettingsPolicyApiDTO> settingsPolicyApiDtos = new ArrayList<>();
-        if (response.getSettingPoliciesByGroupIdMap().containsKey(groupId)) {
-            response.getSettingPoliciesByGroupIdMap().get(groupId).getSettingPoliciesList()
-                    .forEach(settingPolicy ->
-                            settingsPolicyApiDtos.add(settingsMapper.convertSettingPolicy(settingPolicy)));
-        }
+        // find all the members in the group and get policies associated with each member
+        List<Long> members = getGroupMembers(uuid).stream()
+                .map(TopologyEntityDTO::getOid).collect(Collectors.toList());
+        GetEntitySettingPoliciesRequest request =
+            GetEntitySettingPoliciesRequest.newBuilder()
+                .addAllEntityOidList(members)
+                .build();
+        GetEntitySettingPoliciesResponse response =
+            settingPolicyServiceBlockingStub.getEntitySettingPolicies(request);
 
-        return settingsPolicyApiDtos;
+        return settingsMapper.convertSettingPolicies(response.getSettingPoliciesList());
     }
 
     @Override

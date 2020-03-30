@@ -47,6 +47,7 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
@@ -129,9 +130,12 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
@@ -199,6 +203,9 @@ public class GroupsServiceTest {
     @Mock
     private SupplyChainFetcherFactory supplyChainFetcherFactory;
 
+    @Mock
+    private SettingsMapper settingsMapper;
+
     @Captor
     private ArgumentCaptor<GetGroupsRequest> getGroupsRequestCaptor;
 
@@ -208,13 +215,15 @@ public class GroupsServiceTest {
 
     private ActionsServiceMole actionServiceSpy = spy(new ActionsServiceMole());
 
+    private SettingPolicyServiceMole settingPolicyServiceSpy = spy(new SettingPolicyServiceMole());
     private FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
     private FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
     private BusinessAccountRetriever businessAccountRetriever;
 
     @Rule
     public GrpcTestServer grpcServer =
-        GrpcTestServer.newServer(groupServiceSpy, templateServiceSpy, actionServiceSpy);
+        GrpcTestServer.newServer(groupServiceSpy, templateServiceSpy, actionServiceSpy,
+                settingPolicyServiceSpy);
 
     private static final long CONTEXT_ID = 7777777;
     private Map<Long, GroupApiDTO> mappedGroups;
@@ -226,7 +235,7 @@ public class GroupsServiceTest {
         // create inputs for the service
         final ActionsServiceBlockingStub actionOrchestratorRpcService =
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub =
+        final SettingPolicyServiceBlockingStub settingPolicyStub =
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final ActionSearchUtil actionSearchUtil =
                 new ActionSearchUtil(
@@ -252,7 +261,7 @@ public class GroupsServiceTest {
                 priceIndexPopulator,
                 supplyChainFetcherFactory,
                 actionSearchUtil,
-                settingPolicyServiceBlockingStub,
+                settingPolicyStub,
                 settingsMapper,
                 targetCache, entitySettingQueryExecutor,
                 groupFilterMapper,
@@ -1165,6 +1174,29 @@ public class GroupsServiceTest {
             .setId(Long.valueOf(groupUuid))
             .build());
         assertEquals(template, templateServiceSpy.getTemplates(any()).get(0).getTemplates(0).getTemplate());
+    }
+
+    /**
+     * Test get setting policies for a group with 2 members.
+     * @throws Exception when getSettingPoliciesByGroupUuid() throws an exception
+     */
+    @Test
+    public void testGetSettingPoliciesByGroupUuid() throws Exception {
+        TopologyEntityDTO entity1 = TopologyEntityDTO.newBuilder().setOid(1111L).setEntityType(1).build();
+        TopologyEntityDTO entity2 = TopologyEntityDTO.newBuilder().setOid(2222L).setEntityType(1).build();
+        List<Long> members = Arrays.asList(entity1.getOid(), entity2.getOid());
+        List<TopologyEntityDTO> entities = Arrays.asList(entity1, entity2);
+        String groupUuid = "123456";
+        MultiEntityRequest multiEntityRequest = mock(MultiEntityRequest.class);
+        ImmutableGroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
+                .group(Grouping.getDefaultInstance()).members(members).entities(members).build();
+        when(groupExpander.getGroupWithMembers(groupUuid)).thenReturn(Optional.of(groupAndMembers));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(groupAndMembers.members())))
+              .thenReturn(multiEntityRequest);
+        when(multiEntityRequest.getFullEntities()).thenReturn(entities.stream());
+        groupsService.getSettingPoliciesByGroupUuid(groupUuid);
+        verify(settingPolicyServiceSpy).getEntitySettingPolicies(GetEntitySettingPoliciesRequest
+                .newBuilder().addAllEntityOidList(members).build());
     }
 
     /**

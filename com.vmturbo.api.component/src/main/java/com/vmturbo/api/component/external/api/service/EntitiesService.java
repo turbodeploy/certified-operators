@@ -743,7 +743,7 @@ public class EntitiesService implements IEntitiesService {
         long oid = uuidMapper.fromUuid(uuid).oid();
         GetEntitySettingPoliciesRequest request =
                 GetEntitySettingPoliciesRequest.newBuilder()
-                        .setEntityOid(oid)
+                        .addEntityOidList(Long.valueOf(uuid))
                         .build();
 
         GetEntitySettingPoliciesResponse response =
