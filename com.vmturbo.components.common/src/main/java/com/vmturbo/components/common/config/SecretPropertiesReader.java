@@ -62,6 +62,7 @@ public class SecretPropertiesReader extends YamlProcessor {
                     .put("history", ImmutableMap.of(USERNAME, "historyDbUsername", PASSWORD, "historyDbPassword"))
                     .put("plan-orchestrator", ImmutableMap.of(USERNAME, "planDbUsername", PASSWORD, "planDbPassword"))
                     .put("topology-processor", ImmutableMap.of(USERNAME, "topologyProcessorDbUsername", PASSWORD, "topologyProcessorDbPassword"))
+                    .put("repository", ImmutableMap.of(USERNAME, "arangoDBUsername", PASSWORD, "arangoDBPassword")) // see RepositoryProperties
                     .build();
 
     /**

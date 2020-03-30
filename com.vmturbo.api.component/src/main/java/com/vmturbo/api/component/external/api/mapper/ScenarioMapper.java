@@ -1481,10 +1481,11 @@ public class ScenarioMapper {
             constraintApiDTO.setConstraintType(
                     ConstraintType.valueOf(constraintGroup.getCommodityType()));
             //ConstraintGroup configuration only supports groups, can derive dto mappingContext will return
-            GroupApiDTO groupApiDTO =
-                    (GroupApiDTO) mappingContext.dtoForId(constraintGroup.getGroupUuid());
-            constraintApiDTO.setTarget(groupApiDTO);
-            constraintApiDTO.setTargetEntityType(groupApiDTO.getGroupType());
+            final BaseApiDTO baseApiDTO = mappingContext.dtoForId(constraintGroup.getGroupUuid());
+            constraintApiDTO.setTarget(baseApiDTO);
+            if (mappingContext.groupIdExists(constraintGroup.getGroupUuid())) {
+                constraintApiDTO.setTargetEntityType(((GroupApiDTO)baseApiDTO).getGroupType());
+            }
         }
         return constraintApiDTO;
     }
@@ -1713,7 +1714,7 @@ public class ScenarioMapper {
                 return serviceEntityMap.get(id);
             } else if (templatesMap.containsKey(id)) {
                 return templatesMap.get(id);
-            } else if (groupMap.containsKey(id)) {
+            } else if (groupIdExists(id)) {
                 return groupMap.get(id);
             } else {
                 logger.error("Unable to find entity, template, or group with ID {} when mapping "
@@ -1724,6 +1725,16 @@ public class ScenarioMapper {
                 entity.setDisplayName(ApiEntityType.UNKNOWN.apiStr());
                 return entity;
             }
+        }
+
+        /**
+         * Return if a group with the given id exists.
+         *
+         * @param id The ID of the object.
+         * @return If a group with the given id exists.
+         */
+        boolean groupIdExists(final long id) {
+            return groupMap.containsKey(id);
         }
     }
 

@@ -67,6 +67,7 @@ public abstract class BaseGraphRelatedTest {
         TopologyEntity e = Mockito.mock(TopologyEntity.class);
         Mockito.when(e.getEntityType()).thenReturn(type);
         Mockito.when(e.getOid()).thenReturn(oid);
+        Mockito.when(e.getClonedFromEntity()).thenReturn(Optional.empty());
         TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder();
         entityBuilder.setOid(oid).setEntityType(type);
         if (ctSold != null) {

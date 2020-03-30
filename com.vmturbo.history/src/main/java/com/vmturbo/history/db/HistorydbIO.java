@@ -93,6 +93,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -113,7 +114,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
-import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
+import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.PropertySubType;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO;
@@ -526,7 +527,7 @@ public class HistorydbIO extends BasedbIO {
     }
 
     /**
-     * Populate a {@link Record} instance with commodity values
+     * Populate a {@link Record} instance with commodity values.
      *
      * @param propertyType      the string name of the property (mixed case)
      * @param snapshotTime      the time of the snapshot
@@ -574,10 +575,10 @@ public class HistorydbIO extends BasedbIO {
 
     /**
      * Set the used and peak values for the subtype of this property.
-     * <p>
-     * For commodities that have peak values set, peak will contain a
+     *
+     * <p>For commodities that have peak values set, peak will contain a
      * non-zero value while for attributes that do not have peak value,
-     * (Produces/PriceIndex etc.) 0 will be sent as parameter
+     * (Produces/PriceIndex etc.) 0 will be sent as parameter</p>
      *`
      * @param propertySubtype the subtype of the property, e.g. "used" or "utilization"
      * @param used           the average used value of the commodity
@@ -603,13 +604,13 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Get the list of {@link Timestamp} objects describing the stat snapshot times in a
      * requested time range.
-     * <p>
-     * Note: This currently assumes each topology has at least one virtual machine.
+     *
+     * <p>Note: This currently assumes each topology has at least one virtual machine.
      * Todo: We assume at least one PM before, but for new cloud model there is no PM, if user only
      * adds cloud target, it will not be able to get correct timestamp. Thus we change it to VM.
      * We should considering handling this better, when serverless is down the road. One possible
      * solution is keep a separate table which just has the updated timestamps. Opened OM-40052 for
-     * future improvement.
+     * future improvement.</p>
      *
      * @param timeFrame          The {@link TimeFrame} to look in.
      * @param startTime          The start time, in epoch millis.
@@ -651,23 +652,28 @@ public class HistorydbIO extends BasedbIO {
      * @param timepPointOpt        time point to specify end time. If not present, the result is
      *                             the most recent time stamp.
      * @param timeFrameOpt         required timeframe, or LATEST if not specified
+     * @param paginationParams     The option to use for getting the time based on pagination sort commodity.
      * @return a {@link Timestamp} for the snapshot recorded in the xxx_stats_latest table having
      *                             closest time to a given time point.
      * @throws IllegalArgumentException
      */
     public Optional<Timestamp> getClosestTimestampBefore(@Nonnull final StatsFilter statsFilter,
-                                                         @Nonnull final Optional<Long> timepPointOpt, @Nonnull final Optional<TimeFrame> timeFrameOpt)
+                                                         @Nonnull final Optional<Long> timepPointOpt,
+                                                         @Nonnull final Optional<TimeFrame> timeFrameOpt,
+                                                         @Nonnull final Optional<EntityStatsPaginationParams> paginationParams)
         throws IllegalArgumentException {
         try {
             Timestamp exclusiveUpperTimeBound =
                 // timePointOpt, if provided, is inclusive; we need an exclusive upper bound
                 timepPointOpt.map(t -> new Timestamp(t + 1))
                     .orElse(null);
-            // check the commodity request list, if it only contains PI, fetch data for PI,
-            // otherwise, get the timestamp of the most recent ingested topology. PI needs to be
-            // treated differently because it doesn't get persisted when a topology is ingested.
-            final HistoryVariety historyVariety = isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList())
-                ? HistoryVariety.PRICE_DATA : HistoryVariety.ENTITY_STATS;
+            // PI timestamp needs to be treated differently because it doesn't get persisted when a topology is ingested.
+            // Check the commodity request list, if it only contains PI, fetch data for PI.
+            // Check if query is sorted by PI, if so, fetch timestamp for PI.
+            // Otherwise, get the timestamp of the most recent ingested topology.
+            final boolean usePriceDataBasedVariety = isCommRequestsOnlyPI(statsFilter.getCommodityRequestsList())
+                    || isPaginationParamsSortByPI(paginationParams);
+            final HistoryVariety historyVariety = usePriceDataBasedVariety ? HistoryVariety.PRICE_DATA : HistoryVariety.ENTITY_STATS;
 
             final Query query = new AvailableTimestampsQuery(timeFrameOpt.orElse(TimeFrame.LATEST),
                 historyVariety, 1, null, exclusiveUpperTimeBound).getQuery();
@@ -687,7 +693,7 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Whether a given list contains only price index or current price index request.
      *
-     * Note: If the request is empty, returns false.
+     * <p>Note: If the request is empty, returns false.</p>
      *
      * @param commRequestsList a given commodity request list
      * @return true if the commRequestsList contains price index or current price index
@@ -703,6 +709,10 @@ public class HistorydbIO extends BasedbIO {
         return !commRequestsList.isEmpty() && commRequestsList.stream()
             .allMatch(c -> c.getCommodityName().equals(PRICE_INDEX)
                 || c.getCommodityName().equals(CURRENT_PRICE_INDEX));
+    }
+
+    private boolean isPaginationParamsSortByPI(@Nonnull final Optional<EntityStatsPaginationParams> paginationParams) {
+        return paginationParams.isPresent() && StringConstants.PRICE_INDEX.equals(paginationParams.get().getSortCommodity());
     }
 
     private Set<String> getRequestedScopeIds(EntityStatsScope entityScope) {
@@ -993,8 +1003,9 @@ public class HistorydbIO extends BasedbIO {
     /**
      * Return the display name for the Entity for the given entity ID (OID).
      *
-     * <p>If the entity ID is not known, then return null.
-     * <p>TODO: should be changed to use Optional
+     * <p>If the entity ID is not known, then return null.</p>
+     *
+     * <p>TODO: should be changed to use Optional</p>
      *
      * @param entityId the entity OID (as a string)
      * @return the display name for the Entity, as stored in the "display_name" for the given
@@ -1072,7 +1083,7 @@ public class HistorydbIO extends BasedbIO {
                     "unexpectedly; topologyContextId " +
                     topologyContextId + "...using first");
             }
-            return Optional.of((ScenariosRecord) answer.iterator().next());
+            return Optional.of((ScenariosRecord)answer.iterator().next());
         } catch (VmtDbException e) {
             return Optional.empty();
         }
@@ -1103,16 +1114,17 @@ public class HistorydbIO extends BasedbIO {
                 topologyInfo.getTopologyContextId()));
     }
 
-
     /**
      * Create entries in the SCENARIOS and MKT_SNAPSHOTS table for this topology, if required.
      * Each of the insert statments specifies "onDuplicateKeyIgnore", so there's no error
      * signalled if either row already exists.
+     *
      * <p>Note that the topologyContextId is used for both the ID and the scenario_id in the
-     * SCENARIOS table.
+     * SCENARIOS table.</p>
+     *
      * <p>Note that there is insufficient information to populate the displayName, the state,
      * and the times. This may be provided in the future by adding a listener to the
-     * Plan Orchestrator.
+     * Plan Orchestrator.</p>
      *
      * @param topologyInfo the information about this topology, including the
      *                     context id and snapshot time.
@@ -1145,9 +1157,9 @@ public class HistorydbIO extends BasedbIO {
      * Persist multiple entitites (insert or update, depending on the record source). If a record
      * has been initially returned from the DB, UPDATE will be executed. If a record is a newly
      * created INSERT will be executed.
-     * <p>
-     * Queries are splitted into smaller batches of 4k (settable by {@link #entitiesChunkSize}
-     * property.
+     *
+     * <p>Queries are splitted into smaller batches of 4k (settable by {@link #entitiesChunkSize}
+     * property.</p>
      *
      * @param entitiesRecords records, containing entities, required to update
      * @throws VmtDbException if DB error occurred
@@ -1595,10 +1607,10 @@ public class HistorydbIO extends BasedbIO {
     /**
      * A helper class to construct a seek pagination cursor to track pagination through a large
      * number of entities. This not the same as a MySQL cursor!
-     * <p>
-     * We use the seek method for pagination, so the cursor is a serialized version of the
+     *
+     * <p>We use the seek method for pagination, so the cursor is a serialized version of the
      * last value and ID:
-     * (https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/)
+     * (https://blog.jooq.org/2013/10/26/faster-sql-paging-with-jooq-using-the-seek-method/)</p>
      */
     @VisibleForTesting
     static class SeekPaginationCursor {

@@ -10,6 +10,7 @@ import com.vmturbo.topology.processor.TopologyProcessorDBConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.stitching.StitchingConfig;
+import com.vmturbo.topology.processor.targets.TargetConfig;
 
 @Configuration
 @Import({
@@ -35,12 +36,15 @@ public class MigrationsConfig {
     @Autowired
     KVConfig kvConfig;
 
+    @Autowired
+    TargetConfig targetConfig;
+
     @Bean
     public MigrationsLibrary migrationsList() {
         return new MigrationsLibrary(topologyProcessorDBConfig.dsl(),
                 probeConfig.probeStore(), stitchingConfig.historyClient(),
                 identityProviderConfig.underlyingStore(),
                 identityProviderConfig.identityProvider(),
-                kvConfig.keyValueStore());
+                kvConfig.keyValueStore(), targetConfig.targetStore(), targetConfig.identityStore());
     }
 }

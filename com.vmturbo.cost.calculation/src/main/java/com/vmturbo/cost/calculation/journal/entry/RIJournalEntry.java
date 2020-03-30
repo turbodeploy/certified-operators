@@ -99,17 +99,6 @@ public class RIJournalEntry<E> implements QualifiedJournalEntry<E> {
         return costCategory;
     }
 
-    @Override
-    public int compareTo(final Object o) {
-        // The RI journal entry has a dependence on the on Demand journal entry and requires it
-        // to calculate RI discounted costs.
-        if (o instanceof OnDemandJournalEntry) {
-            return Integer.MAX_VALUE;
-        } else {
-            return 0;
-        }
-    }
-
     public ReservedInstanceData getRiData() {
         return riData;
     }

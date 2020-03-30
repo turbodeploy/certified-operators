@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -659,6 +660,23 @@ public class CachingTargetStoreTest {
         Assert.assertTrue(targetStore.getTarget(derived1.getId()).isPresent());
         Assert.assertFalse(targetStore.getTarget(derivedTarget2Id).isPresent());
         Assert.assertEquals(1, targetStore.getAll().size());
+    }
+
+    /**
+     * Test that when a target has no derived targets and we call createOrUpdateDerivedTargets with
+     * an empty list of target specs and the target ID, we don't update the target.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testTargetWithNoDerivedTargetsDoesNotUpdate() throws Exception {
+        prepareInitialProbe();
+        final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
+        targetStore.createOrUpdateDerivedTargets(Collections.emptyList(), parent.getId());
+        // targetDao.store gets called once when we create the target, but is not called again when
+        // we call createOrUpdateDerivedTargets since the target has no existing derived targets and
+        // we are not adding any derived targets now.
+        verify(targetDao, times(1)).store(any());
     }
 
     /**

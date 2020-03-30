@@ -80,9 +80,9 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -651,7 +651,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      */
     private List<StatApiDTO> getNumWorkloadStatSnapshot(@Nonnull final Set<StatApiInputDTO> statsFilters,
                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
-        final Set<Long> scopeIds = context.getQueryScope().getScopeOids();
         List<StatApiDTO> stats = Lists.newArrayList();
         for (StatApiInputDTO statApiInputDTO : statsFilters) {
             if (isVirtualVolumeCount(statApiInputDTO)) {
@@ -676,8 +675,12 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     }
                 }
                 if (entityTypes != null && !entityTypes.isEmpty()) {
+                    final Set<Long> scopeIds = context.getQueryScope().getScopeOids();
+                    final Set<Long> fetchedScope =
+                            context.getInputScope().isResourceGroupOrGroupOfResourceGroups() ?
+                                    Collections.singleton(context.getInputScope().oid()) : scopeIds;
                     final float numWorkloads = supplyChainFetcherFactory.newNodeFetcher()
-                            .addSeedOids(scopeIds)
+                            .addSeedOids(fetchedScope)
                             .entityTypes(entityTypes)
                             .environmentType(EnvironmentType.CLOUD)
                             .fetchEntityIds()

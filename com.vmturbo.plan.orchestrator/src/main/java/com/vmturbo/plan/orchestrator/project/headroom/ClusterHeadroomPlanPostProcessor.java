@@ -591,13 +591,15 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                     continue;
                 }
                 // Set effective capacity
-                double capacity = (comm.getEffectiveCapacityPercentage() / 100) * comm.getCapacity();
-                double availableAmount =  capacity - comm.getUsed();
+                double capacity = comm.getScalingFactor() *
+                    ((comm.getEffectiveCapacityPercentage() / 100) * comm.getCapacity());
+                double used = comm.getScalingFactor() * comm.getUsed();
+                double availableAmount =  capacity - used;
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Commodity sold {} of {} has used/capacity ({}/{}) ",
+                    logger.trace("Commodity sold {} of {} has used/capacity ({}/{}) with scaling factor {}",
                         CommodityDTO.CommodityType.forNumber(commType).name(),
-                        entity.getDisplayName(), comm.getUsed(), capacity);
+                        entity.getDisplayName(), used, capacity, comm.getScalingFactor());
                 }
 
                 headroomAvailable = availableAmount > 0 ?

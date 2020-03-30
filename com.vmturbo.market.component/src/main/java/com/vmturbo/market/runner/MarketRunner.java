@@ -268,11 +268,14 @@ public class MarketRunner {
                                                       analysis.getActionPlan().get().getId());
                     serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
 
+                    // A flag that shows if there is any cloud entity in the topology or not.
+                    final boolean hasAnyCloudEntity = !CollectionUtils.isEmpty(analysis.getOriginalCloudTopology().getEntities());
+
                     // Send projected entity costs. We only send them for the real time topology.
                     final Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts =
                                                                analysis.getProjectedCosts().get();
 
-                    if (!CollectionUtils.isEmpty(projectedCosts)) {
+                    if (hasAnyCloudEntity) {
                         serverApi.notifyProjectedEntityCosts(analysis.getTopologyInfo(),
                                 analysis.getProjectedTopologyId().get(),
                                 Collections2.transform(projectedCosts
@@ -285,7 +288,7 @@ public class MarketRunner {
                     final Map<Long, EntityReservedInstanceCoverage> projectedCoverage =
                                                           analysis.getProjectedEntityRiCoverage()
                                                                           .get();
-                    if (!CollectionUtils.isEmpty(projectedCoverage)) {
+                    if (hasAnyCloudEntity) {
                         serverApi.notifyProjectedEntityRiCoverage(analysis.getTopologyInfo(),
                                 analysis.getProjectedTopologyId()
                                         .get(),

@@ -90,7 +90,7 @@ class ReservedInstanceAggregator {
                                 .getNumCoupons()).reversed()));
         final Map<ReservedInstanceKey, ReservedInstanceAggregate> riAggregates
                 = new HashMap<>();
-        final Map<Long, Double> couponsUsedByRi = cloudCostData.getCurrentRiCoverage().values()
+        final Map<Long, Double> couponsUsedByRi = cloudCostData.getFilteredRiCoverageByEntityId().values()
                 .stream().map(Cost.EntityReservedInstanceCoverage::getCouponsCoveredByRiMap)
                 .flatMap(map -> map.entrySet().stream())
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue, Double::sum));

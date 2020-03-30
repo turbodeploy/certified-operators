@@ -1857,6 +1857,7 @@ public class ScenarioMapperTest {
         GroupApiDTO groupApiDTO = new GroupApiDTO();
         groupApiDTO.setGroupType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         when(contextMock.dtoForId(groupId)).thenReturn(groupApiDTO);
+        when(contextMock.groupIdExists(groupId)).thenReturn(true);
 
         IgnoreConstraint ignoreConstraint = IgnoreConstraint.newBuilder()
                 .setIgnoreGroup(PlanChanges.ConstraintGroup.newBuilder()

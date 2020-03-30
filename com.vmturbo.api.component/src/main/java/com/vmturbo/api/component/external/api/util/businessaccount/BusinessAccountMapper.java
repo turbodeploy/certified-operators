@@ -124,6 +124,9 @@ public class BusinessAccountMapper {
 
         businessUnitApiDTO.setDisplayName(businessAccount.getDisplayName());
         if (businessAccount.getTypeSpecificInfo().hasBusinessAccount()) {
+            final boolean riSupported =
+                    businessAccount.getTypeSpecificInfo().getBusinessAccount().getRiSupported();
+            businessUnitApiDTO.setRiSupported(riSupported);
             final BusinessAccountInfo bizInfo = businessAccount.getTypeSpecificInfo().getBusinessAccount();
             if (bizInfo.hasAccountId()) {
                 businessUnitApiDTO.setAccountId(bizInfo.getAccountId());

@@ -845,6 +845,27 @@ public class EntitySettingsApplicator {
                         }
                         commodityBuilder.setThresholds(thresholdsBuilder);
                     });
+                } else if (entity.getTypeSpecificInfo().getVirtualMachine().hasNumCpus()) {
+                    entity.getCommoditySoldListBuilderList().stream()
+                            .filter(commodity -> commodity.getCommodityType().getType() ==
+                                    commodityType.getNumber()).forEach(commodityBuilder -> {
+                        final Thresholds.Builder thresholdsBuilder = Thresholds.newBuilder();
+                        for (Setting setting : settings) {
+                            final float settingValue = setting.getNumericSettingValue().getValue();
+                            if (EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingSpec().getName()
+                                    .equals(setting.getSettingSpecName())) {
+                                thresholdsBuilder.setMin(settingValue *
+                                commodityBuilder.getCapacity()
+                                / entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus());
+                            } else if (EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingSpec()
+                                    .getName().equals(setting.getSettingSpecName())) {
+                                thresholdsBuilder.setMax(settingValue *
+                                commodityBuilder.getCapacity()
+                                / entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus());
+                            }
+                        }
+                        commodityBuilder.setThresholds(thresholdsBuilder);
+                    });
                 } else {
                     logger.error("VCPU threshold applicator couldn't find the CPU speed " +
                             "of the host (VM: {})", entity.getDisplayName());

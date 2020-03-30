@@ -35,7 +35,7 @@ import com.vmturbo.history.db.bulk.DbMock;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
-import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
+import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.priceindex.DBPriceIndexVisitor.DBPriceIndexVisitorFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 

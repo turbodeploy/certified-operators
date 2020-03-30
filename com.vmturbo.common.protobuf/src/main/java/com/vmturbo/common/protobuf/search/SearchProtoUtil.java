@@ -30,7 +30,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 public class SearchProtoUtil {
 
     private static final ImmutableList<ApiEntityType> EXCLUDE_FROM_SEARCH_ALL =
-                    ImmutableList.of(ApiEntityType.INTERNET, ApiEntityType.HYPERVISOR_SERVER, ApiEntityType.UNKNOWN);
+                    ImmutableList.of(ApiEntityType.INTERNET,
+                            ApiEntityType.HYPERVISOR_SERVER,
+                            ApiEntityType.RESERVED_INSTANCE,
+                            ApiEntityType.UNKNOWN);
 
     /**
      * All entity types that can be used in a search.

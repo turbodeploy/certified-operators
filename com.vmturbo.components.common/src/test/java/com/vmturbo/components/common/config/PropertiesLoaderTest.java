@@ -86,6 +86,26 @@ public class PropertiesLoaderTest {
         assertThat(propertiesSource.getProperty("authDbPassword"), equalTo("A1a-9Y9tLPAX2NXOJYb9"));
     }
 
+
+    /**
+     * Test reading secret file for ArangoDB credential.
+     * Secrets are:
+     * password: A1a-9Y9tLPAX2NXOJYb9
+     * username: v-kubernetes-coke-plan--3AvWqRZs
+     * Note that the underlying SecretPropertiesReader is more fully tested separately.
+     *
+     * @throws ContextConfigurationException if there is a semantic error in the configuration file
+     */
+    @Test
+    public void testPropertiesYamlReaderSuccessWithArangoSecret() throws ContextConfigurationException {
+        // act
+        final PropertySource<?> propertiesSource = PropertiesLoader.fetchConfigurationProperties(
+                "repository", GOOD_AUTH_TEST_YAML_FILE_PATH, GOOD_TEST_SECRET_FILE_PATH);
+        // assert
+        assertThat(propertiesSource.getProperty("arangoDBUsername"), equalTo("v-kubernetes-coke-plan--3AvWqRZs"));
+        assertThat(propertiesSource.getProperty("arangoDBPassword"), equalTo("A1a-9Y9tLPAX2NXOJYb9"));
+    }
+
     /**
      * Check that an invalid file path to "properties.yaml" is caught.
      *

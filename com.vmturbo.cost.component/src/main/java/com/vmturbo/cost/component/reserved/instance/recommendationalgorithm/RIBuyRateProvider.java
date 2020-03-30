@@ -47,6 +47,11 @@ public class RIBuyRateProvider {
      */
     public static final int HOURS_IN_A_MONTH = 730;
 
+    /**
+     * Months in a year.
+     */
+    public static final int MONTHS_IN_A_YEAR = 12;
+
     /*
      * Internal data structures populated at construction time to represent the data in
      * PriceTableStore,  ReservedInstanceBoughtStore and ReservedInstanceSpecStore.
@@ -274,7 +279,7 @@ public class RIBuyRateProvider {
                     .getType()
                     .getTermYears();
             upFrontAmortizedCost = new Double(upFrontAmount).floatValue() /
-                (riSpecTermInYears * 12 * HOURS_IN_A_MONTH);
+                (riSpecTermInYears * MONTHS_IN_A_YEAR * HOURS_IN_A_MONTH);
         }
         float riRate = upFrontAmortizedCost + new Double(hourlyAmount).floatValue();
         logger.debug("{}lookupReservedInstanceRate() riRate={} = hourlyAmount={} + upFrontAmortized{} (upFront={}) for specId={}",

@@ -655,7 +655,7 @@ public class TopologyConverter {
                 @Nonnull final List<EconomyDTOs.TraderTO> projectedTraders,
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology,
                 @Nonnull final PriceIndexMessage priceIndexMessage,
-                @Nonnull final CloudCostData cloudCostData,
+                @Nonnull final CloudCostData<TopologyEntityDTO> cloudCostData,
                 @Nonnull final ReservedCapacityAnalysis reservedCapacityAnalysis,
                 @Nonnull final WastedFilesAnalysis wastedFileAnalysis) {
 
@@ -704,6 +704,33 @@ public class TopologyConverter {
         } finally {
             conversionErrorCounts.endPhase();
         }
+    }
+
+    /**
+     * Convert the {@link EconomyDTOs.TraderTO}s to {@link TopologyDTO.ProjectedTopologyEntity}s for
+     * Buy RI Impact Analysis.
+     *
+     * <p>Here just create projected entities by copying the original entities.
+     *
+     * {@link TopologyDTO.TopologyEntityDTO}s
+     * @param originalTopology the original set of {@link TopologyDTO.TopologyEntityDTO}s by OID.
+     * @return list of {@link TopologyDTO.ProjectedTopologyEntity}s
+     */
+    @Nonnull
+    public Map<Long, TopologyDTO.ProjectedTopologyEntity> createProjectedEntitiesAsCopyOfOriginalEntities(
+                @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> originalTopology) {
+        final Map<Long, TopologyDTO.ProjectedTopologyEntity> projectedTopologyEntities = new HashMap<>(
+                        originalTopology.size());
+        try {
+            for (TopologyEntityDTO projectedEntity : originalTopology.values()) {
+                final ProjectedTopologyEntity.Builder projectedEntityBuilder =
+                    ProjectedTopologyEntity.newBuilder().setEntity(projectedEntity);
+                projectedTopologyEntities.put(projectedEntity.getOid(), projectedEntityBuilder.build());
+            }
+        } catch (Exception e) {
+            logger.error("Exception in createProjectedEntitiesAsCopyOfOriginalEntities", e);
+        }
+        return projectedTopologyEntities;
     }
 
     /**
@@ -820,7 +847,8 @@ public class TopologyConverter {
      * @param projectedTraders All the projected traders
      * @param cloudCostData Cloud cost data which is used to get original ri coverage
      */
-    private void relinquishCoupons(@Nonnull final List<TraderTO> projectedTraders, CloudCostData cloudCostData) {
+    private void relinquishCoupons(@Nonnull final List<TraderTO> projectedTraders,
+                                   CloudCostData<TopologyEntityDTO> cloudCostData) {
         for (TraderTO projectedTrader : projectedTraders) {
             TraderTO originalTrader = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
             // Original trader might be null in case of a provisioned trader
@@ -835,16 +863,37 @@ public class TopologyConverter {
                     RiDiscountedMarketTier originalRiTier = (RiDiscountedMarketTier)
                             cloudTc.getMarketTier(originalRiTierSl.get().getSupplier());
                     Optional<EntityReservedInstanceCoverage> originalRiCoverage = cloudCostData
-                            .getRiCoverageForEntity(originalTrader.getOid());
+                            .getFilteredRiCoverage(originalTrader.getOid());
                     if (!originalRiCoverage.isPresent()) {
                         logger.error("{} does not have original RI coverage", originalTrader.getDebugInfoNeverUseInCode());
                         return;
                     }
+                    final Set<Long> originalRiIds = originalRiCoverage.get()
+                            .getCouponsCoveredByRiMap().keySet();
+                    final Set<RiDiscountedMarketTier> originalRiTiers = originalRiIds.stream()
+                            .map(riId -> cloudTc.getRiDataById(riId))
+                            .filter(Objects::nonNull)
+                            .map(riData ->
+                                    getRIDiscountedMarketTierIDFromRIData(riData,
+                                            entityOidToDto.get(riData.getReservedInstanceSpec()
+                                                    .getReservedInstanceSpecInfo().getRegionId())))
+                            .filter(Objects::nonNull)
+                            .map(cloudTc::getMarketTier)
+                            .filter(Objects::nonNull)
+                            .filter(RiDiscountedMarketTier.class::isInstance)
+                            .map(RiDiscountedMarketTier.class::cast)
+                            .collect(Collectors.toSet());
+                    logger.debug("Original RIDiscountedMarketTiers for projected trader {} are {}",
+                            originalTrader::getDebugInfoNeverUseInCode,
+                            () -> originalRiTiers.stream()
+                                    .map(tier -> tier.getRiAggregate().getDisplayName())
+                    .collect(Collectors.toList()));
                     Optional<ShoppingListTO> projectedRiTierSl = getShoppingListSuppliedByRiTier(projectedTrader, true);
-                    if (projectedRiTierSl.isPresent()) {
+                    if (projectedRiTierSl.isPresent() && originalRiTier != null) {
                         if (projectedRiTierSl.get().getCouponId() != originalRiTierSl.get().getSupplier()) {
                             // Entity moved from one RI to another.
-                            originalRiTier.relinquishCoupons(originalRiCoverage.get());
+                            originalRiTiers.forEach(ri ->
+                                    ri.relinquishCoupons(originalRiCoverage.get()));
                         } else {
                             // Entity stayed on same RI. Did coverage change? If yes relinquish
                             Optional<CommodityBoughtTO> projectedCouponCommBought = getCouponCommBought(projectedRiTierSl.get());
@@ -857,12 +906,14 @@ public class TopologyConverter {
                             if (!TopologyConversionUtils.areFloatsEqual(
                                     projectedCouponCommBought.get().getQuantity(),
                                     originalNumberOfCouponsBought)) {
-                                originalRiTier.relinquishCoupons(originalRiCoverage.get());
+                                originalRiTiers.forEach(ri ->
+                                        ri.relinquishCoupons(originalRiCoverage.get()));
                             }
                         }
                     } else {
                         // Moved from RI to on demand
-                        originalRiTier.relinquishCoupons(originalRiCoverage.get());
+                        originalRiTiers.forEach(ri ->
+                                ri.relinquishCoupons(originalRiCoverage.get()));
                     }
                 }
             }
@@ -1887,14 +1938,19 @@ public class TopologyConverter {
                     .setCommodityType(commType)
                     .setPeak(reverseScaleComm(peakQuantity, originalCommodityBoughtDTO,
                             CommodityBoughtDTO::getScalingFactor));
-                    if (originalCommodityBoughtDTO.isPresent()
-                            && originalCommodityBoughtDTO.get().hasHistoricalUsed()
+
+                    if (originalCommodityBoughtDTO.isPresent()) {
+                        builder.setScalingFactor(originalCommodityBoughtDTO.get().getScalingFactor());
+                        if(originalCommodityBoughtDTO.get().hasHistoricalUsed()
                             && originalCommodityBoughtDTO.get().getHistoricalUsed().hasPercentile()) {
-                        //TODO Lakshmi - Set the projected percentile as exsitingPercentile * (existing capacity/new caapcity)
-                        // this wil be required by the VDI Image commodites.
-                        builder.setHistoricalUsed(HistoricalValues.newBuilder()
-                            .setPercentile(originalCommodityBoughtDTO.get().getHistoricalUsed().getPercentile())
-                            .build());
+                            //TODO Lakshmi - Set the projected percentile as exsitingPercentile * (existing capacity/new caapcity)
+                            // this wil be required by the VDI Image commodites.
+                            builder.setHistoricalUsed(HistoricalValues.newBuilder()
+                                    .setPercentile(originalCommodityBoughtDTO.get()
+                                            .getHistoricalUsed()
+                                            .getPercentile())
+                                    .build());
+                        }
                     }
 
                     // Set timeslot values if applies
@@ -2663,6 +2719,8 @@ public class TopologyConverter {
             if (providerTopologyEntity.getEntityType() == EntityType.COMPUTE_TIER_VALUE &&
                     coverage.isPresent() && region != null &&
                     !coverage.get().getCouponsCoveredByRiMap().isEmpty()) {
+                // The entity may be covered by multiple RIs - the first RI is picked as the
+                // provider
                 long riId = coverage.get().getCouponsCoveredByRiMap().keySet().iterator().next();
                 final ReservedInstanceData riData = cloudTc.getRiDataById(riId);
                 if (riData != null) {
@@ -2690,6 +2748,7 @@ public class TopologyConverter {
      * @param region the region of the RI
      * @return the oid of the RIDiscountedMarketTier.
      */
+    @Nullable
     public Long getRIDiscountedMarketTierIDFromRIData(ReservedInstanceData riData,
                                                       TopologyEntityDTO region) {
         final TopologyEntityDTO computeTier =
@@ -2964,16 +3023,20 @@ public class TopologyConverter {
             .filter(CommoditySoldDTO::hasHotResizeInfo)
             .map(CommoditySoldDTO::getHotResizeInfo)
             .ifPresent(commoditySoldBuilder::setHotResizeInfo);
-        if (originalCommoditySold.isPresent()
-            && originalCommoditySold.get().hasHistoricalUsed()
-            && originalCommoditySold.get().getHistoricalUsed().hasPercentile()) {
-            float existingPercentile = (float)originalCommoditySold.get().getHistoricalUsed()
-                .getPercentile();
-            double existingCapacity = originalCommoditySold.get().getCapacity();
-            float projectedPercentile = (float)(existingCapacity / capacity) * existingPercentile;
-            commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
-                .setPercentile(projectedPercentile)
-                .build());
+
+        if (originalCommoditySold.isPresent()) {
+            commoditySoldBuilder.setScalingFactor(originalCommoditySold.get().getScalingFactor());
+
+            if (originalCommoditySold.get().hasHistoricalUsed()
+                    && originalCommoditySold.get().getHistoricalUsed().hasPercentile()) {
+                    float existingPercentile = (float)originalCommoditySold.get().getHistoricalUsed()
+                        .getPercentile();
+                    double existingCapacity = originalCommoditySold.get().getCapacity();
+                    float projectedPercentile = (float)(existingCapacity / capacity) * existingPercentile;
+                    commoditySoldBuilder.setHistoricalUsed(HistoricalValues.newBuilder()
+                        .setPercentile(projectedPercentile)
+                        .build());
+            }
         }
 
         // Set timeslot values if applies
@@ -3170,7 +3233,7 @@ public class TopologyConverter {
     }
 
     /**
-     * Adds the provided RI coverage to the projected RI coverage.
+     * Adds the provided Buy RI coverage to the projected RI coverage.
      * @param entityBuyRICoverage The RI coverage to add, formatted as
      * {@literal <Entity OID, RI ID, Coverage Amount>}
      */
@@ -3197,6 +3260,16 @@ public class TopologyConverter {
                         "(Entity OID={})", entityOid);
             }
         });
+    }
+
+    /**
+     * Adds the provided Existing RI coverage to the projected RI coverage.
+     * @param entityExistingRICoverage The RI coverage to add to projected coverage.
+     */
+    public void addRICoverageToProjectedRICoverage(@Nonnull Map<Long, EntityReservedInstanceCoverage> entityExistingRICoverage) {
+        // With Market not running as in OCP Plan Option #3, the projected RI Coverage map is empty.
+        projectedReservedInstanceCoverage.putAll(entityExistingRICoverage);
+        logger.debug("Updated projected RI coverage for entity with existing RI coverage");
     }
 
     /**

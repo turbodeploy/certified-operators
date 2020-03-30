@@ -79,8 +79,8 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -751,16 +751,15 @@ public class PaginatedStatsExecutor {
                                     .collect(Collectors.toList()));
                 }
 
-                // Expand groups and perform supply chain traversal with the resulting seed
                 // Note that supply chain traversal will not happen if the list of related entity
                 // types is empty
 
-                Set<Long> uuids = groupExpander.expandUuids(seedUuids);
-                if (uuids.isEmpty()) {
+                if (seedUuids.isEmpty()) {
                     return Collections.emptySet();
                 }
-                expandedUuids =
-                        performSupplyChainTraversal(uuids, relatedEntityTypes);
+                expandedUuids = performSupplyChainTraversal(
+                        seedUuids.stream().map(Long::valueOf).collect(Collectors.toSet()),
+                        relatedEntityTypes);
 
                 // if the user is scoped, we will filter the entities according to their scope
                 if (userSessionContext.isUserScoped()) {

@@ -220,6 +220,12 @@ public class CachingTargetStore implements TargetStore {
     public void createOrUpdateDerivedTargets(@Nonnull final List<TargetSpec> targetSpecs,
                                              final long parentTargetId)
         throws IdentityStoreException {
+        // if there are no derived targets now and there were no existing derived targets for this
+        // parent, nothing to update here.
+        if (targetSpecs.isEmpty() && getDerivedTargetIds(parentTargetId).isEmpty()) {
+            return;
+        }
+
        // All the derived target specs are guaranteed from the same parent target, so we can pick up the
         // parent id in the first element in the list.
         final Set<Long> existingDerivedTargetIds = new HashSet<>();

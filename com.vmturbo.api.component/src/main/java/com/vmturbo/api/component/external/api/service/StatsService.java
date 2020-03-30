@@ -1,12 +1,14 @@
 package com.vmturbo.api.component.external.api.service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -20,6 +22,7 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -35,6 +38,7 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
@@ -346,6 +350,41 @@ public class StatsService implements IStatsService {
         return planEntityStatsFetcher.getPlanEntityStats(planInstance, inputDto, paginationRequest);
     }
 
+    private static boolean isUtilizationStatName(@Nonnull String name) {
+        return StringConstants.MEM.equalsIgnoreCase(name) || StringConstants.CPU.equalsIgnoreCase(name);
+    }
+
+    private static StatApiDTO getRelevantStatsRecord(@Nonnull EntityStatsApiDTO entityStatsApiDTO,
+                                                     @Nonnull String commodity) {
+        return entityStatsApiDTO.getStats().stream()
+                    .flatMap(s -> s.getStatistics().stream())
+                    .filter(s -> commodity.equalsIgnoreCase(s.getName()))
+                    .findAny()
+                    .orElseGet(() -> {
+                        logger.error("No stat name " + commodity + " found on record: " + entityStatsApiDTO);
+                        return new StatApiDTO();
+                    });
+    }
+
+    private static double getUtilization(@Nonnull StatApiDTO statsRecord) {
+        final double epsilon = 0.1;
+        if (statsRecord.getCapacity() == null || statsRecord.getCapacity().getAvg() == null
+                || statsRecord.getCapacity().getAvg() < epsilon) {
+            return 0.0;
+        }
+        if (statsRecord.getValues() == null || statsRecord.getValues().getAvg() == null) {
+            return 0.0;
+        }
+        return statsRecord.getValues().getAvg() / statsRecord.getCapacity().getAvg();
+    }
+
+    private static double getDefault(@Nonnull StatApiDTO statsRecord) {
+        if (statsRecord.getValues() == null || statsRecord.getValues().getAvg() == null) {
+            return 0.0;
+        }
+        return statsRecord.getValues().getAvg();
+    }
+
     /**
      * Get per-cluster stats, modelled as per-entity stats (where each cluster is an entity).
      * This is a helper method to
@@ -368,7 +407,6 @@ public class StatsService implements IStatsService {
         // we'll find all clusters the user has access to and ask for stats on those.
         // otherwise, the scope contains specific id's and we'll request stats for the groups
         // specifically requested.
-        final GetGroupsRequest groupRequest;
         if (isMarketScoped(inputDto)) {
             // a market scope request for cluster entity stats is only valid if the related entity
             // type is set to cluster
@@ -437,14 +475,47 @@ public class StatsService implements IStatsService {
         });
         // did we get all the groups we expected?
         if (results.size() != inputDto.getScopes().size()) {
-            logger.warn("Not all headroom stats were retrieved. {} scopes requested, {} stats recieved.",
+            logger.warn("Not all headroom stats were retrieved. {} scopes requested, {} stats received.",
                     inputDto.getScopes().size(), results.size());
         }
 
-        // The history component does not do pagination for per-cluster stats, because the number
-        // of clusters is usually very small compared to the number of entities. We rely on
-        // the default pagination mechanism.
-        return paginationRequest.allResultsResponse(results);
+        // sort according to pagination argument
+        final Function<EntityStatsApiDTO, Double> comparisonFunction;
+        if (paginationRequest.getOrderBy() == null
+                || StringUtils.isEmpty(paginationRequest.getOrderBy().name())) {
+            logger.warn("No order specified in cluster stats request");
+            comparisonFunction = s -> 0.0; // arbitrary order
+        } else {
+            final String orderByName = paginationRequest.getOrderByStat().orElse("");
+            if (isUtilizationStatName(orderByName)) {
+                comparisonFunction = s -> getUtilization(getRelevantStatsRecord(s, orderByName));
+            } else {
+                comparisonFunction = s -> getDefault(getRelevantStatsRecord(s, orderByName));
+            }
+        }
+        final Comparator<EntityStatsApiDTO> comparator;
+        if (paginationRequest.isAscending()) {
+            comparator = Comparator.comparing(comparisonFunction);
+        } else {
+            comparator = Comparator.comparing(comparisonFunction).reversed();
+        }
+        results.sort(comparator);
+
+        int startIdx = paginationRequest.getCursor()
+                            .map(cursor -> NumberUtils.toInt(cursor, 0))
+                            .orElse(0);
+        int endIdx = startIdx + paginationRequest.getLimit();
+
+        // check for pagination response:
+        // note we subtract one because if 0 items are remaining then this should be
+        // a final page response
+        if (endIdx >= (results.size() - 1)) {
+            return paginationRequest.finalPageResponse(results.subList(startIdx, results.size()),
+                                                       results.size());
+        } else {
+            return paginationRequest.nextPageResponse(results.subList(startIdx, endIdx),
+                                                      Integer.toString(endIdx), endIdx - startIdx);
+        }
     }
 
     /**

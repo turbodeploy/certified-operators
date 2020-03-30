@@ -131,29 +131,42 @@ public class PlanRpcService extends PlanServiceImplBase {
     @Override
     public void cancelPlan(PlanId request, StreamObserver<PlanInstance> responseObserver) {
         // stop analysis
+        final long planId = request.getPlanId();
         analysisExecutor.submit(() -> {
             try {
-                logger.info("Triggering plan cancellation for plan {}.", request.getPlanId());
-                planDao.updatePlanInstance(request.getPlanId(), oldInstance ->
+                logger.info("Triggering plan cancellation for plan {}.", planId);
+                planDao.updatePlanInstance(planId, oldInstance ->
                         oldInstance.setStatus(PlanStatus.STOPPED));
+                PlanInstance planInstance = planDao.getPlanInstance(planId)
+                    .orElseThrow(() -> new NoSuchObjectException("Invalid Plan ID: " + planId));
+                responseObserver.onNext(planInstance);
+                responseObserver.onCompleted();
             } catch (NoSuchObjectException e) {
                 // This could happen in the rare case where the plan got deleted
                 // between queueing the analysis and starting it.
-                logger.warn("Failed to stop analysis for plan " + request.getPlanId() +
+                logger.warn("Failed to stop analysis for plan " + planId +
                         ". Did the plan get deleted?", e);
+                responseObserver.onError(
+                        Status.NOT_FOUND.withDescription(e.getMessage()).asException());
             } catch (IntegrityException e) {
                 // This could happen in the rare case where some of the plan's
                 // dependencies got deleted between queueing the analysis and starting it.
-                logger.warn("Failed to stop analysis of plan " + request.getPlanId() +
+                logger.warn("Failed to stop analysis of plan " + planId +
                         " due to integrity exception.", e);
+                responseObserver.onError(
+                        Status.NOT_FOUND.withDescription(e.getMessage()).asException());
             } catch (StatusRuntimeException e) {
                 logger.error("Failed to stop analysis of plan {}  because the gRPC " +
                                 "call to the Analysis Service failed with status: {}",
-                        request.getPlanId(),
+                                planId,
                         e.getStatus());
+                responseObserver.onError(
+                        Status.NOT_FOUND.withDescription(e.getMessage()).asException());
             } catch (RuntimeException e) {
-                logger.error("Failed to stop analysis of plan " + request.getPlanId() + " due " +
+                logger.error("Failed to stop analysis of plan " + planId + " due " +
                         "to unexpected runtime exception.", e);
+                responseObserver.onError(
+                        Status.NOT_FOUND.withDescription(e.getMessage()).asException());
             }
         });
     }

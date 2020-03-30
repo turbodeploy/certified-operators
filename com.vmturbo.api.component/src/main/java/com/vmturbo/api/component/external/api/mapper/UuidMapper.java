@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -10,11 +11,13 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
@@ -28,6 +31,9 @@ import com.vmturbo.api.component.external.api.util.DefaultCloudGroup;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
+import com.vmturbo.api.dto.statistic.StatApiInputDTO;
+import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
@@ -44,6 +50,7 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -52,6 +59,7 @@ import com.vmturbo.repository.api.RepositoryListener;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
  * Mapper to convert string UUID's to OID's that make sense in the
@@ -86,12 +94,17 @@ public class UuidMapper implements RepositoryListener {
 
     private final MagicScopeGateway magicScopeGateway;
 
+    private final ThinTargetCache thinTargetCache;
+
+    private final CloudTypeMapper cloudTypeMapper;
+
     /**
      * We cache the {@link ApiId}s associated with specific OIDs, so that we can save the
      * information about each ID and avoid extra RPCs to determine whether type the ID refers to.
      *
      * <p>We don't expect this map to be huge, because most entities (probably) aren't going to be
      * addressed by ID.</p>
+     *
      * <p>This cache cleared when new topology is available in repository.</p>
      */
     private final Map<Long, ApiId> cachedIds = Collections.synchronizedMap(new HashMap<>());
@@ -102,7 +115,9 @@ public class UuidMapper implements RepositoryListener {
                       @Nonnull final TopologyProcessor topologyProcessor,
                       @Nonnull final PlanServiceBlockingStub planServiceBlockingStub,
                       @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                      @Nonnull final GroupExpander groupExpander) {
+                      @Nonnull final GroupExpander groupExpander,
+                      @Nonnull final ThinTargetCache thinTargetCache,
+                      @Nonnull final CloudTypeMapper cloudTypeMapper) {
         this.realtimeContextId = realtimeContextId;
         this.magicScopeGateway = magicScopeGateway;
         this.repositoryApi = repositoryApi;
@@ -110,6 +125,8 @@ public class UuidMapper implements RepositoryListener {
         this.planServiceBlockingStub = planServiceBlockingStub;
         this.groupServiceBlockingStub = groupServiceBlockingStub;
         this.groupExpander = groupExpander;
+        this.thinTargetCache = thinTargetCache;
+        this.cloudTypeMapper = cloudTypeMapper;
     }
 
     /**
@@ -130,7 +147,8 @@ public class UuidMapper implements RepositoryListener {
             if (existing == null) {
                 Metrics.CACHE_MISS_COUNT.increment();
                 return new ApiId(oid, realtimeContextId, repositoryApi, topologyProcessor,
-                    planServiceBlockingStub, groupServiceBlockingStub, groupExpander);
+                        planServiceBlockingStub, groupServiceBlockingStub, groupExpander,
+                        thinTargetCache, cloudTypeMapper);
             } else {
                 Metrics.CACHE_HIT_COUNT.increment();
                 return existing;
@@ -144,7 +162,8 @@ public class UuidMapper implements RepositoryListener {
             if (existing == null) {
                 Metrics.CACHE_MISS_COUNT.increment();
                 return new ApiId(oid, realtimeContextId, repositoryApi, topologyProcessor,
-                    planServiceBlockingStub, groupServiceBlockingStub, groupExpander);
+                        planServiceBlockingStub, groupServiceBlockingStub, groupExpander,
+                        thinTargetCache, cloudTypeMapper);
             } else {
                 Metrics.CACHE_HIT_COUNT.increment();
                 return existing;
@@ -356,6 +375,10 @@ public class UuidMapper implements RepositoryListener {
 
         private final RepositoryApi repositoryApi;
 
+        private final ThinTargetCache thinTargetCache;
+
+        private final CloudTypeMapper cloudTypeMapper;
+
         private static final Supplier<Boolean> FALSE = () -> false;
 
         private ApiId(final long value,
@@ -364,7 +387,9 @@ public class UuidMapper implements RepositoryListener {
                       @Nonnull final TopologyProcessor topologyProcessor,
                       @Nonnull final PlanServiceBlockingStub planServiceBlockingStub,
                       @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                      @Nonnull final GroupExpander groupExpander) {
+                      @Nonnull final GroupExpander groupExpander,
+                      @Nonnull final ThinTargetCache thinTargetCache,
+                      @Nonnull final CloudTypeMapper cloudTypeMapper) {
             this.oid = value;
             this.realtimeContextId = realtimeContextId;
             this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -372,6 +397,8 @@ public class UuidMapper implements RepositoryListener {
             this.planServiceBlockingStub = Objects.requireNonNull(planServiceBlockingStub);
             this.groupServiceBlockingStub = Objects.requireNonNull(groupServiceBlockingStub);
             this.groupExpander = groupExpander;
+            this.thinTargetCache = thinTargetCache;
+            this.cloudTypeMapper = cloudTypeMapper;
             if (isRealtimeMarket()) {
                 isPlan.trySetValue(false);
                 groupInfo.trySetValue(Optional.empty());
@@ -410,10 +437,12 @@ public class UuidMapper implements RepositoryListener {
          * Get the entity oids in this scope.
          *
          * @param userSessionContext if not null makes sure user has access to the scope.
+         * @param statApiInputDTOList Stats input DTO
          * @return the set of entity oids.
          */
         @Nonnull
-        public Set<Long> getScopeOids(@Nullable UserSessionContext userSessionContext) {
+        public Set<Long> getScopeOids(@Nullable UserSessionContext userSessionContext,
+                                      @Nullable List<StatApiInputDTO> statApiInputDTOList) {
             final Set<Long> result;
             if (isRealtimeMarket()) {
                 if (userSessionContext != null && userSessionContext.isUserScoped()) {
@@ -428,9 +457,10 @@ public class UuidMapper implements RepositoryListener {
             } else if (isGroup()) {
                 result = getCachedGroupInfo().get().getEntityIds();
             } else if (isPlan()) {
-                result = getPlanInstance()
+                final Set<Long> entitiesInPlanScope = getPlanInstance()
                     .map(MarketMapper::getPlanScopeIds)
                     .orElse(Collections.emptySet());
+                result = filterEntitiesByCsp(entitiesInPlanScope, statApiInputDTOList);
             } else if (isTarget()) {
                 synchronized (targetOidsLock) {
                     if (targetOids == null) {
@@ -459,7 +489,7 @@ public class UuidMapper implements RepositoryListener {
          */
         @Nonnull
         public Set<Long> getScopeOids() {
-            return getScopeOids(null);
+            return getScopeOids(null, null);
         }
 
         @Nonnull
@@ -548,6 +578,33 @@ public class UuidMapper implements RepositoryListener {
 
         public boolean isGroup() {
             return getCachedGroupInfo().isPresent();
+        }
+
+        /**
+         * Check that current scope is resource group or group of resource groups.
+         *
+         * @return in case of resource group / group of resource groups return true otherwise false
+         */
+        public boolean isResourceGroupOrGroupOfResourceGroups() {
+            boolean isResourceGroupsScope = false;
+            if (getGroupType().isPresent()) {
+                switch (getGroupType().get()) {
+                    case RESOURCE:
+                        isResourceGroupsScope = true;
+                        break;
+                    case REGULAR:
+                        if (getCachedGroupInfo().isPresent()) {
+                            final Set<GroupType> nestedGroupTypes =
+                                    getCachedGroupInfo().get().getNestedGroupTypes();
+                            if (!nestedGroupTypes.isEmpty()) {
+                                isResourceGroupsScope = nestedGroupTypes.stream()
+                                        .allMatch(el -> el.equals(GroupType.RESOURCE));
+                            }
+                        }
+                        break;
+                }
+            }
+            return isResourceGroupsScope;
         }
 
         public boolean isCloudGroup() {
@@ -758,6 +815,61 @@ public class UuidMapper implements RepositoryListener {
         @Override
         public int hashCode() {
             return Long.hashCode(this.oid);
+        }
+
+        /**
+         * Filter a list of scope OIDs by CSP.
+         *
+         * @param scopeOids a set of OIDs.
+         * @param statApiInputDTOList DTO that can have filters for CSP.
+         * @return The subset of scope OIDs that belong to the CSPs indicated in the input filter.
+         */
+        @VisibleForTesting
+        Set<Long> filterEntitiesByCsp(Set<Long> scopeOids, List<StatApiInputDTO> statApiInputDTOList) {
+            Set<String> cspFilter = getCspFilter(statApiInputDTOList);
+            if (!cspFilter.isEmpty()) {
+                scopeOids = repositoryApi.entitiesRequest(scopeOids).getMinimalEntities()
+                        .filter(e -> {
+                            if (!e.getDiscoveringTargetIdsList().isEmpty()) {
+                                long targetId = e.getDiscoveringTargetIdsList().get(0);
+                                Optional<ThinTargetCache.ThinTargetInfo> thinInfo =
+                                        thinTargetCache.getTargetInfo(targetId);
+                                if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
+                                    ThinTargetCache.ThinTargetInfo probeInfo = thinInfo.get();
+                                    Optional<CloudType> cloudType =
+                                                cloudTypeMapper.fromTargetType(probeInfo.probeInfo().type());
+                                    if (cloudType.isPresent() && cspFilter.contains(cloudType.get().name())) {
+                                        return true;
+                                    }
+                                }
+                            }
+                            return false;
+                        })
+                        .map(MinimalEntity::getOid)
+                        .collect(Collectors.toSet());
+            }
+            return scopeOids;
+        }
+
+        /**
+         * The statApiInput may include a filter criterion for CSPs. If the filter is present,
+         * return entities that belong to the indicated CSPs.
+         *
+         * @param statApiInput API input for the stats request.
+         * @return a set of entity OIDs filtered by CSP.
+         */
+        private Set<String> getCspFilter(List<StatApiInputDTO> statApiInput) {
+            if (statApiInput != null && statApiInput.size() > 0) {
+                return statApiInput.stream().flatMap(input -> {
+                    if (input.getFilters() != null) {
+                        return input.getFilters().stream()
+                                .filter(f -> f.getType().equalsIgnoreCase(StringConstants.CSP))
+                                .map(StatFilterApiDTO::getValue);
+                    }
+                    return Stream.empty();
+                }).collect(Collectors.toSet());
+            }
+            return Collections.emptySet();
         }
     }
 

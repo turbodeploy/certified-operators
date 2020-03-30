@@ -276,7 +276,7 @@ public class RICostDataUploader {
                         riSpecInfoBuilder.setSizeFlexible(riData.getInstanceSizeFlexible());
                     }
                     if (riData.hasPlatformFlexible()) {
-                        riSpecInfoBuilder.setPlatformFlexible(riData.getInstanceSizeFlexible());
+                        riSpecInfoBuilder.setPlatformFlexible(riData.getPlatformFlexible());
                     }
                     ReservedInstanceSpecInfo riSpecInfo = riSpecInfoBuilder.build();
 

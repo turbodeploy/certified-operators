@@ -54,6 +54,7 @@ public class BusinessAccountInfoMapperTest {
             .setBusinessAccount(BusinessAccountInfo.newBuilder()
                 .setAssociatedTargetId(DISCOVERING_TARGET_ID)
                 .setAccountId(SUBSCRIPTION_ID)
+                .setRiSupported(true)
                 .addAllPricingIdentifiers(businessAccountEntityDTO.getBusinessAccountData()
                     .getPricingIdentifiersList())
                 .build())
@@ -81,6 +82,7 @@ public class BusinessAccountInfoMapperTest {
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
             .setBusinessAccount(BusinessAccountInfo.newBuilder()
                 .setAssociatedTargetId(DISCOVERING_TARGET_ID)
+                .setRiSupported(true)
                 .setAccountId(SUBSCRIPTION_ID)
                 .build())
             .build();
@@ -105,6 +107,7 @@ public class BusinessAccountInfoMapperTest {
         TypeSpecificInfo expected = TypeSpecificInfo.newBuilder()
             .setBusinessAccount(BusinessAccountInfo.newBuilder()
                 .setAccountId(SUBSCRIPTION_ID)
+                .setRiSupported(true)
                 .build())
             .build();
         final BusinessAccountInfoMapper testBuilder = new BusinessAccountInfoMapper();

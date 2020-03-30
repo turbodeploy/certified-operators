@@ -83,6 +83,8 @@ public enum ApiEntityType {
     PROCESSOR_POOL(StringConstants.PROCESSOR_POOL, EntityType.PROCESSOR_POOL),
     /** Region entity type. */
     REGION(StringConstants.REGION, EntityType.REGION),
+    /** ReservedInstance entity type. */
+    RESERVED_INSTANCE(StringConstants.RESERVED_INSTANCE, EntityType.RESERVED_INSTANCE),
     /** ServiceProvider entity type. */
     SERVICE_PROVIDER(StringConstants.SERVICE_PROVIDER, EntityType.SERVICE_PROVIDER),
     /** StorageController entity type. */

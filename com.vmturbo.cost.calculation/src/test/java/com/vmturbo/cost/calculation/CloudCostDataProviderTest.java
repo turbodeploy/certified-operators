@@ -148,12 +148,12 @@ public class CloudCostDataProviderTest {
             = new HashMap<>();
 
     private CloudCostData<TopologyEntityDTO> cloudCostDataAWS =
-            new CloudCostData<>(Collections.emptyMap(),
+            new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(),
     Collections.emptyMap(), Collections.emptyMap(),
         Collections.emptyMap(), awsAccountPricingDatByBaMap);
 
     private CloudCostData<TopologyEntityDTO> cloudCostDataAzure =
-            new CloudCostData<>(Collections.emptyMap(),
+            new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(),
     Collections.emptyMap(), Collections.emptyMap(),
         Collections.emptyMap(), azureAccountPricingDatByBaMap);
 

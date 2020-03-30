@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
@@ -64,6 +65,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
+import com.vmturbo.topology.processor.template.TemplateConverterTestUtil;
+import com.vmturbo.topology.processor.template.VirtualMachineEntityConstructor;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
@@ -73,6 +76,11 @@ public class EntitySettingsApplicatorTest {
 
     private static final long PARENT_ID = 23345;
     private static final long DEFAULT_SETTING_ID = 23346;
+
+    private static final Template VM_TEMPLATE = Template.newBuilder()
+            .setId(123)
+            .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
+            .build();
 
     private static final Setting INSTANCE_STORE_AWARE_SCALING_SETTING =
                     createInstanceStoreAwareScalingSetting(true);
@@ -525,6 +533,29 @@ public class EntitySettingsApplicatorTest {
         Assert.assertEquals(10_000, vCPUCommoditySoldThresholds.getMin(), DELTA);
         // VCPU min is 100 cores X 1000 (host CPU speed)
         Assert.assertEquals(100_000, vCPUCommoditySoldThresholds.getMax(), DELTA);
+    }
+
+    /**
+     * Tests applying of VCPU min/Max applicators for a VM from Template.
+     */
+    @Test
+    public void testThresholdApplicatorForTemplateVM() {
+        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(888)
+                .setEnvironmentType(EnvironmentType.ON_PREM);
+        final TopologyEntityDTO.Builder entity =
+            new VirtualMachineEntityConstructor().createTopologyEntityFromTemplate(VM_TEMPLATE, builder,
+                Collections.emptyMap(), null);
+        final long entityId = entity.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator
+            .newGraph(ImmutableMap.of(entityId, topologyEntityBuilder(entity)));
+        applySettings(TOPOLOGY_INFO, applicator, graph, entityId, VCPU_MIN_SETTING, VCPU_MAX_SETTING);
+        final Thresholds vCPUCommoditySoldThresholds = entity.getCommoditySoldList(0).getThresholds();
+        // VCPU min is 10 cores X 200 (vm capacity / num cpu)
+        Assert.assertEquals(2000, vCPUCommoditySoldThresholds.getMin(), DELTA);
+        // VCPU min is 100 cores X 200 (vm capacity / num cpu)
+        Assert.assertEquals(20000, vCPUCommoditySoldThresholds.getMax(), DELTA);
     }
 
     /**

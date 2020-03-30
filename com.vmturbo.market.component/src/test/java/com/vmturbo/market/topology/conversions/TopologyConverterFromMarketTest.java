@@ -790,6 +790,7 @@ public class TopologyConverterFromMarketTest {
             .getCommodityBoughtList();
         assertEquals(1, actualBoughtCommodityList.size());
         assertEquals(RAW_VM_USED, actualBoughtCommodityList.iterator().next().getUsed(), epsilon);
+        assertEquals((double)SCALING_FACTOR, actualBoughtCommodityList.iterator().next().getScalingFactor(), TopologyConverter.EPSILON);
     }
 
     /**
@@ -920,6 +921,7 @@ public class TopologyConverterFromMarketTest {
         assertEquals(MARKET_PM_CAPACITY, actualCpuCommodity.getCapacity(),
                 TopologyConverter.EPSILON);
         assertEquals(MARKET_PM_USED, actualCpuCommodity.getUsed(), TopologyConverter.EPSILON);
+        assertEquals(Double.MIN_VALUE, actualCpuCommodity.getScalingFactor(), TopologyConverter.EPSILON);
         // check that the VM expected used matches the actual converted used
         assertEquals(1, entity.get(vmTrader.getOid()).getEntity()
                 .getCommoditiesBoughtFromProvidersList().size());
@@ -929,7 +931,7 @@ public class TopologyConverterFromMarketTest {
         assertEquals(1, actualBoughtCommodityList.size());
         assertEquals(RAW_VM_USED, actualBoughtCommodityList.iterator().next().getUsed(),
                 TopologyConverter.EPSILON);
-
+        assertEquals((double)SCALING_FACTOR, actualBoughtCommodityList.iterator().next().getScalingFactor(), TopologyConverter.EPSILON);
     }
 
     @Test

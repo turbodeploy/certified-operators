@@ -81,7 +81,7 @@ public class TimeRangeTest {
         final StatsFilter statsFilter = StatsFilter.getDefaultInstance();
 
         final Timestamp timestamp = new Timestamp(1L);
-        when(historydbIO.getClosestTimestampBefore(statsFilter, Optional.empty(), Optional.empty()))
+        when(historydbIO.getClosestTimestampBefore(statsFilter, Optional.empty(), Optional.empty(), Optional.empty()))
                 .thenReturn(Optional.of(timestamp));
         doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(1L);
 
@@ -101,13 +101,13 @@ public class TimeRangeTest {
         final StatsFilter statsFilter = StatsFilter.getDefaultInstance();
 
         final Timestamp timestamp = new Timestamp(1L);
-        when(historydbIO.getClosestTimestampBefore(statsFilter, Optional.empty(), Optional.of(TimeFrame.DAY)))
+        when(historydbIO.getClosestTimestampBefore(statsFilter, Optional.empty(), Optional.of(TimeFrame.DAY), Optional.empty()))
                 .thenReturn(Optional.of(timestamp));
 
         final TimeRange timeRange =
                 timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(),
                         Optional.empty(), Optional.empty(), Optional.of(TimeFrame.DAY)).get();
-        verify(historydbIO).getClosestTimestampBefore(any(), any(), eq(Optional.of(TimeFrame.DAY)));
+        verify(historydbIO).getClosestTimestampBefore(any(), any(), eq(Optional.of(TimeFrame.DAY)), any());
         verify(timeFrameCalculator, never()).millis2TimeFrame(1L);
         assertThat(timeRange.getStartTime(), is(1L));
         assertThat(timeRange.getEndTime(), is(1L));
@@ -119,7 +119,7 @@ public class TimeRangeTest {
     @Test
     public void testFactoryDefaultTimeRangeNoRecentTimestamp() throws VmtDbException {
         final StatsFilter statsFilter = StatsFilter.getDefaultInstance();
-        when(historydbIO.getClosestTimestampBefore(statsFilter, Optional.empty(), Optional.empty()))
+        when(historydbIO.getClosestTimestampBefore(statsFilter, Optional.empty(), Optional.empty(), Optional.empty()))
                 .thenReturn(Optional.empty());
         final Optional<TimeRange> timeRangeOpt =
                 timeRangeFactory.resolveTimeRange(statsFilter, Optional.empty(), Optional.empty(),
@@ -137,7 +137,7 @@ public class TimeRangeTest {
                 .build();
         // Window expansion should only apply when time frame is latest.
         doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startAndEndTime);
-        when(historydbIO.getClosestTimestampBefore(eq(statsFilter), any(), any()))
+        when(historydbIO.getClosestTimestampBefore(eq(statsFilter), any(), any(), any()))
                 .thenReturn(Optional.of(timestamp));
 
         final Optional<TimeRange> timeRangeOpt =
@@ -162,7 +162,7 @@ public class TimeRangeTest {
                 .setStartDate(startAndEndTime)
                 .setEndDate(startAndEndTime)
                 .build();
-        when(historydbIO.getClosestTimestampBefore(eq(statsFilter), any(), any()))
+        when(historydbIO.getClosestTimestampBefore(eq(statsFilter), any(), any(), any()))
                 .thenReturn(Optional.of(timestamp));
 
         final Optional<TimeRange> timeRangeOpt =
@@ -292,7 +292,7 @@ public class TimeRangeTest {
                                 .setCommodityName(StringConstants.CPU))
                         .build();
         doReturn(TimeFrame.LATEST).when(timeFrameCalculator).millis2TimeFrame(startTime);
-        when(historydbIO.getClosestTimestampBefore(eq(filterWithMixedComm),eq(Optional.of(startTime)), any()))
+        when(historydbIO.getClosestTimestampBefore(eq(filterWithMixedComm), eq(Optional.of(startTime)), any(), any()))
                 .thenReturn(Optional.of(cpuTimestamp));
 
         final Optional<TimeRange> timeRangeOpt1 = timeRangeFactory.resolveTimeRange(filterWithMixedComm,
@@ -358,7 +358,7 @@ public class TimeRangeTest {
         final StatsFilter statsFilterNoDate = StatsFilter.newBuilder().build();
 
         when(historydbIO.getClosestTimestampBefore(statsFilterNoDate,
-            Optional.empty(), Optional.empty())).thenReturn(Optional.of(vmTimestamp));
+                Optional.empty(), Optional.empty(), Optional.empty())).thenReturn(Optional.of(vmTimestamp));
 
         Optional<TimeRange> vmTimeRange = timeRangeFactory.resolveTimeRange(statsFilterNoDate,
             Optional.of(ImmutableList.of(specificEntityOid)), Optional.of(vmType), Optional.empty(), Optional.empty());

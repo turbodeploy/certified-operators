@@ -131,7 +131,14 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
 
     @Override
     public int compareTo(final Object o) {
-        return -1;
+        // Make sure OnDemandJournalEntries are processed first. Within a set of OnDemandJournalEntries
+        // the order does not affect the cost calculations (QualifiedJournalEntry will used the identity
+        // hash to order entries).
+        if (o instanceof OnDemandJournalEntry) {
+            return QualifiedJournalEntry.super.compareTo(o);
+        } else {
+            return Integer.MIN_VALUE;
+        }
     }
 
     public E getPayee() {
