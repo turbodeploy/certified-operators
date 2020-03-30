@@ -41,6 +41,7 @@
         "resizeVmemAboveMaxThreshold",
         "resizeVmemBelowMinThreshold",
         "enforceNonDisruptive",
+        "useHypervisorMetricsForResizing",
         "disableAllActions"
       ],
       // Automation settings are pretty specific in the API/UI,
