@@ -216,9 +216,9 @@ public class GroupScopeResolverTest {
 
     private final static GetMembersResponse getGetMembersResponse(long groupId, int index) {
         return GetMembersResponse.newBuilder()
-                .setGroupId(groupId)
-                .addMemberId(memberId[index])
-                .build();
+            .setGroupId(groupId)
+            .addMemberId(memberId[index])
+            .build();
     }
 
     private final static PartialEntityBatch getRetrieveScopedVMEntitiesResponse(int index) {

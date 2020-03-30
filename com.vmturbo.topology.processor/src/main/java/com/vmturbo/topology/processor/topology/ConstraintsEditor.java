@@ -184,7 +184,7 @@ public class ConstraintsEditor {
                         .build())
                 .forEachRemaining(group -> {
                     try {
-                        Set<Long> groupMembersOids = groupResolver.resolve(group, graph);
+                        Set<Long> groupMembersOids = groupResolver.resolve(group, graph).getAllEntities();
                         // Remove entityIds for which we have already determined that all commodity
                         // constraints have to be ignored.
                         groupMembersOids.removeAll(entitesToIgnoredCommodities.keySet());
