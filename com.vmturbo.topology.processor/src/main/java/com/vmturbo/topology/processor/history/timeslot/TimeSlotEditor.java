@@ -1,26 +1,30 @@
 package com.vmturbo.topology.processor.history.timeslot;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
@@ -28,6 +32,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -44,19 +49,16 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
  * Calculate and provide time slot historical values for topology commodities.
  */
 public class TimeSlotEditor extends
-    AbstractBackgroundLoadingHistoricalEditor<TimeSlotCommodityData,
-                TimeSlotLoadingTask,
-                TimeslotHistoricalEditorConfig,
-                List<Pair<Long, StatRecord>>,
-                StatsHistoryServiceBlockingStub,
-                Void> {
+                AbstractBackgroundLoadingHistoricalEditor<TimeSlotCommodityData,
+                                TimeSlotLoadingTask,
+                                TimeslotHistoricalEditorConfig,
+                                List<Pair<Long, StatRecord>>,
+                                StatsHistoryServiceBlockingStub,
+                                Void> {
     private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES = ImmutableSet
                     .of(CommodityDTO.CommodityType.POOL_CPU,
-                        CommodityDTO.CommodityType.POOL_MEM,
-                        CommodityDTO.CommodityType.POOL_STORAGE);
-
-    private final Cache<Long, Map<Long, Integer>> topologyToApplicableEntityToPeriod =
-                    CacheBuilder.newBuilder().expireAfterAccess(12, TimeUnit.HOURS).build();
+                                    CommodityDTO.CommodityType.POOL_MEM,
+                                    CommodityDTO.CommodityType.POOL_STORAGE);
 
     /**
      * Stores information about time when we first time started TP. It is required to re-enable back
@@ -78,26 +80,13 @@ public class TimeSlotEditor extends
      * @param config configuration settings
      * @param statsHistoryClient history component stub
      * @param loadingPool loads data for time slot analysis in background.
+     * @param taskCreator create an instance of a db value loading task
      */
-    public TimeSlotEditor(TimeslotHistoricalEditorConfig config,
-                    StatsHistoryServiceBlockingStub statsHistoryClient,
-                    @Nonnull ExecutorService loadingPool) {
-        this(config, statsHistoryClient, loadingPool, TimeSlotLoadingTask::new);
-    }
-
-    /**
-     * Construct the timeslot historical values editor.
-     *
-     * @param config configuration settings
-     * @param statsHistoryClient history component stub
-     * @param loadingPool loads data for time slot analysis in background.
-     * @param loadingTaskSupplier creator of task that will do background loading
-     */
-    public TimeSlotEditor(TimeslotHistoricalEditorConfig config,
-                    StatsHistoryServiceBlockingStub statsHistoryClient,
+    public TimeSlotEditor(@Nonnull TimeslotHistoricalEditorConfig config,
+                    @Nonnull StatsHistoryServiceBlockingStub statsHistoryClient,
                     @Nonnull ExecutorService loadingPool,
-                    @Nonnull Function<StatsHistoryServiceBlockingStub, TimeSlotLoadingTask> loadingTaskSupplier) {
-        super(config, statsHistoryClient, loadingTaskSupplier, TimeSlotCommodityData::new,
+                    @Nonnull BiFunction<StatsHistoryServiceBlockingStub, Pair<Long, Long>, TimeSlotLoadingTask> taskCreator) {
+        super(config, statsHistoryClient, taskCreator, TimeSlotCommodityData::new,
                         loadingPool);
     }
 
@@ -113,7 +102,7 @@ public class TimeSlotEditor extends
 
     @Override
     public boolean isApplicable(List<ScenarioChange> changes, TopologyInfo topologyInfo,
-                                PlanScope scope) {
+                    PlanScope scope) {
         return true;
     }
 
@@ -124,14 +113,13 @@ public class TimeSlotEditor extends
 
     @Override
     public boolean isCommodityApplicable(TopologyEntity entity,
-                                         TopologyDTO.CommoditySoldDTO.Builder commSold) {
+                    TopologyDTO.CommoditySoldDTO.Builder commSold) {
         return false;
     }
 
     @Override
-    public boolean
-           isCommodityApplicable(TopologyEntity entity,
-                                 TopologyDTO.CommodityBoughtDTO.Builder commBought) {
+    public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
+                    TopologyDTO.CommodityBoughtDTO.Builder commBought) {
         return ENABLED_BOUGHT_COMMODITY_TYPES
                         .contains(CommodityType.forNumber(commBought.getCommodityType().getType()));
     }
@@ -143,30 +131,34 @@ public class TimeSlotEditor extends
 
     @Override
     @Nonnull
-    public List<? extends Callable<List<EntityCommodityFieldReference>>>
-           createPreparationTasks(@Nonnull HistoryAggregationContext context,
-                                  @Nonnull List<EntityCommodityReference> commodityRefs) {
+    public List<? extends Callable<List<EntityCommodityFieldReference>>> createPreparationTasks(
+                    @Nonnull HistoryAggregationContext context,
+                    @Nonnull List<EntityCommodityReference> commodityRefs) {
         if (!hasEnoughHistoricalData(context, commodityRefs)) {
             return Collections.emptyList();
         }
-        List<EntityCommodityReference> uninitializedCommodities =
+        final List<EntityCommodityReference> uninitializedCommodities =
                         gatherUninitializedCommodities(commodityRefs);
         // partition by configured observation window first
         // we are only interested in business users
-        final Map<Long, Integer> entity2period = getApplicableEntityToPeriod(context);
-        Map<Integer, List<EntityCommodityReference>> period2comms = uninitializedCommodities.stream()
-                        .collect(Collectors.groupingBy(comm -> entity2period.get(comm.getEntityOid())));
+        final Map<Integer, List<EntityCommodityReference>> period2comms =
+                        uninitializedCommodities.stream().collect(Collectors
+                                        .groupingBy(comm -> getConfig()
+                                                        .getObservationPeriod(context,
+                                                                        comm.getEntityOid())));
 
         List<HistoryLoadingCallable> loadingTasks = new LinkedList<>();
+        final long now = getConfig().getClock().millis();
         for (Map.Entry<Integer, List<EntityCommodityReference>> period2comm : period2comms.entrySet()) {
             // chunk commodities of each period by configured size
             List<List<EntityCommodityReference>> partitions = Lists
                             .partition(period2comm.getValue(), getConfig().getLoadingChunkSize());
             for (List<EntityCommodityReference> chunk : partitions) {
+                final Pair<Long, Long> range = new Pair<>(now
+                                - period2comm.getKey() * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS,
+                                null);
                 loadingTasks.add(new HistoryLoadingCallable(context,
-                                                            new TimeSlotLoadingTask(getStatsHistoryClient(),
-                                                                                    period2comm.getKey()),
-                                                            chunk));
+                                new TimeSlotLoadingTask(getStatsHistoryClient(), range), chunk));
             }
         }
         return loadingTasks;
@@ -178,9 +170,10 @@ public class TimeSlotEditor extends
         if (super.hasEnoughHistoricalData(context, commodityRefs)) {
             return true;
         }
-        final int maxObservationPeriod =
-                        getApplicableEntityToPeriod(context).values().stream().mapToInt(i -> i)
-                                        .max().orElse(Integer.MAX_VALUE);
+
+        final int maxObservationPeriod = commodityRefs.stream().mapToInt(comm -> getConfig()
+                        .getObservationPeriod(context, comm.getEntityOid())).max()
+                        .orElse(Integer.MAX_VALUE);
         final long runningTime = getConfig().getClock().millis() - startTimestamp;
         final boolean hasHistoricalData =
                         runningTime > Duration.ofDays(maxObservationPeriod).toMillis();
@@ -188,31 +181,17 @@ public class TimeSlotEditor extends
             clearLoadingStatistic();
             getLogger().info(
                             "Data collected for '{}'ms, which is greater than '{}' days (max observation period). So, analysis will be re-enabled",
-                            runningTime, maxObservationPeriod);
+                            Duration.ofMillis(runningTime), maxObservationPeriod);
         }
         return hasHistoricalData;
     }
 
-    private Map<Long, Integer> getApplicableEntityToPeriod(
-                    @Nonnull HistoryAggregationContext context) {
-        try {
-            return topologyToApplicableEntityToPeriod.get(context.getTopologyId(),
-                            () -> context.entityToSetting(this::isEntityApplicable,
-                                            entity -> getConfig().getObservationPeriod(context,
-                                                            entity.getOid())));
-        } catch (ExecutionException e) {
-            getLogger().error("Cannot get applicable entity to observation period mapping",
-                            e.getCause());
-        }
-        return Collections.emptyMap();
-    }
-
     @Override
     public void completeBroadcast(@Nonnull HistoryAggregationContext context)
-            throws HistoryCalculationException, InterruptedException {
+                    throws HistoryCalculationException, InterruptedException {
         updateSoldHistoricalTimeSlotValues(context);
         super.completeBroadcast(context);
-        topologyToApplicableEntityToPeriod.invalidate(context.getTopologyId());
+        maintenance(context);
     }
 
     private void updateSoldHistoricalTimeSlotValues(final HistoryAggregationContext context) {
@@ -247,4 +226,56 @@ public class TimeSlotEditor extends
         }
     }
 
+    private void maintenance(@Nonnull HistoryAggregationContext context) {
+        if (context.isPlan() || isRunning()) {
+            return;
+        }
+        final Collection<EntityCommodityReference> outdatedReferences = new HashSet<>();
+        long startMs = Long.MAX_VALUE;
+        long endMs = Long.MIN_VALUE;
+        final long nowMs = getConfig().getClock().millis();
+        final long maintenancePeriodMs = getConfig().getMaintenanceWindowHours()
+                        * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
+        // anyMatch has been called explicitly for optimization purposes
+        final Logger logger = getLogger();
+        for (Entry<EntityCommodityFieldReference, TimeSlotCommodityData> refToData : getCache()
+                        .entrySet()) {
+            final EntityCommodityFieldReference ref = refToData.getKey();
+            final long observationWindowMs =
+                            getConfig().getObservationPeriod(context, ref.getEntityOid())
+                                            * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
+            final long startTimestampMs = refToData.getValue().getLastMaintenanceTimestamp();
+            if (!(startTimestampMs < nowMs - observationWindowMs - maintenancePeriodMs)) {
+                continue;
+            }
+            startMs = Math.min(startMs, startTimestampMs);
+            endMs = Math.max(endMs, nowMs - observationWindowMs);
+            outdatedReferences.add(ref);
+        }
+        if (outdatedReferences.isEmpty()) {
+            return;
+        }
+        logger.info("Starting maintenance for '{}'ms-'{}'ms time range for '{}' references",
+                        Instant.ofEpochMilli(startMs), Instant.ofEpochMilli(endMs),
+                        outdatedReferences.size());
+        final Stopwatch stopwatch = Stopwatch.createStarted();
+        try {
+            final Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> outdatedRecords =
+                            createLoadingTask(Pair.create(startMs, endMs))
+                                            .load(outdatedReferences, getConfig());
+            for (Entry<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> refToData : outdatedRecords
+                            .entrySet()) {
+                final EntityCommodityFieldReference reference = refToData.getKey();
+                final TimeSlotCommodityData timeSlotCommodityData = getCache().get(reference);
+                timeSlotCommodityData.checkpoint(Collections.singletonList(refToData.getValue()));
+            }
+            logger.info("Maintenance completed for '{}'ms-'{}'ms time range for '{}' references in '{}'ms",
+                            Instant.ofEpochMilli(startMs), Instant.ofEpochMilli(endMs),
+                            outdatedReferences.size(), stopwatch.elapsed(TimeUnit.MILLISECONDS));
+        } catch (HistoryCalculationException e) {
+            logger.error("Maintenance failed for '{}'ms-'{}'ms time range for '{}' references in '{}'ms",
+                            Instant.ofEpochMilli(startMs), Instant.ofEpochMilli(endMs),
+                            outdatedReferences.size(), stopwatch.elapsed(TimeUnit.MILLISECONDS), e);
+        }
+    }
 }
