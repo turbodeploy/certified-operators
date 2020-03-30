@@ -4,7 +4,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,29 +13,25 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-
 import org.junit.Assert;
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
+
 import com.vmturbo.common.protobuf.group.GroupDTO;
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.topology.TopologyEntityUtils;
 
 public class SettingOverridesTest {
@@ -94,7 +89,7 @@ public class SettingOverridesTest {
             EntitySettingSpecs.MemoryUtilization, 20, Optional.ofNullable(null));
         List<ScenarioChange> changes = Lists.newArrayList(cpuUtilizationChange, memoryUtilizationChange);
         SettingOverrides settingOverrides = new SettingOverrides(changes);
-        settingOverrides.resolveGroupOverrides(Collections.emptyMap());
+        settingOverrides.resolveGroupOverrides(new HashMap<>(), groupResolver, topologyGraph);
         Assert.assertEquals(1, settingOverrides.overridesForEntityType.size());
         Assert.assertEquals(1, settingOverrides.overridesForGroup.size());
     }
@@ -111,9 +106,8 @@ public class SettingOverridesTest {
             EntitySettingSpecs.StorageAmountUtilization, 10, Optional.of(stGroupId));
         List<ScenarioChange> changes = Lists.newArrayList(storageAmountUtilizationChange);
         SettingOverrides settingOverrides = new SettingOverrides(changes);
-        Map<Long, ResolvedGroup> groups = Collections.singletonMap(storageGroup.getId(),
-            resolvedGroup(storageGroup, ApiEntityType.STORAGE, entities));
-        settingOverrides.resolveGroupOverrides(groups);
+        when(groupResolver.resolve(storageGroup, topologyGraph)).thenReturn(entities);
+        settingOverrides.resolveGroupOverrides(groupsById, groupResolver, topologyGraph);
         Assert.assertEquals(1, settingOverrides.overridesForEntity.size());
         Assert.assertTrue(10 == settingOverrides.overridesForEntity.get(333L)
             .get(EntitySettingSpecs.StorageAmountUtilization.getSettingName())
@@ -149,11 +143,12 @@ public class SettingOverridesTest {
         when(topologyGraph.entitiesOfType(EntityType.STORAGE.getValue()))
         .thenReturn(Stream.of(topologyEntity3, topologyEntity4));
 
-        Map<Long, ResolvedGroup> groups = ImmutableMap.of(
-            hostGroup.getId(), resolvedGroup(hostGroup, ApiEntityType.PHYSICAL_MACHINE, Sets.newHashSet(topologyEntity1.getOid(), topologyEntity2.getOid())),
-            storageGroup.getId(), resolvedGroup(storageGroup, ApiEntityType.STORAGE, Sets.newHashSet(topologyEntity3.getOid(), topologyEntity4.getOid())));
+        when(groupResolver.resolve(hostGroup, topologyGraph))
+            .thenReturn(ImmutableSet.of(topologyEntity1.getOid(), topologyEntity2.getOid()));
+        when(groupResolver.resolve(storageGroup, topologyGraph))
+        .thenReturn(ImmutableSet.of(topologyEntity3.getOid(), topologyEntity4.getOid()));
 
-        settingOverrides.resolveGroupOverrides(groups);
+        settingOverrides.resolveGroupOverrides(groupsById, groupResolver, topologyGraph);
 
         Assert.assertTrue(settingOverrides.overridesForEntity.size() == 4);
 
@@ -180,11 +175,10 @@ public class SettingOverridesTest {
             new SettingOverrides(Arrays.asList(groupAStorageSetting, groupBStorageSetting));
 
         // Entities in pm1Set belongs to two different groups
-        Map<Long, ResolvedGroup> groups = ImmutableMap.of(
-            hostGroup.getId(), resolvedGroup(hostGroup, ApiEntityType.STORAGE, pm1Set),
-            storageGroup.getId(), resolvedGroup(storageGroup, ApiEntityType.STORAGE, pm1Set));
+        when(groupResolver.resolve(hostGroup, topologyGraph)).thenReturn(pm1Set);
+        when(groupResolver.resolve(storageGroup, topologyGraph)).thenReturn(pm1Set);
 
-        settingOverrides.resolveGroupOverrides(groups);
+        settingOverrides.resolveGroupOverrides(groupsById, groupResolver, topologyGraph);
         // tie breaker is set to choose the smallest value
         Assert.assertTrue(settingOverrides.overridesForEntity.get(111L)
             .get(EntitySettingSpecs.StorageAmountUtilization.getSettingName())
@@ -212,10 +206,9 @@ public class SettingOverridesTest {
                 .thenReturn(Stream.of(topologyEntity1, topologyEntity2));
 
         // Only return one host with 111L and leave host with id 222L
-        Map<Long, ResolvedGroup> groups = ImmutableMap.of(
-            hostGroup.getId(), resolvedGroup(hostGroup, ApiEntityType.PHYSICAL_MACHINE, pm1Set));
+        when(groupResolver.resolve(hostGroup, topologyGraph)).thenReturn(pm1Set);
 
-        settingOverrides.resolveGroupOverrides(groups);
+        settingOverrides.resolveGroupOverrides(groupsById, groupResolver, topologyGraph);
 
         // Only host with id 111L has setting disabled.
         Assert.assertTrue(settingOverrides.overridesForEntity.size() == 1);
@@ -252,9 +245,5 @@ public class SettingOverridesTest {
         return SettingOverride.newBuilder().setSetting(Setting.newBuilder()
                 .setSettingSpecName(name)
                 .setStringSettingValue(StringSettingValue.newBuilder().setValue(value)));
-    }
-
-    private ResolvedGroup resolvedGroup(Grouping group, ApiEntityType type, Set<Long> members) {
-        return new ResolvedGroup(group, Collections.singletonMap(type, members));
     }
 }

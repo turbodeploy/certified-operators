@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.resolvedGroup;
-import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
+import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
+import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.staticGroupMembers;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -17,17 +17,17 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
-
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -104,9 +104,9 @@ public class AtMostNPolicyTest {
     @Test
     public void testApplyEmpty() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(consumerGroup));
+            .thenReturn(Collections.<Long>emptySet());
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(providerGroup));
+            .thenReturn(Collections.<Long>emptySet());
 
         applyPolicy(new AtMostNPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
                 new PolicyEntities(providerGroup)));
@@ -126,9 +126,9 @@ public class AtMostNPolicyTest {
     @Test
     public void testApplyEmptyConsumers() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(consumerGroup, 4L));
+            .thenReturn(Collections.singleton(4L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(providerGroup));
+            .thenReturn(Collections.<Long>emptySet());
 
         applyPolicy(new AtMostNPolicy(policy, new PolicyEntities(consumerGroup, Collections.emptySet()),
                 new PolicyEntities(providerGroup)));
@@ -147,9 +147,9 @@ public class AtMostNPolicyTest {
     @Test
     public void testApplyVmToHostAntiAffinity() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(consumerGroup, 4L, 5L));
+            .thenReturn(Sets.newHashSet(4L, 5L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(providerGroup, 1L, 2L));
+            .thenReturn(Sets.newHashSet(1L, 2L));
 
         applyPolicy(new AtMostNPolicy(policy, new PolicyEntities(consumerGroup, Sets.newHashSet(8L)),
                 new PolicyEntities(providerGroup)));
@@ -191,9 +191,9 @@ public class AtMostNPolicyTest {
                 .build();
 
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(consumerGroup, 4L, 5L));
+            .thenReturn(Sets.newHashSet(4L, 5L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(providerGroup, 3L));
+            .thenReturn(Collections.singleton(3L));
 
         final AtMostNPolicy atMostN = new AtMostNPolicy(policy,
             new PolicyEntities(consumerGroup,  Collections.emptySet()),

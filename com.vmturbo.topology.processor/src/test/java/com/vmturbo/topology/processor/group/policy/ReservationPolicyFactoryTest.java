@@ -100,10 +100,9 @@ public class ReservationPolicyFactoryTest {
                 .build();
         final GetMembersRequest request = GetMembersRequest.newBuilder().addId(123L).build();
         final GetMembersResponse response = GetMembersResponse.newBuilder()
-            .setGroupId(123L)
-            .addMemberId(1L)
-            .addMemberId(3L)
-            .build();
+                .setGroupId(123L)
+                .addAllMemberId(Lists.newArrayList(1L, 3L))
+                .build();
         Mockito.when(groupServiceMole.getMembers(request))
                 .thenReturn(Collections.singletonList(response));
         final PlacementPolicy placementPolicy =

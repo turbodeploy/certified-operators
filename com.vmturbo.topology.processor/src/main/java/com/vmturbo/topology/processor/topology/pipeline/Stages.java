@@ -548,17 +548,13 @@ public class Stages {
         }
 
         @Override
-        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) throws PipelineStageException {
+        public Status passthrough(@Nonnull final Map<Long, TopologyEntity.Builder> input) {
             // Topology editing should use a group resolver distinct from the rest of the pipeline.
             // This is so that pre-edit group membership lookups don't get cached in the "main"
             // group resolver, preventing post-edit group membership lookups from seeing members
             // added or removed during editing.
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
-            try {
-                topologyEditor.editTopology(input, changes, getContext().getTopologyInfo(), groupResolver);
-            } catch (GroupResolutionException e) {
-                throw new PipelineStageException(e);
-            }
+            topologyEditor.editTopology(input, changes, getContext().getTopologyInfo(), groupResolver);
             // TODO (roman, Oct 23 2018): Add some information about the number/type of
             // modifications made.
             return Status.success();
@@ -667,17 +663,19 @@ public class Stages {
                                 .addAllId(groupsToResolve))
                         .setReplaceGroupPropertyWithGroupMembershipFilter(true)
                         .build();
-                groupServiceClient.getGroups(request).forEachRemaining(group -> {
-                        try {
-                            // add each group's members to the set of additional seed entities
-                            Set<Long> groupMemberOids = getContext().getGroupResolver().resolve(group, input).getAllEntities();
-                            seedEntities.addAll(groupMemberOids);
-                        } catch (GroupResolutionException gre) {
-                            // log a warning
-                            logger.warn("Couldn't resolve members for group {} while defining scope", group);
-                        }
-                    }
-                );
+                groupServiceClient.getGroups(request)
+                        .forEachRemaining(
+                                group -> {
+                                    try {
+                                        // add each group's members to the set of additional seed entities
+                                        Set<Long> groupMemberOids = getContext().getGroupResolver().resolve(group, input);
+                                        seedEntities.addAll(groupMemberOids);
+                                    } catch (GroupResolutionException gre) {
+                                        // log a warning
+                                        logger.warn("Couldn't resolve members for group {} while defining scope", group);
+                                    }
+                                }
+                        );
             }
 
             // Set scope type.
@@ -1393,11 +1391,7 @@ public class Stages {
                 return Status.success();
             }
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
-            try {
-                demandOverriddenCommodityEditor.applyDemandUsageChange(graph, groupResolver, changes);
-            } catch (GroupResolutionException e) {
-                throw new PipelineStageException(e);
-            }
+            demandOverriddenCommodityEditor.applyDemandUsageChange(graph, groupResolver, changes);
             return Status.success();
         }
     }
@@ -1447,11 +1441,7 @@ public class Stages {
                 graph.entities().forEach(entity -> index.add(entity));
                 PlanProjectType planProjectType = topologyInfo.getPlanInfo().getPlanProjectType();
                 // scope using inverted index
-                try {
-                    result = planTopologyScopeEditor.indexBasedScoping(index, graph, groupResolver, planScope, planProjectType);
-                } catch (GroupResolutionException e) {
-                    throw new PipelineStageException(e);
-                }
+                result = planTopologyScopeEditor.indexBasedScoping(index, graph, groupResolver, planScope, planProjectType);
                 return StageResult.withResult(result).andStatus(Status.success("PlanScopingStage:"
                                 + " Constructed a scoped topology of size " + result.size() +
                                 " from topology of size " + graph.size()));

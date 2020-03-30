@@ -9,7 +9,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -17,10 +16,8 @@ import com.google.common.base.Functions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -178,14 +175,13 @@ public class GroupScopeResolver {
                 .setExpectPresent(true)
                 .build())
                     .next();
-            final Set<Long> groupMembers = Sets.newHashSet(membersResponse.getMemberIdList());
-            if (groupMembers.isEmpty()) {
+            if (membersResponse.getMemberIdCount() == 0) {
                 logger.warn("Group {} has no members.  "
                     + "No property values will be returned for group scope.", groupId);
                 return Collections.emptySet();
             }
             logger.debug("Group {} has members {} in group scope processing.",
-                groupId, groupMembers);
+                groupId, membersResponse.getMemberIdList());
             // need to check if entityType of group is same as entityType of accountDef
             GetGroupResponse groupResponse =
                 groupService.getGroup(
@@ -201,7 +197,7 @@ public class GroupScopeResolver {
                 return Collections.emptySet();
             }
             logger.trace("Group type matches group scope type.");
-            return groupMembers;
+            return Sets.newHashSet(membersResponse.getMemberIdList());
         } else if (customAcctDef.hasEntityScope() && probeType != null) {
             final String entityProperty = accountVal.getStringValue();
             logger.debug("Getting entity scope OID for property value {}", entityProperty);

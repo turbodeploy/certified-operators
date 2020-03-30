@@ -30,6 +30,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -78,7 +79,6 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -88,7 +88,6 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingResolver;
 
@@ -97,8 +96,6 @@ import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.Sett
  *
  */
 public class EntitySettingsResolverTest {
-
-    private static final ApiEntityType TEST_ENTITY_TYPE = ApiEntityType.VIRTUAL_MACHINE; // arbitrary number
 
     private final GroupResolver groupResolver = mock(GroupResolver.class);
 
@@ -189,15 +186,17 @@ public class EntitySettingsResolverTest {
     private static final SettingSpec SPEC_BIGGER_TIEBREAKER =
         createSettingSpec(SPEC_NAME, SettingTiebreaker.BIGGER);
 
+    private static final int TEST_ENTITY_TYPE = 73; // arbitrary number
+
     private static final TopologyEntityDTO.Builder entity1 =
         TopologyEntityDTO.newBuilder()
             .setOid(entityOid1)
-            .setEntityType(TEST_ENTITY_TYPE.typeNumber());
+            .setEntityType(TEST_ENTITY_TYPE);
 
     private static final TopologyEntityDTO.Builder entity2 =
         TopologyEntityDTO.newBuilder()
             .setOid(entityOid2)
-            .setEntityType(TEST_ENTITY_TYPE.typeNumber());
+            .setEntityType(TEST_ENTITY_TYPE);
 
     private static final TopologyEntity topologyEntity1 = topologyEntity(entity1);
     private static final TopologyEntity topologyEntity2 = topologyEntity(entity2);
@@ -242,21 +241,13 @@ public class EntitySettingsResolverTest {
             scheduleServiceClient, CHUNK_SIZE);
     }
 
-
-    private ResolvedGroup resolvedGroup(Grouping group, Set<Long> memberIds) {
-        return new ResolvedGroup(group, Collections.singletonMap(TEST_ENTITY_TYPE, memberIds));
-    }
-
-
     /**
      * Verify that policy1 wins when using SMALLER tie-breaker on both settings in the policy.
-     *
-     * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testApplyUserSettings() throws Exception {
+    public void testApplyUserSettings() {
         ArgumentCaptor<Grouping> groupArguments = ArgumentCaptor.forClass(Grouping.class);
-        when(groupResolver.resolve(group, topologyGraph)).thenReturn(resolvedGroup(group, entities));
+        when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
         // returns only entities 1 and 2 even though group contains 3 entities
         when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
         when(testSettingPolicyService.listSettingPolicies(any()))
@@ -267,7 +258,7 @@ public class EntitySettingsResolverTest {
         GraphWithSettings entitiesSettings = entitySettingsResolver.resolveSettings(groupResolver,
                 topologyGraph, settingOverrides, rtTopologyInfo, consistentScalingManager);
 
-        verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
+        verify(groupResolver, times(2)).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
         assertEquals(entitiesSettings.getEntitySettings().size(), 2);
         // Both entities expected to resolve to policy1 for both settings
@@ -278,13 +269,11 @@ public class EntitySettingsResolverTest {
 
     /**
      * Verify that when there are no user or discovered policies, default policies are used.
-     *
-     * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testApplyDefaultSettings() throws Exception {
+    public void testApplyDefaultSettings() {
         ArgumentCaptor<Grouping> groupArguments = ArgumentCaptor.forClass(Grouping.class);
-        when(groupResolver.resolve(group, topologyGraph)).thenReturn(resolvedGroup(group, entities));
+        when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
         when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
         // Only default setting policy used
         when(testSettingPolicyService.listSettingPolicies(any()))
@@ -305,13 +294,11 @@ public class EntitySettingsResolverTest {
 
     /**
      * Verify that when there are user policies as well as default policies - user policies win.
-     *
-     * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testApplyUserSettingsOverridesDefault() throws Exception {
+    public void testApplyUserSettingsOverridesDefault() {
         ArgumentCaptor<Grouping> groupArguments = ArgumentCaptor.forClass(Grouping.class);
-        when(groupResolver.resolve(group, topologyGraph)).thenReturn(resolvedGroup(group, entities));
+        when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
         when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
         when(testSettingPolicyService.listSettingPolicies(any()))
            .thenReturn(Arrays.asList(settingPolicy1, settingPolicy2, defaultSettingPolicy));
@@ -322,7 +309,7 @@ public class EntitySettingsResolverTest {
             entitySettingsResolver.resolveSettings(groupResolver, topologyGraph,
                 settingOverrides, rtTopologyInfo, consistentScalingManager);
 
-        verify(groupResolver).resolve(groupArguments.capture(), eq(topologyGraph));
+        verify(groupResolver, times(2)).resolve(groupArguments.capture(), eq(topologyGraph));
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
         assertEquals(entitiesSettings.getEntitySettings().size(), 2);
         assertThat(entitiesSettings.getEntitySettings(), containsInAnyOrder(
@@ -334,12 +321,10 @@ public class EntitySettingsResolverTest {
 
     /**
      * Verify that when a policy is not associated with a group, it is not applied.
-     *
-     * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testApplySettingsWhenSettingPolicyHasNoGroups() throws Exception {
-        when(groupResolver.resolve(group, topologyGraph)).thenReturn(resolvedGroup(group, entities));
+    public void testApplySettingsWhenSettingPolicyHasNoGroups() {
+        when(groupResolver.resolve(group, topologyGraph)).thenReturn(entities);
         when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1, topologyEntity2));
         when(testSettingPolicyService.listSettingPolicies(any()))
            .thenReturn(Collections.singletonList(settingPolicy2));
@@ -357,12 +342,10 @@ public class EntitySettingsResolverTest {
 
     /**
      * Test the case when there are no policies at all.
-     *
-     * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testNoUserOrDefaultSettingPolicies() throws Exception {
-        when(groupResolver.resolve(group, topologyGraph)).thenReturn(resolvedGroup(group, ImmutableSet.of(entityOid1)));
+    public void testNoUserOrDefaultSettingPolicies() {
+        when(groupResolver.resolve(group, topologyGraph)).thenReturn(ImmutableSet.of(entityOid1));
         when(topologyGraph.entities()).thenReturn(Stream.of(topologyEntity1));
         when(testSettingPolicyService.listSettingPolicies(any()))
            .thenReturn(Collections.emptyList());
@@ -428,14 +411,14 @@ public class EntitySettingsResolverTest {
         final Map<String, SettingSpec> settingNameToSettingSpecs =
             Collections.singletonMap(specName, EntitySettingSpecs.ExcludedTemplates.getSettingSpec());
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy2,
-            Collections.singletonMap(11L, resolvedGroup(group, Sets.newHashSet(entityOid2, entityOid3))),
+        entitySettingsResolver.resolveAllEntitySettings(Sets.newHashSet(entityOid2, entityOid3),
+            Collections.singletonList(settingPolicy2),
             entitySettingsBySettingNameMap, settingNameToSettingSpecs, Collections.emptyMap());
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy1,
-            Collections.singletonMap(10L, resolvedGroup(group, Sets.newHashSet(entityOid1, entityOid2))),
+        entitySettingsResolver.resolveAllEntitySettings(Sets.newHashSet(entityOid1, entityOid2),
+            Collections.singletonList(settingPolicy1),
             entitySettingsBySettingNameMap, settingNameToSettingSpecs, Collections.emptyMap());
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy3,
-            Collections.singletonMap(12L, resolvedGroup(group, Sets.newHashSet(entityOid3))),
+        entitySettingsResolver.resolveAllEntitySettings(Sets.newHashSet(entityOid3),
+            Collections.singletonList(settingPolicy3),
             entitySettingsBySettingNameMap, settingNameToSettingSpecs, Collections.emptyMap());
 
         SettingAndPolicyIdRecord record1 = entitySettingsBySettingNameMap.get(entityOid1).get(specName);
@@ -465,9 +448,9 @@ public class EntitySettingsResolverTest {
         Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
             new HashMap<>();
         Map<String, SettingSpec> settingSpecs = new HashMap<>();
+        List<SettingPolicy> policies = Collections.singletonList(settingPolicy1);
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy1,
-            Collections.singletonMap(group.getId(), resolvedGroup(group, entities)),
+        entitySettingsResolver.resolveAllEntitySettings(entities, policies,
             entitySettingsBySettingNameMap, settingSpecs, Collections.emptyMap());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
@@ -487,8 +470,7 @@ public class EntitySettingsResolverTest {
         final Map<String, SettingSpec> settingSpecs = new HashMap<>();
         List<SettingPolicy> policies = Collections.singletonList(settingPolicyNotNow);
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicyNotNow,
-            Collections.singletonMap(group.getId(), resolvedGroup(group, entities)),
+        entitySettingsResolver.resolveAllEntitySettings(entities, policies,
             entitySettingsBySettingNameMap, settingSpecs, Collections.emptyMap());
 
         assertTrue(settingSpecs.isEmpty());
@@ -506,8 +488,8 @@ public class EntitySettingsResolverTest {
         Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
             new HashMap<>();
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicyNow1,
-            Collections.singletonMap(group.getId(), resolvedGroup(group, entities)),
+        entitySettingsResolver.resolveAllEntitySettings(entities,
+            Collections.singletonList(settingPolicyNow1),
             entitySettingsBySettingNameMap, SPECS, getSchedules());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
@@ -518,8 +500,8 @@ public class EntitySettingsResolverTest {
         assertEquals(appliedSettings.get(0).getSettingPolicyIdList(),
             Collections.singleton(settingPolicyNow1.getId()));
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicyNow2,
-            Collections.singletonMap(group.getId(), resolvedGroup(group, entities)),
+        entitySettingsResolver.resolveAllEntitySettings(entities,
+            Collections.singletonList(settingPolicyNow2),
             entitySettingsBySettingNameMap, SPECS, getSchedules());
 
         appliedSettings = new ArrayList<>(entitySettingsBySettingNameMap.get(entityOid1).values());
@@ -542,11 +524,9 @@ public class EntitySettingsResolverTest {
         Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
             new HashMap<>();
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicyNotNow,
-            Collections.singletonMap(group.getId(), resolvedGroup(group, entities)),
-            entitySettingsBySettingNameMap, SPECS, getSchedules());
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicyNow,
-            Collections.singletonMap(group.getId(), resolvedGroup(group, entities)),
+        List<SettingPolicy> policies = Lists.newArrayList(settingPolicyNotNow, settingPolicyNow);
+
+        entitySettingsResolver.resolveAllEntitySettings(entities, policies,
             entitySettingsBySettingNameMap, SPECS, getSchedules());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
@@ -554,8 +534,8 @@ public class EntitySettingsResolverTest {
 
         assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicyNow,
-            Collections.singletonMap(group.getId(), resolvedGroup(group, entities)),
+        entitySettingsResolver.resolveAllEntitySettings(entities,
+            Collections.singletonList(settingPolicyNow),
             entitySettingsBySettingNameMap, SPECS, getSchedules());
 
         entitySettingsBySettingNameMap.forEach((id, map) ->
@@ -575,14 +555,9 @@ public class EntitySettingsResolverTest {
         Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
             new HashMap<>();
 
-        final Map<Long, ResolvedGroup> resolvedGroups = Collections.singletonMap(
-            group.getId(), resolvedGroup(group, entities));
+        List<SettingPolicy> policies = Lists.newArrayList(settingPolicyWithSchedule, settingPolicy3);
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicyWithSchedule,
-            resolvedGroups,
-            entitySettingsBySettingNameMap, SPECS, getSchedules());
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy3,
-            resolvedGroups,
+        entitySettingsResolver.resolveAllEntitySettings(entities, policies,
             entitySettingsBySettingNameMap, SPECS,getSchedules());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
@@ -590,14 +565,15 @@ public class EntitySettingsResolverTest {
 
         assertThat(getSettings(appliedSettings), containsInAnyOrder(setting1, setting2));
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy2,
-            resolvedGroups,
+        entitySettingsResolver.resolveAllEntitySettings(entities,
+            Collections.singletonList(settingPolicy2),
             entitySettingsBySettingNameMap, SPECS, getSchedules());
 
         appliedSettings = new ArrayList<>(
             entitySettingsBySettingNameMap.get(entityOid1).values());
 
         assertThat(getSettings(appliedSettings), hasItem(setting1));
+        assertFalse(entitySettingsBySettingNameMap.get(entityOid1).get(SPEC_4).isScheduled());
         assertTrue(entitySettingsBySettingNameMap.get(entityOid1).get(SPEC_1).isScheduled());
         assertTrue(entitySettingsBySettingNameMap.get(entityOid1).get(SPEC_2).isScheduled());
     }
@@ -613,12 +589,9 @@ public class EntitySettingsResolverTest {
         Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
             new HashMap<>();
 
-        final Map<Long, ResolvedGroup> resolvedGroups =
-            Collections.singletonMap(group.getId(), resolvedGroup(group, entities));
+        List<SettingPolicy> policies = Lists.newArrayList(settingPolicyNotNow, settingPolicy2);
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicyNotNow, resolvedGroups,
-            entitySettingsBySettingNameMap, SPECS, Collections.emptyMap());
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy3, resolvedGroups,
+        entitySettingsResolver.resolveAllEntitySettings(entities, policies,
             entitySettingsBySettingNameMap, SPECS, Collections.emptyMap());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
@@ -626,7 +599,7 @@ public class EntitySettingsResolverTest {
 
         assertFalse(appliedSettings.isEmpty());
         assertTrue(appliedSettings.stream().allMatch(setting ->
-            setting.getSettingPolicyIdList().equals(Collections.singleton(SP3_ID))));
+            setting.getSettingPolicyIdList().equals(Collections.singleton(SP2_ID))));
     }
 
     /**
@@ -637,10 +610,9 @@ public class EntitySettingsResolverTest {
         Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
             new HashMap<>();
 
-        final Map<Long, ResolvedGroup> resolvedGroups =
-            Collections.singletonMap(group.getId(), resolvedGroup(group, entities));
+        List<SettingPolicy> policies = Collections.singletonList(settingPolicy1);
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy1, resolvedGroups,
+        entitySettingsResolver.resolveAllEntitySettings(entities, policies,
             entitySettingsBySettingNameMap, SPECS, Collections.emptyMap());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
@@ -650,8 +622,8 @@ public class EntitySettingsResolverTest {
 
         // Now check if the conflict resolution is done correctly. Use a policy that has
         // settings with the same specs but different values.
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy1a,
-            resolvedGroups,
+        entitySettingsResolver.resolveAllEntitySettings(entities,
+            Collections.singletonList(settingPolicy1a),
             entitySettingsBySettingNameMap, SPECS, Collections.emptyMap());
 
         appliedSettings = new ArrayList<>(
@@ -675,12 +647,9 @@ public class EntitySettingsResolverTest {
         Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap =
                         new HashMap<>();
 
-        final Map<Long, ResolvedGroup> resolvedGroups =
-            Collections.singletonMap(group.getId(), resolvedGroup(group, entities));
+        List<SettingPolicy> policies = Lists.newArrayList(settingPolicy1, settingPolicy4);
 
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy1, resolvedGroups,
-            entitySettingsBySettingNameMap, SPECS, Collections.emptyMap());
-        entitySettingsResolver.resolveAllEntitySettings(settingPolicy4, resolvedGroups,
+        entitySettingsResolver.resolveAllEntitySettings(entities, policies,
             entitySettingsBySettingNameMap, SPECS, Collections.emptyMap());
 
         List<SettingAndPolicyIdRecord> appliedSettings = new ArrayList<>(
@@ -853,7 +822,7 @@ public class EntitySettingsResolverTest {
             .setInfo(SettingPolicyInfo.newBuilder()
                 .setName(name)
                 .addAllSettings(settings)
-                .setEntityType(TEST_ENTITY_TYPE.typeNumber())
+                .setEntityType(TEST_ENTITY_TYPE)
                 .setScope(Scope.newBuilder()
                     .addAllGroups(groupIds)
                     .build())
@@ -868,7 +837,7 @@ public class EntitySettingsResolverTest {
             .setInfo(SettingPolicyInfo.newBuilder()
                 .setName(name)
                 .addAllSettings(settings)
-                .setEntityType(TEST_ENTITY_TYPE.typeNumber())
+                .setEntityType(TEST_ENTITY_TYPE)
                 .build())
             .setSettingPolicyType(SettingPolicy.Type.USER)
             .build();
