@@ -18,14 +18,20 @@ import com.vmturbo.cost.component.db.Tables;
  * mapping.
  */
 public class EntityReservedInstanceMappingFilter {
+    @Nullable
+    protected EntityFilter entityFilter;
 
     @Nullable
-    private final EntityFilter entityFilter;
+    protected Cost.ReservedInstanceBoughtFilter riBoughtFilter;
 
-    @Nullable
-    private final Cost.ReservedInstanceBoughtFilter riBoughtFilter;
+    protected List<Condition> conditions;
 
-    private final List<Condition> conditions;
+    // Default constructor called before subclass constructor definition
+    public EntityReservedInstanceMappingFilter() {
+        this.entityFilter = null;
+        this.riBoughtFilter = null;
+        this.conditions = null;
+    }
 
     private EntityReservedInstanceMappingFilter(@Nonnull Builder builder) {
         this.entityFilter = builder.entityFilter;
@@ -43,7 +49,6 @@ public class EntityReservedInstanceMappingFilter {
     }
     List<Condition> generateConditions() {
         final List<Condition> conditions = new ArrayList<>();
-
         if (entityFilter.getEntityIdCount() > 0) {
             conditions.add(Tables.ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID
                     .in(entityFilter.getEntityIdList()));
@@ -75,11 +80,9 @@ public class EntityReservedInstanceMappingFilter {
      * Builder class to construct a filter.
      */
     public static class Builder {
-
-        private EntityFilter entityFilter =  EntityFilter.getDefaultInstance();
-        private Cost.ReservedInstanceBoughtFilter riBoughtFilter =
+        protected EntityFilter entityFilter =  EntityFilter.getDefaultInstance();
+        protected Cost.ReservedInstanceBoughtFilter riBoughtFilter =
                 Cost.ReservedInstanceBoughtFilter.getDefaultInstance();
-
 
         @Nonnull
         public Builder entityFilter(@Nullable EntityFilter entityFilter) {

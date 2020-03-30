@@ -28,6 +28,7 @@ import io.grpc.StatusRuntimeException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
@@ -1020,7 +1021,9 @@ public class MarketsService implements IMarketsService {
                 .getAction(actionRequest(marketUuid, actionuuid));
         if (action.hasActionSpec()) {
             // create action details dto based on action api dto which contains "explanation" with coverage information.
-            ActionDetailsApiDTO actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(action);
+            ActionDetailsApiDTO actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(
+                    action,
+                    Strings.isBlank(marketUuid) ? null : Long.valueOf(marketUuid));
             if (actionDetailsApiDTO == null) {
                 return new NoDetailsApiDTO();
             }

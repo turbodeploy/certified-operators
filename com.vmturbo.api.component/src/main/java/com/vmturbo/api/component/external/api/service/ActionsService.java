@@ -287,22 +287,24 @@ public class ActionsService implements IActionsService {
     @Override
     public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) {
         ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(uuid));
-        return getActionDetails(action);
+        return getActionDetails(action, realtimeTopologyContextId);
     }
 
     /**
      * Gets details for an action.
      *
      * @param action action
+     * @param topologyContextId the topology in which the action resides
      * @return details of the action
      */
     @Nonnull
-    private ActionDetailsApiDTO getActionDetails(@Nonnull ActionOrchestratorAction action) {
+    private ActionDetailsApiDTO getActionDetails(@Nonnull ActionOrchestratorAction action, final Long topologyContextId) {
         if (action.hasActionSpec()) {
             // create action details dto based on action api dto which contains "explanation" with
             // coverage information.
             ActionDetailsApiDTO actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(
-                    action);
+                    action,
+                    Objects.isNull(topologyContextId) ? realtimeTopologyContextId : topologyContextId);
             if (actionDetailsApiDTO != null) {
                 return actionDetailsApiDTO;
             }
@@ -326,8 +328,13 @@ public class ActionsService implements IActionsService {
                 .collect(Collectors.toList());
         Iterator<ActionOrchestratorAction> actionsIterator = actionOrchestratorRpc.getActions(
                 multiActionRequest(actionIds, inputDto.getTopologyContextId()));
+        String inputDtoTopologyContextId = inputDto.getTopologyContextId();
+        Long topologyContextId = !Strings.isNullOrEmpty(inputDtoTopologyContextId)
+                ? Long.parseLong(inputDtoTopologyContextId) : null;
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(actionsIterator, 0), false)
-                .collect(Collectors.toMap(action -> Long.toString(action.getActionId()), this::getActionDetails));
+                .collect(Collectors.toMap(
+                        action -> Long.toString(action.getActionId()),
+                        action -> getActionDetails(action, topologyContextId)));
     }
 
     private MultiActionRequest multiActionRequest(@Nonnull final List<Long> uuids,

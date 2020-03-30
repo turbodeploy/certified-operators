@@ -1070,6 +1070,8 @@ message GetEntityReservedInstanceCoverageResponse {
 message GetProjectedEntityReservedInstanceCoverageRequest {
     // Filter by a list of Entities.
     optional EntityFilter entity_filter = 1;
+    // The topology from which to retrieve RI coverage
+    optional int64 topologyContextId = 2;
 }
 
 message GetProjectedEntityReservedInstanceCoverageResponse {

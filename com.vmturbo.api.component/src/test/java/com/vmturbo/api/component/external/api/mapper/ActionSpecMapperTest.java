@@ -696,7 +696,7 @@ public class ActionSpecMapperTest {
                 .thenReturn(projectedResponse);
 
         // act
-        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = mapper.createCloudResizeActionDetailsDTO(targetId);
+        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = mapper.createCloudResizeActionDetailsDTO(targetId, null);
 
         // check
         assertNotNull(cloudResizeActionDetailsApiDTO);

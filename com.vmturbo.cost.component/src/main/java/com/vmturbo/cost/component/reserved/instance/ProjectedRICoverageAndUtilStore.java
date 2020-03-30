@@ -142,7 +142,7 @@ public class ProjectedRICoverageAndUtilStore {
      * types that are in the scope defined by using the filter's set of entity OIDs as the seed.
      *
      * @param filter The information about the scope to use to filter the Coverage Map.
-     * @return A map with key: RI_ID; value: EntityReservedInstanceCoverage.
+     * @return A map with key: entity_id; value: EntityReservedInstanceCoverage.
      */
     @Nonnull
     public Map<Long, EntityReservedInstanceCoverage>
