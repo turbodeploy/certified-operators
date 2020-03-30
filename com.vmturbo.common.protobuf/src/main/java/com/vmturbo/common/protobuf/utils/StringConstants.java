@@ -238,6 +238,12 @@ public class StringConstants {
     public static final String AVAILABILITY_ZONE_ENTITY = "AvailabilityZone";
 
     /**
+     * Setting names of default settings.
+     */
+    public static final String DEFAULTS = " Defaults";
+    public static final String PHYSICAL_MACHINE_SETTING_NAME = "Host";
+    public static final String IO_MODULE_SETTING_NAME = "IO Module";
+    /**
      * The class name used in UI for workloads.
      */
     public static final String WORKLOAD = "Workload";
