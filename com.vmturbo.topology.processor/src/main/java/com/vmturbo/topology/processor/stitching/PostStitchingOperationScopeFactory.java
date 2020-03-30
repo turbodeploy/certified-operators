@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.stitching;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -141,6 +142,15 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         @Nonnull final EntityType entityType) {
         return new MissingDerivedTargetEntityTypeScope(topologyGraph, parentProbeType,
             childProbeType, entityType, probeStore, targetStore);
+    }
+
+    @Override
+    public StitchingScope<TopologyEntity> hasAndMissProbeCategoryEntityTypeStitchingScope(
+            @Nonnull final ProbeCategory owningProbeCategory,
+            @Nonnull final ProbeCategory missingProbeCategory,
+            @Nonnull final EntityType entityType) {
+        return new HasAndMissProbeCategoryEntityTypeStitchingScope(topologyGraph, owningProbeCategory, missingProbeCategory,
+                entityType, probeStore, targetStore);
     }
 
     public TopologyGraph<TopologyEntity> getTopologyGraph() {
@@ -435,6 +445,61 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
                 .filter(entity -> entity.getDiscoveryOrigin().get()
                                 .getDiscoveredTargetDataMap().keySet().stream()
                                 .anyMatch(probeCategoryTargetIds::contains));
+        }
+    }
+
+    /**
+     * A calculation scope for applying a calculation to entities discovered by one probe category but not discovered by another probe category
+     * with a specific {@link EntityType}. i.e. an entity has this probe category will not pass
+     */
+    private static class HasAndMissProbeCategoryEntityTypeStitchingScope extends BaseStitchingScope {
+
+        private final ProbeCategory owningProbeCategory;
+        private final ProbeCategory missingProbeCategory;
+        private final EntityType entityType;
+        private final ProbeStore probeStore;
+        private final TargetStore targetStore;
+
+        HasAndMissProbeCategoryEntityTypeStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+                                                     @Nonnull final ProbeCategory owningProbeCateory,
+                                                     @Nonnull final ProbeCategory missingProbeCategory,
+                                                     @Nonnull final EntityType entityType,
+                                                     @Nonnull final ProbeStore probeStore,
+                                                     @Nonnull final TargetStore targetStore) {
+            super(topologyGraph);
+            this.owningProbeCategory = Objects.requireNonNull(owningProbeCateory);
+            this.missingProbeCategory = Objects.requireNonNull(missingProbeCategory);
+            this.entityType = Objects.requireNonNull(entityType);
+            this.probeStore = Objects.requireNonNull(probeStore);
+            this.targetStore = Objects.requireNonNull(targetStore);
+        }
+
+        @Nonnull
+        @Override
+        public Stream<TopologyEntity> entities() {
+            final Set<Long> owningProbeCategoryTargetIds = getTargetIdsForProbeCategory(owningProbeCategory);
+            final Set<Long> missingProbeCategoryTargetIds = getTargetIdsForProbeCategory(missingProbeCategory);
+            return getTopologyGraph().entitiesOfType(entityType)
+                    .filter(TopologyEntity::hasDiscoveryOrigin)
+                    .filter(entity -> {
+                        Set<Long> targetsIds = entity.getDiscoveryOrigin().get().getDiscoveredTargetDataMap().keySet();
+                        return !Collections.disjoint(owningProbeCategoryTargetIds, targetsIds)
+                                && Collections.disjoint(missingProbeCategoryTargetIds, targetsIds);
+                    }
+                    );
+        }
+
+        /**
+         * Get the IDs of targets that have given probe category.
+         * @param probeCategory the category to find.
+         * @return IDs of targets that have given probe category.
+         */
+        private Set<Long> getTargetIdsForProbeCategory(ProbeCategory probeCategory) {
+            return probeStore.getProbeIdsForCategory(probeCategory).stream()
+                    .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream())
+                    .flatMap(target -> Stream.concat(targetStore.getDerivedTargetIds(target.getId()).stream(),
+                            Stream.of(Long.valueOf(target.getId()))))
+                    .collect(Collectors.toSet());
         }
     }
 

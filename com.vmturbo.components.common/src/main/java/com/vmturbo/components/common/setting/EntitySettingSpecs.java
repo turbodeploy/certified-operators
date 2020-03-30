@@ -150,6 +150,14 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000000, 131072), true),
 
     /**
+     * Whether allow resizing VMEM commodity when it is collected from hypervisors only (not from ACM, APM, etc)
+     * If this setting is false, VMEMs collected from only hypervisors will not have RESIZE action.
+     */
+    UseHypervisorMetricsForResizing("useHypervisorMetricsForResizing", "Use hypervisor VMEM for resize",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), new BooleanSettingDataType(false), true),
+
+    /**
      * Suspend action automation mode.
      */
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
@@ -1058,6 +1066,7 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.ResizeVmemBelowMinThreshold.name,
             EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
             EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name,
+            EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
             EntitySettingSpecs.EnforceNonDisruptive.name);
 
     /**
