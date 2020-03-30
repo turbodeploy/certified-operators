@@ -7,9 +7,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.firewall.DefaultHttpFirewall;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.auditing.AuditLog;
@@ -174,5 +176,11 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
         return new GlobalExceptionHandler();
     }
 
+    @Override
+    public void configure(WebSecurity web) throws Exception {
+        super.configure(web);
+        // avoid using default StrictHttpFirewall from Spring
+        web.httpFirewall(new DefaultHttpFirewall());
+    }
 }
 
