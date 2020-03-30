@@ -47,11 +47,15 @@ public class PlanTopologyScopeEditor {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final Set<EntityType> CLOUD_SCOPE_ENTITY_TYPES = Stream.of(EntityType.REGION,
-                             EntityType.BUSINESS_ACCOUNT, EntityType.VIRTUAL_MACHINE,
-                             EntityType.DATABASE, EntityType.DATABASE_SERVER,
-                             EntityType.VIRTUAL_VOLUME)
-                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+    private static final Set<EntityType> CLOUD_SCOPE_ENTITY_TYPES = Stream.of(
+            EntityType.REGION,
+            EntityType.BUSINESS_ACCOUNT,
+            EntityType.VIRTUAL_MACHINE,
+            EntityType.DATABASE,
+            EntityType.DATABASE_SERVER,
+            EntityType.VIRTUAL_VOLUME,
+            EntityType.AVAILABILITY_ZONE)
+            .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
     private static final Set<Integer> ENTITY_TYPES_TO_SKIP =
