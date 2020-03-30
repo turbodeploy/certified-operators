@@ -1,12 +1,11 @@
 package com.vmturbo.topology.processor.group;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -14,20 +13,23 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
-import com.vmturbo.common.protobuf.search.Search.SearchFilter.FilterTypeCase;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
@@ -37,7 +39,7 @@ import com.vmturbo.topology.graph.search.SearchResolver;
  *  The GroupResolver caches already resolved groups so that subsequent requests
  *  for the same groupId will return the cached value.
  *
- *  Typical usage of GroupResolver is to create an instance of it and pass it
+ *  <p/>Typical usage of GroupResolver is to create an instance of it and pass it
  *  along through the different pipelines involved in the topology
  *  transformation before the topology broadcast.
  *
@@ -54,13 +56,17 @@ public class GroupResolver {
      * Cache for storing resolved groups.
      * Mapping from GroupID->Set(EntityIDs)
      */
-    private final Map<Long, Set<Long>> groupResolverCache;
+    private final Map<Long, ResolvedGroup> groupResolverCache;
 
     /**
-     * Create a GroupResolver.
+     * Create a new group resolver instance. Each instance will cache resolved groups.
+     * The intention is for one resolver to be created per broadcast, and shared across broadcast.
+     *
+     * @param searchResolver The {@link SearchResolver} used to resolve dynamic groups.
+     * @param groupServiceClient To access group service to resolve nested groups.
      */
     public GroupResolver(@Nonnull final SearchResolver<TopologyEntity> searchResolver,
-                         @Nullable final GroupServiceGrpc.GroupServiceBlockingStub groupServiceClient) {
+                         @Nullable final GroupServiceBlockingStub groupServiceClient) {
         this.searchResolver = Objects.requireNonNull(searchResolver);
         this.groupServiceClient = groupServiceClient;
         this.groupResolverCache = new HashMap<>();
@@ -74,19 +80,58 @@ public class GroupResolver {
      * @return OIDs of the members of the input group.
      * @throws GroupResolutionException when a dynamic group cannot be resolved.
      */
-    public Set<Long> resolve(@Nonnull final Grouping group,
-                             @Nonnull final TopologyGraph<TopologyEntity> graph)
+    public ResolvedGroup resolve(@Nonnull final Grouping group,
+                                 @Nonnull final TopologyGraph<TopologyEntity> graph)
             throws GroupResolutionException {
-
         Preconditions.checkArgument(group.hasId(), "Missing groupId");
 
-        if (groupResolverCache.containsKey(group.getId())) {
-            return groupResolverCache.get(group.getId());
+        final ResolvedGroup cachedGroup = groupResolverCache.get(group.getId());
+        if (cachedGroup == null) {
+            ResolvedGroup members = resolveMembers(group, graph);
+            groupResolverCache.put(group.getId(), members);
+            return members;
+        } else {
+            return cachedGroup;
+        }
+    }
+
+    @Nonnull
+    private Map<ApiEntityType, Set<Long>> resolve(
+            @Nonnull final Set<Long> groupIds,
+            @Nonnull final TopologyGraph<TopologyEntity> graph) throws GroupResolutionException {
+        final Set<Long> nonCachedGroupIds = groupIds.stream()
+            .filter(id -> !groupResolverCache.containsKey(id))
+            .collect(Collectors.toSet());
+        final Map<ApiEntityType, Set<Long>> ret = new HashMap<>();
+        if (!nonCachedGroupIds.isEmpty()) {
+            logger.debug("Fetching non-cached groups {}", nonCachedGroupIds);
+            final List<Grouping> nonCachedGroups = new ArrayList<>(nonCachedGroupIds.size());
+            groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                    .addAllId(nonCachedGroupIds))
+                .build()).forEachRemaining(nonCachedGroups::add);
+            for (Grouping nonCachedGroup : nonCachedGroups) {
+                // A recursive call. We don't expect deep levels of recursion here.
+                ResolvedGroup group = resolve(nonCachedGroup, graph);
+                logger.debug("Successfully resolved and cached group {} with {} members.",
+                    nonCachedGroup::getId, () -> group.getAllEntities().size());
+            }
         }
 
-        Set<Long> members = resolveMembers(group, graph);
-        groupResolverCache.put(group.getId(), members);
-        return members;
+        groupIds.forEach(groupId -> {
+            ResolvedGroup cachedGroup = groupResolverCache.get(groupId);
+            if (cachedGroup != null) {
+                cachedGroup.getEntitiesByType().forEach((type, entities) -> {
+                    ret.computeIfAbsent(type, k -> new HashSet<>(entities.size())).addAll(entities);
+                });
+            } else {
+                // This shouldn't happen because we take the groups that are missing from the cache
+                // and resolve them earlier in this method, and we never remove entries from the
+                // cache.
+                logger.error("Group {} unexpectedly missing from cache.", groupId);
+            }
+        });
+        return ret;
     }
 
     /**
@@ -97,106 +142,65 @@ public class GroupResolver {
      * @return OIDs of the members of the input group.
      * @throws GroupResolutionException when a dynamic group cannot be resolved.
      */
-    private Set<Long> resolveMembers(@Nonnull final Grouping group,
-                                     @Nonnull final TopologyGraph<TopologyEntity> graph)
+    private ResolvedGroup resolveMembers(@Nonnull final Grouping group,
+                                         @Nonnull final TopologyGraph<TopologyEntity> graph)
             throws GroupResolutionException {
-
-        Set<Long> result = Collections.emptySet();
+        final Map<ApiEntityType, Set<Long>> result = new HashMap<>();
+        final Set<Long> groups = new HashSet<>();
         switch (group.getDefinition().getSelectionCriteriaCase()) {
             case STATIC_GROUP_MEMBERS:
-                if (GroupProtoUtil.isNestedGroup(group)) {
-                    GroupDTO.GetMembersResponse response = groupServiceClient
-                                    .getMembers(GroupDTO.GetMembersRequest.newBuilder()
-                                            .setExpandNestedGroups(true)
-                                            .addId(group.getId()).build()).next();
-                    result = response.getMemberIdList().stream().collect(Collectors.toSet());
-                } else {
-                    result = GroupProtoUtil.getAllStaticMembers(group.getDefinition());
+                for (StaticMembersByType members : group.getDefinition().getStaticGroupMembers().getMembersByTypeList()) {
+                    if (members.getType().hasGroup()) {
+                        groups.addAll(members.getMembersList());
+                    } else {
+                        result.computeIfAbsent(ApiEntityType.fromType(members.getType().getEntity()),
+                            k -> new HashSet<>(members.getMembersCount())).addAll(members.getMembersList());
+                    }
                 }
                 break;
             case ENTITY_FILTERS:
-                result = group.getDefinition()
-                    .getEntityFilters()
-                    .getEntityFilterList()
-                    .stream()
-                    .map(filter -> getMembersBasedOnFilter(filter, group.getId(), graph))
-                    .flatMap(Set::stream)
-                    .collect(Collectors.toSet());
-
+                for (EntityFilter entityFilter: group.getDefinition().getEntityFilters().getEntityFilterList()) {
+                    try {
+                        final Set<Long> members = searchResolver.search(entityFilter.getSearchParametersCollection().getSearchParametersList(), graph)
+                            .map(TopologyEntity::getOid)
+                            .collect(Collectors.toSet());
+                        result.computeIfAbsent(ApiEntityType.fromType(entityFilter.getEntityType()), k -> new HashSet<>())
+                            .addAll(members);
+                    } catch (RuntimeException e) {
+                        throw new GroupResolutionException(group, e);
+                    }
+                }
                 break;
             case GROUP_FILTERS:
-                GroupDTO.GetMembersResponse response = groupServiceClient
+                try {
+                    GroupDTO.GetMembersResponse response = groupServiceClient
                         .getMembers(GroupDTO.GetMembersRequest.newBuilder()
-                                .setExpandNestedGroups(true)
-                                .addId(group.getId()).build()).next();
-                result = response.getMemberIdList().stream().collect(Collectors.toSet());
+                            .setExpectPresent(true)
+                            .addId(group.getId()).build()).next();
+                    groups.addAll(response.getMemberIdList());
+                } catch (StatusRuntimeException e) {
+                    if (e.getStatus() == Status.NOT_FOUND) {
+                        // If the group no longer exists - e.g. it got deleted between the start
+                        // of the pipeline and now - it's safe to treat it as an empty group.
+                        logger.warn("Group {} no longer exists: {}", group.getId(), e.getMessage());
+                    } else {
+                        // For any other error we will throw an exception.
+                        throw new GroupResolutionException(group, e);
+                    }
+                }
                 break;
             default:
                 logger.error("Unsupported or unset group member selection criteria for `{}`", group);
                 break;
         }
 
-        return result;
-    }
-
-    private Set<Long> getMembersBasedOnFilter(EntityFilter entityFilter, Long groupId,
-                    TopologyGraph<TopologyEntity> graph) {
-        List<SearchParameters> searchParametersList =
-                        entityFilter.getSearchParametersCollection().getSearchParametersList();
-        Set<Long> result = null;
-        for (SearchParameters searchParameters : searchParametersList) {
-            final Set<Long> resolvedMembers = resolveDynamicGroup(groupId,
-                            entityFilter.getEntityType(), searchParameters, graph);
-
-            if (result != null) {
-                result.retainAll(resolvedMembers);
-            } else {
-                result = new HashSet<>(resolvedMembers);
-            }
+        if (!groups.isEmpty()) {
+            logger.debug("Resolution for group {} requires resolving nested groups: {}", group.getId(), groups);
+            resolve(groups, graph).forEach((type, oids) -> {
+                result.computeIfAbsent(type, k -> new HashSet<>(oids.size())).addAll(oids);
+            });
         }
-        return result == null ? Collections.emptySet() : result;
-    }
-
-    /**
-     * Resolve the members of a group defined by certain criteria.
-     *
-     * @param groupId The ID of the group to resolveDynamicGroup.
-     * @param groupEntityType The entity type for this group.
-     * @param search The search criteria to use in resolving the group's members.
-     * @param graph The topology graph on which to perform the search.
-     * @return A collection of OIDs for the group members that match the {@link SearchParameters}.
-     * @throws GroupResolutionException when trying to
-     *               resolve the group throws a {@link RuntimeException}.
-     */
-    @Nonnull
-    @VisibleForTesting
-    Set<Long> resolveDynamicGroup(final long groupId,
-                                  final int groupEntityType,
-                                  @Nonnull final SearchParameters search,
-                                  @Nonnull final TopologyGraph<TopologyEntity> graph) throws GroupResolutionException {
-        try {
-            long resolutionStartTime = System.currentTimeMillis();
-
-            final Set<Long> members = searchResolver.search(search, graph)
-                .map(TopologyEntity::getOid)
-                .collect(Collectors.toSet());
-
-            final long duration = System.currentTimeMillis() - resolutionStartTime;
-            final long numTraversalFilters = search.getSearchFilterList().stream()
-                .filter(f -> f.getFilterTypeCase() == FilterTypeCase.TRAVERSAL_FILTER)
-                .count();
-            final long numPropertyFilters = search.getSearchFilterList().size() - numTraversalFilters + 1;
-
-            final String entityTypeName = Optional.ofNullable(EntityType.forNumber(groupEntityType))
-                    .map(EntityType::name)
-                    .orElse("Unknown");
-            logger.debug("Dynamic group {} ({}P, {}T) resolved to {} {} in {} ms .",
-                groupId, numPropertyFilters, numTraversalFilters, members.size(), entityTypeName, duration);
-
-            return members;
-        } catch (RuntimeException e) {
-            throw new GroupResolutionException(e);
-        }
+        return new ResolvedGroup(group, result);
     }
 
     public GroupServiceGrpc.GroupServiceBlockingStub getGroupServiceClient() {

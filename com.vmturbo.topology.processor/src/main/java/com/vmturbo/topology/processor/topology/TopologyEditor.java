@@ -52,6 +52,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
@@ -96,7 +97,7 @@ public class TopologyEditor {
     public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
                              @Nonnull final List<ScenarioChange> changes,
                              @Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final GroupResolver groupResolver) {
+                             @Nonnull final GroupResolver groupResolver) throws GroupResolutionException {
 
         // Set shopTogether to false for all entities if it's not a alleviate pressure plan,
         // so SNM is not performed by default.
@@ -155,7 +156,7 @@ public class TopologyEditor {
                     addTopologyAdditionCount(templateToAdd, addition, addition.getTemplateId());
                 } else if (addition.hasGroupId()) {
                     Set<Long> entityToAddId = groupResolver.resolve(groupIdToGroupMap.get(addition.getGroupId()),
-                            topologyGraph);
+                            topologyGraph).getAllEntities();
                     for (long id : entityToAddId) {
                         TopologyEntity.Builder entity = topology.get(id);
                         if (addition.hasTargetEntityType() && entity.getEntityType() != targetType) {
@@ -178,7 +179,7 @@ public class TopologyEditor {
                     ? Collections.singleton(removal.getEntityId())
                     : groupResolver.resolve(
                         groupIdToGroupMap.get(removal.getGroupId()),
-                        topologyGraph);
+                        topologyGraph).getAllEntities();
                 entities.forEach(id -> {
                     TopologyEntity.Builder entity = topology.get(id);
                     if (entity == null) {
@@ -202,7 +203,7 @@ public class TopologyEditor {
                     ? Collections.singleton(replace.getRemoveEntityId())
                     : groupResolver.resolve(
                         groupIdToGroupMap.get(replace.getRemoveGroupId()),
-                        topologyGraph);
+                        topologyGraph).getAllEntities();
                 entities.forEach(id -> {
                     TopologyEntity.Builder entity = topology.get(id);
                     if (entity == null) {

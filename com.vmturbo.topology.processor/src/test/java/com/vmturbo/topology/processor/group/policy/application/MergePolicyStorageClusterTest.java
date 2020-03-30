@@ -1,7 +1,8 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
+import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.resolvedGroup;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
+import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static junit.framework.TestCase.assertEquals;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
@@ -10,11 +11,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.Lists;
+
 import org.junit.Before;
 import org.junit.Test;
-
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
@@ -68,7 +68,7 @@ public class MergePolicyStorageClusterTest extends MergePolicyTestBase {
     }
 
     @Test
-    public void testChangeOnlyRealStorageClusterCommodityKey() {
+    public void testChangeOnlyRealStorageClusterCommodityKey() throws Exception {
         addStorageClusterCommSold(1L);
         addStorageClusterCommSold(2L);
         addStorageClusterCommBought(4L);
@@ -82,9 +82,9 @@ public class MergePolicyStorageClusterTest extends MergePolicyTestBase {
 
         // setup mocks
         when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
-            .thenReturn(Sets.newHashSet(4L, 5L));
+            .thenReturn(resolvedGroup(group1, 4L, 5L));
         when(groupResolver.resolve(eq(group2), eq(topologyGraph)))
-            .thenReturn(Sets.newHashSet(1L, 2L));
+            .thenReturn(resolvedGroup(group2, 1L, 2L));
 
         // invoke Merge Policy
         final MergePolicy mergePolicy = new MergePolicy(policy, mergePolicyEntities);

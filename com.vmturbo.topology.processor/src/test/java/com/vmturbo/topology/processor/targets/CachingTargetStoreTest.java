@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.targets;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -137,7 +139,33 @@ public class CachingTargetStoreTest {
 
         verify(targetDao).store(target);
 
-        targetStore.getTarget(target.getId()).get();
+    }
+
+    /**
+     * Test that re-registering a probe with a different probe info affects the targets associated
+     * with that probe.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testProbeUpdateUpdatesTarget() throws Exception {
+        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
+
+        final long probeId = 717;
+        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(probeId, Collections.emptyList());
+
+        final Target target = targetStore.createTarget(spec.toDto());
+        assertThat(target.getProbeId(), is(probeId));
+        assertThat(target.getProbeInfo(), is(probeInfo));
+
+        final ProbeInfo newProbeInfo = ProbeInfo.newBuilder(probeInfo)
+            // Something to differentiate this probe info from the original.
+            .addTargetIdentifierField("foo")
+            .build();
+        targetStore.onProbeRegistered(probeId, newProbeInfo);
+
+        // Internally we should update the probe info associated with the target.
+        assertThat(target.getProbeInfo(), is(newProbeInfo));
     }
 
     /**
