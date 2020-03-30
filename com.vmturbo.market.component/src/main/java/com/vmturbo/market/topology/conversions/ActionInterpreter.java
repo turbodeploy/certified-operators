@@ -484,8 +484,7 @@ public class ActionInterpreter {
             if (!CollectionUtils.isEmpty(changeProviderList)) {
                 ActionDTO.Move.Builder builder = ActionDTO.Move.newBuilder()
                         .setTarget(createActionEntity(shoppingList.buyerId, projectedTopology))
-                        .addAllChanges(createChangeProviders(moveTO,
-                                projectedTopology, originalCloudTopology, shoppingList.buyerId));
+                        .addAllChanges(changeProviderList);
                 if (moveTO.hasScalingGroupId()) {
                     builder.setScalingGroupId(moveTO.getScalingGroupId());
                 }
