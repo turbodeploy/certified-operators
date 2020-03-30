@@ -1668,10 +1668,12 @@ public class ActionSpecMapper {
     /**
      * Given an actionSpec fetches the corresponding action details.
      * @param action - ActionOrchestratorAction for the user sent action
+     * @param topologyContextId - the topology context that the action corresponds to
      * @return actionDetailsApiDTO which contains extra information about a given action
      */
     @Nullable
-    public ActionDetailsApiDTO createActionDetailsApiDTO(final ActionDTO.ActionOrchestratorAction action) {
+    public ActionDetailsApiDTO createActionDetailsApiDTO(
+            final ActionDTO.ActionOrchestratorAction action, Long topologyContextId) {
         final ActionSpec actionSpec = action.getActionSpec();
         if (actionSpec != null && actionSpec.hasRecommendation()) {
             ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
@@ -1699,7 +1701,7 @@ public class ActionSpecMapper {
                 long entityUuid;
                 ActionEntity entity;
                 try {
-                    entity = ActionDTOUtil.getPrimaryEntity(action.getActionSpec().getRecommendation());
+                    entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
                     entityUuid = entity.getId();
                 } catch (UnsupportedActionException e) {
                     logger.warn("Cannot create action details due to unsupported action type", e);
@@ -1709,7 +1711,7 @@ public class ActionSpecMapper {
                     logger.warn("Cannot create action details for on-prem actions");
                     return null;
                 }
-                return createCloudResizeActionDetailsDTO(entityUuid);
+                return createCloudResizeActionDetailsDTO(entityUuid, topologyContextId);
             }
             return null;
         }
@@ -1719,18 +1721,19 @@ public class ActionSpecMapper {
     /**
      * Create Cloud Resize Action Details DTO.
      * @param entityUuid - uuid of the action target entity
+     * @param topologyContextId - the topology context that the action corresponds to
      * @return cloudResizeActionDetailsDTO - this contains additional details about the action
      * like on-demand rates, costs and RI coverage before/after the resize
      */
     @Nonnull
-    public CloudResizeActionDetailsApiDTO createCloudResizeActionDetailsDTO(long entityUuid) {
+    public CloudResizeActionDetailsApiDTO createCloudResizeActionDetailsDTO(long entityUuid, Long topologyContextId) {
         CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = new CloudResizeActionDetailsApiDTO();
         // get on-demand costs
         setOnDemandCosts(entityUuid, cloudResizeActionDetailsApiDTO);
         // get on-demand rates
         setOnDemandRates(entityUuid, cloudResizeActionDetailsApiDTO);
         // get RI coverage before/after
-        setRiCoverage(entityUuid, cloudResizeActionDetailsApiDTO);
+        setRiCoverage(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
         return cloudResizeActionDetailsApiDTO;
     }
 
@@ -1843,9 +1846,10 @@ public class ActionSpecMapper {
     /**
      * Set RI Coverage before/after for the target entity.
      * @param entityUuid - uuid of target entity
+     * @param topologyContextId - the topology context for which RI coverage is being set
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setRiCoverage(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+    private void setRiCoverage(long entityUuid, Long topologyContextId, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
         final EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
 
         // get latest RI coverage for target entity
@@ -1876,12 +1880,15 @@ public class ActionSpecMapper {
         }
 
         // get projected RI coverage for target entity
-        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest =
+        Cost.GetProjectedEntityReservedInstanceCoverageRequest.Builder builder =
                 Cost.GetProjectedEntityReservedInstanceCoverageRequest
-                .newBuilder()
-                .setEntityFilter(entityFilter)
-                .build();
+                        .newBuilder()
+                        .setEntityFilter(entityFilter);
+        if (!Objects.isNull(topologyContextId) && topologyContextId != realtimeTopologyContextId) {
+            builder.setTopologyContextId(topologyContextId);
+        }
 
+        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest = builder.build();
         Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedEntityReservedInstanceCoverageResponse =
                 reservedInstanceUtilizationCoverageServiceBlockingStub
                     .getProjectedEntityReservedInstanceCoverageStats(projectedEntityReservedInstanceCoverageRequest);

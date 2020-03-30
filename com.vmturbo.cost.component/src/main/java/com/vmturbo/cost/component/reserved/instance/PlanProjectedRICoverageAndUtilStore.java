@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.reserved.instance;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,6 +15,7 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -42,9 +42,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.db.Tables;
+
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
+import com.vmturbo.cost.component.reserved.instance.filter.PlanProjectedEntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -303,7 +305,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
     }
 
     /**
-     * A helper method to get entities which has a {@link ConnectedTo} entity matching the given
+     * A helper method to get entities which has a {@link ConnectedEntity} entity matching the given
      * entity's type and oid.
      *
      * @param entitySet candidate entity set
@@ -428,6 +430,74 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         return records.stream().filter(r -> r.getValue(0) != null)
                         .map(ReservedInstanceUtil::convertPlanRIUtilizationCoverageRecordToRIStatsRecord)
                         .collect(Collectors.toList());
+    }
+
+    /**
+     * Interrogates the plan_projected_reserved_instance_coverage table to retrieve a Map of entity_id to total_coupons.
+     *
+     * @param planId the plan for which RI coverage details should be retrieved
+     * @return a map of entity_id to the total_coupons covered
+     */
+    private Map<Long, Double> getPlanEntityToTotalCoupons(long planId) {
+        Map<Long, Double> entityIdToTotalCoupons = Maps.newHashMap();
+        context.select(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE.ENTITY_ID, Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE.TOTAL_COUPONS)
+                .from(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE)
+                .where(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE.PLAN_ID.eq(planId))
+                .fetch()
+                .forEach(record -> entityIdToTotalCoupons.put(record.value1(), record.value2()));
+        return entityIdToTotalCoupons;
+    }
+
+    /**
+     * Queries PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING to retrieve a map of entity_id to the number of
+     * coupons covered.
+     *
+     * @param filter the {@link PlanProjectedEntityReservedInstanceMappingFilter} specifying the topologyContextId,
+     *               entityId, riBoughtFilter, and conditions for a DB query to be executed
+     * @return a map of entity_id to riBought to the number of covered coupons
+     */
+    private Map<Long, Map<Long, Double>> getPlanProjectedReservedInstanceUsedCouponsMapWithFilter(@Nonnull PlanProjectedEntityReservedInstanceMappingFilter filter) {
+        final Map<Long, Map<Long, Double>> entityToRiToCoveredCoupons = Maps.newHashMap();
+        context.select(Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING.RESERVED_INSTANCE_ID,
+                Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING.ENTITY_ID,
+                Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING.USED_COUPONS)
+                .from(Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                .where(filter.getConditions())
+                .fetch()
+                .forEach(record -> {
+                    Long entityId = record.value2();
+                    entityToRiToCoveredCoupons.putIfAbsent(entityId, Maps.newHashMap());
+                    entityToRiToCoveredCoupons.get(entityId)
+                            .put(record.value1(), record.value3());
+                });
+        return entityToRiToCoveredCoupons;
+    }
+
+    /**
+     * Calls getPlanEntityToTotalCoupons and getPlanProjectedReservedInstanceUsedCouponsMapWithFilter, and combines the
+     * results to provide the projected RI coverage for a given plan, entity, RI combination specified by the args.
+     *
+     * @param planId the topologyContextId for which to query RI coverage
+     * @param filter the {@link PlanProjectedEntityReservedInstanceMappingFilter} specifying the topologyContextId,
+     *               entityId, riBoughtFilter, and conditions for a DB query to be executed
+     * @return a map of entity_ud to {@link EntityReservedInstanceCoverage}
+     */
+    public Map<Long, EntityReservedInstanceCoverage> getPlanProjectedRiCoverage(
+        Long planId, @Nonnull PlanProjectedEntityReservedInstanceMappingFilter filter) {
+
+        final Map<Long, Double> entityToTotalCoupons = getPlanEntityToTotalCoupons(planId);
+        final Map<Long, Map<Long, Double>> entityToRiToCoveredCoupons =
+            getPlanProjectedReservedInstanceUsedCouponsMapWithFilter(filter);
+
+        Map<Long, EntityReservedInstanceCoverage> entityToRiCoverage = entityToRiToCoveredCoupons.entrySet().stream()
+            .map(entityEntry -> EntityReservedInstanceCoverage.newBuilder()
+                .setEntityId(entityEntry.getKey())
+                .setEntityCouponCapacity(entityToTotalCoupons.getOrDefault(entityEntry.getKey(), 0D).intValue())
+                .putAllCouponsCoveredByRi(entityEntry.getValue())
+                .build())
+            .collect(Collectors.toMap(EntityReservedInstanceCoverage::getEntityId, Function.identity()));
+
+        return entityToRiCoverage;
     }
 
     /**
