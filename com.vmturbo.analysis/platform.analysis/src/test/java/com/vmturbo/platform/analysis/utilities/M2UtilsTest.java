@@ -7,12 +7,17 @@ import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.text.ParseException;
 import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
+
+import com.google.common.base.Charsets;
+import com.google.common.io.Resources;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -25,10 +30,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySoldSettings;
@@ -64,27 +65,24 @@ public class M2UtilsTest {
         ctx.updateLoggers();
     }
 
-    private static final String REPOS_PATH = M2UtilsTest.class.getClassLoader()
-                                            .getResource("data/repos/").getPath();
-
-    private static final String XML_TOP = fileToString(REPOS_PATH + "xml_top.xml");
-    private static final String XML_BOTTOM = fileToString(REPOS_PATH + "xml_bottom.xml");
-    private static final String DC_2 = fileToString(REPOS_PATH + "dc-2.xml");
-    private static final String VM_1277 = fileToString(REPOS_PATH + "vm-1277.xml");
-    private static final String VM_733 = fileToString(REPOS_PATH + "vm-733.xml");
-    private static final String VM_1544 = fileToString(REPOS_PATH + "vm-1544.xml");
-    private static final String PM_9 = fileToString(REPOS_PATH + "host-9.xml");
-    private static final String DS_902 = fileToString(REPOS_PATH + "datastore-902.xml");
-    private static final String APP_733 = fileToString(REPOS_PATH + "GuestLoad-vm-733.xml");
-    private static final String EDGE = fileToString(REPOS_PATH + "edge-cases.xml");
-    private static final String BICLIQUES = fileToString(REPOS_PATH + "bicliques.xml");
+    private static final String XML_TOP = resourceToString("xml_top.xml");
+    private static final String XML_BOTTOM = resourceToString("xml_bottom.xml");
+    private static final String DC_2 = resourceToString("dc-2.xml");
+    private static final String VM_1277 = resourceToString("vm-1277.xml");
+    private static final String VM_733 = resourceToString("vm-733.xml");
+    private static final String VM_1544 = resourceToString("vm-1544.xml");
+    private static final String PM_9 = resourceToString("host-9.xml");
+    private static final String DS_902 = resourceToString("datastore-902.xml");
+    private static final String APP_733 = resourceToString("GuestLoad-vm-733.xml");
+    private static final String EDGE = resourceToString("edge-cases.xml");
+    private static final String BICLIQUES = resourceToString("bicliques.xml");
 
     // Test that a full file loads with no exception.
     @Test
     @Ignore // need to find a real file that is small enough to include in SVN and test with
     public void testLoadFullFile() {
         try {
-            M2Utils.loadFile(REPOS_PATH + "small.repos.topology");
+            M2Utils.loadFile("data/repos/small.repos.topology");
         } catch (IOException | ParseException | ParserConfigurationException e) {
             // Have to catch this because the method throws it. Other exceptions will implicitly fail the test.
             fail("File not found : " + e);
@@ -309,13 +307,12 @@ public class M2UtilsTest {
         return M2Utils.loadStream(new ByteArrayInputStream(xml.getBytes()), logger);
     }
 
-    private static String fileToString(String fileName) {
+    private static String resourceToString(String fileName) {
         try {
-            return new String(Files.readAllBytes(Paths.get(fileName)));
-        } catch (IOException ioe) {
-            ioe.printStackTrace();
-            fail("Exception trying to load file : " + ioe);
-            return null;
+            return Resources.toString(M2UtilsTest.class.getClassLoader()
+                            .getResource("data/repos/" + fileName), Charsets.UTF_8);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Test resource not found " + fileName, e);
         }
     }
 }
