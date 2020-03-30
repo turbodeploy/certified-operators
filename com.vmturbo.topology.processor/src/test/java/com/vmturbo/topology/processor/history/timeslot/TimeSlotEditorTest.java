@@ -7,17 +7,19 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import org.hamcrest.CoreMatchers;
@@ -29,10 +31,16 @@ import org.mockito.Mockito;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.stats.StatsAccumulator;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
@@ -40,7 +48,6 @@ import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
 import com.vmturbo.topology.processor.history.CommodityField;
@@ -63,8 +70,8 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
                     .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build();
     private static final double SOLD_CAPACITY = 10;
     private static final DailyObservationWindowsCount SLOTS = DailyObservationWindowsCount.FOUR;
+    private static final Pair<Long, Long> DEFAULT_RANGE = Pair.create(null, null);
     private ExecutorService backgroundLoadingPool;
-    private TopologyProcessorNotificationSender notificationSender;
     private TimeslotHistoricalEditorConfig config;
     private TopologyInfo topologyInfo;
 
@@ -74,7 +81,6 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
     @Before
     public void before() {
         backgroundLoadingPool = Executors.newCachedThreadPool();
-        notificationSender = Mockito.mock(TopologyProcessorNotificationSender.class);
         config = createConfig(100, Clock.systemUTC());
         topologyInfo = TopologyInfo.newBuilder().setTopologyId(777777L).build();
     }
@@ -100,7 +106,7 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
         EntityCommodityReference ref3 = new EntityCommodityReference(OID3, CT, null);
 
         TimeslotEditorCacheAccess editor = new TimeslotEditorCacheAccess(config, null,
-                        backgroundLoadingPool, notificationSender, TimeSlotLoadingTask::new);
+                        backgroundLoadingPool, TimeSlotLoadingTask::new);
         List<EntityCommodityReference> comms = ImmutableList.of(ref1, ref2, ref3);
         HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
                         graphWithSettings, false);
@@ -161,8 +167,9 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
 
         HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
                         graphWithSettings, false);
-        TimeslotEditorCacheAccess editor = new TimeslotEditorCacheAccess(config, null,
-                        backgroundLoadingPool, notificationSender);
+        TimeslotEditorCacheAccess editor =
+                        new TimeslotEditorCacheAccess(config, null, backgroundLoadingPool,
+                                        TimeSlotLoadingTask::new);
         editor.completeBroadcast(context);
 
         // verify used
@@ -192,8 +199,8 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
         final CountDownLatch latch = new CountDownLatch(comms.size());
         final TimeslotEditorCacheAccess editor =
                         new TimeslotEditorCacheAccess(config, null, backgroundLoadingPool,
-                                        notificationSender,
-                                        (client) -> new TestTimeSlotLoadingTask(client, latch));
+                                        (client, range) -> new TestTimeSlotLoadingTask(client,
+                                                        latch, DEFAULT_RANGE));
         final HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
                         graphWithSettings, false);
         editor.initContext(context, comms);
@@ -235,8 +242,8 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
         final CountDownLatch latch = new CountDownLatch(comms.size());
         final TimeslotEditorCacheAccess editor =
                         new TimeslotEditorCacheAccess(config, null, backgroundLoadingPool,
-                                        notificationSender,
-                                        (client) -> new TestTimeSlotLoadingTask(client, latch));
+                                        (client, range) -> new TestTimeSlotLoadingTask(client,
+                                                        latch, DEFAULT_RANGE));
         final HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
                         graphWithSettings, false);
         editor.initContext(context, comms);
@@ -284,9 +291,8 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
         final CountDownLatch discoveryLatch = new CountDownLatch(1);
         final TimeslotEditorCacheAccess editor =
                         new TimeslotEditorCacheAccess(config, null, backgroundLoadingPool,
-                                        notificationSender,
-                                        (client) -> new TestTimeSlotLoadingTask(client, latch,
-                                                        discoveryLatch));
+                                        (client, range) -> new TestTimeSlotLoadingTask(client,
+                                                        latch, discoveryLatch, DEFAULT_RANGE));
         final HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
                         graphWithSettings, false);
         editor.initContext(context, comms);
@@ -305,6 +311,112 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
                                         new TimeSlotCommodityData()));
         Assert.assertThat(editor.createPreparationTasks(context, comms).size(), CoreMatchers.is(0));
         Assert.assertThat(editor.createCalculationTasks(context, comms).size(), CoreMatchers.is(3));
+    }
+
+    /**
+     * Checks that maintenance is working as expected.
+     *
+     * @throws InterruptedException in case thread was interrupted
+     * @throws HistoryCalculationException in case time slot calculation process
+     *                 failed
+     */
+    @Test
+    public void checkMaintenance() throws InterruptedException, HistoryCalculationException {
+        final Clock clock = Mockito.mock(Clock.class);
+        config = createConfig(10, clock);
+        final EntityCommodityReference ref1 = new EntityCommodityReference(OID1, CT, null);
+        final EntityCommodityReference ref2 = new EntityCommodityReference(OID2, CT, null);
+        final EntityCommodityReference ref3 = new EntityCommodityReference(OID3, CT, null);
+        final List<EntityCommodityReference> comms = ImmutableList.of(ref1, ref2, ref3);
+        final List<Pair<Long, StatRecord>> oldRecords = Collections.singletonList(Pair.create(100L,
+                        StatRecord.newBuilder().setUsed(StatsAccumulator.singleStatValue(50F))
+                                        .setCapacity(StatsAccumulator.singleStatValue(100F))
+                                        .build()));
+        final Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> maintenaceData =
+                        ImmutableMap.of(new EntityCommodityFieldReference(ref1,
+                                        CommodityField.USED), oldRecords);
+        final TimeslotEditorCacheAccess editor =
+                        new TimeslotEditorCacheAccess(config, null, backgroundLoadingPool,
+                                        (client, range) -> new TestTimeSlotLoadingTask(client,
+                                                        maintenaceData, DEFAULT_RANGE));
+        final HistoryAggregationContext firstBroadcastContext = createContext(
+                        ImmutableMap.of(ref1, Pair.create(70F, 100F), ref2, Pair.create(80F, 200F),
+                                        ref3, Pair.create(30F, 100F))).getFirst();
+        editor.initContext(firstBroadcastContext, comms);
+        for (EntityCommodityReference ref : comms) {
+            final EntityCommodityFieldReference fieldRef =
+                            new EntityCommodityFieldReference(ref, CommodityField.USED);
+            final TimeSlotCommodityData data = new TimeSlotCommodityData();
+            data.init(fieldRef, null, config, firstBroadcastContext);
+            editor.getCache().put(fieldRef, data);
+        }
+        Mockito.doAnswer((invocation) -> TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS).when(clock)
+                        .millis();
+        doCalculations(editor, firstBroadcastContext);
+        final HistoryAggregationContext secondBroadcastContext = createContext(ImmutableMap
+                        .of(ref1, Pair.create(10F, 100F), ref2, Pair.create(195F, 200F), ref3,
+                                        Pair.create(95F, 100F))).getFirst();
+        Mockito.doAnswer((invocation) -> TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * 3)
+                        .when(clock).millis();
+        doCalculations(editor, secondBroadcastContext);
+        Mockito.doAnswer((invocation) -> System.currentTimeMillis()).when(clock).millis();
+        editor.completeBroadcast(secondBroadcastContext);
+        final Pair<HistoryAggregationContext, GraphWithSettings> contextToGraph2 =
+                        createContext(ImmutableMap.of(ref1, Pair.create(10F, 100F), ref2,
+                                        Pair.create(195F, 200F), ref3, Pair.create(95F, 100F)));
+        doCalculations(editor, contextToGraph2.getFirst());
+        Assert.assertEquals(getTimeSlots(ref1, contextToGraph2.getSecond()).get(0), 0.3F, 0.0001);
+    }
+
+    private void doCalculations(TimeslotEditorCacheAccess editor,
+                    HistoryAggregationContext context) {
+        for (Entry<EntityCommodityFieldReference, TimeSlotCommodityData> refToData : editor
+                        .getCache().entrySet()) {
+            refToData.getValue().aggregate(refToData.getKey(), config, context);
+        }
+    }
+
+    private static List<Double> getTimeSlots(@Nonnull EntityCommodityReference reference,
+                    @Nonnull GraphWithSettings graph) {
+        return graph.getTopologyGraph().getEntity(reference.getEntityOid()).get()
+                        .getTopologyEntityDtoBuilder().getCommoditySoldListList().stream()
+                        .filter(cs -> reference.getCommodityType().equals(cs.getCommodityType()))
+                        .findFirst().get().getHistoricalUsed().getTimeSlotList();
+    }
+
+    private Pair<HistoryAggregationContext, GraphWithSettings> createContext(
+                    Map<EntityCommodityReference, Pair<Float, Float>> initialRefToStats) {
+        final GraphWithSettings graphWithSettings = createGraphWithSettings();
+        populateStatsToEntities(graphWithSettings, initialRefToStats);
+        return Pair.create(new HistoryAggregationContext(topologyInfo, graphWithSettings, false),
+                        graphWithSettings);
+    }
+
+    private static void populateStatsToEntities(GraphWithSettings graphWithSettings,
+                    Map<EntityCommodityReference, Pair<Float, Float>> initialRefToStats) {
+        initialRefToStats.forEach((ref, stats) -> {
+            final TopologyEntityDTO.Builder entityBuilder =
+                            graphWithSettings.getTopologyGraph().getEntity(ref.getEntityOid()).get()
+                                            .getTopologyEntityDtoBuilder();
+            final Long providerOid = ref.getProviderOid();
+            if (providerOid != null) {
+                final CommoditiesBoughtFromProvider.Builder boughtFromProviderBuilder =
+                                CommoditiesBoughtFromProvider.newBuilder()
+                                                .setProviderId(providerOid).setProviderEntityType(
+                                                EntityType.DESKTOP_POOL_VALUE);
+                boughtFromProviderBuilder.addCommodityBought(CommodityBoughtDTO.newBuilder()
+                                .setCommodityType(ref.getCommodityType()).setUsed(stats.getFirst())
+                                .build());
+                entityBuilder.getCommoditiesBoughtFromProvidersList()
+                                .add(boughtFromProviderBuilder.build());
+            } else {
+                entityBuilder.addAllCommoditySoldList(
+                                Collections.singleton(CommoditySoldDTO.newBuilder()
+                                                .setCommodityType(ref.getCommodityType())
+                                                .setUsed(stats.getFirst())
+                                                .setCapacity(stats.getSecond()).build()));
+            }
+        });
     }
 
     private static List<EntityCommodityReference> createCommodityReferences() {
@@ -342,31 +454,13 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
          * @param config configuration parameters
          * @param statsHistoryClient remote persistence
          * @param backgroundLoadingPool pool for background loading tasks.
-         * @param notificationSender sends notification about failures.
          * @param loadingTaskSupplier supplier for loading task.
          */
         private TimeslotEditorCacheAccess(TimeslotHistoricalEditorConfig config,
                         StatsHistoryServiceBlockingStub statsHistoryClient,
                         ExecutorService backgroundLoadingPool,
-                        TopologyProcessorNotificationSender notificationSender,
-                        Function<StatsHistoryServiceBlockingStub, TimeSlotLoadingTask> loadingTaskSupplier) {
+                        BiFunction<StatsHistoryServiceBlockingStub, Pair<Long, Long>, TimeSlotLoadingTask> loadingTaskSupplier) {
             super(config, statsHistoryClient, backgroundLoadingPool, loadingTaskSupplier);
-        }
-
-        /**
-         * Construct the instance.
-         *
-         * @param config configuration parameters
-         * @param statsHistoryClient remote persistence
-         * @param backgroundLoadingPool pool for background loading tasks.
-         * @param notificationSender sends notification about failures.
-         */
-        private TimeslotEditorCacheAccess(TimeslotHistoricalEditorConfig config,
-                        StatsHistoryServiceBlockingStub statsHistoryClient,
-                        ExecutorService backgroundLoadingPool,
-                        TopologyProcessorNotificationSender notificationSender) {
-            this(config, statsHistoryClient, backgroundLoadingPool, notificationSender,
-                            TimeSlotLoadingTask::new);
         }
 
         @Override
@@ -382,19 +476,32 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
     private static class TestTimeSlotLoadingTask extends TimeSlotLoadingTask {
         private final CountDownLatch taskCompletionLatch;
         private final CountDownLatch broadcastLatch;
-
+        private final Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> maintenaceData;
 
         private TestTimeSlotLoadingTask(StatsHistoryServiceBlockingStub client,
-                        CountDownLatch taskCompletionLatch, CountDownLatch broadcastLatch) {
-            super(client);
-            this.taskCompletionLatch = taskCompletionLatch;
-            this.broadcastLatch = broadcastLatch;
+                        Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> maintenaceData, @Nonnull Pair<Long, Long> range) {
+            this(client, null, null, maintenaceData, range);
         }
 
         private TestTimeSlotLoadingTask(StatsHistoryServiceBlockingStub client,
-                        CountDownLatch taskCompletionLatch) {
-            this(client, taskCompletionLatch, null);
+                        CountDownLatch taskCompletionLatch, CountDownLatch broadcastLatch,
+                        Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> maintenaceData,
+                        @Nonnull Pair<Long, Long> range) {
+            super(client, range);
+            this.taskCompletionLatch = taskCompletionLatch;
+            this.broadcastLatch = broadcastLatch;
+            this.maintenaceData = maintenaceData;
+        }
 
+        private TestTimeSlotLoadingTask(StatsHistoryServiceBlockingStub client,
+                        CountDownLatch taskCompletionLatch, CountDownLatch broadcastLatch,
+                        @Nonnull Pair<Long, Long> range) {
+            this(client, taskCompletionLatch, broadcastLatch, Collections.emptyMap(), range);
+        }
+
+        private TestTimeSlotLoadingTask(StatsHistoryServiceBlockingStub client,
+                        CountDownLatch taskCompletionLatch, @Nonnull Pair<Long, Long> range) {
+            this(client, taskCompletionLatch, null, Collections.emptyMap(), range);
         }
 
         @Nonnull
@@ -404,6 +511,9 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
                         @Nonnull TimeslotHistoricalEditorConfig config)
                         throws HistoryCalculationException {
             try {
+                if (!maintenaceData.isEmpty()) {
+                    return maintenaceData;
+                }
                 if (broadcastLatch != null) {
                     broadcastLatch.await();
                     return Collections.emptyMap();
@@ -412,7 +522,9 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
             } catch (InterruptedException e) {
                 throw new HistoryCalculationException("Test has been interrupted", e);
             } finally {
-                taskCompletionLatch.countDown();
+                if (taskCompletionLatch != null) {
+                    taskCompletionLatch.countDown();
+                }
             }
         }
     }

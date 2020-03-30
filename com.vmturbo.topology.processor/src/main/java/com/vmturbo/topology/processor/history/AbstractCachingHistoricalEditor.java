@@ -10,7 +10,7 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -22,6 +22,7 @@ import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 
 /**
@@ -52,7 +53,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     /**
      * Creator for the task that fetches persisted data.
      */
-    protected final Function<Stub, HistoryLoadingTask> historyLoadingTaskCreator;
+    private final BiFunction<Stub, Pair<Long, Long>, HistoryLoadingTask> historyLoadingTaskCreator;
     /**
      * Creator for the cached per-commodity-field data entry.
      */
@@ -68,7 +69,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
      */
     protected AbstractCachingHistoricalEditor(@Nullable Config config,
                                               @Nonnull Stub statsHistoryClient,
-                                              @Nonnull Function<Stub, HistoryLoadingTask> historyLoadingTaskCreator,
+                                              @Nonnull BiFunction<Stub, Pair<Long, Long>, HistoryLoadingTask> historyLoadingTaskCreator,
                                               @Nonnull Supplier<HistoryData> historyDataCreator) {
         super(config, statsHistoryClient);
         this.historyLoadingTaskCreator = historyLoadingTaskCreator;
@@ -86,11 +87,24 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
         List<List<EntityCommodityReference>> partitions = Lists
                         .partition(uninitializedCommodities, getConfig().getLoadingChunkSize());
         return partitions.stream()
-                        .map(chunk -> new HistoryLoadingCallable(context,
-                                                                 historyLoadingTaskCreator.apply(getStatsHistoryClient()),
-                                                                 chunk))
-                        .collect(Collectors.toList());
+                        .map(chunk -> new HistoryLoadingCallable(context, createLoadingTask(null),
+                                        chunk)).collect(Collectors.toList());
     }
+
+    /**
+     * Creates a new history loading task instance for the specified time range.
+     *
+     * @param rawRange pair of start and end timestamps between which we want to get
+     *                 data.
+     * @return instance of history loading task which will load data in requested time
+     *                 range.
+     */
+    @Nonnull
+    protected HistoryLoadingTask createLoadingTask(@Nullable Pair<Long, Long> rawRange) {
+        final Pair<Long, Long> range = rawRange == null ? Pair.create(null, null) : rawRange;
+        return historyLoadingTaskCreator.apply(getStatsHistoryClient(), range);
+    }
+
 
     @Override
     @Nonnull

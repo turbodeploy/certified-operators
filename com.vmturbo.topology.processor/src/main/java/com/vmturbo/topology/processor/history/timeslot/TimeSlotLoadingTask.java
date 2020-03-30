@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.history.timeslot;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -23,7 +24,6 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.AbstractStatsLoadingTask;
@@ -39,44 +39,36 @@ public class TimeSlotLoadingTask extends
     private static final Logger logger = LogManager.getLogger();
 
     private final StatsHistoryServiceBlockingStub statsHistoryClient;
-    private final int periodDays;
+    private final Pair<Long, Long> range;
 
     /**
      * Construct the timeslot (hourly) data loading task.
      *
      * @param statsHistoryClient history client connection
+     * @param range pair of timestamps since which we will request hourly points and
+     *                 till which we will request hourly points.
      */
-    public TimeSlotLoadingTask(@Nonnull StatsHistoryServiceBlockingStub statsHistoryClient) {
+    public TimeSlotLoadingTask(@Nonnull StatsHistoryServiceBlockingStub statsHistoryClient,
+                    @Nonnull Pair<Long, Long> range) {
         this.statsHistoryClient = statsHistoryClient;
-        this.periodDays = (int)EntitySettingSpecs.MaxObservationPeriodDesktopPool.getSettingSpec()
-                        .getNumericSettingValueType().getDefault();
-    }
-
-    /**
-     * Construct the timeslot (hourly) data loading task.
-     *
-     * @param statsHistoryClient history client connection
-     * @param periodDays period for which to request data
-     */
-    public TimeSlotLoadingTask(@Nonnull StatsHistoryServiceBlockingStub statsHistoryClient, int periodDays) {
-        this.statsHistoryClient = statsHistoryClient;
-        this.periodDays = periodDays;
+        this.range = range;
     }
 
     @Override
     @Nonnull
-    public Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>>
-        load(@Nonnull Collection<EntityCommodityReference> commodities, @Nonnull TimeslotHistoricalEditorConfig config)
+    public Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> load(
+                    @Nonnull Collection<EntityCommodityReference> commodities,
+                    @Nonnull TimeslotHistoricalEditorConfig config)
                     throws HistoryCalculationException {
         Stopwatch sw = Stopwatch.createStarted();
 
-        long now = config.getClock().millis();
-        long lastDay = now / TimeInMillisConstants.DAY_LENGTH_IN_MILLIS * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
-        long lastHour = now / TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS;
-        GetEntityStatsRequest request = createStatsRequest(commodities,
-                   lastDay - periodDays * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS,
-                   lastHour,
-                   TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS);
+        final long now = config.getClock().millis();
+        final long startMs = getRequestTimestamp(now, range.getFirst(),
+                        TimeInMillisConstants.DAY_LENGTH_IN_MILLIS);
+        final long endMs = getRequestTimestamp(now, range.getSecond(),
+                        TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS);
+        final GetEntityStatsRequest request = createStatsRequest(commodities, startMs, endMs,
+                        TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS);
         long records = 0;
 
         Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> fields2records = new HashMap<>();
@@ -101,8 +93,8 @@ public class TimeSlotLoadingTask extends
                             ct.setKey(record.getStatKey());
                         }
                         EntityCommodityFieldReference field =
-                                    new EntityCommodityFieldReference(stats.getOid(), ct.build(),
-                                                                      provider, CommodityField.USED);
+                                        new EntityCommodityFieldReference(stats.getOid(), ct.build(),
+                                                        provider, CommodityField.USED);
                         ++records;
                         fields2records.computeIfAbsent(field, f -> new LinkedList<>())
                                         .add(Pair.create(snapshot.getSnapshotDate(), record));
@@ -122,9 +114,18 @@ public class TimeSlotLoadingTask extends
         }
 
         if (logger.isDebugEnabled()) {
-            logger.debug("Timeslot caching: queried {} hourly stat records for {} commodities and () days in {}",
-                         records, fields2records.size(), periodDays, sw);
+            logger.debug("Timeslot caching: queried {} hourly stat records for {} commodities from '{}' till '{}' in {}",
+                            records, fields2records.size(), Instant.ofEpochMilli(startMs),
+                            Instant.ofEpochMilli(endMs), sw);
         }
         return fields2records;
+    }
+
+    private static long getRequestTimestamp(long now, Long endMs, long rounding) {
+        return endMs == null ? round(now, rounding) : endMs;
+    }
+
+    private static long round(long timestamp, long range) {
+        return timestamp / range * range;
     }
 }
