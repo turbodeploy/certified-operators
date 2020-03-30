@@ -215,7 +215,7 @@ class CombinedStatsBuckets {
             keyBuilder.costType(ActionDTOUtil.getActionCostTypeFromAction(action));
         }
         if (groupBy.contains(GroupBy.SEVERITY)) {
-            keyBuilder.severity(ActionDTOUtil.mapActionCategoryToSeverity(actionView.getActionCategory()));
+            keyBuilder.severity(actionView.getActionSeverity());
         }
         if (groupBy.contains(GroupBy.TARGET_ENTITY_TYPE)) {
             try {

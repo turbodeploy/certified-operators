@@ -97,6 +97,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
@@ -397,7 +398,7 @@ public class ActionSpecMapper {
     }
 
     @Nonnull
-    public ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
+    public static ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
         switch (actionState) {
             case PRE_IN_PROGRESS:
             case POST_IN_PROGRESS:
@@ -415,7 +416,7 @@ public class ActionSpecMapper {
      * @return an {@link ActionState} enum, null if it's not an execution state
      */
     @Nullable
-    public ActionState mapXlActionStateToExecutionApi(@Nonnull final ActionDTO.ActionState actionState) {
+    private static ActionState mapXlActionStateToExecutionApi(@Nonnull final ActionDTO.ActionState actionState) {
         switch (actionState) {
             case PRE_IN_PROGRESS:
                 return ActionState.PRE_IN_PROGRESS;
@@ -442,7 +443,8 @@ public class ActionSpecMapper {
      *         no equivalent category exists in XL.
      */
     @Nonnull
-    public Optional<ActionDTO.ActionCategory> mapApiActionCategoryToXl(@Nonnull final String category) {
+    public static Optional<ActionDTO.ActionCategory> mapApiActionCategoryToXl(
+            @Nonnull final String category) {
         switch (category) {
             case API_CATEGORY_PERFORMANCE_ASSURANCE:
                 return Optional.of(ActionCategory.PERFORMANCE_ASSURANCE);
@@ -463,7 +465,8 @@ public class ActionSpecMapper {
             @Nonnull final ActionSpecMappingContext context,
             final long topologyContextId,
             @Nullable final ActionDetailLevel detailLevel)
-                    throws UnsupportedActionException, UnknownObjectException, ExecutionException, InterruptedException {
+                    throws UnsupportedActionException, UnknownObjectException,
+                           ExecutionException, InterruptedException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
         // actionID and uuid are the same
@@ -502,8 +505,7 @@ public class ActionSpecMapper {
 
         risk.setDescription(createRiskDescription(actionSpec, context));
         risk.setSubCategory(mapXlActionCategoryToApi(actionSpec.getCategory()));
-        risk.setSeverity(ActionDTOUtil.getSeverityName(
-            ActionDTOUtil.mapActionCategoryToSeverity(actionSpec.getCategory())));
+        risk.setSeverity(mapSeverityToApi(actionSpec.getSeverity()));
         risk.setReasonCommodity("");
         actionApiDTO.setRisk(risk);
 
@@ -1492,13 +1494,11 @@ public class ActionSpecMapper {
             .setVisible(true);
 
         if (inputDto != null) {
-            // TODO (roman, Dec 28 2016): This is only implementing a small subset of
-            // query options. Need to do another pass, including handling
-            // action states that don't map to ActionDTO.ActionState neatly,
-            // dealing with decisions/ActionModes, etc.
+            populateDateInput(inputDto, queryBuilder);
+
             if (inputDto.getActionStateList() != null) {
                 inputDto.getActionStateList().stream()
-                    .map(this::mapApiStateToXl)
+                    .map(ActionSpecMapper::mapApiStateToXl)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(queryBuilder::addStates);
@@ -1509,10 +1509,18 @@ public class ActionSpecMapper {
                 Stream.of(OPERATIONAL_ACTION_STATES).forEach(queryBuilder::addStates);
             }
 
+            if (inputDto.getRiskSeverityList() != null) {
+                inputDto.getRiskSeverityList().stream()
+                    .map(ActionSpecMapper::mapApiSeverityToXl)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(queryBuilder::addSeverities);
+            }
+
             // Map UI's ActionMode to ActionDTO.ActionMode and add them to filter
             if (inputDto.getActionModeList() != null) {
                 inputDto.getActionModeList().stream()
-                    .map(this::mapApiModeToXl)
+                    .map(ActionSpecMapper::mapApiModeToXl)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(queryBuilder::addModes);
@@ -1529,15 +1537,6 @@ public class ActionSpecMapper {
                         logger.warn("Unable to map action category {} to XL category.", apiCategory);
                     }
                 });
-            }
-
-            // pass in start and end time
-            if (inputDto.getStartTime() != null && !inputDto.getStartTime().isEmpty()) {
-                queryBuilder.setStartDate(DateTimeUtil.parseTime(inputDto.getStartTime()));
-            }
-
-            if (inputDto.getEndTime() != null && !inputDto.getEndTime().isEmpty()) {
-                queryBuilder.setEndDate(DateTimeUtil.parseTime(inputDto.getEndTime()));
             }
 
             if (inputDto.getEnvironmentType() != null) {
@@ -1568,8 +1567,84 @@ public class ActionSpecMapper {
         return queryBuilder.build();
     }
 
+    /**
+     * Handles time in the translation of an {@link ActionApiInputDTO}
+     * object to an {@link ActionQueryFilter} object.
+     * If the start time is not empty and the end time is empty,
+     * the end time is set to "now".
+     *
+     * <p>Some cases should not appear:
+     * <ul>
+     *     <li>If startTime is in the future.</li>
+     *     <li>If endTime precedes startTime.</li>
+     *     <li>If endTime only was passed.</li>
+     * </ul>
+     * In these cases an {@link IllegalArgumentException} is thrown.
+     * </p>
+     *
+     * @param input the {@link ActionApiDTO} object.
+     * @param queryBuilder the {@link ActionQueryFilter.Builder} object
+     *                     whose time entries must be populated
+     */
+    private static void populateDateInput(@Nonnull ActionApiInputDTO input,
+                                          @Nonnull final ActionQueryFilter.Builder queryBuilder) {
+        final String startTimeString = input.getStartTime();
+        final String endTimeString = input.getEndTime();
+        final String nowString = DateTimeUtil.getNow();
+
+        if (!StringUtils.isEmpty(startTimeString)) {
+            final long startTime = DateTimeUtil.parseTime(startTimeString);
+            final long now = DateTimeUtil.parseTime(nowString);
+
+            if (startTime > now) {
+                // start time is in the future.
+                throw new IllegalArgumentException("startTime " + startTimeString +
+                        " can't be in the future");
+            }
+            queryBuilder.setStartDate(startTime);
+
+            if (!StringUtils.isEmpty(endTimeString)) {
+                final long endTime = DateTimeUtil.parseTime(endTimeString);
+                if (endTime < startTime) {
+                    // end time is before start time
+                    throw new IllegalArgumentException("startTime " + startTimeString +
+                            " must precede endTime " + endTimeString);
+                }
+                queryBuilder.setEndDate(endTime);
+            } else {
+                // start time is set, but end time is null
+                // end time should be set to now
+                queryBuilder.setEndDate(now);
+            }
+        } else if (!StringUtils.isEmpty(endTimeString)) {
+            // start time is set, but end time is not
+            throw new IllegalArgumentException("startTime is required along with endTime");
+        }
+    }
+
     @Nonnull
-    public Optional<ActionDTO.ActionState> mapApiStateToXl(final ActionState stateStr) {
+    private static Optional<Severity> mapApiSeverityToXl(@Nonnull String apiSeverity) {
+        try {
+            return Optional.of(Severity.valueOf(apiSeverity.toUpperCase()));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Translates a {@link Severity} into a human-readable string
+     * to be returned by the API.
+     *
+     * @param severity the severity in internal XL format
+     * @return the API corresponding string
+     */
+    @Nonnull
+    public static String mapSeverityToApi(@Nonnull Severity severity) {
+        return severity.name();
+    }
+
+    @Nonnull
+    public static Optional<ActionDTO.ActionState> mapApiStateToXl(final ActionState stateStr) {
         switch (stateStr) {
             case READY:
                 return Optional.of(ActionDTO.ActionState.READY);
@@ -1908,7 +1983,7 @@ public class ActionSpecMapper {
      * @return ActionDTO.ActionMode
      */
     @Nonnull
-    public Optional<ActionDTO.ActionMode> mapApiModeToXl(final ActionMode actionMode) {
+    public static Optional<ActionDTO.ActionMode> mapApiModeToXl(final ActionMode actionMode) {
         switch (actionMode) {
             case DISABLED:
                 return Optional.of(ActionDTO.ActionMode.DISABLED);

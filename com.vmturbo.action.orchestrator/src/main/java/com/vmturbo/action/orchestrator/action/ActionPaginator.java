@@ -50,9 +50,7 @@ public class ActionPaginator {
         registry.put(ActionOrderBy.ACTION_NAME,
             new StableActionComparator(Comparator.comparing(ActionView::getDescription)));
         registry.put(ActionOrderBy.ACTION_SEVERITY,
-                     new StableActionComparator(Comparator.comparing(actionView ->
-                        ActionDTOUtil.mapActionCategoryToSeverity(actionView.getActionCategory())
-                     )));
+                     new StableActionComparator(Comparator.comparing(ActionView::getActionSeverity)));
         registry.put(ActionOrderBy.ACTION_RISK_CATEGORY, new StableActionComparator((a1, a2) -> {
             final String a1CategoryName = a1.getActionCategory().name();
             final String a2CategoryName = a2.getActionCategory().name();
