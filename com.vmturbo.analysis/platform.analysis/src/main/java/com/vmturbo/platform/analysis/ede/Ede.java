@@ -319,7 +319,7 @@ public final class Ede {
         if (isSuspension) {
             Suspension suspension = new Suspension();
             // initialize the rolled back trader list from last run
-            getReplayActions().translateRolledbackTraders(economy, economy.getTopology());
+            getReplayActions().translateRolledbackTraders(economy.getTopology());
             suspension.setRolledBack(getReplayActions().getRolledBackSuspensionCandidates());
             // find if any seller is the sole provider in any market, if so, it should not
             // be considered as suspension candidate

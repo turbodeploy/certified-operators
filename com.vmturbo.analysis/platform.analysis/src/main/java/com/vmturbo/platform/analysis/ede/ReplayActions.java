@@ -6,13 +6,11 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionType;
@@ -76,32 +74,10 @@ public class ReplayActions {
 
         for (Action action : actions_) {
             try {
-                Function<@NonNull Trader, @NonNull Trader> traderMap = oldTrader -> {
-                    Long oid = action.getEconomy().getTopology().getTraderOids().get(oldTrader);
-                    Trader newTrader = economy.getTopology().getTraderOids().inverse().get(oid);
-
-                    if (newTrader == null) {
-                        throw new NoSuchElementException("Could not find trader with oid " + oid
-                            + " " + oldTrader.getDebugInfoNeverUseInCode() + " in new economy");
-                    }
-
-                    return newTrader;
-                };
-
-                Function<@NonNull ShoppingList, @NonNull ShoppingList> shoppingListMap = oldSl -> {
-                    Long oid = action.getEconomy().getTopology().getShoppingListOids().get(oldSl);
-                    ShoppingList newSl =
-                                    economy.getTopology().getShoppingListOids().inverse().get(oid);
-
-                    if (newSl == null) {
-                        throw new NoSuchElementException("Could not find shopping list with oid "
-                            + oid + " " + oldSl.getDebugInfoNeverUseInCode() + " in new economy");
-                    }
-
-                    return newSl;
-                };
-
-                Action ported = action.port(economy, traderMap, shoppingListMap);
+                Action ported = action.port(economy,
+                    oldTrader -> mapTrader(oldTrader, getTopology(), economy.getTopology()),
+                    oldSl -> mapShoppingList(oldSl, getTopology(), economy.getTopology())
+                );
                 if (ported.isValid()) {
                     actions.add(ported.take());
                 }
@@ -139,24 +115,34 @@ public class ReplayActions {
         // that force utilization to exceed maxDesiredUtil*utilTh.
         suspensionInstance.adjustUtilThreshold(economy, true);
         for (Action deactivateAction : deactivateActions) {
-            Deactivate oldAction = (Deactivate) deactivateAction;
-            Trader newTrader = translateTrader(oldAction.getTarget(), economy, "Deactivate");
-            if (isEligibleforSuspensionReplay(newTrader, economy)) {
-                if (Suspension.getSuspensionsthrottlingconfig() == SuspensionsThrottlingConfig.CLUSTER) {
-                    Suspension.makeCoSellersNonSuspendable(economy, newTrader);
+            try {
+                Deactivate oldAction = (Deactivate) deactivateAction;
+                @NonNull Trader newTrader = mapTrader(oldAction.getTarget(), getTopology(),
+                    economy.getTopology());
+                if (isEligibleforSuspensionReplay(newTrader, economy)) {
+                    if (Suspension.getSuspensionsthrottlingconfig()
+                            == SuspensionsThrottlingConfig.CLUSTER) {
+                        Suspension.makeCoSellersNonSuspendable(economy, newTrader);
+                    }
+                    if (newTrader.getSettings().isControllable()) {
+                        suspendActions.addAll(
+                            suspensionInstance.deactivateTraderIfPossible(newTrader, economy,
+                                                                            ledger, true));
+                    } else {
+                        // If controllable is false, deactivate the trader without checking criteria
+                        // as entities may not be able to move out of the trader with controllable
+                        // false.
+                        List<Market> marketsAsSeller = economy.getMarketsAsSeller(newTrader);
+                        Deactivate replayedSuspension = new Deactivate(economy, newTrader,
+                            !marketsAsSeller.isEmpty() ? marketsAsSeller.get(0).getBasket()
+                                                       : newTrader.getBasketSold());
+                        suspendActions.add(replayedSuspension.take());
+                        suspendActions.addAll(replayedSuspension.getSubsequentActions());
+                    }
                 }
-                if (newTrader.getSettings().isControllable()) {
-                    suspendActions.addAll(suspensionInstance.deactivateTraderIfPossible(newTrader, economy,
-                                    ledger, true));
-                } else {
-                    // If controllable is false, deactivate the trader without checking criteria
-                    // as entities may not be able to move out of the trader with controllable false.
-                    List<Market> marketsAsSeller = economy.getMarketsAsSeller(newTrader);
-                    Deactivate replayedSuspension = new Deactivate(economy, newTrader,
-                        !marketsAsSeller.isEmpty() ? marketsAsSeller.get(0).getBasket()
-                                                   : newTrader.getBasketSold());
-                    suspendActions.add(replayedSuspension.take());
-                    suspendActions.addAll(replayedSuspension.getSubsequentActions());
+            } catch (Exception e) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Could not replay " + deactivateAction.toString(), e);
                 }
             }
         }
@@ -172,9 +158,8 @@ public class ReplayActions {
      * @param economy to which trader belongs.
      * @return true, if trader qualifies for replay of suspension.
      */
-    private boolean isEligibleforSuspensionReplay(Trader trader, Economy economy) {
-        return trader != null
-            && trader.getSettings().isSuspendable()
+    private boolean isEligibleforSuspensionReplay(@NonNull Trader trader, Economy economy) {
+        return trader.getSettings().isSuspendable()
             && trader.getState().isActive()
             // If trader is sole provider in any market, we don't want to replay the suspension.
             // Consider scenario where we replay suspension for PM1 but there was a new placement policy
@@ -187,39 +172,67 @@ public class ReplayActions {
     /**
      * Translate the list of rolled-back suspension candidate traders to the given {@link Economy}
      *
-     * @param newEconomy The {@link Economy} in which actions are to be replayed
-     * @param newTopology The {@link Topology} for the given {@link Economy}
+     * @param newTopology The {@link Topology} in which actions are to be replayed.
      */
-    public void translateRolledbackTraders(Economy newEconomy, Topology newTopology) {
+    public void translateRolledbackTraders(@NonNull Topology newTopology) {
         Set<Trader> newTraders = new HashSet<>();
-        rolledBackSuspensionCandidates_.forEach(t -> {
-            Trader newTrader = translateTrader(t, newEconomy, "translateTraders");
-            if (newTrader != null) {
-                newTraders.add(newTrader);
+        for (Trader trader : rolledBackSuspensionCandidates_) {
+            try {
+                newTraders.add(mapTrader(trader, getTopology(), newTopology));
+            } catch (Exception ignored) {
+                // If an error occurs (e.g. if the trader doesn't exist in destination topology)
+                // just continue with the next trader.
             }
-        });
+        }
         rolledBackSuspensionCandidates_ = newTraders;
     }
 
     /**
-     * Translate the given trader to the one in new {@link Economy}
+     * Maps a {@link Trader} to another one with the same OID in another topology.
      *
-     * @param trader The trader for which we want to find the corresponding trader
-     *               in new {@link Economy}
-     * @param newEconomy The {@link Economy} in which actions are to be replayed
-     * @param callerName A tag used by caller, useful in logging
-     * @return Trader in new Economy or null if it fails to translate it
+     * @param oldTrader The trader that is going to be mapped.
+     * @param oldTopology The topology that contains <b>oldTrader</b>.
+     * @param newTopology The topology in which to search for a trader with OID equal to the
+     *                    <b>oldTrader</b>'s one.
+     * @return The trader in <b>newTopology</b> that has the same OID as <b>oldTrader</b> had in
+     *         <b>oldTopology</b> iff one exists.
+     * @throws NoSuchElementException Iff no such trader exists in <b>newTopology</b>.
      */
-    public @Nullable Trader translateTrader(Trader trader, Economy newEconomy,
-                                            String callerName) {
-        Topology newTopology = newEconomy.getTopology();
-        Long oid = topology_.getTraderOids().get(trader);
+    static @NonNull Trader mapTrader(@NonNull Trader oldTrader,
+                                    @NonNull Topology oldTopology, @NonNull Topology newTopology) {
+        Long oid = oldTopology.getTraderOids().get(oldTrader);
         Trader newTrader = newTopology.getTraderOids().inverse().get(oid);
+
         if (newTrader == null) {
-            logger.info("Could not find trader with oid " + oid + " " + callerName + " " +
-                         ((trader != null) ? trader.getDebugInfoNeverUseInCode() : "nullTrader"));
+            throw new NoSuchElementException("Could not find trader with oid " + oid
+                + " " + oldTrader.getDebugInfoNeverUseInCode() + " in new topology");
         }
+
         return newTrader;
+    }
+
+    /**
+     * Maps a {@link ShoppingList} to another one with the same OID in another topology.
+     *
+     * @param oldShoppingList The shopping list that is going to be mapped.
+     * @param oldTopology The topology that contains <b>oldShoppingList</b>.
+     * @param newTopology The topology in which to search for a shopping list with OID equal to the
+     *                    <b>oldShoppingList</b>'s one.
+     * @return The shopping list in <b>newTopology</b> that has the same OID as
+     *         <b>oldShoppingList</b> had in <b>oldTopology</b> iff one exists.
+     * @throws NoSuchElementException Iff no such shopping list exists in <b>newTopology</b>.
+     */
+    static @NonNull ShoppingList mapShoppingList(@NonNull ShoppingList oldShoppingList,
+                                    @NonNull Topology oldTopology, @NonNull Topology newTopology) {
+        Long oid = oldTopology.getShoppingListOids().get(oldShoppingList);
+        ShoppingList newShoppingList = newTopology.getShoppingListOids().inverse().get(oid);
+
+        if (newShoppingList == null) {
+            throw new NoSuchElementException("Could not find shopping list with oid "
+                + oid + " " + oldShoppingList.getDebugInfoNeverUseInCode() + " in new topology");
+        }
+
+        return newShoppingList;
     }
 
 }

@@ -213,17 +213,13 @@ public class ActionClassifierTest {
 
     @Test
     public void testTranslateTrader() {
-        ReplayActions replayActions = new ReplayActions();
-        replayActions.setTopology(firstTopology);
-        Trader newVm = replayActions.translateTrader(vm, second, "testTranslateTrader");
+        Trader newVm = ReplayActions.mapTrader(vm, firstTopology, second.getTopology());
         assertEquals(vm.getEconomyIndex(), newVm.getEconomyIndex());
     }
 
     @Test
     public void testTranslateMarket() {
-        ReplayActions replayActions = new ReplayActions();
-        replayActions.setTopology(firstTopology);
-        Trader newVm = replayActions.translateTrader(vm, second, "testTranslateMarket");
+        Trader newVm = ReplayActions.mapTrader(vm, firstTopology, second.getTopology());
         Map<ShoppingList, Market> buying = first.getMarketsAsBuyer(vm);
         Map<ShoppingList, Market> newBuying = first.getMarketsAsBuyer(newVm);
         assertEquals(buying.keySet().size(), newBuying.keySet().size());
