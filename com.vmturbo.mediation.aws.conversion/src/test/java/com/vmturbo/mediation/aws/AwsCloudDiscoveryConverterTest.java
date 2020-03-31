@@ -28,12 +28,10 @@ import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
@@ -128,12 +126,6 @@ public class AwsCloudDiscoveryConverterTest {
                     .flatMap(commodityBought -> commodityBought.getBoughtList().stream())
                     .filter(VirtualMachineConverter.COMMODITIES_TO_CLEAR_ACTIVE::contains)
                     .forEach(commodityDTO -> assertTrue(commodityDTO.getActive()));
-
-            // check providers changed (vm may consumes multiple storages, convert each to new type)
-            verifyProvidersChanged(oldVM, newVM, ImmutableMap.of(
-                    EntityType.PHYSICAL_MACHINE, EntityType.COMPUTE_TIER,
-                    EntityType.AVAILABILITY_ZONE, EntityType.COMPUTE_TIER
-            ), ImmutableList.of(EntityType.AVAILABILITY_ZONE));
 
             // check old connected
             assertEquals(0, oldVM.getLayeredOverCount());
@@ -250,44 +242,6 @@ public class AwsCloudDiscoveryConverterTest {
             // check that db is removed for AWS
             assertFalse(converter.convert(newEntity, awsConverter))
         );
-    }
-
-    @Test
-    public void testComputeTierConverter() {
-        IEntityConverter converter = new ComputeTierConverter(SDKProbeType.AWS);
-        newEntitiesByType.get(EntityType.COMPUTE_TIER).forEach(entity -> {
-            String entityId = entity.getId();
-            EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);
-
-            // check ct not removed
-            assertTrue(converter.convert(newEntity, awsConverter));
-
-            // connected to storage tier and region
-            Set<EntityType> connectedEntityTypes = newEntity.getLayeredOverList().stream()
-                    .map(id -> awsConverter.getNewEntityBuilder(id).getEntityType())
-                    .collect(Collectors.toSet());
-            assertThat(connectedEntityTypes, containsInAnyOrder(EntityType.REGION, EntityType.STORAGE_TIER));
-
-            // check bought commodities
-            assertEquals(0, newEntity.getCommoditiesBoughtCount());
-
-            // check sold commodities
-            assertThat(newEntity.getCommoditiesSoldList().stream()
-                    .map(CommodityDTO::getCommodityType)
-                    .collect(Collectors.toSet()), containsInAnyOrder(CommodityType.CPU,
-                    CommodityType.CPU_PROVISIONED, CommodityType.MEM, CommodityType.MEM_PROVISIONED,
-                    CommodityType.IO_THROUGHPUT, CommodityType.NET_THROUGHPUT,
-                    CommodityType.NUM_DISK, CommodityType.NETWORK_INTERFACE_COUNT,
-                    CommodityType.LICENSE_ACCESS, CommodityType.TENANCY_ACCESS));
-
-            // check ct owned by CloudService
-            assertThat(awsConverter.getNewEntityBuilder(CloudService.AWS_EC2.getId()).getConsistsOfList(),
-                    hasItem(entityId));
-
-            // check entity properties
-            assertEquals(newEntity.getEntityPropertiesList(),
-                awsConverter.getProfileDTO(newEntity.getId()).getEntityPropertiesList());
-        });
     }
 
     @Test
@@ -423,13 +377,6 @@ public class AwsCloudDiscoveryConverterTest {
         IEntityConverter converter = new DefaultConverter();
         rawEntitiesByType.get(EntityType.RESERVED_INSTANCE).forEach(entity ->
                 convertAndVerifyEntityUnmodified(converter, entity.getId()));
-    }
-
-    @Test
-    public void testDiskArrayConverter() {
-        IEntityConverter converter = new DiskArrayConverter();
-        newEntitiesByType.get(EntityType.DISK_ARRAY).forEach(entity ->
-                assertFalse(converter.convert(entity, awsConverter)));
     }
 
     /**

@@ -44,14 +44,13 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
         // verify there are 15 different entity types in new topology
-        assertEquals(15, entitiesByType.size());
+        assertEquals(14, entitiesByType.size());
 
         // check each changed entity
         assertEquals(8, entitiesByType.get(EntityType.DATABASE_SERVER).size());
         assertEquals(26, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(4, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
         assertEquals(144, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
-        assertEquals(273, entitiesByType.get(EntityType.COMPUTE_TIER).size());
         assertEquals(92, entitiesByType.get(EntityType.DATABASE_SERVER_TIER).size());
 
         // unmodified
@@ -81,14 +80,13 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
         // verify there are 14 different entity types in new topology
-        assertEquals(14, entitiesByType.size());
+        assertEquals(13, entitiesByType.size());
 
         // check each changed entity
         assertEquals(2, entitiesByType.get(EntityType.DATABASE_SERVER).size());
         assertEquals(87, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
         assertEquals(144, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
-        assertEquals(273, entitiesByType.get(EntityType.COMPUTE_TIER).size());
         assertEquals(92, entitiesByType.get(EntityType.DATABASE_SERVER_TIER).size());
         assertEquals(16, entitiesByType.get(EntityType.REGION).size());
 

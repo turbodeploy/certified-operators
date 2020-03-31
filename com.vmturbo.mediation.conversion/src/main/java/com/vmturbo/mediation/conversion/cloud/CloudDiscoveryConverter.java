@@ -54,6 +54,8 @@ public class CloudDiscoveryConverter {
 
     private Set<String> allVolumeIds = new HashSet<>();
 
+    private Set<String> allComputeTierIds = new HashSet<>();
+
     // the business account which is used to own entities (VMs, Apps, etc).
     // For AWS, this is the master account if it is available, or sub account if not. For Azure,
     // there is only one account in the discovery response, which is used to own entities.
@@ -118,6 +120,8 @@ public class CloudDiscoveryConverter {
             allStorageTierIds.add(entityBuilder.getId());
         } else if (entityType == EntityType.VIRTUAL_VOLUME) {
             allVolumeIds.add(entityBuilder.getId());
+        } else if (entityType == EntityType.COMPUTE_TIER) {
+            allComputeTierIds.add(entityBuilder.getId());
         } else if (entityType == EntityType.BUSINESS_ACCOUNT) {
             // for aws there are two cases, store master account if possible:
             // 1. this aws target is added using sub account (discover sub)
@@ -143,10 +147,13 @@ public class CloudDiscoveryConverter {
                 .filter(entity -> conversionContext.getEntityConverters().getOrDefault(
                         entity.getEntityType(), defaultConverter).convert(entity, this))
                 .collect(Collectors.toList());
-        // Update consistsOf relationship between CloudService and StorageTier.
-        allStorageTierIds.forEach(storageTierId -> ownedByCloudService(EntityType.STORAGE_TIER, storageTierId));
+        // Update consistsOf relationship between CloudService and Tier.
+        allStorageTierIds.forEach(storageTierId ->
+            ownedByCloudService(EntityType.STORAGE_TIER, storageTierId));
+        allComputeTierIds.forEach(computeTierId ->
+            ownedByCloudService(EntityType.COMPUTE_TIER, computeTierId));
         // Update consistsOf relationship between BusinessAccount and Volume.
-        allVolumeIds.forEach(volumeId -> ownedByBusinessAccount(volumeId));
+        allVolumeIds.forEach(this::ownedByBusinessAccount);
         discoveryResponseBuilder.clearEntityDTO();
         discoveryResponseBuilder.addAllEntityDTO(builders.stream()
                 .map(EntityDTO.Builder::build)
@@ -154,11 +161,7 @@ public class CloudDiscoveryConverter {
     }
 
     /**
-     * Convert profile to ComputeTier, for following types of profiles:
-     *     AWS:    VIRTUAL_MACHINE -> COMPUTE_TIER
-     *             DATABASE_SERVER -> DATABASE_TIER
-     *     Azure:  VIRTUAL_MACHINE -> COMPUTE_TIER
-     *             DATABASE        -> DATABASE_TIER
+     * Convert profile to tier.
      *
      * @param entityProfileDTO the EntityProfileDTO which needs to be converted to ComputeTier
      */
@@ -168,18 +171,15 @@ public class CloudDiscoveryConverter {
         EntityDTO.Builder builder = EntityDTO.newBuilder();
         builder.setId(profileId);
         builder.setDisplayName(entityProfileDTO.getDisplayName());
+        profileDTOsById.put(profileId, entityProfileDTO);
 
         Optional<EntityType> newCloudEntityType = conversionContext.getCloudEntityTypeForProfileType(
                 entityProfileDTO.getEntityType());
-        if (!newCloudEntityType.isPresent()) {
-            logger.warn("Skipping entity profile {} of type {}", builder.getDisplayName(),
-                    entityProfileDTO.getEntityType().name());
-            return;
-        }
 
-        builder.setEntityType(newCloudEntityType.get());
-        newEntityBuildersById.put(profileId, builder);
-        profileDTOsById.put(profileId, entityProfileDTO);
+        newCloudEntityType.ifPresent(type -> {
+            builder.setEntityType(type);
+            newEntityBuildersById.put(profileId, builder);
+        });
     }
 
     /**
