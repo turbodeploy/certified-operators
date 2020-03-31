@@ -43,13 +43,6 @@ public class Suspension {
 
     static final Logger logger = LogManager.getLogger();
 
-    // a map to keep unprofitable sellers that should not be considered as suspension candidate in
-    // any market. In general, those sellers have gone through the process in which it was selected
-    // to deactivate, however, after deactivating it and run placement decisions, some customers on
-    // this trader can not move out of it. So it should not be selected again because there will
-    // always be some customers staying on it.
-    private @NonNull Set<@NonNull Trader> unprofitableSellersCouldNotSuspend =
-                                                                             new HashSet<>();
     private Ledger ledger_;
 
     private PriorityQueue<Trader> suspensionCandidateHeap_ = new PriorityQueue<>((t1, t2) -> {
@@ -432,14 +425,6 @@ public class Suspension {
                 soleProviders.add(activeTraders.get(0));
             }
         });
-    }
-
-    public void setRolledBack(@NonNull Set<@NonNull Trader> rolledBackTraders) {
-        unprofitableSellersCouldNotSuspend = rolledBackTraders;
-    }
-
-    public @NonNull Set<@NonNull Trader> getRolledBack() {
-        return unprofitableSellersCouldNotSuspend;
     }
 
     @VisibleForTesting

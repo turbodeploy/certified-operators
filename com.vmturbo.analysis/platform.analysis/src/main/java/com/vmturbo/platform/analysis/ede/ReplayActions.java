@@ -1,11 +1,9 @@
 package com.vmturbo.platform.analysis.ede;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
@@ -33,8 +31,6 @@ public class ReplayActions {
 
     // The actions that are to be replayed
     private @NonNull List<Action> actions_ = new LinkedList<>();
-    // The traders which could not be suspended
-    private @NonNull Set<Trader> rolledBackSuspensionCandidates_ = new HashSet<>();
     // The topology that contains the above traders and targets of above actions.
     // It is needed to map traders from old economy to new using OIDs.
     private @NonNull Topology topology_ = new Topology();
@@ -44,12 +40,6 @@ public class ReplayActions {
     }
     public void setActions(List<Action> actions) {
         actions_ = actions;
-    }
-    public Set<Trader> getRolledBackSuspensionCandidates() {
-        return rolledBackSuspensionCandidates_;
-    }
-    public void setRolledBackSuspensionCandidates(Set<Trader> rolledBackSuspensionCandidates) {
-        rolledBackSuspensionCandidates_ = rolledBackSuspensionCandidates;
     }
 
     public @NonNull Topology getTopology() {
@@ -167,24 +157,6 @@ public class ReplayActions {
             // PM1 becomes inactive due to replay of suspension.
             && economy.getMarketsAsSeller(trader).stream()
                 .noneMatch(market -> market.getActiveSellers().size() == 1);
-    }
-
-    /**
-     * Translate the list of rolled-back suspension candidate traders to the given {@link Economy}
-     *
-     * @param newTopology The {@link Topology} in which actions are to be replayed.
-     */
-    public void translateRolledbackTraders(@NonNull Topology newTopology) {
-        Set<Trader> newTraders = new HashSet<>();
-        for (Trader trader : rolledBackSuspensionCandidates_) {
-            try {
-                newTraders.add(mapTrader(trader, getTopology(), newTopology));
-            } catch (Exception ignored) {
-                // If an error occurs (e.g. if the trader doesn't exist in destination topology)
-                // just continue with the next trader.
-            }
-        }
-        rolledBackSuspensionCandidates_ = newTraders;
     }
 
     /**

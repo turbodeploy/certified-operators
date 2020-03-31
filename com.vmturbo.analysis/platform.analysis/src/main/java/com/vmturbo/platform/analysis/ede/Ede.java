@@ -318,14 +318,10 @@ public final class Ede {
         statsUtils.before();
         if (isSuspension) {
             Suspension suspension = new Suspension();
-            // initialize the rolled back trader list from last run
-            getReplayActions().translateRolledbackTraders(economy.getTopology());
-            suspension.setRolledBack(getReplayActions().getRolledBackSuspensionCandidates());
             // find if any seller is the sole provider in any market, if so, it should not
             // be considered as suspension candidate
             suspension.findSoleProviders(economy);
             actions.addAll(suspension.suspensionDecisions(economy, ledger, this));
-            getReplayActions().getRolledBackSuspensionCandidates().addAll(suspension.getRolledBack());
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "suspending");
         }
         // suspension time
