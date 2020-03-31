@@ -175,7 +175,7 @@ public class FunctionalOperatorUtil {
             if (buyer.getGroupFactor() > 0) {
                 // consumer moving out of CBTP. Relinquish coupons and update the coupon bought
                 // and the usage of sold coupon
-                List<ShoppingList> peers = economy.getPeerShoppingLists(buyer.getShoppingListId());
+                List<ShoppingList> peers = economy.getPeerShoppingLists(buyer);
                 peers.retainAll(seller.getCustomers());
                 double couponsBought = 0;
                 for (ShoppingList peer : peers) {
