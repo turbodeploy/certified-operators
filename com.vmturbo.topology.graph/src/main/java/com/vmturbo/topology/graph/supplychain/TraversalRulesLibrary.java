@@ -34,8 +34,10 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                 new PMRule<>(),
 
                 // special rule for storage
-                    // traverse to PMs and the related DC, but do not allow
+                    // traverse to consuming PMs and the related DC, but do not allow
                     // further traversal from them
+                    // do *not* traverse to providing PMs (this accomodates vSAN topologies,
+                    // in which PMs can be providers to storage)
                 new StorageRule<>(),
 
                 // special rule for VMs and Container Pods
@@ -205,8 +207,9 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
     }
 
     /**
-     * Rule specific to traversal of storage: traverse to PMs and DCs,
-     * but do not allow any more traversal from them.
+     * Rule specific to traversal of storage: traverse to consuming PMs and DCs,
+     * but do not allow any more traversal from them. Also: do not traverse to
+     * providing PMs, unless the storage is in the seed.
      *
      * @param <E> The type of {@link TopologyGraphEntity} in the graph.
      */
@@ -225,6 +228,18 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
             // ignore PMs as consumers
             return super.getFilteredConsumers(entity, traversalMode)
                         .filter(e -> e.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE);
+        }
+
+        @Override
+        protected Stream<E> getFilteredProviders(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            final Stream<E> allProviders = super.getFilteredProviders(entity, traversalMode);
+            if (traversalMode == TraversalMode.START) {
+                return allProviders;
+            } else {
+                // ignore providing PMs
+                return allProviders.filter(e -> e.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE);
+            }
         }
 
         @Override
