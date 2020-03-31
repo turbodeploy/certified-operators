@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -29,6 +28,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -36,6 +36,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
 
@@ -146,28 +147,38 @@ public class ConsistentScalingManager {
      * Locate all entities that are members of a consistent scaling group and build internal scaling
      * groups. This also tracks policy settings for entities.
      *
-     * @param grouping           Associated user Group.
-     * @param allEntitiesInGroupStream Stream of TopologyEntity instances to add to CSM
+     * @param resolvedGroups Resolved groups by ID.
+     * @param topologyGraph Stream of TopologyEntity instances to add to CSM
      * @param settingPolicies    policies that apply to group
      */
-    public void addEntities(final Grouping grouping,
-                            final Stream<TopologyEntity> allEntitiesInGroupStream,
+    public void addEntities(final Map<Long, ResolvedGroup> resolvedGroups,
+                            final TopologyGraph<TopologyEntity> topologyGraph,
                             final List<SettingPolicy> settingPolicies) {
         if (!config_.isEnabled()) {
             return;
         }
         // Check for a consistent scaling setting
-        List<TopologyEntity> allEntitiesInGroup =
-                allEntitiesInGroupStream.collect(Collectors.toList());
         for (SettingPolicy sp : settingPolicies) {
             for (SettingProto.Setting setting : sp.getInfo().getSettingsList()) {
                 if (setting.hasSettingSpecName()) {
                     final String specName = setting.getSettingSpecName();
-                    if (specName
-                        .equals(EntitySettingSpecs.EnableConsistentResizing.getSettingName())) {
+                    if (specName.equals(EntitySettingSpecs.EnableConsistentResizing.getSettingName())) {
                         if (setting.hasBooleanSettingValue()) {
-                            addPolicyOverride(setting.getBooleanSettingValue().getValue(),
-                                grouping, allEntitiesInGroup);
+                            // We only care about the entities in the group that the policy
+                            // actually applies to.
+                            sp.getInfo().getScope().getGroupsList().forEach(groupId -> {
+                                final ResolvedGroup resolvedGroup = resolvedGroups.get(groupId);
+                                if (resolvedGroup != null) {
+                                    final List<TopologyEntity> relevantEntitiesInGroup =
+                                        resolvedGroup.getEntitiesOfType(ApiEntityType.fromType(sp.getInfo().getEntityType())).stream()
+                                            .map(topologyGraph::getEntity)
+                                            .filter(Optional::isPresent)
+                                            .map(Optional::get)
+                                            .collect(Collectors.toList());
+                                    addPolicyOverride(setting.getBooleanSettingValue().getValue(),
+                                        resolvedGroup.getGroup(), relevantEntitiesInGroup);
+                                }
+                            });
                             break;
                         }
                     }
