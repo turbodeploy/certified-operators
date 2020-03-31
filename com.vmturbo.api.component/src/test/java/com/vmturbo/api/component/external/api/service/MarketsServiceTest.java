@@ -51,6 +51,9 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
@@ -70,6 +73,7 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -211,6 +215,8 @@ public class MarketsServiceTest {
      */
     @Before
     public void startup() {
+        final ActionsServiceBlockingStub actionsRpcService = ActionsServiceGrpc.newBlockingStub(
+                grpcTestServer.getChannel());
         marketsService = new MarketsService(actionSpecMapper, uuidMapper,
             ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             policiesService,
@@ -230,9 +236,13 @@ public class MarketsServiceTest {
             serviceEntityMapper,
             severityPopulator,
             priceIndexPopulator,
-            ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            actionsRpcService,
             planEntityStatsFetcher,
             SearchServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            new ActionSearchUtil(actionsRpcService, actionSpecMapper, paginationMapper,
+                                 Mockito.mock(SupplyChainFetcherFactory.class),
+                                 Mockito.mock(GroupExpander.class),
+                                 REALTIME_CONTEXT_ID),
             REALTIME_CONTEXT_ID
         );
 
@@ -370,47 +380,6 @@ public class MarketsServiceTest {
             Long.toString(TEST_PLAN_OVER_PLAN_ID), TEST_SCENARIO_ID, true, null);
 
         assertThat(resp, is(mappedNewPlan));
-    }
-
-    /**
-     * Test that getting actions by market UUID fails if given future start time.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetActionsByMarketUuidShouldFailGivenFutureStartTime() throws Exception {
-        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
-        Long currentDateTime = DateTimeUtil.parseTime(DateTimeUtil.getNow());
-        String futureDate = DateTimeUtil.addDays(currentDateTime, 2);
-        actionDTO.setStartTime(futureDate);
-        marketsService.getActionsByMarketUuid(MARKET_UUID, actionDTO, null);
-    }
-
-    /**
-     * Test that getting actions by market UUID fails if given start time after end time.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetActionsByMarketUuidShouldFailGivenStartTimeAfterEndTime() throws Exception {
-        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
-        String currentDateTime = DateTimeUtil.getNow();
-        String futureDate = DateTimeUtil.addDays(DateTimeUtil.parseTime(currentDateTime), 2);
-        actionDTO.setStartTime(futureDate);
-        actionDTO.setEndTime(currentDateTime);
-        marketsService.getActionsByMarketUuid(MARKET_UUID, actionDTO, null);
-    }
-
-    /**
-     * Test that getting actions by market UUID fails if given end time and no start time.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetActionsByMarketUuidShouldFailGivenEndTimeOnly() throws Exception {
-        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
-        actionDTO.setEndTime(DateTimeUtil.getNow());
-        marketsService.getActionsByMarketUuid(MARKET_UUID, actionDTO, null);
     }
 
     /**

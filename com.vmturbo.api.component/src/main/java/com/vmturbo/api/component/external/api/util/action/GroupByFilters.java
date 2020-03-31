@@ -91,7 +91,7 @@ public class GroupByFilters {
 
     public void setState(@Nonnull final ActionState state) {
         setValue(StringConstants.ACTION_STATES,
-            actionSpecMapper.mapXlActionStateToApi(state).name());
+            ActionSpecMapper.mapXlActionStateToApi(state).name());
     }
 
     public void setType(@Nonnull final ActionType type) {

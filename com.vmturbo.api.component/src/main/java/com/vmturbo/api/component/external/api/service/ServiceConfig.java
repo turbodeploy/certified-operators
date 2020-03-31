@@ -374,6 +374,7 @@ public class ServiceConfig {
                 communicationConfig.actionsRpcService(),
                 planEntityStatsFetcher(),
                 communicationConfig.searchServiceBlockingStub(),
+                actionSearchUtil(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -604,6 +605,7 @@ public class ServiceConfig {
                 communicationConfig.repositoryApi(),
                 mapperConfig.actionSpecMapper(),
                 communicationConfig.actionsRpcService(),
+                actionSearchUtil(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 websocketConfig.websocketHandler());
     }
