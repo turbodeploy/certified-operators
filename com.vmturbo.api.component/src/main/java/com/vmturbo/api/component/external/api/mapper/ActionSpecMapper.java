@@ -1884,7 +1884,7 @@ public class ActionSpecMapper {
                 Cost.GetProjectedEntityReservedInstanceCoverageRequest
                         .newBuilder()
                         .setEntityFilter(entityFilter);
-        if (!Objects.isNull(topologyContextId) && topologyContextId != realtimeTopologyContextId) {
+        if (!Objects.isNull(topologyContextId)) {
             builder.setTopologyContextId(topologyContextId);
         }
 
