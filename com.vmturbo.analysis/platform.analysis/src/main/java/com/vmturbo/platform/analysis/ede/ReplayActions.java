@@ -13,7 +13,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ledger.Ledger;
@@ -107,9 +106,12 @@ public class ReplayActions {
         suspensionInstance.adjustUtilThreshold(economy, true);
         for (Deactivate deactivateAction : deactivateActions) {
             try {
-                @NonNull Trader newTrader = mapTrader(deactivateAction.getTarget(), getTopology(),
-                    economy.getTopology());
-                if (isEligibleforSuspensionReplay(newTrader, economy)) {
+                @NonNull Deactivate ported = deactivateAction.port(economy,
+                    oldTrader -> mapTrader(oldTrader, getTopology(), economy.getTopology()),
+                    oldSl -> mapShoppingList(oldSl, getTopology(), economy.getTopology())
+                );
+                @NonNull Trader newTrader = ported.getTarget();
+                if (ported.isValid() && isEligibleforSuspensionReplay(newTrader, economy)) {
                     if (Suspension.getSuspensionsthrottlingconfig()
                             == SuspensionsThrottlingConfig.CLUSTER) {
                         Suspension.makeCoSellersNonSuspendable(economy, newTrader);
@@ -122,12 +124,8 @@ public class ReplayActions {
                         // If controllable is false, deactivate the trader without checking criteria
                         // as entities may not be able to move out of the trader with controllable
                         // false.
-                        List<Market> marketsAsSeller = economy.getMarketsAsSeller(newTrader);
-                        Deactivate replayedSuspension = new Deactivate(economy, newTrader,
-                            !marketsAsSeller.isEmpty() ? marketsAsSeller.get(0).getBasket()
-                                                       : newTrader.getBasketSold());
-                        suspendActions.add(replayedSuspension.take());
-                        suspendActions.addAll(replayedSuspension.getSubsequentActions());
+                        suspendActions.add(ported.take());
+                        suspendActions.addAll(ported.getSubsequentActions());
                     }
                 }
             } catch (Exception e) {
@@ -149,13 +147,11 @@ public class ReplayActions {
      * @return true, if trader qualifies for replay of suspension.
      */
     private boolean isEligibleforSuspensionReplay(@NonNull Trader trader, Economy economy) {
-        return trader.getSettings().isSuspendable()
-            && trader.getState().isActive()
-            // If trader is sole provider in any market, we don't want to replay the suspension.
-            // Consider scenario where we replay suspension for PM1 but there was a new placement policy
-            // for VM1 (currently on PM2) to move on PM1. We end recommending a reconfigure action because
-            // PM1 becomes inactive due to replay of suspension.
-            && economy.getMarketsAsSeller(trader).stream()
+        // If trader is sole provider in any market, we don't want to replay the suspension.
+        // Consider scenario where we replay suspension for PM1 but there was a new placement policy
+        // for VM1 (currently on PM2) to move on PM1. We end recommending a reconfigure action because
+        // PM1 becomes inactive due to replay of suspension.
+        return economy.getMarketsAsSeller(trader).stream()
                 .noneMatch(market -> market.getActiveSellers().size() == 1);
     }
 
