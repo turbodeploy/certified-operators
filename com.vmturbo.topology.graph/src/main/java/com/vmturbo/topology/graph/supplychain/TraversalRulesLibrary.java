@@ -238,6 +238,7 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                 return allProviders;
             } else {
                 // ignore providing PMs
+                // PMs that provide to Storage may happen in a vSAN topology
                 return allProviders.filter(e -> e.getEntityType() != EntityType.PHYSICAL_MACHINE_VALUE);
             }
         }
