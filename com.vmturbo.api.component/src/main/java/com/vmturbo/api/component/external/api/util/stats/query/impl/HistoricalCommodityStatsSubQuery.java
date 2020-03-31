@@ -50,16 +50,21 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
         return SubQuerySupportedStats.leftovers();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Nonnull
     @Override
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
                                                       @Nonnull final StatsQueryContext context) throws OperationFailedException {
-        final GetAveragedEntityStatsRequest request =
-            toAveragedEntityStatsRequest(requestedStats, context);
+        final Optional<GetAveragedEntityStatsRequest> requestOptional =
+                toAveragedEntityStatsRequest(requestedStats, context);
 
-        final Iterable<StatSnapshot> statsIterator = () -> statsServiceRpc.getAveragedEntityStats(request);
         final List<StatSnapshotApiDTO> statsList = new ArrayList<>();
-        statsIterator.forEach(snapshot -> statsList.add(statsMapper.toStatSnapshotApiDTO(snapshot)));
+        requestOptional.ifPresent(request -> {
+            final Iterable<StatSnapshot> statsIterator = () -> statsServiceRpc.getAveragedEntityStats(request);
+            statsIterator.forEach(snapshot -> statsList.add(statsMapper.toStatSnapshotApiDTO(snapshot)));
+        });
 
         // If the request is:
         //    1) In the realtime topology.
@@ -70,11 +75,11 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
         // value from the latest record in history to represent it.
         // TODO: Why do we apply this rule only to this subquery and not others?
         final boolean copyLast = context.includeCurrent() && context.getTimeWindow()
-            .map(timeWindow -> timeWindow.startTime() != timeWindow.endTime())
-            .orElse(false);
+                .map(timeWindow -> timeWindow.startTime() != timeWindow.endTime())
+                .orElse(false);
         if (copyLast) {
             StatSnapshotApiDTO latestSnapshot = getLatestSnapShotInPast(statsList, context.getCurTime());
-            if (latestSnapshot != null &&  context.getCurTime() != DateTimeUtil.parseTime(latestSnapshot.getDate())) {
+            if (latestSnapshot != null && context.getCurTime() != DateTimeUtil.parseTime(latestSnapshot.getDate())) {
                 final StatSnapshotApiDTO clone = new StatSnapshotApiDTO();
                 clone.setDate(DateTimeUtil.toString(context.getCurTime()));
                 clone.setEpoch(Epoch.CURRENT);
@@ -107,14 +112,22 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
     }
 
     @Nonnull
-    private GetAveragedEntityStatsRequest toAveragedEntityStatsRequest(@Nonnull final Set<StatApiInputDTO> requestedStats,
-                                                               @Nonnull final StatsQueryContext context) {
+    private Optional<GetAveragedEntityStatsRequest> toAveragedEntityStatsRequest(
+            @Nonnull final Set<StatApiInputDTO> requestedStats,
+            @Nonnull final StatsQueryContext context) {
         final GetAveragedEntityStatsRequest.Builder entityStatsRequest =
             GetAveragedEntityStatsRequest.newBuilder()
                 .setFilter(statsMapper.newPeriodStatsFilter(context.newPeriodInputDto(requestedStats)));
 
         final Optional<GlobalScope> queryGlobalScope = context.getQueryScope().getGlobalScope()
             .filter(globalScope -> !userSessionContext.isUserScoped());
+        final Set<Long> expandedOids = context.getQueryScope().getExpandedOids();
+        // Only create a request if :
+        // 1. context is globalScope OR
+        // 2. Context is not global Scoped but expandedOids has atleast 1 oid in scope.
+        if (!queryGlobalScope.isPresent() && expandedOids.isEmpty()) {
+            return Optional.empty();
+        }
         if (queryGlobalScope.isPresent()) {
             GlobalFilter.Builder globalFilter = GlobalFilter.newBuilder();
             queryGlobalScope.get().environmentType().ifPresent(globalFilter::setEnvironmentType);
@@ -124,9 +137,8 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
                 statsMapper.normalizeRelatedType(type.apiStr())));
             entityStatsRequest.setGlobalFilter(globalFilter);
         } else {
-            entityStatsRequest.addAllEntities(context.getQueryScope().getExpandedOids());
+            entityStatsRequest.addAllEntities(expandedOids);
         }
-
-        return entityStatsRequest.build();
+        return Optional.of(entityStatsRequest.build());
     }
 }

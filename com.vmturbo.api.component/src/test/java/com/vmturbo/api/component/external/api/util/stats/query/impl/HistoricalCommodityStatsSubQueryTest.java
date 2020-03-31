@@ -3,18 +3,20 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,9 +33,9 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableGlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -313,5 +315,39 @@ public class HistoricalCommodityStatsSubQueryTest {
         final StatSnapshotApiDTO currentTimeSnapshot = resultsAtCurrentTime.get(0);
         assertEquals(MAPPED_STAT_SNAPSHOT.getStatistics(), currentTimeSnapshot.getStatistics());
         assertEquals(Epoch.CURRENT, currentTimeSnapshot.getEpoch());
+    }
+
+    @Test
+    public void testlGroupStatsRequestWithNoOid() throws OperationFailedException {
+        // These entities in the scope.
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
+        //setting expandedOids to empty.
+        when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
+        when(context.getQueryScope()).thenReturn(queryScope);
+
+        // ACT
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);
+
+        verify(backend, never()).getAveragedEntityStats(any());
+        assertThat(results.size(), is(0));
+    }
+
+    @Test
+    public void testlGroupStatsRequestWithNoOidGlobal() throws OperationFailedException {
+        // These entities in the scope.
+        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
+        //Setting to global scope.
+        GlobalScope globalScope =  ImmutableGlobalScope.builder().build();
+        when(queryScope.getGlobalScope()).thenReturn(Optional.of(globalScope));
+        //setting expandedOids to empty.
+        when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
+        when(context.getQueryScope()).thenReturn(queryScope);
+
+        // ACT
+        final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);
+
+        verify(backend, atLeastOnce()).getAveragedEntityStats(any());
+        assertThat(results.size(), greaterThan(0));
     }
 }
