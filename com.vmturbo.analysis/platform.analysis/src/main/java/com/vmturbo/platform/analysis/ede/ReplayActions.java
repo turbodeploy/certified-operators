@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
@@ -56,10 +55,12 @@ public class ReplayActions {
      * @param economy The {@link Economy} in which actions are to be replayed
      */
     public void replayActions(Economy economy, Ledger ledger) {
-        List<Action> deactivateActions = actions_.stream()
-                        .filter(action -> action.getType() == ActionType.DEACTIVATE)
+        List<Deactivate> deactivateActions = actions_.stream()
+                        .filter(action -> action instanceof Deactivate)
+                        .map(action -> (Deactivate)action)
                         .collect(Collectors.toList());
-        LinkedList<Action> actions = new LinkedList<>(tryReplayDeactivateActions(deactivateActions, economy, ledger));
+        LinkedList<Action> actions =
+            new LinkedList<>(tryReplayDeactivateActions(deactivateActions, economy, ledger));
         actions_.removeAll(deactivateActions);
 
         for (Action action : actions_) {
@@ -94,7 +95,7 @@ public class ReplayActions {
      * @param ledger The {@link Ledger} related to current {@link Economy}.
      * @return action list related to suspension of trader.
      */
-    private List<Action> tryReplayDeactivateActions(List<Action> deactivateActions, Economy economy,
+    private List<Action> tryReplayDeactivateActions(List<Deactivate> deactivateActions, Economy economy,
                     Ledger ledger) {
         List<@NonNull Action> suspendActions = new ArrayList<>();
         if (deactivateActions.isEmpty()) {
@@ -104,10 +105,9 @@ public class ReplayActions {
         // adjust utilThreshold of the seller to maxDesiredUtil*utilTh. Thereby preventing moves
         // that force utilization to exceed maxDesiredUtil*utilTh.
         suspensionInstance.adjustUtilThreshold(economy, true);
-        for (Action deactivateAction : deactivateActions) {
+        for (Deactivate deactivateAction : deactivateActions) {
             try {
-                Deactivate oldAction = (Deactivate) deactivateAction;
-                @NonNull Trader newTrader = mapTrader(oldAction.getTarget(), getTopology(),
+                @NonNull Trader newTrader = mapTrader(deactivateAction.getTarget(), getTopology(),
                     economy.getTopology());
                 if (isEligibleforSuspensionReplay(newTrader, economy)) {
                     if (Suspension.getSuspensionsthrottlingconfig()
