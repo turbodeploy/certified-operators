@@ -59,7 +59,7 @@ public class LiveStatsAggregatorTest {
     public void before() throws VmtDbException, InterruptedException {
         historydbIO = Mockito.mock(HistorydbIO.class);
         // we need these methods to work normally in order to construct records to be inserted
-        Mockito.doCallRealMethod().when(historydbIO).initializeCommodityRecord(any(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), any());
+        Mockito.doCallRealMethod().when(historydbIO).initializeCommodityRecord(any(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
         Mockito.doCallRealMethod().when(historydbIO).setCommodityValues(any(), anyDouble(), anyDouble(), any(), any());
         Mockito.doCallRealMethod().when(historydbIO).clipValue(anyDouble());
         Mockito.when(historydbIO.getEntityType(anyInt())).thenCallRealMethod();
