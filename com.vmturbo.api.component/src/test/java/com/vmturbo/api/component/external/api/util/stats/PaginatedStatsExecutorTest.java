@@ -61,6 +61,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -1186,6 +1187,7 @@ public class PaginatedStatsExecutorTest {
         MinimalEntity minimalEntity = MinimalEntity.newBuilder().setOid(entityUuid)
                 .setDisplayName("minimalEntity")
                 .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(EnvironmentType.CLOUD)
                 .build();
         Map<Long, MinimalEntity> map = new HashMap<>();
         map.put(entityUuid, minimalEntity);
