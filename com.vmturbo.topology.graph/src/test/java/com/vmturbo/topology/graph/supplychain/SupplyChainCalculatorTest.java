@@ -441,9 +441,40 @@ public class SupplyChainCalculatorTest {
 
         assertEquals(Collections.singleton(PM_ID), getAllNodeIds(pmNode));
         assertEquals(Collections.singleton(ST_ID), getAllNodeIds(stNode));
+    }
+
+    /**
+     * Tests the behavior of arrows. If two entity types are joined
+     * in the full topology, but not in the generated scoped supply
+     * chain, then there should be no arrow between them in the
+     * generated supply chain.
+     */
+    @Test
+    public void testArrows() {
+        /*
+         * Topology, same as in the vSAN test:
+         *     VM
+         *    /  \
+         *  ST   PM1
+         *  |
+         *  PM2
+         *  Scoping on VM: Since PM2 is not included, there should be
+         *  no arrow from the PMs node to the Storage node in the result.
+         */
+        final TopologyGraph<TestGraphEntity> graph =
+                TestGraphEntity.newGraph(TestGraphEntity.newBuilder(PM_ID, ApiEntityType.PHYSICAL_MACHINE),
+                        TestGraphEntity.newBuilder(PM_ID2, ApiEntityType.PHYSICAL_MACHINE),
+                        TestGraphEntity.newBuilder(ST_ID, ApiEntityType.STORAGE)
+                                .addProviderId(PM_ID2),
+                        TestGraphEntity.newBuilder(VM_ID, ApiEntityType.VIRTUAL_MACHINE)
+                                .addProviderId(PM_ID)
+                                .addProviderId(ST_ID));
+        final Map<Integer, SupplyChainNode> supplychain = getSupplyChain(graph, VM_ID);
+        final SupplyChainNode stNode = supplychain.get(ApiEntityType.STORAGE.typeNumber());
+        final SupplyChainNode pmNode = supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
 
         assertEquals(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
-                     pmNode.getConnectedConsumerTypesList());
+                pmNode.getConnectedConsumerTypesList());
         assertEquals(Collections.emptyList(), stNode.getConnectedProviderTypesList());
     }
 
