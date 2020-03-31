@@ -331,6 +331,10 @@ public class RollupProcessor {
         for (Integer highBound : getBoundaries(numTasks)) {
             Table source = rollupType.getSourceTable(table);
             Table rollup = rollupType.getRollupTable(table);
+            if (source == null || rollup == null) {
+                logger.warn("Source or rollup for table {} were missing", table.getName());
+                return futures;
+            }
             String low = lowBound > 0 ? String.format("'%x'", lowBound) : null;
             String high = highBound < 16 ? String.format("'%x'", highBound) : null;
             Timestamp rollupTime = rollupType.getRollupTime(snapshotTime);
