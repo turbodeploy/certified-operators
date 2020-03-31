@@ -12,8 +12,8 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -58,7 +58,7 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
         return errors;
     }
 
-    private void apply(@Nonnull final MergePolicy policy) {
+    private void apply(@Nonnull final MergePolicy policy) throws GroupResolutionException {
         final long policyId = policy.getPolicyDefinition().getId();
         logger.debug("Applying merge policy {}.", policyId);
 
@@ -72,12 +72,11 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
 
         final int providerEntityTypeNumber =
                 mergeTypeDefinition.getProviderEntityType().getNumber();
-        final Set<TopologyEntity> providers = resolveRelevantGroups(groups).stream()
-                .map(topologyGraph::getEntity)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .filter(entity -> entity.getEntityType() == providerEntityTypeNumber)
-                .collect(Collectors.toSet());
+        final Set<TopologyEntity> providers = resolveRelevantGroups(groups, ApiEntityType.fromType(providerEntityTypeNumber)).stream()
+            .map(topologyGraph::getEntity)
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .collect(Collectors.toSet());
 
         // Iterate through all providers and their consumers
         // and change the key for bought and sold commodities to OID policy.
@@ -201,20 +200,16 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
      * Resolve the relevant groups and return OIDs.
      *
      * @param groups the group referenced by policy
+     * @param type The type of entities in the group.
      * @return set of OIDs
      * @throws GroupResolutionException if group resolution failed
      */
-    private Set<Long> resolveRelevantGroups(@Nonnull final List<Grouping> groups)
+    private Set<Long> resolveRelevantGroups(@Nonnull final List<Grouping> groups, @Nonnull final ApiEntityType type)
             throws GroupResolutionException {
         final Set<Long> oids = new HashSet<>();
         for (Grouping group : groups) {
-            final Set<Long> members = groupResolver.resolve(group, topologyGraph);
-            final boolean groupContainsDatacenters = group.getExpectedTypesList()
-                    .stream()
-                    .filter(MemberType::hasEntity)
-                    .map(MemberType::getEntity)
-                    .anyMatch(t -> t == EntityType.DATACENTER_VALUE);
-            if (groupContainsDatacenters) {
+            final Set<Long> members = groupResolver.resolve(group, topologyGraph).getEntitiesOfType(type);
+            if (type == ApiEntityType.DATACENTER) {
                 oids.addAll(getPhysicalMachinesConsumeOnDatacenters(members));
             } else {
                 oids.addAll(members);

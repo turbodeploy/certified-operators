@@ -5,6 +5,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,6 +25,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
@@ -33,13 +35,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builde
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 
@@ -223,7 +226,7 @@ public class PlanTopologyScopeEditor {
      * @param planScope the user defined plan scope
      * @param planProjectType the type of plan.
      * @return scoped {@link TopologyGraph}
-     * @throws PipelineStageException if the pipeline has errors.
+     * @throws GroupResolutionException if the pipeline has errors.
      **/
     public TopologyGraph<TopologyEntity> indexBasedScoping(
             @Nonnull final InvertedIndex<TopologyEntity,
@@ -231,7 +234,7 @@ public class PlanTopologyScopeEditor {
             @Nonnull final TopologyGraph<TopologyEntity> topology,
             @Nonnull final GroupResolver groupResolver,
             @Nonnull final PlanScope planScope,
-            PlanProjectType planProjectType) throws PipelineStageException {
+            PlanProjectType planProjectType) throws GroupResolutionException {
 
         logger.info("Entering scoping stage for on-prem topology .....");
         // record a count of the number of entities by their entity type in the context.
@@ -465,12 +468,12 @@ public class PlanTopologyScopeEditor {
      * @param planScope user defined plan scope
      * @param graph the topology entity graph
      * @return a set of topology entities that are grouped by entity type
-     * @throws PipelineStageException
+     * @throws GroupResolutionException If there is an error resolving one of the scope groups.
      */
     private Map<EntityType, Set<TopologyEntity>> getSeedEntities(@Nonnull final GroupResolver groupResolver,
                                                                  @Nonnull final PlanScope planScope,
                                                                  @Nonnull final TopologyGraph<TopologyEntity> graph)
-                                                                 throws PipelineStageException {
+            throws GroupResolutionException {
         // create seed entity set by adding scope entries representing individual entities.
         Set<Long> seedEntityIdSet = planScope.getScopeEntriesList().stream()
                 .filter(s -> !StringConstants.GROUP_TYPES.contains(s.getClassName()))
@@ -483,15 +486,16 @@ public class PlanTopologyScopeEditor {
                 .map(PlanScopeEntry::getScopeObjectOid)
                 .collect(Collectors.toSet());
         if (!groupIds.isEmpty()) {
-            groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+            final Iterator<Grouping> groups = groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
                     .setGroupFilter(GroupFilter.newBuilder()
                             .addAllId(groupIds))
                     .setReplaceGroupPropertyWithGroupMembershipFilter(true)
-                    .build())
-                    .forEachRemaining(g -> {
-                        Set<Long> groupMembers = groupResolver.resolve(g, graph);
-                        seedEntityIdSet.addAll(groupMembers);
-                    });
+                    .build());
+            while (groups.hasNext()) {
+                final Grouping group = groups.next();
+                Set<Long> groupMembers = groupResolver.resolve(group, graph).getAllEntities();
+                seedEntityIdSet.addAll(groupMembers);
+            }
         }
         logger.debug("Seed entity ids : {}", seedEntityIdSet);
         Map<EntityType, Set<TopologyEntity>> seedByEntityType = graph.getEntities(seedEntityIdSet)

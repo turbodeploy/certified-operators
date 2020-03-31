@@ -11,7 +11,9 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Sets;
 
+import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -49,8 +51,10 @@ public class MustRunTogetherPolicyApplication extends PlacementPolicyApplication
 
                     // get group of entities that need to run together (consumers)
                     final Grouping consumerGroup = policy.getPolicyEntities().getGroup();
+                    GroupProtoUtil.checkEntityTypeForPolicy(consumerGroup);
+                    final ApiEntityType consumerEntityType = GroupProtoUtil.getEntityTypes(consumerGroup).iterator().next();
                     Set<Long> additionalEntities = policy.getPolicyEntities().getAdditionalEntities();
-                    final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph),
+                    final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType),
                         additionalEntities);
 
                     // Add the commodity sold to the provider
