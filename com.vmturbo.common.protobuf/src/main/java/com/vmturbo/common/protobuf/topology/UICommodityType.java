@@ -39,8 +39,6 @@ public enum UICommodityType {
     CPU_ALLOCATION("CPUAllocation", CommodityType.CPU_ALLOCATION, "CPU Allocation"),
     /** The commodity CPU_PROVISIONED. */
     CPU_PROVISIONED("CPUProvisioned", CommodityType.CPU_PROVISIONED, "CPU Provisioned"),
-    /** The commodity CPU_REQUEST_ALLOCATION. */
-    CPU_REQUEST_ALLOCATION("CPURequestAllocation", CommodityType.CPU_REQUEST_ALLOCATION, "CPU Request Allocation"),
     /** The commodity CROSS_CLOUD_MOVE_SVC. */
     CROSS_CLOUD_MOVE_SVC("CrossCloudMoveSvc", CommodityType.CROSS_CLOUD_MOVE_SVC, "Cross Cloud Move SVC"),
     /** The commodity CROSS_CLUSTER_MOVE_SVC. */
@@ -87,8 +85,6 @@ public enum UICommodityType {
     MEM("Mem", CommodityType.MEM, "Mem"),
     /** The commodity MEM_ALLOCATION. */
     MEM_ALLOCATION("MemAllocation", CommodityType.MEM_ALLOCATION, "Mem Allocation"),
-    /** The commodity MEM_REQUEST_ALLOCATION. */
-    MEM_REQUEST_ALLOCATION("MemRequestAllocation", CommodityType.MEM_REQUEST_ALLOCATION, "Mem Request Allocation"),
     /** The commodity MEM_PROVISIONED. */
     MEM_PROVISIONED("MemProvisioned", CommodityType.MEM_PROVISIONED, "Mem Provisioned"),
     /** The commodity NET_THROUGHPUT. */
@@ -157,14 +153,22 @@ public enum UICommodityType {
     TRANSACTION_LOG("TransactionLog", CommodityType.TRANSACTION_LOG, "Transaction Log"),
     /** The commodity VCPU. */
     VCPU("VCPU", CommodityType.VCPU, "VCPU"),
+    /** The commodity VCPU_LIMIT_QUOTA. */
+    VCPU_LIMIT_QUOTA("VCPULimitQuota", CommodityType.VCPU_LIMIT_QUOTA, "VCPU Limit Quota"),
     /** The commodity VCPU_REQUEST. */
     VCPU_REQUEST("VCPURequest", CommodityType.VCPU_REQUEST, "VCPU Request"),
+    /** The commodity VCPU_REQUEST_QUOTA. */
+    VCPU_REQUEST_QUOTA("VCPURequestQuota", CommodityType.VCPU_REQUEST_QUOTA, "VCPU Request Quota"),
     /** The commodity VDC. */
     VDC("VDCCommodity", CommodityType.VDC, "VDC Commodity"),
     /** The commodity VMEM. */
     VMEM("VMem", CommodityType.VMEM, "VMem"),
+    /** The commodity VMEM_LIMIT_QUOTA. */
+    VMEM_LIMIT_QUOTA("VMemLimitQuota", CommodityType.VMEM_LIMIT_QUOTA, "VMem Limit Quota"),
     /** The commodity VMEM_REQUEST. */
     VMEM_REQUEST("VMemRequest", CommodityType.VMEM_REQUEST, "VMem Request"),
+    /** The commodity VMEM_REQUEST_QUOTA. */
+    VMEM_REQUEST_QUOTA("VMemRequestQuota", CommodityType.VMEM_REQUEST_QUOTA, "VMem Request Quota"),
     /** The commodity VMPM_ACCESS. */
     VMPM_ACCESS("VMPMAccessCommodity", CommodityType.VMPM_ACCESS, "VMPM Access Commodity"),
     /** The commodity VSTORAGE. */
