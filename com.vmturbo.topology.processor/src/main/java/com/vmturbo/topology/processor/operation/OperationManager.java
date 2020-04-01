@@ -954,7 +954,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         discoveredGroupUploader.targetRemoved(targetId);
         discoveredTemplateDeploymentProfileNotifier.deleteTemplateDeploymentProfileByTarget(targetId);
         discoveredWorkflowUploader.targetRemoved(targetId);
-        discoveredCloudCostUploader.targetRemoved(targetId);
+        discoveredCloudCostUploader.targetRemoved(targetId, targetStore.getProbeCategoryForTarget(targetId));
     }
 
     /**
@@ -1053,7 +1053,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                         DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
                         derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
                         discoveredCloudCostUploader.recordTargetCostData(targetId,
-                                targetStore.getProbeTypeForTarget(targetId), discovery,
+                                targetStore.getProbeTypeForTarget(targetId),
+                                targetStore.getProbeCategoryForTarget(targetId), discovery,
                             response.getNonMarketEntityDTOList(), response.getCostDTOList(),
                             response.getPriceTable());
                         if (response.hasDiscoveryContext()) {

@@ -260,6 +260,7 @@ public class TargetControllerTest {
         return ProbeInfo.newBuilder()
             .setProbeType(probeType)
             .setProbeCategory(category)
+            .setUiProbeCategory(category)
             .addTargetIdentifierField(identifierField)
             .setCreationMode(creationMode)
             .build();

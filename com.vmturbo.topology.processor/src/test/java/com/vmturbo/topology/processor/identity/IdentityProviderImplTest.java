@@ -103,7 +103,7 @@ public class IdentityProviderImplTest {
     public void testGetProbeId() throws Exception {
         long probeId = identityProvider.getProbeId(baseProbeInfo);
         ProbeInfo eqProbe = ProbeInfo.newBuilder(baseProbeInfo)
-                .setProbeCategory("otherCat").build();
+                .setProbeCategory("otherCat").setUiProbeCategory("uiProbeCat").build();
 
         when(compatibilityChecker.areCompatible(baseProbeInfo, eqProbe)).thenReturn(true);
         assertEquals(probeId, identityProvider.getProbeId(eqProbe));
@@ -121,7 +121,7 @@ public class IdentityProviderImplTest {
         identityProvider.getProbeId(baseProbeInfo);
         // copy the base probe and just change the category
         ProbeInfo incompatible = ProbeInfo.newBuilder(baseProbeInfo)
-            .setProbeCategory("otherCat").build();
+            .setProbeCategory("otherCat").setUiProbeCategory("uiProbeCat").build();
         // setup the "compatible false" result
         when(compatibilityChecker.areCompatible(baseProbeInfo, incompatible)).thenReturn(false);
         // act

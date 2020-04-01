@@ -120,7 +120,7 @@ public class ProbeRegistrationTest {
     @Test
     public void testInvalidProbesRegistration() {
         final ProbeInfo probeInfo1 = probeInfoBuilder.build();
-        probeInfoBuilder.setProbeCategory("Another category");
+        probeInfoBuilder.setProbeCategory("Another category").setUiProbeCategory("uiProbeCat");
         final ProbeInfo probeInfo2 = probeInfoBuilder.build();
         final ContainerInfo containerInfo =
                         ContainerInfo.newBuilder().addProbes(probeInfo1).addProbes(probeInfo2)

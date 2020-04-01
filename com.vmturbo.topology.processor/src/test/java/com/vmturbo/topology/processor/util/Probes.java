@@ -7,7 +7,6 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.api.FakeRemoteMediation;
-import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 
 /**
  * Utility class to create some objects, suitable for tests.
@@ -40,10 +39,12 @@ public class Probes {
                         .build();
         emptyProbe = ProbeInfo.newBuilder().setProbeType("probe-type-" + counter.getAndIncrement())
                         .setProbeCategory("category")
+                        .setUiProbeCategory("ui-category")
                         .addTargetIdentifierField(FakeRemoteMediation.TGT_ID)
                         .build();
         defaultProbe = ProbeInfo.newBuilder(emptyProbe)
                         .setProbeType("probe-type-" + counter.getAndIncrement())
+                        .setUiProbeCategory("ui-probe-type-" + counter.getAndIncrement())
                         .addAccountDefinition(mandatoryField).build();
         incrementalProbe =
             ProbeInfo.newBuilder(defaultProbe).setIncrementalRediscoveryIntervalSeconds(10).build();
@@ -58,6 +59,7 @@ public class Probes {
     public static ProbeInfo.Builder createEmptyProbe() {
         final long index = counter.getAndIncrement();
         return ProbeInfo.newBuilder(emptyProbe).setProbeType("probe-type-" + index)
-                        .setProbeCategory("probe-category-" + index);
+                .setUiProbeCategory("probe-ui-category-" + index)
+                .setProbeCategory("probe-category-" + index);
     }
 }

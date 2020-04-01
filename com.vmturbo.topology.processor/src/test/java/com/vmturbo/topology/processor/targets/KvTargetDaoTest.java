@@ -254,6 +254,7 @@ public class KvTargetDaoTest {
                                              @Nonnull String targetIdentifyingFieldName,
                                              @Nonnull List<AccountDefEntry> accountDefs) {
         return ProbeInfo.newBuilder()
+            .setUiProbeCategory(category)
             .setProbeCategory(category)
             .setProbeType(type)
             .addTargetIdentifierField(targetIdentifyingFieldName)

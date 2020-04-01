@@ -3,5 +3,6 @@
     <full-class-name>com.vmturbo.mediation.actionscript.ActionScriptProbe</full-class-name>
     <type>Action Script</type>
     <category>Orchestrator</category>
+    <ui-category>Orchestrator</ui-category>
     <version>1.0.0</version>
 </probe>

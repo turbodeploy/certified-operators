@@ -80,6 +80,7 @@ public class DeleteContextTest {
             SdkActionPolicyBuilder.build(ActionCapability.SUPPORTED, EntityType.VIRTUAL_VOLUME, ActionType.DELETE);
         final ProbeInfo awsProbeInfo = ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.CLOUD_MANAGEMENT.toString()).setProbeType(SDKProbeType.AWS.toString())
+                .setUiProbeCategory(ProbeCategory.PUBLIC_CLOUD.toString())
             .addActionPolicy(deleteActionPolicy)
             .build();
         when(probeStoreMock.getProbe(targetStoreMock.getTarget(awsTargetId).get().getProbeId()))

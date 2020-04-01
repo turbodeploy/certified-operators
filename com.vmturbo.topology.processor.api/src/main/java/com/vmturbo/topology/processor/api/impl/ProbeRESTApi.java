@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.api.impl;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -154,6 +155,12 @@ public class ProbeRESTApi {
         @ApiModelProperty(value = "The category of the probe (Hypervisor, etc.).", required = true)
         private final String category;
 
+        @ApiModelProperty(value = "The UI category of the probe (Applications and Databases, etc.).", required = true)
+        private final String uiCategory;
+
+        @ApiModelProperty(value = "The license of the probe.")
+        private final String license;
+
         @ApiModelProperty(value = "The type of the probe (vCenter, HyperV, etc.).", required = true)
         private final String type;
 
@@ -183,6 +190,8 @@ public class ProbeRESTApi {
         protected ProbeDescription() {
             this.id = -1;
             this.category = null;
+            this.uiCategory = null;
+            this.license = null;
             this.type = null;
             this.creationMode = CreationMode.STAND_ALONE;
             this.accountFields = null;
@@ -193,6 +202,8 @@ public class ProbeRESTApi {
 
         public ProbeDescription(final long probeId, @Nonnull final String type,
                 @Nonnull final String category,
+                @Nonnull final String uiCategory,
+                @Nullable final String license,
                 @Nonnull final CreationMode creationMode,
                 @Nonnull final List<AccountField> accountFields,
                 @Nonnull final List<String> identifyingFields,
@@ -200,6 +211,8 @@ public class ProbeRESTApi {
             this.id = probeId;
             this.type = Objects.requireNonNull(type);
             this.category = Objects.requireNonNull(category);
+            this.uiCategory = Objects.requireNonNull(uiCategory);
+            this.license = license;
             this.creationMode = creationMode;
             this.accountFields = accountFields;
             this.error = null;
@@ -217,6 +230,8 @@ public class ProbeRESTApi {
         public ProbeDescription(@Nonnull final String error) {
             this.id = -1;
             this.category = null;
+            this.uiCategory = null;
+            this.license = null;
             this.type = null;
             this.creationMode = CreationMode.STAND_ALONE;
             this.accountFields = null;
@@ -241,6 +256,17 @@ public class ProbeRESTApi {
         @Override
         public String getCategory() {
             return Objects.requireNonNull(category, "category field is absent");
+        }
+
+        @Nonnull
+        @Override
+        public String getUICategory() {
+            return uiCategory;
+        }
+
+        @Override
+        public Optional<String> getLicense() {
+            return Optional.ofNullable(license);
         }
 
         @Nonnull

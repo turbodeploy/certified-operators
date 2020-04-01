@@ -24,6 +24,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 
 /**
  * The LicenseCheckClient provides access to the latest license verification information, including
@@ -111,7 +112,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
      * @return true, if the feature is available. False if not available, or a license summary is
      * not available.
      */
-    public boolean isFeatureAvailable(LicenseFeature feature) {
+    public boolean isFeatureAvailable(ProbeLicense feature) {
         if (lastLicenseSummary != null) {
             return lastLicenseSummary.getFeatureList().contains(feature.getKey());
         }
@@ -147,7 +148,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
      * @return true if "visibility_only" feature exists in a valid license.
      */
     public boolean isDevFreemium() {
-        return hasValidLicense() && isFeatureAvailable(LicenseFeature.VISIBILITY_ONLY);
+        return hasValidLicense() && isFeatureAvailable(ProbeLicense.VISIBILITY_ONLY);
     }
 
     @Override

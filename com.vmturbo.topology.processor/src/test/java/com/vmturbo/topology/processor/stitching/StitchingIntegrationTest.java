@@ -93,6 +93,7 @@ public abstract class StitchingIntegrationTest {
                 .thenReturn(Optional.of(SDKProbeType.HYPERV));
         when(probeStore.getProbe(anyLong())).thenReturn(Optional.of(ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setUiProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .setProbeType(SDKProbeType.VCENTER.getProbeType())
             .build()));
     }

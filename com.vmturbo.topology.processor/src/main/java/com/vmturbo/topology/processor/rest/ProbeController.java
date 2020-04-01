@@ -88,7 +88,8 @@ public final class ProbeController {
         final List<AccountField> fields = probeInfo.getAccountDefinitionList().stream()
                         .map(ad -> create(ad)).collect(Collectors.toList());
         return new ProbeDescription(probeId, probeInfo.getProbeType(), probeInfo.getProbeCategory(),
-            probeInfo.getCreationMode(), fields, probeInfo.getTargetIdentifierFieldList(),
+                probeInfo.getUiProbeCategory(), probeInfo.getLicense(),
+                probeInfo.getCreationMode(), fields, probeInfo.getTargetIdentifierFieldList(),
                 SdkToProbeActionsConverter.convert(probeInfo.getActionPolicyList()));
     }
 }

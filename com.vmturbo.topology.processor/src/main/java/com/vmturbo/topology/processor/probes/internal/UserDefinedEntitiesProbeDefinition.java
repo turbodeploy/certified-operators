@@ -100,6 +100,7 @@ public class UserDefinedEntitiesProbeDefinition implements InternalProbeDefiniti
     private ProbeInfo createProbeInfo(@Nonnull Set<TemplateDTO> supplyChainDefinition) {
         return ProbeInfo.newBuilder()
                 .setProbeType(UDE_PROBE_TYPE)
+                .setUiProbeCategory(UDE_PROBE_TYPE)
                 .setProbeCategory(CUSTOM.getCategory())
                 .setCreationMode(CreationMode.INTERNAL)
                 .addAllSupplyChainDefinitionSet(supplyChainDefinition)

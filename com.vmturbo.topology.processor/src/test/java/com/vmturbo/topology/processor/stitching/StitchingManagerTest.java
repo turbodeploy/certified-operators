@@ -143,6 +143,7 @@ public class StitchingManagerTest {
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
         when(probeStore.getProbe(probeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setUiProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .setProbeType(SDKProbeType.VCENTER.getProbeType())
             .build()));
     }

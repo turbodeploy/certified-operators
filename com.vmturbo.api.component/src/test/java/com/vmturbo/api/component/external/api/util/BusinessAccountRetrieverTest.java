@@ -88,6 +88,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier.PricingIdentifierName;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
@@ -623,7 +624,7 @@ public class BusinessAccountRetrieverTest {
             .oid(discoveringTarget)
             .displayName("Discovering Target")
             .probeInfo(ImmutableThinProbeInfo.builder()
-                .category(SDKProbeType.AWS.getProbeCategory().getCategory())
+                .category(ProbeCategory.CLOUD_MANAGEMENT.getCategory())
                 .oid(11111)
                 .type(SDKProbeType.AWS.getProbeType())
                 .build())

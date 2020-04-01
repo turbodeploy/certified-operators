@@ -473,10 +473,16 @@ public class GroupScopeResolver {
         return targetOids.stream().anyMatch(targetOid -> {
             final Optional<SDKProbeType> probeType = targetStore.getProbeTypeForTarget(targetOid);
             if (!probeType.isPresent()) {
-                logger.error("No target found for target OID {}.", targetOid);
+                logger.error("No probe type found for target OID {}.", targetOid);
                 return false;
             }
-            return guestLoadOriginProbeCategories.contains(probeType.get().getProbeCategory());
+            Optional<ProbeCategory> probeCategoryForTarget =
+                    targetStore.getProbeCategoryForTarget(targetOid);
+            if (!probeCategoryForTarget.isPresent()) {
+                logger.error("No probe category found for target OID {}.", targetOid);
+                return false;
+            }
+            return guestLoadOriginProbeCategories.contains(probeCategoryForTarget.get());
         });
     }
 

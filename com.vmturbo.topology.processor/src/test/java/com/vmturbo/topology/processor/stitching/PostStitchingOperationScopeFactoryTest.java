@@ -291,10 +291,12 @@ public class PostStitchingOperationScopeFactoryTest {
             discoveredBy(2L).lastUpdatedAt(44L), Collections.emptyList());
         final ProbeInfo vcProbeInfo = ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setUiProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .setProbeType(SDKProbeType.VCENTER.getProbeType())
             .build();
         final ProbeInfo vcStorageBrowseProbeInfo = ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.STORAGE_BROWSING.getCategory())
+            .setUiProbeCategory(ProbeCategory.STORAGE_BROWSING.getCategory())
             .setProbeType(SDKProbeType.VC_STORAGE_BROWSE.getProbeType())
             .build();
         when(target1.getProbeInfo()).thenReturn(vcProbeInfo);

@@ -59,14 +59,12 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.serviceinterfaces.ITargetsService;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
-import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
-import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
-import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.ProbeLicense;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
@@ -341,45 +339,9 @@ public class TargetsService implements ITargetsService {
      */
     private boolean isProbeLicensed(ProbeInfo probeInfo) {
         if (licenseCheckClient == null) return true;
-
-        // check if the probe is available according to the license data.
-        //This set should be overwritten once OM-31984  will be implemented
-        ProbeCategory category = ProbeCategory.create(probeInfo.getCategory());
-        SDKProbeType probeType = SDKProbeType.create(probeInfo.getType());
-        switch (category) {
-            case APPLICATION_SERVER :
-            case DATABASE_SERVER:
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
-            case CLOUD_MANAGEMENT:
-                if (SDKProbeType.isPublicCloudProbe(probeType)) {
-                    return licenseCheckClient.isFeatureAvailable(LicenseFeature.PUBLIC_CLOUD);
-                }
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.CLOUD_TARGETS);
-            case FABRIC:
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.FABRIC);
-            case GUEST_OS_PROCESSES:
-                // Probes like AppDynamics or NewRelic
-                if (SDKProbeType.isAppControlProbe(probeType)) {
-                    return licenseCheckClient.isFeatureAvailable(LicenseFeature.APP_CONTROL);
-                }
-
-                //Docker isn't supported in XL yet. We need to make sure this category will correspond to its implementation
-                if (probeType == SDKProbeType.DOCKER ) {
-                    return licenseCheckClient.isFeatureAvailable(LicenseFeature.CONTAINER_CONTROL);
-                }
-
-                // Probes like WMI or SNMP, no special check needed.
-                break;
-            case NETWORK:
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.NETWORK_CONTROL);
-            case STORAGE:
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.STORAGE);
-            case VIRTUAL_DESKTOP_INFRASTRUCTURE:
-                return licenseCheckClient.isFeatureAvailable(LicenseFeature.VDI_CONTROL);
-        }
-
-        // default behavior is that the probe is licensed.
-        return true;
+        if (!probeInfo.getLicense().isPresent()) return true;
+        Optional<ProbeLicense> licenseCategory = ProbeLicense.create(probeInfo.getLicense().get());
+        return licenseCategory.map(licenseCheckClient::isFeatureAvailable).orElse(true);
     }
 
     /**
@@ -742,6 +704,7 @@ public class TargetsService implements ITargetsService {
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(Long.toString(probeInfo.getId()));
         targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo));
+        targetApiDTO.setUiCategory(probeInfo.getUICategory());
         targetApiDTO.setType(probeInfo.getType());
         targetApiDTO.setIdentifyingFields(probeInfo.getIdentifyingFields());
         List<InputFieldApiDTO> inputFields =

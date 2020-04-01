@@ -3,17 +3,14 @@ package com.vmturbo.topology.processor.cost;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyMap;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -28,6 +25,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.NonMarketDTO.CostDataDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO;
 import com.vmturbo.platform.common.dto.NonMarketDTO.NonMarketEntityDTO.NonMarketEntityType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader.TargetCostData;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -86,6 +84,7 @@ public class DiscoveredCloudCostUploaderTest {
         when(idProvider.generateOperationId()).thenReturn(1000L);
         Discovery discovery = new Discovery(2L, targetId, idProvider);
         cloudCostUploader.recordTargetCostData(1L, Optional.of(SDKProbeType.AWS),
+                Optional.of(ProbeCategory.CLOUD_MANAGEMENT),
                 discovery,
             Collections.singletonList(NonMarketEntityDTO.newBuilder()
                 .setDisplayName("foo")

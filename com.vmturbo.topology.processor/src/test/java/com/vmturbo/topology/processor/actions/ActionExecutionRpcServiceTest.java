@@ -153,6 +153,7 @@ public class ActionExecutionRpcServiceTest {
 
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.toString()).setProbeType(SDKProbeType.VCENTER.toString())
+                .setUiProbeCategory(ProbeCategory.HYPERVISOR.toString())
             .addActionPolicy(moveActionPolicy)
             .build();
         Mockito.when(probeStoreMock.getProbe(targetStoreMock.getTarget(targetId).get().getProbeId())).thenReturn(Optional.of(probeInfo));
@@ -259,6 +260,7 @@ public class ActionExecutionRpcServiceTest {
 
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.toString()).setProbeType(SDKProbeType.VCENTER.toString())
+                .setUiProbeCategory(ProbeCategory.HYPERVISOR.toString())
             .addActionPolicy(moveActionPolicy)
             .build();
         Mockito.when(probeStoreMock.getProbe(targetStoreMock.getTarget(targetId).get().getProbeId())).thenReturn(Optional.of(probeInfo));
@@ -329,6 +331,7 @@ public class ActionExecutionRpcServiceTest {
 
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.toString()).setProbeType(SDKProbeType.VCENTER.toString())
+                .setUiProbeCategory(ProbeCategory.HYPERVISOR.toString())
             .addActionPolicy(moveActionPolicy)
             .build();
         Mockito.when(probeStoreMock.getProbe(targetStoreMock.getTarget(targetId).get().getProbeId())).thenReturn(Optional.of(probeInfo));

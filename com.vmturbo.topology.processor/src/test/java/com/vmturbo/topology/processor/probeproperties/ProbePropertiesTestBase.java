@@ -32,8 +32,8 @@ public class ProbePropertiesTestBase {
     protected final RemoteMediationServer mediationServer = Mockito.mock(RemoteMediationServer.class);
 
     // declare probes and targets
-    private final ProbeInfo probe1 = ProbeInfo.newBuilder().setProbeType("1").setProbeCategory("").build();
-    private final ProbeInfo probe2 = ProbeInfo.newBuilder().setProbeType("2").setProbeCategory("").build();
+    private final ProbeInfo probe1 = ProbeInfo.newBuilder().setProbeType("1").setProbeCategory("").setUiProbeCategory("").build();
+    private final ProbeInfo probe2 = ProbeInfo.newBuilder().setProbeType("2").setProbeCategory("").setUiProbeCategory("").build();
     private final Target target11 = Mockito.mock(Target.class);
     private final Target target12 = Mockito.mock(Target.class);
     private final Target target2 = Mockito.mock(Target.class);

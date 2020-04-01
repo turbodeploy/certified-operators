@@ -212,6 +212,7 @@ public class TopologyToSdkEntityConverterTest {
         String addressField = PredefinedAccountDefinition.Address.name();
         ProbeInfo probe = ProbeInfo.newBuilder().setProbeType(type.getProbeType())
                         .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+                        .setUiProbeCategory(ProbeCategory.HYPERVISOR.toString())
                         .addAccountDefinition(AccountDefEntry.newBuilder()
                                         .setPredefinedDefinition(addressField))
                         .addTargetIdentifierField(addressField)

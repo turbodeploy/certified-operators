@@ -72,7 +72,9 @@ public class MigrationsLibrary {
             new V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration(keyValueStore),
             "V_01_00_03__Target_Oid_Replace_Ip_With_Address",
             new V_01_00_03__Target_Oid_Replace_Ip_With_Address(probeStore, targetStore,
-                targetIdentityStore)
+                targetIdentityStore),
+            "V_01_00_04__Add_UI_Category_and_license_To_Probes_Migration",
+            new V_01_00_04__Add_UI_Category_and_license_To_Probes_Migration(keyValueStore)
         );
     }
 }

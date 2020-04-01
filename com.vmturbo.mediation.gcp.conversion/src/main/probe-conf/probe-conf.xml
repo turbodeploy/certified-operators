@@ -3,5 +3,7 @@
     <full-class-name>com.vmturbo.mediation.gcp.GcpConversionProbe</full-class-name>
     <type>GCP</type>
     <category>Cloud Management</category>
+    <ui-category>Public Cloud</ui-category>
+    <license>public_cloud</license>
     <version>1.0.0</version>
 </probe>
