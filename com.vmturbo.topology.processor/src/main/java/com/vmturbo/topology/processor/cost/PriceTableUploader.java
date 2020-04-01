@@ -230,8 +230,7 @@ public class PriceTableUploader implements DiagsRestorable {
                     Long previousHashCode = previousPriceTableKeyToChecksumMap.get(probePriceData.priceTableKey);
                     if (previousHashCode != null && previousHashCode == hashcode) {
                         logger.info("Last processed upload hash is the same as this one [{}], skipping upload" +
-                                        " for this price table.",
-                                Long.toUnsignedString(hashcode));
+                                        " for this price table.", hashcode);
                     } else {
                         logger.info("Price table upload hash check: new upload {} not found in database." +
                                 " We will upload.", hashcode);

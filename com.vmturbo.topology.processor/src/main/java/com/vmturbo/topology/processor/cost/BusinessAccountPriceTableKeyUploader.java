@@ -120,14 +120,12 @@ public class BusinessAccountPriceTableKeyUploader {
             throws PriceTableKeyException {
         final Builder resultPriceTableKey = PriceTableKey.newBuilder();
         if (!currentPriceTableKey.hasServiceProviderId()) {
-            throw new PriceTableKeyException(MessageFormat
-                    .format("Service Provider id not found on current price table key {}",
-                            currentPriceTableKey));
+            throw new PriceTableKeyException("Service Provider id not found on current price table key for " +
+                            currentPriceTableKey.getProbeKeyMaterialMap());
         }
         if (!previousPriceTableKey.hasServiceProviderId()) {
-            throw new PriceTableKeyException(MessageFormat
-                    .format("Service Provider id not found on previous price table key {}",
-                            previousPriceTableKey));
+            throw new PriceTableKeyException("Service Provider id not found on previous price table key for "
+                            + previousPriceTableKey.getProbeKeyMaterialMap());
         }
         if (currentPriceTableKey.getServiceProviderId() != previousPriceTableKey.getServiceProviderId()) {
             throw new PriceTableKeyException(MessageFormat
