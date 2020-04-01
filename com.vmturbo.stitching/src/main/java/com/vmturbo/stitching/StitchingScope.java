@@ -161,19 +161,19 @@ public interface StitchingScope<ENTITY> {
 
         /**
          * Return a {@link StitchingScope} that restricts the calculation to operate on only entities
-         * of a given {@link EntityType} discovered by some probe categories but NOT discovered by other probe categories.
-         * This is used for identifying
+         * of a given {@link EntityType} discovered by probe category A but NOT discovered by probe category B. This is used for identifying
          * VMs that has a hypervisor target but has no guestosprocesses target, we will disable vmem resizing for such VMs.
          *
-         * @param owningProbeCategory The probe categories that VMs have
-         * @param missingProbeCategory The probe categories that VMs don't have
+         * @param owningProbeCategory The probe category A that VMs have
+         * @param missingProbeCategory The probe category B that VMs don't have
          * @param entityType The type of entity to find.
          * @return Return a {@link StitchingScope} that restricts the calculation to operate on only entities
          * of a given {@link EntityType} NOT discovered by a specific type of probe.
          */
-        StitchingScope<TopologyEntity> hasAndLacksProbeCategoryEntityTypeStitchingScope(
-                @Nonnull final Set<ProbeCategory> owningProbeCategories,
-                @Nonnull final Set<ProbeCategory> missingProbeCategories,
+        StitchingScope<TopologyEntity> hasAndMissProbeCategoryEntityTypeStitchingScope(
+                @Nonnull final ProbeCategory owningProbeCategory,
+                @Nonnull final ProbeCategory missingProbeCategory,
                 @Nonnull final EntityType entityType);
     }
+
 }

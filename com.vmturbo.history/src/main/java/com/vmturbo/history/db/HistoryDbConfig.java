@@ -1,20 +1,12 @@
 package com.vmturbo.history.db;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-
-import javax.annotation.Nonnull;
-import javax.sql.DataSource;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
 import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.jooq.DSLContext;
-import org.jooq.impl.DefaultDSLContext;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
@@ -25,17 +17,9 @@ import com.vmturbo.sql.utils.SQLDatabaseConfig;
  * Spring Configuration for the HistorydbIO class.
  **/
 @Configuration
-public class HistoryDbConfig extends SQLDatabaseConfig {
-    private static Logger logger = LogManager.getLogger();
+@Import({SQLDatabaseConfig.class})
+public class HistoryDbConfig {
 
-    @Value("${historyDbUsername:history}")
-    private String historyDbUsername;
-
-    @Value("${historyDbPassword:}")
-    private String historyDbPassword;
-
-    @Value("${dbSchemaName:vmtdb}")
-    private String dbSchemaName;
 
     @Value("${authHost}")
     private String authHost;
@@ -93,6 +77,9 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
     @Value("${conPoolMaxIdle:10}")
     private int conPoolMaxIdle;
 
+    @Autowired
+    private SQLDatabaseConfig databaseConfig;
+
     /**
      * Provide key parameters, surfaced as spring-configurable values, to be used when creating
      * thie history component conneciton pool.
@@ -133,8 +120,8 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
      */
     @Bean
     public HistorydbIO historyDbIO() {
-        final HistorydbIO dbIO
-                = new HistorydbIO(dbPasswordUtil(), getSQLConfigObject(), connectionPoolProperties());
+        final HistorydbIO dbIO = new HistorydbIO(
+                dbPasswordUtil(), databaseConfig.getSQLConfigObject(), connectionPoolProperties());
         HistorydbIO.setSharedInstance(dbIO);
         return dbIO;
     }
@@ -149,32 +136,13 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
         return new DBPasswordUtil(authHost, authPort, authRoute, authRetryDelaySecs);
     }
 
-    @Bean
-    @Override
-    public DataSource dataSource() {
-        // If no db password specified, use root password by default.
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
-                authRetryDelaySecs);
-        String dbPassword = !Strings.isEmpty(historyDbPassword) ?
-                historyDbPassword : dbPasswordUtil.getSqlDbRootPassword();
-        return dataSourceConfig(dbSchemaName, historyDbUsername, dbPassword);
-    }
-
+    /**
+     * Get a {@link DSLContext} configured with a connection factory that will connect to the
+     * database as needed.
+     *
+     * @return the instance
+     */
     public DSLContext dsl() {
-        return new DefaultDSLContext(configuration());
-    }
-
-    @Override
-    protected void grantDbPrivileges(@Nonnull final String schemaName, @Nonnull final String dbPassword,
-            final Connection rootConnection, final String requestUser) throws SQLException {
-        super.grantDbPrivileges(schemaName, dbPassword, rootConnection, requestUser);
-        try {
-            logger.info("Attempting to grant global PROCESS privilege to {}.", requestUser);
-            rootConnection.createStatement().execute(
-                    String.format("GRANT PROCESS ON *.* TO %s", requestUser));
-            rootConnection.createStatement().executeQuery("FLUSH PRIVILEGES");
-        } catch (SQLException e) {
-            logger.warn("Failed to grant PROCESS privilege; DbMonitor will only see history threads", e);
-        }
+        return databaseConfig.dsl();
     }
 }

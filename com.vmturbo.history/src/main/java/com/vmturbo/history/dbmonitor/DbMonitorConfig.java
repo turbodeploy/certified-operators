@@ -52,13 +52,13 @@ public class DbMonitorConfig {
     private static Logger logger = LogManager.getLogger();
 
     @Value("${processListClassification:}")
-    public String processListClassification;
+    private String processListClassification;
 
     @Value("${dbMonitorIntervalSec:60}")
-    public int dbMonitorIntervalSec;
+    private int dbMonitorIntervalSec;
 
     @Value("${dbMonitorEnabled:true}")
-    public boolean dbMonitorEnabled;
+    boolean dbMonitorEnabled;
 
     /**
      * This is potentially helpful when trying to create new classifications, since the default
@@ -67,10 +67,10 @@ public class DbMonitorConfig {
      * <p>Default is false so we don't spam the logs too badly</p>
      */
     @Value("${dbMonitorDisableDefaultClassifications:false}")
-    public boolean dbMonitorDisableDefaultClassifications;
+    boolean dbMonitorDisableDefaultClassifications;
 
     @Autowired
-    HistoryDbConfig historyDbConfig;
+    private HistoryDbConfig dbConfig;
 
     /**
      * A {@link DbMonitorConfig} instance ot be started after component startup has completed.
@@ -81,7 +81,7 @@ public class DbMonitorConfig {
      */
     @Bean
     public DbMonitor dbMonitorLoop() throws JsonProcessingException {
-        return new DbMonitor(processListClassifier(), historyDbConfig.dsl(), dbMonitorIntervalSec);
+        return new DbMonitor(processListClassifier(), dbConfig.dsl(), dbMonitorIntervalSec);
     }
 
     @Bean

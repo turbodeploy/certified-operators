@@ -141,8 +141,8 @@ public class StitchingOperationScopeFactory implements StitchingScopeFactory<Sti
     }
 
     @Override
-    public StitchingScope<TopologyEntity> hasAndLacksProbeCategoryEntityTypeStitchingScope(
-            @Nonnull Set<ProbeCategory> owningProbeCategories, @Nonnull Set<ProbeCategory> missingProbeCategories, @Nonnull EntityType entityType) {
+    public StitchingScope<TopologyEntity> hasAndMissProbeCategoryEntityTypeStitchingScope(
+            @Nonnull ProbeCategory owningProbeCategory, @Nonnull ProbeCategory missinngProbeCategory, @Nonnull EntityType entityType) {
         throw new UnsupportedOperationException(
                 "missingSingleProbeCategoryEntityTypeStitchingScope is not needed for stitching");
     }
