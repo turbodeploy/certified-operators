@@ -238,6 +238,7 @@ public class OperationManagerTest {
     public void testDiscoverTarget() throws Exception {
         final Discovery discovery = operationManager.startDiscovery(targetId);
         Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(eq(probeId),
+                eq(targetId),
                 any(DiscoveryRequest.class), any(OperationMessageHandler.class));
         Assert.assertEquals(discovery, operationManager.getInProgressDiscovery(discovery.getId()).get());
     }
@@ -362,6 +363,7 @@ public class OperationManagerTest {
         ArgumentCaptor<DiscoveryRequest> requestCaptor
             = ArgumentCaptor.forClass(DiscoveryRequest.class);
         Mockito.verify(mockRemoteMediationServer, times(2)).sendDiscoveryRequest(eq(probeId),
+            eq(targetId),
             requestCaptor.capture(), any(OperationMessageHandler.class));
         List<DiscoveryRequest> requests = requestCaptor.getAllValues();
         // Verify that the first discovery request contained an empty discovery context
@@ -730,6 +732,7 @@ public class OperationManagerTest {
         operationManager.addPendingDiscovery(targetId);
         Assert.assertTrue(operationManager.hasPendingDiscovery(targetId));
         Mockito.verify(mockRemoteMediationServer, never()).sendDiscoveryRequest(eq(probeId),
+            eq(targetId),
             any(DiscoveryRequest.class), any(OperationMessageHandler.class));
 
         probeStore.registerNewProbe(probeInfo, transport);
@@ -740,6 +743,7 @@ public class OperationManagerTest {
             operationManager -> operationManager.getInProgressDiscoveryForTarget(targetId).isPresent()
         );
         Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(eq(probeId),
+            eq(targetId),
             any(DiscoveryRequest.class), any(OperationMessageHandler.class));
     }
 
