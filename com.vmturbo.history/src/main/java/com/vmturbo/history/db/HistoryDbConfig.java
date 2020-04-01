@@ -1,5 +1,6 @@
 package com.vmturbo.history.db;
 
+import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.jooq.DSLContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -64,8 +65,39 @@ public class HistoryDbConfig {
     @Value("${bulk.maxPendingBatches:8}")
     private int maxPendingBatches;
 
+    @Value("${conPoolMaxActive:25}")
+    private int conPoolMaxActive;
+
+    @Value("${conPoolInitialSize:5}")
+    private int conPoolInitialSize;
+
+    @Value("${conPoolMinIdle:5}")
+    private int conPoolMinIdle;
+
+    @Value("${conPoolMaxIdle:10}")
+    private int conPoolMaxIdle;
+
     @Autowired
     private SQLDatabaseConfig databaseConfig;
+
+    /**
+     * Provide key parameters, surfaced as spring-configurable values, to be used when creating
+     * thie history component conneciton pool.
+     *
+     * <p>The {@link PoolProperties} structure created here is augmented during pool creation with
+     * additional properties required for pool operation.</p>
+     *
+     * @return A {@link PoolProperties} structure including the configured properties
+     */
+    @Bean
+    PoolProperties connectionPoolProperties() {
+        PoolProperties p = new PoolProperties();
+        p.setMaxActive(conPoolMaxActive);
+        p.setInitialSize(conPoolInitialSize);
+        p.setMinIdle(conPoolMinIdle);
+        p.setMaxIdle(conPoolMaxIdle);
+        return p;
+    }
 
     /**
      * Default config for bulk inserter/loader instances.
@@ -88,8 +120,8 @@ public class HistoryDbConfig {
      */
     @Bean
     public HistorydbIO historyDbIO() {
-        final HistorydbIO dbIO
-                = new HistorydbIO(dbPasswordUtil(), databaseConfig.getSQLConfigObject());
+        final HistorydbIO dbIO = new HistorydbIO(
+                dbPasswordUtil(), databaseConfig.getSQLConfigObject(), connectionPoolProperties());
         HistorydbIO.setSharedInstance(dbIO);
         return dbIO;
     }
