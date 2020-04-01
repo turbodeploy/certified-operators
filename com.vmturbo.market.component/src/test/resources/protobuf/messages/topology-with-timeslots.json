@@ -1,0 +1,188 @@
+{
+    "entityType": 17,
+    "typeSpecificInfo": {},
+    "oid": "73364362512157",
+    "displayName": "corp.vmturbo.com\\horizon-user-92",
+    "environmentType": "ON_PREM",
+    "commoditySoldList": [],
+    "commoditiesBoughtFromProviders": [
+        {
+            "providerId": "73364362512107",
+            "providerEntityType": 62,
+            "commodityBought": [
+                {
+                    "commodityType": {
+                        "type": 88,
+                        "key": "284494547399856"
+                    },
+                    "used": 0,
+                    "peak": 0,
+                    "active": true,
+                    "historicalUsed": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "historicalPeak": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "displayName": "",
+                    "aggregates": []
+                },
+                {
+                    "commodityType": {
+                        "type": 90
+                    },
+                    "used": 0,
+                    "peak": 0,
+                    "active": true,
+                    "historicalUsed": {
+                        "histUtilization": 0,
+                        "timeSlot": [
+                            0.06400000303983688,
+                            0.05729524418711662,
+                            0.025599999353289604
+                        ]
+                    },
+                    "historicalPeak": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "displayName": "",
+                    "aggregates": []
+                },
+                {
+                    "commodityType": {
+                        "type": 93
+                    },
+                    "used": 0,
+                    "peak": 0,
+                    "active": true,
+                    "historicalUsed": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "historicalPeak": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "displayName": "",
+                    "aggregates": [],
+                    "resizeTargetUtilization": 0.30000001192092896
+                },
+                {
+                    "commodityType": {
+                        "type": 92
+                    },
+                    "used": 0,
+                    "peak": 0,
+                    "active": true,
+                    "historicalUsed": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "historicalPeak": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "displayName": "",
+                    "aggregates": [],
+                    "resizeTargetUtilization": 0.30000001192092896
+                },
+                {
+                    "commodityType": {
+                        "type": 91
+                    },
+                    "used": 0,
+                    "peak": 0,
+                    "active": true,
+                    "historicalUsed": {
+                        "histUtilization": 0,
+                        "timeSlot": [
+                            0.012183337472379208,
+                            0.010906987823545933,
+                            0.004873334895819426
+                        ]
+                    },
+                    "historicalPeak": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "displayName": "",
+                    "aggregates": []
+                },
+                {
+                    "commodityType": {
+                        "type": 89
+                    },
+                    "used": 0,
+                    "peak": 0,
+                    "active": true,
+                    "historicalUsed": {
+                        "histUtilization": 0,
+                        "timeSlot": [
+                            0.06569325178861618,
+                            0.05882462486624718,
+                            0.025971587747335434
+                        ]
+                    },
+                    "historicalPeak": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "displayName": "",
+                    "aggregates": []
+                },
+                {
+                    "commodityType": {
+                        "type": 94
+                    },
+                    "used": 0,
+                    "peak": 0,
+                    "active": true,
+                    "historicalUsed": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "historicalPeak": {
+                        "histUtilization": 0,
+                        "timeSlot": []
+                    },
+                    "displayName": "",
+                    "aggregates": [],
+                    "resizeTargetUtilization": 0.30000001192092896
+                }
+            ],
+            "movable": true
+        }
+    ],
+    "entityState": "POWERED_ON",
+    "entityPropertyMap": {
+        "vmStitchingKey": "",
+        "relatedGroups": "[]",
+        "distinguishedName": "CN=horizon-user-92,OU=VMware Horizon,OU=Testing,OU=Users,OU=Domain,DC=corp,DC=vmturbo,DC=com"
+    },
+    "analysisSettings": {
+        "isAvailableAsProvider": true,
+        "shopTogether": false,
+        "isEligibleForResizeDown": true,
+        "controllable": true,
+        "providerMustClone": false,
+        "deletable": true
+    },
+    "origin": {
+        "discoveryOrigin": {
+            "discoveringTargetIds": [],
+            "lastUpdatedTime": "1585087441556",
+            "discoveredTargetData": {
+                "73364361832848": {
+                    "vendorId": "S-1-5-21-3110049146-4222751627-3786824931-8021"
+                }
+            }
+        }
+    },
+    "connectedEntityList": [],
+    "tags": {
+        "tags": {}
+    }
+}
