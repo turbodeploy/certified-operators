@@ -1,5 +1,6 @@
 package com.vmturbo.stitching.poststitching;
 
+import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -23,9 +24,9 @@ public class UseHypervisorVmemForResizingPostStitchingOperation implements PostS
     @Nonnull
     public StitchingScope<TopologyEntity> getScope(@Nonnull StitchingScope.StitchingScopeFactory<TopologyEntity> stitchingScopeFactory) {
         // Apply this calculation to all vms discovered by Hypervisor probes and have no guest_os_processes probe
-        return stitchingScopeFactory.hasAndMissProbeCategoryEntityTypeStitchingScope(
-                ProbeCategory.HYPERVISOR,
-                ProbeCategory.GUEST_OS_PROCESSES,
+        return stitchingScopeFactory.hasAndLacksProbeCategoryEntityTypeStitchingScope(
+                Collections.singleton(ProbeCategory.HYPERVISOR),
+                Collections.singleton(ProbeCategory.GUEST_OS_PROCESSES),
                 CommonDTO.EntityDTO.EntityType.VIRTUAL_MACHINE);
     }
 
