@@ -238,9 +238,12 @@ message Explanation {
         oneof reason_information {
             TimeSlotReasonInformation time_slot = 2;
         }
-        // When action is caused by a time-slot analysis, the slot within a day.
+        // Slot info when action is caused by a time-slot analysis
         message TimeSlotReasonInformation {
+            // the slot within a day
             required int32 slot = 1;
+            // total number of slots in a day
+            required int32 totalSlotNumber = 2;
         }
     }
 
