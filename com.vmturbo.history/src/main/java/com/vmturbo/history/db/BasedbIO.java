@@ -1481,34 +1481,30 @@ public abstract class BasedbIO {
 
     private void createDBUser(Connection rootConn, String dbName, String hostName) throws SQLException {
         // Allow given user to access the database (= grants.sql):
-        final String requestUser = "'" + getUserName() + "'@'" + hostName + "'";
-        logger.info("Initialize permissions for " + requestUser + " on '" + dbName + "'...");
-        // Clean up existing db user, if it exists.
-        try (PreparedStatement stmt = rootConn.prepareStatement(
-            "DROP USER " + requestUser + ";")) {
-            stmt.execute();
-            logger.info("Cleaned up {} db user.", requestUser);
+        final String requestUser = String.format("'%s'@'%s'", getUserName(), hostName);
+        logger.info("Initialize permissions for {} on `{}`...", requestUser, dbName);
+        logger.info("Removing {} db user if it exists.", requestUser);
+        try {
+            rootConn.createStatement().execute(
+                    // DROP USER IF EXISTS does not appear until MySQL 5.7, and breaks Jenkins build
+                    String.format("DROP USER %s", requestUser));
         } catch (SQLException e) {
-            // SQLException will be thrown when trying to drop not existed username% user in DB. It's valid case.
-            logger.info("{} user is not in the DB, clean up is not needed.", requestUser);
+            // did not prevoiusly exist
         }
-        // Create db user.
-        try (PreparedStatement stmt = rootConn.prepareStatement(
-            "CREATE USER " + requestUser + " IDENTIFIED BY '" + getPassword() + "';")) {
-            stmt.execute();
-            logger.info("Created {} db user.", requestUser);
+        logger.info("Creating {} db user.", requestUser);
+        rootConn.createStatement().execute(
+                String.format("CREATE USER %s IDENTIFIED BY '%s'", requestUser, getPassword()));
+        logger.info("Granting ALL vmtdb privileges to user {}.", requestUser);
+        rootConn.createStatement().execute(
+                String.format("GRANT ALL PRIVILEGES ON `%s`.* TO %s", dbName, requestUser));
+        logger.info("Granting global PROCESS privileges to user {}.", requestUser);
+        try {
+            rootConn.createStatement().execute(
+                    String.format("GRANT PROCESS ON *.* TO %s", requestUser));
+        } catch (SQLException e) {
+            logger.warn("Failed to grant PROCESS privilege; DbMonitor will only see history threads", e);
         }
-        // Grant db user privileges
-        try (PreparedStatement stmt = rootConn.prepareStatement(
-            "GRANT ALL PRIVILEGES ON *.* TO " + requestUser + ";")) {
-            stmt.execute();
-            logger.info("Granted all privileges to user {}.", requestUser);
-        }
-        // Flush user privileges
-        try (PreparedStatement stmt = rootConn.prepareStatement("FLUSH PRIVILEGES;")) {
-            stmt.execute();
-            logger.info("Flushed all privileges to user {}.", requestUser);
-        }
+        rootConn.createStatement().execute("FLUSH PRIVILEGES");
     }
 
     /**
