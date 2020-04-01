@@ -62,6 +62,7 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
+import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.InsertSetStep;
@@ -147,6 +148,7 @@ public class HistorydbIO extends BasedbIO {
     private static final String SPACE = UICommodityType.SPACE.apiStr();
     private final SQLConfigObject sqlConfigObject;
     private static final String SECURE_DB_QUERY_PARMS = "useSSL=true&trustServerCertificate=true";
+    private final PoolProperties poolPropertiesBase;
 
     /**
      * DB user name accessible to given schema.
@@ -205,12 +207,18 @@ public class HistorydbIO extends BasedbIO {
     private DBPasswordUtil dbPasswordUtil;
 
     /**
-     * Constructs the HistorydbIO.
+     * Constructs the HistorydbIO instance.
+     *
+     * @param dbPasswordUtil     for access to DB credentials
+     * @param sqlConfigObject    DB configuration information
+     * @param poolPropertiesBase configurable connection pool properties
      */
     public HistorydbIO(@Nonnull DBPasswordUtil dbPasswordUtil,
-                       @Nonnull final SQLConfigObject sqlConfigObject) {
+            @Nonnull final SQLConfigObject sqlConfigObject,
+            @Nonnull final PoolProperties poolPropertiesBase) {
         this.dbPasswordUtil = dbPasswordUtil;
         this.sqlConfigObject = sqlConfigObject;
+        this.poolPropertiesBase = poolPropertiesBase;
     }
 
     @Override
@@ -323,6 +331,11 @@ public class HistorydbIO extends BasedbIO {
     @Override
     public String httpExecuteReport(String reportUrl) {
         return null;
+    }
+
+    @Override
+    protected PoolProperties getPoolPropertiesBase() {
+        return poolPropertiesBase;
     }
 
     @Override
