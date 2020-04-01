@@ -108,6 +108,8 @@ jaeger:
       dc_name: dc1
 datacloud:
   enabled: false
+intersight-integration:
+  enabled: false
 
 # Enable mediation
 actionscript:
