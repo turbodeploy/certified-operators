@@ -19,7 +19,6 @@ import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
@@ -34,8 +33,6 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
  */
 public class GcpConversionContext implements CloudProviderConversionContext {
 
-    private final Logger logger = LogManager.getLogger();
-
     // converters for different entity types
     private static final Map<EntityType, IEntityConverter> GCP_ENTITY_CONVERTERS;
     static {
@@ -43,7 +40,6 @@ public class GcpConversionContext implements CloudProviderConversionContext {
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.GCP));
         converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.GCP));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.GCP));
-        converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
         converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.GCP));
         converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
         converters.put(EntityType.APPLICATION, new ApplicationConverter());
@@ -101,11 +97,5 @@ public class GcpConversionContext implements CloudProviderConversionContext {
     @Override
     public Set<CloudService> getCloudServicesToCreate() {
         return ConverterUtils.getCloudServicesByProbeType(SDKProbeType.GCP);
-    }
-
-    @Nonnull
-    @Override
-    public Optional<EntityType> getCloudEntityTypeForProfileType(@Nonnull EntityType entityType) {
-        return Optional.ofNullable(GCP_PROFILE_TYPE_TO_CLOUD_ENTITY_TYPE.get(entityType));
     }
 }

@@ -50,11 +50,9 @@ public class CloudDiscoveryConverter {
 
     private Map<String, EntityProfileDTO> profileDTOsById = new HashMap<>();
 
-    private Set<String> allStorageTierIds = new HashSet<>();
-
     private Set<String> allVolumeIds = new HashSet<>();
 
-    private Set<String> allComputeTierIds = new HashSet<>();
+    private Map<EntityType, Set<String>> entitiesOwnedByCloudService = new HashMap<>();
 
     // the business account which is used to own entities (VMs, Apps, etc).
     // For AWS, this is the master account if it is available, or sub account if not. For Azure,
@@ -96,8 +94,8 @@ public class CloudDiscoveryConverter {
      */
     @VisibleForTesting
     public void preProcess() {
-        // create tiers (ComputeTier and DatabaseTier) from profiles
-        discoveryResponseBuilder.getEntityProfileList().forEach(this::createEntityDTOFromProfile);
+        discoveryResponseBuilder.getEntityProfileList()
+            .forEach(entityProfileDTO -> profileDTOsById.put(entityProfileDTO.getId(), entityProfileDTO));
         // initial loop through entities list, prepare for entity type specific converter later
         discoveryResponseBuilder.getEntityDTOList().forEach(this::preProcessEntityDTO);
         // create cloud service entity
@@ -116,19 +114,25 @@ public class CloudDiscoveryConverter {
         EntityDTO.Builder entityBuilder = entityDTO.toBuilder();
         EntityType entityType = entityBuilder.getEntityType();
 
-        if (entityType == EntityType.STORAGE_TIER) {
-            allStorageTierIds.add(entityBuilder.getId());
-        } else if (entityType == EntityType.VIRTUAL_VOLUME) {
-            allVolumeIds.add(entityBuilder.getId());
-        } else if (entityType == EntityType.COMPUTE_TIER) {
-            allComputeTierIds.add(entityBuilder.getId());
-        } else if (entityType == EntityType.BUSINESS_ACCOUNT) {
-            // for aws there are two cases, store master account if possible:
-            // 1. this aws target is added using sub account (discover sub)
-            // 2. this aws target is added using master account (discover master + list of subs)
-            if (businessAccountToOwnEntities == null || entityBuilder.getConsistsOfCount() > 0) {
-                businessAccountToOwnEntities = entityBuilder;
-            }
+        switch (entityType) {
+            case STORAGE_TIER:
+            case COMPUTE_TIER:
+            case DATABASE_SERVER_TIER:
+            case DATABASE_TIER:
+                entitiesOwnedByCloudService.computeIfAbsent(entityType, (type) -> new HashSet<>())
+                    .add(entityBuilder.getId());
+                break;
+            case VIRTUAL_VOLUME:
+                allVolumeIds.add(entityBuilder.getId());
+                break;
+            case BUSINESS_ACCOUNT:
+                // for aws there are two cases, store master account if possible:
+                // 1. this aws target is added using sub account (discover sub)
+                // 2. this aws target is added using master account (discover master + list of subs)
+                if (businessAccountToOwnEntities == null || entityBuilder.getConsistsOfCount() > 0) {
+                    businessAccountToOwnEntities = entityBuilder;
+                }
+                break;
         }
 
         // add to map for every entity builder
@@ -148,38 +152,15 @@ public class CloudDiscoveryConverter {
                         entity.getEntityType(), defaultConverter).convert(entity, this))
                 .collect(Collectors.toList());
         // Update consistsOf relationship between CloudService and Tier.
-        allStorageTierIds.forEach(storageTierId ->
-            ownedByCloudService(EntityType.STORAGE_TIER, storageTierId));
-        allComputeTierIds.forEach(computeTierId ->
-            ownedByCloudService(EntityType.COMPUTE_TIER, computeTierId));
+        entitiesOwnedByCloudService.forEach((type, ids) ->
+            ids.forEach(id -> ownedByCloudService(type, id)));
+
         // Update consistsOf relationship between BusinessAccount and Volume.
         allVolumeIds.forEach(this::ownedByBusinessAccount);
         discoveryResponseBuilder.clearEntityDTO();
         discoveryResponseBuilder.addAllEntityDTO(builders.stream()
                 .map(EntityDTO.Builder::build)
                 .collect(Collectors.toList()));
-    }
-
-    /**
-     * Convert profile to tier.
-     *
-     * @param entityProfileDTO the EntityProfileDTO which needs to be converted to ComputeTier
-     */
-    @VisibleForTesting
-    void createEntityDTOFromProfile(EntityProfileDTO entityProfileDTO) {
-        String profileId = entityProfileDTO.getId();
-        EntityDTO.Builder builder = EntityDTO.newBuilder();
-        builder.setId(profileId);
-        builder.setDisplayName(entityProfileDTO.getDisplayName());
-        profileDTOsById.put(profileId, entityProfileDTO);
-
-        Optional<EntityType> newCloudEntityType = conversionContext.getCloudEntityTypeForProfileType(
-                entityProfileDTO.getEntityType());
-
-        newCloudEntityType.ifPresent(type -> {
-            builder.setEntityType(type);
-            newEntityBuildersById.put(profileId, builder);
-        });
     }
 
     /**
@@ -251,15 +232,6 @@ public class CloudDiscoveryConverter {
      */
     public EntityProfileDTO getProfileDTO(@Nonnull String profileId) {
         return profileDTOsById.get(profileId);
-    }
-
-    /**
-     * Get the ids for all the storage tiers.
-     *
-     * @return set of all storage tier ids
-     */
-    public Set<String> getAllStorageTierIds() {
-        return allStorageTierIds;
     }
 
     /**
