@@ -1160,6 +1160,15 @@ public class ActionSpecMapper {
         serviceEntityApiDTO.setClassName(ApiEntityType.COMPUTE_TIER.apiStr());
         actionApiDTO.setCurrentEntity(serviceEntityApiDTO);
 
+        // Set the template for the current entity
+        final long workloadTierId = actionInfo.getAllocate().getWorkloadTier().getId();
+        final ServiceEntityApiDTO workloadTier = context.getEntity(workloadTierId);
+        TemplateApiDTO templateApiDTO = new TemplateApiDTO();
+        templateApiDTO.setUuid(workloadTier.getUuid());
+        templateApiDTO.setDisplayName(workloadTier.getDisplayName());
+        templateApiDTO.setClassName(workloadTier.getClassName());
+        actionApiDTO.setTemplate(templateApiDTO);
+
         // Set action current and new locations (should be the same for Allocate)
         setCurrentAndNewLocation(targetId, context, actionApiDTO);
 
