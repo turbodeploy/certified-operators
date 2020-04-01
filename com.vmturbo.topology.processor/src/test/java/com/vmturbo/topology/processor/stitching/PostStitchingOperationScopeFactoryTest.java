@@ -209,8 +209,8 @@ public class PostStitchingOperationScopeFactoryTest {
                 topologyGraphOf(vm1, vm2, vm3, vm5, vm6, vm4);
         scopeFactory = new PostStitchingOperationScopeFactory(topologyGraph,
                 probeStore, targetStore, cpuCapacityStore);
-        Set<Long> vmsHaveHyperviosrMissGuestOs = scopeFactory.hasAndMissProbeCategoryEntityTypeStitchingScope(
-                ProbeCategory.HYPERVISOR, ProbeCategory.GUEST_OS_PROCESSES, EntityType.VIRTUAL_MACHINE).entities()
+        Set<Long> vmsHaveHyperviosrMissGuestOs = scopeFactory.hasAndLacksProbeCategoryEntityTypeStitchingScope(
+                Collections.singleton(ProbeCategory.HYPERVISOR), Collections.singleton(ProbeCategory.GUEST_OS_PROCESSES), EntityType.VIRTUAL_MACHINE).entities()
                 .map(TopologyEntity::getOid)
                 .collect(Collectors.toSet());
         Assert.assertEquals(vmsHaveHyperviosrMissGuestOs, Sets.newHashSet(1L, 2L, 3L));
