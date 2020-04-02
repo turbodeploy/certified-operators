@@ -671,7 +671,6 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 operationStart(discovery);
                 currentTargetDiscoveries.put(targetId, discovery);
                 remoteMediationServer.sendDiscoveryRequest(probeId,
-                        targetId,
                         discoveryRequest,
                         discoveryMessageHandler);
             } catch (Exception ex) {
