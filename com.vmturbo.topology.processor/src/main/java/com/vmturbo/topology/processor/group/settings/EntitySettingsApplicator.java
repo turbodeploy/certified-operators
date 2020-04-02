@@ -420,30 +420,33 @@ public class EntitySettingsApplicator {
      */
     private static class VMShopTogetherApplicator implements SettingApplicator {
 
+        TopologyInfo topologyInfo_;
+
         private VMShopTogetherApplicator(TopologyInfo topologyInfo) {
             super();
+            topologyInfo_ = topologyInfo;
         }
 
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
                 @Nonnull Map<EntitySettingSpecs, Setting> settings) {
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
-                    && settings.containsKey(EntitySettingSpecs.Move)
-                    && settings.containsKey(EntitySettingSpecs.StorageMove)) {
+                    && settings.containsKey(EntitySettingSpecs.ShopTogether)) {
                 // TODO: For migration plans from on prem to cloud or from cloud to cloud,
                 // we should shop together.
-                final String computeMoveSetting = settings.get(EntitySettingSpecs.Move)
-                        .getEnumSettingValue().getValue();
-                final String storageMoveSetting = settings.get(EntitySettingSpecs.StorageMove)
-                        .getEnumSettingValue().getValue();
-                boolean isAutomateOrManual = computeMoveSetting.equals(ActionMode.AUTOMATIC.name())
-                                || computeMoveSetting.equals(ActionMode.MANUAL.name());
+                final boolean isShopTogetherSettingEnabled = settings.get(EntitySettingSpecs.ShopTogether)
+                        .getBooleanSettingValue().getValue();
+                final boolean isRealTime = !TopologyDTOUtil.isPlan(topologyInfo_);
+
                 // Note: if a VM does not support shop together execution, even when move and storage
                 // move sets to Manual or Automatic, dont enable shop together.
                 // If the entity is a reserved VM then it should always shop together.
                 if (entity.getOrigin().hasReservationOrigin()) {
                     entity.getAnalysisSettingsBuilder().setShopTogether(true);
-                } else if (!computeMoveSetting.equals(storageMoveSetting) || !isAutomateOrManual
+                // Apply shop together to false only if shopTogether setting is disabled by user
+                // and topology is realtime. We don't want to do it for plans because other stages
+                // like "IgnoreConstraints" set shop together to 'true' and we don't want to override it here.
+                } else if ((!isShopTogetherSettingEnabled && isRealTime)
                         || entity.getEnvironmentType() == EnvironmentType.CLOUD) {
                     // user has to change default VM action settings to explicitly indicate they
                     // want to have compound move actions generated considering best placements in
@@ -455,8 +458,8 @@ public class EntitySettingsApplicator {
                     // user interface. So, we just disable shop together for them because it has
                     // no real advantage in the cloud.
                     entity.getAnalysisSettingsBuilder().setShopTogether(false);
-                    logger.debug("Shoptogether is disabled for {} with move mode {} and storage move mode {}.",
-                            entity.getDisplayName(), computeMoveSetting, storageMoveSetting);
+                    logger.debug("Shop together is disabled for {}.",
+                            entity.getDisplayName());
                 }
             } else if (entity.getEntityType() == EntityType.DATABASE_SERVER_VALUE ||
                     entity.getEntityType() == EntityType.DATABASE_VALUE) {
