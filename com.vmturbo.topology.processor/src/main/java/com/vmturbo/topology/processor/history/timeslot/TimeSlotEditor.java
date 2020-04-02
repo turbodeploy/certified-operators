@@ -57,8 +57,8 @@ public class TimeSlotEditor extends
                                 Void> {
     private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES = ImmutableSet
                     .of(CommodityDTO.CommodityType.POOL_CPU,
-                        CommodityDTO.CommodityType.POOL_MEM,
-                        CommodityDTO.CommodityType.POOL_STORAGE);
+                                    CommodityDTO.CommodityType.POOL_MEM,
+                                    CommodityDTO.CommodityType.POOL_STORAGE);
 
     /**
      * Stores information about time when we first time started TP. It is required to re-enable back
@@ -86,8 +86,8 @@ public class TimeSlotEditor extends
                     @Nonnull StatsHistoryServiceBlockingStub statsHistoryClient,
                     @Nonnull ExecutorService loadingPool,
                     @Nonnull BiFunction<StatsHistoryServiceBlockingStub, Pair<Long, Long>, TimeSlotLoadingTask> taskCreator) {
-        super(config, statsHistoryClient, taskCreator, TimeSlotCommodityData::new, loadingPool,
-                        TimeSlotCommodityData::toDebugString);
+        super(config, statsHistoryClient, taskCreator, TimeSlotCommodityData::new,
+                        loadingPool);
     }
 
     @Override
@@ -144,7 +144,8 @@ public class TimeSlotEditor extends
         final Map<Integer, List<EntityCommodityReference>> period2comms =
                         uninitializedCommodities.stream().collect(Collectors
                                         .groupingBy(comm -> getConfig()
-                                                        .getObservationPeriod(context, comm)));
+                                                        .getObservationPeriod(context,
+                                                                        comm.getEntityOid())));
 
         List<HistoryLoadingCallable> loadingTasks = new LinkedList<>();
         final long now = getConfig().getClock().millis();
@@ -170,15 +171,14 @@ public class TimeSlotEditor extends
             return true;
         }
 
-        final int maxObservationPeriod = commodityRefs.stream()
-                        .mapToInt(comm -> getConfig().getObservationPeriod(context, comm)).max()
+        final int maxObservationPeriod = commodityRefs.stream().mapToInt(comm -> getConfig()
+                        .getObservationPeriod(context, comm.getEntityOid())).max()
                         .orElse(Integer.MAX_VALUE);
         final long runningTime = getConfig().getClock().millis() - startTimestamp;
         final boolean hasHistoricalData =
                         runningTime > Duration.ofDays(maxObservationPeriod).toMillis();
         if (hasHistoricalData) {
             clearLoadingStatistic();
-            debugLogDataValues("Time slot data after re-enabled analysis %s");
             getLogger().info(
                             "Data collected for '{}'ms, which is greater than '{}' days (max observation period). So, analysis will be re-enabled",
                             Duration.ofMillis(runningTime), maxObservationPeriod);
@@ -189,22 +189,16 @@ public class TimeSlotEditor extends
     @Override
     public void completeBroadcast(@Nonnull HistoryAggregationContext context)
                     throws HistoryCalculationException, InterruptedException {
-        debugLogDataValues("Time slot data when calculations applied %s");
         updateSoldHistoricalTimeSlotValues(context);
         super.completeBroadcast(context);
         maintenance(context);
     }
 
     private void updateSoldHistoricalTimeSlotValues(final HistoryAggregationContext context) {
-        final TopologyDTO.CommodityType anyCommodityType = TopologyDTO.CommodityType.newBuilder()
-                        .setType(ENABLED_BOUGHT_COMMODITY_TYPES.iterator().next().getNumber())
-                        .build();
         // Retrieve all desktop pool entities with the associated observation period setting
         final Map<Long, Integer> dP2Period = context.entityToSetting(
-                        topologyEntity -> EntityType.DESKTOP_POOL_VALUE == topologyEntity
-                                        .getEntityType(), entity -> getConfig().getSlots(context,
-                                        new EntityCommodityReference(entity.getOid(),
-                                                        anyCommodityType, null)));
+                topologyEntity -> EntityType.DESKTOP_POOL_VALUE == topologyEntity.getEntityType(),
+                entity -> getConfig().getSlots(context, entity.getOid()));
 
         // Gather the sold commodity references for each DP
         List<EntityCommodityFieldReference> soldFieldReferences =
@@ -247,8 +241,9 @@ public class TimeSlotEditor extends
         for (Entry<EntityCommodityFieldReference, TimeSlotCommodityData> refToData : getCache()
                         .entrySet()) {
             final EntityCommodityFieldReference ref = refToData.getKey();
-            final long observationWindowMs = getConfig().getObservationPeriod(context, ref)
-                            * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
+            final long observationWindowMs =
+                            getConfig().getObservationPeriod(context, ref.getEntityOid())
+                                            * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS;
             final long startTimestampMs = refToData.getValue().getLastMaintenanceTimestamp();
             if (!(startTimestampMs < nowMs - observationWindowMs - maintenancePeriodMs)) {
                 continue;
@@ -263,7 +258,6 @@ public class TimeSlotEditor extends
         logger.info("Starting maintenance for '{}'ms-'{}'ms time range for '{}' references",
                         Instant.ofEpochMilli(startMs), Instant.ofEpochMilli(endMs),
                         outdatedReferences.size());
-        debugLogDataValues("Time slot data before maintenance %s");
         final Stopwatch stopwatch = Stopwatch.createStarted();
         try {
             final Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> outdatedRecords =
@@ -282,8 +276,6 @@ public class TimeSlotEditor extends
             logger.error("Maintenance failed for '{}'ms-'{}'ms time range for '{}' references in '{}'ms",
                             Instant.ofEpochMilli(startMs), Instant.ofEpochMilli(endMs),
                             outdatedReferences.size(), stopwatch.elapsed(TimeUnit.MILLISECONDS), e);
-        } finally {
-            debugLogDataValues("Time slot data after maintenance %s");
         }
     }
 }

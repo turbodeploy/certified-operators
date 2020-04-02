@@ -44,7 +44,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
     @Before
     public void before() {
         config = Mockito.mock(TimeslotHistoricalEditorConfig.class);
-        Mockito.when(config.getSlots(Mockito.any(), Mockito.any())).thenReturn(SLOTS);
+        Mockito.when(config.getSlots(Mockito.any(), Mockito.anyLong())).thenReturn(SLOTS);
         clock = Mockito.mock(Clock.class);
         Mockito.when(config.getClock()).thenReturn(clock);
         context = Mockito.mock(HistoryAggregationContext.class);

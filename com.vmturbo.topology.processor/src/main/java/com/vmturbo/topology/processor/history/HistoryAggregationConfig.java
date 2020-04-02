@@ -139,7 +139,7 @@ public class HistoryAggregationConfig {
                                                   backgroundLoadingRetries,
                                                   backgroundLoadingTimeoutMin,
                                                   timeslotMaintenanceWindowHours,
-                                                  clockConfig.clock(), kvConfig);
+                                                  clockConfig.clock());
     }
 
     /**

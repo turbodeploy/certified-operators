@@ -39,8 +39,7 @@ import com.vmturbo.topology.processor.history.HistoryCalculationException;
 @PrepareForTest({StatsHistoryServiceBlockingStub.class})
 public class TimeSlotLoadingTaskTest {
     private static final TimeslotHistoricalEditorConfig CONFIG =
-                    new TimeslotHistoricalEditorConfig(1, 1, 1, 1, 1, 1, Clock.systemUTC(),
-                                    null);
+                    new TimeslotHistoricalEditorConfig(1, 1, 1, 1, 1, 1, Clock.systemUTC());
     private static final long OID1 = 12;
     private static final long OID2 = 15;
     private static final CommodityType CT = CommodityType.newBuilder()
