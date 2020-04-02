@@ -23,8 +23,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
 import com.google.common.collect.Sets;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -145,6 +145,8 @@ public class EntitySettingsApplicator {
                         CommodityType.REMAINING_GC_CAPACITY),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.VCPURequestUtilization,
                         CommodityType.VCPU_REQUEST),
+                new UtilizationThresholdApplicator(EntitySettingSpecs.DTUUtilization,
+                        CommodityType.DTU),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.PoolCpuUtilizationThreshold,
                         CommodityType.POOL_CPU),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.PoolMemoryUtilizationThreshold,

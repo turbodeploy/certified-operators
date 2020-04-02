@@ -17,8 +17,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -318,6 +316,13 @@ public enum EntitySettingSpecs {
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD),
             numeric(0f, 100f, 99.99f), true),
+    /**
+     * DTU utilization threshold.
+     */
+    DTUUtilization("dtuUtilization", "DTU Utilization",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.DATABASE),
+            numeric(0f, 100f, 70.0f), true),
 
     /**
      * IOPS utilization threshold.

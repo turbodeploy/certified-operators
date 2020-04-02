@@ -172,7 +172,8 @@
         "dailyObservationWindowDesktopPool",
         "appHeapScalingIncrement",
         "dbMemScalingIncrement",
-        "resizeVStorage"
+        "resizeVStorage",
+        "dtuUtilization"
       ]
     },
     "storagesettingsmanager": {

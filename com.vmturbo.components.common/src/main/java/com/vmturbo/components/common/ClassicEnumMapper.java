@@ -131,6 +131,7 @@ public class ClassicEnumMapper {
             .put("Unknown",                     CommodityType.UNKNOWN)
             .put("Zone",                        CommodityType.ZONE)
             .put("KPI",                         CommodityType.KPI)
+            .put("DTU",                         CommodityType.DTU)
             .build();
 
     /**
@@ -232,6 +233,7 @@ public class ClassicEnumMapper {
         VMEM_REQUEST("VMemRequest", "KB"),
         VMEM_REQUEST_QUOTA("VMemRequestQuota", "KB"),
         VSTORAGE("VStorage", "MB"),
+        DTU("DTU", ""),
         // Access Commodities
         CLUSTER("ClusterCommodity", ""),
         DATASTORE("DatastoreCommodity", ""),

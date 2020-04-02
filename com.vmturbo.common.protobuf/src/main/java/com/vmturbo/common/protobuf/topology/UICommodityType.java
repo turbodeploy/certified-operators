@@ -240,6 +240,8 @@ public enum UICommodityType {
     KPI("KPI", CommodityType.KPI, "KPI"),
     /** The commodity TOTAL_SESSIONS. */
     TOTAL_SESSIONS("TotalSessions", CommodityType.TOTAL_SESSIONS, "Total Sessions"),
+    /** Database Transaction Unit **/
+    DTU("DTU", CommodityType.DTU, "DTU"),
     /** The commodity UNKNOWN. */
     UNKNOWN("Unknown", CommodityType.UNKNOWN, "Unknown");
 
