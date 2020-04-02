@@ -341,4 +341,18 @@ public class ProjectedRICoverageAndUtilStore {
             return buyReservedInstanceStore.getBuyReservedInstances(buyReservedInstanceFilter);
         }
     }
+
+    /**
+     * Query cost.buy_reserved_instance WHERE topology_context_id = {@param topologyContextId}.
+     *
+     * @param topologyContextId the (plan) topology for which RI purchases have been recommended
+     * @return a collection of {@link ReservedInstanceBought} representing the recommended RI purchases
+     */
+    public List<ReservedInstanceBought> resolveBuyRIsInScope(long topologyContextId) {
+        final BuyReservedInstanceFilter buyReservedInstanceFilter = BuyReservedInstanceFilter.newBuilder()
+                .addTopologyContextId(topologyContextId)
+                .build();
+
+        return buyReservedInstanceStore.getBuyReservedInstances(buyReservedInstanceFilter);
+    }
 }
