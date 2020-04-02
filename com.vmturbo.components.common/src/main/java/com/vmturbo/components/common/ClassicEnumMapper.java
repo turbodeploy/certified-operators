@@ -5,11 +5,11 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
@@ -126,6 +126,7 @@ public class ClassicEnumMapper {
             .put("VStorage",                    CommodityType.VSTORAGE)
             .put("Unknown",                     CommodityType.UNKNOWN)
             .put("Zone",                        CommodityType.ZONE)
+            .put("KPI",                         CommodityType.KPI)
             .build();
 
     /**
