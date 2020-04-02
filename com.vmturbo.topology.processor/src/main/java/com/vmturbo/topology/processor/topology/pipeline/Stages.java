@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
@@ -37,16 +38,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.ncm.MatrixDTO;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.MessageChunker;
 import com.vmturbo.components.api.chunking.OversizedElementException;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.api.RepositoryClient;
@@ -80,6 +79,8 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.group.settings.SettingOverrides;
 import com.vmturbo.topology.processor.ncm.FlowCommoditiesGenerator;
 import com.vmturbo.topology.processor.reservation.ReservationManager;
+import com.vmturbo.topology.processor.reservation.ReservationTrimmer;
+import com.vmturbo.topology.processor.reservation.ReservationTrimmer.TrimmingSummary;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingGroupFixer;
 import com.vmturbo.topology.processor.stitching.StitchingManager;
@@ -104,6 +105,7 @@ import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicator
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
+import com.vmturbo.topology.processor.topology.pipeline.CachedTopology.CachedTopologyResult;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Stage;
@@ -485,9 +487,9 @@ public class Stages {
         @Nonnull
         @Override
         public StageResult<Map<Long, Builder>> execute(@Nonnull final EntityStore entityStore) {
-            final Map<Long, TopologyEntity.Builder> topology = resultCache.getTopology();
-            return StageResult.withResult(topology)
-                .andStatus(Status.success("Using cached topology of size " + topology.size()));
+            final CachedTopologyResult result = resultCache.getTopology(getContext().getTopologyInfo());
+            return StageResult.withResult(result.getEntities())
+                .andStatus(Status.success(result.toString()));
         }
     }
 
@@ -837,6 +839,23 @@ public class Stages {
         }
     }
 
+    /**
+     * This stage is specific to the reservation plan - it creates a new {@link TopologyGraph} which
+     * contains ONLY the entities the market will need for reservation processing.
+     *
+     * <p/>Note - it should be run AFTER any logic that requires the full graph (e.g. scoping,
+     * policy application).
+     */
+    public static class ReservationTrimStage extends Stage<TopologyGraph<TopologyEntity>, TopologyGraph<TopologyEntity>> {
+
+        @Nonnull
+        @Override
+        public StageResult<TopologyGraph<TopologyEntity>> execute(@Nonnull final TopologyGraph<TopologyEntity> input) {
+            final TrimmingSummary trimmingSummary = new ReservationTrimmer().trimTopologyGraph(input);
+            return StageResult.withResult(trimmingSummary.getNewGraph())
+                .andStatus(Status.success(trimmingSummary.toString()));
+        }
+    }
     /**
      * This stage applies policies to a {@link TopologyGraph<TopologyEntity>}. This makes changes
      * to the commodities of entities in the {@link TopologyGraph<TopologyEntity>} to reflect the
@@ -1312,36 +1331,21 @@ public class Stages {
             final Iterator<TopologyEntityDTO> topology)
             throws InterruptedException, CommunicationException {
             final TopologyInfo topologyInfo = getContext().getTopologyInfo();
-            boolean isReservationPlan = (topologyInfo.hasPlanInfo()
-                    && topologyInfo.getPlanInfo().hasPlanProjectType()
-                    && topologyInfo.getPlanInfo().getPlanProjectType()
-                    == PlanProjectType.RESERVATION_PLAN);
             final List<TopologyBroadcast> broadcasts = broadcastFunctions.stream()
                 .map(function -> function.apply(topologyInfo))
                 .collect(Collectors.toList());
             for (Iterator<TopologyEntityDTO> it = topology; it.hasNext(); ) {
                 final TopologyEntityDTO entity = it.next();
-                boolean includeEntityInBroadcast =
-                        // all entities if not reservation_plan
-                        // only the reservation vms if reservation plan
-                        // all host and storages should be sent for reservation plan.
-                        !isReservationPlan ||
-                                (entity.hasOrigin() && entity.getOrigin().hasReservationOrigin()) ||
-                                entity.getEntityType() == EntityType.STORAGE_VALUE ||
-                                entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE;
-
-                if (includeEntityInBroadcast) {
-                    counts.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),
-                            k -> new MutableInt(0)).increment();
-                    for (TopologyBroadcast broadcast : broadcasts) {
-                        try {
-                            broadcast.append(entity);
-                        } catch (OversizedElementException e) {
-                            logger.error("Entity {} (name: {}, type: {}) failed to be" +
-                                " broadcast because it's too large: {}", entity.getOid(),
-                                entity.getDisplayName(), entity.getEntityType(), e.getMessage());
-                            continue;
-                        }
+                counts.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),
+                        k -> new MutableInt(0)).increment();
+                for (TopologyBroadcast broadcast : broadcasts) {
+                    try {
+                        broadcast.append(entity);
+                    } catch (OversizedElementException e) {
+                        logger.error("Entity {} (name: {}, type: {}) failed to be" +
+                            " broadcast because it's too large: {}", entity.getOid(),
+                            entity.getDisplayName(), entity.getEntityType(), e.getMessage());
+                        continue;
                     }
                 }
             }

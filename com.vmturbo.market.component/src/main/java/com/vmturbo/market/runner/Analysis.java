@@ -30,6 +30,7 @@ import com.google.common.collect.Table;
 
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,6 +48,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -508,6 +510,25 @@ public class Analysis {
                             // update projectedTraderTO and generate actions.
                             smaConverter.updateWithSMAOutput(projectedTraderDTO);
                             projectedTraderDTO = smaConverter.getProjectedTraderDTOsWithSMA();
+                        }
+
+                        if (topologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
+                            // For reservation plans we only care about the reservation entities
+                            // in the projected topology.
+                            final MutableInt removedCnt = new MutableInt(0);
+                            projectedTraderDTO = projectedTraderDTO.stream()
+                                .filter(trader -> {
+                                    TopologyEntityDTO originalEntity = topologyDTOs.get(trader.getOid());
+                                    if (originalEntity != null && originalEntity.getOrigin().hasReservationOrigin()) {
+                                        return true;
+                                    } else {
+                                        removedCnt.increment();
+                                        return false;
+                                    }
+                                })
+                                .collect(Collectors.toList());
+                            logger.info("Removed {} entities from projected topology. Projected topology now has {} entities.",
+                                removedCnt.getValue(), projectedTraderDTO.size());
                         }
 
                         // results can be null if M2Analysis is not run
