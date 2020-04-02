@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -20,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -241,10 +241,13 @@ public class TopologyEntitiesHandlerTest {
         Set<TraderTO> economyDTOs = converter.convertToMarket(topoDTOs);
         final TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyContextId(7L)
                         .setTopologyType(TopologyType.REALTIME).setTopologyId(1L).build();
-        ReplayActions replayActions = new ReplayActions();
+
+        // Mock Analysis preserving setter/getter relationship
         Analysis analysis = mock(Analysis.class);
+        when(analysis.getReplayActions()).thenReturn(new ReplayActions()).thenCallRealMethod();
+        doCallRealMethod().when(analysis).setReplayActions(any(ReplayActions.class));
         mockCommsToAdjustForOverhead(analysis, converter);
-        when(analysis.getReplayActions()).thenReturn(replayActions);
+
         final AnalysisConfig analysisConfig = AnalysisConfig
                         .newBuilder(MarketAnalysisUtils.QUOTE_FACTOR,
                                         MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
@@ -263,6 +266,7 @@ public class TopologyEntitiesHandlerTest {
                         .filter(ActionTO::hasDeactivate)
                         .map(actionTo -> actionTo.getDeactivate().getTraderToDeactivate())
                         .collect(Collectors.toList());
+        ReplayActions replayActions = analysis.getReplayActions();
         List<Long> replayOids = replayActions.getActions().stream()
                     .map(a -> replayActions.getTopology().getTraderOids().get(a.getActionTarget()))
                     .collect(Collectors.toList());
@@ -755,12 +759,10 @@ public class TopologyEntitiesHandlerTest {
     }
 
     private void mockCommsToAdjustForOverhead(Analysis analysis, TopologyConverter converter) {
-        Iterator<Integer> iter = MarketAnalysisUtils.COMM_TYPES_TO_ALLOW_OVERHEAD.iterator();
-        while (iter.hasNext()) {
-            int type = iter.next();
+        for (final int type : MarketAnalysisUtils.COMM_TYPES_TO_ALLOW_OVERHEAD) {
             TopologyDTO.CommodityType commType = TopologyDTO.CommodityType.newBuilder().setType(type).build();
             when(analysis.getCommSpecForCommodity(commType))
-                    .thenReturn(converter.getCommSpecForCommodity(commType));
+                .thenReturn(converter.getCommSpecForCommodity(commType));
         }
     }
 
