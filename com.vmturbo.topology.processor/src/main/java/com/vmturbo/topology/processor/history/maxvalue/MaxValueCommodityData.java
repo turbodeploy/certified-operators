@@ -5,6 +5,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.CachingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
@@ -43,6 +44,14 @@ public class MaxValueCommodityData implements IHistoryCommodityData<CachingHisto
         if (dbValue != null) {
             dbMax = dbValue;
         }
+    }
+
+    @Override
+    public boolean needsReinitialization(@Nonnull EntityCommodityReference ref,
+                    @Nonnull HistoryAggregationContext context,
+                    @Nonnull CachingHistoricalEditorConfig cachingHistoricalEditorConfig) {
+        // TODO avasin handle dbMax values
+        return false;
     }
 
 }
