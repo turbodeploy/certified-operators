@@ -26,6 +26,8 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
@@ -89,6 +91,10 @@ public abstract class StitchingIntegrationTest {
         // treated as normal probe
         when(targetStore.getProbeTypeForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(SDKProbeType.HYPERV));
+        when(probeStore.getProbe(anyLong())).thenReturn(Optional.of(ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setProbeType(SDKProbeType.VCENTER.getProbeType())
+            .build()));
     }
 
     protected void setOperationsForProbe(final long probeId,

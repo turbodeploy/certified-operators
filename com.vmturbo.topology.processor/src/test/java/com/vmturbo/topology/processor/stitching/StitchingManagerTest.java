@@ -10,6 +10,7 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -41,6 +42,9 @@ import com.google.common.collect.ImmutableMap;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
@@ -133,9 +137,14 @@ public class StitchingManagerTest {
         MockitoAnnotations.initMocks(this);
 
         when(target.getId()).thenReturn(firstTargetId);
+        when(target.getDisplayName()).thenReturn("target");
         when(targetStore.getProbeTargets(eq(probeId)))
             .thenReturn(Collections.singletonList(target));
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
+        when(probeStore.getProbe(probeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
+            .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
+            .setProbeType(SDKProbeType.VCENTER.getProbeType())
+            .build()));
     }
 
     @Test
@@ -149,6 +158,7 @@ public class StitchingManagerTest {
         final StitchingContext stitchingContext = spy(contextBuilder.build());
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(target));
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
         final StitchingManager stitchingManager =
@@ -181,6 +191,7 @@ public class StitchingManagerTest {
         final StitchingContext stitchingContext = spy(contextBuilder.build());
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
 
+        when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(target));
         final StitchingManager stitchingManager = new StitchingManager(stitchingOperationStore,
             preStitchingOperationLibrary, postStitchingOperationLibrary, probeStore, targetStore, cpuCapacityStore);
 
