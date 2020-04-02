@@ -102,31 +102,6 @@ public class ReservationManager {
                                 TopologyInfo topologyInfo) {
         TopologyType topologyType = topologyInfo.getTopologyType();
         PlanProjectType planType  = topologyInfo.getPlanInfo().getPlanProjectType();
-        // all entities above vm in supply chain should be removed for reservation plan.
-        if (planType == PlanProjectType.RESERVATION_PLAN) {
-            Set<Long> entiesToRemove = new HashSet<>();
-            for (Entry<Long, Builder> entry : topology.entrySet()) {
-                TopologyEntity.Builder entity = entry.getValue();
-                Long oid = entry.getKey();
-                if (entity.getEntityType() == EntityType.APPLICATION_SERVER.getValue() ||
-                        entity.getEntityType() == EntityType.DATABASE_SERVER.getValue() ||
-                        entity.getEntityType() == EntityType.BUSINESS_APPLICATION.getValue() ||
-                        entity.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue() ||
-                        entity.getEntityType() == EntityType.APPLICATION.getValue() ||
-                        entity.getEntityType() == EntityType.CONTAINER.getValue() ||
-                        entity.getEntityType() == EntityType.CONTAINER_POD.getValue()) {
-                    entiesToRemove.add(oid);
-                }
-            }
-            for (Long oid : entiesToRemove) {
-                topology.remove(oid);
-            }
-        }
-        final GetAllReservationsRequest allReservationsRequest = GetAllReservationsRequest.newBuilder()
-                .build();
-        final Iterable<Reservation> allReservations = () ->
-                reservationService.getAllReservations(allReservationsRequest);
-
         // Retrieve all active reservations. The ones which has already been
         // taken care of by a previous reservation plan.
         final Map<Long, Reservation> reservedReservations = new HashMap<>();
