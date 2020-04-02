@@ -381,13 +381,13 @@ public class AnalysisServer implements AutoCloseable {
             // if there are no templates to be added this is not a headroom plan
             Ede ede = new Ede();
             boolean isReplayOrRealTime = instInfo.isReplayActions() || instInfo.isRealTime();
-            if (isReplayOrRealTime) {
-                ede.setReplayActions(replayActionsMap.getOrDefault(mktName, new ReplayActions()));
-            }
+            final @NonNull ReplayActions seedActions = isReplayOrRealTime
+                ? replayActionsMap.getOrDefault(mktName, new ReplayActions())
+                : new ReplayActions();
             actions = ede.generateActions(economy, instInfo.isClassifyActions(),
-                            instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
-                            instInfo.isResizeEnabled(), true, mktData, instInfo.isRealTime(),
-                            instInfo.getSuspensionsThrottlingConfig());
+                instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
+                instInfo.isResizeEnabled(), true, seedActions, mktData, instInfo.isRealTime(),
+                instInfo.getSuspensionsThrottlingConfig());
             if (instInfo.isBalanceDeploy()) {
                 Set<Trader> placedVMSet = economy.getPlacementEntities().stream()
                     .filter(vm -> economy.getMarketsAsBuyer(vm).keySet().stream()
@@ -403,9 +403,9 @@ public class AnalysisServer implements AutoCloseable {
                                                 .forEach(sl -> sl.setMovable(false));
                             });
                     actions = ede.generateActions(economy, instInfo.isClassifyActions(),
-                                    instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
-                                    instInfo.isResizeEnabled(), true, mktData, instInfo.isRealTime(),
-                                    instInfo.getSuspensionsThrottlingConfig());
+                        instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
+                        instInfo.isResizeEnabled(), true, seedActions, mktData,
+                        instInfo.isRealTime(), instInfo.getSuspensionsThrottlingConfig());
                 }
             }
             long stop = System.nanoTime();
@@ -428,7 +428,7 @@ public class AnalysisServer implements AutoCloseable {
                 economy.getSettings().setResizeDependentCommodities(false);
                 secondRoundActions.addAll(ede
                                 .generateActions(economy, instInfo.isClassifyActions(), true, true,
-                                                false, true, false, mktData)
+                                                false, true, false, new ReplayActions(), mktData)
                                 .stream().filter(action -> action instanceof ProvisionBase
                                                 || action instanceof Activate
                                                 // Extract resizes that explicitly set extractAction to true as part
@@ -465,7 +465,7 @@ public class AnalysisServer implements AutoCloseable {
                 results = builder.build();
             }
             if (isReplayOrRealTime) {
-                ReplayActions newReplayActions = ede.getReplayActions();
+                ReplayActions newReplayActions = new ReplayActions();
                 // the OIDs have to be updated after analysisResults
                 newReplayActions.setTopology(lastComplete);
                 if (instInfo.isReplayActions()) {

@@ -127,8 +127,6 @@ public class EdeIntegrationTest {
         // assert presence of resizes
         assertFalse(resizes.isEmpty());
 
-        Ede engine = new Ede();
-        engine.setReplayActions(replayActions);
         replayActions.replayActions(first, ledger);
         // assert absence of replayed suspension
         assertTrue(replayActions.getActions().isEmpty());
@@ -158,9 +156,7 @@ public class EdeIntegrationTest {
         actions.add(deactivate);
         replayActions.setActions(actions);
 
-        Ede engine = new Ede();
         Ledger ledger = new Ledger(first);
-        engine.setReplayActions(replayActions);
         replayActions.replayActions(first, ledger);
         // validate that suspension was replayed
         assertFalse(replayActions.getActions().isEmpty());
