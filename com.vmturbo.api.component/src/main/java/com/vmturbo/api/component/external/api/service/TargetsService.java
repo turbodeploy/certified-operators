@@ -381,6 +381,8 @@ public class TargetsService implements ITargetsService {
                 return licenseCheckClient.isFeatureAvailable(LicenseFeature.NETWORK_CONTROL);
             case STORAGE:
                 return licenseCheckClient.isFeatureAvailable(LicenseFeature.STORAGE);
+            case VIRTUAL_DESKTOP_INFRASTRUCTURE:
+                return licenseCheckClient.isFeatureAvailable(LicenseFeature.VDI_CONTROL);
         }
 
         // default behavior is that the probe is licensed.
