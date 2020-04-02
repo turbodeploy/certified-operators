@@ -257,15 +257,15 @@ public final class SettingDTOUtil {
                 return Objects.equals(setting1.getEnumSettingValue().getValue(),
                         setting2.getEnumSettingValue().getValue());
             case SORTED_SET_OF_OID_SETTING_VALUE:
-                return Objects.equals(getOidSet(setting1), getOidSet(setting2));
+                return Objects.equals(getOidSortedSet(setting1), getOidSortedSet(setting2));
             default:
                 throw new IllegalArgumentException("Illegal setting value type: "
                         + setting1.getValueCase());
         }
     }
 
-    private static Set<Long> getOidSet(@Nonnull final Setting setting) {
-        return new HashSet<>(setting.getSortedSetOfOidSettingValue().getOidsList());
+    private static List<Long> getOidSortedSet(@Nonnull final Setting setting) {
+        return setting.getSortedSetOfOidSettingValue().getOidsList();
     }
 
     /**
