@@ -37,13 +37,15 @@ public interface RemoteMediation {
      * processing is reported to {@code responseHandler}.
      *
      * @param probeId probe to perform request on
+     * @param targetId target to discover
      * @param discoveryRequest discovery request data
      * @param responseHandler handler to accept discovery responses.
      * @throws ProbeException if probe requested does not exist.
      * @throws CommunicationException if some communication error occurred.
      * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void sendDiscoveryRequest(final long probeId, @Nonnull final DiscoveryRequest discoveryRequest,
+    void sendDiscoveryRequest(long probeId, long targetId,
+                              @Nonnull DiscoveryRequest discoveryRequest,
                     @Nonnull final IOperationMessageHandler<Discovery> responseHandler)
                     throws ProbeException, CommunicationException, InterruptedException;
 
