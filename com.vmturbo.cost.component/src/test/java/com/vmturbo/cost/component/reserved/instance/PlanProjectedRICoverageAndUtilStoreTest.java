@@ -169,7 +169,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                   .build());
         when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(any())).thenReturn(specs);
 
-        store.updateProjectedRIUtilTableForPlan(topoInfo, Arrays.asList(ENTITY_RI_COVERAGE));
+        store.updateProjectedRIUtilTableForPlan(topoInfo, Arrays.asList(ENTITY_RI_COVERAGE), new ArrayList<>());
     }
 
     @Test
