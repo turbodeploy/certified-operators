@@ -72,7 +72,7 @@ public class Suspension {
      * @return list of deactivate and move actions
      */
     public @NonNull List<@NonNull Action> suspensionDecisions(@NonNull Economy economy,
-                                                              @NonNull Ledger ledger, Ede ede) {
+                                                              @NonNull Ledger ledger) {
         List<@NonNull Action> allActions = new ArrayList<>();
         int round = 0;
         // suspend entities that are not sellers in any market

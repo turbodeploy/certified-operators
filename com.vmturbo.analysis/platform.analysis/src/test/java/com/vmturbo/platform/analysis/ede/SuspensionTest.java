@@ -51,7 +51,7 @@ public class SuspensionTest {
         Ede ede = new Ede();
 
         Suspension suspension = new Suspension();
-        List<Action> suspAxns = suspension.suspensionDecisions(economy, ledger, ede);
+        List<Action> suspAxns = suspension.suspensionDecisions(economy, ledger);
 
         // verify that we do not suspend non-suspendaable traders
         assertTrue(suspAxns.isEmpty());
@@ -66,8 +66,7 @@ public class SuspensionTest {
 
         Suspension suspension = new Suspension();
         // check if returned action list is empty
-        assertTrue(suspension.suspensionDecisions(economy, new Ledger(economy), new Ede())
-                        .isEmpty());
+        assertTrue(suspension.suspensionDecisions(economy, new Ledger(economy)).isEmpty());
     }
 
     @Test
@@ -99,7 +98,7 @@ public class SuspensionTest {
         Ede ede = new Ede();
 
         Suspension suspension = new Suspension();
-        List<Action> suspAxns = suspension.suspensionDecisions(economy, ledger, ede);
+        List<Action> suspAxns = suspension.suspensionDecisions(economy, ledger);
 
         // verify that the we suspend extra seller
         assertTrue(!suspAxns.isEmpty());
@@ -119,7 +118,7 @@ public class SuspensionTest {
         Ede ede = new Ede();
 
         Suspension suspension = new Suspension();
-        List<Action> suspAxns = suspension.suspensionDecisions(economy, ledger, ede);
+        List<Action> suspAxns = suspension.suspensionDecisions(economy, ledger);
 
         // verify that we do not suspend the only seller
         assertTrue(suspAxns.isEmpty());

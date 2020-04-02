@@ -87,13 +87,10 @@ public class Provision {
      *                  in the desired state
      * @param ledger - the class that contains exp/rev about all the traders and commodities in
      *                  the economy
-     * @param ede - the Economic decision engine
-     *
      * @return list of provision and move actions
      */
-    public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy
-            , @NonNull Ledger ledger
-            , Ede ede) {
+    public static @NonNull List<@NonNull Action> provisionDecisions(@NonNull Economy economy,
+                                                                    @NonNull Ledger ledger) {
 
         List<@NonNull Action> allActions = new ArrayList<>();
         if (economy.getSettings().isEstimatesEnabled()) {

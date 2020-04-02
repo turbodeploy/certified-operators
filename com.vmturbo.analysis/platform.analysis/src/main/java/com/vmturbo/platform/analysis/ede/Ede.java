@@ -302,7 +302,7 @@ public final class Ede {
         // trigger provision, suspension and resize algorithm only when needed
         int oldActionCount = actions.size();
         if (isProvision) {
-            actions.addAll(Provision.provisionDecisions(economy, ledger, this));
+            actions.addAll(Provision.provisionDecisions(economy, ledger));
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provisioning");
             // if provision generated some actions, run placements
             if (actions.size() > oldActionCount) {
@@ -321,7 +321,7 @@ public final class Ede {
             // find if any seller is the sole provider in any market, if so, it should not
             // be considered as suspension candidate
             suspension.findSoleProviders(economy);
-            actions.addAll(suspension.suspensionDecisions(economy, ledger, this));
+            actions.addAll(suspension.suspensionDecisions(economy, ledger));
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "suspending");
         }
         // suspension time

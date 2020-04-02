@@ -134,12 +134,12 @@ public class EdeIntegrationTest {
         assertTrue(replayActions.getActions().isEmpty());
 
         // assert absence of provision/activates
-        List<Action> provisionActions = Provision.provisionDecisions(first, ledger, engine);
+        List<Action> provisionActions = Provision.provisionDecisions(first, ledger);
         assertTrue(provisionActions.isEmpty());
 
         // assert absence of suspension
         Suspension suspension = new Suspension();
-        List<Action> suspendActions = suspension.suspensionDecisions(first, ledger, engine);
+        List<Action> suspendActions = suspension.suspensionDecisions(first, ledger);
         assertTrue(suspendActions.isEmpty());
     }
 
@@ -170,12 +170,12 @@ public class EdeIntegrationTest {
         assertFalse(resizes.isEmpty());
 
         // assert presence of 1 activate
-        List<Action> provisionActions = Provision.provisionDecisions(first, ledger, engine);
+        List<Action> provisionActions = Provision.provisionDecisions(first, ledger);
         assertEquals(1, provisionActions.stream().filter(Activate.class::isInstance).count());
 
         // assert absence of 1 suspension
         Suspension suspension = new Suspension();
-        List<Action> suspendActions = suspension.suspensionDecisions(first, ledger, engine);
+        List<Action> suspendActions = suspension.suspensionDecisions(first, ledger);
         assertTrue(suspendActions.isEmpty());
     }
 }
