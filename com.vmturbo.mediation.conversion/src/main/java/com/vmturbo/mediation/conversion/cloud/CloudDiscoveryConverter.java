@@ -21,7 +21,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
@@ -50,9 +49,8 @@ public class CloudDiscoveryConverter {
 
     private Map<String, EntityProfileDTO> profileDTOsById = new HashMap<>();
 
-    private Set<String> allVolumeIds = new HashSet<>();
-
     private Map<EntityType, Set<String>> entitiesOwnedByCloudService = new HashMap<>();
+    private Set<String> entitiesOwnedByBusinessAccount = new HashSet<>();
 
     // the business account which is used to own entities (VMs, Apps, etc).
     // For AWS, this is the master account if it is available, or sub account if not. For Azure,
@@ -123,7 +121,12 @@ public class CloudDiscoveryConverter {
                     .add(entityBuilder.getId());
                 break;
             case VIRTUAL_VOLUME:
-                allVolumeIds.add(entityBuilder.getId());
+            case DATABASE:
+            case APPLICATION:
+            case LOAD_BALANCER:
+            case VIRTUAL_APPLICATION:
+            case DATABASE_SERVER:
+                entitiesOwnedByBusinessAccount.add(entityBuilder.getId());
                 break;
             case BUSINESS_ACCOUNT:
                 // for aws there are two cases, store master account if possible:
@@ -154,9 +157,9 @@ public class CloudDiscoveryConverter {
         // Update consistsOf relationship between CloudService and Tier.
         entitiesOwnedByCloudService.forEach((type, ids) ->
             ids.forEach(id -> ownedByCloudService(type, id)));
+        // Update consistsOf relationship between BusinessAccount and entities.
+        entitiesOwnedByBusinessAccount.forEach(this::ownedByBusinessAccount);
 
-        // Update consistsOf relationship between BusinessAccount and Volume.
-        allVolumeIds.forEach(this::ownedByBusinessAccount);
         discoveryResponseBuilder.clearEntityDTO();
         discoveryResponseBuilder.addAllEntityDTO(builders.stream()
                 .map(EntityDTO.Builder::build)
@@ -281,19 +284,6 @@ public class CloudDiscoveryConverter {
     }
 
     /**
-     * Split the key of access commodity and get the uuid from key. For cloud targets the DSPMAccess
-     * key looks like "PhysicalMachine::aws::us-west-2::PM::us-west-2b", where the part after the
-     * colons is the uuid.
-     *
-     * @param key original key
-     * @return the uuid part of the key
-     */
-    @Nonnull
-    public static String keyToUuid(@Nonnull String key) {
-        return key.split("::", 2)[1];
-    }
-
-    /**
      * Get the region id based on the zone id.
      *
      * @param azId id of the availability zone
@@ -313,10 +303,6 @@ public class CloudDiscoveryConverter {
     @Nonnull
     public String getStorageTierId(@Nonnull String storageTier) {
         return conversionContext.getStorageTierId(storageTier);
-    }
-
-    public Optional<String> getAvailabilityZone(final Builder entity) {
-        return conversionContext.getAvailabilityZone(entity);
     }
 
     /**

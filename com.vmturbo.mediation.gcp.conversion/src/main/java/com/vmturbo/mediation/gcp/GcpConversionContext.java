@@ -8,19 +8,11 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.mediation.conversion.util.ConverterUtils;
@@ -38,12 +30,7 @@ public class GcpConversionContext implements CloudProviderConversionContext {
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.GCP));
-        converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.GCP));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.GCP));
-        converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.GCP));
-        converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
-        converters.put(EntityType.APPLICATION, new ApplicationConverter());
-        converters.put(EntityType.VIRTUAL_APPLICATION, new VirtualApplicationConverter());
         GCP_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }
 

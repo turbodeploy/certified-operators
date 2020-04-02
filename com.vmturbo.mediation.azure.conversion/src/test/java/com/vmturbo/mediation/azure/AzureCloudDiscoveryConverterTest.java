@@ -22,9 +22,6 @@ import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -146,48 +143,6 @@ public class AzureCloudDiscoveryConverterTest {
     }
 
     @Test
-    public void testDatabaseServerConverter() {
-        DatabaseServerConverter dbsConverter = new DatabaseServerConverter(SDKProbeType.AZURE);
-        // get all original VMs and compare each with new VM
-        rawEntitiesByType.get(EntityType.DATABASE_SERVER).forEach(dbs -> {
-            EntityDTO.Builder newDBS = azureConverter.getNewEntityBuilder(dbs.getId());
-            // check dbs removed
-            assertFalse(dbsConverter.convert(newDBS, azureConverter));
-        });
-    }
-
-    @Test
-    public void testDatabaseConverter() {
-        IEntityConverter converter = new DatabaseConverter(SDKProbeType.AZURE);
-        rawEntitiesByType.get(EntityType.DATABASE).forEach(entity -> {
-            String dbId = entity.getId();
-            EntityDTO oldEntity = azureConverter.getRawEntityDTO(dbId);
-            EntityDTO.Builder newEntity = azureConverter.getNewEntityBuilder(dbId);
-
-            // check db not removed
-            assertTrue(converter.convert(newEntity, azureConverter));
-
-            // check unmodified fields
-            verifyUnmodifiedFields(oldEntity, newEntity);
-
-            // connected to Region
-            assertEquals(0, oldEntity.getLayeredOverCount());
-            assertEquals(1, newEntity.getLayeredOverCount());
-            assertEquals(EntityType.REGION, azureConverter.getNewEntityBuilder(
-                    newEntity.getLayeredOver(0)).getEntityType());
-
-            // check bought commodities
-            assertEquals(1, newEntity.getCommoditiesBoughtCount());
-            // check DB doesn't buy Application commodity
-            assertFalse(newEntity.getCommoditiesBought(0).getBoughtList().stream().anyMatch(
-                    commodityDTO -> commodityDTO.getCommodityType() == CommodityType.APPLICATION));
-
-            // check db owned by BusinessAccount
-            assertThat(azureConverter.getNewEntityBuilder(businessAccountId).getConsistsOfList(), hasItem(dbId));
-        });
-    }
-
-    @Test
     public void testBusinessAccountConverter() {
         IEntityConverter converter = new BusinessAccountConverter(SDKProbeType.AZURE);
         rawEntitiesByType.get(EntityType.BUSINESS_ACCOUNT).forEach(entity -> {
@@ -201,19 +156,6 @@ public class AzureCloudDiscoveryConverterTest {
             // check unmodified fields
             assertEquals(oldEntity.getDisplayName(), newEntity.getDisplayName());
             assertEquals(oldEntity.getBusinessAccountData(), newEntity.getBusinessAccountData());
-        });
-    }
-
-    @Test
-    public void testApplicationConverter() {
-        IEntityConverter converter = new VirtualApplicationConverter();
-        rawEntitiesByType.get(EntityType.APPLICATION).forEach(entity -> {
-            String entityId = entity.getId();
-            EntityDTO oldEntity = azureConverter.getRawEntityDTO(entityId);
-            EntityDTO.Builder newEntity = azureConverter.getNewEntityBuilder(entityId);
-
-            assertTrue(converter.convert(newEntity, azureConverter));
-            assertEquals(oldEntity, newEntity.build());
         });
     }
 
