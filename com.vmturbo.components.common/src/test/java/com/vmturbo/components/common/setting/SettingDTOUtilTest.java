@@ -482,8 +482,8 @@ public class SettingDTOUtilTest {
         final Setting setting2 = Setting.newBuilder()
                 .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
                         .newBuilder()
-                        .addOids(2)
-                        .addOids(1))
+                        .addOids(1)
+                        .addOids(2))
                 .build();
 
         assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
@@ -504,6 +504,7 @@ public class SettingDTOUtilTest {
         final Setting setting2 = Setting.newBuilder()
                 .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
                         .newBuilder()
+                        .addOids(2)
                         .addOids(1))
                 .build();
 
