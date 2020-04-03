@@ -12,6 +12,7 @@ import org.mockito.Mockito;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -19,6 +20,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.communication.ExpiringMessageHandler.HandlerStatus;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -109,12 +111,18 @@ public class RemoteMediationServerTest {
         final MediationClientMessage mediationClientMessage = buildMediationClientMessage();
 
         Discovery mockOperation = mock(Discovery.class);
+        long targetId = 12L;
+        Mockito.when(mockOperation.getTargetId()).thenReturn(targetId);
         Mockito.when(mockOperationMessageHandler.getOperation()).thenReturn(mockOperation);
         Mockito.when(mockOperationMessageHandler.onMessage(mediationClientMessage))
                 .thenReturn(HandlerStatus.IN_PROGRESS);
         remoteMediationServer.sendDiscoveryRequest(probeId, targetId1, discoveryRequest,
             mockOperationMessageHandler);
-        remoteMediationServer.removeMessageHandlers(operation -> operation == mockOperation);
+        TargetUpdateRequest request = TargetUpdateRequest.newBuilder()
+                        .setProbeType("qqq")
+                        .setUpdateType(UpdateType.DELETED)
+                        .build();
+        remoteMediationServer.handleTargetRemoval(probeId, targetId, request);
         remoteMediationServer.onTransportMessage(transport, mediationClientMessage);
 
         Mockito.verify(mockOperationMessageHandler, Mockito.never()).onReceive(mediationClientMessage);

@@ -31,6 +31,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
+import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.sdk.server.common.SdkWebsocketServerTransportHandler.TransportRegistrar;
 import com.vmturbo.topology.processor.communication.ExpiringMessageHandler.HandlerStatus;
@@ -385,17 +386,22 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
         broadcastMessageToProbeInstances(probeId, message);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void removeMessageHandlers(@Nonnull final Predicate<Operation> shouldRemoveFilter) {
+    public void handleTargetRemoval(long probeId, long targetId,
+                                    @Nonnull TargetUpdateRequest request)
+                    throws CommunicationException, InterruptedException, ProbeException {
         synchronized (messageHandlers) {
             messageHandlers.entrySet().removeIf(entry -> {
                 final Operation operation = entry.getValue().getMessageHandler().getOperation();
-                return shouldRemoveFilter.test(operation);
+                return operation.getTargetId() == targetId;
             });
         }
+        MediationServerMessage message =
+                        MediationServerMessage.newBuilder()
+                            .setMessageID(nextMessageId())
+                            .setTargetUpdateRequest(request)
+                            .build();
+        broadcastMessageToProbeInstances(probeId, message);
     }
 
     /**
