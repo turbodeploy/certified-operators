@@ -175,7 +175,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
     @Test
     public void testUpdateProjectedRICoverageTableForPlan() {
         long projectedTopoId = 12300L;
-        mockPlanProjectedRICoverageTable(projectedTopoId);
+        mockPlanProjectedRICoverageTable(projectedTopoId, false);
         final List<PlanProjectedReservedInstanceCoverageRecord> records = dsl
                         .selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE).fetch();
         assertEquals(1, records.size());
@@ -187,8 +187,8 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         dsl.delete(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE);
     }
 
-    private void mockPlanProjectedRICoverageTable(long projectedTopoId) {
-        final Map<Long, TopologyEntityDTO> entityMap = getEntityMap();
+    private void mockPlanProjectedRICoverageTable(long projectedTopoId, boolean noZones) {
+        final Map<Long, TopologyEntityDTO> entityMap = getEntityMap(noZones);
         store.onProjectedTopologyAvailable(projectedTopoId, topoInfo.getTopologyContextId());
         // assuming ri oid is 5 and it is used by vm with oid 101L
         final Map<Long, Double> riUsage = new HashMap<>();
@@ -211,9 +211,9 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         store.updateProjectedRICoverageTableForPlan(projectedTopoId, topoInfo, entityRICoverage);
     }
 
-    private static Map<Long, TopologyEntityDTO> getEntityMap() {
+    private static Map<Long, TopologyEntityDTO> getEntityMap(boolean noZones) {
         Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
-     // build up a topology in which az is owned by region,
+        // build up a topology in which az is owned by region,
         // vm connectedTo az and consumes computeTier,
         // computeTier connectedTo region,
         // ba connectedTo vm
@@ -244,16 +244,24 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                                 .setComputeTier(ComputeTierInfo.newBuilder().setNumCoupons(10)))
                         .build();
-        TopologyEntityDTO vm = TopologyEntityDTO.newBuilder()
+
+        TopologyEntityDTO.Builder vmBuilder = TopologyEntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setOid(101L)
                 .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
                          .setProviderId(4000L)
-                         .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE))
-                .addConnectedEntityList(ConnectedEntity.newBuilder()
-                        .setConnectedEntityId(1000L)
-                        .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE))
-                .build();
+                        .setProviderEntityType(EntityType.COMPUTE_TIER_VALUE));
+        if (noZones) {
+            vmBuilder.addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(2000L)
+                    .setConnectedEntityType(EntityType.REGION_VALUE));
+        } else {
+            vmBuilder.addConnectedEntityList(ConnectedEntity.newBuilder()
+                    .setConnectedEntityId(1000L)
+                    .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE));
+        }
+        TopologyEntityDTO vm = vmBuilder.build();
+
         entityMap.put(1000L, az);
         entityMap.put(2000L, region);
         entityMap.put(3000L, ba);
@@ -279,7 +287,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                         .build());
         when(repositoryService.retrieveTopologyEntities(any()))
             .thenReturn(Arrays.asList(PartialEntityBatch.newBuilder()
-                .addAllEntities(getEntityMap().values().stream()
+                    .addAllEntities(getEntityMap(false).values().stream()
                     .map(e -> PartialEntity.newBuilder()
                         .setFullEntity(e)
                         .build())
@@ -359,7 +367,22 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
     @Test
     public void testGetReservedInstanceCoverageStatsRecords() {
         mockPlanRIUtilizationTables();
-        mockPlanProjectedRICoverageTable(PLAN_ID);
+        mockPlanProjectedRICoverageTable(PLAN_ID, false);
+        final List<ReservedInstanceStatsRecord> statsRecords =
+                store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
+        assertEquals(1, statsRecords.size());
+        final ReservedInstanceStatsRecord record = statsRecords.get(0);
+        assertEquals(5, record.getCapacity().getAvg(), DELTA);
+        assertEquals(0.2, record.getValues().getAvg(), DELTA);
+    }
+
+    /**
+     * Test getting of RI coverage stats from DB when the entity is connected directly to the Region, not to the Zone.
+     */
+    @Test
+    public void testGetReservedInstanceCoverageStatsRecordsWithoutZones() {
+        mockPlanRIUtilizationTables();
+        mockPlanProjectedRICoverageTable(PLAN_ID, true);
         final List<ReservedInstanceStatsRecord> statsRecords =
                 store.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID, Collections.emptyList());
         assertEquals(1, statsRecords.size());

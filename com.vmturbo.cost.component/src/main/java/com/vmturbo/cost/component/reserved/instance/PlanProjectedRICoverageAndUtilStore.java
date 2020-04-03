@@ -44,7 +44,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.db.Tables;
-
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReservedInstanceMappingRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
@@ -188,8 +187,8 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                 .build()))
             .map(PartialEntity::getFullEntity)
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        Set<TopologyEntityDTO> allRegion = entityMap.values()
-                .stream().filter( v -> v.getEntityType() == EntityType.REGION_VALUE)
+        Set<TopologyEntityDTO> allRegion = entityMap.values().stream()
+                .filter(v -> v.getEntityType() == EntityType.REGION_VALUE)
                 .collect(Collectors.toSet());
         Set<TopologyEntityDTO> allBa = entityMap.values()
                         .stream().filter( v -> v.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE)
@@ -201,30 +200,49 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
             long entityId = aggregatedEntityRICoverage.getKey();
             TopologyEntityDTO entity = entityMap.get(entityId);
             if (entity == null || entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
-                logger.error("Updating projecte RI coverage for an entity {} which is not found in "
+                logger.error("Updating projected RI coverage for an entity {} which is not found in "
                         + "topology with topologyContextId {}.", entityId, topologyContextId);
                 continue;
             }
+
+            long baOid;
+            long zoneOid;
+            long regionOid;
+
             // find az connected with entity
             List<ConnectedEntity> az = entity.getConnectedEntityListList().stream()
                     .filter(c -> c.getConnectedEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
                     .collect(Collectors.toList());
-            if (az.size() != 1) {
-                logger.warn("Entity {} connected to wrong number of availability zone!", entity.getOid());
-                continue;
+            if (az.size() == 1) {
+                // get the region from the zone
+                zoneOid = az.get(0).getConnectedEntityId();
+                regionOid =
+                        getConnectedEntityofType(allRegion, EntityType.AVAILABILITY_ZONE_VALUE, zoneOid).stream()
+                                .map(e -> e.getOid())
+                                .findFirst().orElse(0l);
+            } else {
+                // get the region directly from the entity
+                regionOid = entity.getConnectedEntityListList().stream()
+                        .filter(c -> c.getConnectedEntityType() == EntityType.REGION_VALUE)
+                        .map(c -> c.getConnectedEntityId())
+                        .findFirst().orElse(0l);
+                // set the zone with a default value, like we do in real-time
+                zoneOid = 0l;
             }
-            // find region connected with az
-            List<TopologyEntityDTO> region =
-                    getConnectedEntityofType(allRegion, EntityType.AVAILABILITY_ZONE_VALUE,
-                            az.get(0).getConnectedEntityId());
-            if (region.size() != 1) {
+            if (regionOid == 0l) {
                 logger.warn("Entity {} connected to wrong number of region!", entity.getOid());
                 continue;
             }
+
             // find ba connected with entity
-            // TODO: can the number of ba connected with a VM is not 1?
-            List<TopologyEntityDTO> ba =
-                    getConnectedEntityofType(allBa, EntityType.VIRTUAL_MACHINE_VALUE, entity.getOid());
+            baOid = getConnectedEntityofType(allBa, EntityType.VIRTUAL_MACHINE_VALUE, entity.getOid()).stream()
+                    .map(e -> e.getOid())
+                    .findFirst().orElse(0l);
+            if (baOid == 0l) {
+                logger.warn("Entity {} connected to wrong number of business account!", entity.getOid());
+                continue;
+            }
+
             // find compute tier consumed by entity
             final Optional<Integer> optionalCouponCapacity = entityRICoverage.stream().filter(s -> s.getEntityId() == entityId)
                     .map(a -> a.getEntityCouponCapacity()).findFirst();
@@ -237,19 +255,16 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                     logger.error("Used coupons are greater than total coupons for " +
                                     "entityId {}, topologyContextId {}, region id {}, az id {}" +
                                     ", ba id {}, total coupon {}, used coupon {}.",
-                            entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
-                            ba.get(0).getOid(), totalCoupons, usedCoupons);
+                            entityId, topologyContextId, regionOid, zoneOid,
+                            baOid, totalCoupons, usedCoupons);
                 } else {
                     // Used coupons are less than or equals total coupons.
                     coverageRcd.add(context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE,
                             new PlanProjectedReservedInstanceCoverageRecord(
-                                    entityId, topologyContextId, region.get(0).getOid(),
-                                    az.get(0).getConnectedEntityId(), ba.get(0).getOid(),
-                                    totalCoupons, usedCoupons)));
+                                    entityId, topologyContextId, regionOid, zoneOid, baOid, totalCoupons, usedCoupons)));
                     logger.debug("Projected reserved instance coverage record with entityId {}, topologyContextId {}, "
                                     + "region id {}, az id {}, ba id {}, total coupon {}, used coupon {}.",
-                            entityId, topologyContextId, region.get(0).getOid(), az.get(0).getConnectedEntityId(),
-                            ba.get(0).getOid(), totalCoupons, usedCoupons);
+                            entityId, topologyContextId, regionOid, zoneOid, baOid, totalCoupons, usedCoupons);
                 }
             }
         }
