@@ -302,12 +302,12 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                                                boolean enforceMaintenanceIsExpected)
                     throws HistoryCalculationException, InterruptedException {
         Mockito.when(clock.millis()).thenReturn(TIMESTAMP_INIT_START_SEP_1_2019);
-        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
-                        graphWithSettings, false);
+        final HistoryAggregationContext firstContext =
+                        new HistoryAggregationContext(topologyInfo, graphWithSettings, false);
         // First initializing history from db.
-        percentileEditor.initContext(context, Collections.emptyList());
+        percentileEditor.initContext(firstContext, Collections.emptyList());
         // Necessary to set last checkpoint timestamp.
-        percentileEditor.completeBroadcast(context);
+        percentileEditor.completeBroadcast(firstContext);
 
         // Change observation periods.
         entitySettings.put(VIRTUAL_MACHINE_OID,
@@ -320,7 +320,10 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
                         EntitySettingSpecs.MaxObservationPeriodBusinessUser));
 
         // Check observation periods changed.
-        percentileEditor.initContext(context, Collections.emptyList());
+        final HistoryAggregationContext secondContext =
+                        new HistoryAggregationContext(topologyInfo, graphWithSettings, false);
+        percentileEditor.initContext(secondContext,
+                        Collections.emptyList());
         // Check full utilization count array for virtual machine VCPU commodity.
         // 36 37 38 39 40 [x] 28 Aug 2019 12:00:00 GMT.
         // 31 32 33 34 35 [x] 29 Aug 2019 00:00:00 GMT.
@@ -352,7 +355,7 @@ public class PercentileEditorTest extends BaseGraphRelatedTest {
         final CacheBackup cacheBackup = Mockito.mock(CacheBackup.class);
         final PercentileEditorCacheAccess spiedEditor = Mockito.spy(percentileEditor);
         Mockito.when(spiedEditor.createCacheBackup()).thenReturn(cacheBackup);
-        spiedEditor.completeBroadcast(context);
+        spiedEditor.completeBroadcast(secondContext);
         checkMaintenance(periodMsForTotalBlob, expectedTotalUtilizations, enforceMaintenanceIsExpected);
         Mockito.verify(cacheBackup, Mockito.times(1)).keepCacheOnClose();
     }

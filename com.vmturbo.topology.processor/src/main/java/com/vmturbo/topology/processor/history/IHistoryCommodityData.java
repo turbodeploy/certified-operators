@@ -5,6 +5,8 @@ import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.vmturbo.stitching.EntityCommodityReference;
+
 /**
  * Per-commodity pre-calculated or cached historical data.
  *
@@ -36,6 +38,19 @@ public interface IHistoryCommodityData<Config, DbValue, CheckpointResult> {
     void init(@Nonnull EntityCommodityFieldReference field,
               @Nullable DbValue dbValue, @Nonnull Config config,
               @Nonnull HistoryAggregationContext context);
+
+    /**
+     * Checks whether currently data needs to be reinitialized.
+     *
+     * @param ref reference to entity commodity.
+     * @param context history context which contains information about entities from
+     *                 the current broadcast.
+     * @param config config which knows how to extract additional information about
+     *                 entities from the broadcast.
+     * @return {@code true} in case settings changed, otherwise {@code false}.
+     */
+    boolean needsReinitialization(@Nonnull EntityCommodityReference ref,
+                    @Nonnull HistoryAggregationContext context, @Nonnull Config config);
 
     /**
      * Perform the periodic maintenance upon checkpoint of the data to the persistent store.

@@ -473,8 +473,6 @@ public class TopologyConverter {
     @Nonnull
     public Set<EconomyDTOs.TraderTO> convertToMarket(
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology) {
-        // Initialize the template exclusion applicator
-        tierExcluder.initialize(topology);
         // Initialize the consistent resizer
         consistentScalingHelper.initialize(topology);
         // TODO (roman, Jul 5 2018): We don't need to create a new entityOidToDto map.
@@ -482,14 +480,17 @@ public class TopologyConverter {
         // original topology.
         conversionErrorCounts.startPhase(Phase.CONVERT_TO_MARKET);
         long convertToMarketStartTime = System.currentTimeMillis();
+        final Set<Long> tierExcluderEntityOids = new HashSet<>();
+        final Set<Integer> tierExcluderEntityTypeScope = EntitySettingSpecs.ExcludedTemplates
+            .getEntityTypeScope().stream().map(EntityType::getNumber).collect(Collectors.toSet());
         try {
             for (TopologyDTO.TopologyEntityDTO entity : topology.values()) {
-                int entityType = entity.getEntityType();
+                final int entityType = entity.getEntityType();
                 if (MarketAnalysisUtils.SKIPPED_ENTITY_TYPES.contains(entityType)
                         || !includeByType(entityType)) {
                     logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
                             "entity state = {}", entity.getDisplayName(),
-                        EntityType.forNumber(entity.getEntityType()), entity.getEntityState());
+                        EntityType.forNumber(entityType), entity.getEntityState());
                     skippedEntities.put(entity.getOid(), entity);
                 } else {
                     // Allow creation of traderTOs for traders discarded due to state or entityType.
@@ -506,11 +507,11 @@ public class TopologyConverter {
                             .map(CommoditiesBoughtFromProvider::getProviderId)
                             .collect(Collectors.toSet()));
                     }
-                    if (entity.getEntityType() == EntityType.REGION_VALUE) {
+                    if (entityType == EntityType.REGION_VALUE) {
                         List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.AVAILABILITY_ZONE_VALUE, topology);
                         AZs.forEach(az -> azToRegionMap.put(az, entity));
-                    } else if (entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                    } else if (entityType == EntityType.BUSINESS_ACCOUNT_VALUE) {
                         List<TopologyEntityDTO> vms = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.VIRTUAL_MACHINE_VALUE, topology);
                         List<TopologyEntityDTO> dbs = TopologyDTOUtil.getConnectedEntitiesOfType(
@@ -526,8 +527,18 @@ public class TopologyConverter {
                                     cloudTc.getAccountPricingIdFromBusinessAccount(entity.getOid()).get());
                         }
                     }
+
+                    // Store oids of entities that may have ExcludedTemplates settings.
+                    if (entity.getEnvironmentType() == EnvironmentType.CLOUD &&
+                        tierExcluderEntityTypeScope.contains(entityType)) {
+                        tierExcluderEntityOids.add(entity.getOid());
+                    }
                 }
             }
+
+            // Initialize the template exclusion applicator
+            tierExcluder.initialize(topology, tierExcluderEntityOids);
+
             return convertToMarket();
         } catch (RuntimeException e) {
             //throw new RuntimeException("RuntimeException in convertToMarket(topology) ", e);
@@ -2474,11 +2485,14 @@ public class TopologyConverter {
             isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(buyer) > 0;
         }
 
-
-        // Apply scalable to movable for cloud VMs in realtime
-        if (!isPlan() && buyer.getEnvironmentType() == EnvironmentType.CLOUD
+        if (buyer.getEnvironmentType() == EnvironmentType.CLOUD
                 && buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-            isMovable = isMovable && buyer.getAnalysisSettings().getIsEligibleForScale();
+            // Apply scalable from mediation to movable for cloud VMs.
+            isMovable &= commBoughtGrouping.getScalable();
+            // Apply EligibleForScale to movable for cloud VMs in realtime
+            if (!isPlan()) {
+                isMovable = isMovable && buyer.getAnalysisSettings().getIsEligibleForScale();
+            }
         }
 
         // if the buyer of the shopping list is in control state(controllable = false), or if the

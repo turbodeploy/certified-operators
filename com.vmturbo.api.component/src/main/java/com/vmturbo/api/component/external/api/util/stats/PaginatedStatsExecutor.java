@@ -366,8 +366,8 @@ public class PaginatedStatsExecutor {
             //Process
             //  1. Call History component
             //      a. If no history results there will be no cost results
-            //  2. Call Cost component use entity list response from history results
-            //  3. Get Additional Entity Data list from 3.
+            //  2. Get Additional Entity Data.
+            //  3. Call Cost component use entity list response from history results
             //  4. Map all gathered results to apiDtos
             //  5. Create the pagination response
             //  6. Set the response for access outside of class
@@ -376,15 +376,20 @@ public class PaginatedStatsExecutor {
             final GetEntityStatsResponse historyEntityStatResponse =
                     requestHistoricalStats(entityStatsScope, this.period, paginationRequest);
 
-            //2. Cost Stats -  uses entities from historyStatsResponse to scope query for cost
             final List<Long> sortedList =  getSortedListFromHistoryResponse(historyEntityStatResponse);
             final Set<Long> entitiesSet = new HashSet<>(sortedList);
-            final GetCloudCostStatsResponse costStatsResponse =
-                    getCloudCostStatsForEntities(entitiesSet);
 
-            //3. Entity Info call
+            //2. Entity Info call
             final Map<Long, MinimalEntity> minimalEntityMap =
                     getMinimalEntitiesForEntityList(entitiesSet);
+
+            //3. Cost Stats -  uses entities from historyStatsResponse to scope query for cost
+            final GetCloudCostStatsResponse costStatsResponse = minimalEntityMap.entrySet()
+                .stream().map(entry -> entry.getValue())
+                .anyMatch(minEntity -> minEntity.getEnvironmentType() == EnvironmentType.CLOUD
+                    || minEntity.getEnvironmentType() == EnvironmentType.HYBRID)
+                        ? getCloudCostStatsForEntities(entitiesSet)
+                        : GetCloudCostStatsResponse.getDefaultInstance();
 
             //4. Combine Stats
             final List<EntityStatsApiDTO> combinedResultsInOrder =
@@ -812,12 +817,19 @@ public class PaginatedStatsExecutor {
                 // Note that supply chain traversal will not happen if the list of related entity
                 // types is empty
 
-                if (seedUuids.isEmpty()) {
+                final Set<Long> uuids;
+                // TODO OM-57104 - move special resource group logic related to supplyChain in one place
+                // don't expand resource group scope otherwise we miss special resource group
+                // logic for supplyChain
+                if (!isResourceGroupRelatedScope(seedUuids)) {
+                    uuids = groupExpander.expandUuids(seedUuids);
+                } else {
+                    uuids = Collections.singleton(Long.parseLong(seedUuids.iterator().next()));
+                }
+                if (uuids.isEmpty()) {
                     return Collections.emptySet();
                 }
-                expandedUuids = performSupplyChainTraversal(
-                        seedUuids.stream().map(Long::valueOf).collect(Collectors.toSet()),
-                        relatedEntityTypes);
+                expandedUuids = performSupplyChainTraversal(uuids, relatedEntityTypes);
 
                 // if the user is scoped, we will filter the entities according to their scope
                 if (userSessionContext.isUserScoped()) {
@@ -825,6 +837,12 @@ public class PaginatedStatsExecutor {
                 }
             }
             return expandedUuids;
+        }
+
+        private boolean isResourceGroupRelatedScope(@Nonnull Set<String> seedUuids) {
+            return seedUuids.size() == 1 &&
+                    uuidMapper.fromOid(Long.parseLong(seedUuids.iterator().next()))
+                            .isResourceGroupOrGroupOfResourceGroups();
         }
 
         /**
@@ -1196,24 +1214,27 @@ public class PaginatedStatsExecutor {
                     mapAndCombineCloudAndHistoryStats(cloudCostStatsResponse, historyStatsResponse, new HashSet<>(sortedNextPageEntityIds));
 
             for (long entityUuid: sortedNextPageEntityIds) {
-                final EntityStatsApiDTO entityStatsApiDTO =
-                        constructEntityStatsApiDTOFromMinimalEntity(entityUuid, minimalEntityMap);
+                // Omit entities that have been deleted.
+                if (minimalEntityMap.containsKey(entityUuid)) {
+                    final EntityStatsApiDTO entityStatsApiDTO =
+                            constructEntityStatsApiDTOFromMinimalEntity(entityUuid, minimalEntityMap);
 
-                Map<Long, List<StatApiDTO>> snapShotToStats =
-                        combinedCloudAndHistoryStats.getOrDefault(entityUuid, Collections.emptyMap());
+                    Map<Long, List<StatApiDTO>> snapShotToStats =
+                            combinedCloudAndHistoryStats.getOrDefault(entityUuid, Collections.emptyMap());
 
-                List<StatSnapshotApiDTO> statSnapshotApiDTOS = snapShotToStats.keySet()
-                        .stream()
-                        .map(snapShotDate -> {
-                            final StatSnapshotApiDTO statSnapshotApiDTO =
-                                    constructEntityStatsApiDtO(snapShotDate);
-                            statSnapshotApiDTO.setStatistics(snapShotToStats.get(snapShotDate));
-                            return statSnapshotApiDTO;
-                        }).collect(Collectors.toList());
+                    List<StatSnapshotApiDTO> statSnapshotApiDTOS = snapShotToStats.keySet()
+                            .stream()
+                            .map(snapShotDate -> {
+                                final StatSnapshotApiDTO statSnapshotApiDTO =
+                                        constructEntityStatsApiDtO(snapShotDate);
+                                statSnapshotApiDTO.setStatistics(snapShotToStats.get(snapShotDate));
+                                return statSnapshotApiDTO;
+                            }).collect(Collectors.toList());
 
-                entityStatsApiDTO.setStats(Lists.newArrayList(statSnapshotApiDTOS));
+                    entityStatsApiDTO.setStats(Lists.newArrayList(statSnapshotApiDTOS));
 
-                entityStatsApiDTOS.add(entityStatsApiDTO);
+                    entityStatsApiDTOS.add(entityStatsApiDTO);
+                }
             }
 
             return entityStatsApiDTOS;

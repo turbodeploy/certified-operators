@@ -73,6 +73,8 @@ public enum ApiEntityType {
     NETWORK(StringConstants.NETWORK, EntityType.NETWORK),
     /** PhysicalMachine entity type. */
     PHYSICAL_MACHINE(StringConstants.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE),
+    /** HCI PhysicalMachine entity type. */
+    HCI_PHYSICAL_MACHINE(StringConstants.HCI_PHYSICAL_MACHINE, EntityType.HCI_PHYSICAL_MACHINE),
     /** ProcessorPool entity type. */
     PROCESSOR_POOL(StringConstants.PROCESSOR_POOL, EntityType.PROCESSOR_POOL),
     /** Region entity type. */
@@ -102,7 +104,14 @@ public enum ApiEntityType {
     /** VirtualVolume entity type. */
     VIRTUAL_VOLUME(StringConstants.VIRTUAL_VOLUME, EntityType.VIRTUAL_VOLUME),
     /** VPod entity type. */
-    VPOD(StringConstants.VPOD, EntityType.VPOD);
+    VPOD(StringConstants.VPOD, EntityType.VPOD),
+    /** Namespace entity type. */
+    NAMESPACE(StringConstants.NAMESPACE, EntityType.NAMESPACE),
+    /** WorkloadController entity type. Represents e.g. a Controller in kubernetes */
+    WORKLOAD_CONTROLLER(StringConstants.WORKLOAD_CONTROLLER, EntityType.WORKLOAD_CONTROLLER),
+    /** ContainerSpec entity type.
+     * Represents shard definition for container instances managed by a Cloud Native Controller. */
+    CONTAINER_SPEC(StringConstants.CONTAINER_SPEC, EntityType.CONTAINER_SPEC);
 
     /**
      * These are the entity types that count as "Workloads" in our system.

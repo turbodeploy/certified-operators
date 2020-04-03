@@ -342,6 +342,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.ALLOCATE, actionApiDTO.getActionType());
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
+        assertEquals("4", actionApiDTO.getTemplate().getUuid());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
     }

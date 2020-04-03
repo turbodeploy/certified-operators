@@ -13,6 +13,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -71,6 +73,8 @@ public class StitchingJournalTest {
     private static final JournalOptions CHANGES_ONLY_VERBOSITY = JournalOptions.newBuilder()
         .setVerbosity(Verbosity.CHANGES_ONLY_VERBOSITY)
         .build();
+
+    final Collection<String> prettyDetails = Arrays.asList("first details", "second details");
 
     private static final JournalableOperation prettyOperation = mock(JournalableOperation.class);
     private static final JournalableOperation compactOperation = mock(JournalableOperation.class);
@@ -202,11 +206,13 @@ public class StitchingJournalTest {
     public void testOperationStartRecordedWhenChanges() {
         final StitchingJournal<TopologyEntity> journal = new StitchingJournal<>(filter,
             COMPLETE_VERBOSITY, semanticDiffer, Collections.singletonList(stringRecorder), clock);
-        journal.recordOperationBeginning(prettyOperation);
+        journal.recordOperationBeginning(prettyOperation, prettyDetails);
         journal.recordChangeset("change", this::makeChange);
         journal.recordOperationEnding();
 
         assertThat(stringRecorder.toString(), containsString("START: pretty operation"));
+        assertThat(stringRecorder.toString(), containsString("- first details -"));
+        assertThat(stringRecorder.toString(), containsString("- second details -"));
         assertThat(stringRecorder.toString(), containsString("END: pretty operation"));
     }
 
@@ -219,6 +225,8 @@ public class StitchingJournalTest {
 
         assertThat(stringRecorder.toString(), not(containsString("START: pretty operation")));
         assertThat(stringRecorder.toString(), not(containsString("END: pretty operation")));
+        assertThat(stringRecorder.toString(), not(containsString("- first details -")));
+        assertThat(stringRecorder.toString(), not(containsString("- second details -")));
     }
 
     @Test
@@ -230,11 +238,16 @@ public class StitchingJournalTest {
 
         final StitchingJournal<TopologyEntity> journal = new StitchingJournal<>(filter,
             options, semanticDiffer, Collections.singletonList(stringRecorder), clock);
-        journal.recordOperationBeginning(prettyOperation);
+        journal.recordOperationBeginning(prettyOperation, prettyDetails);
         journal.recordOperationEnding();
 
-        assertThat(stringRecorder.toString(), containsString("START: pretty operation"));
-        assertThat(stringRecorder.toString(), containsString("END: pretty operation"));
+        final String text = stringRecorder.toString();
+        assertThat(text, containsString("START: pretty operation"));
+        assertThat(text, containsString("END: pretty operation"));
+
+        final String endMessage = text.substring(text.indexOf("END:"));
+        assertThat(endMessage, containsString("- first details -"));
+        assertThat(endMessage, containsString("- second details -"));
     }
 
     @Test

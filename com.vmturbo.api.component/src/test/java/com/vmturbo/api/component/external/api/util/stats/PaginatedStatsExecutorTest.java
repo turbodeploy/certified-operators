@@ -61,6 +61,7 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -78,13 +79,13 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  *  Test get paginated historical and projected stats.
@@ -476,10 +477,15 @@ public class PaginatedStatsExecutorTest {
     public void testRunProjectedStatsWithoutContainsEntityGroupScope()
             throws OperationFailedException {
         //GIVEN
+        final String entityId = "1";
         StatScopesApiInputDTO inputDto = getInputDtoWithProjectionPeriod();
-        inputDto.setScopes(Lists.newArrayList("1"));
+        inputDto.setScopes(Lists.newArrayList(entityId));
         EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
         PaginatedStatsGather paginatedStatsGatherSpy = getPaginatedStatsGatherSpy(inputDto, paginationRequest);
+
+        final ApiId mockApiId = mock(ApiId.class);
+        when(mockApiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
+        when(mockUuidMapper.fromOid(Long.parseLong(entityId))).thenReturn(mockApiId);
 
         doReturn(false).when(paginatedStatsGatherSpy).containsEntityGroupScope();
         doReturn(ProjectedEntityStatsResponse.getDefaultInstance()).when(statsHistoryServiceSpy).getProjectedEntityStats(any());
@@ -1068,6 +1074,67 @@ public class PaginatedStatsExecutorTest {
     }
 
     /**
+     * Test that we expand scope (in our case group of VMs) before supplyChain traverse. Because
+     * if we don't request certain related entity types we return previously expanded scope
+     * entities without supplyChain traverse.
+     *
+     * @throws OperationFailedException exception thrown if the scope can not be recognized
+     */
+    @Test
+    public void testGetExpandedScopeForGroupOfVMs() throws OperationFailedException {
+        final String groupVmsId = "123";
+        final List<String> scopeSeedIds = Collections.singletonList(groupVmsId);
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(scopeSeedIds);
+        final EntityStatsPaginationRequest paginationRequest =
+                new EntityStatsPaginationRequest(null, 1, true, historyCommodity);
+        final PaginatedStatsGather paginatedStatsGatherSpy =
+                getPaginatedStatsGatherSpy(inputDto, paginationRequest);
+
+        final ApiId mockApiId = mock(ApiId.class);
+        when(mockApiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
+        when(mockUuidMapper.fromOid(Long.parseLong(groupVmsId))).thenReturn(mockApiId);
+
+        paginatedStatsGatherSpy.getExpandedScope(inputDto);
+        Mockito.verify(mockGroupExpander, Mockito.times(1))
+                .expandUuids(Collections.singleton(groupVmsId));
+    }
+
+    /**
+     * Test that we shouldn't expand resource group or group of resource groups scope before
+     * supplyChain traverse otherwise we miss special resource group logic.
+     *
+     * @throws OperationFailedException exception thrown if the scope can not be recognized
+     */
+    @Test
+    public void testGetExpandedScopeForResourceGroup() throws OperationFailedException {
+        final String resourceGroupId = "123";
+        final List<String> scopeSeedIds = Collections.singletonList(resourceGroupId);
+        final StatScopesApiInputDTO inputDto =
+                createStatsScopeApiInputDTOForResourceGroupScope(scopeSeedIds);
+        final EntityStatsPaginationRequest paginationRequest =
+                new EntityStatsPaginationRequest(null, 1, true, historyCommodity);
+        final PaginatedStatsGather paginatedStatsGatherSpy =
+                getPaginatedStatsGatherSpy(inputDto, paginationRequest);
+
+        final ApiId mockApiId = mock(ApiId.class);
+        when(mockApiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(true);
+        when(mockUuidMapper.fromOid(Long.parseLong(resourceGroupId))).thenReturn(mockApiId);
+
+        paginatedStatsGatherSpy.getExpandedScope(inputDto);
+        Mockito.verify(mockGroupExpander, Mockito.never())
+                .expandUuids(Collections.singleton(resourceGroupId));
+    }
+
+    private StatScopesApiInputDTO createStatsScopeApiInputDTOForResourceGroupScope(
+            List<String> resourceGroupId) {
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(resourceGroupId);
+        inputDto.setRelatedType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        return inputDto;
+    }
+
+    /**
      * Creates a {@link StatScopesApiInputDTO} requesting costCommodity and historyCommodity.
      *
      * @param costCommodity the costCommodity to add to request
@@ -1186,6 +1253,7 @@ public class PaginatedStatsExecutorTest {
         MinimalEntity minimalEntity = MinimalEntity.newBuilder().setOid(entityUuid)
                 .setDisplayName("minimalEntity")
                 .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEnvironmentType(EnvironmentType.CLOUD)
                 .build();
         Map<Long, MinimalEntity> map = new HashMap<>();
         map.put(entityUuid, minimalEntity);

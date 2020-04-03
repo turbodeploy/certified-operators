@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.history.percentile;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -30,11 +29,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
      */
     public static int defaultMaintenanceWindowHours = 24;
 
-    /**
-     * The property name in the topology processor key value store whose value
-     * represents the OID of the entity for which percentile counts are logged.
-     */
-    private static final String OID_FOR_PERCENTILE_COUNTS_LOG_PROPERTY = "oidForPercentileCountsLog";
     private static final Logger logger = LogManager.getLogger();
     private static final Map<EntityType, EntitySettingSpecs> TYPE_AGGRESSIVENESS = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
@@ -53,7 +47,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     private final int maintenanceWindowHours;
     private final int grpcStreamTimeoutSec;
     private final int blobReadWriteChunkSizeKb;
-    private final KVConfig kvConfig;
+
 
     /**
      * Initialize the percentile configuration values.
@@ -69,7 +63,7 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                     int grpcStreamTimeoutSec, int blobReadWriteChunkSizeKb,
                     @Nonnull Map<CommodityType, String> commType2Buckets,
                     @Nullable KVConfig kvConfig, @Nonnull Clock clock) {
-        super(0, calculationChunkSize, clock);
+        super(0, calculationChunkSize, clock, kvConfig);
         // maintenance window cannot exceed minimum observation window
         final int minMaxObservationPeriod = (int)EntitySettingSpecs.MaxObservationPeriodVirtualMachine
                         .getSettingSpec().getNumericSettingValueType().getMin();
@@ -81,7 +75,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
         this.blobReadWriteChunkSizeKb = blobReadWriteChunkSizeKb;
         commType2Buckets.forEach((commType, bucketsSpec) -> buckets
                         .put(commType, new PercentileBuckets(bucketsSpec)));
-        this.kvConfig = kvConfig;
     }
 
     /**
@@ -156,18 +149,6 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
         return blobReadWriteChunkSizeKb;
     }
 
-    /**
-     * The configured OID whose percentile counts needs to be logged when debug enabled.
-     *
-     * @return the configured OID.
-     */
-    public Optional<String> getOidToBeTracedInLog() {
-        return Optional.ofNullable(kvConfig)
-                .map(KVConfig::keyValueStore)
-                .map(store -> store.get(OID_FOR_PERCENTILE_COUNTS_LOG_PROPERTY))
-                .orElse(Optional.empty());
-    }
-
     private static int getDefaultAggressiveness() {
         return (int)EntitySettingSpecs.PercentileAggressivenessVirtualMachine.getSettingSpec()
                         .getNumericSettingValueType().getDefault();
@@ -188,10 +169,8 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                               @Nonnull String description, int defaultValue) {
         EntitySettingSpecs spec = type2spec.get(context.getEntityType(oid));
         if (spec != null) {
-            Float value = context.getEntitySetting(oid, spec, Float.class);
-            if (value != null) {
-                return value.intValue();
-            }
+            return context.getSettingValue(oid, spec, Float.class, Float::intValue,
+                            ss -> ss.getNumericSettingValueType().getDefault());
         }
         logger.trace("{} Returning default value {} for percentile {} with oid {}",
                 getClass().getSimpleName(), defaultValue, description, oid);

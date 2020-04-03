@@ -45,7 +45,9 @@ public class TransportCloseTest extends AbstractIntegrationTest {
                                 .addAllAccountValue(target.getAccountValues())
                                 .setDiscoveryType(DiscoveryType.FULL)
                                 .setProbeType(probe.getType()).build();
-        getRemoteMediation().sendDiscoveryRequest(probeId, request, responseHandler);
+        getRemoteMediation().sendDiscoveryRequest(probeId, Long.valueOf(target.getTargetId()),
+            request,
+            responseHandler);
         container.close();
         responseHandler.await(TIMEOUT);
         Assert.assertTrue(responseHandler.isTransportClosed());

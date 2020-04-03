@@ -56,6 +56,16 @@ public enum EntitySettingSpecs {
             actionExecutionModeSetToRecommend(), true),
 
     /**
+     * Shop together setting for VMs.
+     */
+    ShopTogether("shopTogether", "Shared-Nothing Migration",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            new BooleanSettingDataType(false),
+            true),
+
+    /**
      * Resize action automation mode.
      *
      * For VM, this setting is only being used for commodities other than cpu, vcpu, mem and vmem.
@@ -1067,7 +1077,8 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
             EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name,
             EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
-            EntitySettingSpecs.EnforceNonDisruptive.name);
+            EntitySettingSpecs.EnforceNonDisruptive.name,
+            EntitySettingSpecs.ShopTogether.name);
 
     /**
      * Default value for a String-type SettingDataStructure = empty String.

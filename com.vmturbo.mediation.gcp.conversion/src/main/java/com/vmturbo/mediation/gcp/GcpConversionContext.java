@@ -8,22 +8,11 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.mediation.conversion.util.ConverterUtils;
@@ -36,22 +25,12 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
  */
 public class GcpConversionContext implements CloudProviderConversionContext {
 
-    private final Logger logger = LogManager.getLogger();
-
     // converters for different entity types
     private static final Map<EntityType, IEntityConverter> GCP_ENTITY_CONVERTERS;
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.GCP));
-        converters.put(EntityType.COMPUTE_TIER, new ComputeTierConverter(SDKProbeType.GCP));
-        converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.GCP));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.GCP));
-        converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
-        converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.GCP));
-        converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
-        converters.put(EntityType.APPLICATION, new ApplicationConverter());
-        converters.put(EntityType.VIRTUAL_APPLICATION, new VirtualApplicationConverter());
-        converters.put(EntityType.DISK_ARRAY, new DiskArrayConverter());
         GCP_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }
 
@@ -64,7 +43,6 @@ public class GcpConversionContext implements CloudProviderConversionContext {
 
     private static final Map<EntityType, EntityType> GCP_PROFILE_TYPE_TO_CLOUD_ENTITY_TYPE =
             ImmutableMap.of(
-                    EntityType.VIRTUAL_MACHINE, EntityType.COMPUTE_TIER,
                     EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER_TIER
             );
 
@@ -106,11 +84,5 @@ public class GcpConversionContext implements CloudProviderConversionContext {
     @Override
     public Set<CloudService> getCloudServicesToCreate() {
         return ConverterUtils.getCloudServicesByProbeType(SDKProbeType.GCP);
-    }
-
-    @Nonnull
-    @Override
-    public Optional<EntityType> getCloudEntityTypeForProfileType(@Nonnull EntityType entityType) {
-        return Optional.ofNullable(GCP_PROFILE_TYPE_TO_CLOUD_ENTITY_TYPE.get(entityType));
     }
 }

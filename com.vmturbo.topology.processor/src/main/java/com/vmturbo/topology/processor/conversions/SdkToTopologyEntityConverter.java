@@ -228,8 +228,11 @@ public class SdkToTopologyEntityConverter {
                 )
                 .collect(Collectors.toList());
 
-        // create the list of connected-to entities
-        List<ConnectedEntity> connectedEntities = entity.getConnectedToByType().entrySet().stream()
+        // Create a Set of connected-to entities.
+        // Here we use a Set because the same stitchingEntity can appear multiple times in the
+        // connected entity set, e.g. one business account can be discovered by multiple targets.
+        // We only need to keep one.
+        Set<ConnectedEntity> connectedEntities = entity.getConnectedToByType().entrySet().stream()
                 .flatMap(entry -> entry.getValue().stream()
                         .map(stitchingEntity ->
                                 // create a ConnectedEntity to represent this connection
@@ -239,7 +242,7 @@ public class SdkToTopologyEntityConverter {
                                                 .getNumber())
                                         .setConnectionType(entry.getKey())
                                         .build()))
-                .collect(Collectors.toList());
+                .collect(Collectors.toSet());
 
         final Set<StitchingEntity> aggregatedEntities = entity.getConnectedFromByType()
                 .getOrDefault(ConnectionType.AGGREGATED_BY_CONNECTION, Collections.emptySet());
@@ -545,7 +548,7 @@ public class SdkToTopologyEntityConverter {
                 boughtList,
                 // pass empty list since connection can not be retrieved from single EntityDTO
                 // and this is only used by existing tests for non-cloud topology
-                Collections.emptyList(),
+                Collections.emptySet(),
                 entityState,
                 entityPropertyMap,
                 entityTags,
@@ -574,7 +577,7 @@ public class SdkToTopologyEntityConverter {
             String displayName,
             List<TopologyDTO.CommoditySoldDTO> soldList,
             List<CommoditiesBoughtFromProvider> boughtList,
-            List<ConnectedEntity> connectedToList,
+            Set<ConnectedEntity> connectedToList,
             TopologyDTO.EntityState entityState,
             Map<String, String> entityPropertyMap,
             Map<String, TagValuesDTO> entityTags,

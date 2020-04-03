@@ -31,6 +31,9 @@ public class StringConstants {
     public static final String DPOD = "DPod";
     public static final String CONTAINER = "Container";
     public static final String CONTAINERPOD = "ContainerPod";
+    public static final String NAMESPACE = "Namespace";
+    public static final String WORKLOAD_CONTROLLER = "WorkloadController";
+    public static final String CONTAINER_SPEC = "ContainerSpec";
     public static final String EMPTY_STRING = "";
     public static final String ENTITY = "entity";
     public static final String ENTITIES = "entities";
@@ -184,6 +187,7 @@ public class StringConstants {
     // Entity type class names
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
     public static final String PHYSICAL_MACHINE = "PhysicalMachine";
+    public static final String HCI_PHYSICAL_MACHINE = "HCIPhysicalMachine";
     public static final String DATA_CENTER = "DataCenter";
     public static final String STORAGE = "Storage";
     public static final String APPSRV = "ApplicationServer";

@@ -12,15 +12,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.ComputeTierConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DatabaseServerTierConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DiskArrayConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.LoadBalancerConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.VirtualApplicationConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.CloudService;
 import com.vmturbo.mediation.conversion.util.ConverterUtils;
@@ -37,15 +29,7 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.AWS));
-        converters.put(EntityType.COMPUTE_TIER, new ComputeTierConverter(SDKProbeType.AWS));
-        converters.put(EntityType.DATABASE, new DatabaseConverter(SDKProbeType.AWS));
         converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AWS));
-        converters.put(EntityType.DATABASE_SERVER_TIER, new DatabaseServerTierConverter());
-        converters.put(EntityType.DATABASE_SERVER, new DatabaseServerConverter(SDKProbeType.AWS));
-        converters.put(EntityType.LOAD_BALANCER, new LoadBalancerConverter());
-        converters.put(EntityType.APPLICATION, new ApplicationConverter());
-        converters.put(EntityType.VIRTUAL_APPLICATION, new VirtualApplicationConverter());
-        converters.put(EntityType.DISK_ARRAY, new DiskArrayConverter());
         AWS_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }
 
@@ -55,12 +39,6 @@ public class AwsConversionContext implements CloudProviderConversionContext {
                     EntityType.COMPUTE_TIER, CloudService.AWS_EC2,
                     EntityType.DATABASE_SERVER_TIER, CloudService.AWS_RDS,
                     EntityType.STORAGE_TIER, CloudService.AWS_EBS
-            );
-
-    private static final Map<EntityType, EntityType> AWS_PROFILE_TYPE_TO_CLOUD_ENTITY_TYPE =
-            ImmutableMap.of(
-                    EntityType.VIRTUAL_MACHINE, EntityType.COMPUTE_TIER,
-                    EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER_TIER
             );
 
     @Nonnull
@@ -101,11 +79,5 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     @Override
     public Set<CloudService> getCloudServicesToCreate() {
         return ConverterUtils.getCloudServicesByProbeType(SDKProbeType.AWS);
-    }
-
-    @Nonnull
-    @Override
-    public Optional<EntityType> getCloudEntityTypeForProfileType(@Nonnull EntityType entityType) {
-        return Optional.ofNullable(AWS_PROFILE_TYPE_TO_CLOUD_ENTITY_TYPE.get(entityType));
     }
 }

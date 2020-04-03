@@ -28,17 +28,6 @@ public interface CloudProviderConversionContext {
     String getStorageTierId(@Nonnull String storageTierName);
 
     /**
-     * Get the storage tier from the EntityDTO of a storage.
-     *
-     * @param storageDTO {@link EntityDTO} of a storage.
-     * @return StorageTier corresponding to the storage
-     */
-    @Nonnull
-    default String getStorageTier(@Nonnull EntityDTOOrBuilder storageDTO) {
-        return storageDTO.getStorageData().getStorageTier();
-    }
-
-    /**
      * Get the region id based on the zone id. This should be implemented by different probes.
      *
      * @param azId id of the availability zone
@@ -72,26 +61,4 @@ public interface CloudProviderConversionContext {
      * @return optional cloud service which should own this entity type
      */
     Optional<CloudService> getCloudServiceOwner(@Nonnull EntityType entityType);
-
-    /**
-     * Get the new cloud entity type for the profile. This should be implemented by different probes.
-     *
-     * @param entityType type of the profile
-     * @return new optional entity type to create EntityDTO
-     */
-    Optional<EntityType> getCloudEntityTypeForProfileType(@Nonnull EntityType entityType);
-
-    /**
-     * Get AvailabilityZone string from storage entity DTO.
-     *
-     * @param entity The Builder for the EntityDTO of a storage.
-     * @return String giving the availability zone or an analagous String for cloud providers that
-     * don't use availability zones.
-     */
-    default Optional<String> getAvailabilityZone(Builder entity) {
-        return entity.getCommoditiesSoldList().stream()
-            .filter(commodity -> commodity.getCommodityType() == CommodityType.DSPM_ACCESS)
-            .map(commodityDTO -> CloudDiscoveryConverter.keyToUuid(commodityDTO.getKey()))
-            .findAny();
-    }
 }

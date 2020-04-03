@@ -11,7 +11,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
@@ -215,7 +214,9 @@ public class PercentileEditor extends
                             UtilizationCountStore::getLatestCountsRecord);
             // print the utilization counts from cache for the configured OID in logs
             // if debug is enabled.
-            debugLogPercentileValues();
+            debugLogDataValues(logger,
+                            (data) -> String.format("Percentile utilization counts: %s",
+                                            data.getUtilizationCountStore().toDebugString()));
         }
     }
 
@@ -228,18 +229,6 @@ public class PercentileEditor extends
                             countStoreToRecordStore.apply(data.getUtilizationCountStore()));
         }
         writeBlob(builder, periodMs, taskTimestamp);
-    }
-
-    private void debugLogPercentileValues() {
-        if (logger.isDebugEnabled()) {
-            Optional<Long> oid = getConfig().getOidToBeTracedInLog().map(Long::valueOf);
-            if (oid.isPresent()) {
-                getCache().entrySet().stream()
-                        .filter(e -> e.getKey().getEntityOid() == oid.get())
-                        .forEach(data -> logger.debug("Percentile utilization counts: {}",
-                                data.getValue().getUtilizationCountStore().toDebugString()));
-            }
-        }
     }
 
     private PercentilePersistenceTask createTask(long startTimestamp) {

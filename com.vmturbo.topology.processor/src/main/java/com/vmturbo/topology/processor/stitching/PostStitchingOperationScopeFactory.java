@@ -145,11 +145,11 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
     }
 
     @Override
-    public StitchingScope<TopologyEntity> hasAndMissProbeCategoryEntityTypeStitchingScope(
-            @Nonnull final ProbeCategory owningProbeCategory,
-            @Nonnull final ProbeCategory missingProbeCategory,
+    public StitchingScope<TopologyEntity> hasAndLacksProbeCategoryEntityTypeStitchingScope(
+            @Nonnull final Set<ProbeCategory> owningProbeCategories,
+            @Nonnull final Set<ProbeCategory> missingProbeCategories,
             @Nonnull final EntityType entityType) {
-        return new HasAndMissProbeCategoryEntityTypeStitchingScope(topologyGraph, owningProbeCategory, missingProbeCategory,
+        return new HasAndLacksProbeCategoryEntityTypeStitchingScope(topologyGraph, owningProbeCategories, missingProbeCategories,
                 entityType, probeStore, targetStore);
     }
 
@@ -449,26 +449,26 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
     }
 
     /**
-     * A calculation scope for applying a calculation to entities discovered by one probe category but not discovered by another probe category
-     * with a specific {@link EntityType}. i.e. an entity has this probe category will not pass
+     * A calculation scope for applying a calculation to entities discovered by some categories but not discovered by other probe categories
+     * with a specific {@link EntityType}. i.e. an entity has this probe categories will not pass
      */
-    private static class HasAndMissProbeCategoryEntityTypeStitchingScope extends BaseStitchingScope {
+    private static class HasAndLacksProbeCategoryEntityTypeStitchingScope extends BaseStitchingScope {
 
-        private final ProbeCategory owningProbeCategory;
-        private final ProbeCategory missingProbeCategory;
+        private final Set<ProbeCategory> owningProbeCategories;
+        private final Set<ProbeCategory> missingProbeCategories;
         private final EntityType entityType;
         private final ProbeStore probeStore;
         private final TargetStore targetStore;
 
-        HasAndMissProbeCategoryEntityTypeStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
-                                                     @Nonnull final ProbeCategory owningProbeCateory,
-                                                     @Nonnull final ProbeCategory missingProbeCategory,
+        HasAndLacksProbeCategoryEntityTypeStitchingScope(@Nonnull TopologyGraph<TopologyEntity> topologyGraph,
+                                                     @Nonnull final Set<ProbeCategory> owningProbeCategories,
+                                                     @Nonnull final Set<ProbeCategory> missingProbeCategories,
                                                      @Nonnull final EntityType entityType,
                                                      @Nonnull final ProbeStore probeStore,
                                                      @Nonnull final TargetStore targetStore) {
             super(topologyGraph);
-            this.owningProbeCategory = Objects.requireNonNull(owningProbeCateory);
-            this.missingProbeCategory = Objects.requireNonNull(missingProbeCategory);
+            this.owningProbeCategories = Objects.requireNonNull(owningProbeCategories);
+            this.missingProbeCategories = Objects.requireNonNull(missingProbeCategories);
             this.entityType = Objects.requireNonNull(entityType);
             this.probeStore = Objects.requireNonNull(probeStore);
             this.targetStore = Objects.requireNonNull(targetStore);
@@ -477,8 +477,8 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         @Nonnull
         @Override
         public Stream<TopologyEntity> entities() {
-            final Set<Long> owningProbeCategoryTargetIds = getTargetIdsForProbeCategory(owningProbeCategory);
-            final Set<Long> missingProbeCategoryTargetIds = getTargetIdsForProbeCategory(missingProbeCategory);
+            final Set<Long> owningProbeCategoryTargetIds = getTargetIdsForProbeCategory(owningProbeCategories);
+            final Set<Long> missingProbeCategoryTargetIds = getTargetIdsForProbeCategory(missingProbeCategories);
             return getTopologyGraph().entitiesOfType(entityType)
                     .filter(TopologyEntity::hasDiscoveryOrigin)
                     .filter(entity -> {
@@ -490,16 +490,18 @@ public class PostStitchingOperationScopeFactory implements StitchingScopeFactory
         }
 
         /**
-         * Get the IDs of targets that have given probe category.
-         * @param probeCategory the category to find.
-         * @return IDs of targets that have given probe category.
+         * Get the IDs of targets that have given probe categories.
+         * @param probeCategories the categories to find.
+         * @return IDs of targets that have given probe categories.
          */
-        private Set<Long> getTargetIdsForProbeCategory(ProbeCategory probeCategory) {
-            return probeStore.getProbeIdsForCategory(probeCategory).stream()
+        private Set<Long> getTargetIdsForProbeCategory(Set<ProbeCategory> probeCategories) {
+
+            return probeCategories.stream().flatMap(
+                    probeCategory -> probeStore.getProbeIdsForCategory(probeCategory).stream()
                     .flatMap(probeId -> targetStore.getProbeTargets(probeId).stream())
                     .flatMap(target -> Stream.concat(targetStore.getDerivedTargetIds(target.getId()).stream(),
                             Stream.of(Long.valueOf(target.getId()))))
-                    .collect(Collectors.toSet());
+            ).collect(Collectors.toSet());
         }
     }
 

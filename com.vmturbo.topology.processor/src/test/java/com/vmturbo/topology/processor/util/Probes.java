@@ -15,6 +15,12 @@ import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 public class Probes {
 
     public static final ProbeInfo defaultProbe;
+
+    /**
+     * Probe that supports incremental discovery.
+     */
+    public static final ProbeInfo incrementalProbe;
+
     /**
      * Probe without any fields.
      */
@@ -39,6 +45,8 @@ public class Probes {
         defaultProbe = ProbeInfo.newBuilder(emptyProbe)
                         .setProbeType("probe-type-" + counter.getAndIncrement())
                         .addAccountDefinition(mandatoryField).build();
+        incrementalProbe =
+            ProbeInfo.newBuilder(defaultProbe).setIncrementalRediscoveryIntervalSeconds(10).build();
     }
 
     /**
