@@ -4,6 +4,8 @@
 
 package com.vmturbo.history.stats.readers;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -24,6 +26,7 @@ import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
+import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
@@ -69,13 +72,16 @@ public class HistUtilizationReader implements INonPaginatingStatsReader<HistUtil
                     @Nonnull Collection<String> entityIds,
                     @Nonnull Map<Integer, Collection<Integer>> propertyTypeToUtilizationTypes)
                     throws VmtDbException {
-        try (DSLContext context = DSL.using(historydbIO.transConnection())) {
+        try (Connection connection = historydbIO.transConnection();
+             DSLContext context = DSL.using(connection)) {
             final Condition condition =
                             getPropertyToUtilizationTypeConditions(propertyTypeToUtilizationTypes);
             final List<HistUtilizationRecord> result = getChunkedEntityIds(entityIds).stream()
                             .map(chunk -> getHistUtilizationRecordsPage(chunk, context, condition))
                             .flatMap(Collection::stream).collect(Collectors.toList());
             return Collections.unmodifiableList(result);
+        } catch (SQLException e) {
+            throw new DataAccessException("Failed in connection auto-close", e);
         }
     }
 
