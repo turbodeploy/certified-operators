@@ -1740,7 +1740,7 @@ public class ActionSpecMapper {
         // get on-demand costs
         setOnDemandCosts(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
         // get on-demand rates
-        setOnDemandRates(entityUuid, cloudResizeActionDetailsApiDTO);
+        setOnDemandRates(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
         // get RI coverage before/after
         setRiCoverage(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
         return cloudResizeActionDetailsApiDTO;
@@ -1801,28 +1801,37 @@ public class ActionSpecMapper {
 
     /**
      * Set on-demand template rates for the target entity.
+     *
      * @param entityUuid - uuid of target entity
+     * @param topologyContextId - topology context ID
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setOnDemandRates(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+    private void setOnDemandRates(long entityUuid, @Nullable Long topologyContextId,
+                                  CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
 
         // Get the On Demand compute costs
-        GetTierPriceForEntitiesRequest onDemandComputeCostsRequest = GetTierPriceForEntitiesRequest
-                .newBuilder().setOid(entityUuid)
-                .setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();
+        GetTierPriceForEntitiesRequest.Builder onDemandComputeCostsRequest = GetTierPriceForEntitiesRequest.newBuilder()
+                .setOid(entityUuid)
+                .setCostCategory(CostCategory.ON_DEMAND_COMPUTE);
+        if (Objects.nonNull(topologyContextId)) {
+            onDemandComputeCostsRequest.setTopologyContextId(topologyContextId);
+        }
         GetTierPriceForEntitiesResponse onDemandComputeCostsResponse = costServiceBlockingStub
-                .getTierPriceForEntities(onDemandComputeCostsRequest);
+                .getTierPriceForEntities(onDemandComputeCostsRequest.build());
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = onDemandComputeCostsResponse
                 .getBeforeTierPriceByEntityOidMap();
         Map<Long, CurrencyAmount> afterComputeCostByEntityOidMap = onDemandComputeCostsResponse
                 .getAfterTierPriceByEntityOidMap();
 
         // Get the On Demand License costs
-        GetTierPriceForEntitiesRequest onDemandLicenseCostsRequest = GetTierPriceForEntitiesRequest
-                .newBuilder().setOid(entityUuid)
-                .setCostCategory(CostCategory.ON_DEMAND_LICENSE).build();
+        GetTierPriceForEntitiesRequest.Builder onDemandLicenseCostsRequest = GetTierPriceForEntitiesRequest.newBuilder()
+                .setOid(entityUuid)
+                .setCostCategory(CostCategory.ON_DEMAND_LICENSE);
+        if (Objects.nonNull(topologyContextId)) {
+            onDemandLicenseCostsRequest.setTopologyContextId(topologyContextId);
+        }
         GetTierPriceForEntitiesResponse onDemandLicenseCostsResponse = costServiceBlockingStub
-                .getTierPriceForEntities(onDemandLicenseCostsRequest);
+                .getTierPriceForEntities(onDemandLicenseCostsRequest.build());
         Map<Long, CurrencyAmount> beforeLicenseComputeCosts = onDemandLicenseCostsResponse
                 .getBeforeTierPriceByEntityOidMap();
         Map<Long, CurrencyAmount> afterLicenseComputeCosts = onDemandLicenseCostsResponse
