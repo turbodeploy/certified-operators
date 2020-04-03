@@ -817,12 +817,19 @@ public class PaginatedStatsExecutor {
                 // Note that supply chain traversal will not happen if the list of related entity
                 // types is empty
 
-                if (seedUuids.isEmpty()) {
+                final Set<Long> uuids;
+                // TODO OM-57104 - move special resource group logic related to supplyChain in one place
+                // don't expand resource group scope otherwise we miss special resource group
+                // logic for supplyChain
+                if (!isResourceGroupRelatedScope(seedUuids)) {
+                    uuids = groupExpander.expandUuids(seedUuids);
+                } else {
+                    uuids = Collections.singleton(Long.parseLong(seedUuids.iterator().next()));
+                }
+                if (uuids.isEmpty()) {
                     return Collections.emptySet();
                 }
-                expandedUuids = performSupplyChainTraversal(
-                        seedUuids.stream().map(Long::valueOf).collect(Collectors.toSet()),
-                        relatedEntityTypes);
+                expandedUuids = performSupplyChainTraversal(uuids, relatedEntityTypes);
 
                 // if the user is scoped, we will filter the entities according to their scope
                 if (userSessionContext.isUserScoped()) {
@@ -830,6 +837,12 @@ public class PaginatedStatsExecutor {
                 }
             }
             return expandedUuids;
+        }
+
+        private boolean isResourceGroupRelatedScope(@Nonnull Set<String> seedUuids) {
+            return seedUuids.size() == 1 &&
+                    uuidMapper.fromOid(Long.parseLong(seedUuids.iterator().next()))
+                            .isResourceGroupOrGroupOfResourceGroups();
         }
 
         /**
