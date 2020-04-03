@@ -485,7 +485,10 @@ public class Analysis {
                 final Collection<Action> wastedFileActions = getWastedFilesActions(wastedFilesAnalysis);
 
                 List<TraderTO> projectedTraderDTO = new ArrayList<>();
-
+                List<ActionTO> actionsList = new ArrayList<>();
+                if (results != null) {
+                    actionsList.addAll(results.getActionsList());
+                }
                 try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
                     if (isM2AnalysisEnabled) { // Includes the case of both Market and BuyRiImpactAnalysis running in real-time
                         if (enableThrottling) {
@@ -529,6 +532,9 @@ public class Analysis {
                                 .collect(Collectors.toList());
                             logger.info("Removed {} entities from projected topology. Projected topology now has {} entities.",
                                 removedCnt.getValue(), projectedTraderDTO.size());
+                            // The hosts and storages are deleted from the projected topology
+                            // reservation plan. Don't generate actions for reservation plan.
+                            actionsList.clear();
                         }
 
                         // results can be null if M2Analysis is not run
@@ -583,9 +589,8 @@ public class Analysis {
                                 .setMarket(MarketActionPlanInfo.newBuilder()
                                         .setSourceTopologyInfo(topologyInfo)))
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
-                final List<ActionTO> actionsList = results != null ? results.getActionsList() : Collections.emptyList();
                 List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
-                    originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
+                     originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
                 actions.forEach(actionPlanBuilder::addAction);
                 if (config.isSMAOnly()) {
                     actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,
