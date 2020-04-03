@@ -15,9 +15,9 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -276,12 +276,15 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
     @Override
     @Nonnull
     public Optional<TopologyEntityDTO> getConnectedAvailabilityZone(final long entityId) {
-        return getEntity(entityId).flatMap(entity -> {
+        Optional<TopologyEntityDTO> entityDTO = getEntity(entityId);
+        return entityDTO.flatMap(entity -> {
             final List<TopologyEntityDTO> connectedAZs =
                     getConnectionsOfType(entityId, EntityType.AVAILABILITY_ZONE_VALUE);
 
             if (connectedAZs.size() == 0) {
-                logger.warn("Entity {} not connected to any availability zone!", entity.getOid());
+                if (entityDTO.get().getEntityType() != EntityType.AVAILABILITY_ZONE_VALUE) {
+                    logger.warn("Entity {} not connected to any availability zone!", entity.getOid());
+                }
                 return Optional.empty();
             } else if (connectedAZs.size() > 1) {
                 logger.warn("Entity {} connected to multiple availability zone: {}! Choosing the first.",
@@ -461,11 +464,15 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         businessAccountIdToBillingFamilyGroup
                 .ensureSet(this::createAccountIdToBillingFamilyGroupMap);
 
-        if (getEntity(entityId).map(entity -> entity.getEntityType()
+        Optional<TopologyEntityDTO> entityDTO = getEntity(entityId);
+        if (entityDTO.map(entity -> entity.getEntityType()
                 == EntityType.BUSINESS_ACCOUNT_VALUE).orElse(false)) {
             return businessAccountIdToBillingFamilyGroup.getValue()
                     .map(map -> map.get(entityId));
         } else {
+            if (!entityDTO.isPresent()) {
+                logger.warn("Entity not found for entityId {}, unable to find billing family.", entityId);
+            }
             final Long accountId = ownedBy.get(entityId);
             if (accountId == null) {
                 logger.warn("OwnedBy account id not found for entityId: {}", entityId);
