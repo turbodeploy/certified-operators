@@ -14,6 +14,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -60,6 +61,7 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
      */
     private final Collection<Pair<List<EntityCommodityReference>, Future<?>>> running =
                     new ArrayList<>();
+    private final Function<HistoryData, String> dataToDebugString;
 
     /**
      * Lifecycle for fields below differ from what was described for running field. First of all
@@ -81,13 +83,17 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
      *                 task
      * @param historyDataCreator create an instance of cached history element
      * @param backgroundLoadingPool pool to execute background loading tasks.
+     * @param dataToDebugString debug string provider for history data implementation.
      */
     protected AbstractBackgroundLoadingHistoricalEditor(@Nonnull Config config,
                     @Nonnull Stub statsHistoryClient,
                     @Nonnull BiFunction<Stub, Pair<Long, Long>, HistoryLoadingTask> historyLoadingTaskCreator,
-                    @Nonnull Supplier<HistoryData> historyDataCreator, @Nonnull ExecutorService backgroundLoadingPool) {
+                    @Nonnull Supplier<HistoryData> historyDataCreator,
+                    @Nonnull ExecutorService backgroundLoadingPool,
+                    @Nonnull Function<HistoryData, String> dataToDebugString) {
         super(config, statsHistoryClient, historyLoadingTaskCreator, historyDataCreator);
         this.backgroundLoadingPool = backgroundLoadingPool;
+        this.dataToDebugString = dataToDebugString;
     }
 
     @Override
@@ -104,8 +110,15 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
                         new HashSet<>(gatherUninitializedCommodities(eligibleComms));
         recentCommodities.removeAll(running.stream().map(Pair::getFirst)
                         .flatMap(Collection::stream).collect(Collectors.toSet()));
+        final Collection<EntityCommodityReference> settingsChangedCommodities =
+                        gatherSettingsChangedCommodities(eligibleComms, context);
+        if (!settingsChangedCommodities.isEmpty()) {
+            logger.info("Settings changed for '{}' references", settingsChangedCommodities.size());
+        }
+        recentCommodities.addAll(settingsChangedCommodities);
         if (!running.isEmpty() || recentCommodities.size() > getConfig().getBackgroundLoadThreshold()) {
             if (running.isEmpty()) {
+                debugLogDataValues("Data before background loading: %s");
                 backgroundLoadingStartTimestamp = getConfig().getClock().millis();
                 stopwatch.start();
                 logger.info("Background loading process started for '{}' commodities.",
@@ -131,10 +144,25 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
                                             chunk)))));
             if (running.isEmpty()) {
                 clearLoadingStatistic();
+                debugLogDataValues("Data after background loading completed successfully: %s");
                 logger.info("Background loading process completed successfully in '{}' ms",
                                 stopwatch.stop().elapsed(TimeUnit.MILLISECONDS));
             }
+        } else {
+            settingsChangedCommodities.forEach(ref -> getCache()
+                            .remove(new EntityCommodityFieldReference(ref, CommodityField.USED)));
         }
+    }
+
+    /**
+     * Prints debug information for history data about specific object with specified description.
+     *
+     * @param description describes a context when we are printing history data
+     *                 values.
+     */
+    protected void debugLogDataValues(String description) {
+        debugLogDataValues(logger,
+                        (data) -> String.format(description, dataToDebugString.apply(data)));
     }
 
     private boolean timeoutExceeded() {
@@ -150,6 +178,7 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
                                         parameterName, value,
                                         stopwatch.stop().elapsed(TimeUnit.MILLISECONDS));
         logger.error(message);
+        debugLogDataValues("Data after background loading failed: %s");
         running.stream().map(Pair::getSecond).forEach(f -> f.cancel(true));
         running.clear();
     }

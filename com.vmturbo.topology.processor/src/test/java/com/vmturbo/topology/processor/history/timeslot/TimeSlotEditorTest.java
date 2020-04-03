@@ -87,7 +87,8 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
 
     private static TimeslotHistoricalEditorConfig createConfig(int backgroundLoadThreshold,
                     Clock clock) {
-        return new TimeslotHistoricalEditorConfig(1, 1, backgroundLoadThreshold, 1, 1, 1, clock);
+        return new TimeslotHistoricalEditorConfig(1, 1, backgroundLoadThreshold, 1, 1, 1, clock,
+                        null);
     }
 
     /**
