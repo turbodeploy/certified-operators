@@ -40,6 +40,7 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow;
 import com.vmturbo.platform.common.dto.ActionExecution.Workflow.ActionScriptPhase;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -53,6 +54,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionResult;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
 import com.vmturbo.proactivesupport.DataMetricGauge;
@@ -311,11 +313,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             throws ProbeException, TargetNotFoundException, CommunicationException, InterruptedException {
         final Target target = targetStore.getTarget(targetId)
                 .orElseThrow(() -> new TargetNotFoundException(targetId));
-
-        final String probeType = probeStore.getProbe(target.getProbeId())
-                .map(ProbeInfo::getProbeType)
-                .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
-                        + " corresponding to target " + targetId + " is not registered"));
+        final String probeType = getProbeTypeWithCheck(target);
 
         final Action action = new Action(actionId, target.getProbeId(),
                 targetId, identityProvider, actionType);
@@ -463,12 +461,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
         final Target target = targetStore.getTarget(targetId)
                 .orElseThrow(() -> new TargetNotFoundException(targetId));
-
-        final String probeType = probeStore.getProbe(target.getProbeId())
-                .map(ProbeInfo::getProbeType)
-                .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
-                        + " corresponding to target '" + target.getDisplayName()
-                        + "' (" + targetId + ") is not registered"));
+        final String probeType = getProbeTypeWithCheck(target);
 
         final Validation validation = new Validation(target.getProbeId(),
                 target.getId(), identityProvider);
@@ -596,13 +589,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
 
             final Target target = targetStore.getTarget(targetId)
                     .orElseThrow(() -> new TargetNotFoundException(targetId));
-
-            final String probeType = probeStore.getProbe(target.getProbeId())
-                    .map(ProbeInfo::getProbeType)
-                    .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
-                            + " corresponding to target '" + target.getDisplayName()
-                            + "' (" + targetId + ") is not registered"));
-
+            final String probeType = getProbeTypeWithCheck(target);
 
             probeId = target.getProbeId();
             discovery = new Discovery(probeId, target.getId(), identityProvider);
@@ -940,7 +927,17 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
     @Override
     public synchronized void onTargetRemoved(@Nonnull final Target target) {
         final long targetId = target.getId();
-        remoteMediationServer.removeMessageHandlers(operation -> operation.getTargetId() == targetId);
+        try {
+            TargetUpdateRequest request = TargetUpdateRequest.newBuilder()
+                            .setProbeType(getProbeTypeWithCheck(target))
+                            .setUpdateType(UpdateType.DELETED)
+                            .addAllAccountValue(target.getMediationAccountVals(groupScopeResolver))
+                            .build();
+            remoteMediationServer.handleTargetRemoval(target.getProbeId(), targetId, request);
+        } catch (CommunicationException | InterruptedException | ProbeException e) {
+            logger.warn("Failed to clean up target " + targetId
+                         + " data in remote mediation container", e);
+        }
 
         List<Operation> targetOperations = ongoingOperations.values().stream()
             .filter(operation -> operation.getTargetId() == targetId)
@@ -1095,6 +1092,14 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             failDiscovery(discovery, message);
         }
         activatePendingDiscovery(targetId);
+    }
+
+    private String getProbeTypeWithCheck(Target target) throws ProbeException {
+        return probeStore.getProbe(target.getProbeId())
+                        .map(ProbeInfo::getProbeType)
+                        .orElseThrow(() -> new ProbeException("Probe " + target.getProbeId()
+                                + " corresponding to target '" + target.getDisplayName()
+                                + "' (" + target.getId() + ") is not registered"));
     }
 
     private void failDiscovery(@Nonnull final Discovery discovery,
