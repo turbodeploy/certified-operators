@@ -120,13 +120,13 @@ import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -1738,7 +1738,7 @@ public class ActionSpecMapper {
     public CloudResizeActionDetailsApiDTO createCloudResizeActionDetailsDTO(long entityUuid, Long topologyContextId) {
         CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = new CloudResizeActionDetailsApiDTO();
         // get on-demand costs
-        setOnDemandCosts(entityUuid, cloudResizeActionDetailsApiDTO);
+        setOnDemandCosts(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
         // get on-demand rates
         setOnDemandRates(entityUuid, cloudResizeActionDetailsApiDTO);
         // get RI coverage before/after
@@ -1748,13 +1748,14 @@ public class ActionSpecMapper {
 
     /**
      * Set on-demand costs for target entity which factors in RI usage.
+     *
      * @param entityUuid - uuid of target entity
+     * @param topologyContextId - context Id
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setOnDemandCosts(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+    private void setOnDemandCosts(long entityUuid, Long topologyContextId, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
         EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
-        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest
-                .newBuilder().addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+        CloudCostStatsQuery.Builder cloudCostStatsQueryBuilder = CloudCostStatsQuery.newBuilder()
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
                 // For cloud scale actions, the action savings will reflect only the savings from
@@ -1770,7 +1771,13 @@ public class ActionSpecMapper {
                         .setExclusionFilter(false)
                         .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
                         .addCostCategory(CostCategory.ON_DEMAND_LICENSE)
-                        .addCostCategory(CostCategory.RESERVED_LICENSE)))
+                        .addCostCategory(CostCategory.RESERVED_LICENSE)
+                        .build());
+        if (Objects.nonNull(topologyContextId)) {
+            cloudCostStatsQueryBuilder.setTopologyContextId(topologyContextId);
+        }
+        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(cloudCostStatsQueryBuilder.build())
                 .build();
         GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         int statRecordListSize = response.getCloudStatRecordList().size();
