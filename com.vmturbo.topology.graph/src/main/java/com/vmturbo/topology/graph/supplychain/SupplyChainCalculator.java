@@ -1,6 +1,7 @@
 package com.vmturbo.topology.graph.supplychain;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -99,7 +100,7 @@ public class SupplyChainCalculator {
                     .addEntity(entity);
 
             // add entity type arrows to the result
-            traverseOutgoingArrows(entity)
+            getOutgoingArrowsStream(entity)
                 .filter(e -> isEntityInResult(e, resultBuilder))
                 .forEach(otherEntity -> {
                     final int otherEntityType = otherEntity.getEntityType();
@@ -109,7 +110,7 @@ public class SupplyChainCalculator {
                     entityTypeNode.addProviderType(otherEntityType);
                     otherEntityTypeNode.addConsumerType(entityTypeId);
                 });
-            traverseIngoingArrows(entity)
+            getIngoingArrowsStream(entity)
                 .filter(e -> isEntityInResult(e, resultBuilder))
                 .forEach(otherEntity -> {
                     final int otherEntityType = otherEntity.getEntityType();
@@ -146,14 +147,14 @@ public class SupplyChainCalculator {
     }
 
     @Nonnull
-    private static <E extends TopologyGraphEntity<E>> Stream<E> traverseOutgoingArrows(@Nonnull E entity) {
+    private static <E extends TopologyGraphEntity<E>> Stream<E> getOutgoingArrowsStream(@Nonnull E entity) {
         return Stream.concat(entity.getProviders().stream(),
                              Stream.concat(entity.getAggregatorsAndOwner().stream(),
                                            entity.getOutboundAssociatedEntities().stream()));
     }
 
     @Nonnull
-    private static <E extends TopologyGraphEntity<E>> Stream<E> traverseIngoingArrows(@Nonnull E entity) {
+    private static <E extends TopologyGraphEntity<E>> Stream<E> getIngoingArrowsStream(@Nonnull E entity) {
         return Stream.concat(entity.getConsumers().stream(),
                              Stream.concat(entity.getAggregatedAndOwnedEntities().stream(),
                                            entity.getInboundAssociatedEntities().stream()));
@@ -162,7 +163,7 @@ public class SupplyChainCalculator {
     private static <E extends TopologyGraphEntity<E>> boolean isEntityInResult(
             @Nonnull E entity, @Nonnull Map<Integer, SupplyChainNodeBuilder<E>> result) {
         final SupplyChainNodeBuilder<E> node = result.get(entity.getEntityType());
-        return node != null && node.isEntityIdInNode(entity.getOid());
+        return node != null && node.isEntityIdInNode(entity);
     }
 
     /**
@@ -338,13 +339,14 @@ public class SupplyChainCalculator {
         }
 
         /**
-         * Check if an id is one of the ids in the node.
+         * Check if an entity is in the node.
          *
-         * @param id id to check
-         * @return true iff this id is in the node
+         * @param entity to check
+         * @return true iff this entity is in the node
          */
-        public boolean isEntityIdInNode(long id) {
-            return membersByState.values().stream().anyMatch(s -> s.contains(id));
+        public boolean isEntityIdInNode(E entity) {
+            return membersByState.getOrDefault(entity.getEntityState().getNumber(), Collections.emptySet())
+                        .contains(entity.getOid());
         }
     }
 }
