@@ -1,6 +1,7 @@
 package com.vmturbo.topology.graph.supplychain;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -11,6 +12,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.Immutable;
@@ -91,10 +93,33 @@ public class SupplyChainCalculator {
             final int depth = traversalState.getDepth();
 
             // add the entity to the result
-            resultBuilder.computeIfAbsent(
-                    entityTypeId,
-                    k -> new SupplyChainNodeBuilder(ApiEntityType.fromType(entityTypeId).apiStr(), depth))
+            final SupplyChainNodeBuilder entityTypeNode =
+                resultBuilder.computeIfAbsent(
+                        entityTypeId, k -> new SupplyChainNodeBuilder(
+                                                ApiEntityType.fromType(entityTypeId).apiStr(), depth))
                     .addEntity(entity);
+
+            // add entity type arrows to the result
+            getOutgoingArrowsStream(entity)
+                .filter(e -> isEntityInResult(e, resultBuilder))
+                .forEach(otherEntity -> {
+                    final int otherEntityType = otherEntity.getEntityType();
+                    final SupplyChainNodeBuilder otherEntityTypeNode = resultBuilder.get(otherEntityType);
+
+                    // there should be an arrow from entityTypeNode to otherEntityTypeNode
+                    entityTypeNode.addProviderType(otherEntityType);
+                    otherEntityTypeNode.addConsumerType(entityTypeId);
+                });
+            getIngoingArrowsStream(entity)
+                .filter(e -> isEntityInResult(e, resultBuilder))
+                .forEach(otherEntity -> {
+                    final int otherEntityType = otherEntity.getEntityType();
+                    final SupplyChainNodeBuilder otherEntityTypeNode = resultBuilder.get(otherEntityType);
+
+                    // there should be an arrow from otherEntityTypeNode to entityTypeNode
+                    entityTypeNode.addConsumerType(otherEntityType);
+                    otherEntityTypeNode.addProviderType(entityTypeId);
+                });
 
             // apply a traversal rule to add traversal states to the frontier
             traversalRulesLibrary.apply(entity, traversalMode, depth, frontier);
@@ -103,65 +128,9 @@ public class SupplyChainCalculator {
         // build the result
         final Map<Integer, SupplyChainNode> result = new HashMap<>();
         for (Entry<Integer, SupplyChainNodeBuilder<E>> entry : resultBuilder.entrySet()) {
-            // turn a supply chain node builder into a complete node
-                // Note that a supply chain node builder may have too many
-                // ingoing or outgoing arrows: in particular, the node may
-                // contain producer or consumer entity types whose node does
-                // not even appear in the result (because of entity filtering).
-                // For example, the PM supply chain node may contain
-                // "VirtualMachine" as consumer but, because all VMs have been
-                // filtered out, there is no VM supply chain node in the result.
-                // For this reason, we call filterEntityTypes before building
-                // the node. We restrict the entity types to those which actually
-                // appear in the result (resultBuilder.keySet()).
-            result.put(entry.getKey(),
-                       entry.getValue().filterEntityTypes(resultBuilder.keySet()).build());
+            result.put(entry.getKey(), entry.getValue().build());
         }
         return result;
-    }
-
-    /**
-     * Utility method. It takes two sets containing type entities
-     * and an entity. It adds the consumers and the inbound connections
-     * of the entity to the first list and the providers and outbound
-     * connections of the entity to the second list.
-     *
-     * @param consumerTypes the list of entity types ids, in which to add
-     *                      the entity types of consumers and ingoing
-     *                      connections of the entity
-     * @param providerTypes the list of entity types ids, in which to add
-     *                      the entity types of providers and outgoing
-     *                      connections of the entity
-     * @param entity the entity
-     * @param <E1> the subclass of {@link TopologyGraphEntity}
-     *             that represents the entity
-     */
-    public static <E1 extends TopologyGraphEntity<E1>> void
-            updateConsumerAndProviderTypeSets(@Nonnull Set<Integer> consumerTypes,
-                                              @Nonnull Set<Integer> providerTypes,
-                                              @Nonnull E1 entity) {
-        providerTypes.addAll(getEntityTypesFromListOfEntities(entity.getProviders()));
-        providerTypes.addAll(getEntityTypesFromListOfEntities(entity.getAggregatorsAndOwner()));
-        providerTypes.addAll(getEntityTypesFromListOfEntities(entity.getOutboundAssociatedEntities()));
-        consumerTypes.addAll(getEntityTypesFromListOfEntities(entity.getConsumers()));
-        consumerTypes.addAll(getEntityTypesFromListOfEntities(entity.getAggregatedAndOwnedEntities()));
-        consumerTypes.addAll(getEntityTypesFromListOfEntities(entity.getInboundAssociatedEntities()));
-    }
-
-    /**
-     * Utility method to get a list of entity type ids
-     * given a collection of entities.
-     *
-     * @param entities the entities
-     * @param <E1> the subclass of {@link TopologyGraphEntity}
-     *             that represents the entity
-     * @return the entity type ids
-     */
-    private static <E1 extends TopologyGraphEntity<E1>> Set<Integer>
-            getEntityTypesFromListOfEntities(@Nonnull Collection<E1> entities) {
-        return entities.stream()
-                .map(E1::getEntityType)
-                .collect(Collectors.toSet());
     }
 
     /**
@@ -175,6 +144,26 @@ public class SupplyChainCalculator {
         return entityTypeIds.stream()
                     .map(entityTypeId -> ApiEntityType.fromType(entityTypeId).apiStr())
                     .collect(Collectors.toList());
+    }
+
+    @Nonnull
+    private static <E extends TopologyGraphEntity<E>> Stream<E> getOutgoingArrowsStream(@Nonnull E entity) {
+        return Stream.concat(entity.getProviders().stream(),
+                             Stream.concat(entity.getAggregatorsAndOwner().stream(),
+                                           entity.getOutboundAssociatedEntities().stream()));
+    }
+
+    @Nonnull
+    private static <E extends TopologyGraphEntity<E>> Stream<E> getIngoingArrowsStream(@Nonnull E entity) {
+        return Stream.concat(entity.getConsumers().stream(),
+                             Stream.concat(entity.getAggregatedAndOwnedEntities().stream(),
+                                           entity.getInboundAssociatedEntities().stream()));
+    }
+
+    private static <E extends TopologyGraphEntity<E>> boolean isEntityInResult(
+            @Nonnull E entity, @Nonnull Map<Integer, SupplyChainNodeBuilder<E>> result) {
+        final SupplyChainNodeBuilder<E> node = result.get(entity.getEntityType());
+        return node != null && node.isEntityIdInNode(entity);
     }
 
     /**
@@ -300,22 +289,34 @@ public class SupplyChainCalculator {
          * @param entity the entity to add
          * @return this builder
          */
+        @Nonnull
         public SupplyChainNodeBuilder<E> addEntity(@Nonnull E entity) {
             membersByState.computeIfAbsent(entity.getEntityState().getNumber(), k -> new HashSet<>())
                     .add(entity.getOid());
-            updateConsumerAndProviderTypeSets(consumerTypes, providerTypes, entity);
             return this;
         }
 
         /**
-         * Filter consumer and provider type collections.
+         * Add a new provider type to the node.
          *
-         * @param typesToKeep keep entity types in this collection
+         * @param providerType id of the provider type
          * @return this builder
          */
-        public SupplyChainNodeBuilder<E> filterEntityTypes(@Nonnull Collection<Integer> typesToKeep) {
-            consumerTypes.retainAll(typesToKeep);
-            providerTypes.retainAll(typesToKeep);
+        @Nonnull
+        public SupplyChainNodeBuilder<E> addProviderType(int providerType) {
+            providerTypes.add(providerType);
+            return this;
+        }
+
+        /**
+         * Add a new consumer type to the node.
+         *
+         * @param consumerType id of the consumer type
+         * @return this builder
+         */
+        @Nonnull
+        public SupplyChainNodeBuilder<E> addConsumerType(int consumerType) {
+            consumerTypes.add(consumerType);
             return this;
         }
 
@@ -335,6 +336,17 @@ public class SupplyChainCalculator {
             builder.addAllConnectedProviderTypes(getEntityTypeNames(providerTypes));
             builder.addAllConnectedConsumerTypes(getEntityTypeNames(consumerTypes));
             return builder.build();
+        }
+
+        /**
+         * Check if an entity is in the node.
+         *
+         * @param entity to check
+         * @return true iff this entity is in the node
+         */
+        public boolean isEntityIdInNode(E entity) {
+            return membersByState.getOrDefault(entity.getEntityState().getNumber(), Collections.emptySet())
+                        .contains(entity.getOid());
         }
     }
 }
