@@ -408,7 +408,8 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
             records.add(context.newRecord(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION,
                     new PlanProjectedReservedInstanceUtilizationRecord(riId, contextId,
                             riSpecIdToRegionMap.get(riSpecId), riBoughtInfo.getAvailabilityZoneId(),
-                            riBoughtInfo.getBusinessAccountId(), riTotalCoupons, riUsedCouponMap.getOrDefault(riId, riRecommendedCouponMap.get(riId))
+                            riBoughtInfo.getBusinessAccountId(), riTotalCoupons,
+                            riUsedCouponMap.getOrDefault(riId, riRecommendedCouponMap.getOrDefault(riId, 0.0))
                     )));
         });
         Lists.partition(records, chunkSize).forEach(entityChunk -> context.batchInsert(records).execute());
