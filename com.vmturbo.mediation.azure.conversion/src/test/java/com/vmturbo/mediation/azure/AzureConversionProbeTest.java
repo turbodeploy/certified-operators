@@ -40,14 +40,12 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         // check entityDTO field (new EntityDTOs created, etc.)
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
-
-        assertEquals(9, entitiesByType.size());
+        assertEquals(8, entitiesByType.size());
 
         // check each changed entity
         assertEquals(3, entitiesByType.get(EntityType.DATABASE).size());
         assertEquals(52, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(119, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
         assertEquals(30, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
@@ -70,12 +68,11 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        assertEquals(8, entitiesByType.size());
+        assertEquals(7, entitiesByType.size());
 
         // check each changed entity
         assertEquals(44, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(119, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
         assertEquals(31, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified

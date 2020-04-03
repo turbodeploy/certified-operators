@@ -3,19 +3,12 @@ package com.vmturbo.mediation.aws;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
-import com.vmturbo.mediation.conversion.util.CloudService;
-import com.vmturbo.mediation.conversion.util.ConverterUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
@@ -29,17 +22,8 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.AWS));
-        converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.AWS));
         AWS_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }
-
-    // map showing which EntityType to be owned by which CloudService
-    private static final Map<EntityType, CloudService> ENTITY_TYPE_OWNED_BY_CLOUD_SERVICE_MAP =
-            ImmutableMap.of(
-                    EntityType.COMPUTE_TIER, CloudService.AWS_EC2,
-                    EntityType.DATABASE_SERVER_TIER, CloudService.AWS_RDS,
-                    EntityType.STORAGE_TIER, CloudService.AWS_EBS
-            );
 
     @Nonnull
     @Override
@@ -69,15 +53,4 @@ public class AwsConversionContext implements CloudProviderConversionContext {
         return "aws::" + region + "::DC::" + region;
     }
 
-    @Nonnull
-    @Override
-    public Optional<CloudService> getCloudServiceOwner(@Nonnull EntityType entityType) {
-        return Optional.ofNullable(ENTITY_TYPE_OWNED_BY_CLOUD_SERVICE_MAP.get(entityType));
-    }
-
-    @Nonnull
-    @Override
-    public Set<CloudService> getCloudServicesToCreate() {
-        return ConverterUtils.getCloudServicesByProbeType(SDKProbeType.AWS);
-    }
 }

@@ -43,13 +43,12 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        assertEquals(13, entitiesByType.size());
+        assertEquals(12, entitiesByType.size());
 
         // check each changed entity
         assertEquals(8, entitiesByType.get(EntityType.DATABASE_SERVER).size());
         assertEquals(26, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(4, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(144, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
 
         // unmodified
         assertEquals(5, entitiesByType.get(EntityType.LOAD_BALANCER).size());
@@ -77,13 +76,12 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        assertEquals(12, entitiesByType.size());
+        assertEquals(11, entitiesByType.size());
 
         // check each changed entity
         assertEquals(2, entitiesByType.get(EntityType.DATABASE_SERVER).size());
         assertEquals(87, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(144, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
         assertEquals(16, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
@@ -96,9 +94,6 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);
-
-        // check that displayName field is cleared for sub account target
-        assertThat(entitiesByType.get(EntityType.BUSINESS_ACCOUNT).get(0).hasDisplayName(), is(false));
     }
 
     private void verifyOtherFieldsNotModified(@Nonnull DiscoveryResponse oldResponse,
