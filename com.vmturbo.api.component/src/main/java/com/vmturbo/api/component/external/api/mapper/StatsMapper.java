@@ -27,6 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.service.TargetsService;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -389,7 +390,7 @@ public class StatsMapper {
         }
 
         // Set display name for this stat, do not set if it's empty
-        String displayName = buildStatDiplayName(convertedStatRecord);
+        String displayName = buildStatDisplayName(convertedStatRecord);
         if (!StringUtils.isEmpty(displayName)) {
             statApiDTO.setDisplayName(displayName);
         }
@@ -466,7 +467,7 @@ public class StatsMapper {
     }
 
     @Nonnull
-    private String buildStatDiplayName(@Nonnull StatRecord statRecord) {
+    private String buildStatDisplayName(@Nonnull StatRecord statRecord) {
         // if this is a flow commodity, just display "FLOW"
         if (UICommodityType.FLOW.apiStr().equals(statRecord.getName())) {
             return "FLOW";
@@ -482,7 +483,7 @@ public class StatsMapper {
 
         // add key information
         if (!StringUtils.isEmpty(statRecord.getStatKey())) {
-            resultBuilder.append("KEY: ").append(statRecord.getStatKey());
+            resultBuilder.append(StatsUtils.COMMODITY_KEY_PREFIX).append(statRecord.getStatKey());
         }
 
         return resultBuilder.toString();
