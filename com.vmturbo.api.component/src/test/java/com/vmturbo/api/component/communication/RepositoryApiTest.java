@@ -50,13 +50,13 @@ import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -893,5 +893,62 @@ public class RepositoryApiTest {
         Assert.assertEquals(Collections.emptySet(), new HashSet<>(result.getServiceEntities()));
         Assert.assertEquals(Collections.emptySet(), new HashSet<>(result.getBusinessAccounts()));
         Mockito.verifyZeroInteractions(repoBackend);
+    }
+
+    /**
+     * Tests retrieving business accounts from repository without specifying any entity types.
+     *
+     * @throws Exception on exception occurred
+     */
+    @Test
+    public void testGetBusinessAccountsWithoutEntityTypes() throws Exception {
+        final TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder()
+                .setOid(1L)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .build();
+        final ApiPartialEntity buServiceEntity = ApiPartialEntity.newBuilder()
+                .setOid(1L)
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .build();
+
+        Mockito.when(repoBackend.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                        .setTopologyType(TopologyType.SOURCE)
+                        .setReturnType(Type.FULL)
+                        .addEntityOids(1L)
+                        .addEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                        .setTopologyContextId(realtimeContextId)
+                        .build()))
+                .thenReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+                        .addEntities(PartialEntity.newBuilder().setFullEntity(businessAccount))
+                        .build()));
+        Mockito.when(repoBackend.retrieveTopologyEntities(
+                RetrieveTopologyEntitiesRequest.newBuilder()
+                        .setTopologyType(TopologyType.SOURCE)
+                        .setReturnType(Type.API)
+                        .addEntityOids(1L)
+                        .setTopologyContextId(realtimeContextId)
+                        .build()))
+                .thenReturn(Collections.singletonList(PartialEntityBatch.newBuilder()
+                        .addEntities(PartialEntity.newBuilder().setApi(buServiceEntity))
+                        .build()));
+        final BusinessUnitApiDTO buDto = new BusinessUnitApiDTO();
+        buDto.setUuid("1");
+        Mockito.when(
+                businessAccountMapper.convert(Collections.singletonList(businessAccount), false))
+                .thenReturn(Collections.singletonList(buDto));
+        final RepositoryRequestResult repositoryResult =
+                repositoryApi.getByIds(Arrays.asList(1L), Collections.emptySet(), false);
+        Mockito.verify(serviceEntityMapper, Mockito.never())
+                .toServiceEntityApiDTO(Mockito.any(ApiPartialEntity.class));
+        Mockito.verify(serviceEntityMapper, Mockito.never())
+                .toServiceEntityApiDTO(Mockito.any(TopologyEntityDTO.class));
+        Mockito.verify(repoBackend, Mockito.times(2)).retrieveTopologyEntities(Mockito.any());
+        Assert.assertEquals(1, repositoryResult.getBusinessAccounts().size());
+        Assert.assertEquals(Collections.emptySet(),
+                new HashSet<>(repositoryResult.getServiceEntities()));
+        final BusinessUnitApiDTO buReturned =
+                repositoryResult.getBusinessAccounts().iterator().next();
+        Assert.assertEquals("1", buReturned.getUuid());
     }
 }
