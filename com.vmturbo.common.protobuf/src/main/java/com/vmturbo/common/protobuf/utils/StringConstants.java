@@ -268,6 +268,7 @@ public class StringConstants {
     public static final String NUM_STORAGES = "numStorages";
     public static final String NUM_CONTAINERS = "numContainers";
     public static final String NUM_CONTAINERPODS = "numContainerPods";
+    public static final String NUM_CORES = "numCores";
     public static final String NUM_VDCS = "numVDCs";
     public static final String NUM_VIRTUAL_DISKS = "numVirtualDisks";
     public static final String NUM_VIRTUAL_VOLUMES = "numVolumes";

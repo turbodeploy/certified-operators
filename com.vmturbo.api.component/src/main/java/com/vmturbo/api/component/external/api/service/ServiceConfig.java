@@ -790,7 +790,7 @@ public class ServiceConfig {
     @Bean
     public StatsQueryExecutor statsQueryExecutor() {
         return new StatsQueryExecutor(statsQueryContextFactory(), scopeExpander(),
-            communicationConfig.repositoryApi());
+            communicationConfig.repositoryApi(), mapperConfig.uuidMapper());
     }
 
     @Bean
