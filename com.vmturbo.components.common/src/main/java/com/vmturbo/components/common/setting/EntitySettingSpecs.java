@@ -817,15 +817,6 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
             numeric(20f, 100f, 80f), true),
 
-    /**
-     * Collection time utilization threshold.
-     */
-    CollectionTimeUtilization("collectionTimeUtilization", "Collection Time Utilization",
-            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
-            numeric(1f, 100f, 10f), true),
-
     IgnoreDirectories("ignoreDirectories", "Directories to ignore",
         Collections.emptyList(),
         SettingTiebreaker.SMALLER,
