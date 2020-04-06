@@ -188,7 +188,7 @@ public class EntitySettingsApplicator {
                                         new ComputeTierInstanceStoreCommoditiesCreator()),
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
                         CommodityType.ACTIVE_SESSIONS),
-                new VsanStorageApplicator(),
+                new VsanStorageApplicator(graphWithSettings),
                 new ResizeVStorageApplicator());
     }
 
