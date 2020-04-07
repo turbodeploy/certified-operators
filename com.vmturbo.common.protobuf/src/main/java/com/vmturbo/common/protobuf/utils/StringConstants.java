@@ -328,6 +328,8 @@ public class StringConstants {
     public static final String SCOPE_TYPE ="scope_type";
     public static final String SCOPE_UUID = "scope_uuid";
     public static final String ENVIRONMENT_TYPE ="environmentType";
+    /** Name of state filter. */
+    public static final String STATE = "state";
     public static final String TAG_KEY = "tag_key";
     public static final String TAG_VALUE = "tag_value";
     public static final String N_WORKLOADS = "n_workloads";
