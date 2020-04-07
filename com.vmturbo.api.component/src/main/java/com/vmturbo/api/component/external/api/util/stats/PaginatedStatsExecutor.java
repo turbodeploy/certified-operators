@@ -532,9 +532,7 @@ public class PaginatedStatsExecutor {
         private EntityStatsApiDTO constructEntityStatsDto(MinimalEntity serviceEntity, final boolean projectedStatsRequest,
                 final EntityStats entityStats, @Nonnull final StatScopesApiInputDTO inputDto) {
             final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-            entityStatsApiDTO.setUuid(Long.toString(serviceEntity.getOid()));
-            entityStatsApiDTO.setClassName(ApiEntityType.fromType(serviceEntity.getEntityType()).apiStr());
-            entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
+            StatsMapper.populateEntityDataEntityStatsApiDTO(serviceEntity, entityStatsApiDTO);
             entityStatsApiDTO.setStats(new ArrayList<>());
             if (projectedStatsRequest && entityStats.getStatSnapshotsCount() > 0) {
                 // we expect either zero or one snapshot for each entity
@@ -1214,27 +1212,27 @@ public class PaginatedStatsExecutor {
                     mapAndCombineCloudAndHistoryStats(cloudCostStatsResponse, historyStatsResponse, new HashSet<>(sortedNextPageEntityIds));
 
             for (long entityUuid: sortedNextPageEntityIds) {
-                // Omit entities that have been deleted.
-                if (minimalEntityMap.containsKey(entityUuid)) {
-                    final EntityStatsApiDTO entityStatsApiDTO =
-                            constructEntityStatsApiDTOFromMinimalEntity(entityUuid, minimalEntityMap);
-
-                    Map<Long, List<StatApiDTO>> snapShotToStats =
-                            combinedCloudAndHistoryStats.getOrDefault(entityUuid, Collections.emptyMap());
-
-                    List<StatSnapshotApiDTO> statSnapshotApiDTOS = snapShotToStats.keySet()
-                            .stream()
-                            .map(snapShotDate -> {
-                                final StatSnapshotApiDTO statSnapshotApiDTO =
-                                        constructEntityStatsApiDtO(snapShotDate);
-                                statSnapshotApiDTO.setStatistics(snapShotToStats.get(snapShotDate));
-                                return statSnapshotApiDTO;
-                            }).collect(Collectors.toList());
-
-                    entityStatsApiDTO.setStats(Lists.newArrayList(statSnapshotApiDTOS));
-
-                    entityStatsApiDTOS.add(entityStatsApiDTO);
+                final Optional<EntityStatsApiDTO> entityStatsApiDTO =
+                        constructEntityStatsApiDTOFromMinimalEntity(entityUuid, minimalEntityMap);
+                if (!entityStatsApiDTO.isPresent()) {
+                    continue;
                 }
+
+                Map<Long, List<StatApiDTO>> snapShotToStats =
+                        combinedCloudAndHistoryStats.getOrDefault(entityUuid, Collections.emptyMap());
+
+                List<StatSnapshotApiDTO> statSnapshotApiDTOS = snapShotToStats.keySet()
+                        .stream()
+                        .map(snapShotDate -> {
+                            final StatSnapshotApiDTO statSnapshotApiDTO =
+                                    constructStatSnapshotApiDtO(snapShotDate);
+                            statSnapshotApiDTO.setStatistics(snapShotToStats.get(snapShotDate));
+                            return statSnapshotApiDTO;
+                        }).collect(Collectors.toList());
+
+                entityStatsApiDTO.get().setStats(Lists.newArrayList(statSnapshotApiDTOS));
+
+                entityStatsApiDTOS.add(entityStatsApiDTO.get());
             }
 
             return entityStatsApiDTOS;
@@ -1246,7 +1244,7 @@ public class PaginatedStatsExecutor {
          * @param date the date to set dto date value to
          * @return StatSnapshotApiDTO configured with date
          */
-        StatSnapshotApiDTO constructEntityStatsApiDtO(long date) {
+        StatSnapshotApiDTO constructStatSnapshotApiDtO(long date) {
             final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
             statSnapshotApiDTO.setDate(DateTimeUtil.toString(date));
             statSnapshotApiDTO.setEpoch( date <= clockTimeNow ? Epoch.HISTORICAL : Epoch.PROJECTED);
@@ -1258,16 +1256,14 @@ public class PaginatedStatsExecutor {
          *
          * @param entityUuid The entityUuid of interest
          * @param minimalEntityMap Map of entityUuids to their {@link MinimalEntity}
-         * @return {@link EntityStatsApiDTO}
+         * @return An Optional of the {@link EntityStatsApiDTO} created by the MinimalEntity
+         * retrieved from the map, or Optional.empty() if the given uuid does not exist in the map.
          */
-        EntityStatsApiDTO constructEntityStatsApiDTOFromMinimalEntity(Long entityUuid,
+        Optional<EntityStatsApiDTO> constructEntityStatsApiDTOFromMinimalEntity(Long entityUuid,
                 @Nonnull final Map<Long, MinimalEntity> minimalEntityMap) {
-            final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-            MinimalEntity minimalEntity = minimalEntityMap.get(entityUuid);
-            entityStatsApiDTO.setUuid(Long.toString(minimalEntity.getOid()));
-            entityStatsApiDTO.setClassName(ApiEntityType.fromType(minimalEntity.getEntityType()).apiStr());
-            entityStatsApiDTO.setDisplayName(minimalEntity.getDisplayName());
-            return entityStatsApiDTO;
+            return Optional.ofNullable(minimalEntityMap.get(entityUuid))
+                    .map(minimalEntity -> StatsMapper.populateEntityDataEntityStatsApiDTO(
+                            minimalEntity, new EntityStatsApiDTO()));
         }
 
         /**

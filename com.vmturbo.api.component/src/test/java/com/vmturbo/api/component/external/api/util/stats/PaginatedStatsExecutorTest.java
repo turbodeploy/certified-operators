@@ -1074,6 +1074,21 @@ public class PaginatedStatsExecutorTest {
     }
 
     /**
+     * If the entityUuid passed in constructEntityStatsApiDTOFromMinimalEntity does not exist in
+     * minimalEntityMap passed, Optional.empty() is expected to be returned.
+     */
+    @Test
+    public void testConstructEntityStatsApiDTOFromNullMinimalEntity() {
+        final Map<Long, MinimalEntity> minimalEntityMap = new HashMap<>();
+        final PaginatedStatsGather paginatedStatsGatherSpy = getPaginatedStatsGatherSpy(
+                getInputDtoWithHistoricPeriod(), mock(EntityStatsPaginationRequest.class));
+        Optional<EntityStatsApiDTO> entityStatsApiDTO =
+                paginatedStatsGatherSpy.constructEntityStatsApiDTOFromMinimalEntity(
+                        7L, minimalEntityMap);
+        assertEquals(Optional.empty(), entityStatsApiDTO);
+    }
+
+    /**
      * Test that we expand scope (in our case group of VMs) before supplyChain traverse. Because
      * if we don't request certain related entity types we return previously expanded scope
      * entities without supplyChain traverse.
