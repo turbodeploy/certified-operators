@@ -90,6 +90,7 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
@@ -727,6 +728,11 @@ public class HistorydbIO extends BasedbIO {
      *                         the average value; for others, we sort the results by the utilization
      *                        (average/capacity) value of the sort commodity. And then by the UUID of the entity.
      * @param entityType       The {@link EntityType} to determine tables to query
+     * @param statsFilter      The filter specifying which stats to get. If the filter time range spans
+     *                         across multiple snapshots, the sort order for pagination will be
+     *                         derived from the most recent snapshot. However, once we determine the
+     *                         IDs of the entities in the next page, we retrieve records for those
+     *                         entities from all matching snapshots.
      * @return A {@link NextPageInfo} object describing the entity IDs that should be in the next page.
      * @throws VmtDbException           If there is an error interacting with the database.
      * @throws IllegalArgumentException If the input is invalid.
@@ -736,7 +742,8 @@ public class HistorydbIO extends BasedbIO {
                                     final Timestamp timestamp,
                                     final TimeFrame tFrame,
                                     final EntityStatsPaginationParams paginationParams,
-                                    final EntityType entityType) throws VmtDbException {
+                                    final EntityType entityType,
+                           @Nonnull final StatsFilter statsFilter) throws VmtDbException {
         // This will be an empty list if entity list is not set.
         // This should NOT be an empty list if the entity list is set (we should filter out
         // those requests earlier on).
@@ -762,11 +769,12 @@ public class HistorydbIO extends BasedbIO {
         final List<Condition> conditions = new ArrayList<>();
         conditions.add(getTimestampField(table, SNAPSHOT_TIME).eq(timestamp));
         conditions.add(getStringField(table, PROPERTY_TYPE).eq(paginationParams.getSortCommodity()));
-        if (!paginationParams.getSortCommodity().equals(PRICE_INDEX)) {
+        final String sortCommodity = paginationParams.getSortCommodity();
+        if (!sortCommodity.equals(PRICE_INDEX)) {
             // For "regular" commodities (e.g. CPU, Mem), we want to make sure to sort by the used
-            // value and only use commodities that are being sold.
             conditions.add(getStringField(table, PROPERTY_SUBTYPE).eq(PROPERTY_SUBTYPE_USED));
-            conditions.add(getRelationTypeField(table, RELATION).eq(RelationType.COMMODITIES));
+            conditions.add(getRelationTypeField(table, RELATION).eq(
+                    getRelationType(statsFilter.getCommodityRequestsList(), sortCommodity)));
         }
 
         final Field<BigDecimal> avgValue =
@@ -834,6 +842,29 @@ public class HistorydbIO extends BasedbIO {
         } catch (SQLException e) {
             throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
         }
+    }
+
+    @Nonnull
+    private static RelationType getRelationType(
+            @Nonnull Collection<CommodityRequest> commodityRequests,
+            @Nonnull String sortCommodity) {
+        final List<CommodityRequest> sortCommodities = commodityRequests.stream()
+                .filter(c -> c.getCommodityName().equalsIgnoreCase(sortCommodity))
+                .collect(Collectors.toList());
+        if (sortCommodities.size() != 1) {
+            logger.debug(
+                    "Cannot definitely identify commodity request '{}' for specified sort commodity '{}'",
+                    commodityRequests, sortCommodity);
+            return RelationType.COMMODITIES;
+        }
+        final List<PropertyValueFilter> sortCommodityProperties =
+                sortCommodities.iterator().next().getPropertyValueFilterList();
+        return sortCommodityProperties
+                .stream()
+                .filter(c -> c.getProperty().equalsIgnoreCase(RELATION))
+                .map(c -> RelationType.getApiRelationType(c.getValue()))
+                .findAny()
+                .orElse(RelationType.COMMODITIES);
     }
 
     /**
