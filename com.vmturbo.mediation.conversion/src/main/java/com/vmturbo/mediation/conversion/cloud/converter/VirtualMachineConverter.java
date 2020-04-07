@@ -209,9 +209,6 @@ public class VirtualMachineConverter implements IEntityConverter {
         entity.clearCommoditiesBought();
         entity.addAllCommoditiesBought(newCommodityBoughtList);
 
-        // VM owned by business account
-        converter.ownedByBusinessAccount(entity.getId());
-
         return true;
     }
 
@@ -238,7 +235,6 @@ public class VirtualMachineConverter implements IEntityConverter {
                 addLayeredOver(entity, vId);
                 addLayeredOver(volume, zone);
                 addLayeredOver(volume, storageTierId);
-                converter.ownedByBusinessAccount(vId);
             }
         }
     }

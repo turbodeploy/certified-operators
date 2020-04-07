@@ -11,7 +11,6 @@ import static org.junit.Assert.assertTrue;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import com.google.common.collect.Lists;
 
@@ -20,9 +19,6 @@ import org.junit.Test;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
-import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.DefaultConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -165,10 +161,6 @@ public class AwsCloudDiscoveryConverterTest {
                                             EntityType.AVAILABILITY_ZONE, EntityType.STORAGE_TIER));
                 });
             }
-
-            // check vm owned by BusinessAccount
-            assertThat(ba.getConsistsOfList(), hasItem(vmId));
-
             // check if volumes are attached to VM with ephemeralStorage count > 0
             if (vm.hasVirtualMachineData() &&
                     vm.getVirtualMachineData().getNumEphemeralStorages() > 0) {
@@ -178,73 +170,10 @@ public class AwsCloudDiscoveryConverterTest {
                             e.getVirtualVolumeData().getIsEphemeral())
                         .map(EntityDTO.Builder::getId)
                         .collect(Collectors.toList());
-                assertTrue(ba.getConsistsOfList().containsAll(ephemeralVolumeIds));
                 assertEquals(vm.getVirtualMachineData().getNumEphemeralStorages(),
                     ephemeralVolumeIds.size());
             }
         });
-    }
-
-    @Test
-    public void testBusinessAccountConverter() {
-        IEntityConverter converter = new BusinessAccountConverter(SDKProbeType.AWS);
-        rawEntitiesByType.get(EntityType.BUSINESS_ACCOUNT).forEach(entity -> {
-            String baId = entity.getId();
-            EntityDTO oldEntity = awsConverter.getRawEntityDTO(baId);
-            EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(baId);
-
-            // check ba not removed
-            assertTrue(converter.convert(newEntity, awsConverter));
-
-            // check unmodified fields
-            assertEquals(oldEntity.getDisplayName(), newEntity.getDisplayName());
-
-            // master account owns sub account
-            if (newEntity.getId().equals(masterAccountId)) {
-                assertThat(newEntity.getConsistsOfList(), containsInAnyOrder("323871187550",
-                        "001844731978", "631949720430"));
-            }
-
-            // check that dataDiscovered field is cleared if it is false
-            assertTrue(newEntity.hasBusinessAccountData());
-            assertEquals(oldEntity.getBusinessAccountData().getDataDiscovered(),
-                newEntity.getBusinessAccountData().hasDataDiscovered());
-        });
-    }
-
-    @Test
-    public void testReservedInstanceConverter() {
-        IEntityConverter converter = new DefaultConverter();
-        rawEntitiesByType.get(EntityType.RESERVED_INSTANCE).forEach(entity ->
-                convertAndVerifyEntityUnmodified(converter, entity.getId()));
-    }
-
-    /**
-     * Convert the entity and verify that it is the same after convert.
-     */
-    private void convertAndVerifyEntityUnmodified(IEntityConverter converter, String entityId) {
-        EntityDTO oldEntity = awsConverter.getRawEntityDTO(entityId);
-        EntityDTO.Builder newEntity = awsConverter.getNewEntityBuilder(entityId);
-        boolean keep = converter.convert(newEntity, awsConverter);
-
-        assertTrue(keep);
-        assertEquals(oldEntity, newEntity.build());
-
-        if (oldEntity.getEntityType() != EntityType.RESERVED_INSTANCE) {
-            assertThat(awsConverter.getNewEntityBuilder(masterAccountId).getConsistsOfList(), hasItem(entityId));
-        }
-    }
-
-    /**
-     * Verify that the commodity providers are changed to new types.
-     */
-    private static void verifyProvidersChanged(EntityDTO oldEntity, EntityDTO.Builder newEntity,
-            Map<EntityType, EntityType> oldToNewProviderTypeMapping,
-            List<EntityType> newEntityTypesWithNoMapping) {
-        Object[] expectedNewProviderTypes = Stream.concat(TestUtils.getOldProviderTypes(oldEntity, awsConverter).stream()
-                        .map(entityType -> oldToNewProviderTypeMapping.getOrDefault(entityType, entityType)),
-                newEntityTypesWithNoMapping.stream()).toArray();
-        assertThat(TestUtils.getNewProviderTypes(newEntity, awsConverter), containsInAnyOrder(expectedNewProviderTypes));
     }
 
     /**

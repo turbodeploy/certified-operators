@@ -3,19 +3,12 @@ package com.vmturbo.mediation.gcp;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
-import com.vmturbo.mediation.conversion.util.CloudService;
-import com.vmturbo.mediation.conversion.util.ConverterUtils;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -30,21 +23,8 @@ public class GcpConversionContext implements CloudProviderConversionContext {
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
         converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.GCP));
-        converters.put(EntityType.BUSINESS_ACCOUNT, new BusinessAccountConverter(SDKProbeType.GCP));
         GCP_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }
-
-    // map showing which EntityType to be owned by which CloudService
-    private static final Map<EntityType, CloudService> ENTITY_TYPE_OWNED_BY_CLOUD_SERVICE_MAP =
-            ImmutableMap.of(
-                    EntityType.COMPUTE_TIER, CloudService.GCP_VIRTUAL_MACHINES,
-                    EntityType.STORAGE_TIER, CloudService.GCP_STORAGE
-            );
-
-    private static final Map<EntityType, EntityType> GCP_PROFILE_TYPE_TO_CLOUD_ENTITY_TYPE =
-            ImmutableMap.of(
-                    EntityType.DATABASE_SERVER, EntityType.DATABASE_SERVER_TIER
-            );
 
     @Nonnull
     @Override
@@ -74,15 +54,4 @@ public class GcpConversionContext implements CloudProviderConversionContext {
         return "gcp::" + region + "::DC::" + region;
     }
 
-    @Nonnull
-    @Override
-    public Optional<CloudService> getCloudServiceOwner(@Nonnull EntityType entityType) {
-        return Optional.ofNullable(ENTITY_TYPE_OWNED_BY_CLOUD_SERVICE_MAP.get(entityType));
-    }
-
-    @Nonnull
-    @Override
-    public Set<CloudService> getCloudServicesToCreate() {
-        return ConverterUtils.getCloudServicesByProbeType(SDKProbeType.GCP);
-    }
 }

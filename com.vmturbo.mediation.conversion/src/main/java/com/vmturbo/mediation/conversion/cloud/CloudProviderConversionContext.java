@@ -1,17 +1,10 @@
 package com.vmturbo.mediation.conversion.cloud;
 
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.mediation.conversion.util.CloudService;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTOOrBuilder;
 
 /**
  *
@@ -44,21 +37,4 @@ public interface CloudProviderConversionContext {
      */
     @Nonnull
     Map<EntityType, IEntityConverter> getEntityConverters();
-
-    /**
-     * Get all the cloud services that need to be created for the probe.
-     *
-     * @return set of cloud services to be created
-     */
-    @Nonnull
-    Set<CloudService> getCloudServicesToCreate();
-
-    /**
-     * Get the owner (cloud service) of the given entity type. This should be implemented by
-     * different probes.
-     *
-     * @param entityType entity type to get owner for
-     * @return optional cloud service which should own this entity type
-     */
-    Optional<CloudService> getCloudServiceOwner(@Nonnull EntityType entityType);
 }

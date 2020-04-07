@@ -4,7 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -20,8 +19,6 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
-import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.BusinessAccountConverter;
 import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.mediation.conversion.util.TestUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -46,7 +43,6 @@ public class AzureCloudDiscoveryConverterTest {
 
     private static Map<EntityType, List<EntityDTO>> rawEntitiesByType;
 
-    private static Map<EntityType, List<EntityDTO.Builder>> newEntitiesByType;
 
     @BeforeClass
     public static void setup() {
@@ -57,7 +53,6 @@ public class AzureCloudDiscoveryConverterTest {
 
         rawEntitiesByType = discoveryResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
-        newEntitiesByType = azureConverter.getNewEntitiesGroupedByType();
     }
 
     @Test
@@ -136,26 +131,6 @@ public class AzureCloudDiscoveryConverterTest {
                             EntityType.REGION, EntityType.STORAGE_TIER));
                 });
             }
-
-            // check vm owned by BusinessAccount
-            assertThat(ba.getConsistsOfList(), hasItem(vmId));
-        });
-    }
-
-    @Test
-    public void testBusinessAccountConverter() {
-        IEntityConverter converter = new BusinessAccountConverter(SDKProbeType.AZURE);
-        rawEntitiesByType.get(EntityType.BUSINESS_ACCOUNT).forEach(entity -> {
-            String dbId = entity.getId();
-            EntityDTO oldEntity = azureConverter.getRawEntityDTO(dbId);
-            EntityDTO.Builder newEntity = azureConverter.getNewEntityBuilder(dbId);
-
-            // check ba not removed
-            assertTrue(converter.convert(newEntity, azureConverter));
-
-            // check unmodified fields
-            assertEquals(oldEntity.getDisplayName(), newEntity.getDisplayName());
-            assertEquals(oldEntity.getBusinessAccountData(), newEntity.getBusinessAccountData());
         });
     }
 
