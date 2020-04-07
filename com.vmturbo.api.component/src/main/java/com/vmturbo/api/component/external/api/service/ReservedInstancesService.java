@@ -22,6 +22,7 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
+import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -164,8 +165,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
         //TODO: support multiple scopes.
         final ApiId scope = uuidMapper.fromUuid(inputDto.getScopes().get(0));
         final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-        entityStatsApiDTO.setUuid(scope.uuid());
-        entityStatsApiDTO.setDisplayName(scope.getDisplayName());
+        // Populate basic entity data in the output dto based on the scope
+        StatsMapper.populateEntityDataEntityStatsApiDTO(scope, entityStatsApiDTO);
         entityStatsApiDTO.setStats(statsQueryExecutor.getAggregateStats(scope, inputDto.getPeriod()));
         return paginationRequest.allResultsResponse(Lists.newArrayList(entityStatsApiDTO));
     }

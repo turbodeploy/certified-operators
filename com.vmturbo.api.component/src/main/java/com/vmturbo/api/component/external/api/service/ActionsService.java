@@ -30,6 +30,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
+import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -250,8 +251,8 @@ public class ActionsService implements IActionsService {
                     .getMinimalEntities()
                     .forEach(minEntity -> {
                         final EntityStatsApiDTO entityStatsApiDTO = entityStatsByUuid.get(Long.toString(minEntity.getOid()));
-                        entityStatsApiDTO.setDisplayName(minEntity.getDisplayName());
-                        entityStatsApiDTO.setClassName(ApiEntityType.fromType(minEntity.getEntityType()).apiStr());
+                        StatsMapper.populateEntityDataEntityStatsApiDTO(
+                                minEntity, entityStatsApiDTO);
                     });
             }
 

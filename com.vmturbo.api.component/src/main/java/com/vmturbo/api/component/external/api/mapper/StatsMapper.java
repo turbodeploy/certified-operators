@@ -26,10 +26,12 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -40,6 +42,7 @@ import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
@@ -65,9 +68,11 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtili
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
-import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 
@@ -1000,5 +1005,74 @@ public class StatsMapper {
             resultBuilder.setTotal(statValue.getTotal() * 8);
         }
         return resultBuilder.build();
+    }
+
+    /**
+     * This method uses data from an api entity and populates data
+     * in the output EntityStatsApiDTO.
+     * @param apiId an api id which contains basic info about an entity
+     *              this is the input
+     * @param entityStatsApiDTO the output entity stats api dto to copy data into.
+     * @return the output entity stats api dto.
+     */
+    public static EntityStatsApiDTO populateEntityDataEntityStatsApiDTO(ApiId apiId,
+            EntityStatsApiDTO entityStatsApiDTO) {
+        entityStatsApiDTO.setUuid(apiId.uuid());
+        entityStatsApiDTO.setDisplayName(apiId.getDisplayName());
+        entityStatsApiDTO.setClassName(apiId.getClassName());
+        final Optional<EnvironmentType> envType =
+                Optional.of(EnvironmentTypeMapper.fromXLToApi(apiId.getEnvironmentType()));
+        if (envType.isPresent()) {
+            entityStatsApiDTO.setEnvironmentType(envType.get());
+        }
+        return entityStatsApiDTO;
+    }
+
+    /**
+     * This method uses data from an api entity and populates data
+     * in the output EntityStatsApiDTO.
+     * @param minimalEntity a minimal entity dto which contains basic info about an entity
+     *                      this is the input
+     * @param entityStatsApiDTO the output entity stats api dto to copy data into.
+     * @return the output entity stats api dto.
+     */
+    public static EntityStatsApiDTO populateEntityDataEntityStatsApiDTO(MinimalEntity minimalEntity,
+            EntityStatsApiDTO entityStatsApiDTO) {
+        entityStatsApiDTO.setUuid(Long.toString(minimalEntity.getOid()));
+        entityStatsApiDTO.setClassName(
+                ApiEntityType.fromType(minimalEntity.getEntityType()).apiStr());
+        entityStatsApiDTO.setDisplayName(minimalEntity.getDisplayName());
+        if (minimalEntity.hasEnvironmentType()) {
+            final Optional<EnvironmentType> envType = Optional.of(
+                    EnvironmentTypeMapper.fromXLToApi(minimalEntity.getEnvironmentType()));
+            if (envType.isPresent()) {
+                entityStatsApiDTO.setEnvironmentType(envType.get());
+            }
+        }
+        return entityStatsApiDTO;
+    }
+
+    /**
+     * This method uses data from an api entity and populates data
+     * in the output EntityStatsApiDTO.
+     * @param apiPartialEntity a partial entity dto which contains basic info about an entity
+     *                         this is the input
+     * @param entityStatsApiDTO the output entity stats api dto to copy data into.
+     * @return the output entity stats api dto.
+     */
+    public static EntityStatsApiDTO populateEntityDataEntityStatsApiDTO(ApiPartialEntity apiPartialEntity,
+            EntityStatsApiDTO entityStatsApiDTO) {
+        entityStatsApiDTO.setUuid(Long.toString(apiPartialEntity.getOid()));
+        entityStatsApiDTO.setClassName(
+                ApiEntityType.fromType(apiPartialEntity.getEntityType()).apiStr());
+        entityStatsApiDTO.setDisplayName(apiPartialEntity.getDisplayName());
+        if (apiPartialEntity.hasEnvironmentType()) {
+            final Optional<EnvironmentType> envType = Optional.of(
+                    EnvironmentTypeMapper.fromXLToApi(apiPartialEntity.getEnvironmentType()));
+            if (envType.isPresent()) {
+                entityStatsApiDTO.setEnvironmentType(envType.get());
+            }
+        }
+        return entityStatsApiDTO;
     }
 }
