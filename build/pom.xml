@@ -331,7 +331,6 @@
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.conversion</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
@@ -449,7 +448,6 @@
             <id>mediation-aws-billing</id>
             <modules>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.conversion</module>
             </modules>
         </profile>
 
@@ -1071,7 +1069,6 @@
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.conversion</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
