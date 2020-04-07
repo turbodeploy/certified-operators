@@ -8,8 +8,6 @@ import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ActivateExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.AllocateExplanation;
@@ -28,7 +26,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
-import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -49,9 +46,7 @@ public class ActionCategoryExtractorTest {
                 .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                 .setCompliance(Compliance.getDefaultInstance()).build()).build()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(compliance).build()), is(ActionDTO.ActionCategory.COMPLIANCE));
+        assertThat(ActionCategoryExtractor.assignActionCategory(compliance), is(ActionDTO.ActionCategory.COMPLIANCE));
     }
 
     /**
@@ -66,9 +61,7 @@ public class ActionCategoryExtractorTest {
                 .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                     .setCompliance(Compliance.getDefaultInstance()).setIsPrimaryChangeProviderExplanation(true))
                 .build()).build();
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(compoundMoveExplanation).build()), is(ActionDTO.ActionCategory.COMPLIANCE));
+        assertThat(ActionCategoryExtractor.assignActionCategory(compoundMoveExplanation), is(ActionDTO.ActionCategory.COMPLIANCE));
     }
 
     /**
@@ -84,9 +77,7 @@ public class ActionCategoryExtractorTest {
                 .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                     .setCompliance(Compliance.getDefaultInstance()))
                 .build()).build();
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(compoundMoveExplanation).build()), is(ActionCategory.PREVENTION));
+        assertThat(ActionCategoryExtractor.assignActionCategory(compoundMoveExplanation), is(ActionCategory.PREVENTION));
     }
 
     @Test
@@ -102,9 +93,7 @@ public class ActionCategoryExtractorTest {
                                         .build())
                         .build()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(congestion).build()), is(ActionCategory.PERFORMANCE_ASSURANCE));
+        assertThat(ActionCategoryExtractor.assignActionCategory(congestion), is(ActionCategory.PERFORMANCE_ASSURANCE));
     }
 
     @Test
@@ -114,9 +103,7 @@ public class ActionCategoryExtractorTest {
             .setEvacuation(Evacuation.newBuilder().setSuspendedEntity(100).build())
             .build()).build()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(evacuation).build()), is(ActionCategory.EFFICIENCY_IMPROVEMENT));
+        assertThat(ActionCategoryExtractor.assignActionCategory(evacuation), is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
@@ -125,9 +112,7 @@ public class ActionCategoryExtractorTest {
             .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
             .setInitialPlacement(InitialPlacement.getDefaultInstance()).build()).build()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(initialPlacement).build()), is(ActionCategory.EFFICIENCY_IMPROVEMENT));
+        assertThat(ActionCategoryExtractor.assignActionCategory(initialPlacement), is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
@@ -136,9 +121,7 @@ public class ActionCategoryExtractorTest {
             .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
             .setPerformance(Performance.getDefaultInstance()).build()).build()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(performance).build()), is(ActionCategory.PREVENTION));
+        assertThat(ActionCategoryExtractor.assignActionCategory(performance), is(ActionCategory.PREVENTION));
     }
 
     @Test
@@ -146,9 +129,7 @@ public class ActionCategoryExtractorTest {
         Explanation reconfigure = Explanation.newBuilder().setReconfigure(ReconfigureExplanation
             .getDefaultInstance()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(reconfigure).build()), is(ActionCategory.COMPLIANCE));
+        assertThat(ActionCategoryExtractor.assignActionCategory(reconfigure), is(ActionCategory.COMPLIANCE));
     }
 
     @Test
@@ -158,9 +139,8 @@ public class ActionCategoryExtractorTest {
                 .setBuyerId(101).build())
             .build()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(provisionByDemand).build()), is(ActionCategory.PERFORMANCE_ASSURANCE));
+        assertThat(ActionCategoryExtractor.assignActionCategory(provisionByDemand),
+                is(ActionCategory.PERFORMANCE_ASSURANCE));
     }
 
     @Test
@@ -174,9 +154,8 @@ public class ActionCategoryExtractorTest {
                         .build())
             .build()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(provisionBySupply1).build()), is(ActionCategory.PERFORMANCE_ASSURANCE));
+        assertThat(ActionCategoryExtractor.assignActionCategory(provisionBySupply1),
+                is(ActionCategory.PERFORMANCE_ASSURANCE));
     }
 
     @Test
@@ -188,9 +167,8 @@ public class ActionCategoryExtractorTest {
                 .build())
             .build()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(provisionBySupply2).build()), is(ActionCategory.COMPLIANCE));
+        assertThat(ActionCategoryExtractor.assignActionCategory(provisionBySupply2),
+                is(ActionCategory.COMPLIANCE));
     }
 
     @Test
@@ -198,9 +176,8 @@ public class ActionCategoryExtractorTest {
         Explanation activate1 = Explanation.newBuilder().setActivate(ActivateExplanation.newBuilder()
             .setMostExpensiveCommodity(CPU.getType()).build()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(activate1).build()), is(ActionCategory.PERFORMANCE_ASSURANCE));
+        assertThat(ActionCategoryExtractor.assignActionCategory(activate1),
+                is(ActionCategory.PERFORMANCE_ASSURANCE));
     }
 
     @Test
@@ -208,9 +185,8 @@ public class ActionCategoryExtractorTest {
         Explanation activate2 = Explanation.newBuilder().setActivate(ActivateExplanation.newBuilder()
             .setMostExpensiveCommodity(DRS_SEGMENTATION.getType()).build()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(activate2).build()), is(ActionCategory.COMPLIANCE));
+        assertThat(ActionCategoryExtractor.assignActionCategory(activate2),
+                is(ActionCategory.COMPLIANCE));
     }
 
     @Test
@@ -218,9 +194,8 @@ public class ActionCategoryExtractorTest {
         Explanation deactivate = Explanation.newBuilder().setDeactivate(
             DeactivateExplanation.getDefaultInstance()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(deactivate).build()), is(ActionCategory.EFFICIENCY_IMPROVEMENT));
+        assertThat(ActionCategoryExtractor.assignActionCategory(deactivate),
+            is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
@@ -228,9 +203,8 @@ public class ActionCategoryExtractorTest {
         Explanation delete = Explanation.newBuilder().setDelete(
             DeleteExplanation.getDefaultInstance()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(delete).build()), is(ActionCategory.EFFICIENCY_IMPROVEMENT));
+        assertThat(ActionCategoryExtractor.assignActionCategory(delete),
+            is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     /**
@@ -241,35 +215,24 @@ public class ActionCategoryExtractorTest {
         Explanation allocate = Explanation.newBuilder().setAllocate(
                 AllocateExplanation.getDefaultInstance()).build();
 
-        assertThat(ActionCategoryExtractor.assignActionCategory(ActionDTO.Action.newBuilder()
-                .setInfo(ActionInfo.getDefaultInstance()).setId(111l).setDeprecatedImportance(1.0)
-                .setExplanation(allocate).build()), is(ActionCategory.EFFICIENCY_IMPROVEMENT));
+        assertThat(ActionCategoryExtractor.assignActionCategory(allocate),
+                is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
     public void testResizeDownCategory() {
-        ActionDTO.Action resizeDown = ActionDTO.Action.newBuilder()
-                .setId(111l).setDeprecatedImportance(1.0)
-                .setInfo(ActionInfo.newBuilder().setResize(Resize.newBuilder()
-                        .setTarget(ActionEntity.newBuilder().setId(222l).setType(24))
-                        .setNewCapacity(10).setOldCapacity(50)))
-                .setExplanation(Explanation.newBuilder().setResize(ResizeExplanation.newBuilder()
-                        .setDeprecatedStartUtilization(0.1f).setDeprecatedEndUtilization(0.5f)))
-                .build();
+        Explanation resizeDown = Explanation.newBuilder().setResize(ResizeExplanation.newBuilder()
+            .setStartUtilization(0.1f).setEndUtilization(0.5f).build()).build();
+
         assertThat(ActionCategoryExtractor.assignActionCategory(resizeDown),
                 is(ActionCategory.EFFICIENCY_IMPROVEMENT));
     }
 
     @Test
     public void testResizeUpCategory() {
-        ActionDTO.Action resizeUp = ActionDTO.Action.newBuilder()
-                .setId(111l).setDeprecatedImportance(1.0)
-                .setInfo(ActionInfo.newBuilder().setResize(Resize.newBuilder()
-                        .setTarget(ActionEntity.newBuilder().setId(222l).setType(24))
-                        .setNewCapacity(50).setOldCapacity(10)))
-                .setExplanation( Explanation.newBuilder().setResize(ResizeExplanation.newBuilder()
-                        .setDeprecatedStartUtilization(0.5f).setDeprecatedEndUtilization(0.1f)))
-                .build();
+        Explanation resizeUp = Explanation.newBuilder().setResize(ResizeExplanation.newBuilder()
+            .setStartUtilization(0.5f).setEndUtilization(0.1f).build()).build();
+
         assertThat(ActionCategoryExtractor.assignActionCategory(resizeUp),
                 is(ActionCategory.PERFORMANCE_ASSURANCE));
     }

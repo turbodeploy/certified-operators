@@ -137,8 +137,8 @@ message Explanation {
 
     // A resize explanation contains start and end utilization of the resize commodity.
     message ResizeExplanation {
-        required float _deprecated_start_utilization = 1 [deprecated=true];
-        required float _deprecated_end_utilization = 2 [deprecated=true];
+        required float start_utilization = 1;
+        required float end_utilization = 2;
         optional string scaling_group_id = 3;
     }
 

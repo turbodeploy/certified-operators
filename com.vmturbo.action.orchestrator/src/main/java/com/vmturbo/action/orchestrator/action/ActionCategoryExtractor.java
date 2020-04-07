@@ -7,7 +7,6 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
-import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
@@ -23,11 +22,10 @@ public class ActionCategoryExtractor {
     /**
      * Categorize action based on its explanation.
      *
-     * @param action the actionDTO
+     * @param explanation the explanation of the action
      * @return category
      */
-    public static ActionCategory assignActionCategory(ActionDTO.Action action) {
-        Explanation explanation = action.getExplanation();
+    public static ActionCategory assignActionCategory(Explanation explanation) {
         switch (explanation.getActionExplanationTypeCase()) {
             case MOVE:
             case SCALE:
@@ -66,7 +64,8 @@ public class ActionCategoryExtractor {
                                 .filter(Optional::isPresent).map(Optional::get)
                                 .findFirst().orElse(ActionCategory.UNKNOWN);
             case RESIZE:
-                if (action.getInfo().getResize().getOldCapacity() <= action.getInfo().getResize().getNewCapacity()) {
+                if (explanation.getResize().getStartUtilization() >= explanation.getResize()
+                                .getEndUtilization()) {
                     // resize up is to assure performance
                     return ActionCategory.PERFORMANCE_ASSURANCE;
                 } else {
