@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.communication.CommunicationException;
@@ -18,6 +19,7 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.DiscoveryStatus;
 import com.vmturbo.topology.processor.api.EntitiesListener;
+import com.vmturbo.topology.processor.api.EntitiesWithNewStateListener;
 import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.ProbeListener;
 import com.vmturbo.topology.processor.api.TargetData;
@@ -42,6 +44,11 @@ public class TopologyProcessorClient extends
     public static final String TOPOLOGY_SCHEDULED_PLAN = "tp-scheduled-plan-topologies";
     public static final String TOPOLOGY_SUMMARIES = "topology-summaries";
 
+    /**
+     * Represent the kafka topic containing host state change messages.
+     */
+    public static final String ENTITIES_WITH_NEW_STATE = "entities-with-new-state";
+
     private final TopologyProcessorNotificationReceiver notificationClient;
 
     public static TopologyProcessorClient rpcOnly(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
@@ -54,9 +61,11 @@ public class TopologyProcessorClient extends
             @Nullable final IMessageReceiver<TopologyProcessorNotification> messageReceiver,
             @Nullable IMessageReceiver<Topology> liveTopologyReceiver,
             @Nullable IMessageReceiver<Topology> planTopologyReceiver,
-            @Nullable IMessageReceiver<TopologySummary> topologySummaryReceiver) {
+            @Nullable IMessageReceiver<TopologySummary> topologySummaryReceiver,
+            @Nullable IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver) {
         return new TopologyProcessorClient(connectionConfig, messageReceiver, liveTopologyReceiver,
-                planTopologyReceiver, topologySummaryReceiver, executorService);
+                planTopologyReceiver, topologySummaryReceiver, entitiesWithNewStateReceiver,
+            executorService);
     }
 
     private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig) {
@@ -70,6 +79,11 @@ public class TopologyProcessorClient extends
      * connection is established.
      *
      * @param connectionConfig TopologyProcessor connection configuration
+     * @param messageReceiver the receiver for notifications
+     * @param liveTopologyReceiver the receiver for live topologies
+     * @param planTopologyReceiver the receiver for plan topologies
+     * @param topologySummaryReceiver the receiver for topology summaries
+     * @param entitiesWithNewStateReceiver the receiver for host state changes
      * @param threadPool thread pool to use
      */
     private TopologyProcessorClient(@Nonnull final ComponentApiConnectionConfig connectionConfig,
@@ -77,11 +91,13 @@ public class TopologyProcessorClient extends
             @Nullable IMessageReceiver<Topology> liveTopologyReceiver,
             @Nullable IMessageReceiver<Topology> planTopologyReceiver,
             @Nullable IMessageReceiver<TopologySummary> topologySummaryReceiver,
+            @Nullable IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver,
             @Nonnull ExecutorService threadPool) {
         super(connectionConfig);
         this.notificationClient =
                 new TopologyProcessorNotificationReceiver(messageReceiver, liveTopologyReceiver,
-                        planTopologyReceiver, topologySummaryReceiver, threadPool);
+                        planTopologyReceiver, topologySummaryReceiver, entitiesWithNewStateReceiver,
+                    threadPool);
     }
 
     @Nonnull
@@ -191,6 +207,11 @@ public class TopologyProcessorClient extends
     @Override
     public void addTopologySummaryListener(@Nonnull final TopologySummaryListener listener) {
         getNotificationClient().addTopologySummaryListener(listener);
+    }
+
+    @Override
+    public void addEntitiesWithNewStatesListener(@Nonnull final EntitiesWithNewStateListener listener) {
+        getNotificationClient().addEntitiesWithNewStateListener(listener);
     }
 
     @Nonnull

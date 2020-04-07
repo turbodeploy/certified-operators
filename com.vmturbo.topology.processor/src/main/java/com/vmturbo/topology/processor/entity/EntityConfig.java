@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.entity;
 
 import com.vmturbo.common.protobuf.topology.EntityInfoREST;
 import com.vmturbo.topology.processor.ClockConfig;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -27,10 +28,14 @@ public class EntityConfig {
     @Autowired
     private ClockConfig clockConfig;
 
+    @Autowired
+    private TopologyProcessorNotificationSender sender;
+
     @Bean
     public EntityStore entityStore() {
         return new EntityStore(targetConfig.targetStore(),
             identityProviderConfig.identityProvider(),
+            sender,
             clockConfig.clock());
     }
 
