@@ -250,7 +250,7 @@ public class Action implements ActionView {
         this.currentExecutableStep = Optional.empty();
         this.decision = new Decision();
         this.actionCategory = ActionCategoryExtractor.assignActionCategory(
-                recommendation.getExplanation());
+                recommendation);
         this.actionModeCalculator = actionModeCalculator;
         this.description = description;
         this.associatedAccountId = Optional.ofNullable(associatedAccountId);
@@ -1111,7 +1111,7 @@ public class Action implements ActionView {
             this.currentState = actionState;
             this.actionTranslation = actionTranslation;
             this.actionCategory =
-                    ActionCategoryExtractor.assignActionCategory(recommendation.getExplanation());
+                    ActionCategoryExtractor.assignActionCategory(recommendation);
             this.associatedAccountId = associatedAccountId;
             this.associatedResourceGroupId = associatedResourceGroupId;
             this.actionDetailData = actionDetailData;

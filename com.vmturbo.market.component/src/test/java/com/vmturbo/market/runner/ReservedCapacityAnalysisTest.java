@@ -390,8 +390,8 @@ public class ReservedCapacityAnalysisTest {
         assertEquals(-1, action.getDeprecatedImportance(), FLOATING_POINT_DELTA);
         assertTrue(action.getExecutable());
         ResizeExplanation explanation = action.getExplanation().getResize();
-        assertEquals(25, explanation.getStartUtilization(), FLOATING_POINT_DELTA);
-        assertEquals(100, explanation.getEndUtilization(), FLOATING_POINT_DELTA);
+        assertEquals(25, explanation.getDeprecatedStartUtilization(), FLOATING_POINT_DELTA);
+        assertEquals(100, explanation.getDeprecatedEndUtilization(), FLOATING_POINT_DELTA);
         Resize resize = action.getInfo().getResize();
         assertEquals(25, resize.getNewCapacity(), FLOATING_POINT_DELTA);
         assertEquals(100, resize.getOldCapacity(), FLOATING_POINT_DELTA);
@@ -425,8 +425,8 @@ public class ReservedCapacityAnalysisTest {
         assertTrue(action.hasExplanation());
         assertTrue(action.getExplanation().hasResize());
         ResizeExplanation explanation = action.getExplanation().getResize();
-        assertEquals(60, explanation.getStartUtilization(), FLOATING_POINT_DELTA);
-        assertEquals(100, explanation.getEndUtilization(), FLOATING_POINT_DELTA);
+        assertEquals(60, explanation.getDeprecatedStartUtilization(), FLOATING_POINT_DELTA);
+        assertEquals(100, explanation.getDeprecatedEndUtilization(), FLOATING_POINT_DELTA);
         Resize resize = action.getInfo().getResize();
         assertEquals(60, resize.getNewCapacity(), FLOATING_POINT_DELTA);
         assertEquals(100, resize.getOldCapacity(), FLOATING_POINT_DELTA);
@@ -460,8 +460,8 @@ public class ReservedCapacityAnalysisTest {
         assertTrue(action.hasExplanation());
         assertTrue(action.getExplanation().hasResize());
         ResizeExplanation explanation = action.getExplanation().getResize();
-        assertEquals(20, explanation.getStartUtilization(), FLOATING_POINT_DELTA);
-        assertEquals(50, explanation.getEndUtilization(), FLOATING_POINT_DELTA);
+        assertEquals(20, explanation.getDeprecatedStartUtilization(), FLOATING_POINT_DELTA);
+        assertEquals(50, explanation.getDeprecatedEndUtilization(), FLOATING_POINT_DELTA);
         Resize resize = action.getInfo().getResize();
         assertEquals(20, resize.getNewCapacity(), FLOATING_POINT_DELTA);
         assertEquals(50, resize.getOldCapacity(), FLOATING_POINT_DELTA);
