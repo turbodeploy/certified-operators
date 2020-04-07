@@ -20,21 +20,18 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
@@ -77,13 +74,13 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
@@ -91,41 +88,6 @@ import com.vmturbo.platform.common.dto.CommonDTO;
  * A factory class for various {@link SupplychainFetcher}s.
  */
 public class SupplyChainFetcherFactory {
-    /**
-     * Sometimes we need to expand aggregators to some of their aggregated
-     * entities. In the case of cloud, we need to be able to expand aggregators
-     * such as region, zone, and business account to aggregated entities whose
-     * type belongs in this set.
-     */
-    private static final Set<ApiEntityType> SCOPE_EXPANSION_TYPES_FOR_CLOUD = ImmutableSet.of(
-        ApiEntityType.APPLICATION,
-        ApiEntityType.APPLICATION_SERVER,
-        ApiEntityType.BUSINESS_APPLICATION,
-        ApiEntityType.CONTAINER,
-        ApiEntityType.CONTAINER_POD,
-        ApiEntityType.DATABASE,
-        ApiEntityType.DATABASE_SERVER,
-        ApiEntityType.DATABASE_SERVER_TIER,
-        ApiEntityType.DATABASE_TIER,
-        ApiEntityType.LOAD_BALANCER,
-        ApiEntityType.STORAGE,
-        ApiEntityType.VIRTUAL_APPLICATION,
-        ApiEntityType.VIRTUAL_MACHINE,
-        ApiEntityType.VIRTUAL_VOLUME);
-    /**
-     * This maps aggregator entity types (such as region or datacenter), to
-     * the set of types of the entities that we will get after their expansion.
-     * For example, when we expand datacenters, we want to fetch all aggregated
-     * PMs. When we expand VDCs, we want to fetch all related VMs. When we
-     * expand cloud aggregators, we want to get entities of all the types in
-     * {@link #SCOPE_EXPANSION_TYPES_FOR_CLOUD}.
-     */
-    private static final Map<ApiEntityType, Set<ApiEntityType>> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-        ApiEntityType.DATACENTER, Collections.singleton(ApiEntityType.PHYSICAL_MACHINE),
-        ApiEntityType.REGION, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-        ApiEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-        ApiEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-        ApiEntityType.VIRTUAL_DATACENTER, Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -203,10 +165,10 @@ public class SupplyChainFetcherFactory {
     }
 
     /**
-     * Expand aggregator entities according to the map {@link #ENTITY_TYPES_TO_EXPAND}.
+     * Expand aggregator entities according to the map {@link ApiEntityType#ENTITY_TYPES_TO_EXPAND}.
      *
      * <p>The method takes a set of entity oids. It expands each entity whose type
-     * is in the key set of {@link #ENTITY_TYPES_TO_EXPAND} to the aggregated entities
+     * is in the key set of {@link ApiEntityType#ENTITY_TYPES_TO_EXPAND} to the aggregated entities
      * of the corresponding type. It will leave all other entities unchanged. For
      * example, if the input set of oids contains the oids of a datacenter and a VM,
      * the result will contain the oids of the VM and all the PMs aggregated by
@@ -223,7 +185,7 @@ public class SupplyChainFetcherFactory {
             return Collections.emptySet();
         }
 
-        final Set<String> entityTypeString = ENTITY_TYPES_TO_EXPAND.keySet().stream()
+        final Set<String> entityTypeString = ApiEntityType.ENTITY_TYPES_TO_EXPAND.keySet().stream()
             .map(ApiEntityType::apiStr)
             .collect(Collectors.toSet());
         final Set<Long> expandedEntityOids = Sets.newHashSet();
@@ -244,7 +206,7 @@ public class SupplyChainFetcherFactory {
                 if (expandServiceEntities.containsKey(oidToExpand)) {
                     final MinimalEntity expandEntity = expandServiceEntities.get(oidToExpand);
                     final List<String> relatedEntityTypes =
-                        ENTITY_TYPES_TO_EXPAND.get(ApiEntityType.fromType(expandEntity.getEntityType()))
+                        ApiEntityType.ENTITY_TYPES_TO_EXPAND.get(ApiEntityType.fromType(expandEntity.getEntityType()))
                             .stream()
                             .map(ApiEntityType::apiStr)
                             .collect(Collectors.toList());
@@ -665,7 +627,7 @@ public class SupplyChainFetcherFactory {
          * Fetch the requested supply chain using {@link #fetch()} and then return the ids
          * of all the entities in the supply chain.
          *
-         * @return the set of ids of all the entities in the supply chain.
+         * @return the set of ids of all the entities in the supply chain.s
          * @throws InterruptedException
          * @throws ExecutionException
          * @throws TimeoutException
