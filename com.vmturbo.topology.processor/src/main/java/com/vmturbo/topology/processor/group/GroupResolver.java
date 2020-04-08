@@ -29,6 +29,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -161,7 +162,9 @@ public class GroupResolver {
             case ENTITY_FILTERS:
                 for (EntityFilter entityFilter: group.getDefinition().getEntityFilters().getEntityFilterList()) {
                     try {
-                        final Set<Long> members = searchResolver.search(entityFilter.getSearchParametersCollection().getSearchParametersList(), graph)
+                        final Set<Long> members = searchResolver.search(SearchQuery.newBuilder()
+                            .addAllSearchParameters(entityFilter.getSearchParametersCollection().getSearchParametersList())
+                            .build(), graph)
                             .map(TopologyEntity::getOid)
                             .collect(Collectors.toSet());
                         result.computeIfAbsent(ApiEntityType.fromType(entityFilter.getEntityType()), k -> new HashSet<>())

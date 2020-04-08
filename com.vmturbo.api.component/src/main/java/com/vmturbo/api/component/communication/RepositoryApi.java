@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -501,7 +502,8 @@ public class RepositoryApi {
 
             this.retriever = new PartialEntityRetriever(type ->
                 searchServiceBlockingStub.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
-                    .addAllSearchParameters(params)
+                    .setSearch(SearchQuery.newBuilder()
+                        .addAllSearchParameters(params))
                     .setReturnType(type)
                     .build()),
                 serviceEntityMapper,
@@ -531,7 +533,8 @@ public class RepositoryApi {
         public Set<Long> getOids() {
             return Sets.newHashSet(searchServiceBlockingStub.searchEntityOids(
                 SearchEntityOidsRequest.newBuilder()
-                    .addAllSearchParameters(params)
+                    .setSearch(SearchQuery.newBuilder()
+                        .addAllSearchParameters(params))
                     .build()).getEntitiesList());
         }
 
@@ -544,7 +547,10 @@ public class RepositoryApi {
         public Future<Set<Long>> getOidsFuture() {
             final OidSetObserver observer = new OidSetObserver();
             searchServiceStub.searchEntityOids(
-                    SearchEntityOidsRequest.newBuilder().addAllSearchParameters(params).build(),
+                    SearchEntityOidsRequest.newBuilder()
+                        .setSearch(SearchQuery.newBuilder()
+                            .addAllSearchParameters(params))
+                        .build(),
                     observer);
             return observer.getFuture();
         }
@@ -555,7 +561,8 @@ public class RepositoryApi {
          */
         public long count() {
             return searchServiceBlockingStub.countEntities(CountEntitiesRequest.newBuilder()
-                .addAllSearchParameters(params)
+                .setSearch(SearchQuery.newBuilder()
+                    .addAllSearchParameters(params))
                 .build()).getEntityCount();
         }
 

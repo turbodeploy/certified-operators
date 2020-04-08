@@ -80,6 +80,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.OriginFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
@@ -991,7 +992,8 @@ public class GroupDAO implements IGroupStore {
     @Nonnull
     private Condition createGroupCondition(@Nonnull GroupDTO.GroupFilter filter) {
         final Collection<Condition> conditions = new ArrayList<>();
-        conditions.addAll(createPropertyFiltersCondition(filter.getPropertyFiltersList()));
+        createPropertyFiltersCondition(filter.getPropertyFiltersList(), filter.getLogicalOperator())
+            .ifPresent(conditions::add);
         if (filter.hasGroupType()) {
             conditions.add(GROUPING.GROUP_TYPE.eq(filter.getGroupType()));
         }
@@ -1064,10 +1066,11 @@ public class GroupDAO implements IGroupStore {
     }
 
     @Nonnull
-    private Collection<Condition> createPropertyFiltersCondition(
-            @Nonnull Collection<PropertyFilter> propertyFilters) {
+    private Optional<Condition> createPropertyFiltersCondition(
+            @Nonnull Collection<PropertyFilter> propertyFilters,
+            LogicalOperator logicalOperator) {
         if (propertyFilters.isEmpty()) {
-            return Collections.emptyList();
+            return Optional.empty();
         }
         final Collection<Condition> allConditions = new ArrayList<>();
         for (PropertyFilter propertyFilter: propertyFilters) {
@@ -1079,7 +1082,17 @@ public class GroupDAO implements IGroupStore {
             }
             conditionCreator.apply(propertyFilter).ifPresent(allConditions::add);
         }
-        return allConditions;
+
+        final BiFunction<Condition, Condition, Condition> combination;
+        if (logicalOperator == LogicalOperator.XOR) {
+            // Shouldn't throw an exception because we have at least one condition.
+            combination = (condition1, condition2) -> condition1.or(condition2).andNot(condition1.and(condition2));
+        } else if (logicalOperator == LogicalOperator.OR) {
+            combination = Condition::or;
+        } else {
+            combination = Condition::and;
+        }
+        return combineConditions(allConditions, combination);
     }
 
     @Nonnull

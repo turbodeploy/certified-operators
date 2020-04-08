@@ -1,5 +1,6 @@
 package com.vmturbo.topology.graph.search;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -17,9 +18,11 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -76,23 +79,52 @@ public class SearchResolver<E extends TopologyGraphEntity<E>> {
      * @return A {@link Stream} of {@link TopologyGraphEntity}s that match all the parameters.
      */
     @Nonnull
-    public Stream<E> search(@Nonnull final List<SearchParameters> search,
+    public Stream<E> search(@Nonnull final SearchQuery search,
                             @Nonnull final TopologyGraph<E> graph) {
-        if (search.isEmpty()) {
+        List<SearchParameters> subsearches = search.getSearchParametersList();
+        if (subsearches.isEmpty()) {
             return Stream.empty();
-        } else if (search.size() == 1) {
-            return search(search.get(0), graph);
+        } else if (subsearches.size() == 1) {
+            return search(subsearches.get(0), graph);
         } else {
+            // TODO (roman, May 20 2019): Can we pass the current matching entities
+            // as an additional input to reduce the number of entities considered in
+            // the subsequent searches?
             final Map<Long, E> matchingEntitiesById =
-                search(search.get(0), graph)
+                search(subsearches.get(0), graph)
                     .collect(Collectors.toMap(E::getOid, Function.identity()));
-            for (int i = 1; i < search.size(); ++i) {
-                // TODO (roman, May 20 2019): Can we pass the current matching entities
-                // as an additional input to reduce the number of entities considered in
-                // the subsequent searches?
-                matchingEntitiesById.keySet().retainAll(search(search.get(i), graph)
-                    .map(E::getOid)
-                    .collect(Collectors.toList()));
+            if (search.getLogicalOperator() == LogicalOperator.OR) {
+                for (int i = 1; i < subsearches.size(); ++i) {
+                    search(subsearches.get(i), graph)
+                        .forEach(e -> matchingEntitiesById.put(e.getOid(), e));
+                }
+            } else if (search.getLogicalOperator() == LogicalOperator.XOR) {
+                final Set<Long> entitiesToRemove = new HashSet<>();
+                for (int i = 1; i < subsearches.size(); ++i) {
+                    search(subsearches.get(i), graph)
+                        .forEach(e -> {
+                            E existing = matchingEntitiesById.get(e.getOid());
+                            if (existing == null) {
+                                // Add the entity if it hasn't been returned by any previous
+                                // subsearch.
+                                matchingEntitiesById.put(e.getOid(), e);
+                            } else {
+                                // Mark the entity for removal if it's returned by more than one
+                                // subsearch. We don't remove it immediately, because we don't
+                                // want subsequent subsearches to add it back.
+                                entitiesToRemove.add(e.getOid());
+                            }
+                        });
+                }
+                // Remove all entities marked for removal from the final results.
+                entitiesToRemove.forEach(matchingEntitiesById::remove);
+            } else {
+                // Default is AND.
+                for (int i = 1; i < subsearches.size(); ++i) {
+                    matchingEntitiesById.keySet().retainAll(search(subsearches.get(i), graph)
+                        .map(E::getOid)
+                        .collect(Collectors.toSet()));
+                }
             }
             return matchingEntitiesById.values().stream();
         }

@@ -628,7 +628,7 @@ public class GroupScopeResolverTest {
             } else {
                 // if there is no entity in the request, it means it is a guestLoad request
                 // the starting filter contains the OID
-                requestedOid = Long.parseLong(request.getSearchParametersList().iterator().next()
+                requestedOid = Long.parseLong(request.getSearch().getSearchParametersList().iterator().next()
                     .getStartingFilter().getStringFilter().getOptions(0));
                 guestLoad = true;
             }
@@ -667,8 +667,8 @@ public class GroupScopeResolverTest {
             // subscription ID we know about.  If so, return its OID.  If not, return an empty
             // response.
             SearchEntityOidsResponse response = SearchEntityOidsResponse.getDefaultInstance();
-            if (request.getSearchParametersCount() == 1) {
-                SearchParameters searchParams = request.getSearchParameters(0);
+            if (request.getSearch().getSearchParametersCount() == 1) {
+                SearchParameters searchParams = request.getSearch().getSearchParameters(0);
                 if (searchParams.hasStartingFilter()) {
                     PropertyFilter startingPropFilter = searchParams.getStartingFilter();
                     if ("entityType".equals(startingPropFilter.getPropertyName())
