@@ -75,5 +75,6 @@ public class StatsUtils {
                     .add(EntityType.STORAGE_TIER.getNumber())
                     .add(EntityType.LOAD_BALANCER.getNumber())
                     .add(EntityType.CONTAINER_SPEC.getNumber())
+                    .add(EntityType.SERVICE_PROVIDER.getNumber())
                     .build();
 }

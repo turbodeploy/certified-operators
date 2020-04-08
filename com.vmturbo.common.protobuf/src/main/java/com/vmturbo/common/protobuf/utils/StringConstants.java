@@ -234,7 +234,7 @@ public class StringConstants {
     public static final String NETWORK = "Network";
     /** Internet. */
     public static final String INTERNET = "Internet";
-    /** Virutal Volume. */
+    /** Virtual Volume. */
     public static final String VIRTUAL_VOLUME = "VirtualVolume";
     /** Hypervisor Server. */
     public static final String HYPERVISOR_SERVER = "HypervisorServer";

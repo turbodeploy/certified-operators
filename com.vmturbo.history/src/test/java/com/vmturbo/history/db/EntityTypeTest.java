@@ -11,7 +11,7 @@ import static com.vmturbo.history.db.EntityType.UseCase.PersistEntity;
 import static com.vmturbo.history.db.EntityType.UseCase.PersistStats;
 import static com.vmturbo.history.db.EntityType.UseCase.RollUp;
 import static com.vmturbo.history.db.EntityType.UseCase.Spend;
-import static com.vmturbo.history.db.EntityTypeDefinitions.APPLICATION_SPEND_ENITTY_TYPE;
+import static com.vmturbo.history.db.EntityTypeDefinitions.APPLICATION_SPEND_ENTITY_TYPE;
 import static com.vmturbo.history.db.EntityTypeDefinitions.ENTITY_TYPE_DEFINITIONS;
 import static com.vmturbo.history.db.EntityTypeDefinitions.NAME_TO_ENTITY_TYPE_MAP;
 import static org.hamcrest.CoreMatchers.hasItems;
@@ -159,7 +159,7 @@ public class EntityTypeTest extends Assert {
     public void testThatPersistsPriceIndexWorks() {
         assertThat(VIRTUAL_MACHINE_ENTITY_TYPE.persistsPriceIndex(), is(true));
         assertThat(NETWORK_ENTITY_TYPE.persistsPriceIndex(), is(false));
-        assertThat(APPLICATION_SPEND_ENITTY_TYPE.persistsPriceIndex(), is(false));
+        assertThat(APPLICATION_SPEND_ENTITY_TYPE.persistsPriceIndex(), is(false));
     }
 
     /**
