@@ -21,7 +21,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType.UseCase;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -65,6 +64,7 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.COMPUTE_TIER, PersistEntity),
             create(ApiEntityType.CONTAINER, "cnt_stats", STANDARD_STATS),
             CONTAINER_POD_ENTITY_TYPE,
+            create(ApiEntityType.CONTAINER_SPEC, "cnt_spec_stats", STANDARD_STATS),
             create(ApiEntityType.DATABASE, "db_stats", STANDARD_STATS),
             create(ApiEntityType.DATABASE_SERVER, "db_server_stats", STANDARD_STATS),
             create(ApiEntityType.DATABASE_SERVER_TIER, PersistEntity),
@@ -78,6 +78,7 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.IOMODULE, "iom_stats", STANDARD_STATS),
             create(ApiEntityType.LOAD_BALANCER, "load_balancer_stats", NON_PRICE_STATS),
             create(ApiEntityType.LOGICALPOOL, "lp_stats", STANDARD_STATS),
+            create(ApiEntityType.NAMESPACE, "nspace_stats", STANDARD_STATS),
             create(ApiEntityType.NETWORK),
             PHYSICAL_MACHINE_ENTITY_TYPE,
             create(ApiEntityType.REGION),
@@ -92,7 +93,8 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.VIRTUAL_MACHINE, "vm_stats", STANDARD_STATS),
             VIRTUAL_MACHINE_SPEND_ENTITY_TYPE,
             create(ApiEntityType.VIRTUAL_VOLUME),
-            create(ApiEntityType.VPOD, "vpod_stats", STANDARD_STATS)
+            create(ApiEntityType.VPOD, "vpod_stats", STANDARD_STATS),
+            create(ApiEntityType.WORKLOAD_CONTROLLER, "wkld_ctl_stats", STANDARD_STATS)
     );
 
     // convenience methods for invoking the constructor for different scenarios
