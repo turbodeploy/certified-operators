@@ -50,6 +50,7 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.matrix.component.TheMatrix;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -253,7 +254,7 @@ public class OperationControllerTest {
                                         targetDumpingSettings(),
                                         systemNotificationProducer(),
                                         10, 10, 10,
-                                        5, 1, 1,
+                                        5, 10, 1, 1,
                                         TheMatrix.instance());
         }
 
@@ -378,7 +379,8 @@ public class OperationControllerTest {
         assertOperationsEq(firstResponse.operation, byTargetResponse.operation);
 
         // Simulate the validation completing on the server.
-        final Discovery actualDiscovery = operationManager.getInProgressDiscoveryForTarget(targetId).get();
+        final Discovery actualDiscovery =
+            operationManager.getInProgressDiscoveryForTarget(targetId, DiscoveryType.FULL).get();
         operationManager.notifyDiscoveryResult(actualDiscovery,
                 com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse.getDefaultInstance());
         OperationTestUtilities.waitForDiscovery(operationManager, firstResponse.operation);
@@ -424,16 +426,16 @@ public class OperationControllerTest {
     @Test
     public void testDiscoveryResetsSchedule() throws Exception {
         postDiscovery(targetId, HttpStatus.OK);
-        Mockito.verify(mockScheduler).resetDiscoverySchedule(targetId);
+        Mockito.verify(mockScheduler).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
     }
 
     @Test
     public void testDiscoveryScheduleNotResetWhenAlreadyInProgress() throws Exception {
         postDiscovery(targetId, HttpStatus.OK);
-        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(targetId);
+        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
 
         postDiscovery(targetId, HttpStatus.OK);
-        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(targetId);
+        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
     }
 
     /**
@@ -461,9 +463,9 @@ public class OperationControllerTest {
 
         postDiscoverAll();
 
-        Mockito.verify(mockScheduler).resetDiscoverySchedule(targetId);
-        Mockito.verify(mockScheduler).resetDiscoverySchedule(secondTargetId);
-        Mockito.verify(mockScheduler).resetDiscoverySchedule(thirdTargetId);
+        Mockito.verify(mockScheduler).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
+        Mockito.verify(mockScheduler).resetDiscoverySchedule(secondTargetId, DiscoveryType.FULL);
+        Mockito.verify(mockScheduler).resetDiscoverySchedule(thirdTargetId, DiscoveryType.FULL);
     }
 
     /**
