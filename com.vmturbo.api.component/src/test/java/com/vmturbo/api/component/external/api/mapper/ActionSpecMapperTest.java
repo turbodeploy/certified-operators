@@ -126,6 +126,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -785,7 +786,7 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
-        assertEquals(CommodityDTO.CommodityType.VMEM.name(),
+        assertEquals(UICommodityType.VMEM.apiStr(),
                 actionApiDTO.getRisk().getReasonCommodity());
         assertEquals("2097152.0", actionApiDTO.getCurrentValue());
         assertEquals("1048576.0", actionApiDTO.getResizeToValue());
@@ -820,8 +821,7 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
-        assertEquals(CommodityDTO.CommodityType.HEAP.name(),
-            actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals(UICommodityType.HEAP.apiStr(), actionApiDTO.getRisk().getReasonCommodity());
     }
 
     /**
@@ -859,8 +859,7 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
-        assertEquals(CommodityDTO.CommodityType.HEAP.name(),
-            actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals(UICommodityType.HEAP.apiStr(), actionApiDTO.getRisk().getReasonCommodity());
         // Check that the resize values are formatted in a consistent, API backwards-compatible way.
         assertEquals(String.format("%.1f", oldCapacity), actionApiDTO.getCurrentValue());
         assertEquals(String.format("%.1f", newCapacity), actionApiDTO.getResizeToValue());
@@ -904,8 +903,7 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
         assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
-        assertEquals(CommodityDTO.CommodityType.MEM.name(),
-                actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals(UICommodityType.MEM.apiStr(), actionApiDTO.getRisk().getReasonCommodity());
     }
 
     /**
@@ -971,8 +969,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.START, actionApiDTO.getActionType());
         Assert.assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                    CommodityDTO.CommodityType.CPU.name(),
-                    CommodityDTO.CommodityType.MEM.name()));
+                UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertNull(actionApiDTO.getNewLocation());
     }
@@ -1010,7 +1007,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                        CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+                    UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertNull(actionApiDTO.getNewLocation());
     }
@@ -1042,7 +1039,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+                UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertNull(actionApiDTO.getNewLocation());
     }
@@ -1111,7 +1108,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                        CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+                    UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
     }
 
     @Test
