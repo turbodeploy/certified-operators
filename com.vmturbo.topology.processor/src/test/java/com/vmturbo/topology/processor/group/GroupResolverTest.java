@@ -15,7 +15,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -46,6 +45,7 @@ import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -270,12 +270,16 @@ public class GroupResolverTest {
                 .addId(grandChildGroupId))
             .build());
 
-        when(searchResolver.search(Collections.singletonList(grandchildParams), topologyGraph))
+        when(searchResolver.search(SearchQuery.newBuilder()
+                .addSearchParameters(grandchildParams)
+                .build(), topologyGraph))
             .thenReturn(Stream.of(topologyEntity(vmId, EntityType.VIRTUAL_MACHINE).build()));
 
         assertThat(groupResolver.resolve(parentGroup, topologyGraph).getAllEntities(), containsInAnyOrder(vmId));
 
-        verify(searchResolver).search(Collections.singletonList(grandchildParams), topologyGraph);
+        verify(searchResolver).search(SearchQuery.newBuilder()
+                .addSearchParameters(grandchildParams)
+                .build(), topologyGraph);
 
         // Check that resolving the grandchild group directly does not trigger a search - it should
         // be cached.
@@ -345,7 +349,7 @@ public class GroupResolverTest {
                                 .setStartingFilter(Search.PropertyFilter.getDefaultInstance()))))))
             .setId(1234L).build();
 
-        when(searchResolver.search(any(List.class), any())).thenThrow(new RuntimeException("error!"));
+        when(searchResolver.search(any(SearchQuery.class), any())).thenThrow(new RuntimeException("error!"));
 
         expectedException.expect(GroupResolutionException.class);
         groupResolver.resolve(dynamicGroup, topologyGraph);
@@ -376,7 +380,9 @@ public class GroupResolverTest {
                                                 .addSearchParameters(searchParams)))))
                         .setId(1234L).build();
 
-        when(searchResolver.search(Collections.singletonList(searchParams), topologyGraph))
+        when(searchResolver.search(SearchQuery.newBuilder()
+                .addSearchParameters(searchParams)
+                .build(), topologyGraph))
             .thenReturn(Stream.of(topologyEntity(1L, EntityType.PHYSICAL_MACHINE).build(),
                     topologyEntity(2L, EntityType.PHYSICAL_MACHINE).build(),
                     topologyEntity(3L, EntityType.PHYSICAL_MACHINE).build()));
@@ -412,7 +418,9 @@ public class GroupResolverTest {
                         .setId(groupId)
                         .build();
 
-        when(searchResolver.search(Collections.singletonList(params1), topologyGraph))
+        when(searchResolver.search(SearchQuery.newBuilder()
+                .addSearchParameters(params1)
+                .build(), topologyGraph))
             .thenReturn(Stream.of(topologyEntity(1L, EntityType.VIRTUAL_MACHINE).build()));
 
         groupResolver.resolve(dynamicGroup, topologyGraph);
@@ -420,7 +428,7 @@ public class GroupResolverTest {
         groupResolver.resolve(dynamicGroup, topologyGraph);
         // The search resolver should only be called once as the subsequent calls will return
         // from the cache.
-        verify(searchResolver, times(1)).search(any(List.class), any());
+        verify(searchResolver, times(1)).search(any(SearchQuery.class), any());
     }
 
     /**

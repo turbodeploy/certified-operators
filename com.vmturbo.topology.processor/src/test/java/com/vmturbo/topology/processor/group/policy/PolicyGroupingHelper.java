@@ -43,7 +43,7 @@ public class PolicyGroupingHelper {
      * @return the created group.
      */
     public static Grouping policyGrouping(SearchParametersCollection searchParameters,
-                                                int entityType, long oid) {
+                                          int entityType, long oid) {
         return Grouping.newBuilder()
             .addExpectedTypes(MemberType.newBuilder().setEntity(entityType))
             .setDefinition(GroupDefinition.newBuilder()

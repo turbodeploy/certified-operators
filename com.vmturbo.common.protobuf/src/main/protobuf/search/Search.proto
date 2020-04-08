@@ -9,6 +9,27 @@ import "topology/TopologyDTO.proto";
 import "tag/Tag.proto";
 import "CommonDTO.proto";
 
+enum LogicalOperator {
+    AND = 1;
+    OR = 2;
+    XOR = 3;
+}
+
+// A query contains a list of search parameters (which outline the subqueries to perform), and an
+// operator that's used to combine the subquery results.
+message SearchQuery {
+
+    // The set of search criteria in this query.
+    //
+    // WARNING - this field is persisted with group definitions. Do not change the type or index.
+    repeated SearchParameters search_parameters = 1;
+
+    // Specifies how to combine the search parameters.
+    //
+    // WARNING - this field is persisted with group definitions. Do not change the type or index.
+    optional LogicalOperator logical_operator = 2 [default = AND];
+}
+
 // A search definition that needs to be performed on a topology, represented as a DAG.
 message SearchParameters {
 
@@ -288,7 +309,7 @@ enum ComparisonOperator {
 // oids not need to perform pagination, because all the request needs to fetch all matched entity
 //oids, and the search entity oid query should be finish quickly even in large topology environment.
 message SearchEntityOidsRequest {
-    repeated SearchParameters searchParameters = 1;
+    optional SearchQuery search = 1;
 
     // If the entity oids list is not empty, it means the search parameters will be only applied to those
     // entity oids, the response will be subset of those entity oids. If the entity oids list is empty,
@@ -302,7 +323,7 @@ message SearchEntityOidsResponse {
 }
 
 message SearchEntitiesRequest {
-    repeated SearchParameters searchParameters = 1;
+    optional SearchQuery search = 1;
 
     // If the entity oids list is not empty, it means the search parameters will be only applied to those
     // entity oids, the response will be subset of those entity oids. If the entity oids list is empty,
@@ -325,7 +346,7 @@ message SearchEntitiesResponse {
 }
 
 message CountEntitiesRequest {
-    repeated SearchParameters searchParameters = 1;
+    optional SearchQuery search = 1;
 }
 
 // response to CountEntitiesRequest messages

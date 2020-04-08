@@ -120,6 +120,7 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
@@ -1188,7 +1189,7 @@ public class GroupsService implements IGroupsService {
             @Nullable List<String> scopes,
             boolean includeAllGroupClasses) throws OperationFailedException, ConversionException {
         GetGroupsRequest.Builder request = GetGroupsRequest.newBuilder();
-        GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType, filterList);
+        GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType, LogicalOperator.AND, filterList);
         if (includeAllGroupClasses && groupType != GroupType.REGULAR) {
             String errorMessage =
                 String.format("includeAllGroupClasses flag cannot be set to true for group type %s.",

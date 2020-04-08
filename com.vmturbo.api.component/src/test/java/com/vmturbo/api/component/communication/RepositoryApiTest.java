@@ -589,7 +589,7 @@ public class RepositoryApiTest {
             ArgumentCaptor.forClass(SearchEntitiesRequest.class);
         verify(searchBackend).searchEntitiesStream(captor.capture());
         SearchEntitiesRequest req = captor.getValue();
-        assertThat(req.getSearchParametersList(), contains(SEARCH_PARAMS));
+        assertThat(req.getSearch().getSearchParametersList(), contains(SEARCH_PARAMS));
         assertThat(req.getReturnType(), is(Type.MINIMAL));
     }
 
@@ -609,7 +609,7 @@ public class RepositoryApiTest {
             ArgumentCaptor.forClass(SearchEntitiesRequest.class);
         verify(searchBackend).searchEntitiesStream(captor.capture());
         SearchEntitiesRequest req = captor.getValue();
-        assertThat(req.getSearchParametersList(), contains(SEARCH_PARAMS));
+        assertThat(req.getSearch().getSearchParametersList(), contains(SEARCH_PARAMS));
         assertThat(req.getReturnType(), is(Type.API));
     }
 
@@ -629,7 +629,7 @@ public class RepositoryApiTest {
             ArgumentCaptor.forClass(SearchEntitiesRequest.class);
         verify(searchBackend).searchEntitiesStream(captor.capture());
         SearchEntitiesRequest req = captor.getValue();
-        assertThat(req.getSearchParametersList(), contains(SEARCH_PARAMS));
+        assertThat(req.getSearch().getSearchParametersList(), contains(SEARCH_PARAMS));
         assertThat(req.getReturnType(), is(Type.FULL));
     }
 
@@ -646,7 +646,7 @@ public class RepositoryApiTest {
             ArgumentCaptor.forClass(CountEntitiesRequest.class);
         verify(searchBackend).countEntities(captor.capture());
         CountEntitiesRequest req = captor.getValue();
-        assertThat(req.getSearchParametersList(), contains(SEARCH_PARAMS));
+        assertThat(req.getSearch().getSearchParametersList(), contains(SEARCH_PARAMS));
     }
 
     @Test
@@ -662,7 +662,7 @@ public class RepositoryApiTest {
             ArgumentCaptor.forClass(SearchEntityOidsRequest.class);
         verify(searchBackend).searchEntityOids(captor.capture());
         SearchEntityOidsRequest req = captor.getValue();
-        assertThat(req.getSearchParametersList(), contains(SEARCH_PARAMS));
+        assertThat(req.getSearch().getSearchParametersList(), contains(SEARCH_PARAMS));
     }
 
     @Test
@@ -684,7 +684,7 @@ public class RepositoryApiTest {
             ArgumentCaptor.forClass(SearchEntitiesRequest.class);
         verify(searchBackend).searchEntitiesStream(captor.capture());
         SearchEntitiesRequest req = captor.getValue();
-        assertThat(req.getSearchParametersList(), contains(SEARCH_PARAMS));
+        assertThat(req.getSearch().getSearchParametersList(), contains(SEARCH_PARAMS));
         assertThat(req.getReturnType(), is(Type.API));
 
         verify(serviceEntityMapper).toServiceEntityApiDTO(ret);
@@ -734,7 +734,7 @@ public class RepositoryApiTest {
             ArgumentCaptor.forClass(SearchEntitiesRequest.class);
         verify(searchBackend).searchEntitiesStream(captor.capture());
         SearchEntitiesRequest req = captor.getValue();
-        assertThat(req.getSearchParametersList(), contains(SEARCH_PARAMS));
+        assertThat(req.getSearch().getSearchParametersList(), contains(SEARCH_PARAMS));
         assertThat(req.getReturnType(), is(Type.API));
 
         verify(serviceEntityMapper).toServiceEntityApiDTOMap(Collections.singletonList(ret));
