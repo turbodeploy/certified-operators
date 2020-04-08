@@ -133,6 +133,8 @@
         <surefire.version>2.20</surefire.version>
         <jetty.version>9.4.19.v20190610</jetty.version>
         <bouncycastle.version>1.60</bouncycastle.version>
+        <JUnitParams.version>1.0.4</JUnitParams.version>
+
         <!-- FlexLM, for use with Cisco licenses -->
         <flex.lm.version>11.14.1.1</flex.lm.version>
 
@@ -1946,7 +1948,7 @@
                 <artifactId>cost-calculation</artifactId>
                 <version>${project.version}</version>
             </dependency>
-	    <dependency>
+	        <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>reserved-instance-coverage-allocator</artifactId>
                 <version>${project.version}</version>
@@ -2759,6 +2761,12 @@
                 <groupId>org.eclipse.jgit</groupId>
                 <artifactId>org.eclipse.jgit</artifactId>
                 <version>5.6.0.201912101111-r</version>
+            </dependency>
+            <dependency>
+                <groupId>pl.pragmatists</groupId>
+                <artifactId>JUnitParams</artifactId>
+                <version>${JUnitParams.version}</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
