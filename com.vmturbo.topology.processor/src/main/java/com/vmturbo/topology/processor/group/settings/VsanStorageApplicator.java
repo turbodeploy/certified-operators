@@ -1,8 +1,10 @@
 package com.vmturbo.topology.processor.group.settings;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -17,10 +19,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
+import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -44,18 +46,13 @@ public class VsanStorageApplicator implements SettingApplicator {
     @Override
     public void apply(@Nonnull Builder storage,
             @Nonnull Map<EntitySettingSpecs, Setting> settings) {
-        if (storage.getEntityType() != EntityType.STORAGE_VALUE) {
-            return;
-        }
-
-        StorageInfo storageInfo = storage.getTypeSpecificInfo().getStorage();
-        if (storageInfo.getStorageType() != StorageType.VSAN) {
+        if (!HCIUtils.isVSAN(storage))  {
             return;
         }
 
         try {
-            applyToStorageAmount(storage, settings, storageInfo);
-            applyToStorageAccess(storage, settings);
+            applyToStorageAmount(storage, settings, storage.getTypeSpecificInfo().getStorage());
+            applyToStorageAccessAndProvisioned(storage, settings);
         } catch (EntityApplicatorException e) {
             logger.error("Error applying settings to Storage commodities for vSAN storage "
                     + storage.getDisplayName(), e);
@@ -96,29 +93,43 @@ public class VsanStorageApplicator implements SettingApplicator {
         storageAmount.setCapacity(effectiveCapacity);
     }
 
-    private void applyToStorageAccess(@Nonnull Builder storage,
+    private void applyToStorageAccessAndProvisioned(@Nonnull Builder storage,
                     @Nonnull Map<EntitySettingSpecs, Setting> settings)
                     throws EntityApplicatorException {
-        CommoditySoldDTO.Builder storageAccess = getSoldStorageCommodityBuilder(
-                        storage, CommodityType.STORAGE_ACCESS);
+        //Get settings for and compute Storage Access capacity.
         final double iopsCapacityPerHost = getNumericSetting(settings,
                         EntitySettingSpecs.HciHostIopsCapacity);
         final double reservedHostCount = getNumericSetting(settings,
                         EntitySettingSpecs.HciHostCapacityReservation);
         final long hciHostCount = countHCIHosts(storage);
-
         final double totalIOPSCapacity = (hciHostCount - reservedHostCount) * iopsCapacityPerHost;
+
+        //Set capacity for sold Storage Access.
+        CommoditySoldDTO.Builder storageAccess = getSoldStorageCommodityBuilder(
+                        storage, CommodityType.STORAGE_ACCESS);
         logger.trace("Set sold StorageAccess for {} capacity to {}, host count {}",
-                        storage.getDisplayName(), totalIOPSCapacity, hciHostCount);
+                storage.getDisplayName(), totalIOPSCapacity, hciHostCount);
         storageAccess.setCapacity(totalIOPSCapacity);
 
+        //Get setting for storage provisioned.
+        final double storageOverprovisioningCoefficient = getNumericSetting(settings,
+                        EntitySettingSpecs.StorageOverprovisionedPercentage) / 100;
+
+        //Set values for providers.
         for (CommoditiesBoughtFromProvider.Builder boughtBuilder :
                 storage.getCommoditiesBoughtFromProvidersBuilderList())    {
             if (!boughtBuilder.hasProviderEntityType() || boughtBuilder
                             .getProviderEntityType() != EntityType.PHYSICAL_MACHINE_VALUE)   {
                 continue;
             }
-            setAccessCapacitiesForProvider(boughtBuilder.getProviderId(), iopsCapacityPerHost);
+            Optional<TopologyEntity> provider = graph.getEntity(boughtBuilder.getProviderId());
+            if (provider.isPresent())  {
+                setAccessCapacityForProvider(provider.get(), iopsCapacityPerHost);
+                setProvisionedCapacityForProvider(provider.get(), storageOverprovisioningCoefficient);
+            } else {
+                logger.error("No provider with ID {} in Topology Graph.",
+                                boughtBuilder.getProviderId());
+            }
         }
     }
 
@@ -199,19 +210,34 @@ public class VsanStorageApplicator implements SettingApplicator {
         return setting.getBooleanSettingValue().getValue();
     }
 
+    private void setAccessCapacityForProvider(TopologyEntity provider,
+                    double iopsCapacityPerHost)  {
+        provider.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+            .stream().filter(soldBuilder -> soldBuilder.getCommodityType().getType()
+                            == CommodityType.STORAGE_ACCESS_VALUE)
+            .forEach(soldBuilder -> soldBuilder.setCapacity(iopsCapacityPerHost));
+    }
 
-    private void setAccessCapacitiesForProvider(long providerId, double iopsCapacityPerHost)
-                    throws EntityApplicatorException {
-        Optional<TopologyEntity> provider = graph.getEntity(providerId);
-        if (!provider.isPresent())  {
-            throw new EntityApplicatorException("No provider with ID " + providerId + " in Topology Graph.");
+    private void setProvisionedCapacityForProvider(TopologyEntity provider,
+                    double storageOverprovisioningCoefficient)  {
+        List<Double> storageAmountCapacities = provider.getTopologyEntityDtoBuilder()
+            .getCommoditySoldListBuilderList().stream().filter(soldCommodityBuilder ->
+                soldCommodityBuilder.getCommodityType().getType() ==
+                    CommodityType.STORAGE_AMOUNT_VALUE  &&  soldCommodityBuilder.hasCapacity())
+            .map(CommoditySoldDTO.Builder::getCapacity).collect(Collectors.toList());
+
+        if (storageAmountCapacities.size() != 1)  {
+            logger.error("Wrong number of StorageAmount commodities sold "
+                + "by provider {}: {} commodities",
+                provider.getDisplayName(), storageAmountCapacities.size());
+            return;
         }
-        for (CommoditySoldDTO.Builder soldBuilder :
-                provider.get().getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList())  {
-            if (soldBuilder.getCommodityType().getType() ==
-                            CommodityType.STORAGE_ACCESS.getNumber())    {
-                soldBuilder.setCapacity(iopsCapacityPerHost);
-            }
-        }
+        Double amountCapacity = storageAmountCapacities.iterator().next();
+
+        provider.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+            .stream().filter(soldBuilder -> soldBuilder.getCommodityType().getType()
+                            == CommodityType.STORAGE_PROVISIONED_VALUE)
+            .forEach(soldBuilder -> soldBuilder.setCapacity(amountCapacity *
+                            storageOverprovisioningCoefficient));
     }
 }
