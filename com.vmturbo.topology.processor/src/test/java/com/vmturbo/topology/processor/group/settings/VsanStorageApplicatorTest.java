@@ -142,7 +142,7 @@ public class VsanStorageApplicatorTest {
                         .getCommoditySoldBuilders(storage, CommodityType.STORAGE_ACCESS).iterator().next();
         int referenceIOPSCapacity = (int)((graphNHostsCnt.getSecond() -
                         hciHostCapacityReservation) * HCI_HOST_IOPS_CAPACITY_DEFAULT);
-        Assert.assertEquals((int)storageAccess.getCapacity(), referenceIOPSCapacity);
+        Assert.assertEquals(referenceIOPSCapacity, (int)storageAccess.getCapacity());
 
 
         CommoditySoldDTO.Builder storageAmount = SettingApplicator
