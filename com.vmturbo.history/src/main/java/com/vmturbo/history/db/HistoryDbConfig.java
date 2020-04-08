@@ -10,8 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.tomcat.jdbc.pool.PoolProperties;
-import org.jooq.DSLContext;
-import org.jooq.impl.DefaultDSLContext;
+import org.flywaydb.core.api.callback.FlywayCallback;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,7 +18,10 @@ import org.springframework.context.annotation.Configuration;
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
+import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
+import com.vmturbo.history.flyway.V1_28_1_And_V1_35_1_Callback;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
+import com.vmturbo.sql.utils.flyway.ForgetMigrationCallback;
 
 /**
  * Spring Configuration for the HistorydbIO class.
@@ -160,8 +162,17 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
         return dataSourceConfig(dbSchemaName, historyDbUsername, dbPassword);
     }
 
-    public DSLContext dsl() {
-        return new DefaultDSLContext(configuration());
+    @Override
+    public FlywayCallback[] flywayCallbacks() {
+        return new FlywayCallback[]{
+                // V1.27 migrations collided when 7.17 and 7.21 branches were merged
+                new ForgetMigrationCallback("1.27"),
+                // three migrations were changed in order to remove mention of MyISAM DB engine
+                new ResetChecksumsForMyIsamInfectedMigrations(),
+                // V1.28.1 and V1.35.1 java migrations needed to change
+                // V1.28.1 formerly supplied a checksum but no longer does
+                new V1_28_1_And_V1_35_1_Callback()
+        };
     }
 
     @Override
