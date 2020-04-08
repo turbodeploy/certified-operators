@@ -1,0 +1,143 @@
+syntax = "proto2";
+
+package group;
+
+option java_package = "com.vmturbo.common.protobuf.group";
+
+import "CommonDTO.proto";
+import "group/GroupDTO.proto";
+
+// The information about a topology data definition in the system. Includes its OID and the
+// definition itself.
+message TopologyDataDefinitionEntry {
+    optional int64 id = 1;
+    optional TopologyDataDefinition definition = 2;
+}
+
+// TopologyDataDefinition defines how to build a topological entity and how to
+// associate it with other entities.
+message TopologyDataDefinition {
+
+    // What kind of topology data definition this is.    An AutomatedEntityDefinition gives a class and naming prefix for the entities to
+    // create and creates one entity per tag value and associates each entity with existing entities
+    // that share that tag value.
+    oneof topology_data_definition_details {
+        ManualEntityDefinition manual_entity_definition = 10;
+        AutomatedEntityDefinition automated_entity_definition = 11;
+    }
+
+    // A ManualEntityDefinition specifies the instance name and entity class to create and
+    // gives a mechanism for defining which existing entities should be associated with it.
+    message ManualEntityDefinition {
+
+        // Name for the entity created by this definition.
+        optional string entity_name = 1;
+
+        // Entity Type to create. One of Business_Application, Business_Transaction, or Service
+        optional common_dto.EntityDTO.EntityType entity_type = 2;
+
+        // The information that is used for selecting entities to associate with the created entity.
+        // There are three possibilities: specify a static list of entities by OID, give the ID of
+        // an existing group that contains the entities to associate, or specify a list of filters
+        // that dynamically determine the entities to associate the created entity with.
+        oneof related_entity_selection_criteria {
+
+            // A fixed, static list of associated entities.
+            StaticMembers static_associated_entities = 8;
+
+            // OID of group containing associated entities.  If the group's contents change, the
+            // created entity's associated entities will change in the same way.
+            GroupID associated_group = 9;
+
+            // The criteria to select associated members dynamically.  The criteria are
+            // evaluated dynamically with time so that if the set of entities that matches changes,
+            // the realtionships between the created entity and its associated entities will change
+            // in the same way.
+            GroupDefinition.EntityFilters entity_filters = 10;
+        }
+    }
+
+    // An automated entity definition defines a way to group existing entities (currently only
+    // grouping by tag values is supported). One new entity is created for each grouping of existing
+    // entities and associated with that grouping of entities.
+    message AutomatedEntityDefinition {
+
+        // Naming prefix for generating entity name.
+        optional string naming_prefix = 1;
+
+        // Entity Type to create. One of Business_Application, Business_Transaction, or Service.
+        optional common_dto.EntityDTO.EntityType entity_type = 2;
+
+        // Type of entity that tag or attribute applies to
+        optional common_dto.EntityDTO.EntityType connected_entity_type = 3;
+
+        // Grouping attribute used to group entities and related them to created entities.
+        // Right now, we only support tags but expect to add other types of grouping in the future.
+        oneof generation_and_connection_attribute {
+            TagBasedGenerationAndConnection tag_grouping = 10;
+        }
+
+        // Tag name whose values we will group entities by
+        message TagBasedGenerationAndConnection {
+
+            // A string giving the tag key to use
+            optional string tag_key = 1;
+        }
+    }
+}
+
+message TopologyDataDefinitionID {
+    optional int64 id = 1;
+}
+
+message CreateTopologyDataDefinitionRequest {
+    optional TopologyDataDefinition topology_data_definition = 1;
+}
+
+message CreateTopologyDataDefinitionResponse {
+    optional TopologyDataDefinitionEntry topology_data_definition = 1;
+}
+
+message GetTopologyDataDefinitionResponse {
+    optional TopologyDataDefinitionEntry topology_data_definition = 1;
+}
+
+message GetTopologyDataDefinitionsRequest {
+}
+
+message UpdateTopologyDataDefinitionRequest {
+    optional int64 id = 1;
+    optional TopologyDataDefinition topology_data_definition = 2;
+}
+
+message UpdateTopologyDataDefinitionResponse {
+    optional TopologyDataDefinitionEntry updated_topology_data_definition = 1;
+}
+
+message DeleteTopologyDataDefinitionResponse {
+    optional bool deleted = 1;
+}
+
+// A service responsible for TopologyDataDefinition operations.
+service TopologyDataDefinitionService {
+
+    // Create a new TopologyDataDefinition
+    rpc CreateTopologyDataDefinition(CreateTopologyDataDefinitionRequest) returns
+        (CreateTopologyDataDefinitionResponse);
+
+    // Get a topology data definition by its ID
+    rpc GetTopologyDataDefinition(TopologyDataDefinitionID) returns
+        (GetTopologyDataDefinitionResponse);
+
+    // Get all topology data definitions
+    rpc GetAllTopologyDataDefinitions(GetTopologyDataDefinitionsRequest) returns
+        (stream GetTopologyDataDefinitionResponse);
+
+    // Update an existing topology data definition
+    rpc UpdateTopologyDataDefinition(UpdateTopologyDataDefinitionRequest) returns
+        (UpdateTopologyDataDefinitionResponse);
+
+    // Delete an existing topology data definition
+    rpc DeleteTopologyDataDefinition(TopologyDataDefinitionID) returns
+        (DeleteTopologyDataDefinitionResponse);
+}
