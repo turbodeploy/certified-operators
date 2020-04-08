@@ -766,22 +766,20 @@ public class TopologyConverter {
     private void calculateProjectedRiCoverage(@Nonnull TraderTO originalTraderTO,
                                               @Nonnull TraderTO projectedTraderTO,
                                               @Nonnull Optional<EntityReservedInstanceCoverage> originalRiCoverage) {
-
-        final Optional<Integer> projectedCoverageCapacity =
-                cloudTc.getReservedInstanceCoverageCapacity(
-                        projectedTraderTO, originalTraderTO.getState());
-        if (projectedCoverageCapacity.map(c -> c > 0).orElse(false)) {
-            final long entityId = projectedTraderTO.getOid();
-            final EntityReservedInstanceCoverage.Builder riCoverageBuilder =
+        final long entityId = projectedTraderTO.getOid();
+        boolean isValidProjectedTrader = isValidProjectedTraderForCoverageCalculation(projectedTraderTO);
+        if (isValidProjectedTrader) {
+            final Optional<Integer> projectedCoverageCapacity =
+                cloudTc.getReservedInstanceCoverageCapacity(projectedTraderTO, originalTraderTO.getState());
+            if (projectedCoverageCapacity.map(c -> c > 0).orElse(false)) {
+                final EntityReservedInstanceCoverage.Builder riCoverageBuilder =
                     EntityReservedInstanceCoverage.newBuilder()
-                            .setEntityCouponCapacity(projectedCoverageCapacity.get())
-                            .setEntityId(entityId);
-            if (isValidProjectedTrader(projectedTraderTO)) {
+                        .setEntityId(entityId)
+                        .setEntityCouponCapacity(projectedCoverageCapacity.get());
                 // Are any of the shopping lists of the projected trader placed on discounted tier?
                 final Optional<ShoppingListTO> projectedRiTierSl =
                     getShoppingListSuppliedByRiTier(projectedTraderTO, true);
                 if (projectedRiTierSl.isPresent()) {
-
                     // Destination is RI. Get the projected RI Tier and the projected coupon comm bought.
                     RiDiscountedMarketTier projectedRiTierDestination = (RiDiscountedMarketTier)
                         cloudTc.getMarketTier(projectedRiTierSl.get().getCouponId());
@@ -795,12 +793,13 @@ public class TopologyConverter {
                             projectedRiTierDestination != null ? projectedRiTierDestination.getDisplayName() : "");
                         return;
                     }
-
                     final Optional<MarketTier> originalRiTierDestination =
                         originalTraderTO.getShoppingListsList()
                             .stream()
-                            .map(sl -> sl.getSupplier()).map(traderId -> cloudTc.getMarketTier(traderId))
-                            .filter(Objects::nonNull).filter(mt -> mt.hasRIDiscount())
+                            .map(sl -> sl.getSupplier())
+                            .map(traderId -> cloudTc.getMarketTier(traderId))
+                            .filter(Objects::nonNull)
+                            .filter(mt -> mt.hasRIDiscount())
                             .findFirst();
 
                     if (!originalRiTierDestination.isPresent() ||
@@ -816,7 +815,6 @@ public class TopologyConverter {
                         riCoverageBuilder.putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed);
                     } else {
                         // Entity stayed on the same RI Tier. Check if the coverage changed.
-                        // If we are in this block, originalTraderTO cannot be null.
                         if (!originalRiCoverage.isPresent()) {
                             logger.error("{} does not have original RI coverage", originalTraderTO.getDebugInfoNeverUseInCode());
                             return;
@@ -841,9 +839,14 @@ public class TopologyConverter {
                         }
                     }
                 }
+                projectedReservedInstanceCoverage.put(entityId, riCoverageBuilder.build());
             }
-
-            projectedReservedInstanceCoverage.put(entityId, riCoverageBuilder.build());
+        } else if (originalRiCoverage.isPresent()) {
+            // If we are here, the projected trader is not valid and the entity was originally on
+            // an RI. So we copy the same coverage.
+            // Since the EntityReservedInstanceCoverage is a protobuf, it is immutable and hence
+            // safe to copy into projectedReservedInstanceCoverage.
+            projectedReservedInstanceCoverage.put(entityId, originalRiCoverage.get());
         }
     }
 
@@ -863,7 +866,7 @@ public class TopologyConverter {
         for (TraderTO projectedTrader : projectedTraders) {
             TraderTO originalTrader = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
             // Original trader might be null in case of a provisioned trader
-            if (originalTrader != null && isValidProjectedTrader(projectedTrader)) {
+            if (originalTrader != null && isValidProjectedTraderForCoverageCalculation(projectedTrader)) {
                 // If the VM was using an RI before going into market, then original trader will
                 // have a shopping list supplied by RIDiscountedMarketTier because in this case
                 // while constructing shopping lists of original trader, we make the supplier of
@@ -956,11 +959,12 @@ public class TopologyConverter {
      * @param projectedTraderTO the trader to check if it is valid
      * @return True if the projected trader is valid. False otherwise.
      */
-    private boolean isValidProjectedTrader(TraderTO projectedTraderTO) {
+    private boolean isValidProjectedTraderForCoverageCalculation(TraderTO projectedTraderTO) {
         Optional<MarketTier> computeSupplier = cloudTc.getComputeTier(projectedTraderTO);
         if (computeSupplier.isPresent() && computeSupplier.get().hasRIDiscount()) {
-            logger.error("Projected trader for {} has compute SL supplied by " +
-                    "RI {}. This should not happen.",
+            logger.warn("Projected trader for {} has compute SL supplied by " +
+                    "RI {} instead of on-demand tier. This may be because of undiscovered costs " +
+                    "or very restrictive tier exclusion policy causing reconfigure action on the VM.",
                 projectedTraderTO.getDebugInfoNeverUseInCode(), computeSupplier.get().getDisplayName());
             return false;
         }
@@ -1104,7 +1108,23 @@ public class TopologyConverter {
             // If the supplier is a market tier, then get the tier TopologyEntityDTO and
             // make that the supplier.
             if (cloudTc.isMarketTier(supplier)) {
-                supplier = cloudTc.getMarketTier(supplier).getTier().getOid();
+                if (cloudTc.getMarketTier(supplier).hasRIDiscount()) {
+                    // Projected trader should not be supplied by RI Tier. But it can happen if
+                    // costs are not yet fully discovered or there is a highly restrictive
+                    // tier-exclusion policy. Both these situations prevent
+                    // AnalysisToProtobuf#replaceNewSupplier from replacing the RITier by an
+                    // on-demand tier. If this happens, we should make no changes and take the
+                    // supplier of the shopping list from the original entity.
+                    Optional<TopologyEntityDTO> computeTier = cloudTopology.getComputeTier(slInfo.getBuyerId());
+                    if (computeTier.isPresent()) {
+                        supplier = computeTier.get().getOid();
+                    } else {
+                        logger.error("{} does not have compute tier supplier", slInfo.getBuyerId());
+                        supplier = cloudTc.getMarketTier(supplier).getTier().getOid();
+                    }
+                } else {
+                    supplier = cloudTc.getMarketTier(supplier).getTier().getOid();
+                }
             }
             commoditiesBoughtFromProviderBuilder.setProviderId(supplier);
         }
