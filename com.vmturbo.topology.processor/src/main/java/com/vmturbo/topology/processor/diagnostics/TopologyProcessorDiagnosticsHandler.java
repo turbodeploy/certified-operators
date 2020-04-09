@@ -369,8 +369,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                     case IdentityProviderImpl.ID_DIAGS_FILE_NAME + DiagsZipReader.TEXT_DIAGS_SUFFIX:
                         identityProvider.restoreDiags(diagsLines);
                         break;
-                    case PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME +
-                            DiagsZipReader.TEXT_DIAGS_SUFFIX:
+                    case PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME:
                         restoreTargetIdentifiers(diagsLines);
                         break;
                     case TARGETS_DIAGS_FILE_NAME:
@@ -382,11 +381,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                     case PROBES_DIAGS_FILE_NAME:
                         restoreProbes(diagsLines);
                         break;
-                    case DiscoveredCloudCostUploader.DISCOVERED_CLOUD_COST_NAME +
-                            DiagsZipReader.TEXT_DIAGS_SUFFIX:
+                    case DiscoveredCloudCostUploader.DISCOVERED_CLOUD_COST_NAME:
                         discoveredCloudCostUploader.restoreDiags(diagsLines);
                         break;
-                    case PriceTableUploader.PRICE_TABLE_NAME + DiagsZipReader.TEXT_DIAGS_SUFFIX:
+                    case PriceTableUploader.PRICE_TABLE_NAME:
                         priceTableUploader.restoreDiags(diagsLines);
                         break;
                     default:
