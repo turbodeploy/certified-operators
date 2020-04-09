@@ -494,18 +494,11 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         // Retrieve Billing family groups from GroupMemberRetriever
         final Collection<GroupAndMembers> billingFamilyGroups = retrieveBillingFamilyGroups();
 
-        if (billingFamilyGroups.isEmpty()) {
-            logger.warn("Received no billing family groups from the group member retriever.");
-        }
-
         // Create map from account id to Billing Family group
         final Map<Long, GroupAndMembers> billingFamilyGroupByBusinessAccountId =
                 new HashMap<>();
         billingFamilyGroups.forEach(group -> group.members()
                 .forEach(id -> billingFamilyGroupByBusinessAccountId.put(id, group)));
-
-        logger.info("Created billing family reference map: {}",
-                billingFamilyGroupByBusinessAccountId);
         return billingFamilyGroupByBusinessAccountId;
     }
 
