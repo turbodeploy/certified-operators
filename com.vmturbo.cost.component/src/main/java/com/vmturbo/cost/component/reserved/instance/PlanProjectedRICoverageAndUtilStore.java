@@ -29,10 +29,12 @@ import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
+import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -48,7 +50,6 @@ import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReserve
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.PlanProjectedEntityReservedInstanceMappingFilter;
-import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -65,9 +66,9 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
 
     private final RepositoryServiceBlockingStub repositoryServiceBlockingStub;
 
-    private final RepositoryClient repositoryClient;
+    private final PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
 
-    private final ReservedInstanceBoughtStore reservedInstanceBoughtStore;
+    private final RepositoryClient repositoryClient;
 
     private final ReservedInstanceSpecStore reservedInstanceSpecStore;
 
@@ -109,7 +110,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                                     int projectedTopologyTimeOut,
                                     @Nonnull final RepositoryServiceBlockingStub repositoryServiceBlockingStub,
                                     @Nonnull final RepositoryClient repositoryClient,
-                                    @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
+                                    @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
                                     @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
                                     @Nonnull SupplyChainServiceBlockingStub supplyChainServiceBlockingStub,
                                     final int chunkSize,
@@ -118,7 +119,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         this.projectedTopologyTimeOut = projectedTopologyTimeOut;
         this.repositoryServiceBlockingStub = Objects.requireNonNull(repositoryServiceBlockingStub);
         this.repositoryClient = Objects.requireNonNull(repositoryClient);
-        this.reservedInstanceBoughtStore = reservedInstanceBoughtStore;
+        this.planReservedInstanceService = planReservedInstanceService;
         this.reservedInstanceSpecStore = reservedInstanceSpecStore;
         this.supplyChainServiceBlockingStub = supplyChainServiceBlockingStub;
         this.chunkSize = chunkSize;
@@ -358,38 +359,24 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
         Map<Long, Double> riUsedCouponMap= new HashMap<>();
         final Map<Long, Double> riRecommendedCouponMap = Maps.newHashMap();
         entityRICoverage.forEach(e -> {
-            e.getCouponsCoveredByRiMap().entrySet().forEach(entry -> {
-                long riId = entry.getKey();
-                Double currentUtil = riUsedCouponMap.get(riId);
-                if (currentUtil != null) {
-                    riUsedCouponMap.put(riId, currentUtil + entry.getValue());
-                } else {
-                    riUsedCouponMap.put(riId, entry.getValue());
-                }
+            e.getCouponsCoveredByRiMap().forEach((riId, currentUsed) -> {
+                riUsedCouponMap.merge(riId, currentUsed, Double::sum);
             });
-            e.getCouponsCoveredByBuyRiMap().entrySet().forEach(entry -> {
-                long riId = entry.getKey();
-                Double currentUtil = riRecommendedCouponMap.get(riId);
-                if (currentUtil != null) {
-                    riRecommendedCouponMap.put(riId, currentUtil + entry.getValue());
-                } else {
-                    riRecommendedCouponMap.put(riId, entry.getValue());
-                }
+            e.getCouponsCoveredByBuyRiMap().forEach((riId, currentCoverage) -> {
+                riRecommendedCouponMap.merge(riId, currentCoverage, Double::sum);
             });
         });
-
-        final List<ReservedInstanceBought> existingRisInScope =
-                reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
+        final GetPlanReservedInstanceBoughtRequest planSavedRiRequest =
+                GetPlanReservedInstanceBoughtRequest
                         .newBuilder()
-                        .cloudScopeTuples(
-                        repositoryClient.getEntityOidsByTypeForRIQuery(topoInfo.getScopeSeedOidsList(),
-                                realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
-                        .build())
-                .stream()
-                .filter(ri -> riUsedCouponMap.containsKey(ri.getId()))
-                .collect(Collectors.toList());
-
-        final List<ReservedInstanceBought> allPlanRis = ListUtils.union(existingRisInScope, recommendedRis);
+                        .setPlanId(topoInfo.getTopologyContextId())
+                        .build();
+        // Get RIs out of plan RI inventory config that user has selected.
+        final List<ReservedInstanceBought> selectedRis =
+                planReservedInstanceService
+                        .getPlanReservedInstanceBought(planSavedRiRequest)
+                        .getReservedInstanceBoughtsList();
+        final List<ReservedInstanceBought> allPlanRis = ListUtils.union(selectedRis, recommendedRis);
         final Set<Long> riSpecIds = allPlanRis.stream()
                 .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
                 .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
@@ -400,7 +387,7 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId,
                         riSpec -> riSpec.getReservedInstanceSpecInfo().getRegionId()));
         List<PlanProjectedReservedInstanceUtilizationRecord> records = new ArrayList<>();
-        allPlanRis.stream().forEach(riBought -> {
+        allPlanRis.forEach(riBought -> {
             final long riId = riBought.getId();
             final ReservedInstanceBoughtInfo riBoughtInfo = riBought.getReservedInstanceBoughtInfo();
             final long riSpecId = riBoughtInfo.getReservedInstanceSpec();

@@ -12,6 +12,7 @@ import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
@@ -285,7 +286,7 @@ public class ReservedInstanceConfig {
                                                    projectedTopologyTimeOut,
                                                    repositoryServiceClient(),
                                                    repositoryClientConfig.repositoryClient(),
-                                                   reservedInstanceBoughtStore(),
+                                                   planReservedInstanceService(),
                                                    reservedInstanceSpecConfig
                                                            .reservedInstanceSpecStore(),
                                                    supplyChainRpcServiceConfig
@@ -342,6 +343,16 @@ public class ReservedInstanceConfig {
     @Bean
     public RepositoryServiceBlockingStub repositoryServiceClient() {
         return RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    /**
+     * Gets the plan service handle.
+     *
+     * @return plan service handle.
+     */
+    @Bean
+    public PlanReservedInstanceServiceBlockingStub planReservedInstanceService() {
+        return PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
 
     /**

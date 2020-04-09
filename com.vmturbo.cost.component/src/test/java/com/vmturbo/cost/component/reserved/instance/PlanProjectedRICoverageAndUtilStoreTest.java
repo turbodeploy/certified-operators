@@ -10,10 +10,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.jooq.DSLContext;
@@ -30,6 +28,9 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
+import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
@@ -71,11 +72,11 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
 
     private DSLContext dsl = dbConfig.getDslContext();
 
-    private ReservedInstanceBoughtStore reservedInstanceBoughtStore = mock(ReservedInstanceBoughtStore.class);
     private ReservedInstanceSpecStore reservedInstanceSpecStore = mock(ReservedInstanceSpecStore.class);
     private RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
     private RepositoryClient repositoryClient = mock(RepositoryClient.class);
     private SupplyChainServiceBlockingStub  supplyChainService;
+    private PlanReservedInstanceServiceBlockingStub planReservedInstanceService;
     private final Long realtimeTopologyContextId = 777777L;
 
     private PlanProjectedRICoverageAndUtilStore store;
@@ -92,21 +93,35 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
             .build();
     private final int chunkSize = 10;
 
+    private PlanReservedInstanceStore planReservedInstanceStore =
+            Mockito.mock(PlanReservedInstanceStore.class);
+    private BuyReservedInstanceStore buyReservedInstanceStore = mock(BuyReservedInstanceStore.class);
+
+    private PlanReservedInstanceRpcService planRiService = new PlanReservedInstanceRpcService(
+            planReservedInstanceStore, buyReservedInstanceStore);
+
     /**
      * Test gRPC server for mocking gRPC dependencies.
      */
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(repositoryService);
 
+    /**
+     * gRPC server for plan service.
+     */
+    @Rule
+    public GrpcTestServer planGrpcServer = GrpcTestServer.newServer(planRiService);
+
+
     @Before
     public void setup() throws Exception {
         supplyChainService = SupplyChainServiceGrpc.newBlockingStub(testServer.getChannel());
+        planReservedInstanceService = PlanReservedInstanceServiceGrpc.newBlockingStub(planGrpcServer.getChannel());
         // set time out on topology available or failure for 1 seconds
         store = Mockito.spy(new PlanProjectedRICoverageAndUtilStore(dsl, 1, RepositoryServiceGrpc
               .newBlockingStub(testServer.getChannel()), repositoryClient,
-               reservedInstanceBoughtStore, reservedInstanceSpecStore, supplyChainService, chunkSize,
+                planReservedInstanceService, reservedInstanceSpecStore, supplyChainService, chunkSize,
                realtimeTopologyContextId));
-
     }
 
     @Test
@@ -127,7 +142,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         mockPlanRIUtilizationTables();
         final List<PlanProjectedReservedInstanceUtilizationRecord> records = dsl
                         .selectFrom(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION).fetch();
-        assertEquals(1, records.size());
+        assertEquals(2, records.size());
         PlanProjectedReservedInstanceUtilizationRecord rcd = records.get(0);
         assertEquals(10L, rcd.getId(), DELTA);
         assertEquals(PLAN_ID, rcd.getPlanId(), DELTA);
@@ -135,31 +150,64 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         assertEquals(2L, rcd.getBusinessAccountId(), DELTA);
         assertEquals(100, rcd.getTotalCoupons(), DELTA);
         assertEquals(100, rcd.getUsedCoupons(), DELTA);
+
+        rcd = records.get(1);
+        assertEquals(11L, rcd.getId(), DELTA);
+        assertEquals(PLAN_ID, rcd.getPlanId(), DELTA);
+        assertEquals(0L, rcd.getAvailabilityZoneId(), DELTA);
+        assertEquals(2L, rcd.getBusinessAccountId(), DELTA);
+        assertEquals(200, rcd.getTotalCoupons(), DELTA);
+        assertEquals(0, rcd.getUsedCoupons(), DELTA);
+    }
+
+    /**
+     * Updates dummy RIs bought to simulate those selected by user in OCP RI inventory
+     * widget. Coupon capacity of these RIs is used to show total projected capacity value.
+     */
+    private void updateReservedInstanceBought() {
+        List<ReservedInstanceBought> selectedRis = new ArrayList<>();
+        selectedRis.add(ReservedInstanceBought.newBuilder()
+                .setId(10)
+                .setReservedInstanceBoughtInfo(
+                        ReservedInstanceBoughtInfo.newBuilder()
+                                .setReservedInstanceSpec(701L)
+                                .setBusinessAccountId(2)
+                                .setAvailabilityZoneId(1000)
+                                .setNumBought(1)
+                                .setDisplayName("m5.large")
+                                .setReservedInstanceBoughtCoupons(
+                                        ReservedInstanceBoughtCoupons.newBuilder()
+                                                .setNumberOfCoupons(100)
+                                )
+                ).build());
+        selectedRis.add(ReservedInstanceBought.newBuilder()
+                .setId(11)
+                .setReservedInstanceBoughtInfo(
+                        ReservedInstanceBoughtInfo.newBuilder()
+                                .setReservedInstanceSpec(702L)
+                                .setBusinessAccountId(2)
+                                .setAvailabilityZoneId(0)
+                                .setNumBought(1)
+                                .setDisplayName("t5.large")
+                                .setReservedInstanceBoughtCoupons(
+                                        ReservedInstanceBoughtCoupons.newBuilder()
+                                                .setNumberOfCoupons(200)
+                                )
+                ).build());
+
+        final UploadRIDataRequest uploadRequest =
+                UploadRIDataRequest
+                        .newBuilder()
+                        .setTopologyId(PLAN_ID)
+                        .addAllReservedInstanceBought(selectedRis)
+                        .build();
+        planReservedInstanceService.insertPlanReservedInstanceBought(uploadRequest);
+        when(planReservedInstanceStore.getReservedInstanceBoughtByPlanId(PLAN_ID))
+                .thenReturn(selectedRis);
     }
 
     private void mockPlanRIUtilizationTables() {
-        List<ReservedInstanceBought> riBought = new ArrayList<>();
-        riBought.add(ReservedInstanceBought.newBuilder().setId(10L)
-                .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                        .setReservedInstanceSpec(701L)
-                        .setAvailabilityZoneId(1000L)
-                        .setBusinessAccountId(2L)
-                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons
-                                .newBuilder().setNumberOfCoupons(100)))
-                .build());
-        riBought.add(ReservedInstanceBought.newBuilder().setId(5L)
-                .setReservedInstanceBoughtInfo(ReservedInstanceBoughtInfo.newBuilder()
-                        .setReservedInstanceSpec(702L)
-                        .setAvailabilityZoneId(2000L)
-                        .setBusinessAccountId(2L)
-                        .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons
-                                .newBuilder().setNumberOfCoupons(200)))
-                .build());
-        when(reservedInstanceBoughtStore
-             .getReservedInstanceBoughtByFilter(any())).thenReturn(riBought);
-        final Set<Long> riSpecId = new HashSet<>();
-        riSpecId.add(701L);
-        riSpecId.add(702L);
+        updateReservedInstanceBought();
         List<ReservedInstanceSpec> specs = new ArrayList<>();
         specs.add(ReservedInstanceSpec.newBuilder().setId(701L)
                 .setReservedInstanceSpecInfo(ReservedInstanceSpecInfo.newBuilder().setRegionId(3000L))
@@ -357,8 +405,10 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
                 store.getPlanReservedInstanceUtilizationStatsRecords(PLAN_ID, Collections.emptyList());
         assertEquals(1, statsRecords.size());
         final ReservedInstanceStatsRecord record = statsRecords.get(0);
-        assertEquals(100, record.getCapacity().getAvg(), DELTA);
-        assertEquals(100, record.getValues().getAvg(), DELTA);
+        // Coupon capacities are 100 and 200, so average is 150.
+        assertEquals(150, record.getCapacity().getAvg(), DELTA);
+        // Used coupons is 100 out of 2 coupons, so average is 50.
+        assertEquals(50, record.getValues().getAvg(), DELTA);
     }
 
     /**
