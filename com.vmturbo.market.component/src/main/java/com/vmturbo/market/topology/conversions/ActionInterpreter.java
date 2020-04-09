@@ -960,8 +960,8 @@ public class ActionInterpreter {
 
     private ResizeExplanation interpretResizeExplanation(ResizeTO resizeTO) {
         ResizeExplanation.Builder builder = ResizeExplanation.newBuilder()
-            .setStartUtilization(resizeTO.getStartUtilization())
-            .setEndUtilization(resizeTO.getEndUtilization());
+            .setDeprecatedStartUtilization(resizeTO.getStartUtilization())
+            .setDeprecatedEndUtilization(resizeTO.getEndUtilization());
         if (resizeTO.hasScalingGroupId()) {
             builder.setScalingGroupId(resizeTO.getScalingGroupId());
         }

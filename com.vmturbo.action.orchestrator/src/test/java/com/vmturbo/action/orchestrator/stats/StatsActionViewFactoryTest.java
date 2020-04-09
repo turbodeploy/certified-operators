@@ -41,8 +41,8 @@ public class StatsActionViewFactoryTest {
                                 .setTarget(targetEntity)))
                 .setExplanation(Explanation.newBuilder()
                         .setResize(ResizeExplanation.newBuilder()
-                                .setStartUtilization(1)
-                                .setEndUtilization(2)))
+                                .setDeprecatedStartUtilization(1)
+                                .setDeprecatedEndUtilization(2)))
                 .setDeprecatedImportance(10)
                 .build();
         final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(recommendation);

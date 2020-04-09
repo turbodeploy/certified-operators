@@ -451,7 +451,7 @@ public class ExplanationComposer {
         // NOT addressing special cases for: Ready Queue, Reserved Instance, Cloud Template, Fabric
         // Interconnect, VStorage, VCPU. If we really need those, we can add them in as necessary.
         ResizeExplanation resizeExplanation = action.getExplanation().getResize();
-        boolean isResizeDown = resizeExplanation.getStartUtilization() < resizeExplanation.getEndUtilization();
+        boolean isResizeDown = action.getInfo().getResize().getOldCapacity() > action.getInfo().getResize().getNewCapacity();
 
         // since we may show entity name, we are going to build a translatable explanation
         StringBuilder sb = new StringBuilder(keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX);
