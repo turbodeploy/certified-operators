@@ -446,19 +446,20 @@ public class ExplanationComposerTest {
                                 .setType(CommodityDTO.CommodityType.VMEM_VALUE))))
                 .setExplanation(Explanation.newBuilder()
                     .setResize(ResizeExplanation.newBuilder()
-                        .setStartUtilization(0.2f)
-                        .setEndUtilization(0.4f)));
+                        .setDeprecatedStartUtilization(0.2f)
+                        .setDeprecatedEndUtilization(0.4f)));
 
-        // test a resize up
+        // test resize down by capacity
+        action.getInfoBuilder().getResizeBuilder().setOldCapacity(4).setNewCapacity(2).build();
         assertEquals("(^_^)~Underutilized VMem in Virtual Machine {entity:0:displayName:}",
             ExplanationComposer.composeExplanation(action.build()));
         assertEquals("Underutilized VMem",
             ExplanationComposer.shortExplanation(action.build()));
 
-        // test a resize down
-        action.getExplanationBuilder().getResizeBuilder().setStartUtilization(1).setEndUtilization(0);
+        // test resize up by capacity
+        action.getInfoBuilder().getResizeBuilder().setOldCapacity(2).setNewCapacity(4).build();
         assertEquals("(^_^)~VMem congestion in Virtual Machine {entity:0:displayName:}",
-                ExplanationComposer.composeExplanation(action.build()));
+            ExplanationComposer.composeExplanation(action.build()));
         assertEquals("VMem congestion",
             ExplanationComposer.shortExplanation(action.build()));
 
