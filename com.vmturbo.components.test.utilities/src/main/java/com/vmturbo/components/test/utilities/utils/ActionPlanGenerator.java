@@ -491,8 +491,8 @@ public class ActionPlanGenerator {
             return makeAction(
                 Explanation.newBuilder()
                     .setResize(ResizeExplanation.newBuilder()
-                        .setDeprecatedStartUtilization(chooser.nextFloat())
-                        .setDeprecatedEndUtilization(chooser.nextFloat())),
+                        .setStartUtilization(chooser.nextFloat())
+                        .setEndUtilization(chooser.nextFloat())),
                 ActionInfo.newBuilder()
                     .setResize(Resize.newBuilder()
                         .setTarget(chooser.actionEntity())

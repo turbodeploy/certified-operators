@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.GROUP_TYPES;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,7 +22,6 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
-import org.apache.commons.collections4.SetUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -50,14 +47,12 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.SetOnce;
-import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -440,62 +435,6 @@ public class UuidMapper implements RepositoryListener {
         }
 
         /**
-         * Given a set of group OIDs, returns the expanded set of members.
-         *
-         * @param uuidsToExpand a set of group OIDs to get the members of
-         * @return a set of OIDs corresponding to the members of the input group OIDs
-         */
-        @Nonnull
-        public Set<Long> getGroupMembers(@Nullable Set<Long> uuidsToExpand) {
-            if (CollectionUtils.isEmpty(uuidsToExpand)) {
-                return Sets.newHashSet();
-            }
-            final GroupDTO.GetGroupsRequest groupsRequest = GroupDTO.GetGroupsRequest.newBuilder()
-                    .setGroupFilter(GroupDTO.GroupFilter.newBuilder()
-                            .addAllId(uuidsToExpand).build())
-                    .build();
-            final List<GroupAndMembers> groupsAndMembers = groupExpander.getGroupsWithMembers(groupsRequest);
-            return CollectionUtils.isEmpty(groupsAndMembers)
-                    ? Sets.newHashSet()
-                    : groupsAndMembers.stream()
-                            .map(GroupAndMembers::members)
-                            .flatMap(Collection::stream)
-                            .collect(Collectors.toSet());
-        }
-
-        /**
-         * Gathers all plan-scope entity OIDs, and expands plan-scope groups to expose group members.
-         * Combines all entity OIDs in a single collection filtered by CSP.
-         *
-         * @param statApiInputDTOList list of DTOs that potentially contain CSP filters
-         * @return a set of OIDs that the plan scope encompasses
-         */
-        public Set<Long> getPlanEntities(@Nullable List<StatApiInputDTO> statApiInputDTOList) {
-            final Optional<PlanInstance> planInstance = getPlanInstance();
-            if (!planInstance.isPresent()) {
-                return Sets.newHashSet();
-            }
-            final List<ScenarioOuterClass.PlanScopeEntry> planScopeEntries = planInstance.get()
-                    .getScenario()
-                    .getScenarioInfo()
-                    .getScope()
-                    .getScopeEntriesList();
-            final Map<Boolean, Set<Long>> isGroupToOids = planScopeEntries.stream()
-                    .collect(Collectors.groupingBy(
-                            planScopeEntry -> GROUP_TYPES.contains(planScopeEntry.getClassName()),
-                            Collectors.mapping(ScenarioOuterClass.PlanScopeEntry::getScopeObjectOid, Collectors.toSet())
-                    ));
-            final Set<Long> groupMemberOids = getGroupMembers(isGroupToOids.get(true));
-            final Set<Long> entityOids = isGroupToOids.get(false);
-            return filterEntitiesByCsp(
-                    SetUtils.union(
-                            CollectionUtils.isEmpty(entityOids) ? Sets.newHashSet() : entityOids,
-                            groupMemberOids),
-                    statApiInputDTOList
-            );
-        }
-
-        /**
          * Get the entity oids in this scope.
          *
          * @param userSessionContext if not null makes sure user has access to the scope.
@@ -519,7 +458,10 @@ public class UuidMapper implements RepositoryListener {
             } else if (isGroup()) {
                 result = getCachedGroupInfo().get().getEntityIds();
             } else if (isPlan()) {
-                result = getPlanEntities(statApiInputDTOList);
+                final Set<Long> entitiesInPlanScope = getPlanInstance()
+                    .map(MarketMapper::getPlanScopeIds)
+                    .orElse(Collections.emptySet());
+                result = filterEntitiesByCsp(entitiesInPlanScope, statApiInputDTOList);
             } else if (isTarget()) {
                 synchronized (targetOidsLock) {
                     if (targetOids == null) {
