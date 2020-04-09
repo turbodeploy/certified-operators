@@ -1054,7 +1054,8 @@ public class ActionSpecMapper {
 
         return reasonCommodities.stream()
                 .map(ReasonCommodity::getCommodityType)
-                .map(commodityType -> CommodityDTO.CommodityType.forNumber(commodityType.getType()).name())
+                .map(UICommodityType::fromType)
+                .map(UICommodityType::apiStr)
                 .collect(Collectors.joining(", "));
     }
 
@@ -1264,7 +1265,7 @@ public class ActionSpecMapper {
                 resize.getCommodityType().getType());
         Objects.requireNonNull(commodityType, "Commodity for number "
                 + resize.getCommodityType().getType());
-        actionApiDTO.getRisk().setReasonCommodity(commodityType.name());
+        actionApiDTO.getRisk().setReasonCommodity(UICommodityType.fromType(resize.getCommodityType()).apiStr());
         if (resize.hasCommodityAttribute()) {
             actionApiDTO.setResizeAttribute(resize.getCommodityAttribute().name());
         }
@@ -1388,9 +1389,8 @@ public class ActionSpecMapper {
 
         final List<String> reasonCommodityNames =
             activate.getTriggeringCommoditiesList().stream()
-                .map(commodityType -> CommodityDTO.CommodityType
-                    .forNumber(commodityType.getType()))
-                .map(CommodityDTO.CommodityType::name)
+                .map(UICommodityType::fromType)
+                .map(UICommodityType::apiStr)
                 .collect(Collectors.toList());
 
         actionApiDTO.getRisk()
@@ -1412,9 +1412,8 @@ public class ActionSpecMapper {
 
         final List<String> reasonCommodityNames =
                 deactivate.getTriggeringCommoditiesList().stream()
-                        .map(commodityType -> CommodityDTO.CommodityType
-                                .forNumber(commodityType.getType()))
-                        .map(CommodityDTO.CommodityType::name)
+                        .map(UICommodityType::fromType)
+                        .map(UICommodityType::apiStr)
                         .collect(Collectors.toList());
 
         actionApiDTO.getRisk().setReasonCommodity(
