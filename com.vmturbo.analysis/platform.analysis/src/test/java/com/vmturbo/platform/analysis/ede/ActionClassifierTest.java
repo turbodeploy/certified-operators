@@ -77,9 +77,9 @@ public class ActionClassifierTest {
                                         Collections.singletonList(0L));
         pm2 = firstTopology.addTrader(3L, 1, TraderState.ACTIVE, VMtoPM,
                                         Collections.singletonList(0L));
-        Trader st1 = firstTopology.addTrader(4L, 2, TraderState.ACTIVE, VMtoST,
+        final Trader st1 = firstTopology.addTrader(4L, 2, TraderState.ACTIVE, VMtoST,
                                         Collections.singletonList(0L));
-        Trader st2 = firstTopology.addTrader(5L, 2, TraderState.ACTIVE, VMtoST,
+        final Trader st2 = firstTopology.addTrader(5L, 2, TraderState.ACTIVE, VMtoST,
                                         Collections.singletonList(0L));
 
         vm.setDebugInfoNeverUseInCode("VirtualMachine|1");
