@@ -633,8 +633,10 @@ public class UuidMapperTest {
         when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
 
         final long awsTargetId = 100L;
+        final long awsHiddenTargetId = 101L;
         final Long awsRegionOid = 1000L;
         final MinimalEntity awsRegion = MinimalEntity.newBuilder()
+                .addDiscoveringTargetIds(awsHiddenTargetId)
                 .addDiscoveringTargetIds(awsTargetId)
                 .setOid(awsRegionOid)
                 .build();
@@ -648,7 +650,19 @@ public class UuidMapperTest {
                         .category("Cloud")
                         .build())
                 .build();
+        // This is added to test all the Targets attached to the entity, not just the first one.
+        final ImmutableThinTargetInfo awsHiddenTargetInfo = ImmutableThinTargetInfo.builder()
+                .oid(awsHiddenTargetId)
+                .isHidden(true)
+                .displayName("AWS Hidden Target")
+                .probeInfo(ImmutableThinProbeInfo.builder()
+                        .type(SDKProbeType.AWS.getProbeType())
+                        .oid(2L)
+                        .category("Cloud")
+                        .build())
+                .build();
         when(thinTargetCache.getTargetInfo(awsTargetId)).thenReturn(Optional.of(awsTargetInfo));
+        when(thinTargetCache.getTargetInfo(awsHiddenTargetId)).thenReturn(Optional.of(awsHiddenTargetInfo));
 
         final long azureTargetId = 200L;
         final Long azureRegionOid = 2000L;
@@ -672,6 +686,8 @@ public class UuidMapperTest {
         when(multiEntityRequest.getMinimalEntities()).thenReturn(regionList.stream());
 
         when(cloudTypeMapper.fromTargetType(awsTargetInfo.probeInfo().type()))
+                .thenReturn(Optional.of(CloudType.AWS));
+        when(cloudTypeMapper.fromTargetType(awsHiddenTargetInfo.probeInfo().type()))
                 .thenReturn(Optional.of(CloudType.AWS));
         when(cloudTypeMapper.fromTargetType(azureTargetInfo.probeInfo().type()))
                 .thenReturn(Optional.of(CloudType.AZURE));

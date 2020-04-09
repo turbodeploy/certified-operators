@@ -52,8 +52,8 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.SetOnce;
@@ -996,15 +996,16 @@ public class UuidMapper implements RepositoryListener {
                 scopeOids = repositoryApi.entitiesRequest(scopeOids).getMinimalEntities()
                         .filter(e -> {
                             if (!e.getDiscoveringTargetIdsList().isEmpty()) {
-                                long targetId = e.getDiscoveringTargetIdsList().get(0);
-                                Optional<ThinTargetCache.ThinTargetInfo> thinInfo =
-                                        thinTargetCache.getTargetInfo(targetId);
-                                if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
-                                    ThinTargetCache.ThinTargetInfo probeInfo = thinInfo.get();
-                                    Optional<CloudType> cloudType =
+                                for (long targetId : e.getDiscoveringTargetIdsList()) {
+                                    Optional<ThinTargetCache.ThinTargetInfo> thinInfo =
+                                            thinTargetCache.getTargetInfo(targetId);
+                                    if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
+                                        ThinTargetCache.ThinTargetInfo probeInfo = thinInfo.get();
+                                        Optional<CloudType> cloudType =
                                                 cloudTypeMapper.fromTargetType(probeInfo.probeInfo().type());
-                                    if (cloudType.isPresent() && cspFilter.contains(cloudType.get().name())) {
-                                        return true;
+                                        if (cloudType.isPresent() && cspFilter.contains(cloudType.get().name())) {
+                                            return true;
+                                        }
                                     }
                                 }
                             }
