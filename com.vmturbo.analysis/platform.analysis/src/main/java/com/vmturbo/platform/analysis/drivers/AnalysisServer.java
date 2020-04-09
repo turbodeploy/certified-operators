@@ -430,7 +430,8 @@ public class AnalysisServer implements AutoCloseable {
                 economy.getSettings().setResizeDependentCommodities(false);
                 secondRoundActions.addAll(ede
                                 .generateActions(economy, instInfo.isClassifyActions(), true, true,
-                                                false, true, false, mktData)
+                                                false, true, false, mktData,
+                                                instInfo.getSuspensionsThrottlingConfig())
                                 .stream().filter(action -> action instanceof ProvisionBase
                                                 || action instanceof Activate
                                                 // Extract resizes that explicitly set extractAction to true as part
