@@ -451,7 +451,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             .build();
                     // Apply the reserved instance coverage, and return the percent of the entity's compute that's
                     // covered by reserved instances.
-                    reservedInstanceApplicator.recordRICoverage(computeTier, price);
+                    boolean recordLicenseCost = computeConfig.getLicenseModel() == LicenseModel.LICENSE_INCLUDED ? true : false;
+                    reservedInstanceApplicator.recordRICoverage(computeTier, price, recordLicenseCost);
                     recordVMIpCost(entity, computeTier, onDemandPriceTable.get(), journal);
                 }
             });

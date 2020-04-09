@@ -38,6 +38,7 @@ import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceA
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -89,6 +90,9 @@ public class CloudCostCalculatorTest {
     private static final Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = Maps.newHashMap();
 
     private static final NetworkConfig networkConfig = mock(NetworkConfig.class);
+
+    private final ComputeConfig computeConfig = new ComputeConfig(OSType.WINDOWS, Tenancy.DEFAULT,
+            VMBillingType.RESERVED, 4, EntityDTO.LicenseModel.LICENSE_INCLUDED);
 
     private static final double BASE_PRICE = 10.0;
     private static final double DEFAULT_RI_COVERAGE = 0.2;
@@ -172,7 +176,7 @@ public class CloudCostCalculatorTest {
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
             mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier, price)).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(riApplicator.recordRICoverage(computeTier, price, true)).thenReturn(trax(DEFAULT_RI_COVERAGE));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
             any(), eq(infoExtractor), eq(CLOUD_COST_DATA), eq(topologyRiCoverage)))
             .thenReturn(riApplicator);
@@ -217,7 +221,7 @@ public class CloudCostCalculatorTest {
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(eq(computeTier), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(riApplicator.recordRICoverage(eq(computeTier), any(), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                 any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -283,7 +287,7 @@ public class CloudCostCalculatorTest {
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(eq(computeTier), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(riApplicator.recordRICoverage(eq(computeTier), any(), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                 any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -325,7 +329,7 @@ public class CloudCostCalculatorTest {
         // Set up the RI applicator (no RI)
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier, price)).thenReturn(trax(0.0));
+        when(riApplicator.recordRICoverage(computeTier, price, true)).thenReturn(trax(0.0));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
             any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -530,7 +534,7 @@ public class CloudCostCalculatorTest {
         // Set up the RI applicator (no RI)
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(eq(computeTier), any())).thenReturn(trax(0.0));
+        when(riApplicator.recordRICoverage(eq(computeTier), any(), any())).thenReturn(trax(0.0));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                 any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
