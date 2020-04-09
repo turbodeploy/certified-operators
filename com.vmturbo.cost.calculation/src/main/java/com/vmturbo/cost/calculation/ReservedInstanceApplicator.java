@@ -23,7 +23,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxNumber;
@@ -88,7 +91,8 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
      *         This should be a number between 0 and 1.
      */
     public TraxNumber recordRICoverage(@Nonnull final ENTITY_CLASS computeTier,
-                                       @Nullable final Price price) {
+                                       @Nullable final Price price,
+                                       @Nonnull Boolean recordLicenseCost) {
         final long entityId = entityInfoExtractor.getId(journal.getEntity());
         return Optional.ofNullable(topologyRICoverage.get(entityId))
             .map(entityRiCoverage -> {
@@ -101,14 +105,14 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                         entityRiCoverage.getCouponsCoveredByRiMap(),
                         cloudCostData::getExistingRiBoughtData,
                         false,
-                        price);
+                        price, recordLicenseCost);
                 final TraxNumber coverageByBuyRIs = recordRICoverageEntries(
                         entityId,
                         totalRequired,
                         entityRiCoverage.getCouponsCoveredByBuyRiMap(),
                         cloudCostData::getBuyRIData,
                         true,
-                        price);
+                        price, recordLicenseCost);
                 final TraxNumber totalCovered = coverageByRIInventory.plus(coverageByBuyRIs).compute();
 
                 if (totalCovered.getValue() == totalRequired.getValue()) {
@@ -130,7 +134,8 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                                                @Nonnull Map<Long, Double> riCoverageEntries,
                                                @Nonnull Function<Long, Optional<ReservedInstanceData>> riDataResolver,
                                                boolean isBuyRI,
-                                               @Nonnull Price price) {
+                                               @Nonnull Price price,
+                                               @Nonnull Boolean recordLicenseCost) {
 
         TraxNumber totalCovered = trax(0);
         for (Map.Entry<Long, Double> riCoverageEntry : riCoverageEntries.entrySet()) {
@@ -157,12 +162,25 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                 if (isBuyRI) {
                     journal.recordBuyRIDiscount(CostCategory.ON_DEMAND_LICENSE, riData, coveragePercentage);
                     journal.recordBuyRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData, coveragePercentage);
-                    journal.recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData, coveragePercentage, price, true);
+                    if (recordLicenseCost) {
+                        journal.recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData, coveragePercentage, price, true);
+                    } else {
+                        journal.recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData,
+                                coveragePercentage, Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
+                                        .setAmount(0).build()).build(), true);
+                    }
                 } else {
                     final TraxNumber riBoughtPercentage =
                             calculateRiBoughtPercentage(entityOid, coveredCoupons, riData);
                     journal.recordRiCost(riData, coveredCoupons, calculateEffectiveHourlyCost(riBoughtPercentage, riData));
-                    journal.recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData, coveragePercentage, price, false);
+                    if (recordLicenseCost) {
+                        journal.recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData,
+                                coveragePercentage, price, false);
+                    } else {
+                        journal.recordReservedLicenseCost(CostCategory.RESERVED_LICENSE, riData,
+                                coveragePercentage, Price.newBuilder().setPriceAmount(CurrencyAmount.newBuilder()
+                                .setAmount(0).build()).build(), false);
+                    }
                     journal.recordRIDiscount(CostCategory.ON_DEMAND_LICENSE, riData, coveragePercentage);
                     journal.recordRIDiscount(CostCategory.ON_DEMAND_COMPUTE, riData, coveragePercentage);
                 }
