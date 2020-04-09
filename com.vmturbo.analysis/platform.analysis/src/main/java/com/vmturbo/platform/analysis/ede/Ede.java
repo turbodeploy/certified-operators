@@ -89,9 +89,20 @@ public final class Ede {
     }
 
     /**
-     * Generate Actions.
+     * Returns a new set of actions for a snapshot of the economy.
      *
-     * Add 'collapse' argument
+     * <p>This is an overloaded version providing default values for a number of arguments.</p>
+     *
+     * @param economy The snapshot of the economy which we analyze and take decisions.
+     * @param classifyActions True if we we want to classify actions into non-executable.
+     * @param isProvision True if we need to trigger provision algorithm and false otherwise
+     * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
+     * @param isResize True if we need to trigger resize algorithm and false otherwise
+     * @param mktName contains the market name and any stats to be written to the row
+     *          delimited by "|"
+     *
+     * @return A list of actions suggested by the economic decisions engine.
+     *
      * @see #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, ReplayActions, String)
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
@@ -101,9 +112,19 @@ public final class Ede {
                                isResize, false, false, new ReplayActions(), mktName);
     }
 
-    /** Generate Actions.
+    /**
+     * Returns a new set of actions for a snapshot of the economy.
      *
-     * Add 'collapse' and 'replay' argument
+     * <p>This is an overloaded version providing default values for a number of arguments.</p>
+     *
+     * @param economy The snapshot of the economy which we analyze and take decisions.
+     * @param classifyActions True if we we want to classify actions into non-executable.
+     * @param isProvision True if we need to trigger provision algorithm and false otherwise
+     * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
+     * @param isResize True if we need to trigger resize algorithm and false otherwise
+     *
+     * @return A list of actions suggested by the economic decisions engine.
+     *
      * @see #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, ReplayActions, String)
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
@@ -113,7 +134,7 @@ public final class Ede {
     }
 
     /**
-     * Create a new set of actions for a snapshot of the economy.
+     * Returns a new set of actions for a snapshot of the economy.
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
      * @param classifyActions True if we we want to classify actions into non-executable.
@@ -349,6 +370,7 @@ public final class Ede {
      * @param mktData contains the market name and any stats to be written to the row
      *          delimited by "|"
      * @param isRealTime True for analysis of a realtime topology
+     * @param suspensionsThrottlingConfig Whether suspensions should be capped to one per cluster.
      * @return A list of actions suggested by the economic decisions engine.
      *
      * @see ActionCollapse#collapsed(List)
