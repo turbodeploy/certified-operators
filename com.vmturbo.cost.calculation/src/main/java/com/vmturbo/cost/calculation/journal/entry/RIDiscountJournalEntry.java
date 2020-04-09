@@ -62,17 +62,11 @@ public class RIDiscountJournalEntry<E> implements QualifiedJournalEntry<E> {
             @Nonnull final EntityInfoExtractor<E> infoExtractor,
             @Nonnull final DiscountApplicator<E> discountApplicator,
             @Nonnull final RateExtractor rateExtractor) {
-        final long providerId =
-                riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getTierId();
-        final TraxNumber discountPercentage = discountApplicator.getDiscountPercentage(providerId);
-        final TraxNumber fullPricePercentage =
-                Trax.trax(1.0, "100%").minus(discountPercentage).compute("full price portion");
+        // OnDemand rate is already price-adjusted (discounted), so don't discount again.
         TraxNumber onDemandRate = rateExtractor.lookupCostWithFilter(targetCostCategory,
                 cs -> cs == CostSource.ON_DEMAND_RATE);
-        onDemandRate = Trax.trax(riBoughtPercentage.dividedBy(1).compute().times(-1).getValue())
+        return Trax.trax(riBoughtPercentage.dividedBy(1).compute().times(-1).getValue())
                 .times(onDemandRate)
-                .compute();
-        return onDemandRate.times(fullPricePercentage)
                 .compute(String.format("RI discounted %s cost (BuyRI=%s)",
                         targetCostCategory.getDescriptorForType().getFullName(), isBuyRI));
     }
