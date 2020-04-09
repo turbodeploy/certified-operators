@@ -309,7 +309,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
             .setProbeCategory("cat")
             .setProbeType("type")
-            .addTargetIdentifierField("field")
+            .addTargetIdentifierField("name")
             .addAccountDefinition(AccountDefEntry.newBuilder()
                 .setMandatory(true)
                 .setIsTargetDisplayName(true)

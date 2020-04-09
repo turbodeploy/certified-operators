@@ -326,7 +326,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         insertControllableAndSuspendableState(actionId, actionType, controlAffectedEntities);
 
         logger.info("Sending action {} execution request to probe", actionId);
-        remoteMediationServer.sendActionRequest(target.getProbeId(),
+        remoteMediationServer.sendActionRequest(target,
                 request, messageHandler);
 
         logger.info("Beginning {}", action);
@@ -455,7 +455,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                         validation,
                         remoteMediationServer.getMessageHandlerExpirationClock(),
                         validationTimeoutMs);
-        remoteMediationServer.sendValidationRequest(target.getProbeId(),
+        remoteMediationServer.sendValidationRequest(target,
                 validationRequest,
                 validationMessageHandler);
 
@@ -554,7 +554,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final long probeId;
         final DiscoveryRequest discoveryRequest;
         final DiscoveryMessageHandler discoveryMessageHandler;
-
+        final Target target;
         synchronized (this) {
             logger.info("Starting discovery for target: {} ({})", targetId, discoveryType);
             final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId, discoveryType);
@@ -563,7 +563,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 return currentDiscovery.get();
             }
 
-            final Target target = targetStore.getTarget(targetId)
+            target = targetStore.getTarget(targetId)
                     .orElseThrow(() -> new TargetNotFoundException(targetId));
             final String probeType = getProbeTypeWithCheck(target);
 
@@ -638,8 +638,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     .setCurrentDiscovery(discoveryType, discovery);
                 // associate the mediation message id with the Discovery object which will be used
                 // while processing discovery responses
-                final int messageId = remoteMediationServer.sendDiscoveryRequest(probeId,
-                    targetId, discoveryRequest, discoveryMessageHandler);
+                final int messageId = remoteMediationServer.sendDiscoveryRequest(target,
+                    discoveryRequest, discoveryMessageHandler);
                 discovery.setMediationMessageId(messageId);
             } catch (Exception ex) {
                 if (semaphore.isPresent()) {

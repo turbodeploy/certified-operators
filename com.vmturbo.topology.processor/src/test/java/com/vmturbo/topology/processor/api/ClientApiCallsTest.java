@@ -163,7 +163,10 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         Assert.assertEquals(Collections.emptySet(), getTopologyProcessor().getAllTargets());
 
         final long probeId = createProbe();
-        final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(probeId).build();
+        final TargetSpec targetSpec =
+            TargetSpec.newBuilder().setProbeId(probeId)
+                .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
+                    .setStringValue("targetId").setKey("targetId").build()).build();
         final Target target = targetStore.createTarget(targetSpec);
 
         final Set<TargetInfo> targetInfos = getTopologyProcessor().getAllTargets();
@@ -180,7 +183,9 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     public void testGetTarget() throws Exception {
         Assert.assertEquals(Collections.emptySet(), getTopologyProcessor().getAllTargets());
         final long probeId = createProbe();
-        final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(probeId).build();
+        final TargetSpec targetSpec = TargetSpec.newBuilder().setProbeId(probeId)
+            .addAccountValue(TopologyProcessorDTO.AccountValue.newBuilder()
+            .setStringValue("targetId").setKey("targetId").build()).build();
         final Target target = targetStore.createTarget(targetSpec);
 
         final TargetInfo targetInfo = getTopologyProcessor().getTarget(target.getId());

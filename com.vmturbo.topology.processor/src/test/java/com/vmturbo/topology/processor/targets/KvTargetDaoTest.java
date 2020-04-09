@@ -118,7 +118,7 @@ public class KvTargetDaoTest {
         final Target retTarget = kvTargetDao.getAll().get(0);
         Assert.assertEquals(target.getId(), retTarget.getId());
         Assert.assertEquals(target.getProbeId(), retTarget.getProbeId());
-        Assert.assertEquals(1, target.getMediationAccountVals(groupScopeResolver).size());
+        Assert.assertEquals(2, target.getMediationAccountVals(groupScopeResolver).size());
 
         final AccountValue accountVal = target.getMediationAccountVals(groupScopeResolver).get(0);
         Assert.assertEquals("name", accountVal.getKey());
@@ -153,7 +153,7 @@ public class KvTargetDaoTest {
         .build();
 
     private static final ProbeInfo PROBE_INFO = createProbeInfo("test", "vc",
-        "name", ImmutableList.of(SECRET_ACCOUNT_ENTRY, PLAIN_ACCOUNT_ENTRY));
+        PLAIN_FIELD_NAME, ImmutableList.of(SECRET_ACCOUNT_ENTRY, PLAIN_ACCOUNT_ENTRY));
 
     /**
      * Test that constructing a {@link CachingTargetStore} retrieves saved targets from
@@ -211,9 +211,9 @@ public class KvTargetDaoTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L,
-            Collections.singletonList(
-                new InputField("name",
-                    "value",
+            Arrays.asList(new InputField("name", "value",
+                Optional.of(Collections.singletonList(Collections.singletonList("test")))),
+                new InputField("targetId", "value",
                     Optional.of(Collections.singletonList(Collections.singletonList("test"))))));
         return new Target(0L, probeStore, spec.toDto(), true);
     }
