@@ -734,8 +734,8 @@ public class ActionSpecMapperTest {
 
         Explanation resize = Explanation.newBuilder()
             .setResize(ResizeExplanation.newBuilder()
-                .setStartUtilization(0.2f)
-                .setEndUtilization(0.4f).build())
+                .setDeprecatedStartUtilization(0.2f)
+                .setDeprecatedEndUtilization(0.4f).build())
             .build();
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
@@ -770,8 +770,8 @@ public class ActionSpecMapperTest {
                 .build();
         Explanation resize = Explanation.newBuilder()
                 .setResize(ResizeExplanation.newBuilder()
-                        .setStartUtilization(0.2f)
-                        .setEndUtilization(0.4f).build())
+                        .setDeprecatedStartUtilization(0.2f)
+                        .setDeprecatedEndUtilization(0.4f).build())
                 .build();
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
             topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)));
@@ -804,8 +804,8 @@ public class ActionSpecMapperTest {
             .build();
         Explanation resize = Explanation.newBuilder()
             .setResize(ResizeExplanation.newBuilder()
-                .setStartUtilization(0.2f)
-                .setEndUtilization(0.4f).build())
+                .setDeprecatedStartUtilization(0.2f)
+                .setDeprecatedEndUtilization(0.4f).build())
             .build();
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
@@ -843,8 +843,8 @@ public class ActionSpecMapperTest {
             .build();
         Explanation resize = Explanation.newBuilder()
             .setResize(ResizeExplanation.newBuilder()
-                .setStartUtilization(0.2f)
-                .setEndUtilization(0.4f).build())
+                .setDeprecatedStartUtilization(0.2f)
+                .setDeprecatedEndUtilization(0.4f).build())
             .build();
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
@@ -887,8 +887,8 @@ public class ActionSpecMapperTest {
 
         Explanation resize = Explanation.newBuilder()
                 .setResize(ResizeExplanation.newBuilder()
-                        .setStartUtilization(0.2f)
-                        .setEndUtilization(0.4f).build())
+                        .setDeprecatedStartUtilization(0.2f)
+                        .setDeprecatedEndUtilization(0.4f).build())
                 .build();
 
 
