@@ -410,7 +410,8 @@ public class MarketsService implements IMarketsService {
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
                                                 inputDto, Optional.empty(), apiId);
-        return actionSearchUtil.callActionService(filter, paginationRequest, inputDto.getDetailLevel());
+        return actionSearchUtil.callActionService(filter, paginationRequest, inputDto.getDetailLevel(),
+                apiId.getTopologyContextId());
     }
 
     /**

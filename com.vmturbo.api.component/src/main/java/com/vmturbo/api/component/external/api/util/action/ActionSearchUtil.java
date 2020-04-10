@@ -107,7 +107,8 @@ public class ActionSearchUtil {
                                                                                  scopeId);
 
             // call the service and retrieve results
-            return callActionService(filter, paginationRequest, inputDto.getDetailLevel());
+            return callActionService(filter, paginationRequest, inputDto.getDetailLevel(),
+                    scopeId.getTopologyContextId());
         }
 
         return paginationRequest.finalPageResponse(Collections.emptyList(), 0);
@@ -120,8 +121,8 @@ public class ActionSearchUtil {
      * @param paginationRequest pagination request
      * @param detailLevelOpt detail of the actions to be returned
      *                       (if null, then defaults to {@link ActionDetailLevel#STANDARD})
+     * @param contextId Real-time or plan topology context id.
      * @return the pagination response
-     * @throws OperationFailedException if the call to the supply chain service failed
      * @throws InterruptedException if thread is interrupted during processing.
      * @throws UnsupportedActionException translation to {@link ActionApiDTO} object failed for one object,
      *                                    because of action type that is not supported by the translation.
@@ -131,9 +132,10 @@ public class ActionSearchUtil {
     @Nonnull
     public ActionPaginationResponse callActionService(@Nonnull ActionQueryFilter filter,
                                                       @Nonnull ActionPaginationRequest paginationRequest,
-                                                      @Nullable ActionDetailLevel detailLevelOpt)
-            throws  InterruptedException, OperationFailedException,
-                    UnsupportedActionException, ExecutionException, ConversionException {
+                                                      @Nullable ActionDetailLevel detailLevelOpt,
+                                                      long contextId)
+            throws  InterruptedException, UnsupportedActionException,
+            ExecutionException, ConversionException {
         final ActionDetailLevel detailLevel = detailLevelOpt != null
                                                     ? detailLevelOpt
                                                     : ActionDetailLevel.STANDARD;
@@ -141,7 +143,7 @@ public class ActionSearchUtil {
         // call the service and retrieve results
         final FilteredActionResponse response = actionOrchestratorRpc.getAllActions(
                 FilteredActionRequest.newBuilder()
-                        .setTopologyContextId(realtimeTopologyContextId)
+                        .setTopologyContextId(contextId)
                         .setFilter(filter)
                         .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
                         .build());
@@ -150,7 +152,7 @@ public class ActionSearchUtil {
                                                 response.getActionsList().stream()
                                                         .map(ActionOrchestratorAction::getActionSpec)
                                                         .collect(Collectors.toList()),
-                                                realtimeTopologyContextId,
+                                                contextId,
                                                 detailLevel);
 
             final PaginationResponse paginationResponse = response.getPaginationResponse();
