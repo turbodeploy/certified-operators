@@ -294,12 +294,10 @@ public class TopologyEntitiesHandler {
             results = builder.build();
 
             // Update replay actions
-            ReplayActions newReplayActions = new ReplayActions();
-            newReplayActions.setTopology(topology);
-            newReplayActions.setActions(actions.stream()
+            analysis.setReplayActions(new ReplayActions(actions.stream()
                                 .filter(action -> action.getType().equals(ActionType.DEACTIVATE))
-                                .collect(Collectors.toList()));
-            analysis.setReplayActions(newReplayActions);
+                                .collect(Collectors.toList()),
+                            topology));
         }
 
         runTimer.observe();

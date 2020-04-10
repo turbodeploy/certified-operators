@@ -32,6 +32,7 @@ import java.util.stream.IntStream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -284,11 +285,10 @@ public class TopologyEntitiesHandlerTest {
      */
     @Test
     public void replayActionsTestForPlan() throws IOException, InvalidTopologyException {
-        ReplayActions replayActions = new ReplayActions();
-        Deactivate deactivateAction = mock(Deactivate.class);
-        replayActions.getActions().add(deactivateAction);
         Analysis analysis = mock(Analysis.class);
-
+        Deactivate deactivateAction = mock(Deactivate.class);
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(deactivateAction),
+                                                        new Topology());
         when(analysis.getReplayActions()).thenReturn(replayActions);
 
         generateEnd2EndActions(mock(Analysis.class));
