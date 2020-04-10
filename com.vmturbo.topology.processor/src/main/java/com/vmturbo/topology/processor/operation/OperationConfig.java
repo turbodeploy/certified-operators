@@ -102,7 +102,7 @@ public class OperationConfig {
     @Value("${maxConcurrentTargetDiscoveriesPerProbeCount}")
     private int maxConcurrentTargetDiscoveriesPerProbeCount;
 
-    @Value("${maxConcurrentTargetIncrementalDiscoveriesPerProbeCount}")
+    @Value("${maxConcurrentTargetIncrementalDiscoveriesPerProbeCount:10}")
     private int maxConcurrentTargetIncrementalDiscoveriesPerProbeCount;
 
     @Value("${probeDiscoveryPermitWaitTimeoutMins}")
