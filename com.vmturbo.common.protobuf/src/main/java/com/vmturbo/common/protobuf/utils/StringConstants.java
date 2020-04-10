@@ -31,6 +31,9 @@ public class StringConstants {
     public static final String DPOD = "DPod";
     public static final String CONTAINER = "Container";
     public static final String CONTAINERPOD = "ContainerPod";
+    public static final String NAMESPACE = "Namespace";
+    public static final String WORKLOAD_CONTROLLER = "WorkloadController";
+    public static final String CONTAINER_SPEC = "ContainerSpec";
     public static final String EMPTY_STRING = "";
     public static final String ENTITY = "entity";
     public static final String ENTITIES = "entities";
@@ -184,6 +187,7 @@ public class StringConstants {
     // Entity type class names
     public static final String VIRTUAL_MACHINE = "VirtualMachine";
     public static final String PHYSICAL_MACHINE = "PhysicalMachine";
+    public static final String HCI_PHYSICAL_MACHINE = "HCIPhysicalMachine";
     public static final String DATA_CENTER = "DataCenter";
     public static final String STORAGE = "Storage";
     public static final String APPSRV = "ApplicationServer";
@@ -232,13 +236,19 @@ public class StringConstants {
     public static final String NETWORK = "Network";
     /** Internet. */
     public static final String INTERNET = "Internet";
-    /** Virutal Volume. */
+    /** Virtual Volume. */
     public static final String VIRTUAL_VOLUME = "VirtualVolume";
     /** Hypervisor Server. */
     public static final String HYPERVISOR_SERVER = "HypervisorServer";
     /** Availability Zone. */
     public static final String AVAILABILITY_ZONE_ENTITY = "AvailabilityZone";
 
+    /**
+     * Setting names of default settings.
+     */
+    public static final String DEFAULTS = " Defaults";
+    public static final String PHYSICAL_MACHINE_SETTING_NAME = "Host";
+    public static final String IO_MODULE_SETTING_NAME = "IO Module";
     /**
      * The class name used in UI for workloads.
      */
@@ -260,6 +270,7 @@ public class StringConstants {
     public static final String NUM_STORAGES = "numStorages";
     public static final String NUM_CONTAINERS = "numContainers";
     public static final String NUM_CONTAINERPODS = "numContainerPods";
+    public static final String NUM_CORES = "numCores";
     public static final String NUM_VDCS = "numVDCs";
     public static final String NUM_VIRTUAL_DISKS = "numVirtualDisks";
     public static final String NUM_VIRTUAL_VOLUMES = "numVolumes";
@@ -324,6 +335,8 @@ public class StringConstants {
     public static final String SCOPE_TYPE ="scope_type";
     public static final String SCOPE_UUID = "scope_uuid";
     public static final String ENVIRONMENT_TYPE ="environmentType";
+    /** Name of state filter. */
+    public static final String STATE = "state";
     public static final String TAG_KEY = "tag_key";
     public static final String TAG_VALUE = "tag_value";
     public static final String N_WORKLOADS = "n_workloads";

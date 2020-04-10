@@ -10,15 +10,18 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
@@ -30,6 +33,7 @@ import org.junit.Test;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -42,8 +46,11 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.topology.processor.api.util.ImmutableThinProbeInfo;
 import com.vmturbo.topology.processor.api.util.ImmutableThinTargetInfo;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
@@ -60,7 +67,9 @@ public class StatsQueryExecutorTest {
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
-    private StatsQueryExecutor executor = new StatsQueryExecutor(contextFactory, scopeExpander, repositoryApi);
+    private UuidMapper uuidMapper = mock(UuidMapper.class);
+
+    private StatsQueryExecutor executor = new StatsQueryExecutor(contextFactory, scopeExpander, repositoryApi, uuidMapper);
 
     private ApiId scope = mock(ApiId.class);
 
@@ -77,6 +86,14 @@ public class StatsQueryExecutorTest {
 
         executor.addSubquery(statsSubQuery1);
         executor.addSubquery(statsSubQuery2);
+
+        when(uuidMapper.fromUuid(any())).thenReturn(scope);
+        when(scope.uuid()).thenReturn("1");
+        when(scope.isEntity()).thenReturn(true);
+        ApiEntityType apiEntityType = ApiEntityType.fromType(1);
+        Set<ApiEntityType> apiEntityTypeSet = new HashSet<>();
+        apiEntityTypeSet.add(apiEntityType);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(apiEntityTypeSet));
     }
 
     @Test
@@ -86,7 +103,6 @@ public class StatsQueryExecutorTest {
         when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
         when(expandedScope.getScopeOids()).thenReturn(Collections.emptySet());
         when(expandedScope.getExpandedOids()).thenReturn(Collections.emptySet());
-        when(scope.getScopeTypes()).thenReturn(Optional.empty());
 
         assertThat(executor.getAggregateStats(scope, period), is(Collections.emptyList()));
     }
@@ -411,6 +427,86 @@ public class StatsQueryExecutorTest {
         stats = executor.getAggregateStats(scope, period);
         assertFalse(stats.get(0).getStatistics().stream()
             .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
+    }
+
+    /**
+     * Test creation of cloud tier stats snapshots
+     *
+     * @throws Exception when testCreateCloudTierStatsSnapshot fails
+     */
+    @Test
+    public void testCreateCloudTierStatsSnapshot() throws Exception {
+        List<StatApiInputDTO> statApiInputDTOS = new ArrayList<>();
+        StatApiInputDTO statApiInputDTO1 = new StatApiInputDTO();
+        statApiInputDTO1.setName(UICommodityType.CPU.apiStr());
+        StatApiInputDTO statApiInputDTO2 = new StatApiInputDTO();
+        statApiInputDTO2.setName("numCores");
+        statApiInputDTOS.add(statApiInputDTO1);
+        statApiInputDTOS.add(statApiInputDTO2);
+        StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
+        period.setStatistics(statApiInputDTOS);
+
+        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
+        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(1L));
+        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(1L));
+
+        ApiEntityType apiEntityType = ApiEntityType.fromType(56);
+        Set<ApiEntityType> apiEntityTypeSet = new HashSet<>();
+        apiEntityTypeSet.add(apiEntityType);
+        when(scope.getScopeTypes()).thenReturn(Optional.of(apiEntityTypeSet));
+
+        // mock minimal entity
+        MinimalEntity minimalEntity = MinimalEntity.newBuilder()
+                .setOid(0)
+                .setEntityType(56)
+                .build();
+
+        // create mock topology entity dto
+        // commodity type (CPU)
+        TopologyDTO.CommodityType commodityType = TopologyDTO.CommodityType.newBuilder()
+                .setType(40)
+                .build();
+        // commodity sold
+        TopologyDTO.CommoditySoldDTO commoditySoldDTO = TopologyDTO.CommoditySoldDTO.newBuilder()
+                .setCommodityType(commodityType)
+                .setCapacity(20)
+                .build();
+        // compute tier info
+        TopologyDTO.TypeSpecificInfo.ComputeTierInfo computeTierInfo = TopologyDTO.TypeSpecificInfo.ComputeTierInfo
+                .newBuilder()
+                .setNumCores(8)
+                .build();
+        // type specific info
+        TopologyDTO.TypeSpecificInfo typeSpecificInfo = TopologyDTO.TypeSpecificInfo.newBuilder()
+                .setComputeTier(computeTierInfo)
+                .build();
+        // topology entity dto
+        TopologyEntityDTO topologyEntityDTO = TopologyEntityDTO.newBuilder()
+                .setOid(1)
+                .setEntityType(56)
+                .addCommoditySoldList(commoditySoldDTO)
+                .setTypeSpecificInfo(typeSpecificInfo)
+                .build();
+
+        RepositoryApi.SingleEntityRequest singleEntityRequest = ApiTestUtils.mockSingleEntityRequest(topologyEntityDTO);
+
+        when(uuidMapper.fromUuid(any())).thenReturn(scope);
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(singleEntityRequest);
+
+        // ACT
+        List<StatSnapshotApiDTO> results = executor.getAggregateStats(scope, period);
+
+        // ASSERT
+        assertThat(results.size(), is(1));
+        final StatSnapshotApiDTO resultSnapshot = results.get(0);
+        System.out.println(resultSnapshot);
+        assertThat(resultSnapshot.getStatistics().size(), is(2));
+        final StatApiDTO statApiDTO1 = resultSnapshot.getStatistics().get(0);
+        assertThat(statApiDTO1.getValue(), is(20F));
+        assertThat(statApiDTO1.getName(), is(UICommodityType.CPU.apiStr()));
+        final StatApiDTO statApiDTO2 = resultSnapshot.getStatistics().get(1);
+        assertThat(statApiDTO2.getValue(), is(8F));
+        assertThat(statApiDTO2.getName(), is("numCores"));
     }
 
     /**

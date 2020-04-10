@@ -104,8 +104,6 @@ public class VirtualMachineConverterTest {
         EntityDTO.Builder volume = EntityDTO.newBuilder()
                 .setEntityType(EntityType.VIRTUAL_VOLUME)
                 .setId(VOLUME_ID);
-        when(cloudDiscoveryConverter.getAvailabilityZone(entityToConvert))
-                .thenReturn(Optional.of(ZONE_ID));
         when(cloudDiscoveryConverter.createEphemeralVolumeId(anyString(),
                 anyInt(), anyString()))
                 .thenReturn(VOLUME_ID);

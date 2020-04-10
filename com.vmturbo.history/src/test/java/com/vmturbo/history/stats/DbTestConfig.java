@@ -8,6 +8,7 @@ import java.util.Properties;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.jooq.SQLDialect;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Value;
@@ -68,7 +69,17 @@ public class DbTestConfig {
         when(dbPasswordUtilMock.getSqlDbRootPassword()).thenReturn(DBPasswordUtil.obtainDefaultPW());
         final SQLConfigObject sqlConfigObject = new SQLConfigObject(LOCALHOST, 3306, testDbName,
             Optional.of(new UsernamePasswordCredentials("root", "vmturbo")), MARIADB, false, ImmutableMap.of(SQLDialect.MARIADB, PREP_STMTS_PROPERTY));
-        return new HistorydbIO(dbPasswordUtilMock, sqlConfigObject);
+        return new HistorydbIO(dbPasswordUtilMock, sqlConfigObject, testConnectionPoolProperties());
+    }
+
+    @Bean
+    PoolProperties testConnectionPoolProperties() {
+        PoolProperties p = new PoolProperties();
+        p.setMaxActive(5);
+        p.setInitialSize(1);
+        p.setMinIdle(0);
+        p.setMaxIdle(1);
+        return p;
     }
 
     @Bean

@@ -160,6 +160,12 @@ dependencies:
 #    repository: file://../base/elasticsearch
 #    condition: jaeger.enabled, jaeger.provisionDataStore.elasticsearch
 
+# Integration dependencies
+  - name: intersight-integration
+    repository: file://../services/intersight-integration
+    version: 0.1.0
+    condition: intersight-integration.enabled
+
 # Mediation dependencies
   - name: mediation-actionscript
     repository: file://../probes/mediation-actionscript

@@ -296,5 +296,138 @@
         ]
       }
     ]
+  },
+  "HCI_PHYSICAL_MACHINE" : {
+    "id" : 4,
+    "name" : "HCI Physical Machine Template Spec",
+    "resources" : [
+      {
+        "category" : {
+          "name" : "Compute"
+        },
+        "fields" : [
+          {
+            "name" : "numOfCores",
+            "displayName" : "Cores",
+            "valueType" : "NUMERIC",
+            "description" : "Number of Cores"
+          },
+          {
+            "name" : "cpuSpeed",
+            "displayName" : "CPU",
+            "valueType" : "NUMERIC",
+            "units" : "MHz",
+            "description" : "CPU Speed"
+          },
+          {
+            "name" : "ioThroughputSize",
+            "displayName" : "Size",
+            "units" : "MB/s",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "IO Throughput Size"
+          },
+          {
+            "name" : "memorySize",
+            "displayName" : "Size",
+            "units" : "MB",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "Memory Size"
+          },
+          {
+            "name" : "networkThroughputSize",
+            "displayName" : "Size",
+            "units" : "MB/s",
+            "divisor" : "1024f",
+            "valueType" : "NUMERIC",
+            "description" : "Network Throughput Size"
+          }
+        ]
+      },
+      {
+        "category" : {
+          "name" : "Storage"
+        },
+        "fields" : [
+          {
+            "name" : "storageAmount",
+            "displayName" : "Storage Amount",
+            "valueType" : "NUMERIC",
+            "units" : "GB",
+            "divisor" : "1024f",
+            "description" : "Storage Amount"
+          },
+          {
+            "name" : "diskIops",
+            "displayName" : "IOPS",
+            "valueType" : "NUMERIC",
+            "description" : "Disk IOPS"
+          },
+          {
+            "name" : "failuresToTolerate",
+            "displayName" : "Failures to Tolerate",
+            "valueType" : "NUMERIC",
+            "description" : "Failures to Tolerate",
+            "defaultValue" : "1f"
+          },
+          {
+            "name" : "spaceReservationPct",
+            "displayName" : "Space Reservation",
+            "valueType" : "NUMERIC",
+            "units" : "%",
+            "description" : "Space Reservation"
+          },
+          {
+            "name" : "compressionRatio",
+            "displayName" : "Compression Ratio",
+            "valueType" : "NUMERIC",
+            "description" : "Compression Ratio",
+            "defaultValue" : "1.0f"
+          },
+          {
+            "name" : "redundancyMethod",
+            "displayName" : "Redundancy Method",
+            "valueType" : "NUMERIC",
+            "description" : "Redundancy Method",
+            "defaultValue" : "1"
+          },
+          {
+            "name" : "isCompressionEnabled",
+            "displayName" : "Compression Enabled",
+            "valueType" : "NUMERIC",
+            "defaultValue" : "0"
+          }
+        ]
+      },
+      {
+        "category" : {
+          "name" : "Infrastructure"
+        },
+        "fields" : [
+          {
+            "name" : "powerSize",
+            "displayName" : "Size",
+            "valueType" : "NUMERIC",
+            "description" : "Power Size",
+            "defaultValue" : "1.0f"
+          },
+          {
+            "name" : "spaceSize",
+            "displayName" : "Size",
+            "valueType" : "NUMERIC",
+            "description" : "Space Size",
+            "defaultValue" : "1.0f"
+          },
+          {
+            "name" : "coolingSize",
+            "displayName" : "Size",
+            "valueType" : "NUMERIC",
+            "description" : "Cooling Size",
+            "defaultValue" : "1.0f"
+          }
+        ]
+      }
+    ]
   }
 }

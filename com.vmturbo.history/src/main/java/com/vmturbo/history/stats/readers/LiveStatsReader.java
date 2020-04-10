@@ -43,9 +43,9 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.EntityType;
@@ -197,7 +197,8 @@ public class LiveStatsReader implements INonPaginatingStatsReader<Record> {
                 paginationTimeRange.getMostRecentSnapshotTime(),
                 paginationTimeRange.getTimeFrame(),
                 paginationParams,
-                entityType);
+                entityType,
+                statsFilter);
 
         //  Only add records when next page is NOT empty, otherwise do an early return.
         if (nextPageInfo.getEntityOids().isEmpty()) {

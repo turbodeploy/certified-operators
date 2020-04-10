@@ -97,6 +97,7 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.GroupScopeProperty;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.GroupScopePropertySet;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.ProfileDTO.CommodityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO.DBProfileDTO;
@@ -135,6 +136,7 @@ import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
+import com.vmturbo.topology.processor.scheduling.UnsupportedDiscoveryTypeException;
 import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.KvTargetDao;
@@ -176,7 +178,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
     // With a mock schedule, the Gson response will always be with zero fields
     private static final String SCHEDULE_JSON =
-            GSON.toJson(mock(TargetDiscoverySchedule.class), TargetDiscoverySchedule.class);
+        "{\"targetId\":\"0\",\"scheduleIntervalMillis\":\"0\",\"incrementalIntervalMillis\":\"0\"}\n" +
+        "{\"targetId\":\"0\",\"scheduleIntervalMillis\":\"0\",\"incrementalIntervalMillis\":\"0\"}";
 
     private static final String IDENTIFIED_ENTITY =
             "{\"oid\":\"199\",\"entity\":"
@@ -359,8 +362,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     }
 
     @Test
-    public void testRestoreTargetsInvalidJson()
-        throws InvalidTargetException, TargetNotFoundException {
+    public void testRestoreTargetsInvalidJson() throws InvalidTargetException,
+            TargetNotFoundException, UnsupportedDiscoveryTypeException {
         final long targetId = 1;
         final TargetInfo validTarget = TargetInfo.newBuilder()
                 .setId(targetId)
@@ -394,7 +397,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 eq(targetId),
                 eq(validTarget.getSpec()));
         // Verify that we set the broadcast interval.
-        verify(scheduler).setDiscoverySchedule(targetId, 365, TimeUnit.DAYS);
+        verify(scheduler).setDiscoverySchedule(targetId, DiscoveryType.FULL, 365, TimeUnit.DAYS,
+            false);
     }
 
     /**
@@ -410,12 +414,15 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             new TestTopology("123456789").withTargetId(100001).withProbeId(101).withProbeInfo()
                 .withTime(12345).withEntity(IDENTIFIED_ENTITY).withDiscoveredClusterGroup()
                 .withSettingPolicy().withTemplate().withProfile().withTarget(mock(Target.class))
-                .withTargetInfo().setUpMocks(),
+                .withTargetInfo().withFullSchedule(mock(TargetDiscoverySchedule.class))
+                .withIncrementalSchedule(mock(TargetDiscoverySchedule.class))
+                .setUpMocks(),
 
             new TestTopology("abcdefghij").withTargetId(200001).withProbeId(201).withProbeInfo()
                 .withTargetInfo().withTime(23456).withDiscoveredGroupGroup().withSettingPolicy()
                 .withTemplate().withTarget(mock(Target.class)).withProfile()
-                .withSchedule(mock(TargetDiscoverySchedule.class))
+                .withFullSchedule(mock(TargetDiscoverySchedule.class))
+                .withIncrementalSchedule(mock(TargetDiscoverySchedule.class))
                 .setUpMocks()
         };
 
@@ -566,7 +573,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         List<Target> targets = simpleTargetStore.getAll();
         assertFalse(targets.isEmpty());
         for (Target target : simpleTargetStore.getAll()) {
-            verify(scheduler, times(1)).setDiscoverySchedule(target.getId(), 600000, TimeUnit.MILLISECONDS);
+            // one from restoring targets, one from restoring schedules
+            verify(scheduler, times(2)).setDiscoverySchedule(target.getId(), DiscoveryType.FULL,
+                365, TimeUnit.DAYS, false);
             verify(entityStore).entitiesRestored(eq(target.getId()), anyLong(), anyMapOf(Long.class, EntityDTO.class));
 
             ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
@@ -614,7 +623,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         private TargetInfo targetInfo;
         private long probeId;
         private ProbeInfo probeInfo;
-        private TargetDiscoverySchedule schedule;
+        private TargetDiscoverySchedule fullSchedule;
+        private TargetDiscoverySchedule incrementalSchedule;
         private DiscoveredGroupInfo discoveredGroupInfo;
         private DiscoveredSettingPolicyInfo settingPolicyInfo;
         private DeploymentProfileInfo profile;
@@ -634,7 +644,14 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
             when(entityStore.getTargetLastUpdatedTime(targetId)).thenReturn(Optional.of(time));
             doReturn(Optional.ofNullable(probeInfo)).when(probeStore).getProbe(eq(probeId));
-            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(Optional.ofNullable(schedule));
+            final Map<DiscoveryType, TargetDiscoverySchedule> scheduleMap = new HashMap<>();
+            if (fullSchedule != null) {
+                scheduleMap.put(DiscoveryType.FULL, fullSchedule);
+            }
+            if (incrementalSchedule != null) {
+                scheduleMap.put(DiscoveryType.INCREMENTAL, incrementalSchedule);
+            }
+            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(scheduleMap);
 
             final TargetDiscoveredData targetDiscoveredData = mock(TargetDiscoveredData.class);
             when(targetDiscoveredData.getDiscoveredSettingPolicies()).thenReturn(Stream.of(settingPolicyInfo));
@@ -661,7 +678,15 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
             when(entityStore.getTargetLastUpdatedTime(targetId)).thenReturn(Optional.of(time));
             doReturn(Optional.ofNullable(probeInfo)).when(probeStore).getProbe(eq(probeId));
-            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(Optional.ofNullable(schedule));
+
+            final Map<DiscoveryType, TargetDiscoverySchedule> scheduleMap = new HashMap<>();
+            if (fullSchedule != null) {
+                scheduleMap.put(DiscoveryType.FULL, fullSchedule);
+            }
+            if (incrementalSchedule != null) {
+                scheduleMap.put(DiscoveryType.INCREMENTAL, incrementalSchedule);
+            }
+            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(scheduleMap);
 
             return this;
         }
@@ -675,7 +700,14 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             probeMap.put(probeId, probeInfo);
             when(entityStore.getTargetLastUpdatedTime(targetId)).thenReturn(Optional.of(time));
             doReturn(Optional.ofNullable(probeInfo)).when(probeStore).getProbe(eq(probeId));
-            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(Optional.ofNullable(schedule));
+            final Map<DiscoveryType, TargetDiscoverySchedule> scheduleMap = new HashMap<>();
+            if (fullSchedule != null) {
+                scheduleMap.put(DiscoveryType.FULL, fullSchedule);
+            }
+            if (incrementalSchedule != null) {
+                scheduleMap.put(DiscoveryType.INCREMENTAL, incrementalSchedule);
+            }
+            when(scheduler.getDiscoverySchedule(targetId)).thenReturn(scheduleMap);
             discoveredGroupMap.put(targetId, TargetDiscoveredData.empty());
             return this;
         }
@@ -837,8 +869,13 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             return this;
         }
 
-        TestTopology withSchedule(TargetDiscoverySchedule schedule) {
-            this.schedule = schedule;
+        TestTopology withFullSchedule(TargetDiscoverySchedule schedule) {
+            this.fullSchedule = schedule;
+            return this;
+        }
+
+        TestTopology withIncrementalSchedule(TargetDiscoverySchedule incrementalSchedule) {
+            this.incrementalSchedule = incrementalSchedule;
             return this;
         }
 

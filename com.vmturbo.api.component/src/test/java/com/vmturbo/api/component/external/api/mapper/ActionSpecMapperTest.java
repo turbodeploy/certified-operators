@@ -97,6 +97,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -341,6 +342,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.ALLOCATE, actionApiDTO.getActionType());
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
+        assertEquals("4", actionApiDTO.getTemplate().getUuid());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
     }
@@ -695,7 +697,7 @@ public class ActionSpecMapperTest {
                 .thenReturn(projectedResponse);
 
         // act
-        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = mapper.createCloudResizeActionDetailsDTO(targetId);
+        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = mapper.createCloudResizeActionDetailsDTO(targetId, null);
 
         // check
         assertNotNull(cloudResizeActionDetailsApiDTO);
@@ -904,6 +906,40 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
         assertEquals(CommodityDTO.CommodityType.MEM.name(),
                 actionApiDTO.getRisk().getReasonCommodity());
+    }
+
+    /**
+     * Tests proper translation of action severity from the internal
+     * XL format to the API action class.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testActionSeverityXlToApi() throws Exception {
+        final long targetId = 1L;
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+                topologyEntityDTO("EntityToActivate", targetId, EntityType.VIRTUAL_MACHINE_VALUE)));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
+                .thenReturn(req);
+        final Activate activate = Activate.newBuilder()
+                                    .setTarget(ApiUtilsTest.createActionEntity(
+                                                    targetId, EntityType.VIRTUAL_MACHINE_VALUE))
+                                    .build();
+        final Action action = Action.newBuilder()
+                                .setId(0)
+                                .setDeprecatedImportance(0.0d)
+                                .setExplanation(Explanation.getDefaultInstance())
+                                .setInfo(ActionInfo.newBuilder()
+                                                .setActivate(activate))
+                                .build();
+        final ActionSpec actionSpec = ActionSpec.newBuilder()
+                                            .setSeverity(Severity.CRITICAL)
+                                            .setRecommendation(action)
+                                            .build();
+        assertEquals(ActionSpecMapper.mapSeverityToApi(Severity.CRITICAL),
+                     mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID)
+                        .getRisk()
+                        .getSeverity());
     }
 
     @Test
@@ -1346,6 +1382,47 @@ public class ActionSpecMapperTest {
         assertThat(filter.getEndDate(), is(2_000_000L));
     }
 
+    /**
+     * Test that getting actions by market UUID fails if given future start time.
+     *
+     * @throws Exception should throw {@link IllegalArgumentException}.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetActionsByMarketUuidShouldFailGivenFutureStartTime() throws Exception {
+        final ActionApiInputDTO actionDTO = new ActionApiInputDTO();
+        final Long currentDateTime = DateTimeUtil.parseTime(DateTimeUtil.getNow());
+        final String futureDate = DateTimeUtil.addDays(currentDateTime, 2);
+        actionDTO.setStartTime(futureDate);
+        createFilter(actionDTO);
+    }
+
+    /**
+     * Test that getting actions by market UUID fails if given start time after end time.
+     *
+     * @throws Exception should throw {@link IllegalArgumentException}.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetActionsByMarketUuidShouldFailGivenStartTimeAfterEndTime() throws Exception {
+        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
+        String currentDateTime = DateTimeUtil.getNow();
+        String futureDate = DateTimeUtil.addDays(DateTimeUtil.parseTime(currentDateTime), 2);
+        actionDTO.setStartTime(futureDate);
+        actionDTO.setEndTime(currentDateTime);
+        createFilter(actionDTO);
+    }
+
+    /**
+     * Test that getting actions by market UUID fails if given end time and no start time.
+     *
+     * @throws Exception should throw {@link IllegalArgumentException}.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetActionsByMarketUuidShouldFailGivenEndTimeOnly() throws Exception {
+        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
+        actionDTO.setEndTime(DateTimeUtil.getNow());
+        createFilter(actionDTO);
+    }
+
     @Test
     public void testCreateActionFilterEnvTypeCloud() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
@@ -1405,6 +1482,18 @@ public class ActionSpecMapperTest {
         assertTrue(filter.hasInvolvedEntities());
         assertEquals(Sets.union(buyRiOids, involvedEntities),
                 new HashSet<>(filter.getInvolvedEntities().getOidsList()));
+    }
+
+    /**
+     * Tests that a list of API strings representing severity filters
+     * is translated correctly into an internal XL filter.
+     */
+    @Test
+    public void testCreateActionFilterWithSeverities() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+        inputDto.setRiskSeverityList(ImmutableList.of("Critical", "MAJOR"));
+        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, Optional.empty(), null);
+        Assert.assertThat(filter.getSeveritiesList(), containsInAnyOrder(Severity.CRITICAL, Severity.MAJOR));
     }
 
     /**
@@ -1488,7 +1577,7 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapClearedState() {
-        Optional<ActionDTO.ActionState> state = mapper.mapApiStateToXl(com.vmturbo.api.enums.ActionState.CLEARED);
+        Optional<ActionDTO.ActionState> state = ActionSpecMapper.mapApiStateToXl(com.vmturbo.api.enums.ActionState.CLEARED);
         assertThat(state.get(), is(ActionDTO.ActionState.CLEARED));
     }
 
@@ -1531,7 +1620,7 @@ public class ActionSpecMapperTest {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
                 .setActionState(ActionDTO.ActionState.POST_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
-        com.vmturbo.api.enums.ActionState actionState = mapper.mapXlActionStateToApi(actionSpec.getActionState());
+        com.vmturbo.api.enums.ActionState actionState = ActionSpecMapper.mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
     }
 
@@ -1540,7 +1629,7 @@ public class ActionSpecMapperTest {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
                 .setActionState(ActionDTO.ActionState.PRE_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
-        com.vmturbo.api.enums.ActionState actionState = mapper.mapXlActionStateToApi(actionSpec.getActionState());
+        com.vmturbo.api.enums.ActionState actionState = ActionSpecMapper.mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
     }
 

@@ -14,16 +14,15 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
@@ -36,6 +35,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -114,12 +114,12 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             return;
         }
         final TopologyGraph<RepoGraphEntity> topologyGraph = topologyGraphOpt.get().entityGraph();
-        List<SearchParameters> searchParametersList = request.getSearchParametersList();
+        SearchQuery searchQuery = request.getSearch();
         try {
-            Tracing.log(() -> logParams("Starting entity count with params - ", searchParametersList));
+            Tracing.log(() -> logParams("Starting entity count with params - ", searchQuery.getSearchParametersList()));
 
             final long entityCount =
-                searchResolver.search(searchParametersList, topologyGraph).count();
+                searchResolver.search(searchQuery, topologyGraph).count();
 
             Tracing.log(() -> "Counted " + entityCount + " entities.");
 
@@ -156,13 +156,13 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             return;
         }
 
-        final List<SearchParameters> searchParameters = request.getSearchParametersList();
+        final SearchQuery searchQuery = request.getSearch();
 
         try {
-            Tracing.log(() -> logParams("Starting entity oid search with params - ", searchParameters));
+            Tracing.log(() -> logParams("Starting entity oid search with params - ", searchQuery.getSearchParametersList()));
 
             final Stream<RepoGraphEntity> entities =
-                internalSearch(request.getEntityOidList(), searchParameters);
+                internalSearch(request.getEntityOidList(), searchQuery);
             final SearchEntityOidsResponse.Builder responseBuilder = SearchEntityOidsResponse.newBuilder();
             entities.map(RepoGraphEntity::getOid).forEach(responseBuilder::addEntities);
 
@@ -187,11 +187,12 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
                 .withDescription("No real-time topology exists.").asException());
             return;
         }
-        final List<SearchParameters> searchParameters = request.getSearchParametersList();
 
-        Tracing.log(() -> logParams("Starting entity stream search with params - ", searchParameters));
+        final SearchQuery searchQuery = request.getSearch();
 
-        final Stream<PartialEntity> entities = internalSearch(request.getEntityOidList(), searchParameters)
+        Tracing.log(() -> logParams("Starting entity stream search with params - ", searchQuery.getSearchParametersList()));
+
+        final Stream<PartialEntity> entities = internalSearch(request.getEntityOidList(), searchQuery)
             .map(entity -> partialEntityConverter.createPartialEntity(entity, request.getReturnType()));
 
         // send the results in batches, if needed
@@ -228,11 +229,11 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
             responseObserver.onCompleted();
         }
 
-        final List<SearchParameters> searchParameters = request.getSearchParametersList();
+        final SearchQuery searchQuery = request.getSearch();
         try {
-            Tracing.log(() -> logParams("Starting entity search with params - ", searchParameters));
+            Tracing.log(() -> logParams("Starting entity search with params - ", searchQuery.getSearchParametersList()));
 
-            final Stream<RepoGraphEntity> entities = internalSearch(request.getEntityOidList(), searchParameters);
+            final Stream<RepoGraphEntity> entities = internalSearch(request.getEntityOidList(), searchQuery);
             final PaginatedResults paginatedResults =
                 liveTopologyPaginator.paginate(entities, request.getPaginationParams());
 
@@ -345,7 +346,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
     }
 
     protected Stream<RepoGraphEntity> internalSearch(@Nonnull final List<Long> entityOidList,
-                                                   @Nonnull final List<SearchParameters> params) {
+                                                   @Nonnull final SearchQuery search) {
         final List<SearchParameters> finalParams;
         // If we got an explicit entity OID list, treat it as a new "starting" filter.
         // If there were no existing search params, we can just create a new parameter.
@@ -356,10 +357,10 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         // to provide a list of IDs as the starting filter.
         if (!entityOidList.isEmpty()) {
             final PropertyFilter idFilter = SearchProtoUtil.idFilter(entityOidList);
-            if (params.isEmpty()) {
+            if (search.getSearchParametersList().isEmpty()) {
                 finalParams = Collections.singletonList(SearchProtoUtil.makeSearchParameters(idFilter).build());
             } else {
-                finalParams = params.stream()
+                finalParams = search.getSearchParametersList().stream()
                     .map(oldParam -> {
                         final SearchParameters.Builder bldr = oldParam.toBuilder();
                         // Add the previous starting filter as the first search filter. This preserves
@@ -372,7 +373,7 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
         } else {
             // If there are no explicitly provided starting OIDs, use the provided search params
             // normally. This is the main execution path.
-            finalParams = params;
+            finalParams = search.getSearchParametersList();
         }
 
         return liveTopologyStore.getSourceTopology()
@@ -381,7 +382,10 @@ public class TopologyGraphSearchRpcService extends SearchServiceImplBase {
                 if (finalParams.isEmpty()) {
                     results = realtimeTopology.entityGraph().entities();
                 } else {
-                    results = searchResolver.search(finalParams, realtimeTopology.entityGraph());
+                    results = searchResolver.search(SearchQuery.newBuilder(search)
+                        .clearSearchParameters()
+                        .addAllSearchParameters(finalParams)
+                        .build(), realtimeTopology.entityGraph());
                 }
 
                 // if the user is scoped, add a filter to the results.

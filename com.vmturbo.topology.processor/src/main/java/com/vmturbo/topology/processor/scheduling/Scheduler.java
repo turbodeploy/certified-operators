@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.scheduling;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,10 +22,12 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.kvstore.KeyValueStore;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.OperationManager;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule.TargetDiscoveryScheduleData;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
@@ -44,7 +47,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Topolog
  *
  * When a scheduled discovery is attempted for a target that already has an ongoing discovery, a
  * pending discovery is instead added for that target. See
- * {@link OperationManager#addPendingDiscovery(long)} for further details on how this works.
+ * {@link OperationManager#addPendingDiscovery(long, DiscoveryType)} for further details on how this works.
  *
  * TOPOLOGY BROADCAST NOTES: There is a single schedule for topology broadcasting.
  * Setting the discovery schedule for a topology broadcast overrides the previously set schedule.
@@ -60,15 +63,19 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Topolog
  * separate thread.
  */
 @ThreadSafe
-public class Scheduler implements TargetStoreListener {
+public class Scheduler implements TargetStoreListener, ProbeStoreListener {
     private final Logger logger = LogManager.getLogger();
-    // thread pool for scheduling discoveries on.
-    private final ScheduledExecutorService discoveryScheduleExecutor;
+    // thread pool for scheduling full discoveries on.
+    private final ScheduledExecutorService fullDiscoveryScheduleExecutor;
+    // thread pool for scheduling incremental discoveries on.
+    private final ScheduledExecutorService incrementalDiscoveryScheduleExecutor;
     // thread pool for scheduling the realtime broadcast.
     private final ScheduledExecutorService broadcastExecutor;
     // thread pool for expiring long-running operations with.
     private final ScheduledExecutorService expiredOperationExecutor;
-    private final Map<Long, TargetDiscoverySchedule> discoveryTasks;
+    // mapping from target id to mapping of schedule by discovery type
+    private final Map<Long, Map<DiscoveryType, TargetDiscoverySchedule>> discoveryTasks;
+
     private final IOperationManager operationManager;
     private final TargetStore targetStore;
     private final ProbeStore probeStore;
@@ -94,7 +101,8 @@ public class Scheduler implements TargetStoreListener {
      * @param scheduleStore The store used for saving and loading data data from/to persistent storage.
      * @param journalFactory The factory for constructing stitching journals to be used in tracing changes
      *                       made during topology broadcasts initiated by the scheduler.
-     * @param discoveryExecutor The executor to be used for scheduling discoveries.
+     * @param fullDiscoveryExecutor The executor to be used for scheduling full discoveries.
+     * @param incrementalDiscoveryExecutor The executor to be used for scheduling incremental discoveries.
      * @param broadcastExecutor The executor to be used for scheduling realtime broadcasts.
      * @param expirationExecutor The executor to be used for scheduling pending operation expiration checks.
      * @param initialBroadcastIntervalMinutes The initial broadcast interval specified in minutes.
@@ -105,7 +113,8 @@ public class Scheduler implements TargetStoreListener {
                      @Nonnull final TopologyHandler topologyHandler,
                      @Nonnull final KeyValueStore scheduleStore,
                      @Nonnull final StitchingJournalFactory journalFactory,
-                     @Nonnull final ScheduledExecutorService discoveryExecutor,
+                     @Nonnull final ScheduledExecutorService fullDiscoveryExecutor,
+                     @Nonnull final ScheduledExecutorService incrementalDiscoveryExecutor,
                      @Nonnull final ScheduledExecutorService broadcastExecutor,
                      @Nonnull final ScheduledExecutorService expirationExecutor,
                      final long initialBroadcastIntervalMinutes) {
@@ -114,13 +123,15 @@ public class Scheduler implements TargetStoreListener {
         this.probeStore = Objects.requireNonNull(probeStore);
         this.topologyHandler = Objects.requireNonNull(topologyHandler);
         this.journalFactory = Objects.requireNonNull(journalFactory);
-        this.discoveryScheduleExecutor = Objects.requireNonNull(discoveryExecutor);
+        this.fullDiscoveryScheduleExecutor = Objects.requireNonNull(fullDiscoveryExecutor);
+        this.incrementalDiscoveryScheduleExecutor = Objects.requireNonNull(incrementalDiscoveryExecutor);
         this.broadcastExecutor = Objects.requireNonNull(broadcastExecutor);
         this.expiredOperationExecutor = Objects.requireNonNull(expirationExecutor);
         this.scheduleStore = Objects.requireNonNull(scheduleStore);
 
         discoveryTasks = new HashMap<>();
         broadcastSchedule = Optional.empty();
+        probeStore.addListener(this);
         targetStore.addListener(this);
 
         boolean requireSavedScheduleData = scheduleStore.containsKey(SCHEDULE_KEY_OFFSET);
@@ -145,36 +156,50 @@ public class Scheduler implements TargetStoreListener {
      * the next discovery, and then discoveries will be requested at every 5 minute interval after that.
      *
      * @param targetId The ID of the target to discover.
+     * @param discoveryType type of the discovery to set schedule for.
      * @param discoveryInterval The interval at which to discover the target.
      * @param unit The time units to apply to the discovery interval.
+     * @param syncToBroadcastSchedule whether or not to sync with broadcast schedule.
      * @throws TargetNotFoundException when the targetId is not associated with any known target.
+     * @throws UnsupportedDiscoveryTypeException when the discovery type is not supported by probe.
      * @throws IllegalArgumentException when the discoveryInterval is less than or equal to zero.
      * @return The discovery schedule for the input target.
      */
     @Nonnull
     public synchronized TargetDiscoverySchedule setDiscoverySchedule(final long targetId,
-                                                                     final long discoveryInterval,
-                                                                     @Nonnull final TimeUnit unit)
-        throws TargetNotFoundException {
-        targetStore.getTarget(targetId).orElseThrow(
-            () -> new TargetNotFoundException(targetId));
+            @Nonnull final DiscoveryType discoveryType, final long discoveryInterval,
+            @Nonnull final TimeUnit unit, final boolean syncToBroadcastSchedule)
+            throws TargetNotFoundException, UnsupportedDiscoveryTypeException {
         if (discoveryInterval <= 0) {
             throw new IllegalArgumentException("Illegal discovery interval: " + discoveryInterval);
         }
 
-        final long discoveryIntervalMillis = TimeUnit.MILLISECONDS.convert(discoveryInterval, unit);
-        saveScheduleData(new TargetDiscoveryScheduleData(discoveryIntervalMillis, false), Long.toString(targetId));
+        Target target = targetStore.getTarget(targetId).orElseThrow(
+            () -> new TargetNotFoundException(targetId));
 
-        final Optional<TargetDiscoverySchedule> existingSchedule = stopAndRemoveDiscoverySchedule(targetId);
+        // get the probe info so we can find the probe's preferred discovery interval.
+        ProbeInfo probeInfo = probeStore.getProbe(target.getProbeId()).orElseThrow(
+            () -> new IllegalStateException("Probe id " + target.getProbeId() + " not found in probe store."));
+
+        // check if the given discovery type is supported by probe
+        getDiscoveryInterval(probeInfo, discoveryType, syncToBroadcastSchedule).orElseThrow(
+            () -> new UnsupportedDiscoveryTypeException(discoveryType, probeInfo.getProbeType()));
+
+        final long discoveryIntervalMillis = TimeUnit.MILLISECONDS.convert(discoveryInterval, unit);
+        saveTargetScheduleData(targetId, discoveryType, discoveryIntervalMillis, syncToBroadcastSchedule);
+
+        final Optional<TargetDiscoverySchedule> existingSchedule = stopAndRemoveDiscoverySchedule(
+            targetId, discoveryType);
         final long initialDelayMillis = calculateInitialDelayMillis(discoveryIntervalMillis, existingSchedule);
 
-        return scheduleDiscovery(targetId, initialDelayMillis, discoveryIntervalMillis, false);
+        return scheduleDiscovery(targetId, initialDelayMillis, discoveryIntervalMillis,
+            discoveryType, syncToBroadcastSchedule);
     }
 
     /**
-     * Set the discovery schedule for a target, synched to the broadcast schedule. The schedule interval
-     * will be set to match the broadcast schedule interval. If the broadcast schedule interval is updated,
-     * the synched discovery schedule will also be updated.
+     * Set the discovery schedule for a target. If syncToBroadcastSchedule is true, the schedule
+     * interval will be set to match the broadcast schedule interval. If the broadcast schedule
+     * interval is updated, the synched discovery schedule will also be updated.
      *
      * If a schedule was previously set for a target, that schedule will be overridden.
      * When overriding an existing schedule, time elapsed against the previously set schedule will
@@ -193,60 +218,116 @@ public class Scheduler implements TargetStoreListener {
      * probe discoveries do.
      *
      * @param targetId The ID of the target to discover.
+     * @param discoveryType type of the discovery.
+     * @param syncToBroadcastSchedule whether or not to sync with broadcast schedule.
      * @throws TargetNotFoundException when the targetId is not associated with any known target.
+     * @throws UnsupportedDiscoveryTypeException when the type of discovery is not supported by platform
      * @return The discovery schedule for the input target.
      */
     @Nonnull
-    public synchronized TargetDiscoverySchedule setBroadcastSynchedDiscoverySchedule(final long targetId)
-        throws TargetNotFoundException {
+    public synchronized TargetDiscoverySchedule setDiscoverySchedule(final long targetId,
+                                                                     DiscoveryType discoveryType,
+                                                                     boolean syncToBroadcastSchedule)
+            throws TargetNotFoundException, UnsupportedDiscoveryTypeException {
         Target target = targetStore.getTarget(targetId).orElseThrow(
             () -> new TargetNotFoundException(targetId));
 
         // get the probe info so we can find the probe's preferred discovery interval.
         ProbeInfo probeInfo = probeStore.getProbe(target.getProbeId()).orElseThrow(
-            () -> new IllegalStateException("Probe id "+ target.getProbeId() +" not found in probe store."));
+            () -> new IllegalStateException("Probe id " + target.getProbeId() + " not found in probe store."));
 
-        long discoveryIntervalMillis = getProbeDiscoveryInterval(probeInfo);
+        // check if the given discovery type is supported by probe
+        long probeDiscoveryIntervalMillis = getDiscoveryInterval(probeInfo, discoveryType,
+            syncToBroadcastSchedule).orElseThrow(
+                () -> new UnsupportedDiscoveryTypeException(discoveryType, probeInfo.getProbeType()));
 
-        saveScheduleData(new TargetDiscoveryScheduleData(discoveryIntervalMillis, true), Long.toString(targetId));
-
-        final Optional<TargetDiscoverySchedule> existingSchedule = stopAndRemoveDiscoverySchedule(targetId);
-        final long initialDelayMillis = calculateInitialDelayMillis(discoveryIntervalMillis, existingSchedule);
-
-        return scheduleDiscovery(targetId, initialDelayMillis, discoveryIntervalMillis, true);
+        return setDiscoverySchedule(targetId, discoveryType, probeDiscoveryIntervalMillis,
+            TimeUnit.MILLISECONDS, syncToBroadcastSchedule);
     }
 
     /**
-     * Get the discovery interval to use for this probe.
+     * Set the discovery schedules for all supported discovery types of the given target.
      *
-     * We will use the smaller of either the full rediscovery interval or performance rediscovery
-     * interval as our rediscovery interval. This is because XL does not support incremental
-     * discovery, which some probes rely on in classic.
+     * @param targetId id of the target to set discovery schedule for
+     * @param syncToBroadcastSchedule whether or not to sync with broadcast schedule
+     * @return map of schedule for each supported discovery type
+     * @throws TargetNotFoundException when the targetId is not associated with any known target.
+     * @throws UnsupportedDiscoveryTypeException when the discovery type is not supported by the given target.
+     */
+    @Nonnull
+    public synchronized Map<DiscoveryType, TargetDiscoverySchedule> setDiscoverySchedules(
+            final long targetId, final boolean syncToBroadcastSchedule)
+            throws TargetNotFoundException, UnsupportedDiscoveryTypeException {
+        Target target = targetStore.getTarget(targetId).orElseThrow(
+            () -> new TargetNotFoundException(targetId));
+
+        // get the probe info so we can find the probe's preferred discovery interval.
+        ProbeInfo probeInfo = probeStore.getProbe(target.getProbeId()).orElseThrow(
+            () -> new IllegalStateException("Probe id " + target.getProbeId() + " not found in probe store."));
+
+        final Map<DiscoveryType, TargetDiscoverySchedule> scheduleMap = new HashMap<>();
+
+        scheduleMap.put(DiscoveryType.FULL,
+            setDiscoverySchedule(targetId, DiscoveryType.FULL, syncToBroadcastSchedule));
+
+        Optional<Long> incrementalDiscoveryInterval = getIncrementalDiscoveryInterval(probeInfo);
+        if (incrementalDiscoveryInterval.isPresent()) {
+            scheduleMap.put(DiscoveryType.INCREMENTAL,
+                setDiscoverySchedule(targetId, DiscoveryType.INCREMENTAL, syncToBroadcastSchedule));
+        }
+        return scheduleMap;
+    }
+
+    /**
+     * Get the discovery interval to use for the given probe and discovery type. It will also try
+     * to sync with broadcast schedule if needed.
      *
-     * For example the VC Probe configures full discovery every hour, with the expectation that
+     * @param probeInfo probe info containing default discovery intervals for the probe
+     * @param discoveryType type of the discovery
+     * @param syncToBroadcastSchedule whether or not to sync with broadcast schedule
+     * @return optional discovery interval to use
+     */
+    private Optional<Long> getDiscoveryInterval(ProbeInfo probeInfo,
+            DiscoveryType discoveryType, boolean syncToBroadcastSchedule) {
+        switch (discoveryType) {
+            case FULL:
+                return Optional.of(getFullDiscoveryInterval(probeInfo, syncToBroadcastSchedule));
+            case INCREMENTAL:
+                return getIncrementalDiscoveryInterval(probeInfo);
+            default:
+                return Optional.empty();
+        }
+    }
+
+    /**
+     * Get the FULL discovery interval to use for this probe, respecting the broadcast schedule
+     * if needed.
+     *
+     * <p>If syncToBroadcastSchedule is false, we will use the smaller of either the full rediscovery
+     * interval or performance rediscovery interval as our rediscovery interval.
+     *
+     * <p>For example the VC Probe configures full discovery every hour, with the expectation that
      * incremental discoveries on 30 second intervals will fill the gaps between full discoveries.
      * It also specifies "performance" discoveries on 10 minute intervals that ensure updates to the
      * stats on the usual broadcast cycle.
      *
-     * XL only supports "full" rediscoveries, so our logic to determine this full discovery interval
-     * will be based on the smaller of the full discovery and performance discovery intervals, if
-     * available. This should handle the VC configuration (and any other probe using the same full +
-     * incremental discovery config), while also respecting the full discovery interval values
-     * configured in the probes.
+     * <p>Our logic to determine this full discovery interval will be based on the smaller of the
+     * full discovery and performance discovery intervals, if available. This should handle the VC
+     * configuration (and any other probe using the same full + incremental discovery config),
+     * while also respecting the full discovery interval values configured in the probes.
      *
-     * In this method, we will also only accept probe discovery intervals that are greater than the
-     * broadcast interval. If a probe configures discovery at a higher frequency than the broadcast
-     * cycle, we will fall back to the broadcast time. There isn't much point to discovering more
-     * frequently than the broadcast time, since any results wouldn't be shown until the next
-     * broadcast cycle anyways.
+     * <p>If syncToBroadcastSchedule is true, we will also only accept probe discovery intervals that
+     * are greater than the broadcast interval. If a probe configures discovery at a higher
+     * frequency than the broadcast cycle, we will fall back to the broadcast time. There isn't
+     * much point to discovering more frequently than the broadcast time, since any results
+     * wouldn't be shown until the next broadcast cycle anyways.
      *
-     * @param probeInfo The {@link ProbeInfo} to read the discovery interval properties frrom.
-     * @return The discovery interval to use (in milliseconds)
+     * @param probeInfo The {@link ProbeInfo} to read the discovery interval properties from.
+     * @param syncToBroadcastSchedule whether or not to sync with broadcast schedule.
+     * @return The discovery interval to use (in milliseconds) for full discovery
      */
-    public long getProbeDiscoveryInterval(ProbeInfo probeInfo) {
-        // set the default discovery interval to the broadcast interval.
-        long broadcastIntervalMillis = getBroadcastIntervalMillis();
-        long discoveryIntervalMillis = broadcastIntervalMillis;
+    public long getFullDiscoveryInterval(@Nonnull ProbeInfo probeInfo, boolean syncToBroadcastSchedule) {
+        Long discoveryIntervalMillis = null;
 
         // as per discussion with Ron, use the smaller of the performance discovery interval or
         // full discovery interval, if both are specified.
@@ -256,45 +337,93 @@ public class Scheduler implements TargetStoreListener {
         // if there is a performance discovery setting, use that if it's less than the current
         // discovery interval.
         if (probeInfo.getPerformanceRediscoveryIntervalSeconds() > 0) {
-            long performanceRediscoveryMillis = TimeUnit.SECONDS.toMillis(probeInfo.getPerformanceRediscoveryIntervalSeconds());
-            if (performanceRediscoveryMillis < discoveryIntervalMillis) {
-                // we're falling back to the performance discovery interval -- log it.
-                logger.info("Setting discovery interval based on performance discovery interval"
-                        +" of {} ms for probe type {}", performanceRediscoveryMillis, probeInfo.getProbeType());
+            long performanceRediscoveryMillis = TimeUnit.SECONDS.toMillis(
+                probeInfo.getPerformanceRediscoveryIntervalSeconds());
+            if (discoveryIntervalMillis == null || performanceRediscoveryMillis < discoveryIntervalMillis) {
+                // we're falling back to the performance discovery interval
                 discoveryIntervalMillis = performanceRediscoveryMillis;
             }
         }
 
-        // the final discovery interval should be at least as long as the broadcast cycle
-        return Math.max(discoveryIntervalMillis, broadcastIntervalMillis);
+        final long broadcastIntervalMillis = getBroadcastIntervalMillis();
+        if (discoveryIntervalMillis == null) {
+            // if no full or performance interval defined in probe, set the discovery interval to
+            // the broadcast interval.
+            return broadcastIntervalMillis;
+        } else {
+            // if needs to sync with broadcast schedule, the final discovery interval should be
+            // at least as long as the broadcast cycle
+            return syncToBroadcastSchedule
+                ? Math.max(broadcastIntervalMillis, discoveryIntervalMillis)
+                : discoveryIntervalMillis;
+        }
     }
 
     /**
-     * Get the discovery schedule for a target.
+     * Get the optional INCREMENTAL discovery interval to use for this probe.
+     *
+     * @param probeInfo The {@link ProbeInfo} to read the discovery interval properties from.
+     * @return The discovery interval to use (in milliseconds) for incremental discovery
+     */
+    public Optional<Long> getIncrementalDiscoveryInterval(@Nonnull ProbeInfo probeInfo) {
+        return probeInfo.hasIncrementalRediscoveryIntervalSeconds()
+            ? Optional.of(TimeUnit.SECONDS.toMillis(
+                probeInfo.getIncrementalRediscoveryIntervalSeconds()))
+            : Optional.empty();
+    }
+
+    /**
+     * Get the discovery schedule for a target, organized by discovery type.
      *
      * @param targetId The ID of the target whose schedule should be retrieved.
+     * @return An map containing the target's discovery schedule for each supported discovery type
+     */
+    public synchronized Map<DiscoveryType, TargetDiscoverySchedule> getDiscoverySchedule(final long targetId) {
+        return Optional.ofNullable(discoveryTasks.get(targetId)).orElse(Collections.emptyMap());
+    }
+
+    /**
+     * Get the discovery schedule for a target and discovery type.
+     *
+     * @param targetId The ID of the target whose schedule should be retrieved.
+     * @param discoveryType the type of discovery to get schedule for.
      * @return An {@link Optional} containing the target's discovery schedule, or
      *         {@link Optional#empty()} if no schedule exists for the target.
      */
-    public synchronized Optional<TargetDiscoverySchedule> getDiscoverySchedule(final long targetId) {
-        return Optional.ofNullable(discoveryTasks.get(targetId));
+    public synchronized Optional<TargetDiscoverySchedule> getDiscoverySchedule(
+            final long targetId, DiscoveryType discoveryType) {
+        return Optional.ofNullable(discoveryTasks.get(targetId))
+            .map(scheduleMap -> scheduleMap.get(discoveryType));
     }
 
     /**
-     * Cancel the discovery schedule for a target. Cancelling the discovery schedule
-     * will close the regular discovery of the target at fixed intervals.
+     * Cancel all the discovery schedules for a target, which may include full and incremental
+     * discoveries. Cancelling the discovery schedule will close the regular discovery of the
+     * target at fixed intervals.
      *
      * @param targetId The ID of the target whose schedule should be cancelled.
+     */
+    public synchronized void disableDiscoverySchedule(final long targetId) {
+        deleteScheduleData(Long.toString(targetId));
+        stopAndRemoveDiscoverySchedule(targetId, DiscoveryType.FULL);
+        stopAndRemoveDiscoverySchedule(targetId, DiscoveryType.INCREMENTAL);
+    }
+
+    /**
+     * Cancel the discovery schedule for a target and discovery type. Cancelling the discovery
+     * schedule will close the regular discovery of the target at fixed intervals.
+     *
+     * @param targetId The ID of the target whose schedule should be cancelled.
+     * @param discoveryType The type of discovery to disable discovery schedule for.
      * @return An {@link Optional} containing the target's cancelled discovery schedule
      *         if it was successfully cancelled, or {@link Optional#empty()} if the
      *         data could not be cancelled.
      */
-    public synchronized Optional<TargetDiscoverySchedule> cancelDiscoverySchedule(final long targetId) {
-        if (getDiscoverySchedule(targetId).isPresent()) {
-            deleteScheduleData(Long.toString(targetId));
-        }
-
-        return stopAndRemoveDiscoverySchedule(targetId);
+    public synchronized Optional<TargetDiscoverySchedule> disableDiscoverySchedule(
+            final long targetId, final DiscoveryType discoveryType) {
+        logger.info("Disabling {} discovery for target {}", discoveryType, targetId);
+        saveTargetScheduleData(targetId, discoveryType, -1, false);
+        return stopAndRemoveDiscoverySchedule(targetId, discoveryType);
     }
 
     /**
@@ -302,22 +431,26 @@ public class Scheduler implements TargetStoreListener {
      * target will cause the full scheduled discovery interval to elapse from the time
      * of the reset before the next scheduled discovery.
      *
-     * If there is no existing discovery schedule for the target, returns
+     * <p>If there is no existing discovery schedule for the target, returns
      * {@link Optional#empty()}, otherwise returns an {@link Optional} containing
      * the new TargetDiscoverySchedule describing the scheduled discovery.
      *
      * @param targetId the ID of the target whose discovery schedule should be reset.
+     * @param discoveryType the type of discovery to reset schedule for
      * @return If a discovery schedule exists for the target, an {@link Optional} containing
      * the new TargetDiscoverySchedule describing the scheduled discovery. Otherwise
      * returns {@link Optional#empty()}.
      */
-    public synchronized Optional<TargetDiscoverySchedule> resetDiscoverySchedule(final long targetId) {
+    public synchronized Optional<TargetDiscoverySchedule> resetDiscoverySchedule(long targetId,
+            DiscoveryType discoveryType) {
         // Cancel the ongoing task and reschedule it.
-        final Optional<TargetDiscoverySchedule> discoveryTask = stopAndRemoveDiscoverySchedule(targetId);
+        final Optional<TargetDiscoverySchedule> discoveryTask =
+            stopAndRemoveDiscoverySchedule(targetId, discoveryType);
         return discoveryTask.map(task -> scheduleDiscovery(
             task.getTargetId(),
             task.getScheduleInterval(TimeUnit.MILLISECONDS),
             task.getScheduleInterval(TimeUnit.MILLISECONDS),
+            discoveryType,
             task.isSynchedToBroadcast()
         ));
     }
@@ -398,6 +531,29 @@ public class Scheduler implements TargetStoreListener {
     }
 
     /**
+     * When a new ProbeInfo is registered, if it supports incremental discovery, but existing
+     * ProbeInfo doesn't, then schedule incremental discovery for all targets of same probe type.
+     * If it doesn't support incremental discovery, but existing one supports, then jsut stop and
+     * remove incremental discovery for all targets of same probe type.
+     *
+     * <p>This is usually used when PT does some testing like switching between two different
+     * version of vc probes, one with incremental discovery supported, the other one without.
+     *
+     * @param probeId The ID of the probe that was registered.
+     * @param newProbeInfo The info for the probe that was registered with the {@link ProbeStore}.
+     */
+    @Override
+    public void onProbeRegistered(long probeId, ProbeInfo newProbeInfo) {
+        targetStore.getProbeTargets(probeId).forEach(target -> {
+            // try to stop and remove existing incremental discovery schedule if any
+            stopAndRemoveDiscoverySchedule(target.getId(), DiscoveryType.INCREMENTAL);
+            // try to schedule new incremental discovery if probe supports
+            initializeIncrementalDiscoverySchedule(target.getId(), newProbeInfo,
+                scheduleStore.containsKey(SCHEDULE_KEY_OFFSET));
+        });
+    }
+
+    /**
      * When a target is added, create a default discovery schedule for the target that is synched to
      * match the interval of the topology broadcast schedule.
      *
@@ -408,10 +564,14 @@ public class Scheduler implements TargetStoreListener {
         Objects.requireNonNull(target);
 
         try {
-            setBroadcastSynchedDiscoverySchedule(target.getId());
-        } catch (TargetNotFoundException e) {
+            setDiscoverySchedule(target.getId(), DiscoveryType.FULL, true);
+            // schedule incremental discovery if the probe supports it
+            if (target.getProbeInfo().hasIncrementalRediscoveryIntervalSeconds()) {
+                setDiscoverySchedule(target.getId(), DiscoveryType.INCREMENTAL, false);
+            }
+        } catch (TargetNotFoundException | UnsupportedDiscoveryTypeException e) {
             logger.error("Unable to add default data for target '{}' ({})",
-                    target.getDisplayName(), target.getId());
+                target.getDisplayName(), target.getId());
         }
     }
 
@@ -423,7 +583,7 @@ public class Scheduler implements TargetStoreListener {
     @Override
     public void onTargetRemoved(final @Nonnull Target target) {
         Objects.requireNonNull(target);
-        cancelDiscoverySchedule(target.getId());
+        disableDiscoverySchedule(target.getId());
     }
 
     /**
@@ -459,6 +619,7 @@ public class Scheduler implements TargetStoreListener {
      * @param targetId The ID of the target whose schedule should be put in the tasks.
      * @param delayMillis The initial delay before running the first discovery in the schedule.
      * @param discoveryIntervalMillis The interval between repeated discoveries for the target.
+     * @param discoveryType type of the discovery to schedule
      * @param synchedToBroadcastSchedule Whether the discovery should be synched to the schedule
      *                                   for broadcasting the topology.
      * @return The discovery schedule for the target.
@@ -466,18 +627,35 @@ public class Scheduler implements TargetStoreListener {
     private TargetDiscoverySchedule scheduleDiscovery(final long targetId,
                                                       final long delayMillis,
                                                       final long discoveryIntervalMillis,
+                                                      final DiscoveryType discoveryType,
                                                       boolean synchedToBroadcastSchedule) {
+        final ScheduledExecutorService discoveryScheduleExecutor;
+        switch (discoveryType) {
+            case FULL:
+                discoveryScheduleExecutor = fullDiscoveryScheduleExecutor;
+                break;
+            case INCREMENTAL:
+                discoveryScheduleExecutor = incrementalDiscoveryScheduleExecutor;
+                break;
+            default:
+                throw new IllegalStateException("No thread pool available for discovery type: "
+                    + discoveryType);
+        }
+
         final ScheduledFuture<?> scheduledTask = discoveryScheduleExecutor.scheduleAtFixedRate(
-            () -> executeScheduledDiscovery(targetId),
+            () -> executeScheduledDiscovery(targetId, discoveryType),
             delayMillis,
             discoveryIntervalMillis,
             TimeUnit.MILLISECONDS
         );
 
-        final TargetDiscoverySchedule discoveryTask =
-            new TargetDiscoverySchedule(scheduledTask, targetId, discoveryIntervalMillis, synchedToBroadcastSchedule);
-        discoveryTasks.put(targetId, discoveryTask);
-        logger.info("Set {}", discoveryTask);
+        final TargetDiscoverySchedule discoveryTask = new TargetDiscoverySchedule(scheduledTask,
+            targetId, discoveryIntervalMillis, synchedToBroadcastSchedule);
+
+        discoveryTasks.computeIfAbsent(targetId, k -> new HashMap<>())
+            .put(discoveryType, discoveryTask);
+
+        logger.info("Set {} {}", discoveryType, discoveryTask);
 
         return discoveryTask;
     }
@@ -509,19 +687,21 @@ public class Scheduler implements TargetStoreListener {
 
     /**
      * Attempt to update the interval for all the target discovery schedules which are synched to
-     * the topology broadcast data.
+     * the topology broadcast data. Only FULL discovery schedule may be synched.
      */
     private void updateBroadcastSynchedDiscoverySchedules() {
         List<Long> synchedDiscoverySchedules = discoveryTasks.entrySet().stream()
-            .filter(entry -> entry.getValue().isSynchedToBroadcast())
+            .filter(entry -> Optional.ofNullable(entry.getValue().get(DiscoveryType.FULL))
+                .map(TargetDiscoverySchedule::isSynchedToBroadcast).orElse(false))
             .map(Entry::getKey)
             .collect(Collectors.toList());
 
-        synchedDiscoverySchedules.stream().forEach(targetId -> {
+        synchedDiscoverySchedules.forEach(targetId -> {
             try {
-                setBroadcastSynchedDiscoverySchedule(targetId);
-            } catch (TargetNotFoundException|IllegalStateException e) {
-                logger.error("Unable to update synched discovery schedule for target " + targetId, e);
+                setDiscoverySchedule(targetId, DiscoveryType.FULL, true);
+            } catch (TargetNotFoundException | IllegalStateException | UnsupportedDiscoveryTypeException e) {
+                logger.error("Unable to update synched {} discovery schedule for target {}",
+                    DiscoveryType.FULL, targetId, e);
             }
         });
     }
@@ -530,13 +710,22 @@ public class Scheduler implements TargetStoreListener {
      * Cancel a target's discovery schedule and remove it from the internal map.
      *
      * @param targetId The ID of the target whose discovery schedule should be stopped and removed.
+     * @param discoveryType type of the discovery type
      * @return The stopped discovery schedule if one existed for the target, or empty if not.
      */
-    private Optional<TargetDiscoverySchedule> stopAndRemoveDiscoverySchedule(final long targetId) {
-        final Optional<TargetDiscoverySchedule> task = Optional.ofNullable(discoveryTasks.remove(targetId));
-        task.ifPresent(TargetDiscoverySchedule::cancel);
-
-        return task;
+    private synchronized Optional<TargetDiscoverySchedule> stopAndRemoveDiscoverySchedule(
+            final long targetId, @Nonnull DiscoveryType discoveryType) {
+        Map<DiscoveryType, TargetDiscoverySchedule> targetDiscoveryScheduleMap =
+            discoveryTasks.get(targetId);
+        if (targetDiscoveryScheduleMap == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(targetDiscoveryScheduleMap.remove(discoveryType))
+            .map(schedule -> {
+                logger.info("Removing {} discovery schedule for target {}", discoveryType, targetId);
+                schedule.cancel();
+                return schedule;
+            });
     }
 
     /**
@@ -569,22 +758,24 @@ public class Scheduler implements TargetStoreListener {
      * Passed via lambda to the scheduleExecutor.
      *
      * @param targetId The target where the discovery should be executed.
+     * @param discoveryType type of the discovery type
      */
-    private void executeScheduledDiscovery(final long targetId) {
+    private void executeScheduledDiscovery(final long targetId, DiscoveryType discoveryType) {
         try {
-            operationManager.addPendingDiscovery(targetId);
+            operationManager.addPendingDiscovery(targetId, discoveryType);
         } catch (TargetNotFoundException | InterruptedException e) {
             // When a target is not found or operation is interrupted, it is a
             // non-recoverable error and it does not make sense to continue
             // executing discoveries with this task, so close.
-            logger.error("Unrecoverable error during discovery execution. Cancelling discovery schedule for the target.", e);
+            logger.error("Unrecoverable error during {} discovery execution. " +
+                "Cancelling discovery schedule for the target.", discoveryType, e);
 
-            cancelDiscoverySchedule(targetId);
+            disableDiscoverySchedule(targetId);
         } catch (CommunicationException | RuntimeException e) {
             // Communication exceptions are correctable errors, so continue
             // to run future discoveries. Also continue to execute future discoveries
             // if a generic runtime exception occurred.
-            logger.error("Exception when executing scheduled discovery.", e);
+            logger.error("Exception when executing scheduled {} discovery.", discoveryType, e);
         }
     }
 
@@ -645,31 +836,108 @@ public class Scheduler implements TargetStoreListener {
      *                                 and logs an error if it is not.
      */
     private void initializeDiscoverySchedules(boolean requireSavedScheduleData) {
-        targetStore.getAll().stream()
-            .map(Target::getId)
-            .forEach(targetId -> initializeDiscoverySchedule(targetId, requireSavedScheduleData));
+        targetStore.getAll().forEach(target -> {
+            final long targetId = target.getId();
+            final ProbeInfo probeInfo = target.getProbeInfo();
+            initializeFullDiscoverySchedule(targetId, requireSavedScheduleData);
+            initializeIncrementalDiscoverySchedule(targetId, probeInfo, requireSavedScheduleData);
+        });
     }
 
     /**
-     * Initialize the discovery schedule for a specific target, first attempting to restore it
-     * from persistent storage, then attempting to use a default broadcast-synched discovery
-     * if no schedule can be loaded.
+     * Initialize the full discovery schedule for a specific target, first attempting to restore it
+     * from persistent storage, then attempting to use the default interval from probe, and try to
+     * sync with broadcast discovery, if required.
      *
-     * @param targetId The ID of the target whose schedule should be loaded.
+     * @param targetId id of the target whose schedule should be loaded.
      * @param requireSavedScheduleData If true, requires that saved schedule data be present for the schedule
      *                                 and logs an error if it is not.
      */
-    private void initializeDiscoverySchedule(long targetId, boolean requireSavedScheduleData) {
-        loadScheduleData(Long.toString(targetId), TargetDiscoveryScheduleData.class, requireSavedScheduleData)
-            .map(data -> scheduleDiscovery(targetId, 0, data.getScheduleIntervalMillis(), data.isSynchedToBroadcast()))
-            .orElseGet(() -> {
-                try {
-                    return setBroadcastSynchedDiscoverySchedule(targetId);
-                } catch (TargetNotFoundException e) {
-                    logger.error("Failed to initialize discovery schedule for target " + targetId);
-                    return null;
+    private synchronized void initializeFullDiscoverySchedule(long targetId, boolean requireSavedScheduleData) {
+        final Optional<TargetDiscoveryScheduleData> optTargetDiscoveryScheduleData = loadScheduleData(
+            Long.toString(targetId), TargetDiscoveryScheduleData.class, requireSavedScheduleData);
+
+        if (optTargetDiscoveryScheduleData.isPresent()) {
+            TargetDiscoveryScheduleData targetDiscoveryScheduleData =
+                optTargetDiscoveryScheduleData.get();
+            scheduleDiscovery(targetId, 0, targetDiscoveryScheduleData.getFullIntervalMillis(),
+                DiscoveryType.FULL, targetDiscoveryScheduleData.isSynchedToBroadcast());
+        } else {
+            try {
+                setDiscoverySchedule(targetId, DiscoveryType.FULL, true);
+            } catch (TargetNotFoundException | UnsupportedDiscoveryTypeException e) {
+                logger.error("Failed to initialize FULL discovery schedule for target " + targetId);
+            }
+        }
+    }
+
+    /**
+     * Initialize the incremental discovery schedule for a specific target, first attempting to
+     * restore it from persistent storage, then attempting to use the default interval from probe.
+     *
+     * @param targetId id of the target whose schedule should be loaded.
+     * @param probeInfo probe info
+     * @param requireSavedScheduleData If true, requires that saved schedule data be present for
+     *                                 the schedule and logs an error if it is not.
+     */
+    private synchronized void initializeIncrementalDiscoverySchedule(
+            long targetId, ProbeInfo probeInfo, boolean requireSavedScheduleData) {
+        final Optional<TargetDiscoveryScheduleData> optTargetDiscoveryScheduleData = loadScheduleData(
+            Long.toString(targetId), TargetDiscoveryScheduleData.class, requireSavedScheduleData);
+
+        if (optTargetDiscoveryScheduleData.isPresent()) {
+            TargetDiscoveryScheduleData targetDiscoveryScheduleData =
+                optTargetDiscoveryScheduleData.get();
+
+            final Optional<Long> incrementalDiscoveryInterval;
+            if (targetDiscoveryScheduleData.hasIncrementalIntervalMillis()) {
+                if (probeInfo.hasIncrementalRediscoveryIntervalSeconds()) {
+                    // use persisted incremental interval
+                    incrementalDiscoveryInterval = Optional.of(
+                        targetDiscoveryScheduleData.getIncrementalIntervalMillis());
+                } else {
+                    incrementalDiscoveryInterval = Optional.empty();
+                    // if target doesn't support incremental any more, update schedule data
+                    TargetDiscoveryScheduleData newTargetDiscoveryScheduleData =
+                        TargetDiscoveryScheduleData.newBuilder(targetDiscoveryScheduleData)
+                            .clearIncrementalIntervalMillis()
+                            .build();
+                    saveScheduleData(newTargetDiscoveryScheduleData, Long.toString(targetId));
                 }
-            });
+            } else {
+                if (targetDiscoveryScheduleData.isIncrementalDiscoveryDisabled()) {
+                    // log a warning, since user may forgot to change it back
+                    logger.warn("Incremental discovery was disabled for target {}", targetId);
+                    incrementalDiscoveryInterval = Optional.empty();
+                } else {
+                    // if target previously doesn't support incremental, schedule data will not
+                    // include incremental interval we should check if latest ProbeInfo contains
+                    // incremental and schedule it
+                    incrementalDiscoveryInterval = getIncrementalDiscoveryInterval(probeInfo);
+                    if (incrementalDiscoveryInterval.isPresent()) {
+                        // update persisted schedule data
+                        TargetDiscoveryScheduleData newTargetDiscoveryScheduleData =
+                            TargetDiscoveryScheduleData.newBuilder(targetDiscoveryScheduleData)
+                                .setIncrementalIntervalMillis(incrementalDiscoveryInterval.get())
+                                .build();
+                        saveScheduleData(newTargetDiscoveryScheduleData, Long.toString(targetId));
+                    }
+                }
+            }
+
+            // try to schedule incremental discovery if it's available
+            incrementalDiscoveryInterval.ifPresent(interval ->
+                scheduleDiscovery(targetId, 0, interval, DiscoveryType.INCREMENTAL, false));
+        } else {
+            try {
+                // schedule incremental discovery if the probe supports it
+                if (probeInfo.hasIncrementalRediscoveryIntervalSeconds()) {
+                    setDiscoverySchedule(targetId, DiscoveryType.INCREMENTAL, false);
+                }
+            } catch (TargetNotFoundException | UnsupportedDiscoveryTypeException e) {
+                logger.error("Failed to initialize incremental discovery schedule for target " + targetId);
+            }
+        }
     }
 
     /**
@@ -697,6 +965,45 @@ public class Scheduler implements TargetStoreListener {
         logger.info("Scheduled operation timeout check " + schedule);
 
         return schedule;
+    }
+
+    /**
+     * Persist the schedule data for a given target. It does a partial update based on the
+     * parameters provided.
+     *
+     * @param targetId id of the target
+     * @param discoveryType type of the discovery
+     * @param discoveryIntervalMillis new interval to overwrite existing one, -1 means the given
+     *                                type of discovery should be disabled
+     * @param synchedToBroadcast whether or not it's synched to broadcast schedule
+     */
+    private void saveTargetScheduleData(long targetId, @Nonnull DiscoveryType discoveryType,
+            long discoveryIntervalMillis, boolean synchedToBroadcast) {
+        Optional<TargetDiscoveryScheduleData> optTargetDiscoveryScheduleData = loadScheduleData(
+            Long.toString(targetId), TargetDiscoveryScheduleData.class, false);
+
+        TargetDiscoveryScheduleData.Builder builder = optTargetDiscoveryScheduleData
+            .map(TargetDiscoveryScheduleData::newBuilder)
+            .orElse(TargetDiscoveryScheduleData.newBuilder());
+
+        switch (discoveryType) {
+            case FULL:
+                builder.setFullIntervalMillis(discoveryIntervalMillis);
+                if (discoveryIntervalMillis == -1) {
+                    builder.setSynchedToBroadcast(false);
+                } else {
+                    builder.setSynchedToBroadcast(synchedToBroadcast);
+                }
+                break;
+            case INCREMENTAL:
+                builder.setIncrementalIntervalMillis(discoveryIntervalMillis);
+                break;
+            default:
+                logger.warn("Unsupported discovery type {}, nothing to save", discoveryType);
+                return;
+        }
+
+        saveScheduleData(builder.build(), Long.toString(targetId));
     }
 
     /**

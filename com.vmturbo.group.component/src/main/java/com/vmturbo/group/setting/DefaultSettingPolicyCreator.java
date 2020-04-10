@@ -69,7 +69,8 @@ public class DefaultSettingPolicyCreator implements Runnable {
      * API show the setting display name as "Host Default".
      */
     private static final Map<Integer, String> SETTING_NAMES_MAPPER = ImmutableMap.of(
-        EntityType.PHYSICAL_MACHINE_VALUE, StringConstants.HOST);
+        EntityType.PHYSICAL_MACHINE_VALUE, StringConstants.PHYSICAL_MACHINE_SETTING_NAME,
+        EntityType.IO_MODULE_VALUE, StringConstants.IO_MODULE_SETTING_NAME);
 
     /**
      * Constructs default setting policies creator.
@@ -279,13 +280,15 @@ public class DefaultSettingPolicyCreator implements Runnable {
         return specsByEntityType.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Entry::getKey, entry -> {
-                    final String settingName = SETTING_NAMES_MAPPER.containsKey(entry.getKey())
-                        ? SETTING_NAMES_MAPPER.get(entry.getKey())
-                        : EntityType.forNumber(entry.getKey()).name();
-                    final String displayName = Stream.of(settingName.split("_"))
+                    final String displayName;
+                    if (SETTING_NAMES_MAPPER.containsKey(entry.getKey())) {
+                        displayName = SETTING_NAMES_MAPPER.get(entry.getKey()) + StringConstants.DEFAULTS;
+                    } else {
+                        displayName = Stream.of(EntityType.forNumber(entry.getKey()).name().split("_"))
                             .map(String::toLowerCase)
                             .map(StringUtils::capitalize)
-                            .collect(Collectors.joining(" ", "", " Defaults"));
+                            .collect(Collectors.joining(" ", "", StringConstants.DEFAULTS));
+                    }
 
                     final SettingPolicyInfo.Builder policyBuilder = SettingPolicyInfo.newBuilder()
                             .setName(displayName)

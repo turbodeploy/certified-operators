@@ -10,14 +10,17 @@ import static org.mockito.Mockito.when;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.junit.Test;
-
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -27,6 +30,11 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -39,8 +47,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
@@ -55,8 +66,10 @@ public class ReservedInstanceCoverageValidatorTest {
     private final ReservedInstanceSpecStore mockReservedInstanceSpecStore =
             mock(ReservedInstanceSpecStore.class);
 
+    private final GroupMemberRetriever mockedGroupMemberRetriever = mock(GroupMemberRetriever.class);
+
     private final TopologyEntityCloudTopologyFactory cloudTopologyFactory =
-            new DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class));
+            new DefaultTopologyEntityCloudTopologyFactory(mockedGroupMemberRetriever);
 
     private final TopologyEntityDTO computeTier = TopologyEntityDTO.newBuilder()
             .setOid(oidProvider.incrementAndGet())
@@ -107,8 +120,9 @@ public class ReservedInstanceCoverageValidatorTest {
             .build();
 
 
+    private final long businessAccountOid = oidProvider.incrementAndGet();
     private final TopologyEntityDTO businessAccount = TopologyEntityDTO.newBuilder()
-            .setOid(oidProvider.incrementAndGet())
+            .setOid(businessAccountOid)
             .setDisplayName("bussiness_account")
             .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
             .setEnvironmentType(EnvironmentType.CLOUD)
@@ -186,12 +200,14 @@ public class ReservedInstanceCoverageValidatorTest {
     public void testIsValidCoverage_validCoverage_billingFamilyScope() {
 
         //setup input
+        final long riAccountOid = oidProvider.incrementAndGet();
         final TopologyEntityDTO riBusinessAccount = TopologyEntityDTO.newBuilder(businessAccount)
-                .setOid(oidProvider.incrementAndGet())
+                .setOid(riAccountOid)
                 .clearConnectedEntityList()
                 .build();
+        final long masterAccountOid = oidProvider.incrementAndGet();
         final TopologyEntityDTO masterAccount = TopologyEntityDTO.newBuilder()
-                .setOid(oidProvider.incrementAndGet())
+                .setOid(masterAccountOid)
                 .setDisplayName("master_account")
                 .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .setEnvironmentType(EnvironmentType.CLOUD)
@@ -205,6 +221,9 @@ public class ReservedInstanceCoverageValidatorTest {
                         .setConnectedEntityId(riBusinessAccount.getOid()))
                 .build();
 
+        GroupAndMembers billingFamily = groupAndMembers(Arrays.asList(masterAccountOid, riAccountOid, businessAccountOid));
+        final List<GroupAndMembers> collectionGroups = new ArrayList<>();
+        collectionGroups.add(billingFamily);
         final ReservedInstanceBought.Builder reservedInstanceBuilder =
                 ReservedInstanceBought.newBuilder(reservedInstanceBought);
         reservedInstanceBuilder.getReservedInstanceBoughtInfoBuilder()
@@ -220,6 +239,11 @@ public class ReservedInstanceCoverageValidatorTest {
         when(mockReservedInstanceSpecStore.getReservedInstanceSpecByIds(any()))
                 .thenReturn(Lists.newArrayList(reservedInstanceSpec));
 
+        when(mockedGroupMemberRetriever.getGroupsWithMembers(GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .setGroupType(GroupType.BILLING_FAMILY)
+                        .build())
+                .build())).thenReturn(collectionGroups);
         // generate CloudTopology
         final CloudTopology<TopologyEntityDTO> cloudTopology = generateCloudTopology(
                 computeTier, region, availabilityZone, virtualMachine, businessAccount,
@@ -449,5 +473,23 @@ public class ReservedInstanceCoverageValidatorTest {
         final EntityRICoverageUpload validEntityRICoverageUpload = validEntityRICoverageUploads.get(0);
         assertThat(validEntityRICoverageUpload.getTotalCouponsRequired(), equalTo(0.0));
         assertThat(validEntityRICoverageUpload.getCoverageCount(), equalTo(0));
+    }
+
+    private GroupAndMembers groupAndMembers(List<Long> entityOid) {
+        final long groupId = 1L;
+        final Set<Long> members = ImmutableSet.copyOf(entityOid);
+        final GroupDefinition groupDefinition =
+                GroupDefinition.newBuilder().setType(GroupType.BILLING_FAMILY).build();
+        final Grouping group = Grouping.newBuilder()
+                .setDefinition(groupDefinition)
+                .setId(groupId)
+                .addExpectedTypes(
+                        MemberType.newBuilder().setEntity(EntityType.BUSINESS_ACCOUNT_VALUE))
+                .build();
+        return ImmutableGroupAndMembers.builder()
+                .group(group)
+                .members(members)
+                .entities(members)
+                .build();
     }
 }

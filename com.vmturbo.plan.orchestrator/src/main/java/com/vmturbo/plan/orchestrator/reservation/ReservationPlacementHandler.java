@@ -1,8 +1,6 @@
 package com.vmturbo.plan.orchestrator.reservation;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -10,7 +8,6 @@ import java.util.Set;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -87,9 +84,7 @@ public class ReservationPlacementHandler implements ProjectedTopologyProcessor {
         // Get projected topology entities of reservation entities.
         List<TopologyEntityDTO> reservationEntities =
             retrieveReservationEntities(contextId, topologyId, reservationSet);
-        final List<TopologyEntityDTO> providerEntities =
-            retrieveProviderEntities(contextId, topologyId, reservationEntities);
-        doUpdate(reservationSet, reservationEntities, providerEntities);
+        doUpdate(reservationSet, reservationEntities);
     }
 
     private Set<Reservation> getReservationSet(boolean isReservationPlan) {
@@ -112,20 +107,16 @@ public class ReservationPlacementHandler implements ProjectedTopologyProcessor {
     }
 
     private void doUpdate(Set<Reservation> reservationSet,
-                          List<TopologyEntityDTO> reservationEntities,
-                          List<TopologyEntityDTO> providerEntities) {
+                          List<TopologyEntityDTO> reservationEntities) {
         if (reservationSet.size() == 0) {
             return;
         }
 
         final Map<Long, TopologyEntityDTO> entityIdToEntityMap = reservationEntities.stream()
                 .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-        final Map<Long, Integer> providerIdToEntityType = providerEntities.stream()
-                .collect(Collectors.toMap(TopologyEntityDTO::getOid, TopologyEntityDTO::getEntityType));
         final Set<Reservation> updatedReservation = reservationSet.stream()
                 .map(Reservation::toBuilder)
-                .map(reservation -> updateReservationPlacement(reservation, entityIdToEntityMap,
-                        providerIdToEntityType))
+                .map(reservation -> updateReservationPlacement(reservation, entityIdToEntityMap))
                 .collect(Collectors.toSet());
         reservationManager.updateReservationResult(updatedReservation);
 
@@ -164,38 +155,6 @@ public class ReservationPlacementHandler implements ProjectedTopologyProcessor {
             .setTopologyType(TopologyType.PROJECTED));
     }
 
-    private Stream<Long> extractProviders(TopologyEntityDTO entity) {
-        return entity.getCommoditiesBoughtFromProvidersList().stream()
-            .filter(CommoditiesBoughtFromProvider::hasProviderId)
-            .map(CommoditiesBoughtFromProvider::getProviderId);
-    }
-    /**
-     * Get projected topology entities of providers of Reservations. Because projected topology entities
-     * not have projected entity type in {@link CommoditiesBoughtFromProvider}. It needs to request
-     * another call to get entity types of those providers.
-     *
-     * @param contextId context id of topology.
-     * @param topologyId id of topology.
-     * @param reservationEntities a list of {@link TopologyEntityDTO}.
-     * @return a list of {@link TopologyEntityDTO}.
-     */
-    private List<TopologyEntityDTO> retrieveProviderEntities(
-            final long contextId,
-            final long topologyId,
-            @Nonnull List<TopologyEntityDTO> reservationEntities) {
-        // Get provider ids of reservation entities.
-        final Set<Long> providerIds = reservationEntities.stream()
-                .flatMap(this::extractProviders)
-                .collect(Collectors.toSet());
-
-
-        return retrieveTopologyEntities(RetrieveTopologyEntitiesRequest.newBuilder()
-            .setTopologyContextId(contextId)
-            .setTopologyId(topologyId)
-            .addAllEntityOids(providerIds)
-            .setTopologyType(TopologyType.PROJECTED));
-    }
-
     /**
      * Send request to Repository to retrieve project topology entities. Note that, those project
      * topology entities only contains partial fields of TopologyEntityDTO, it missing all Market
@@ -215,13 +174,11 @@ public class ReservationPlacementHandler implements ProjectedTopologyProcessor {
 
     private Reservation updateReservationPlacement(
             @Nonnull final Reservation.Builder reservation,
-            @Nonnull final Map<Long, TopologyEntityDTO> entityIdToEntityMap,
-            @Nonnull final Map<Long, Integer> providerIdToEntityType) {
+            @Nonnull final Map<Long, TopologyEntityDTO> entityIdToEntityMap) {
         reservation.getReservationTemplateCollectionBuilder()
                 .getReservationTemplateBuilderList()
                 .forEach(reservationTemplate ->
-                        updateReservationTemplate(reservationTemplate, entityIdToEntityMap,
-                                providerIdToEntityType));
+                        updateReservationTemplate(reservationTemplate, entityIdToEntityMap));
         return reservation.build();
     }
 
@@ -232,16 +189,13 @@ public class ReservationPlacementHandler implements ProjectedTopologyProcessor {
      *                            each type templates.
      * @param entityIdToEntityMap a Map which key is reservation entity id, value is
      *                            {@link TopologyEntityDTO}
-     * @param providerIdToEntityType a Map which key is provider entity id, value is provider entity
-     *                               type.
      */
     private void updateReservationTemplate(
             @Nonnull final ReservationTemplate.Builder reservationTemplate,
-            @Nonnull final Map<Long, TopologyEntityDTO> entityIdToEntityMap,
-            @Nonnull final Map<Long, Integer> providerIdToEntityType) {
+            @Nonnull final Map<Long, TopologyEntityDTO> entityIdToEntityMap) {
         reservationTemplate.getReservationInstanceBuilderList()
                 .forEach(reservationInstance -> updateReservationInstance(reservationInstance,
-                        entityIdToEntityMap, providerIdToEntityType));
+                        entityIdToEntityMap));
     }
 
     /**
@@ -251,13 +205,11 @@ public class ReservationPlacementHandler implements ProjectedTopologyProcessor {
      *
      * @param reservationInstance {@link ReservationInstance.Builder} contains entity id.
      * @param entityIdToEntityMap a Map key is reservation entity id, value is {@link TopologyEntityDTO}.
-     * @param providerIdToEntityType a Map key is provider entity id, value is provider entity type.
      * @return
      */
     private void updateReservationInstance(
             @Nonnull final ReservationInstance.Builder reservationInstance,
-            @Nonnull final Map<Long, TopologyEntityDTO> entityIdToEntityMap,
-            @Nonnull final Map<Long, Integer> providerIdToEntityType) {
+            @Nonnull final Map<Long, TopologyEntityDTO> entityIdToEntityMap) {
         final long entityId = reservationInstance.getEntityId();
         final List<PlacementInfo> placementInfos = new ArrayList<>();
         if (!entityIdToEntityMap.containsKey(entityId)) {
@@ -274,10 +226,10 @@ public class ReservationPlacementHandler implements ProjectedTopologyProcessor {
             if (commoditiesBoughtFromProvider.hasProviderId()) {
                 final long providerId = commoditiesBoughtFromProvider.getProviderId();
                 placementInfoBuilder.setProviderId(providerId);
-                if (!providerIdToEntityType.containsKey(providerId)) {
-                    logger.error("Can not find project topology entity for id: " + providerId);
+                if (commoditiesBoughtFromProvider.hasProviderEntityType()) {
+                    placementInfoBuilder.setProviderType(commoditiesBoughtFromProvider.getProviderEntityType());
                 } else {
-                    placementInfoBuilder.setProviderType(providerIdToEntityType.get(providerId));
+                    logger.error("No provider set for reservation entity {} and provider {}", entityId, providerId);
                 }
             }
             placementInfos.add(placementInfoBuilder.build());
@@ -305,20 +257,15 @@ public class ReservationPlacementHandler implements ProjectedTopologyProcessor {
                 // We end up collecting all entities in memory, which is not ideal, but may be
                 // acceptable in the reservation case since we greatly trim the topology before
                 // broadcast.
-                Map<Long, TopologyEntityDTO> entitiesById = new HashMap<>();
+                List<TopologyEntityDTO> reservationEntities = new ArrayList<>(reservationEntityIds.size());
                 while (iterator.hasNext()) {
-                    iterator.nextChunk().forEach(e -> entitiesById.put(e.getEntity().getOid(), e.getEntity()));
+                    iterator.nextChunk().forEach(e -> {
+                        if (reservationEntityIds.contains(e.getEntity().getOid())) {
+                            reservationEntities.add(e.getEntity());
+                        }
+                    });
                 }
-                List<TopologyEntityDTO> reservationEntities = reservationEntityIds.stream()
-                    .map(entitiesById::get)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-                List<TopologyEntityDTO> providerEntities = reservationEntities.stream()
-                    .flatMap(this::extractProviders)
-                    .map(entitiesById::get)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-                doUpdate(reservations, reservationEntities, providerEntities);
+                doUpdate(reservations, reservationEntities);
             } finally {
                 RemoteIteratorDrain.drainIterator(iterator,
                     TopologyDTOUtil.getProjectedTopologyLabel(sourceTopologyInfo), true);

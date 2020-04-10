@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.OriginFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
@@ -211,6 +212,86 @@ public class GroupDaoSearchTest {
                         .build());
         Assert.assertEquals(Sets.newHashSet(OID2, OID3),
                 groupsByDisplayName2.stream().map(Grouping::getId).collect(Collectors.toSet()));
+    }
+
+    /**
+     * Test searching with the "OR" logical operator.
+     */
+    @Test
+    public void testSearchUnion() {
+        final Collection<Grouping> groupsByDisplayName2 = groupStore.getGroups(
+            GroupDTO.GroupFilter.newBuilder()
+                .setLogicalOperator(LogicalOperator.OR)
+                .addPropertyFilters(PropertyFilter.newBuilder()
+                    .setPropertyName(SearchableProperties.DISPLAY_NAME)
+                    .setStringFilter(StringFilter.newBuilder()
+                        // Matches father and grandfather
+                        .setStringPropertyRegex("^father.*")
+                        .setCaseSensitive(false)))
+                .addPropertyFilters(PropertyFilter.newBuilder()
+                    .setPropertyName(SearchableProperties.DISPLAY_NAME)
+                    .setStringFilter(StringFilter.newBuilder()
+                        // Matches grandfather
+                        .setStringPropertyRegex("^grand.*")
+                        .setCaseSensitive(false)))
+                .setIncludeHidden(true)
+                .build());
+        // Both should be returned.
+        Assert.assertEquals(Sets.newHashSet(OID2, OID3),
+            groupsByDisplayName2.stream().map(Grouping::getId).collect(Collectors.toSet()));
+    }
+
+    /**
+     * Test searching with the "XOR" logical operator.
+     */
+    @Test
+    public void testSearchDifference() {
+        final Collection<Grouping> groupsByDisplayName2 = groupStore.getGroups(
+            GroupDTO.GroupFilter.newBuilder()
+                .setLogicalOperator(LogicalOperator.XOR)
+                .addPropertyFilters(PropertyFilter.newBuilder()
+                    .setPropertyName(SearchableProperties.DISPLAY_NAME)
+                    .setStringFilter(StringFilter.newBuilder()
+                        // Matches father and grandfather
+                        .setStringPropertyRegex("^.*father")
+                        .setCaseSensitive(false)))
+                .addPropertyFilters(PropertyFilter.newBuilder()
+                    .setPropertyName(SearchableProperties.DISPLAY_NAME)
+                    .setStringFilter(StringFilter.newBuilder()
+                        // Matches grandfather
+                        .setStringPropertyRegex("^grand.*")
+                        .setCaseSensitive(false)))
+                .setIncludeHidden(true)
+                .build());
+        // Only "father" should be returned, since grandfather matches both.
+        Assert.assertEquals(Sets.newHashSet(OID2),
+            groupsByDisplayName2.stream().map(Grouping::getId).collect(Collectors.toSet()));
+    }
+
+    /**
+     * Test searching with the "AND" logical operator.
+     */
+    @Test
+    public void testSearchIntersection() {
+        final Collection<Grouping> groupsByDisplayName2 = groupStore.getGroups(
+            GroupDTO.GroupFilter.newBuilder()
+                .addPropertyFilters(PropertyFilter.newBuilder()
+                    .setPropertyName(SearchableProperties.DISPLAY_NAME)
+                    .setStringFilter(StringFilter.newBuilder()
+                        // Matches father and grandfather
+                        .setStringPropertyRegex("^.*father")
+                        .setCaseSensitive(false)))
+                .addPropertyFilters(PropertyFilter.newBuilder()
+                    .setPropertyName(SearchableProperties.DISPLAY_NAME)
+                    .setStringFilter(StringFilter.newBuilder()
+                        // Matches grandfather
+                        .setStringPropertyRegex("^.*grand")
+                        .setCaseSensitive(false)))
+                .setIncludeHidden(true)
+                .build());
+        // Only "grandfather" should be returned.
+        Assert.assertEquals(Sets.newHashSet(OID3),
+            groupsByDisplayName2.stream().map(Grouping::getId).collect(Collectors.toSet()));
     }
 
     /**

@@ -25,6 +25,7 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -34,6 +35,10 @@ import org.apache.logging.log4j.Logger;
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
@@ -76,13 +81,13 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
@@ -722,7 +727,7 @@ public class SupplyChainFetcherFactory {
          * Fetch the requested supply chain using {@link #fetch()} and then return the ids
          * of all the entities in the supply chain.
          *
-         * @return the set of ids of all the entities in the supply chain.
+         * @return the set of ids of all the entities in the supply chain.s
          * @throws InterruptedException
          * @throws ExecutionException
          * @throws TimeoutException

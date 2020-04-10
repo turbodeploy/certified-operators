@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 
 /**
@@ -142,6 +143,27 @@ public interface ActionView {
      */
     @Nonnull
     ActionCategory getActionCategory();
+
+    /**
+     * Get the severity of the action. Currently, the severity of an action
+     * is determined solely by its category; hence the default method.
+     *
+     * @return the severity of the action
+     */
+    @Nonnull
+    default Severity getActionSeverity() {
+        switch (getActionCategory()) {
+            case PERFORMANCE_ASSURANCE:
+            case COMPLIANCE:
+                return Severity.CRITICAL;
+            case PREVENTION:
+                return Severity.MAJOR;
+            case EFFICIENCY_IMPROVEMENT:
+                return Severity.MINOR;
+            default:
+                return Severity.NORMAL;
+        }
+    }
 
     /**
      * Get the OIDs of business accounts this action is associated with.

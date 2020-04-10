@@ -68,8 +68,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
@@ -859,18 +861,19 @@ public class GroupRpcService extends GroupServiceImplBase {
 
             // Convert any ClusterMemberFilters to static set member checks based
             // on current group membership info
-            Search.SearchEntityOidsRequest.Builder searchRequestBuilder =
-                    Search.SearchEntityOidsRequest.newBuilder();
+            final List<SearchParameters> finalParams = new ArrayList<>(searchParameters.size());
             final SearchFilterResolver searchFilterResolver =
                     new GroupComponentSearchFilterResolver(targetSearchService, groupStore);
             for (SearchParameters params : searchParameters) {
-                searchRequestBuilder.addSearchParameters(
-                        searchFilterResolver.resolveExternalFilters(params));
+                finalParams.add(searchFilterResolver.resolveExternalFilters(params));
             }
-            final Search.SearchEntityOidsRequest searchRequest = searchRequestBuilder.build();
             try {
                 final Search.SearchEntityOidsResponse searchResponse =
-                    searchServiceRpc.searchEntityOids(searchRequest);
+                    searchServiceRpc.searchEntityOids(SearchEntityOidsRequest.newBuilder()
+                        .setSearch(SearchQuery.newBuilder()
+                            .addAllSearchParameters(finalParams)
+                            .setLogicalOperator(entityFilter.getLogicalOperator()))
+                        .build());
                 memberOids.addAll(searchResponse.getEntitiesList());
             } catch (StatusRuntimeException e) {
                 logger.error("Error resolving filter {}. Error: {}. Some members may be missing.",

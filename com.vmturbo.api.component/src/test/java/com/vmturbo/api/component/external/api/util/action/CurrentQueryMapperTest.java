@@ -404,13 +404,8 @@ public class CurrentQueryMapperTest {
     @Test
     public void testActionGroupFilterExtractorMode() {
         final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
-        inputDTO.setActionModeList(Arrays.asList(ActionMode.AUTOMATIC, ActionMode.MANUAL, ActionMode.COLLECTION));
-        when(actionSpecMapper.mapApiModeToXl(ActionMode.AUTOMATIC))
-            .thenReturn(Optional.of(ActionDTO.ActionMode.AUTOMATIC));
-        when(actionSpecMapper.mapApiModeToXl(ActionMode.MANUAL))
-            .thenReturn(Optional.of(ActionDTO.ActionMode.MANUAL));
-        when(actionSpecMapper.mapApiModeToXl(ActionMode.COLLECTION))
-            .thenReturn(Optional.empty());
+        inputDTO.setActionModeList(
+            Arrays.asList(ActionMode.AUTOMATIC, ActionMode.MANUAL, ActionMode.COLLECTION));
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
@@ -426,14 +421,7 @@ public class CurrentQueryMapperTest {
     public void testActionGroupFilterExtractorState() {
         final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setActionStateList(Arrays.asList(ActionState.IN_PROGRESS,
-            ActionState.RECOMMENDED,
-            ActionState.ACCOUNTING));
-        when(actionSpecMapper.mapApiStateToXl(ActionState.IN_PROGRESS))
-            .thenReturn(Optional.of(ActionDTO.ActionState.IN_PROGRESS));
-        when(actionSpecMapper.mapApiStateToXl(ActionState.RECOMMENDED))
-            .thenReturn(Optional.of(ActionDTO.ActionState.READY));
-        when(actionSpecMapper.mapApiStateToXl(ActionState.ACCOUNTING))
-            .thenReturn(Optional.empty());
+                                                  ActionState.ACCEPTED));
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
@@ -442,7 +430,7 @@ public class CurrentQueryMapperTest {
             makeQuery(inputDTO),
             ApiTestUtils.mockEntityId("1"));
         assertThat(groupFilter.getActionStateList(),
-            containsInAnyOrder(ActionDTO.ActionState.IN_PROGRESS, ActionDTO.ActionState.READY));
+            containsInAnyOrder(ActionDTO.ActionState.IN_PROGRESS, ActionDTO.ActionState.QUEUED));
     }
 
     @Test
@@ -482,12 +470,6 @@ public class CurrentQueryMapperTest {
     public void testActionGroupFilterExtractorRiskSubCategory() {
         final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setRiskSubCategoryList(Arrays.asList("Performance Assurance", "Compliance", "foo"));
-        when(actionSpecMapper.mapApiActionCategoryToXl("Performance Assurance"))
-            .thenReturn(Optional.of(ActionCategory.PERFORMANCE_ASSURANCE));
-        when(actionSpecMapper.mapApiActionCategoryToXl("Compliance"))
-            .thenReturn(Optional.of(ActionCategory.COMPLIANCE));
-        when(actionSpecMapper.mapApiActionCategoryToXl("foo"))
-            .thenReturn(Optional.empty());
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(

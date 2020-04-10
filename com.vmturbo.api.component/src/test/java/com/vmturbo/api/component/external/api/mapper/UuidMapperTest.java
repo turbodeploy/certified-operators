@@ -114,6 +114,8 @@ public class UuidMapperTest {
         assertTrue(id.isRealtimeMarket());
         assertEquals(7L, id.oid());
         assertEquals(UuidMapper.UI_REAL_TIME_MARKET_STR, id.uuid());
+        assertEquals(UuidMapper.UI_REAL_TIME_MARKET_STR, id.getClassName());
+        assertEquals(EnvironmentType.HYBRID, id.getEnvironmentType());
 
         assertFalse(id.isGroup());
         assertFalse(id.isEntity());
@@ -142,6 +144,58 @@ public class UuidMapperTest {
         verify(repositoryApi, times(2)).entityRequest(id);
 
 
+        assertFalse(apiId.isRealtimeMarket());
+        assertFalse(apiId.isGroup());
+        assertFalse(apiId.isPlan());
+    }
+
+    /**
+     * Test basic data in an ApiId, className, displayName, environment type
+     * for an entity.
+     */
+    @Test
+    public void testSourceEntityBasicData() {
+        final long id = 17L;
+        MinimalEntity minEntity = MinimalEntity.newBuilder()
+                .setOid(id)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .build();
+        final SingleEntityRequest entityReq = ApiTestUtils.mockSingleEntityRequest(minEntity);
+
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(entityReq);
+
+        final ApiId apiId = uuidMapper.fromOid(id);
+        assertTrue(apiId.isEntity());
+        verify(repositoryApi, times(1)).entityRequest(id);
+        assertEquals("VirtualMachine", apiId.getClassName());
+        assertEquals(EnvironmentType.CLOUD, apiId.getEnvironmentType());
+        assertFalse(apiId.isRealtimeMarket());
+        assertFalse(apiId.isGroup());
+        assertFalse(apiId.isPlan());
+    }
+
+    /**
+     * Test basic data in an ApiId, className, displayName, environment type
+     * for an entity when environment type is not set.
+     */
+    @Test
+    public void testSourceEntityBasicDataWithoutEnvType() {
+        final long id = 17L;
+        MinimalEntity minEntity = MinimalEntity.newBuilder()
+                .setOid(id)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .build();
+        final SingleEntityRequest entityReq = ApiTestUtils.mockSingleEntityRequest(minEntity);
+
+        when(repositoryApi.entityRequest(anyLong())).thenReturn(entityReq);
+
+        final ApiId apiId = uuidMapper.fromOid(id);
+        assertTrue(apiId.isEntity());
+        verify(repositoryApi, times(1)).entityRequest(id);
+        assertEquals("VirtualMachine", apiId.getClassName());
+        // without an env type, the logic will return unknown as a default
+        assertEquals(EnvironmentType.UNKNOWN_ENV, apiId.getEnvironmentType());
         assertFalse(apiId.isRealtimeMarket());
         assertFalse(apiId.isGroup());
         assertFalse(apiId.isPlan());

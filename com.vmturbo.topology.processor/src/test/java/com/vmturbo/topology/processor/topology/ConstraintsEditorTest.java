@@ -7,16 +7,15 @@ import static org.mockito.Mockito.mock;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
 
@@ -41,6 +40,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanCh
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreEntityTypes;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -56,6 +56,7 @@ import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
 import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.topology.ConstraintsEditor.ConstraintsEditorException;
 
 /**
@@ -370,10 +371,10 @@ public class ConstraintsEditorTest {
         }
 
         @Override
-        public Set<Long> resolve(Grouping group, TopologyGraph<TopologyEntity> topologyGraph) {
-            return new HashSet<>(group.getDefinition().getStaticGroupMembers()
-                            .getMembersByType(0)
-                            .getMembersList());
+        public ResolvedGroup resolve(Grouping group, TopologyGraph<TopologyEntity> topologyGraph) {
+            StaticMembersByType members = group.getDefinition().getStaticGroupMembers().getMembersByType(0);
+            return new ResolvedGroup(group, Collections.singletonMap(
+                ApiEntityType.fromType(members.getType().getEntity()), Sets.newHashSet(members.getMembersList())));
         }
     }
 

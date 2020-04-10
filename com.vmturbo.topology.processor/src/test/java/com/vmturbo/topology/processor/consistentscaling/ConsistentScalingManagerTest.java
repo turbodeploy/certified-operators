@@ -7,13 +7,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -36,6 +39,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -45,6 +49,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
@@ -66,7 +71,7 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
 public class ConsistentScalingManagerTest {
     private ConsistentScalingConfig config;
     private TopologyGraph<TopologyEntity> topologyGraph;
-    Map<Long, Grouping> testGroups;
+    Map<Long, ResolvedGroup> testGroups;
     Map<Long, SettingPolicy> consistentScalingPolicies = new HashMap<>();
 
     private final GroupServiceMole testGroupService = spy(new GroupServiceMole());
@@ -80,12 +85,13 @@ public class ConsistentScalingManagerTest {
             .setType(MemberType.newBuilder().setEntity(EntityType.VIRTUAL_MACHINE_VALUE))
             .addAllMembers(Arrays.asList(vmIds))
             .build();
-        testGroups.put(id, Grouping.newBuilder()
-                .setId(id)
-                .setDefinition(GroupDefinition.newBuilder()
-                    .setDisplayName(name)
-                    .setStaticGroupMembers(StaticMembers.newBuilder().addMembersByType(members)))
-                .build());
+        ResolvedGroup group = new ResolvedGroup(Grouping.newBuilder()
+            .setId(id)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setDisplayName(name)
+                .setStaticGroupMembers(StaticMembers.newBuilder().addMembersByType(members)))
+            .build(), Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE, Sets.newHashSet(vmIds)));
+        testGroups.put(id, group);
     }
 
     private void populateCSMWithTestData(ConsistentScalingManager csm) {
@@ -95,8 +101,7 @@ public class ConsistentScalingManagerTest {
 
         // Add consistent scaling policies
         consistentScalingPolicies.entrySet().forEach(entry -> {
-            Grouping group = testGroups.get(entry.getKey());
-            csm.addEntities(group, getTopologyEntityStreamFromGroup(group),
+            csm.addEntities(testGroups, topologyGraph,
                 Arrays.asList(entry.getValue()));
         });
     }
@@ -105,13 +110,13 @@ public class ConsistentScalingManagerTest {
     buildScalingGroups(ConsistentScalingManager csm) {
         Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName =
             new HashMap<>();
-        csm.buildScalingGroups(topologyGraph, testGroups.values().iterator(),
+        csm.buildScalingGroups(topologyGraph, testGroups.values().stream().map(ResolvedGroup::getGroup).iterator(),
             userSettingsByEntityAndName);
         return userSettingsByEntityAndName;
     }
 
-    private Stream<TopologyEntity> getTopologyEntityStreamFromGroup(final Grouping group) {
-        return group.getDefinition().getStaticGroupMembers()
+    private Stream<TopologyEntity> getTopologyEntityStreamFromGroup(final ResolvedGroup group) {
+        return group.getGroup().getDefinition().getStaticGroupMembers()
             .getMembersByType(0).getMembersList().stream()
             .map(entityId -> topologyGraph.getEntity(entityId).get());
     }
@@ -306,7 +311,9 @@ public class ConsistentScalingManagerTest {
         final GroupResolver groupResolver = mock(GroupResolver.class);
         when(groupResolver.getGroupServiceClient()).thenReturn(groupServiceClient);
         when(testGroupService.getGroups(any()))
-                .thenReturn(new ArrayList<>(testGroups.values()));
+            .thenReturn(testGroups.values().stream()
+                .map(ResolvedGroup::getGroup)
+                .collect(Collectors.toList()));
         csm.buildScalingGroups(topologyGraph, groupResolver, new HashMap<>());
         Assert.assertEquals(Optional.of("Group-B, Group-A"), csm.getScalingGroupId(1L));
         // Member of non-merged group
@@ -323,7 +330,9 @@ public class ConsistentScalingManagerTest {
         final GroupResolver groupResolver = mock(GroupResolver.class);
         when(groupResolver.getGroupServiceClient()).thenReturn(groupServiceClient);
         when(testGroupService.getGroups(any()))
-            .thenReturn(new ArrayList<>(testGroups.values()));
+            .thenReturn(testGroups.values().stream()
+                .map(ResolvedGroup::getGroup)
+                .collect(Collectors.toList()));
         Map<Long, Map<String, SettingAndPolicyIdRecord>> settingsMaps = new HashMap<>();
                 csm.buildScalingGroups(topologyGraph, groupResolver, settingsMaps);
         // There are 7 powered on entities in the test topology, all of them in scaling groups, so

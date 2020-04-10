@@ -473,8 +473,6 @@ public class TopologyConverter {
     @Nonnull
     public Set<EconomyDTOs.TraderTO> convertToMarket(
                 @Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology) {
-        // Initialize the template exclusion applicator
-        tierExcluder.initialize(topology);
         // Initialize the consistent resizer
         consistentScalingHelper.initialize(topology);
         // TODO (roman, Jul 5 2018): We don't need to create a new entityOidToDto map.
@@ -482,14 +480,17 @@ public class TopologyConverter {
         // original topology.
         conversionErrorCounts.startPhase(Phase.CONVERT_TO_MARKET);
         long convertToMarketStartTime = System.currentTimeMillis();
+        final Set<Long> tierExcluderEntityOids = new HashSet<>();
+        final Set<Integer> tierExcluderEntityTypeScope = EntitySettingSpecs.ExcludedTemplates
+            .getEntityTypeScope().stream().map(EntityType::getNumber).collect(Collectors.toSet());
         try {
             for (TopologyDTO.TopologyEntityDTO entity : topology.values()) {
-                int entityType = entity.getEntityType();
+                final int entityType = entity.getEntityType();
                 if (MarketAnalysisUtils.SKIPPED_ENTITY_TYPES.contains(entityType)
                         || !includeByType(entityType)) {
                     logger.debug("Skipping trader creation for entity name = {}, entity type = {}, " +
                             "entity state = {}", entity.getDisplayName(),
-                        EntityType.forNumber(entity.getEntityType()), entity.getEntityState());
+                        EntityType.forNumber(entityType), entity.getEntityState());
                     skippedEntities.put(entity.getOid(), entity);
                 } else {
                     // Allow creation of traderTOs for traders discarded due to state or entityType.
@@ -506,11 +507,11 @@ public class TopologyConverter {
                             .map(CommoditiesBoughtFromProvider::getProviderId)
                             .collect(Collectors.toSet()));
                     }
-                    if (entity.getEntityType() == EntityType.REGION_VALUE) {
+                    if (entityType == EntityType.REGION_VALUE) {
                         List<TopologyEntityDTO> AZs = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.AVAILABILITY_ZONE_VALUE, topology);
                         AZs.forEach(az -> azToRegionMap.put(az, entity));
-                    } else if (entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
+                    } else if (entityType == EntityType.BUSINESS_ACCOUNT_VALUE) {
                         List<TopologyEntityDTO> vms = TopologyDTOUtil.getConnectedEntitiesOfType(
                             entity, EntityType.VIRTUAL_MACHINE_VALUE, topology);
                         List<TopologyEntityDTO> dbs = TopologyDTOUtil.getConnectedEntitiesOfType(
@@ -526,8 +527,18 @@ public class TopologyConverter {
                                     cloudTc.getAccountPricingIdFromBusinessAccount(entity.getOid()).get());
                         }
                     }
+
+                    // Store oids of entities that may have ExcludedTemplates settings.
+                    if (entity.getEnvironmentType() == EnvironmentType.CLOUD &&
+                        tierExcluderEntityTypeScope.contains(entityType)) {
+                        tierExcluderEntityOids.add(entity.getOid());
+                    }
                 }
             }
+
+            // Initialize the template exclusion applicator
+            tierExcluder.initialize(topology, tierExcluderEntityOids);
+
             return convertToMarket();
         } catch (RuntimeException e) {
             //throw new RuntimeException("RuntimeException in convertToMarket(topology) ", e);
@@ -755,22 +766,20 @@ public class TopologyConverter {
     private void calculateProjectedRiCoverage(@Nonnull TraderTO originalTraderTO,
                                               @Nonnull TraderTO projectedTraderTO,
                                               @Nonnull Optional<EntityReservedInstanceCoverage> originalRiCoverage) {
-
-        final Optional<Integer> projectedCoverageCapacity =
-                cloudTc.getReservedInstanceCoverageCapacity(
-                        projectedTraderTO, originalTraderTO.getState());
-        if (projectedCoverageCapacity.map(c -> c > 0).orElse(false)) {
-            final long entityId = projectedTraderTO.getOid();
-            final EntityReservedInstanceCoverage.Builder riCoverageBuilder =
+        final long entityId = projectedTraderTO.getOid();
+        boolean isValidProjectedTrader = isValidProjectedTraderForCoverageCalculation(projectedTraderTO);
+        if (isValidProjectedTrader) {
+            final Optional<Integer> projectedCoverageCapacity =
+                cloudTc.getReservedInstanceCoverageCapacity(projectedTraderTO, originalTraderTO.getState());
+            if (projectedCoverageCapacity.map(c -> c > 0).orElse(false)) {
+                final EntityReservedInstanceCoverage.Builder riCoverageBuilder =
                     EntityReservedInstanceCoverage.newBuilder()
-                            .setEntityCouponCapacity(projectedCoverageCapacity.get())
-                            .setEntityId(entityId);
-            if (isValidProjectedTrader(projectedTraderTO)) {
+                        .setEntityId(entityId)
+                        .setEntityCouponCapacity(projectedCoverageCapacity.get());
                 // Are any of the shopping lists of the projected trader placed on discounted tier?
                 final Optional<ShoppingListTO> projectedRiTierSl =
                     getShoppingListSuppliedByRiTier(projectedTraderTO, true);
                 if (projectedRiTierSl.isPresent()) {
-
                     // Destination is RI. Get the projected RI Tier and the projected coupon comm bought.
                     RiDiscountedMarketTier projectedRiTierDestination = (RiDiscountedMarketTier)
                         cloudTc.getMarketTier(projectedRiTierSl.get().getCouponId());
@@ -784,12 +793,13 @@ public class TopologyConverter {
                             projectedRiTierDestination != null ? projectedRiTierDestination.getDisplayName() : "");
                         return;
                     }
-
                     final Optional<MarketTier> originalRiTierDestination =
                         originalTraderTO.getShoppingListsList()
                             .stream()
-                            .map(sl -> sl.getSupplier()).map(traderId -> cloudTc.getMarketTier(traderId))
-                            .filter(Objects::nonNull).filter(mt -> mt.hasRIDiscount())
+                            .map(sl -> sl.getSupplier())
+                            .map(traderId -> cloudTc.getMarketTier(traderId))
+                            .filter(Objects::nonNull)
+                            .filter(mt -> mt.hasRIDiscount())
                             .findFirst();
 
                     if (!originalRiTierDestination.isPresent() ||
@@ -805,7 +815,6 @@ public class TopologyConverter {
                         riCoverageBuilder.putAllCouponsCoveredByRi(riIdtoCouponsOfRIUsed);
                     } else {
                         // Entity stayed on the same RI Tier. Check if the coverage changed.
-                        // If we are in this block, originalTraderTO cannot be null.
                         if (!originalRiCoverage.isPresent()) {
                             logger.error("{} does not have original RI coverage", originalTraderTO.getDebugInfoNeverUseInCode());
                             return;
@@ -830,9 +839,14 @@ public class TopologyConverter {
                         }
                     }
                 }
+                projectedReservedInstanceCoverage.put(entityId, riCoverageBuilder.build());
             }
-
-            projectedReservedInstanceCoverage.put(entityId, riCoverageBuilder.build());
+        } else if (originalRiCoverage.isPresent()) {
+            // If we are here, the projected trader is not valid and the entity was originally on
+            // an RI. So we copy the same coverage.
+            // Since the EntityReservedInstanceCoverage is a protobuf, it is immutable and hence
+            // safe to copy into projectedReservedInstanceCoverage.
+            projectedReservedInstanceCoverage.put(entityId, originalRiCoverage.get());
         }
     }
 
@@ -852,7 +866,7 @@ public class TopologyConverter {
         for (TraderTO projectedTrader : projectedTraders) {
             TraderTO originalTrader = oidToOriginalTraderTOMap.get(projectedTrader.getOid());
             // Original trader might be null in case of a provisioned trader
-            if (originalTrader != null && isValidProjectedTrader(projectedTrader)) {
+            if (originalTrader != null && isValidProjectedTraderForCoverageCalculation(projectedTrader)) {
                 // If the VM was using an RI before going into market, then original trader will
                 // have a shopping list supplied by RIDiscountedMarketTier because in this case
                 // while constructing shopping lists of original trader, we make the supplier of
@@ -945,11 +959,12 @@ public class TopologyConverter {
      * @param projectedTraderTO the trader to check if it is valid
      * @return True if the projected trader is valid. False otherwise.
      */
-    private boolean isValidProjectedTrader(TraderTO projectedTraderTO) {
+    private boolean isValidProjectedTraderForCoverageCalculation(TraderTO projectedTraderTO) {
         Optional<MarketTier> computeSupplier = cloudTc.getComputeTier(projectedTraderTO);
         if (computeSupplier.isPresent() && computeSupplier.get().hasRIDiscount()) {
-            logger.error("Projected trader for {} has compute SL supplied by " +
-                    "RI {}. This should not happen.",
+            logger.warn("Projected trader for {} has compute SL supplied by " +
+                    "RI {} instead of on-demand tier. This may be because of undiscovered costs " +
+                    "or very restrictive tier exclusion policy causing reconfigure action on the VM.",
                 projectedTraderTO.getDebugInfoNeverUseInCode(), computeSupplier.get().getDisplayName());
             return false;
         }
@@ -1093,7 +1108,23 @@ public class TopologyConverter {
             // If the supplier is a market tier, then get the tier TopologyEntityDTO and
             // make that the supplier.
             if (cloudTc.isMarketTier(supplier)) {
-                supplier = cloudTc.getMarketTier(supplier).getTier().getOid();
+                if (cloudTc.getMarketTier(supplier).hasRIDiscount()) {
+                    // Projected trader should not be supplied by RI Tier. But it can happen if
+                    // costs are not yet fully discovered or there is a highly restrictive
+                    // tier-exclusion policy. Both these situations prevent
+                    // AnalysisToProtobuf#replaceNewSupplier from replacing the RITier by an
+                    // on-demand tier. If this happens, we should make no changes and take the
+                    // supplier of the shopping list from the original entity.
+                    Optional<TopologyEntityDTO> computeTier = cloudTopology.getComputeTier(slInfo.getBuyerId());
+                    if (computeTier.isPresent()) {
+                        supplier = computeTier.get().getOid();
+                    } else {
+                        logger.error("{} does not have compute tier supplier", slInfo.getBuyerId());
+                        supplier = cloudTc.getMarketTier(supplier).getTier().getOid();
+                    }
+                } else {
+                    supplier = cloudTc.getMarketTier(supplier).getTier().getOid();
+                }
             }
             commoditiesBoughtFromProviderBuilder.setProviderId(supplier);
         }
@@ -2480,11 +2511,14 @@ public class TopologyConverter {
             isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(buyer) > 0;
         }
 
-
-        // Apply scalable to movable for cloud VMs in realtime
-        if (!isPlan() && buyer.getEnvironmentType() == EnvironmentType.CLOUD
+        if (buyer.getEnvironmentType() == EnvironmentType.CLOUD
                 && buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-            isMovable = isMovable && buyer.getAnalysisSettings().getIsEligibleForScale();
+            // Apply scalable from mediation to movable for cloud VMs.
+            isMovable &= commBoughtGrouping.getScalable();
+            // Apply EligibleForScale to movable for cloud VMs in realtime
+            if (!isPlan()) {
+                isMovable = isMovable && buyer.getAnalysisSettings().getIsEligibleForScale();
+            }
         }
 
         // if the buyer of the shopping list is in control state(controllable = false), or if the

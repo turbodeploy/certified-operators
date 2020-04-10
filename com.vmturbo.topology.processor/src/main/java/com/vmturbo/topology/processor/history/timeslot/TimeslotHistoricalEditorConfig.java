@@ -1,11 +1,15 @@
 package com.vmturbo.topology.processor.history.timeslot;
 
 import java.time.Clock;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.stitching.EntityCommodityReference;
+import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.history.BackgroundLoadingHistoricalEditorConfig;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 
@@ -30,12 +34,14 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
      * @param backgroundLoadTimeoutMin how much time to give to a single loading attempt
      * @param maintenanceWindowHours how often to perform maintenance
      * @param clock provides information about current time
+     * @param kvConfig the config to access the topology processor key value store.
      */
     public TimeslotHistoricalEditorConfig(int loadingChunkSize, int calculationChunkSize,
                     int backgroundLoadThreshold, int backgroundLoadRetries,
-                    int backgroundLoadTimeoutMin, int maintenanceWindowHours, @Nonnull Clock clock) {
+                    int backgroundLoadTimeoutMin, int maintenanceWindowHours, @Nonnull Clock clock,
+                    @Nonnull KVConfig kvConfig) {
         super(loadingChunkSize, calculationChunkSize, backgroundLoadThreshold, backgroundLoadRetries,
-              backgroundLoadTimeoutMin, clock);
+              backgroundLoadTimeoutMin, clock, kvConfig);
         this.maintenanceWindowHours = maintenanceWindowHours;
     }
 
@@ -47,36 +53,42 @@ public class TimeslotHistoricalEditorConfig extends BackgroundLoadingHistoricalE
      * Get the timeslot observation window configured for a given entity.
      *
      * @param context pipeline context
-     * @param oid entity oid
+     * @param reference to the reference to the entity commodity
      * @return window in months
      */
-    public int getObservationPeriod(@Nonnull HistoryAggregationContext context, long oid) {
-        Float window =
-                   context.getEntitySetting(oid,
-                                    EntitySettingSpecs.MaxObservationPeriodDesktopPool,
-                                    Float.class);
-        if (window != null) {
-            return window.intValue();
-        }
-        return (int)EntitySettingSpecs.MaxObservationPeriodDesktopPool.getSettingSpec()
-                        .getNumericSettingValueType().getDefault();
+    public int getObservationPeriod(@Nonnull HistoryAggregationContext context,
+                    @Nonnull EntityCommodityReference reference) {
+        return getReferenceSetting(context, reference,
+                        EntitySettingSpecs.MaxObservationPeriodDesktopPool,
+                        ss -> ss.getNumericSettingValueType().getDefault(), Float.class,
+                        Float::intValue);
+    }
+
+    private static <V> int getReferenceSetting(@Nonnull HistoryAggregationContext context,
+                    @Nonnull EntityCommodityReference reference,
+                    @Nonnull EntitySettingSpecs settingSpecs,
+                    @Nonnull Function<SettingSpec, V> defaultValueProvider,
+                    Class<V> settingValueType, @Nonnull Function<V, Integer> converter) {
+        final long relatedId = reference.getProviderOid() == null ?
+                        reference.getEntityOid() :
+                        reference.getProviderOid();
+        return context.getSettingValue(relatedId, settingSpecs, settingValueType, converter,
+                        defaultValueProvider);
     }
 
     /**
      * Get the number of slot windows per day for a given entity.
      *
      * @param context pipeline context
-     * @param oid entity oid
+     * @param reference which setting we want to know.
      * @return slots, default to 1
      */
-    public int getSlots(@Nonnull HistoryAggregationContext context, long oid) {
-        DailyObservationWindowsCount slots =
-                   context.getEntitySetting(oid,
-                                    EntitySettingSpecs.DailyObservationWindowDesktopPool,
-                                    DailyObservationWindowsCount.class);
-        if (slots != null) {
-            return slots.getCountOfWindowsPerDay();
-        }
-        return DailyObservationWindowsCount.THREE.getCountOfWindowsPerDay();
+    public int getSlots(@Nonnull HistoryAggregationContext context,
+                    @Nonnull EntityCommodityReference reference) {
+        return getReferenceSetting(context, reference,
+                        EntitySettingSpecs.DailyObservationWindowDesktopPool,
+                        ss -> DailyObservationWindowsCount.THREE,
+                        DailyObservationWindowsCount.class,
+                        DailyObservationWindowsCount::getCountOfWindowsPerDay);
     }
 }
