@@ -27,6 +27,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Matchers;
+import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -206,7 +207,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
                 Sets.newHashSet(Arrays.asList(appServerId, appServerIdNotRelatedToBA)),
-                Collections.emptySet(), REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+                REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         assertEquals(snapshot.getOwnerAccountOfEntity(appServerId).get(), businessAccountEntity);
         assertFalse(snapshot.getOwnerAccountOfEntity(appServerIdNotRelatedToBA).isPresent());
