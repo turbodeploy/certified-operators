@@ -6,7 +6,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Properties;
 
 import javax.annotation.Nonnull;
@@ -31,7 +30,6 @@ import org.springframework.core.io.Resource;
  * And return as credential proerties that match the corresponding components, see componentCredentialKeyMap for the mapping.
  */
 public class SecretPropertiesReader extends YamlProcessor {
-
     /**
      * Secret: username.
      */
@@ -42,28 +40,35 @@ public class SecretPropertiesReader extends YamlProcessor {
      */
     @VisibleForTesting
     static final String PASSWORD = "password";
-    private static final Logger logger = LogManager.getLogger();
     /**
-     * These are the secret keys to look for, in order, when extracting values from secret file.
+     * Secret: ClientId.
      */
-    private static final String[] SECRET_KEYS = {USERNAME, PASSWORD};
+    @VisibleForTesting
+    static final String CLIENT_ID = "ClientId";
+    /**
+     * Secret: ClientSecret.
+     */
+    @VisibleForTesting
+    static final String CLIENT_SECRET = "ClientSecret";
+
+    private static final Logger logger = LogManager.getLogger();
 
     /**
      * component type -> (componentUserKey, componentPassKey). These mapping are defined in Spring config file, e.g.:
      * AuthDBConfig.java for Auth component.
      */
     @VisibleForTesting
-    static final Map<String, Map> componentCredentialKeyMap =
-            ImmutableMap.<String, Map>builder()
-                    .put("action-orchestrator", ImmutableMap.of(USERNAME, "actionDbUsername", PASSWORD, "actionDbPassword"))
-                    .put("auth", ImmutableMap.of(USERNAME, "authDbUsername", PASSWORD, "authDbPassword"))
-                    .put("cost", ImmutableMap.of(USERNAME, "costDbUsername", PASSWORD, "costDbPassword"))
-                    .put("group", ImmutableMap.of(USERNAME, "groupComponentDbUsername", PASSWORD, "groupComponentDbPassword"))
-                    .put("history", ImmutableMap.of(USERNAME, "historyDbUsername", PASSWORD, "historyDbPassword"))
-                    .put("plan-orchestrator", ImmutableMap.of(USERNAME, "planDbUsername", PASSWORD, "planDbPassword"))
-                    .put("topology-processor", ImmutableMap.of(USERNAME, "topologyProcessorDbUsername", PASSWORD, "topologyProcessorDbPassword"))
-                    .put("repository", ImmutableMap.of(USERNAME, "arangoDBUsername", PASSWORD, "arangoDBPassword")) // see RepositoryProperties
-                    .build();
+    static final Map<String, Map> componentSecretKeyMap = ImmutableMap.<String, Map>builder()
+            .put("action-orchestrator", ImmutableMap.of(USERNAME, "actionDbUsername", PASSWORD, "actionDbPassword"))
+            .put("auth", ImmutableMap.of(USERNAME, "authDbUsername", PASSWORD, "authDbPassword"))
+            .put("cost", ImmutableMap.of(USERNAME, "costDbUsername", PASSWORD, "costDbPassword"))
+            .put("group", ImmutableMap.of(USERNAME, "groupComponentDbUsername", PASSWORD, "groupComponentDbPassword"))
+            .put("history", ImmutableMap.of(USERNAME, "historyDbUsername", PASSWORD, "historyDbPassword"))
+            .put("plan-orchestrator", ImmutableMap.of(USERNAME, "planDbUsername", PASSWORD, "planDbPassword"))
+            .put("topology-processor", ImmutableMap.of(USERNAME, "topologyProcessorDbUsername", PASSWORD, "topologyProcessorDbPassword"))
+            .put("repository", ImmutableMap.of(USERNAME, "arangoDBUsername", PASSWORD, "arangoDBPassword")) // see RepositoryProperties
+            .put("intersight-integration", ImmutableMap.of(CLIENT_ID, "intersightClientId", CLIENT_SECRET, "intersightClientSecret"))
+            .build();
 
     /**
      * Read the YAML comparable secret file at the given file path, and return as {@link
@@ -110,31 +115,28 @@ public class SecretPropertiesReader extends YamlProcessor {
      * @return a Properties object containing the global and component-type specific properties
      * @throws MissingSecretEntry exception if the expected secret is not found in the file.
      */
-    private Properties extractProperties(@Nonnull String componentType, @Nonnull final Map<String, Object> propertiesYamlMap) {
+    private Properties extractProperties(@Nonnull String componentType,
+                                         @Nonnull final Map<String, Object> propertiesYamlMap) {
         final Properties result = new Properties();
-        for (String segmentKey : SECRET_KEYS) {
-            Object value = propertiesYamlMap.get(segmentKey);
-            if (value != null) {
-                final Optional<String> componentSpecificKey =
-                        getComponentSpecificKey(componentType, segmentKey);
-                componentSpecificKey.ifPresent(key -> result.put(key, value));
-                logger.info("Loading secret: {}", segmentKey);
-            } else {
-                logger.error("Cannot find value for secret key: {}", segmentKey);
-                throw new MissingSecretEntry("Missing secret entry: " + segmentKey);
-            }
-        }
-        return result;
-    }
-
-    private Optional<String> getComponentSpecificKey(@Nonnull String componentType, @Nonnull String segmentKey) {
-        final Map<String, String> map = componentCredentialKeyMap.get(componentType);
-        if (map == null) {
+        final Map<String, String> secretsMap = componentSecretKeyMap.get(componentType);
+        if (secretsMap == null) {
             logger.error("Found unknown component: {}. If it's a valid component, add it to " +
                     "SecretPropertiesReader#componentCredentialKeyMap", componentType);
             throw new UnknowComponentException("Found unknown component: " + componentType);
         }
-        return Optional.ofNullable(map.get(segmentKey));
+        for (Map.Entry<String, String> secretEntry : secretsMap.entrySet()) {
+            final String secretKey = secretEntry.getKey();
+            Object secretValue = propertiesYamlMap.get(secretKey);
+            if (secretValue != null) {
+                final String componentPropName = secretEntry.getValue();
+                result.put(componentPropName, secretValue);
+                logger.info("Loading secret: {}", secretKey);
+            } else {
+                logger.error("Cannot find value for secret key: {}", secretKey);
+                throw new MissingSecretEntry("Missing secret entry: " + secretKey);
+            }
+        }
+        return result;
     }
 
     /**

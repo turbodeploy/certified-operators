@@ -67,11 +67,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * the user can see it in the UI).
  * <li>An action transitions from READY to any other state.
  * </ol>
- *
- * <p>TODO(davidblinn): The work being done here is somewhat specific to the API. Consider
- * moving this responsibility to the API if possible.
- *
- * @see {@link ActionDTOUtil#getSeverityEntity(Action)}
  */
 @ThreadSafe
 public class EntitySeverityCache {
@@ -405,8 +400,7 @@ public class EntitySeverityCache {
 
             visibleReadyActionViews(actionStore)
                 .filter(actionView -> matchingSeverityEntity(severityEntity, actionView))
-                .map(actionView ->
-                    ActionDTOUtil.mapActionCategoryToSeverity(actionView.getActionCategory()))
+                .map(ActionView::getActionSeverity)
                 .max(severityComparator)
                 .ifPresent(severity -> severities.put(severityEntity, severity));
         } catch (UnsupportedActionException e) {
@@ -512,9 +506,8 @@ public class EntitySeverityCache {
     private void handleActionSeverity(@Nonnull final ActionView actionView) {
         try {
             final long severityEntity = ActionDTOUtil.getSeverityEntity(
-                actionView.getTranslationResultOrOriginal());
-            final Severity nextSeverity = ActionDTOUtil.mapActionCategoryToSeverity(
-                actionView.getActionCategory());
+                    actionView.getTranslationResultOrOriginal());
+            final Severity nextSeverity = actionView.getActionSeverity();
 
             final Severity maxSeverity = getSeverity(severityEntity)
                 .map(currentSeverity -> maxSeverity(currentSeverity, nextSeverity))

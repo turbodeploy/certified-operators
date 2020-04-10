@@ -26,9 +26,11 @@ import javax.annotation.Nonnull;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Insert;
@@ -531,7 +533,7 @@ public abstract class BasedbIO {
      * @throws VmtDbException if a read-only connection cannot be allocated.
      */
     protected Connection readOnlyConnection() throws VmtDbException {
-        initPool();
+        initPool(getPoolPropertiesBase());
         return DBConnectionPool.instance
                 .getConnection(getReadOnlyUserName(), getReadOnlyPassword());
 
@@ -1421,13 +1423,14 @@ public abstract class BasedbIO {
      */
     @VisibleForTesting
     public void init(boolean clearOldDb, Double version, String dbName,
-                     Optional<String> migrationLocationOverride) throws VmtDbException {
+            Optional<String> migrationLocationOverride)
+            throws VmtDbException {
         try {
             // Test DB connection first to the schema under given user credentials.
             DBConnectionPool.setConnectionPoolInstance(null);
             connection().close();
             logger.info("DB connection is available to schema '{}' from user '{}'.",
-                dbName, getUserName());
+                    dbName, getUserName());
         } catch (VmtDbException | SQLException e) {
             // VmtDbException or SQLException will be thrown if given db schema name or db user does
             // not exist or password has been changed. This is a valid case.
@@ -1438,6 +1441,8 @@ public abstract class BasedbIO {
         logger.info("Initialize tables...\n");
         SchemaUtil.initDb(version, clearOldDb, migrationLocationOverride);
     }
+
+    protected abstract PoolProperties getPoolPropertiesBase();
 
     /**
      * Initialize using root credentials to create database schema and user.
@@ -1476,34 +1481,30 @@ public abstract class BasedbIO {
 
     private void createDBUser(Connection rootConn, String dbName, String hostName) throws SQLException {
         // Allow given user to access the database (= grants.sql):
-        final String requestUser = "'" + getUserName() + "'@'" + hostName + "'";
-        logger.info("Initialize permissions for " + requestUser + " on '" + dbName + "'...");
-        // Clean up existing db user, if it exists.
-        try (PreparedStatement stmt = rootConn.prepareStatement(
-            "DROP USER " + requestUser + ";")) {
-            stmt.execute();
-            logger.info("Cleaned up {} db user.", requestUser);
+        final String requestUser = String.format("'%s'@'%s'", getUserName(), hostName);
+        logger.info("Initialize permissions for {} on `{}`...", requestUser, dbName);
+        logger.info("Removing {} db user if it exists.", requestUser);
+        try {
+            rootConn.createStatement().execute(
+                    // DROP USER IF EXISTS does not appear until MySQL 5.7, and breaks Jenkins build
+                    String.format("DROP USER %s", requestUser));
         } catch (SQLException e) {
-            // SQLException will be thrown when trying to drop not existed username% user in DB. It's valid case.
-            logger.info("{} user is not in the DB, clean up is not needed.", requestUser);
+            // did not prevoiusly exist
         }
-        // Create db user.
-        try (PreparedStatement stmt = rootConn.prepareStatement(
-            "CREATE USER " + requestUser + " IDENTIFIED BY '" + getPassword() + "';")) {
-            stmt.execute();
-            logger.info("Created {} db user.", requestUser);
+        logger.info("Creating {} db user.", requestUser);
+        rootConn.createStatement().execute(
+                String.format("CREATE USER %s IDENTIFIED BY '%s'", requestUser, getPassword()));
+        logger.info("Granting ALL vmtdb privileges to user {}.", requestUser);
+        rootConn.createStatement().execute(
+                String.format("GRANT ALL PRIVILEGES ON `%s`.* TO %s", dbName, requestUser));
+        logger.info("Granting global PROCESS privileges to user {}.", requestUser);
+        try {
+            rootConn.createStatement().execute(
+                    String.format("GRANT PROCESS ON *.* TO %s", requestUser));
+        } catch (SQLException e) {
+            logger.warn("Failed to grant PROCESS privilege; DbMonitor will only see history threads", e);
         }
-        // Grant db user privileges
-        try (PreparedStatement stmt = rootConn.prepareStatement(
-            "GRANT ALL PRIVILEGES ON *.* TO " + requestUser + ";")) {
-            stmt.execute();
-            logger.info("Granted all privileges to user {}.", requestUser);
-        }
-        // Flush user privileges
-        try (PreparedStatement stmt = rootConn.prepareStatement("FLUSH PRIVILEGES;")) {
-            stmt.execute();
-            logger.info("Flushed all privileges to user {}.", requestUser);
-        }
+        rootConn.createStatement().execute("FLUSH PRIVILEGES");
     }
 
     /**
@@ -1536,9 +1537,11 @@ public abstract class BasedbIO {
     /**
      * Initializes the JDBC connection pool based on the credentials specified
      * in this manager.
-     * @throws VmtDbException
+     *
+     * @param poolParametersBase configurable pool parameters
+     * @throws VmtDbException if there's a connection error
      */
-    private void initPool() throws VmtDbException {
+    private void initPool(PoolProperties poolParametersBase) throws VmtDbException {
         synchronized (this) {
             if (DBConnectionPool.instance == null) {
                 String driverName = null, url = null;
@@ -1555,7 +1558,8 @@ public abstract class BasedbIO {
                         driverName,
                         getUserName(),
                         getPassword(),
-                        getQueryTimeoutSeconds()));
+                        getQueryTimeoutSeconds(),
+                        poolParametersBase));
             }
         }
     }
@@ -1587,7 +1591,7 @@ public abstract class BasedbIO {
      * @throws VmtDbException if a connection cannot be allocated.
      */
     public Connection connection() throws VmtDbException {
-        initPool();
+        initPool(getPoolPropertiesBase());
         Connection conn = DBConnectionPool.instance.getConnection();
         // As connections are reused, set autocommit to true every time
         // as it could be set to false during previous calls by other
@@ -1611,7 +1615,7 @@ public abstract class BasedbIO {
      * @throws VmtDbException
      */
     public Connection getReadOnlyConnection() throws VmtDbException {
-        initPool();
+        initPool(getPoolPropertiesBase());
         return DBConnectionPool.instance
                 .getConnection(getReadOnlyUserName(), getReadOnlyPassword());
     }

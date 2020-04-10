@@ -90,7 +90,9 @@ public class RemoteMediationImpl implements IRemoteMediation {
         final long probeId = getProbeId(target.getProbe());
         final DiscoveryCaptor captor = new DiscoveryCaptor();
         try {
-            remoteMediation.sendDiscoveryRequest(probeId, request, captor.getHandler());
+            remoteMediation.sendDiscoveryRequest(probeId, Long.valueOf(target.getTargetId()),
+                request,
+                captor.getHandler());
             return captor.getResult();
         } catch (ProbeException | CommunicationException | InterruptedException | ExecutionException e) {
             throw new RuntimeException("Error during validation", e);

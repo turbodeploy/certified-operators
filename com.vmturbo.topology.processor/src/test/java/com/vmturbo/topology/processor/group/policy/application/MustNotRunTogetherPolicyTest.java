@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
+import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.resolvedGroup;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static org.hamcrest.CoreMatchers.not;
@@ -106,7 +107,7 @@ public class MustNotRunTogetherPolicyTest {
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
-            .thenReturn(Collections.emptySet());
+            .thenReturn(resolvedGroup(group));
 
         applyPolicy(new MustNotRunTogetherPolicy(hostPolicyDefinition,
             new PolicyEntities(group, Collections.emptySet())), topologyGraph);
@@ -152,7 +153,7 @@ public class MustNotRunTogetherPolicyTest {
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
-                .thenReturn(Sets.newHashSet(6L, 7L));
+                .thenReturn(resolvedGroup(group, 6L, 7L));
 
         applyPolicy(new MustNotRunTogetherPolicy(hostPolicyDefinition,
             new PolicyEntities(group, Collections.emptySet())), topologyGraph);
@@ -203,7 +204,7 @@ public class MustNotRunTogetherPolicyTest {
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
-                .thenReturn(Sets.newHashSet(6L, 7L));
+                .thenReturn(resolvedGroup(group, 6L, 7L));
 
         applyPolicy(new MustNotRunTogetherPolicy(storagePolicyDefinition,
             new PolicyEntities(group, Collections.emptySet())), topologyGraph);
@@ -235,28 +236,28 @@ public class MustNotRunTogetherPolicyTest {
     }
 
     @Test
-    public void testPMProviderUseClusterKey() {
+    public void testPMProviderUseClusterKey() throws GroupResolutionException {
         testProviderUseClusterKey(EntityType.PHYSICAL_MACHINE);
     }
 
     @Test
-    public void testSTProviderUseClusterKey() {
+    public void testSTProviderUseClusterKey() throws GroupResolutionException {
         testProviderUseClusterKey(EntityType.STORAGE);
     }
 
     @Test
-    public void testPMProviderUseDCKeyIfNoClusterKey() {
+    public void testPMProviderUseDCKeyIfNoClusterKey() throws GroupResolutionException {
         testProviderUseDCKeyIfNoClusterKey(EntityType.PHYSICAL_MACHINE);
     }
 
     @Test
-    public void testSTProviderUseDCKeyIfNoClusterKey() {
+    public void testSTProviderUseDCKeyIfNoClusterKey() throws GroupResolutionException {
         testProviderUseDCKeyIfNoClusterKey(EntityType.STORAGE);
     }
 
 
     @Test
-    public void testPMProviderApplyToAllIfNoDCOrClusterKey() {
+    public void testPMProviderApplyToAllIfNoDCOrClusterKey() throws GroupResolutionException {
         final TopologyEntity.Builder host1 = topologyEntity(1L, EntityType.PHYSICAL_MACHINE);
         final TopologyEntity.Builder host2 = topologyEntity(3L, EntityType.PHYSICAL_MACHINE);
         final TopologyEntity.Builder vm = topologyEntity(5L, EntityType.VIRTUAL_MACHINE, 1);
@@ -269,7 +270,7 @@ public class MustNotRunTogetherPolicyTest {
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
-            .thenReturn(Sets.newHashSet(vm.getOid()));
+            .thenReturn(resolvedGroup(group, vm.getOid()));
 
         applyPolicy(new MustNotRunTogetherPolicy(hostPolicyDefinition,
             new PolicyEntities(group, Collections.emptySet())), topologyGraph);
@@ -292,7 +293,7 @@ public class MustNotRunTogetherPolicyTest {
         application.apply(Collections.singletonList(policy));
     }
 
-    private void testProviderUseDCKeyIfNoClusterKey(@Nonnull final EntityType providerType) {
+    private void testProviderUseDCKeyIfNoClusterKey(@Nonnull final EntityType providerType) throws GroupResolutionException {
         Preconditions.checkArgument(providerType == EntityType.PHYSICAL_MACHINE ||
             providerType == EntityType.STORAGE);
         final CommodityType dcComm = CommodityType.newBuilder()
@@ -330,7 +331,7 @@ public class MustNotRunTogetherPolicyTest {
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
-            .thenReturn(Sets.newHashSet(vm.getOid()));
+            .thenReturn(resolvedGroup(group, vm.getOid()));
 
         final PolicyDTO.Policy policyDefinition = providerType == EntityType.PHYSICAL_MACHINE ?
                 hostPolicyDefinition : storagePolicyDefinition;
@@ -354,7 +355,7 @@ public class MustNotRunTogetherPolicyTest {
             not(policyMatcher.hasProviderSegment(policyDefinition.getId())));
     }
 
-    private void testProviderUseClusterKey(@Nonnull final EntityType providerType) {
+    private void testProviderUseClusterKey(@Nonnull final EntityType providerType) throws GroupResolutionException {
         Preconditions.checkArgument(providerType == EntityType.PHYSICAL_MACHINE ||
             providerType == EntityType.STORAGE);
         final boolean pmProvider = providerType == EntityType.PHYSICAL_MACHINE;
@@ -395,7 +396,7 @@ public class MustNotRunTogetherPolicyTest {
         PolicyMatcher policyMatcher = new PolicyMatcher(topologyGraph);
 
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
-            .thenReturn(Sets.newHashSet(vm.getOid()));
+            .thenReturn(resolvedGroup(group, vm.getOid()));
 
 
         final PolicyDTO.Policy policyDefinition = pmProvider ? hostPolicyDefinition : storagePolicyDefinition;

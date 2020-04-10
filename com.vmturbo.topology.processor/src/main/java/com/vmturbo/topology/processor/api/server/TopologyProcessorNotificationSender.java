@@ -157,8 +157,8 @@ public class TopologyProcessorNotificationSender
     }
 
     private void notifyDiscoveryState(@Nonnull final Discovery result) {
-        getLogger().debug(() -> "Target " + result.getTargetId() + " discovery reported with status "
-                        + result.getStatus());
+        getLogger().debug(() -> "Target " + result.getTargetId() + " " + result.getDiscoveryType()
+            + " discovery reported with status " + result.getStatus());
         final TopologyProcessorNotification message = createNewMessage()
                 .setDiscoveryNotification(convertOperationToDto(result))
                 .build();

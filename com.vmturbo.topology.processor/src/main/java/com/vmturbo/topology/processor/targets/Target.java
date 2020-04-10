@@ -34,6 +34,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.impl.TargetInfoProtobufWrapper;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 
 /**
  * The Topology Processor's representation of a registered target.
@@ -42,7 +43,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
  * is the base unit of operation for a probe. For example, if the
  * probe is a VCenter probe, the target will be a VCenter instance.
  */
-public class Target {
+public class Target implements ProbeStoreListener {
     private static Logger logger = Logger.getLogger(Target.class);
     private final long id;
     private final long probeId;
@@ -52,13 +53,13 @@ public class Target {
      */
     private final List<AccountValue> mediationAccountVals;
 
-    private final InternalTargetInfo info;
+    private InternalTargetInfo info;
 
-    private final TargetInfo noSecretDto;
+    private TargetInfo noSecretDto;
 
-    private final TargetInfo noSecretAnonymousDto;
+    private TargetInfo noSecretAnonymousDto;
 
-    private final ProbeInfo probeInfo;
+    private ProbeInfo probeInfo;
 
     private List<com.vmturbo.platform.common.dto.Discovery.AccountDefEntry> accountDefEntryList;
 
@@ -72,29 +73,24 @@ public class Target {
      *
      * @param internalTargetInfo The {@link InternalTargetInfo}.
      * @param probeStore The probe store instance.
-     * @throws TargetDeserializationException If failed to de-serialize the target.
      * @throws InvalidTargetException if probe not found in probe store
      */
     public Target(@Nonnull final InternalTargetInfo internalTargetInfo,
                   @Nonnull final ProbeStore probeStore) throws InvalidTargetException {
-        this.info = internalTargetInfo;
-        this.id = info.targetInfo.getId();
-        this.probeId = info.targetInfo.getSpec().getProbeId();
-        this.probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
+        this.id = internalTargetInfo.targetInfo.getId();
+        this.probeId = internalTargetInfo.targetInfo.getSpec().getProbeId();
+
+        ProbeInfo probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
             new InvalidTargetException("No probe found in store for probe ID " + probeId));
 
-        noSecretDto = removeSecretAccountVals(info.targetInfo, info.secretFields);
-        noSecretAnonymousDto = removeSecretAnonymousAccountVals(info.targetInfo, info.secretFields);
 
         final ImmutableList.Builder<AccountValue> accountValBuilder = new ImmutableList.Builder<>();
-        info.targetInfo.getSpec().getAccountValueList().stream()
-                .map(this::targetAccountValToMediationAccountVal)
-                .forEach(accountValBuilder::add);
+        internalTargetInfo.targetInfo.getSpec().getAccountValueList().stream()
+            .map(this::targetAccountValToMediationAccountVal)
+            .forEach(accountValBuilder::add);
         mediationAccountVals = accountValBuilder.build();
 
-        if (!info.targetInfo.hasDisplayName()) {
-            logger.error("Empty target display name for target id " + this.id);
-        }
+        refreshProbeInfo(probeInfo, true, internalTargetInfo.targetInfo.getSpec());
     }
 
     /**
@@ -137,41 +133,17 @@ public class Target {
 
         mediationAccountVals = accountValBuilder.build();
 
-        this.probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
-            new InvalidTargetException("No probe found in store for probe ID " + probeId));
-        accountDefEntryList = probeInfo.getAccountDefinitionList();
-
-        final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
-        hasGroupScope = checkForGroupScope(accountDefEntryList);
-        if (validateAccountValues) {
-            probeInfo.getAccountDefinitionList()
-                    .stream()
-                    .map(AccountValueAdaptor::wrap)
-                    .filter(AccountDefEntry::isSecret)
-                    .map(AccountDefEntry::getName)
-                    .forEach(secretFieldBuilder::add);
-        }
-        final Set<String> secretFields = secretFieldBuilder.build();
 
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(probeId)
-                .addAllAccountValue(inputSpec.getAccountValueList())
-                .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
+            .addAllAccountValue(inputSpec.getAccountValueList())
+            .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
         targetSpec.setIsHidden(inputSpec.getIsHidden());
         targetSpec.setReadOnly(inputSpec.getReadOnly());
 
-        final String targetDisplayName = computeDisplayName(this.probeInfo,
-                inputSpec.getAccountValueList(), secretFields);
+        final ProbeInfo probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
+            new InvalidTargetException("No probe found in store for probe ID " + probeId));
 
-        final TargetInfo targetInfo = TargetInfo.newBuilder()
-                .setId(id)
-                .setSpec(targetSpec)
-                .setDisplayName(targetDisplayName)
-                .build();
-
-        noSecretDto = removeSecretAccountVals(targetInfo, secretFields);
-        noSecretAnonymousDto = removeSecretAnonymousAccountVals(targetInfo, secretFields);
-
-        info = new InternalTargetInfo(targetInfo, secretFields);
+        refreshProbeInfo(probeInfo, validateAccountValues, targetSpec.build());
     }
 
     /**
@@ -604,5 +576,56 @@ public class Target {
     @Override
     public String toString() {
         return Long.toString(id);
+    }
+
+    @Override
+    public void onProbeRegistered(final long probeId, final ProbeInfo newProbeInfo) {
+        if (probeId == this.probeId && !this.probeInfo.equals(newProbeInfo)) {
+            refreshProbeInfo(newProbeInfo, true, info.targetInfo.getSpec());
+        }
+    }
+
+    /**
+     * When a probe registers itself with a new {@link ProbeInfo} we need to update all fields
+     * in the target that are affected by fields in the {@link ProbeInfo}.
+     *
+     * @param probeInfo The {@link ProbeInfo}.
+     * @param validateAccountValues If true, validate account values.
+     * @param targetSpec The {@link TargetSpec}.
+     */
+    private void refreshProbeInfo(@Nonnull final ProbeInfo probeInfo,
+                                  final boolean validateAccountValues,
+                                  @Nonnull final TargetSpec targetSpec) {
+        this.probeInfo = probeInfo;
+        accountDefEntryList = probeInfo.getAccountDefinitionList();
+
+        final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
+        hasGroupScope = checkForGroupScope(accountDefEntryList);
+        if (validateAccountValues) {
+            probeInfo.getAccountDefinitionList()
+                .stream()
+                .map(AccountValueAdaptor::wrap)
+                .filter(AccountDefEntry::isSecret)
+                .map(AccountDefEntry::getName)
+                .forEach(secretFieldBuilder::add);
+        }
+        final Set<String> secretFields = secretFieldBuilder.build();
+
+        final String targetDisplayName = computeDisplayName(this.probeInfo,
+            targetSpec.getAccountValueList(), secretFields);
+
+        final TargetInfo targetInfo = TargetInfo.newBuilder()
+            .setId(id)
+            .setSpec(targetSpec)
+            .setDisplayName(targetDisplayName)
+            .build();
+
+        noSecretDto = removeSecretAccountVals(targetInfo, secretFields);
+        noSecretAnonymousDto = removeSecretAnonymousAccountVals(targetInfo, secretFields);
+
+        info = new InternalTargetInfo(targetInfo, secretFields);
+        if (!info.targetInfo.hasDisplayName()) {
+            logger.error("Empty target display name for target id " + this.id);
+        }
     }
 }

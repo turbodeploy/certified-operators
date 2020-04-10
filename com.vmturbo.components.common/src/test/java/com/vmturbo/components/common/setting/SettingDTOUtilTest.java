@@ -44,6 +44,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 
 /**
@@ -461,6 +462,50 @@ public class SettingDTOUtilTest {
                 .build();
         final Setting setting2 = Setting.newBuilder()
                 .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("2"))
+                .build();
+
+        assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 equal
+     * {@code SortedSetOfOidSetting} values.
+     */
+    @Test
+    public void testAreValuesEqualForEqualSortedSetOfOids() {
+        final Setting setting1 = Setting.newBuilder()
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
+                        .newBuilder()
+                        .addOids(1)
+                        .addOids(2))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
+                        .newBuilder()
+                        .addOids(1)
+                        .addOids(2))
+                .build();
+
+        assertTrue(SettingDTOUtil.areValuesEqual(setting1, setting2));
+    }
+
+    /**
+     * Test {@code SettingDTOUtil#areValuesEqual} method for 2 not equal
+     * {@code SortedSetOfOidSetting} values.
+     */
+    @Test
+    public void testAreValuesEqualForNonEqualSortedSetOfOids() {
+        final Setting setting1 = Setting.newBuilder()
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
+                        .newBuilder()
+                        .addOids(1)
+                        .addOids(2))
+                .build();
+        final Setting setting2 = Setting.newBuilder()
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue
+                        .newBuilder()
+                        .addOids(2)
+                        .addOids(1))
                 .build();
 
         assertFalse(SettingDTOUtil.areValuesEqual(setting1, setting2));

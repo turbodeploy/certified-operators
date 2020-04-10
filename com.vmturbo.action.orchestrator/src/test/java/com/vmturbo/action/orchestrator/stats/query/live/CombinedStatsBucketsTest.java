@@ -273,6 +273,7 @@ public class CombinedStatsBucketsTest {
                 view -> {
                     when(view.getState()).thenReturn(ActionState.READY);
                     when(view.getActionCategory()).thenReturn(ActionCategory.PERFORMANCE_ASSURANCE);
+                    when(view.getActionSeverity()).thenReturn(Severity.CRITICAL);
                 },
                 Sets.newHashSet(ON_PREM_VM));
         final SingleActionInfo criticalActionCompliance = actionInfo(
@@ -280,6 +281,7 @@ public class CombinedStatsBucketsTest {
                 view -> {
                     when(view.getState()).thenReturn(ActionState.READY);
                     when(view.getActionCategory()).thenReturn(ActionCategory.COMPLIANCE);
+                    when(view.getActionSeverity()).thenReturn(Severity.CRITICAL);
                 },
                 Sets.newHashSet(ON_PREM_VM));
         final SingleActionInfo majorActionPrevention = actionInfo(
@@ -287,6 +289,7 @@ public class CombinedStatsBucketsTest {
                 view -> {
                     when(view.getState()).thenReturn(ActionState.READY);
                     when(view.getActionCategory()).thenReturn(ActionCategory.PREVENTION);
+                    when(view.getActionSeverity()).thenReturn(Severity.MAJOR);
                 },
                 Sets.newHashSet(ON_PREM_VM));
         final SingleActionInfo minorActionEfficiency = actionInfo(
@@ -294,6 +297,7 @@ public class CombinedStatsBucketsTest {
                 view -> {
                     when(view.getState()).thenReturn(ActionState.READY);
                     when(view.getActionCategory()).thenReturn(ActionCategory.EFFICIENCY_IMPROVEMENT);
+                    when(view.getActionSeverity()).thenReturn(Severity.MINOR);
                 },
                 Sets.newHashSet(ON_PREM_VM));
 

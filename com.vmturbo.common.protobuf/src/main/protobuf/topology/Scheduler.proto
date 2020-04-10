@@ -3,14 +3,23 @@ package topology;
 
 option java_package = "com.vmturbo.common.protobuf.topology";
 
+import "Discovery.proto";
+
 message SetDiscoveryScheduleRequest {
 
     // Id of the target.
     required int64 target_id = 1;
 
-    // The new discovery interval for the target. If this is not set, the discovery interval will be
-    // synced to the broadcast interval.
-    optional int64 interval_minutes = 2;
+    // The new full discovery interval in minutes for the target. If this is not set, the discovery
+    // interval will be using default full interval from probe, but if it's less than broadcast
+    // interval, then the broadcast interval is used.
+    // If set to "-1", full discovery will be disabled, which should only be used for debugging purposes.
+    optional int64 full_interval_minutes = 2;
+
+    // The new incremental discovery interval in seconds for the target. If this is not set, the
+    // discovery interval will be using default incremental interval from probe.
+    // If set to "-1", incremental discovery will be disabled.
+    optional int64 incremental_interval_seconds = 3;
 }
 
 message GetDiscoveryScheduleRequest {
@@ -31,18 +40,25 @@ message GetBroadcastScheduleRequest {
 // Information about the schedule of a recurring operation.
 message ScheduleInfo {
 
-    // The interval at which the scheduled operation occurs, in minutes.
-    optional int64 interval_minutes = 1;
+    // The interval at which the scheduled operation occurs, which may be seconds or minutes
+    oneof interval {
+        int64 interval_seconds = 1;
+        int64 interval_minutes = 2;
+    }
 
     // The milliseconds until the next time the scheduled operation will occur.
-    optional int64 time_to_next_millis = 2;
+    optional int64 time_to_next_millis = 3;
 }
 
 message DiscoveryScheduleResponse {
-    optional ScheduleInfo info = 1;
+    // schedule info for full discovery
+    optional ScheduleInfo full_schedule = 1;
 
-    // If this discovery schedule is synched to the overall broadcast schedule.
-    optional bool synched_to_broadcast_schedule = 2;
+    // schedule info for incremental discovery
+    optional ScheduleInfo incremental_schedule = 2;
+
+    // If full discovery schedule is synched to the overall broadcast schedule.
+    optional bool synched_to_broadcast_schedule = 3;
 }
 
 message BroadcastScheduleResponse {

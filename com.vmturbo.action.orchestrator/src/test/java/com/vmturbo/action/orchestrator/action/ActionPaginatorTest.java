@@ -4,7 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -30,6 +29,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.ActionOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
@@ -75,8 +75,15 @@ public class ActionPaginatorTest {
 
     @Nonnull
     private ActionView newActionView(final long id, @Nullable final ActionCategory actionCategory) {
-        final ActionView actionView = newActionView(id, x -> {});
+        final ActionView actionView = newActionView(id, x -> { });
         when(actionView.getActionCategory()).thenReturn(actionCategory);
+        return actionView;
+    }
+
+    @Nonnull
+    private ActionView newActionView(final long id, @Nullable final Severity severity) {
+        final ActionView actionView = newActionView(id, x -> { });
+        when(actionView.getActionSeverity()).thenReturn(severity);
         return actionView;
     }
 
@@ -84,8 +91,8 @@ public class ActionPaginatorTest {
     public void testDefaultLimit() {
         final ActionPaginatorFactory smallLimitFactory = new DefaultActionPaginatorFactory(1, 10);
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, ActionCategory.PREVENTION);
-        final ActionView mockView2 = newActionView(2, ActionCategory.PERFORMANCE_ASSURANCE);
+        final ActionView mockView1 = newActionView(1, Severity.MAJOR);
+        final ActionView mockView2 = newActionView(2, Severity.CRITICAL);
         final ActionPaginator paginator = smallLimitFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -99,8 +106,8 @@ public class ActionPaginatorTest {
     public void testMaxLimitExceeded() {
         final ActionPaginatorFactory smallLimitFactory = new DefaultActionPaginatorFactory(1, 1);
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, ActionCategory.PREVENTION);
-        final ActionView mockView2 = newActionView(2, ActionCategory.PERFORMANCE_ASSURANCE);
+        final ActionView mockView1 = newActionView(1, Severity.MAJOR);
+        final ActionView mockView2 = newActionView(2, Severity.CRITICAL);
         final ActionPaginator paginator = smallLimitFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -114,8 +121,8 @@ public class ActionPaginatorTest {
     @Test
     public void testLimit() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, ActionCategory.PREVENTION);
-        final ActionView mockView2 = newActionView(2, ActionCategory.PERFORMANCE_ASSURANCE);
+        final ActionView mockView1 = newActionView(1, Severity.MAJOR);
+        final ActionView mockView2 = newActionView(2, Severity.CRITICAL);
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -127,8 +134,8 @@ public class ActionPaginatorTest {
     @Test
     public void testNextCursor() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, ActionCategory.PREVENTION);
-        final ActionView mockView2 = newActionView(2, ActionCategory.PERFORMANCE_ASSURANCE);
+        final ActionView mockView1 = newActionView(1, Severity.MAJOR);
+        final ActionView mockView2 = newActionView(2, Severity.CRITICAL);
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -141,9 +148,9 @@ public class ActionPaginatorTest {
     @Test
     public void testNextNextCursor() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, ActionCategory.EFFICIENCY_IMPROVEMENT);
-        final ActionView mockView2 = newActionView(2, ActionCategory.PREVENTION);
-        final ActionView mockView3 = newActionView(3, ActionCategory.PERFORMANCE_ASSURANCE);
+        final ActionView mockView1 = newActionView(1, Severity.MINOR);
+        final ActionView mockView2 = newActionView(2, Severity.MAJOR);
+        final ActionView mockView3 = newActionView(3, Severity.CRITICAL);
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         // Relying on initial next cursor working properly.
         final String nextCursor = paginator.applyPagination(
@@ -165,8 +172,8 @@ public class ActionPaginatorTest {
     @Test
     public void testNoMoreResultsCursor() {
         // Relying on default order - by severity
-        final ActionView mockView1 = newActionView(1, ActionCategory.EFFICIENCY_IMPROVEMENT);
-        final ActionView mockView2 = newActionView(2, ActionCategory.PERFORMANCE_ASSURANCE);
+        final ActionView mockView1 = newActionView(1, Severity.MINOR);
+        final ActionView mockView2 = newActionView(2, Severity.CRITICAL);
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2), PaginationParameters.newBuilder()
@@ -178,9 +185,9 @@ public class ActionPaginatorTest {
 
     @Test
     public void testDefaultOrderBy() {
-        final ActionView mockView1 = newActionView(1, ActionCategory.PREVENTION);
-        final ActionView mockView1LargerId = newActionView(4, ActionCategory.PREVENTION);
-        final ActionView mockView2 = newActionView(3, ActionCategory.PERFORMANCE_ASSURANCE);
+        final ActionView mockView1 = newActionView(1, Severity.MAJOR);
+        final ActionView mockView1LargerId = newActionView(4, Severity.MAJOR);
+        final ActionView mockView2 = newActionView(3, Severity.CRITICAL);
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews results = paginator.applyPagination(
                 Stream.of(mockView1, mockView2, mockView1LargerId), PaginationParameters.newBuilder()
@@ -198,9 +205,9 @@ public class ActionPaginatorTest {
 
     @Test
     public void testOrderBySeverity() {
-        final ActionView mockView1 = newActionView(1, ActionCategory.EFFICIENCY_IMPROVEMENT);
-        final ActionView mockView1LargerId = newActionView(2, ActionCategory.EFFICIENCY_IMPROVEMENT);
-        final ActionView mockView2 = newActionView(3, ActionCategory.PERFORMANCE_ASSURANCE);
+        final ActionView mockView1 = newActionView(1, Severity.MINOR);
+        final ActionView mockView1LargerId = newActionView(2, Severity.MINOR);
+        final ActionView mockView2 = newActionView(3, Severity.MAJOR);
         final ActionPaginator paginator = paginatorFactory.newPaginator();
         final PaginatedActionViews ascendingResults = paginator.applyPagination(
                 Stream.of(mockView1, mockView2, mockView1LargerId), PaginationParameters.newBuilder()

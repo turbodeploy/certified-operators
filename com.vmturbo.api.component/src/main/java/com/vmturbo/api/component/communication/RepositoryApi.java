@@ -48,10 +48,12 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
@@ -59,7 +61,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -217,6 +218,7 @@ public class RepositoryApi {
         final Collection<BusinessUnitApiDTO> buList;
         if (entityTypes.isEmpty() || entityTypes.contains(EntityType.BUSINESS_ACCOUNT)) {
             final Collection<Long> buOids = new LinkedList<>(oids);
+            // Load all the rest OIDs. We assume that only BusinessAccounts should be left here
             buOids.removeAll(Collections2.transform(seList, se -> Long.parseLong(se.getUuid())));
             buList = getBusinessUnits(buOids, allAccounts);
         } else {
@@ -226,6 +228,15 @@ public class RepositoryApi {
         return new RepositoryRequestResult(buList, seList);
     }
 
+    /**
+     * Returns converted service entity DTOs.
+     * Business users require another request to Repository in order to get all the required
+     * data that's why business accounts in the repository response are just omited in this method.
+     *
+     * @param oids OIDs to retrieve
+     * @param entityTypes entity types to retrieve
+     * @return collection of converted service entities WITHOUT any business accounts
+     */
     @Nonnull
     private Collection<ServiceEntityApiDTO> getServiceEntities(@Nonnull Collection<Long> oids,
             @Nonnull Set<EntityType> entityTypes) {
@@ -249,7 +260,10 @@ public class RepositoryApi {
             final PartialEntityBatch batch = iterator.next();
             for (PartialEntity partialEntity : batch.getEntitiesList()) {
                 final ApiPartialEntity entity = partialEntity.getApi();
-                serviceEntitiesTE.add(entity);
+                if (entity.getEntityType() != EntityType.BUSINESS_ACCOUNT_VALUE) {
+                    // Business accounts will be loaded separately. Just ignore them here.
+                    serviceEntitiesTE.add(entity);
+                }
             }
         }
         return serviceEntitiesTE.stream()
@@ -488,7 +502,8 @@ public class RepositoryApi {
 
             this.retriever = new PartialEntityRetriever(type ->
                 searchServiceBlockingStub.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
-                    .addAllSearchParameters(params)
+                    .setSearch(SearchQuery.newBuilder()
+                        .addAllSearchParameters(params))
                     .setReturnType(type)
                     .build()),
                 serviceEntityMapper,
@@ -518,7 +533,8 @@ public class RepositoryApi {
         public Set<Long> getOids() {
             return Sets.newHashSet(searchServiceBlockingStub.searchEntityOids(
                 SearchEntityOidsRequest.newBuilder()
-                    .addAllSearchParameters(params)
+                    .setSearch(SearchQuery.newBuilder()
+                        .addAllSearchParameters(params))
                     .build()).getEntitiesList());
         }
 
@@ -531,7 +547,10 @@ public class RepositoryApi {
         public Future<Set<Long>> getOidsFuture() {
             final OidSetObserver observer = new OidSetObserver();
             searchServiceStub.searchEntityOids(
-                    SearchEntityOidsRequest.newBuilder().addAllSearchParameters(params).build(),
+                    SearchEntityOidsRequest.newBuilder()
+                        .setSearch(SearchQuery.newBuilder()
+                            .addAllSearchParameters(params))
+                        .build(),
                     observer);
             return observer.getFuture();
         }
@@ -542,7 +561,8 @@ public class RepositoryApi {
          */
         public long count() {
             return searchServiceBlockingStub.countEntities(CountEntitiesRequest.newBuilder()
-                .addAllSearchParameters(params)
+                .setSearch(SearchQuery.newBuilder()
+                    .addAllSearchParameters(params))
                 .build()).getEntityCount();
         }
 

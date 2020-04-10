@@ -13,11 +13,11 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -26,15 +26,17 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
 
 /**
  *  The class to override the workload usage and propagated down to the suppliers when user change
@@ -50,7 +52,7 @@ public class DemandOverriddenCommodityEditor {
     // TODO: update this set once we decide to consider other kinds of workloads,
     // such as container, for utilization change. We may need to expand the USAGE_OVERRIDDEN_COMMODITY_SET
     // and COMMODITY_BOUGHT_TO_SOLD_MAP as well.
-    private static final Set<Integer> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(EntityType.VIRTUAL_MACHINE_VALUE);
+    private static final Set<ApiEntityType> WORKLOAD_ENTITY_TYPES = ImmutableSet.of(ApiEntityType.VIRTUAL_MACHINE);
     // the set of commodity bought types associates with entities whose usage can be overriden by user in plan
     // TODO: currently we only focus on the impact of vm utilization change on host. We may consider storage use case when needed.
     private static final Set<Integer> USAGE_OVERRIDDEN_COMMODITY_SET = ImmutableSet
@@ -73,7 +75,7 @@ public class DemandOverriddenCommodityEditor {
      */
     public void applyDemandUsageChange(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                        @Nonnull GroupResolver groupResolver,
-                                       @Nonnull final List<ScenarioChange> changes) {
+                                       @Nonnull final List<ScenarioChange> changes) throws GroupResolutionException {
         List<UtilizationLevel> utilizationLevels = changes.stream()
                 .filter(ScenarioChange::hasPlanChanges)
                 .map(ScenarioChange::getPlanChanges)
@@ -294,11 +296,12 @@ public class DemandOverriddenCommodityEditor {
      * @param utilizationLevels the scenarioChange object containing utilization configuration
      * @param graph  the full topology graph
      * @return a map of VM sets grouped by utilization configuration
+     * @throws GroupResolutionException If the group for the utilization level override is not found or can't be resolved.
      */
     private Map<UtilizationLevel, Set<TopologyEntity>> findUsageOverriddenWorkload(
             @Nonnull GroupResolver groupResolver,
             @Nonnull final List<UtilizationLevel> utilizationLevels,
-            @Nonnull final TopologyGraph<TopologyEntity> graph) {
+            @Nonnull final TopologyGraph<TopologyEntity> graph) throws GroupResolutionException {
         // a map to group together the workloads by a certain type of utilization setting
         Map<UtilizationLevel, Set<TopologyEntity>> workloadsToBeOverriddenMap = new HashMap<>();
         final Map<Long, Grouping> groups = new HashMap<>();
@@ -326,17 +329,17 @@ public class DemandOverriddenCommodityEditor {
             if (!util.hasGroupOid()) {
                 // this is a full scope utilization setting for VM
                 WORKLOAD_ENTITY_TYPES.forEach(e -> {
-                    workloads.addAll(graph.entitiesOfType(e).collect(Collectors.toSet()));
+                    workloads.addAll(graph.entitiesOfType(e.typeNumber()).collect(Collectors.toSet()));
                 });
                 workloadsToBeOverriddenMap.put(util, workloads);
             } else {
                 Grouping group = groups.get(util.getGroupOid());
-                for (long oid : groupResolver.resolve(group, graph)) {
-                    Optional<TopologyEntity> entity = graph.getEntity(oid);
-                    if (entity.isPresent() && WORKLOAD_ENTITY_TYPES.contains(entity.get().getEntityType())) {
-                        workloads.add(entity.get());
-                    }
-                }
+                final ResolvedGroup resolvedGroup = groupResolver.resolve(group, graph);
+                resolvedGroup.getEntitiesOfTypes(WORKLOAD_ENTITY_TYPES).stream()
+                    .map(graph::getEntity)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(workloads::add);
                 workloadsToBeOverriddenMap.put(util, workloads);
             }
         }
