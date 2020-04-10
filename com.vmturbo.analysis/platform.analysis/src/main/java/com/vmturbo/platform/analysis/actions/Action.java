@@ -89,6 +89,39 @@ public interface Action {
      */
     @NonNull Action rollback();
 
+    // Design Notes: Analyzing existing code and considering requirements from current effort to
+    // replay provision actions, it seems that there are 3 fundamental questions that need to be
+    // answered regarding the replay of actions:
+    //
+    // 1. Can the action be physically applied to a different economy than the one it was generated
+    //    for?
+    // 2. Would this action respect settings and policies if it were to be taken on a given economy?
+    // 3. Would this action bring a given economy closer to its desired state if it was to be taken?
+    //
+    // Past experience shows that not all of these questions need to be answered in all contexts and
+    // that the answer remains more stable, while new features are added, for some than for others.
+    // As a result I decided to implement them as separate methods. Since these are now virtual
+    // methods, the long if-elseif-else statements to select the appropriate implementation aren't
+    // needed and the client code can comply with the open-closed principle.
+    //
+    // The 3rd question is really only asked for Deactivate for now, and there were some existing
+    // methods covering that, so no new methods are created for it for the time being.
+    //
+    // For 'port', which answers the 1st question while also creating the new action object that can
+    // be applied to the new economy, a dependency injection technique was used so that action
+    // classes can remain agnostic to concepts like topologies and OIDs and to provide more
+    // flexibility while testing.
+    //
+    // Note that 'isValid', which answers the 2nd question, is intended to do relatively cheap tests
+    // and in any case not make calls to the analysis algorithms.
+    //
+    // Another difference between 'isValid' and a method that would test if an action is towards the
+    // desired state is that it never makes sense for an analysis algorithm to produce an invalid
+    // action but it does make sense to produce actions that are not towards the desired state,
+    // either as a prerequisite to other actions or in order to escape a local optimum and find a
+    // better one. As a result 'isValid' can be used in testing of the analysis algorithms in
+    // addition to replaying actions.
+
     /**
      * Ports {@code this} action from the current {@link Economy} to a new one, iff possible.
      *
@@ -105,7 +138,7 @@ public interface Action {
      * with the same OID as the action's target might not exist there. In this case, a
      * {@link NoSuchElementException} should be thrown.
      *
-     * <p>It is also possible that the new action doesn't bring the target economy closer to the its
+     * <p>It is also possible that the new action doesn't bring the target economy closer to its
      * desired state, but in this case the new action will be returned to be further processed by a
      * higher-level method.</p>
      *
