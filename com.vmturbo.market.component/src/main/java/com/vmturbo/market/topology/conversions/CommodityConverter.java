@@ -403,13 +403,13 @@ public class CommodityConverter {
     }
 
     /**
-     * Check if commodity for the specified market ID is timeslot commodity.
+     * Check if commodity for the specified market spec is timeslot commodity.
      *
-     * @param marketCommodityId Market commodity ID
+     * @param marketCommodity Market commodity spec
      * @return True if timeslot commodity
      */
-    public boolean isTimeSlotCommodity(final int marketCommodityId) {
-        return commodityTypeAllocator.isTimeSlotCommodity(marketCommodityId);
+    public boolean isTimeSlotCommodity(final CommoditySpecificationTO marketCommodity) {
+        return commodityTypeAllocator.isTimeSlotCommodity(marketCommodity);
     }
 
     /**

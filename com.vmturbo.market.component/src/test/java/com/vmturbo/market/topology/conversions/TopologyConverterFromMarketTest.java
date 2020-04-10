@@ -1518,15 +1518,15 @@ public class TopologyConverterFromMarketTest {
             Mockito.eq(poolCpu3.getSpecification()));
 
         doReturn(false).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(vcpu.getSpecification().getType()));
+            Mockito.eq(vcpu.getSpecification()));
         doReturn(false).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(vMem.getSpecification().getType()));
+            Mockito.eq(vMem.getSpecification()));
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu1.getSpecification().getType()));
+            Mockito.eq(poolCpu1.getSpecification()));
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu2.getSpecification().getType()));
+            Mockito.eq(poolCpu2.getSpecification()));
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu3.getSpecification().getType()));
+            Mockito.eq(poolCpu3.getSpecification()));
 
         final Map<CommodityType, List<Double>> timeSlotsByCommType = Maps.newHashMap();
         final Collection<CommodityBoughtTO> mergedComms = converter.mergeTimeSlotCommodities(
@@ -1598,15 +1598,15 @@ public class TopologyConverterFromMarketTest {
             Mockito.eq(poolCpu3.getSpecification()));
 
         doReturn(false).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(vcpu.getSpecification().getType()));
+            Mockito.eq(vcpu.getSpecification()));
         doReturn(false).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(vMem.getSpecification().getType()));
+            Mockito.eq(vMem.getSpecification()));
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu1.getSpecification().getType()));
+            Mockito.eq(poolCpu1.getSpecification()));
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu2.getSpecification().getType()));
+            Mockito.eq(poolCpu2.getSpecification()));
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu3.getSpecification().getType()));
+            Mockito.eq(poolCpu3.getSpecification()));
 
         final Map<CommodityType, List<Double>> timeSlotsByCommType = Maps.newHashMap();
         final Collection<CommoditySoldTO> mergedComms = converter.mergeTimeSlotCommodities(
@@ -1673,11 +1673,11 @@ public class TopologyConverterFromMarketTest {
             Mockito.eq(poolCpu3.getSpecification()));
 
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu1.getSpecification().getType()));
+            Mockito.eq(poolCpu1.getSpecification()));
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu2.getSpecification().getType()));
+            Mockito.eq(poolCpu2.getSpecification()));
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu3.getSpecification().getType()));
+            Mockito.eq(poolCpu3.getSpecification()));
 
         final long businessUserId = 10L;
         final long shoppinglistId = 20L;
@@ -1775,11 +1775,11 @@ public class TopologyConverterFromMarketTest {
             Mockito.eq(poolCpu3.getSpecification()));
 
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu1.getSpecification().getType()));
+            Mockito.eq(poolCpu1.getSpecification()));
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu2.getSpecification().getType()));
+            Mockito.eq(poolCpu2.getSpecification()));
         doReturn(true).when(mockCommodityConverter).isTimeSlotCommodity(
-            Mockito.eq(poolCpu3.getSpecification().getType()));
+            Mockito.eq(poolCpu3.getSpecification()));
 
         final long shoppinglistId = 20L;
         final long supplierId = 30L;

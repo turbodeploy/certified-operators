@@ -39,6 +39,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO.ActionTypeCase;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 /** This class reads the tier exclusion settings from group-component and keeps a track of the
  * commodities bought that need to be added to consumer and commodities sold that need to be
@@ -455,9 +456,19 @@ public class TierExcluder {
      * @param commSpecType the commSpecType
      * @return true if the comm spec was created for tier exclusion
      */
-    boolean isCommSpecTypeForTierExclusion(int commSpecType) {
+    private boolean isCommSpecTypeForTierExclusion(int commSpecType) {
         return tierExclusionCommodityTypes.contains(
             commodityConverter.commodityIdToCommodityType(commSpecType));
+    }
+
+    /**
+     * Is the comm spec for tier exclusion?
+     * @param commSpec the commSpec
+     * @return true if the comm spec was created for tier exclusion
+     */
+    boolean isCommSpecTypeForTierExclusion(CommoditySpecificationTO commSpec) {
+        return !MarketAnalysisUtils.CLONE_COMMODITIES_WITH_NEW_TYPE.contains(commSpec.getBaseType()) &&
+            isCommSpecTypeForTierExclusion(commSpec.getType());
     }
 
     /**

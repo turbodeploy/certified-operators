@@ -1211,7 +1211,7 @@ public class TopologyConverter {
                         // create dspm commodity bought because the supplier is ST
                         commList.add(newCommodity(CommodityDTO.CommodityType.DSPM_ACCESS_VALUE, pmOid));
                     }
-                } else if (tierExcluder.isCommSpecTypeForTierExclusion(commBought.getSpecification().getType())) {
+                } else if (tierExcluder.isCommSpecTypeForTierExclusion(commBought.getSpecification())) {
                     // If the commodity bought was created by market-component for tier exclusion,
                     // then do not include it in the projected topology.
                     continue;
@@ -1365,7 +1365,7 @@ public class TopologyConverter {
         // group time slot commodities by CommodityType
         commodityBuilderTOs.forEach(commTO -> {
             final CommoditySpecificationTO commSpec = commoditySpecExtractor.apply(commTO);
-            if (commodityConverter.isTimeSlotCommodity(commSpec.getType())) {
+            if (commodityConverter.isTimeSlotCommodity(commSpec)) {
                 final Optional<TopologyDTO.CommodityType> commTypeOptional =
                     commodityConverter.marketToTopologyCommodity(commSpec);
                 if (commTypeOptional.isPresent()) {
@@ -3005,7 +3005,7 @@ public class TopologyConverter {
         Optional<CommodityType> commTypeOptional =
                 commodityConverter.marketToTopologyCommodity(commSoldTO.getSpecification());
         if (!commTypeOptional.isPresent() ||
-            tierExcluder.isCommSpecTypeForTierExclusion(commSoldTO.getSpecification().getType())) {
+            tierExcluder.isCommSpecTypeForTierExclusion(commSoldTO.getSpecification())) {
             return Optional.empty();
         }
 
