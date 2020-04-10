@@ -121,10 +121,10 @@ public class EdeIntegrationTest {
         assertFalse(resizes.isEmpty());
 
         Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
-        ReplayActions replayActions = new ReplayActions(ImmutableList.of(deactivate),
-                                                        firstTopology);
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
+                                                    ImmutableList.of(deactivate), firstTopology);
         // assert absence of replayed suspension
-        assertTrue(replayActions.replayActions(first, ledger).isEmpty());
+        assertTrue(replayActions.tryReplayDeactivateActions(first, ledger).isEmpty());
 
         // assert absence of provision/activates
         List<Action> provisionActions = Provision.provisionDecisions(first, ledger);
@@ -145,11 +145,11 @@ public class EdeIntegrationTest {
     public void testSuspensionWhenResizeAfterOfReplay() {
 
         Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
-        ReplayActions replayActions = new ReplayActions(ImmutableList.of(deactivate),
-                                                        firstTopology);
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
+                                                    ImmutableList.of(deactivate), firstTopology);
         Ledger ledger = new Ledger(first);
         // validate that suspension was replayed
-        assertFalse(replayActions.replayActions(first, ledger).isEmpty());
+        assertFalse(replayActions.tryReplayDeactivateActions(first, ledger).isEmpty());
 
         // validate that there is a resize
         List<Action> resizes = Resizer.resizeDecisions(first, ledger);

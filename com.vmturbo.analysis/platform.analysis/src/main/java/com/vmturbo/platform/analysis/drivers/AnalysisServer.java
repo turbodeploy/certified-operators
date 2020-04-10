@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -468,12 +469,14 @@ public class AnalysisServer implements AutoCloseable {
                 ReplayActions newReplayActions = new ReplayActions();
                 // the OIDs have to be updated after analysisResults
                 if (instInfo.isReplayActions()) {
-                    newReplayActions = new ReplayActions(actions, lastComplete);
+                    newReplayActions = new ReplayActions(actions, ImmutableList.of(), lastComplete);
                 } else if (instInfo.isRealTime()) {
                     // if replay is disabled, perform selective replay to deactivate entities in RT
                     // (OM-19855)
-                    newReplayActions = new ReplayActions(actions.stream()
+                    newReplayActions = new ReplayActions(ImmutableList.of(),
+                                                actions.stream()
                                                     .filter(action -> action instanceof Deactivate)
+                                                    .map(action -> (Deactivate)action)
                                                     .collect(Collectors.toList()),
                                                 lastComplete);
                 }

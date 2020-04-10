@@ -283,7 +283,7 @@ public final class Ede {
         statsUtils.after();
 
         if (isReplay) {
-            actions.addAll(seedActions.replayActions(economy, ledger));
+            actions.addAll(seedActions.tryReplayDeactivateActions(economy, ledger));
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
         }
 

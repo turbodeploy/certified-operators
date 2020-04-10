@@ -189,9 +189,11 @@ public class ActionClassifierTest {
             Economy third = cloneEconomy(first);
             Deactivate thirdDeactivate = new Deactivate(first, pm1, pmShoppingList.getBasket());
             third.populateMarketsWithSellersAndMergeConsumerCoverage();
-            ReplayActions thirdReplayActions = new ReplayActions(ImmutableList.of(thirdDeactivate),
-                                                                                    firstTopology);
-            assertEquals(1, thirdReplayActions.replayActions(third, new Ledger(third)).size());
+            ReplayActions thirdReplayActions = new ReplayActions(ImmutableList.of(),
+                                                                 ImmutableList.of(thirdDeactivate),
+                                                                 firstTopology);
+            assertEquals(1,
+                thirdReplayActions.tryReplayDeactivateActions(third, new Ledger(third)).size());
         } catch (ClassNotFoundException | IOException e) {
             fail();
         }

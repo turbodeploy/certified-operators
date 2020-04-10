@@ -27,7 +27,6 @@ import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
-import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 public class ReplayActionsTest {
@@ -146,8 +145,9 @@ public class ReplayActionsTest {
 
         pmShoppingList.setMovable(true);
         Move move = new Move(first, pmShoppingList, pm2);
-        ReplayActions replayActions = new ReplayActions(ImmutableList.of(move), firstTopology);
-        assertEquals(1, replayActions.replayActions(second, new Ledger(second)).size());
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(move),
+                                                        ImmutableList.of(), firstTopology);
+        assertEquals(1, replayActions.replayActions(second).size());
     }
 
     @Test
@@ -157,15 +157,17 @@ public class ReplayActionsTest {
             first.getMarketsAsBuyer(vm).keySet().toArray(new ShoppingList[3])[0];
 
         Move move = new Move(first, pmShoppingList, pm2);
-        ReplayActions replayActions = new ReplayActions(ImmutableList.of(move), firstTopology);
-        List<Action> actions = replayActions.replayActions(second, new Ledger(second));
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(move),
+                                                        ImmutableList.of(), firstTopology);
+        List<Action> actions = replayActions.replayActions(second);
         assertEquals(1, actions.size());
 
         // replay action which has already taken place
         try {
             @NonNull Economy third = cloneEconomy(second);
-            ReplayActions replayActionsSecond = new ReplayActions(actions, second.getTopology());
-            assertEquals(0, replayActionsSecond.replayActions(third, new Ledger(third)).size());
+            ReplayActions replayActionsSecond = new ReplayActions(actions, ImmutableList.of(),
+                                                                  second.getTopology());
+            assertEquals(0, replayActionsSecond.replayActions(third).size());
         } catch (ClassNotFoundException | IOException e) {
             fail();
         }
