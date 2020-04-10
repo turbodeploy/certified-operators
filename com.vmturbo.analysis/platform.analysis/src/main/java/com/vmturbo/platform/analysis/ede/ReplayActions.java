@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -20,49 +22,80 @@ import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrot
 import com.vmturbo.platform.analysis.topology.Topology;
 
 /**
- * This class keeps actions from an analysis run and metadata needed to replay them
- * in a subsequent run.
+ * This class keeps actions from an analysis run and metadata needed to replay them in a subsequent
+ * run.
+ *
+ * <p>{@link ReplayActions} objects should be considered read-only, although currently there is no
+ * way to force that the encapsulated topology won't be changed through the getter...</p>
  */
 public class ReplayActions {
-
+    // Fields
     static final Logger logger = LogManager.getLogger(ReplayActions.class);
 
     // The actions that are to be replayed
-    private @NonNull List<Action> actions_ = new LinkedList<>();
+    private final @NonNull ImmutableList<@NonNull Action> actions_;
     // The topology that contains the above traders and targets of above actions.
     // It is needed to map traders from old economy to new using OIDs.
-    private @NonNull Topology topology_ = new Topology();
+    private final @NonNull Topology topology_;
 
-    public List<Action> getActions() {
+    // Constructors
+
+    /**
+     * Constructs an empty {@link ReplayActions} object.
+     */
+    public ReplayActions(){
+        actions_ = ImmutableList.of();
+        topology_ = new Topology();
+    }
+
+    /**
+     * Constructs a {@link ReplayActions} object with the given contents.
+     *
+     * @param actions The list of actions {@code this} object will attempt to replay. It may be
+     *                copied internally as needed to ensure that the internal list wont be modified.
+     * @param topology The topology with which the above actions are associated with.
+     */
+    public ReplayActions(@NonNull List<@NonNull Action> actions, @NonNull Topology topology) {
+        actions_ = ImmutableList.copyOf(actions);
+        topology_ = topology;
+    }
+
+    // Methods
+
+    /**
+     * Returns an immutable list of actions {@code this} object is responsible for replaying.
+     */
+    public ImmutableList<Action> getActions() {
         return actions_;
     }
-    public void setActions(List<Action> actions) {
-        actions_ = actions;
-    }
 
+    /**
+     * Returns the topology associated with the {@link #getActions() actions} {@code this} object is
+     * responsible for replaying.
+     *
+     * <p>It should not be modified.</p>
+     *
+     * @see #getActions()
+     */
     public @NonNull Topology getTopology() {
         return topology_;
     }
 
-    public void setTopology(@NonNull Topology topology) {
-        topology_ = topology;
-    }
-
     /**
-     * Replay Actions from earlier run on the new {@link Economy}
+     * Replays encapsulated {@link #getActions() actions} on the given {@link Economy}.
      *
-     * @param economy The {@link Economy} in which actions are to be replayed
+     * @param economy The {@link Economy} on which the actions are to be replayed.
+     * @return The list of actions that were taken on <b>economy</b>.
      */
-    public void replayActions(Economy economy, Ledger ledger) {
+    public @NonNull List<@NonNull Action> replayActions(Economy economy, Ledger ledger) {
         List<Deactivate> deactivateActions = actions_.stream()
                         .filter(action -> action instanceof Deactivate)
                         .map(action -> (Deactivate)action)
                         .collect(Collectors.toList());
         LinkedList<Action> actions =
             new LinkedList<>(tryReplayDeactivateActions(deactivateActions, economy, ledger));
-        actions_.removeAll(deactivateActions);
 
-        for (Action action : actions_) {
+        actions_.stream().filter(action -> !(action instanceof Deactivate)).forEach(action ->{
             try {
                 Action ported = action.port(economy,
                     oldTrader -> mapTrader(oldTrader, getTopology(), economy.getTopology()),
@@ -80,9 +113,9 @@ public class ReplayActions {
                     logger.debug("Could not replay " + action.toString(), e);
                 }
             }
-        } // end for each action
+        }); // end for each action
 
-        actions_ = actions;
+        return actions;
     } // end replayActions
 
     /**

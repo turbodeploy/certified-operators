@@ -6,12 +6,13 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
@@ -114,22 +115,16 @@ public class EdeIntegrationTest {
      */
     @Test
     public void testNoSuspensionWhenResizeBecauseOfReplay() {
-
-        List<Action> actions = new LinkedList<>();
-        ReplayActions replayActions = new ReplayActions();
-        replayActions.setTopology(firstTopology);
-        Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
-        actions.add(deactivate);
-        replayActions.setActions(actions);
-
         Ledger ledger = new Ledger(first);
         List<Action> resizes = Resizer.resizeDecisions(first, ledger);
         // assert presence of resizes
         assertFalse(resizes.isEmpty());
 
-        replayActions.replayActions(first, ledger);
+        Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(deactivate),
+                                                        firstTopology);
         // assert absence of replayed suspension
-        assertTrue(replayActions.getActions().isEmpty());
+        assertTrue(replayActions.replayActions(first, ledger).isEmpty());
 
         // assert absence of provision/activates
         List<Action> provisionActions = Provision.provisionDecisions(first, ledger);
@@ -149,17 +144,12 @@ public class EdeIntegrationTest {
     @Test
     public void testSuspensionWhenResizeAfterOfReplay() {
 
-        List<Action> actions = new LinkedList<>();
-        ReplayActions replayActions = new ReplayActions();
-        replayActions.setTopology(firstTopology);
         Deactivate deactivate = new Deactivate(first, pm1, shoppingListOfVm1.getBasket());
-        actions.add(deactivate);
-        replayActions.setActions(actions);
-
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(deactivate),
+                                                        firstTopology);
         Ledger ledger = new Ledger(first);
-        replayActions.replayActions(first, ledger);
         // validate that suspension was replayed
-        assertFalse(replayActions.getActions().isEmpty());
+        assertFalse(replayActions.replayActions(first, ledger).isEmpty());
 
         // validate that there is a resize
         List<Action> resizes = Resizer.resizeDecisions(first, ledger);

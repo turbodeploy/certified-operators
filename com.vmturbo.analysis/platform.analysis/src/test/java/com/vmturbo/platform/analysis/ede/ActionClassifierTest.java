@@ -16,6 +16,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableList;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
 import org.junit.Test;
@@ -185,15 +187,11 @@ public class ActionClassifierTest {
         try {
             @NonNull
             Economy third = cloneEconomy(first);
-            List<Action> thirdActions = new LinkedList<>();
-            ReplayActions thirdReplayActions = new ReplayActions();
-            thirdReplayActions.setTopology(firstTopology);
-            thirdReplayActions.setActions(thirdActions);
             Deactivate thirdDeactivate = new Deactivate(first, pm1, pmShoppingList.getBasket());
-            thirdActions.add(thirdDeactivate);
             third.populateMarketsWithSellersAndMergeConsumerCoverage();
-            thirdReplayActions.replayActions(third, new Ledger(third));
-            assertEquals(1, thirdReplayActions.getActions().size());
+            ReplayActions thirdReplayActions = new ReplayActions(ImmutableList.of(thirdDeactivate),
+                                                                                    firstTopology);
+            assertEquals(1, thirdReplayActions.replayActions(third, new Ledger(third)).size());
         } catch (ClassNotFoundException | IOException e) {
             fail();
         }

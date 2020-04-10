@@ -9,9 +9,10 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
+import com.google.common.collect.ImmutableList;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Before;
@@ -140,43 +141,31 @@ public class ReplayActionsTest {
 
     @Test
     public void testReplayMove() {
-        List<Action> actions = new LinkedList<>();
-        ReplayActions replayActions = new ReplayActions();
-        replayActions.setTopology(firstTopology);
-        replayActions.setActions(actions);
         ShoppingList pmShoppingList =
             first.getMarketsAsBuyer(vm).keySet().toArray(new ShoppingList[3])[0];
 
         pmShoppingList.setMovable(true);
         Move move = new Move(first, pmShoppingList, pm2);
-        actions.add(move);
-        replayActions.replayActions(second, new Ledger(second));
-        assertEquals(1, replayActions.getActions().size());
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(move), firstTopology);
+        assertEquals(1, replayActions.replayActions(second, new Ledger(second)).size());
     }
 
     @Test
     public void testReplayMoveAlreadyTaken() {
         // simulate move happening in main market
-        List<Action> actions = new LinkedList<>();
-        ReplayActions replayActions = new ReplayActions();
-        replayActions.setTopology(firstTopology);
-        replayActions.setActions(actions);
         ShoppingList pmShoppingList =
             first.getMarketsAsBuyer(vm).keySet().toArray(new ShoppingList[3])[0];
 
         Move move = new Move(first, pmShoppingList, pm2);
-        actions.add(move);
-        replayActions.replayActions(second, new Ledger(second));
-        assertEquals(1, replayActions.getActions().size());
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(move), firstTopology);
+        List<Action> actions = replayActions.replayActions(second, new Ledger(second));
+        assertEquals(1, actions.size());
 
         // replay action which has already taken place
         try {
             @NonNull Economy third = cloneEconomy(second);
-            ReplayActions replayActionsSecond = new ReplayActions();
-            replayActionsSecond.setTopology(second.getTopology());
-            replayActionsSecond.setActions(actions);
-            replayActionsSecond.replayActions(third, new Ledger(third));
-            assertEquals(0, replayActionsSecond.getActions().size());
+            ReplayActions replayActionsSecond = new ReplayActions(actions, second.getTopology());
+            assertEquals(0, replayActionsSecond.replayActions(third, new Ledger(third)).size());
         } catch (ClassNotFoundException | IOException e) {
             fail();
         }
