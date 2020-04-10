@@ -499,6 +499,16 @@ public abstract class Quote {
         }
 
         /**
+         * A static factory method to create a {@link CommodityQuote} an initial quote value of infinite.
+         *
+         * @param seller The seller associated with this {@link Quote}.
+         * @return A new {@link CommodityQuote} an initial quote value of infinite.
+         */
+        public static CommodityQuote infinite(@Nullable final Trader seller) {
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
+        }
+
+        /**
          * Get the insufficient commodities associated with this {@link CommodityQuote}.
          *
          * Returns an empty list if there are no insufficient commodities.

@@ -183,6 +183,7 @@ public class FunctionalOperatorUtil {
                     Long supplierOid =  economy.getTopology().getTraderOid(buyer.getSupplier());
                     Double couponsToRelinquish = totalCouponsToRelinquish.getOrDefault(supplierOid, new Double(0));
                     couponsBought = peer.getQuantity(couponBoughtIndex);
+                    // the peers relinquish the excess
                     couponsToRelinquish += Math.max(0, couponsBought - requestedCoupons);
                     totalCouponsToRelinquish.put(supplierOid, couponsToRelinquish);
                     peer.setQuantity(couponBoughtIndex, Math.min(requestedCoupons, couponsBought));

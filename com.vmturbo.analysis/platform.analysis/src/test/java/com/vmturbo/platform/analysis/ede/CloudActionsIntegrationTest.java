@@ -292,6 +292,7 @@ public class CloudActionsIntegrationTest {
     public void testCouponUpdationOnMoves1() {
         // CBTP has a capacity of 40 coupons
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e, false);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -315,6 +316,7 @@ public class CloudActionsIntegrationTest {
     public void testCouponUpdationOnMoves2() {
         // CBTP has a capacity of 30 coupons
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e, false);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -340,6 +342,7 @@ public class CloudActionsIntegrationTest {
     @Test
     public void testCouponUpdationOnMoves3() {
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e, false);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -395,6 +398,7 @@ public class CloudActionsIntegrationTest {
     @Test
     public void testCouponUpdationOnMoves4() {
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e, false);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -422,6 +426,7 @@ public class CloudActionsIntegrationTest {
     @Test
     public void testCouponUpdationOnMoves5() {
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e, false);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -455,6 +460,7 @@ public class CloudActionsIntegrationTest {
     @Test
     public void testCouponUpdationOnMoves6() {
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e, false);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -489,6 +495,7 @@ public class CloudActionsIntegrationTest {
     @Test
     public void testCouponUpdationOnMoves7() {
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 2, "id1", 0, 8);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -521,6 +528,7 @@ public class CloudActionsIntegrationTest {
         // VM2 on CBTP1 consuming 4 coupons
         // VM3 on TP1
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);//new double[] {8, 16});
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -574,6 +582,7 @@ public class CloudActionsIntegrationTest {
         // VM2 on CBTP1 consuming 4 coupons
         // VM3 on TP1
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);//new double[] {8, 16});
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -627,6 +636,7 @@ public class CloudActionsIntegrationTest {
         // VM2 on CBTP2 consuming 4 coupons
         // VM3 on CBTP2 consuming 4 coupons
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);//new double[] {8, 16});
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -682,6 +692,7 @@ public class CloudActionsIntegrationTest {
         // VM2 on CBTP1 consuming 4 coupons
         // VM3 on TP1
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -726,6 +737,78 @@ public class CloudActionsIntegrationTest {
         assertEquals(0, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
     }
 
+    @Test
+    public void testMoveGeneratedWhenGroupLeaderIsOnTPAndPeerOnCBTP() {
+        // When there are a couple of VMs in a CSG with one fully covered and the other with no coverage,
+        // we generate dummy actions that dont change coverage for the VMs.
+        // here the groupLeader is on the TP
+        Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
+        Topology t = new Topology();
+        Trader[] vms = setupConsumersInCSG(e, 2, "id1", 0, 8);
+        Trader[] sellers = setupProviders(e, t, 0, false);
+        sellers[2].getCommoditySold(COUPON).setCapacity(8).setQuantity(8);
+        sellers[3].getCommoditySold(COUPON).setCapacity(0);
+        ShoppingList slVM1 = getSl(e, vms[0]);
+        ShoppingList slVM2 = getSl(e, vms[1]);
+        slVM1.move(sellers[0]);
+        slVM2.move(sellers[2]);
+
+        // VM2 is on CBTP1 with full coverage
+        // VM1 which is the groupLeader is on TP1
+        vms[1].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
+        slVM2.setQuantity(1, 8);
+
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        // UNNECESSARY move of VM1 from TP1 to CBTP1 and getting 0% coverage. This was generated because the leader was on a TP
+        // The peer moves from CBTP1 to CBTP1 with coverage not changing from 100%
+        PlacementResults result1 = Placement.generateShopAlonePlacementDecisions(e, slVM1);
+        assertEquals(slVM1.getSupplier(), sellers[2]);
+        assertEquals(slVM2.getSupplier(), sellers[2]);
+        assertEquals(1, result1.getActions().get(0).getSubsequentActions().size());
+        // VM1 moves to CBTP1 and consumes 0 coupons
+        assertEquals(slVM1.getQuantity(1), 0, 0);
+        // VM2 moves to CBTP1 and consumes 8 coupons
+        assertEquals(slVM2.getQuantity(1), 8, 0);
+        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 8, 0);
+    }
+
+    @Test
+    public void testNoMoveGeneratedWhenGroupLeaderIsOnCBTPAndPeerOnTP() {
+        // When there are a couple of VMs in a CSG with one fully covered and the other with no coverage,
+        // we generate dummy actions that dont change coverage for the VMs.
+        // Here the groupLeader is on the CBTP.
+        Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
+        Topology t = new Topology();
+        Trader[] vms = setupConsumersInCSG(e, 2, "id1", 0, 8);
+        Trader[] sellers = setupProviders(e, t, 0, false);
+        sellers[2].getCommoditySold(COUPON).setCapacity(8).setQuantity(8);
+        sellers[3].getCommoditySold(COUPON).setCapacity(0);
+        ShoppingList slVM1 = getSl(e, vms[0]);
+        ShoppingList slVM2 = getSl(e, vms[1]);
+        slVM1.move(sellers[2]);
+        slVM2.move(sellers[0]);
+
+        // VM1 which is the groupLeader is on CBTP1 with full coverage
+        // VM2 is on TP1
+        vms[0].getSettings().setContext(makeContext(t.getTraderOid(sellers[2]), 8, 8));
+        slVM1.setQuantity(1, 8);
+
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        // UNNECESSARY move of VM1 from CBTP1 to CBTP1 and getting 100% coverage
+        PlacementResults result1 = Placement.generateShopAlonePlacementDecisions(e, slVM1);
+        assertEquals(slVM1.getSupplier(), sellers[2]);
+        assertEquals(slVM2.getSupplier(), sellers[0]);
+        assertEquals(1, result1.getActions().size());
+        assertEquals(0, result1.getActions().get(0).getSubsequentActions().size());
+        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 8, 0);
+        // VM1 moves to CBTP1 and contines to consume 8 coupons
+        assertEquals(slVM1.getQuantity(1), 8, 0);
+    }
+
     /*
      * A groupLeader on a TP does not force a peer to move out.
      * The peer with full coverage continues to remain on the CBTP
@@ -741,6 +824,7 @@ public class CloudActionsIntegrationTest {
         // VM2 on CBTP1 consuming 8 coupons
         // VM3 TP1
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumersInCSG(e, 3, "id1", 0, 8);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -798,6 +882,7 @@ public class CloudActionsIntegrationTest {
     @Test
     public void testRelinquishingForTemplateExclusion() {
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e, true);
         Trader[] sellers = setupProviders(e, t, 0, true);
@@ -844,6 +929,7 @@ public class CloudActionsIntegrationTest {
     @Test
     public void testRelinquishingForTemplateExclusionGroupLeaderAcrossAsgs() {
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupTemplateExcludedConsumersInCsg(e, 2, "id1",
                 0, 8, true);
@@ -881,6 +967,7 @@ public class CloudActionsIntegrationTest {
     @Test
     public void testRelinquishingForTemplateExclusionNonGroupLeaderAcrossAsgs() {
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupTemplateExcludedConsumersInCsg(e, 2, "id1",
                 0, 8, false);
@@ -914,9 +1001,10 @@ public class CloudActionsIntegrationTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: CouponUpdationWithOverhead({0}, {1}, {2}, {3})")
-    public final void testCouponUpdationOnMoveFromTpToCBTPwithOverhead(double cpuUsed, double couponSoldCap,
+    public final void testCouponUpdationOnMoveFromTpToCbtpWithOverhead(double cpuUsed, double couponSoldCap,
                                                                        double couponSoldUsed, double couponAllocated) {
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e, false);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -935,7 +1023,7 @@ public class CloudActionsIntegrationTest {
     }
 
     @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestCouponUpdationOnMoveFromTpToCBTPwithOverhead() {
+    private static Object[] parametersForTestCouponUpdationOnMoveFromTpToCbtpWithOverhead() {
         return new Object[][] {
                 // cpuUsed, CouponSoldCap, CouponSoldUsed, couponAllocated
                 {10, 40, 36, 4},
@@ -950,12 +1038,13 @@ public class CloudActionsIntegrationTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: CouponUpdationWithCoCustomer({0}, {1}, {2}, {3}, {4}, {5}, {7})")
-    public final void testCouponUpdationOnMoveFromTpToCBTPwithCoCustomer(double cpuUsed1, double cpuUsed2,
+    public final void testCouponUpdationOnMoveFromTpToCbtpWithCoCustomer(double cpuUsed1, double cpuUsed2,
                                                                          long couponReq1, long couponAlloc1,
                                                                          double couponSoldCap, double couponSoldUsed,
                                                                          double couponAlloc2) {
 
         Economy e = new Economy();
+        e.getSettings().setDiscountedComputeCostFactor(4);
         Topology t = new Topology();
         Trader[] vms = setupConsumers(e, false);
         Trader[] sellers = setupProviders(e, t, 0, false);
@@ -985,7 +1074,7 @@ public class CloudActionsIntegrationTest {
     }
 
     @SuppressWarnings("unused") // it is used reflectively
-    private static Object[] parametersForTestCouponUpdationOnMoveFromTpToCBTPwithCoCustomer() {
+    private static Object[] parametersForTestCouponUpdationOnMoveFromTpToCbtpWithCoCustomer() {
         return new Object[][] {
                 // cpuBought1, cpuBought2, CouponReqVm1, CouponAllocVm1, CouponSoldCap, CouponSoldUsed, couponAllocated
                 {10, 10, 8, 8, 40, 36, 4},

@@ -353,7 +353,7 @@ public class CostFunctionTest {
 
         double quoteCbtp1 = EdeCommon.quote(economy, vmSL, cbtp1, bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
         // Test to check that we get a quote of 1.0 from cbtp1
-        assertEquals(quoteCbtp1, 1.0, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(quoteCbtp1, m4Large * riDeprecationFactor, TestUtils.FLOATING_POINT_DELTA);
 
         double quoteCbtp2= EdeCommon.quote(economy, vmSL, cbtp2, bestQuoteSoFar.getQuoteValue(),
                 forTraderIncomeStatement).getQuoteValue();
@@ -379,8 +379,8 @@ public class CostFunctionTest {
         double quoteCbtp3 = EdeCommon.quote(economy, vmSL, cbtp1, bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
         double quoteCbtp4 = EdeCommon.quote(economy, vmSL, cbtp2, bestQuoteSoFar.getQuoteValue(), forTraderIncomeStatement).getQuoteValue();
 
-        // t2.large and t3.large give same quote
-        assertEquals(quoteCbtp3, quoteCbtp4, TestUtils.FLOATING_POINT_DELTA);
+        // t2.large and t3.large give different quotes
+        assert(quoteCbtp3 > quoteCbtp4);
 
         // Now a test by changing budget on business account and increasing the riDeprecationFactor
         // to 10^-5 from 10^-7
