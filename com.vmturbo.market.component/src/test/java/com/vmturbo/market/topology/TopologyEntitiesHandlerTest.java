@@ -77,7 +77,6 @@ import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.market.topology.conversions.TierExcluder;
 import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
-import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
@@ -266,14 +265,13 @@ public class TopologyEntitiesHandlerTest {
                         .map(actionTo -> actionTo.getDeactivate().getTraderToDeactivate())
                         .collect(Collectors.toList());
         ReplayActions replayActions = analysis.getReplayActions();
-        List<Long> replayOids = replayActions.getActions().stream()
+        List<Long> replayOids = replayActions.getDeactivateActions().stream()
                     .map(a -> replayActions.getTopology().getTraderOids().get(a.getActionTarget()))
                     .collect(Collectors.toList());
 
         // Check that populated replay actions contain all Deactivate actions.
         assertEquals(deactivatedActionsTarget.size(), replayOids.size());
-        assertTrue(replayActions.getActions().stream()
-                        .allMatch(a -> a.getType().equals(ActionType.DEACTIVATE)));
+        assertTrue(replayActions.getActions().stream().noneMatch(a -> a instanceof Deactivate));
         assertTrue(deactivatedActionsTarget.containsAll(replayOids));
     }
 
@@ -287,7 +285,8 @@ public class TopologyEntitiesHandlerTest {
     public void replayActionsTestForPlan() throws IOException, InvalidTopologyException {
         Analysis analysis = mock(Analysis.class);
         Deactivate deactivateAction = mock(Deactivate.class);
-        ReplayActions replayActions = new ReplayActions(ImmutableList.of(deactivateAction),
+        ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
+                                                        ImmutableList.of(deactivateAction),
                                                         new Topology());
         when(analysis.getReplayActions()).thenReturn(replayActions);
 
@@ -295,8 +294,9 @@ public class TopologyEntitiesHandlerTest {
 
         // Unchanged replay actions for plan.
         assertEquals(replayActions, analysis.getReplayActions());
-        assertEquals(1, replayActions.getActions().size());
-        assertEquals(deactivateAction, replayActions.getActions().get(0));
+        assertEquals(0, replayActions.getActions().size());
+        assertEquals(1, replayActions.getDeactivateActions().size());
+        assertEquals(deactivateAction, replayActions.getDeactivateActions().get(0));
     }
 
     /**
