@@ -81,7 +81,7 @@ public class CommodityTypeAllocatorTest {
                 .build(), 1);
         assertEquals(1, nonTimeSlotComSpecs.size());
         assertFalse(commodityTypeAllocator.isTimeSlotCommodity(
-            nonTimeSlotComSpecs.iterator().next().getType()));
+            nonTimeSlotComSpecs.iterator().next()));
 
         final int slotNumber = 3;
         Collection<CommoditySpecificationTO> timeSlotCommSpecs =
@@ -91,7 +91,7 @@ public class CommodityTypeAllocatorTest {
                 .build(), slotNumber);
         assertEquals(3, timeSlotCommSpecs.size());
         assertTrue(timeSlotCommSpecs.stream().anyMatch(e ->
-            commodityTypeAllocator.isTimeSlotCommodity(e.getType())));
+            commodityTypeAllocator.isTimeSlotCommodity(e)));
     }
 
      /**

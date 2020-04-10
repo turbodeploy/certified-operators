@@ -125,6 +125,12 @@ public class CommodityTypeAllocator {
     Optional<CommodityType> marketToTopologyCommodity(
             @Nonnull final CommoditySpecificationTO marketCommodity,
             Optional<Integer> slotIndex) {
+        // It's possible that type is equal to or greater than the size of idAllocator.
+        // For example, the type of clone of certain commodity.
+        if (marketCommodity.getType() >= idAllocator.size()) {
+            return Optional.empty();
+        }
+
         final String name = idAllocator.getName(marketCommodity.getType());
         final CommodityType topologyCommodity = commoditySpecMap.get(name);
         if (topologyCommodity == null) {
@@ -210,15 +216,19 @@ public class CommodityTypeAllocator {
     }
 
     /**
-     * Check if commodity for the specified market ID is timeslot commodity.
+     * Check if commodity for the specified market spec is timeslot commodity.
      *
-     * @param marketCommodityId Market commodity ID
+     * @param marketCommodity Market commodity spec
      * @return True if timeslot commodity
      */
-    public boolean isTimeSlotCommodity(final int marketCommodityId) {
-        final String commodityName = getMarketCommodityName(marketCommodityId);
+    public boolean isTimeSlotCommodity(final CommoditySpecificationTO marketCommodity) {
+        if (MarketAnalysisUtils.CLONE_COMMODITIES_WITH_NEW_TYPE.contains(marketCommodity.getBaseType())) {
+            return false;
+        }
+
+        final String commodityName = getMarketCommodityName(marketCommodity.getType());
         if (commodityName == null) {
-            logger.error("Unknown commodity for market id {}", () -> marketCommodityId);
+            logger.error("Unknown commodity for market id {}", () -> marketCommodity.getType());
             return false;
         }
         // timeslot commodity name is the pattern "baseType|key|slotNumber"
