@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Future;
 
 import com.google.common.collect.Lists;
 
@@ -265,8 +266,7 @@ public class OperationManagerTest {
 
         // Make sure that we can still get the discovery after the
         // operation is complete.
-        operationManager.notifyDiscoveryResult(discovery, DiscoveryResponse.getDefaultInstance());
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, DiscoveryResponse.getDefaultInstance());
 
         Assert.assertFalse(operationManager.getInProgressDiscoveryForTarget(targetId, discoveryType).isPresent());
     }
@@ -286,8 +286,7 @@ public class OperationManagerTest {
 
         // Make sure that we can still get the discovery after the
         // operation is complete.
-        operationManager.notifyDiscoveryResult(discovery, DiscoveryResponse.getDefaultInstance());
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, DiscoveryResponse.getDefaultInstance());
 
         final Discovery lastDiscovery = operationManager.getLastDiscoveryForTarget(targetId, discoveryType).get();
         Assert.assertEquals(discovery, lastDiscovery);
@@ -308,9 +307,8 @@ public class OperationManagerTest {
                 .addEntityDTO(entity)
                 .build();
 
-        operationManager.notifyDiscoveryResult(discovery, result);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
 
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
         verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId),
                 eq(Collections.singletonList(entity)));
     }
@@ -335,8 +333,7 @@ public class OperationManagerTest {
                         .setDescription("error"))
                 .build();
 
-        operationManager.notifyDiscoveryResult(discovery, result);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
         Mockito.verify(entityStore, never()).entitiesDiscovered(anyLong(), anyLong(), any());
     }
 
@@ -355,8 +352,7 @@ public class OperationManagerTest {
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
                 .setNoChange(NoChange.getDefaultInstance())
                 .build();
-        operationManager.notifyDiscoveryResult(discovery, result);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
         Mockito.verify(entityStore, never()).entitiesDiscovered(anyLong(), anyLong(), any());
     }
 
@@ -377,8 +373,7 @@ public class OperationManagerTest {
         final DiscoveryResponse result = DiscoveryResponse.newBuilder()
                 .setDiscoveryContext(contextResponse)
                 .build();
-        operationManager.notifyDiscoveryResult(discovery1, result);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery1);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery1, result);
         final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
         ArgumentCaptor<DiscoveryRequest> requestCaptor
             = ArgumentCaptor.forClass(DiscoveryRequest.class);
@@ -413,8 +408,7 @@ public class OperationManagerTest {
         Mockito.doThrow(exception)
                .when(entityStore).entitiesDiscovered(anyLong(), anyLong(), any());
 
-        operationManager.notifyDiscoveryResult(discovery, result);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
     }
 
     /**
@@ -431,8 +425,7 @@ public class OperationManagerTest {
         final DiscoveryResponse.Builder responseBuilder = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity);
 
-        operationManager.notifyDiscoveryResult(discovery, responseBuilder.build());
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, responseBuilder.build());
         verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId),
                 eq(Collections.singletonList(entity)));
 
@@ -441,8 +434,7 @@ public class OperationManagerTest {
                 .build();
 
         final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
-        operationManager.notifyDiscoveryResult(discovery2, (errorResponse));
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery2, errorResponse);
 
         // The failed discovery shouldn't have triggered another call to the entity store.
         verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId),
@@ -464,15 +456,13 @@ public class OperationManagerTest {
                 .addEntityDTO(entity)
                 .build();
 
-        operationManager.notifyDiscoveryResult(discovery, response);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, response);
 
         verify(entityStore, times(1)).entitiesDiscovered(eq(probeId),
                 eq(targetId), eq(Collections.singletonList(entity)));
 
         final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
-        operationManager.notifyTimeout(discovery2, 1);
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery2);
+        OperationTestUtilities.waitForEvent(operationManager.notifyTimeout(discovery2, 1), Future::isDone);
 
         // The timeout shouldn't have resulted in another call to entitiesDiscovered.
         verify(entityStore, times(1)).entitiesDiscovered(eq(probeId),
@@ -489,14 +479,12 @@ public class OperationManagerTest {
     public void testProcessValidationTimeoutClearPreviousResult() throws Exception {
         final Validation validation = operationManager.startValidation(targetId);
         final ValidationResponse response = ValidationResponse.newBuilder().build();
-        operationManager.notifyValidationResult(validation, response);
-        OperationTestUtilities.waitForValidation(operationManager, validation);
+        OperationTestUtilities.notifyAndWaitForValidation(operationManager, validation, response);
         final ValidationResult result = operationManager.getValidationResult(targetId).get();
         Assert.assertEquals(0, result.getErrors().get(ErrorSeverity.CRITICAL).size());
 
         final Validation validation2 = operationManager.startValidation(targetId);
-        operationManager.notifyTimeout(validation2, 1);
-        OperationTestUtilities.waitForValidation(operationManager, validation2);
+        OperationTestUtilities.waitForEvent(operationManager.notifyTimeout(validation2, 1), Future::isDone);
         final ValidationResult result2 = operationManager.getValidationResult(targetId).get();
         Assert.assertEquals(1, result2.getErrors().get(ErrorSeverity.CRITICAL).size());
     }
@@ -510,9 +498,8 @@ public class OperationManagerTest {
     public void testProcessValidationCancelOperation() throws Exception {
         final Validation validation = operationManager.startValidation(targetId);
         Assert.assertTrue(operationManager.getInProgressValidation(validation.getId()).isPresent());
-        operationManager.notifyOperationCancelled(validation, "transport closed");
-        OperationTestUtilities.waitForEvent(operationManager, operationManager -> operationManager
-                        .getValidationResult(targetId).isPresent());
+        OperationTestUtilities.waitForEvent(operationManager.notifyOperationCancelled(
+            validation, "transport closed"), Future::isDone);
         final Map<ErrorSeverity, List<ErrorDTO>> errors =
                         operationManager.getValidationResult(targetId).get().getErrors();
         Assert.assertEquals(1, errors.get(ErrorSeverity.CRITICAL).size());
@@ -532,9 +519,8 @@ public class OperationManagerTest {
     public void testProcessDiscoveryCancelOperation(DiscoveryType discoveryType) throws Exception {
         final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
         Assert.assertTrue(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
-        operationManager.notifyOperationCancelled(discovery, "Transport closed");
-        OperationTestUtilities.waitForEvent(operationListener,
-                        listener -> !listener.lastStatusMatches(Status.IN_PROGRESS));
+        OperationTestUtilities.waitForEvent(operationManager.notifyOperationCancelled(
+            discovery, "Transport closed"), Future::isDone);
         final List<String> errors = discovery.getErrors();
         Assert.assertEquals(1, errors.size());
         final String errorMessage = errors.iterator().next();
@@ -593,9 +579,8 @@ public class OperationManagerTest {
 
         // Make sure that we can still get the validation after the
         // operation is complete.
-        operationManager.notifyValidationResult(validation,
-                ValidationResponse.getDefaultInstance());
-        OperationTestUtilities.waitForValidation(operationManager, validation);
+        OperationTestUtilities.notifyAndWaitForValidation(operationManager, validation,
+            ValidationResponse.getDefaultInstance());
 
         Assert.assertFalse(operationManager.getInProgressValidationForTarget(targetId).isPresent());
     }
@@ -613,9 +598,8 @@ public class OperationManagerTest {
 
         // Make sure that we can still get the validation after the
         // operation is complete.
-        operationManager.notifyValidationResult(validation,
-                ValidationResponse.getDefaultInstance());
-        OperationTestUtilities.waitForValidation(operationManager, validation);
+        OperationTestUtilities.notifyAndWaitForValidation(operationManager, validation,
+            ValidationResponse.getDefaultInstance());
 
         final Validation lastValidation = operationManager.getLastValidationForTarget(targetId).get();
         Assert.assertEquals(validation, lastValidation);
@@ -635,8 +619,8 @@ public class OperationManagerTest {
                         .setDescription("test")
                         .setSeverity(ErrorSeverity.WARNING))
                 .build();
-        operationManager.notifyValidationResult(validation, result);
-        OperationTestUtilities.waitForValidation(operationManager, validation);
+        OperationTestUtilities.notifyAndWaitForValidation(operationManager, validation, result);
+
         final Optional<ValidationResult> validationResult = operationManager.getValidationResult(targetId);
         Assert.assertTrue(validationResult.isPresent());
 
@@ -662,8 +646,7 @@ public class OperationManagerTest {
                         .setSeverity(ErrorSeverity.CRITICAL)
                         .setDescription("error"))
                 .build();
-        operationManager.notifyValidationResult(validation, result);
-        OperationTestUtilities.waitForValidation(operationManager, validation);
+        OperationTestUtilities.notifyAndWaitForValidation(operationManager, validation, result);
         final ValidationResult validationResult = operationManager.getValidationResult(targetId).get();
         Assert.assertFalse(validationResult.isSuccess());
         Assert.assertTrue(validationResult.getErrors().get(ErrorSeverity.WARNING).isEmpty());
@@ -747,8 +730,7 @@ public class OperationManagerTest {
         DiscoveryResponse.Builder responseBuilder = DiscoveryResponse.newBuilder()
                 .addEntityDTO(entity);
 
-        operationManager.notifyDiscoveryResult(originalDiscovery, responseBuilder.build());
-        OperationTestUtilities.waitForDiscovery(operationManager, originalDiscovery);
+        OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, originalDiscovery, responseBuilder.build());
         verify(entityStore).entitiesDiscovered(eq(probeId), eq(targetId),
                 eq(Collections.singletonList(entity)));
 
@@ -1023,9 +1005,8 @@ public class OperationManagerTest {
             .build();
         doThrow(RuntimeException.class).when(entityStore)
             .entitiesDiscovered(anyLong(), anyLong(), anyListOf(EntityDTO.class));
-        operationManager.notifyDiscoveryResult(discovery, result);
-
-        OperationTestUtilities.waitForDiscovery(operationManager, discovery);
+        OperationTestUtilities.waitForEvent(operationManager.notifyDiscoveryResult(
+            discovery, result), Future::isDone);
         Assert.assertFalse(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
     }
 

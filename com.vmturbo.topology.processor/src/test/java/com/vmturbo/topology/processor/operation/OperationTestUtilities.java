@@ -8,8 +8,9 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
+import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
-import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationDto;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -23,81 +24,33 @@ public class OperationTestUtilities {
     private OperationTestUtilities() {}
 
     /**
-     * Wait for the operation manager to complete a discovery.
+     * Notify and wait for the operation manager to complete a discovery.
      *
      * @param operationManager The operation manager running the discovery.
      * @param discovery The discovery that should complete.
+     * @param discoveryResponse discovery response
      * @throws Exception If anything goes wrong.
      */
-    public static void waitForDiscovery(@Nonnull final OperationManager operationManager,
-                                 @Nonnull final OperationDto discovery) throws Exception {
-        waitForDiscovery(operationManager, discovery.getId());
+    public static void notifyAndWaitForDiscovery(@Nonnull final OperationManager operationManager,
+            @Nonnull final Discovery discovery,
+            @Nonnull final DiscoveryResponse discoveryResponse) throws Exception {
+        operationManager.notifyDiscoveryResult(discovery, discoveryResponse).get(
+            DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
     /**
-     * Wait for the operation manager to complete a discovery.
-     *
-     * @param operationManager The operation manager running the discovery.
-     * @param discovery The discovery that should complete.
-     * @throws Exception If anything goes wrong.
-     */
-    public static void waitForDiscovery(@Nonnull final OperationManager operationManager,
-                                 @Nonnull final Discovery discovery) throws Exception {
-        waitForDiscovery(operationManager, discovery.getId());
-    }
-
-    /**
-     * Wait for the operation manager to complete a discovery.
-     *
-     * @param operationManager The operation manager running the discovery.
-     * @param discoveryId The discovery that should complete.
-     * @throws Exception If anything goes wrong.
-     */
-    private static void waitForDiscovery(@Nonnull final OperationManager operationManager,
-                                 final long discoveryId) throws Exception {
-        waitForEvent(
-            operationManager,
-            opManager -> !opManager.getInProgressDiscovery(discoveryId).isPresent()
-        );
-    }
-
-    /**
-     * Wait for the operation manager to complete a validation.
+     * Notify and wait for the operation manager to complete a validation.
      *
      * @param operationManager The operation manager running the validation.
      * @param validation The validation that should complete.
+     * @param validationResponse validation response
      * @throws Exception If anything goes wrong.
      */
-    public static void waitForValidation(@Nonnull final OperationManager operationManager,
-                                       @Nonnull final OperationDto validation) throws Exception {
-        waitForValidation(operationManager, validation.getId());
-    }
-
-    /**
-     * Wait for the operation manager to complete a validation.
-     *
-     * @param operationManager The operation manager running the validation.
-     * @param validation The validation that should complete.
-     * @throws Exception If anything goes wrong.
-     */
-    public static void waitForValidation(@Nonnull final OperationManager operationManager,
-                                       @Nonnull final Validation validation) throws Exception {
-        waitForValidation(operationManager, validation.getId());
-    }
-
-    /**
-     * Wait for the operation manager to complete a validation.
-     *
-     * @param operationManager The operation manager running the validation.
-     * @param validationId The validation that should complete.
-     * @throws Exception If anything goes wrong.
-     */
-    private static void waitForValidation(@Nonnull final OperationManager operationManager,
-                                       final long validationId) throws Exception {
-        waitForEvent(
-            operationManager,
-            opManager -> !opManager.getInProgressValidation(validationId).isPresent()
-        );
+    public static void notifyAndWaitForValidation(@Nonnull final OperationManager operationManager,
+            @Nonnull final Validation validation,
+            @Nonnull final ValidationResponse validationResponse) throws Exception {
+        operationManager.notifyValidationResult(validation, validationResponse).get(
+            DISCOVERY_PROCESSING_TIMEOUT_SECONDS, TimeUnit.SECONDS);
     }
 
     /**

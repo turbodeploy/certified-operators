@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 
 import javax.annotation.Nonnull;
 
@@ -50,7 +51,9 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.matrix.component.TheMatrix;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -381,9 +384,8 @@ public class OperationControllerTest {
         // Simulate the validation completing on the server.
         final Discovery actualDiscovery =
             operationManager.getInProgressDiscoveryForTarget(targetId, DiscoveryType.FULL).get();
-        operationManager.notifyDiscoveryResult(actualDiscovery,
-                com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse.getDefaultInstance());
-        OperationTestUtilities.waitForDiscovery(operationManager, firstResponse.operation);
+        OperationTestUtilities.waitForEvent(operationManager.notifyDiscoveryResult(
+            actualDiscovery, DiscoveryResponse.getDefaultInstance()), Future::isDone);
 
         final OperationResponse completeResponse = getDiscoveryByTargetId(targetId);
         Assert.assertEquals(Status.SUCCESS, completeResponse.operation.getStatus());
@@ -567,9 +569,8 @@ public class OperationControllerTest {
 
         // Simulate the validation completing on the server.
         final Validation actualValidation = operationManager.getInProgressValidationForTarget(targetId).get();
-        operationManager.notifyValidationResult(actualValidation,
-                com.vmturbo.platform.common.dto.Discovery.ValidationResponse.getDefaultInstance());
-        OperationTestUtilities.waitForValidation(operationManager, firstResponse.operation);
+        OperationTestUtilities.waitForEvent(operationManager.notifyValidationResult(
+            actualValidation, ValidationResponse.getDefaultInstance()), Future::isDone);
 
         final OperationResponse completeResponse = getValidationByTargetId(targetId);
         Assert.assertEquals(Status.SUCCESS, completeResponse.operation.getStatus());

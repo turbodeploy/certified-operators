@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -741,15 +742,15 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             .map(TargetOperationContext::getLastValidationResult);
     }
 
-    private void notifyOperationError(@Nonnull final Operation operation, @Nonnull ErrorDTO error) {
+    private Future<?> notifyOperationError(@Nonnull final Operation operation, @Nonnull ErrorDTO error) {
         if (operation instanceof Discovery) {
             final DiscoveryResponse response =
                             DiscoveryResponse.newBuilder().addErrorDTO(error).build();
-            resultExecutor.execute(() -> processDiscoveryResponse((Discovery)operation, response));
+            return resultExecutor.submit(() -> processDiscoveryResponse((Discovery)operation, response));
         } else if (operation instanceof Validation) {
             final ValidationResponse response =
                             ValidationResponse.newBuilder().addErrorDTO(error).build();
-            resultExecutor.execute(
+            return resultExecutor.submit(
                             () -> processValidationResponse((Validation)operation, response));
         } else if (operation instanceof Action) {
             // It's obnoxious to have to translate from ErrorDTO -> ActionResult -> ErrorDTO
@@ -760,9 +761,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     .setProgress(0)
                     .setResponseDescription(error.getDescription())
                 ).build();
-            resultExecutor.execute(
+            return resultExecutor.submit(
                 () -> processActionResponse((Action)operation, result));
         }
+        throw new UnsupportedOperationException("Unsupported operation: " + operation);
     }
 
     /**
@@ -770,8 +772,9 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      *
      * @param operation The {@link Operation} that timed out.
      * @param secondsSinceStart The number of seconds the operation was active for.
+     * @return a Future representing pending completion of the task
      */
-    public void notifyTimeout(@Nonnull final Operation operation,
+    public Future<?> notifyTimeout(@Nonnull final Operation operation,
                               final long secondsSinceStart) {
         final ErrorDTO error = SDKUtil.createCriticalError(new StringBuilder()
                 .append(operation.getClass().getSimpleName())
@@ -780,7 +783,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 .append(" timed out after ")
                 .append(secondsSinceStart)
                 .append(" seconds.").toString());
-        notifyOperationError(operation, error);
+        return notifyOperationError(operation, error);
     }
 
     /**
@@ -789,10 +792,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      *
      * @param operation The {@link Operation} that completed.
      * @param message The message from the probe containing the response.
+     * @return a Future representing pending completion of the task
      */
-    public void notifyDiscoveryResult(@Nonnull final Discovery operation,
+    public Future<?> notifyDiscoveryResult(@Nonnull final Discovery operation,
                              @Nonnull final DiscoveryResponse message) {
-        resultExecutor.execute(() -> {
+        return resultExecutor.submit(() -> {
             processDiscoveryResponse(operation, message);
         });
     }
@@ -803,10 +807,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      *
      * @param operation The {@link Operation} that completed.
      * @param message The message from the probe containing the response.
+     * @return a Future representing pending completion of the task
      */
-    public void notifyValidationResult(@Nonnull final Validation operation,
+    public Future<?> notifyValidationResult(@Nonnull final Validation operation,
             @Nonnull final ValidationResponse message) {
-        resultExecutor.execute(() -> {
+        return resultExecutor.submit(() -> {
             processValidationResponse(operation, message);
         });
     }
@@ -848,12 +853,13 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      *
      * @param operation The {@link Operation} that timed out.
      * @param cancellationReason the reason why the operation was cancelled.
+     * @return a Future representing pending completion of the task
      */
-    public void notifyOperationCancelled(@Nonnull final Operation operation,
+    public Future<?> notifyOperationCancelled(@Nonnull final Operation operation,
                                          @Nonnull final String cancellationReason) {
         final ErrorDTO error = SDKUtil.createCriticalError(operation.getClass().getSimpleName()
                         + " " + operation.getId() + " cancelled: " + cancellationReason);
-        notifyOperationError(operation, error);
+        return notifyOperationError(operation, error);
     }
 
     /**
@@ -1177,10 +1183,13 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         }
         logger.info("Completed {}", operation);
 
-        Operation completedOperation = ongoingOperations.remove(operation.getId());
-        if (completedOperation != null) {
-            getTargetOperationContextOrLogError(operation.getTargetId()).ifPresent(
-                targetOperationContext -> targetOperationContext.operationCompleted(operation));
+        synchronized (this) {
+            ongoingOperations.computeIfPresent(operation.getId(), (id, completedOperation) -> {
+                getTargetOperationContextOrLogError(operation.getTargetId()).ifPresent(
+                    targetOperationContext -> targetOperationContext.operationCompleted(operation));
+                // remove the operation from map
+                return null;
+            });
         }
         operationListener.notifyOperationState(operation);
         ONGOING_OPERATION_GAUGE.labels(operation.getClass().getName().toLowerCase()).decrement();
