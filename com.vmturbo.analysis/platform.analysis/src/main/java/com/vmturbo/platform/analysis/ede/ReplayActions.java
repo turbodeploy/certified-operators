@@ -8,7 +8,9 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.dataflow.qual.Pure;
 
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.Deactivate;
@@ -30,9 +32,9 @@ public class ReplayActions {
     // Fields
     static final Logger logger = LogManager.getLogger(ReplayActions.class);
 
-    // The actions that are to be replayed.
+    // The actions to be replayed during the 2nd analysis sub-cycle.
     private final @NonNull ImmutableList<@NonNull Action> actions_;
-    // The deactivate actions that are to be replayed.
+    // The deactivate actions to be replayed during the 1st analysis sub-cycle.
     private final @NonNull ImmutableList<@NonNull Deactivate> deactivateActions_;
     // The topology that contains the above traders and targets of above actions.
     // It is needed to map traders from old economy to new using OIDs.
@@ -72,7 +74,8 @@ public class ReplayActions {
     /**
      * Returns an immutable list of actions {@code this} object is responsible for replaying.
      */
-    public ImmutableList<Action> getActions() {
+    @Pure
+    public @NonNull ImmutableList<@NonNull Action> getActions(@ReadOnly ReplayActions this) {
         return actions_;
     }
 
@@ -80,7 +83,9 @@ public class ReplayActions {
      * Returns an immutable list of deactivate actions {@code this} object is responsible for
      * replaying.
      */
-    public ImmutableList<Deactivate> getDeactivateActions() {
+    @Pure
+    public @NonNull ImmutableList<@NonNull Deactivate>
+                                                getDeactivateActions(@ReadOnly ReplayActions this) {
         return deactivateActions_;
     }
 
@@ -92,7 +97,8 @@ public class ReplayActions {
      *
      * @see #getActions()
      */
-    public @NonNull Topology getTopology() {
+    @Pure
+    public @NonNull Topology getTopology(@ReadOnly ReplayActions this) {
         return topology_;
     }
 
@@ -105,18 +111,26 @@ public class ReplayActions {
     public @NonNull List<@NonNull Action> replayActions(Economy economy) {
         List<Action> actions = new ArrayList<>();
 
-        for (Action action : actions_) {
+        for (Action action : getActions()) {
             try {
                 Action ported = action.port(economy,
                     oldTrader -> mapTrader(oldTrader, getTopology(), economy.getTopology()),
                     oldSl -> mapShoppingList(oldSl, getTopology(), economy.getTopology())
                 );
+
                 if (ported.isValid()) {
                     actions.add(ported.take());
-                }
+                    List<Action> subActions = ported.getSubsequentActions();
+                    actions.addAll(subActions);
 
-                if (logger.isDebugEnabled()) {
-                    logger.debug("replayed " + action.toString());
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Replayed " + action.toString());
+                    }
+                } else {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Attempted to replay " + action.toString()
+                                    + ", but it was no longer valid");
+                    }
                 }
             } catch (Exception e) {
                 if (logger.isDebugEnabled()) {
@@ -139,14 +153,14 @@ public class ReplayActions {
     public @NonNull List<@NonNull Action> tryReplayDeactivateActions(@NonNull Economy economy,
                                                                      Ledger ledger) {
         @NonNull List<@NonNull Action> suspendActions = new ArrayList<>();
-        if (deactivateActions_.isEmpty()) {
+        if (getDeactivateActions().isEmpty()) {
             return suspendActions;
         }
         Suspension suspensionInstance = new Suspension();
         // adjust utilThreshold of the seller to maxDesiredUtil*utilTh. Thereby preventing moves
         // that force utilization to exceed maxDesiredUtil*utilTh.
         suspensionInstance.adjustUtilThreshold(economy, true);
-        for (Deactivate deactivateAction : deactivateActions_) {
+        for (Deactivate deactivateAction : getDeactivateActions()) {
             try {
                 @NonNull Deactivate ported = deactivateAction.port(economy,
                     oldTrader -> mapTrader(oldTrader, getTopology(), economy.getTopology()),
