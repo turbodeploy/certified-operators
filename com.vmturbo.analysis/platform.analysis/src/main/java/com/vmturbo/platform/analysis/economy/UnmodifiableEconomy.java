@@ -235,18 +235,20 @@ public interface UnmodifiableEconomy {
     Map<Long, BalanceAccount> getBalanceAccountMap();
 
     /**
-     * Sets the {@link Topology} associated with this {@link Economy}
+     * Sets the {@link Topology} associated with this {@link Economy}.
      *
      * @param topology The new associated topology
      */
-    public void setTopology(Topology topology);
+    void setTopology(Topology topology);
 
     /**
+     * Return the {@link Topology} associated with this {@link Economy}.
+     *
      * @return return the {@link Topology} associated with this {@link Economy}
      */
     @Nullable
     @ReadOnly
-    public Topology getTopology();
+    Topology getTopology();
 
     /**
      * Compute all sellers that this trader can buy from.
@@ -255,7 +257,7 @@ public interface UnmodifiableEconomy {
      * @return all the traders that the argument trader can buy from.
      */
     @NonNull
-    public Set<Trader> getPotentialSellers(Trader trader);
+    Set<Trader> getPotentialSellers(Trader trader);
 
     /**
      * Get the placement statistics associated with this economy.
@@ -270,12 +272,31 @@ public interface UnmodifiableEconomy {
      *
      * @return placement entities for deploy market.
      */
-    public List<Trader> getPlacementEntities();
+    List<Trader> getPlacementEntities();
 
     /**
-     * Get the peer shoppingLists for the leader of a scalingGroup
+     * Get the peer {@link ShoppingList} for the leader of a scaling group.
      *
-     * @return list of peer {@link ShoppingList}'s
+     * @param shoppingList shopping list to check.
+     * @return list of peer {@link ShoppingList}s
      */
-    List<ShoppingList> getPeerShoppingLists(UUID shoppingListId);
+    List<ShoppingList> getPeerShoppingLists(ShoppingList shoppingList);
+
+    /**
+     * Return whether the shopping list's scaling group is currently consistently sized.
+     * @param shoppingList shopping list to check
+     * @return true if the scaling group is currently consistently sized, or false if it is not.
+     */
+    boolean isScalingGroupConsistentlySized(final ShoppingList shoppingList);
+
+    /**
+     * Return the scaling group peer information for a given shopping list.
+     *
+     * @param shoppingList shopping list to check
+     * @return if the shopping list belongs to a scaling group, return the peer information for
+     * the scaling group, which includes whether the group is already consistently sized and the
+     * list of peer shopping lists.  If the shopping list is null or does not belong to a scaling
+     * group, dummy empty peer information will be returned instead.
+     */
+    ScalingGroupPeerInfo getScalingGroupPeerInfo(ShoppingList shoppingList);
 } // end UnmodifiableEconomy interface

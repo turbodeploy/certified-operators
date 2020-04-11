@@ -276,16 +276,29 @@ public class Resizer {
         // If the current capacity is already above the raw material's capacity, do not resize up
         // further.
         if (rawMaterial != null &&
-                resizeCommodity.getEffectiveCapacity() > rawMaterial.getEffectiveCapacity()) {
+            resizeCommodity.getEffectiveCapacity() + capacityIncrement > rawMaterial.getEffectiveCapacity()) {
             if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
-                logger.debug("Cannot resize {}/{} further up. Current capacity {} already " +
-                        "above raw material capacity {}. Not resizing.", seller.getDebugInfoNeverUseInCode(),
-                        commSpec.getDebugInfoNeverUseInCode(), resizeCommodity.getEffectiveCapacity(),
-                        rawMaterial.getEffectiveCapacity());
+                logger.info("Cannot resize {}/{} further up. Current capacity {} + capacityIncrement {} " +
+                    "is above raw material capacity {}. Not resizing.", seller.getDebugInfoNeverUseInCode(),
+                     commSpec.getDebugInfoNeverUseInCode(), resizeCommodity.getEffectiveCapacity(),
+                     capacityIncrement, rawMaterial.getEffectiveCapacity());
             }
             return 0;
         }
-
+        // If the current capacity is already greater than or equal to the capacity upper bound,
+        // then the capacity upper bound does not matter. Make it Double.MAX_VALUE.
+        double capacityUpperBound = resizeCommodity.getEffectiveCapacity() >= resizeCommodity.getSettings().getCapacityUpperBound()
+            ? Double.MAX_VALUE
+            : resizeCommodity.getSettings().getCapacityUpperBound();
+        double maxAmount = capacityUpperBound - resizeCommodity.getEffectiveCapacity();
+        if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
+            logger.info("The max amount we can resize up {}/{} is {}. This is derived from currentCapacity {} and capacity upper bound {}",
+                seller.getDebugInfoNeverUseInCode(), commSpec.getDebugInfoNeverUseInCode(),
+                maxAmount, resizeCommodity.getEffectiveCapacity(), capacityUpperBound);
+        }
+        if (maxAmount < desiredAmount) {
+            desiredAmount = maxAmount;
+        }
         // compute increments sufficient for desired amount
         int numIncrements = (int) Math.ceil(desiredAmount / (capacityIncrement * rateOfRightSize));
 
@@ -293,29 +306,35 @@ public class Resizer {
         double headroom = rawMaterial == null ? Double.MAX_VALUE :
             resizeCommodity.getSettings().getUtilizationUpperBound() *
                 (rawMaterial.getEffectiveCapacity() - rawMaterial.getQuantity());
-        if (headroom > 0) {
+        // Need to consider capacity headroom as the comparison between the commodity to resize
+        // and then provider's commodity (rawMaterial) as we can't generate a scale up to be higher
+        // capacity than the seller's provider has.
+        double capacityHeadroom = rawMaterial == null ? Double.MAX_VALUE :
+            rawMaterial.getEffectiveCapacity() - resizeCommodity.getEffectiveCapacity();
+        if (headroom > 0 && capacityHeadroom >= capacityIncrement) {
             if (headroom < numIncrements * capacityIncrement) {
                 numIncrements = (int) Math.floor(headroom / capacityIncrement);
             }
-            double desiredIncreament = numIncrements * capacityIncrement;
+            int availableIncrements = (int) Math.floor(capacityHeadroom / capacityIncrement);
+            double desiredIncrement = Math.min(availableIncrements, numIncrements) * capacityIncrement;
             if (rawMaterial == null) {
                 // This is possible in case of portchannel where the raw material is dummy value.
                 logger.debug("Raw material is null. Resizing up by {} for {} on {}",
-                        desiredIncreament, commSpec.getDebugInfoNeverUseInCode(),
+                        desiredIncrement, commSpec.getDebugInfoNeverUseInCode(),
                         seller.getDebugInfoNeverUseInCode());
-                return desiredIncreament;
+                return desiredIncrement;
             }
             // in the case of heap resizing up, we make sure that the sum of all heapCapacities sold by allServers
             // is less than the vMemSoldCapacity. This sum is not going to be same as vMemUsed and hence
             // this check is different from the rawMaterial validation.
-            double totalEffCapOnConsumers = calculateTotalEffectiveCapacityOnCoConsumersForResizeUp(economy, commSpec, seller);
-            if (totalEffCapOnConsumers + desiredIncreament <= rawMaterial.getEffectiveCapacity()) {
-                return desiredIncreament;
+            double totalCapOnConsumers = calculateTotalCapacityOnCoConsumersForResizeUp(economy, commSpec, seller);
+            if (totalCapOnConsumers + desiredIncrement <= rawMaterial.getEffectiveCapacity()) {
+                return desiredIncrement;
             } else {
                 logger.debug("The sum of the effCap sold by all the customers is {}. This is " +
                         "much larger than the raw material {}'s effCap {} after resizing up by {} for {} on {}",
-                        totalEffCapOnConsumers, rawMaterial.getEffectiveCapacity(),
-                        desiredIncreament, commSpec.getDebugInfoNeverUseInCode(), seller.getDebugInfoNeverUseInCode());
+                        totalCapOnConsumers, rawMaterial.getEffectiveCapacity(),
+                        desiredIncrement, commSpec.getDebugInfoNeverUseInCode(), seller.getDebugInfoNeverUseInCode());
                 return 0.0;
             }
         } else {
@@ -330,14 +349,14 @@ public class Resizer {
      * @param economy           The economy that the trader is a part of
      * @param commSpec          The commSpec being resized
      * @param seller            The seller
-     * @return                  Total effectiveCapacity of commoditySold across all customers
+     * @return                  Total Capacity of commoditySold across all customers
      */
-    private static double calculateTotalEffectiveCapacityOnCoConsumersForResizeUp(Economy economy,
+    private static double calculateTotalCapacityOnCoConsumersForResizeUp(Economy economy,
                                                                                    CommoditySpecification commSpec,
                                                                                    Trader seller) {
         // co-dependant commodity capacity validation
         // this means that there is a mapping for the commodity and the commodity is resizeUpAware
-        double totalEffCap = 0;
+        double totalCap = 0;
         List<Integer> rawMaterials = economy.getRawMaterials(commSpec.getBaseType());
         Set<ShoppingList> sls = economy.getMarketsAsBuyer(seller).keySet();
         if (rawMaterials != null) {
@@ -355,57 +374,57 @@ public class Resizer {
                         // of dbMemCap and heapCap sold by all customers
                         if (economy.getResizeProducesDependencyEntry(baseCommType) != null) {
                             for (int commType : economy.getResizeProducesDependencyEntry(baseCommType)) {
-                                totalEffCap += sumUpEffCapacitiesSoldByCustomersForCommodity(optionalSupplier.get(), commType);
+                                totalCap += sumUpCapacitiesSoldByCustomersForCommodity(optionalSupplier.get(), commType);
                             }
                         }
                     }
                 }
             }
         }
-        return totalEffCap;
+        return totalCap;
     }
 
     /**
-     * When a commodity like heap or dbMem tries resizingDown, return the sum of capacities of dependant commodity sold by the co-customers.
-     * These dependant commodities are heap and dbMem
+     * When a commodity like heap or dbMem tries resizingDown, return the sum of capacities of dependant commodity sold
+     * by the co-customers. These dependant commodities are heap and dbMem.
      *
      * @param economy           The economy that the trader is a part of
      * @param commSpec          The commSpec being resized
      * @param seller            The seller
-     * @return                  Total effectiveCapacity of commoditySold across all customers
+     * @return                  Total capacity of commoditySold across all customers
      */
-    private static double calculateTotalEffectiveCapacityOnCoConsumersForResizeDown(Economy economy,
+    private static double calculateTotalCapacityOnCoConsumersForResizeDown(Economy economy,
                                                                                    CommoditySpecification commSpec,
                                                                                    Trader seller) {
         // co-dependant commodity capacity validation
         // this means that there is a mapping for the commodity and the commodity is resizeUpAware
-        double totalEffCap = 0;
+        double totalCap = 0;
         if (economy.getResizeProducesDependencyEntry(commSpec.getBaseType()) != null) {
             // for vMem resizing down, the related commodities are heap or dbMem
             for (Integer commType : economy.getResizeProducesDependencyEntry(commSpec.getBaseType())) {
                 // check if customer sells commType. eg, heap or dbMem in the case of an AppServer or dbServer respectively
                 // and sum up the resourceCapacities
-                totalEffCap += sumUpEffCapacitiesSoldByCustomersForCommodity(seller, commType);
+                totalCap += sumUpCapacitiesSoldByCustomersForCommodity(seller, commType);
             }
         }
-        return totalEffCap;
+        return totalCap;
     }
 
     /**
-     * return the sum of effective capacities of commodity sold of a particular type sold by the customers of a seller.
+     * return the sum of capacities of commodity sold of a particular type sold by the customers of a seller.
      *
      * @param seller            The seller
      * @param commType          Type of commodity being sold by the customers
-     * @return                  Total effectiveCapacity of commoditySold across all customers
+     * @return                  Total Capacity of commoditySold across all customers
      */
-    private static double sumUpEffCapacitiesSoldByCustomersForCommodity(Trader seller,
+    private static double sumUpCapacitiesSoldByCustomersForCommodity(Trader seller,
                                                                         Integer commType) {
         // check if customer sells commType. eg, heap or dbMem in the case of an AppServer or dbServer respectively
         // and sum up the resourceCapacities
         return seller.getCustomers().stream().map(ShoppingList::getBuyer)
                 .filter(trader -> trader.getBasketSold().indexOfBaseType(commType) != -1)
                 .map(trader -> trader.getCommoditiesSold().get(trader.getBasketSold().indexOfBaseType(commType)))
-                .map(CommoditySold::getEffectiveCapacity)
+                .map(CommoditySold::getCapacity)
                 .mapToDouble(Double::doubleValue).sum();
     }
 
@@ -417,7 +436,9 @@ public class Resizer {
      * In addition, the following limits are placed on the resize amount:
      *
      * <ul>
-     * <li>The capacity is not allowed to drop below the commodity's maxQuantity or peakQuantity.</li>
+     * <li>The capacity is not allowed to drop below the commodity's historical percentile commodity
+     *     if available. If not available, then the capacity is not allowed to drop below the max
+     *     quantity. In both cases, it cannot drop below the peakQuantity.</li>
      * <li>The capacity is not allowed to change if there is no current or historical use data.</li>
      * <li>The capacity is not allowed to drop below a single capacity increment amount.</li>
      * </ul>
@@ -439,16 +460,41 @@ public class Resizer {
                                                     double capacityIncrement,
                                                     double rateOfRightSize) {
         double currentCapacity = resizeCommodity.getEffectiveCapacity();
-        double maxQuantity = resizeCommodity.getMaxQuantity();
+        if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
+            logger.info("calculateResizeDownAmount for trader {}"
+                + " with isHistoricalQuantitySet={},"
+                + " historicalOrElseCurrentQuantity={}"
+                + " maxQuantity={}",
+                () -> seller.getDebugInfoNeverUseInCode(),
+                () -> resizeCommodity.isHistoricalQuantitySet(),
+                () -> resizeCommodity.getHistoricalOrElseCurrentQuantity(),
+                () -> resizeCommodity.getMaxQuantity());
+        }
+        final double historicalOrMaxQuantity;
+        if (resizeCommodity.isHistoricalQuantitySet()) {
+            historicalOrMaxQuantity = resizeCommodity.getHistoricalOrElseCurrentQuantity();
+        } else {
+            // On some commodities we do not track the historical percentile. As a result, we fall
+            // back to max quantity to ensure we do not resize outside of the customer's expectation.
+            historicalOrMaxQuantity = resizeCommodity.getMaxQuantity();
+        }
         double peakQuantity = resizeCommodity.getPeakQuantity();
 
         // don't permit downward resize if there's no usage data
-        if (resizeCommodity.getQuantity() == 0 && maxQuantity == 0 && peakQuantity == 0) {
+        if (resizeCommodity.getQuantity() == 0 && historicalOrMaxQuantity == 0 && peakQuantity == 0) {
             return 0.0;
         }
-
-        // don't permit resize below historical use
-        double maxAmount = currentCapacity - Math.max(maxQuantity, peakQuantity);
+        // If the current capacity is already lesser than or equal to the capacity lower bound,
+        // then the capacity lower bound does not matter. Make it 0.
+        double capacityLowerBound = currentCapacity <= resizeCommodity.getSettings().getCapacityLowerBound()
+            ? 0 : resizeCommodity.getSettings().getCapacityLowerBound();
+        // don't permit resize below historical max/peak or below capacity lower bound
+        double maxAmount = currentCapacity - Math.max(Math.max(historicalOrMaxQuantity, peakQuantity), capacityLowerBound);
+        if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
+            logger.info("The max amount we can resize down {}/{} is {}. This is derived from currentCapcity {}, max {}, peak {}, capcityLowerBound {}",
+                seller.getDebugInfoNeverUseInCode(), commSpec.getDebugInfoNeverUseInCode(),
+                maxAmount, currentCapacity, historicalOrMaxQuantity, peakQuantity, capacityLowerBound);
+        }
         if (maxAmount < 0) {
             return 0.0;
         } else if (maxAmount < desiredAmount) {
@@ -473,32 +519,24 @@ public class Resizer {
         // than the raw material's capacity)
         double newCapacity = currentCapacity - amount;
         if (rawMaterial != null && newCapacity > rawMaterial.getEffectiveCapacity()) {
-            double deltaToRawMaterialCapacity = currentCapacity - rawMaterial.getEffectiveCapacity();
-            amount = Math.ceil(deltaToRawMaterialCapacity / capacityIncrement) * capacityIncrement;
-            // Do not decrement by the full capacity. This can happen in case the capacityIncrement
-            // is bigger than the raw material capacity. In such a case, do not resize.
-            // Also don't decrease by an amount bigger than numDecrements * capacityIncrement
-            amount = ((amount >= currentCapacity) || (amount > numDecrements * capacityIncrement)) ? 0 : amount;
-
+            amount = 0;
             if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
-                logger.debug("New resized capacity for {}/{} is {}. But this is above rawMaterial " +
-                                "capacity {}. Changing newCapacity to {}" , seller.getDebugInfoNeverUseInCode(),
-                        commSpec.getDebugInfoNeverUseInCode(), newCapacity,
-                        rawMaterial.getEffectiveCapacity(), currentCapacity - amount);
+                logger.info("New resized capacity for {}/{} is {}. But this is above rawMaterial " +
+                                "capacity {}. Not resizing.", seller.getDebugInfoNeverUseInCode(),
+                        commSpec.getDebugInfoNeverUseInCode(), newCapacity, rawMaterial.getEffectiveCapacity());
             }
         }
-        double totalEffectiveCapOnCoConsumers = calculateTotalEffectiveCapacityOnCoConsumersForResizeDown(economy, commSpec, seller);
+        double totalCapOnCoConsumers = calculateTotalCapacityOnCoConsumersForResizeDown(economy, commSpec, seller);
         // if the total capacity on all the consumers for the dependant commodities is much larger than the newCapacity, dont resize
-        if (totalEffectiveCapOnCoConsumers > currentCapacity - amount) {
-            logger.debug("The sum of the effCap sold by all the customers is {}. This is " +
-                            "much larger than {}'s effCap {} after resizing down by {} for {}",
-                             totalEffectiveCapOnCoConsumers, commSpec.getDebugInfoNeverUseInCode(), currentCapacity,
-                             amount, seller.getDebugInfoNeverUseInCode());
+        if (totalCapOnCoConsumers > currentCapacity - amount) {
+            logger.debug("The sum of the Capacities sold by all the customers is {}. This is " +
+                            "much larger than {}'s Capacity {} after resizing down by {} for {}",
+                            totalCapOnCoConsumers, commSpec.getDebugInfoNeverUseInCode(), currentCapacity,
+                            amount, seller.getDebugInfoNeverUseInCode());
             return 0;
         }
         return amount;
     }
-
     /**
      * Find the commodity sold and supplier by the Seller which is raw material for the given commodity.
      *

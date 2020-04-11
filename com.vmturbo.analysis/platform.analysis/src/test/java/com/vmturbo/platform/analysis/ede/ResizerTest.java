@@ -121,6 +121,38 @@ public class ResizerTest {
     }
 
     /**
+     * Tests that a VM doesn't scale up its commodity capacity greater than the capacity that
+     * its provider has.
+     */
+    @Test
+    public void testNoResizeUpGreaterThanProviderCapacity() {
+        Economy economy = testEconomy.getEconomy();
+        Trader vm = testEconomy.getVm();
+        Trader[] pms = testEconomy.getPms();
+        Trader pm1 = pms[0];
+
+        ShoppingList[] shoppingLists = economy.getMarketsAsBuyer(vm)
+                                            .keySet().toArray(new ShoppingList[1]);
+        ShoppingList sl = shoppingLists[0];
+        sl.setQuantity(0, 90).setPeakQuantity(0, 90);
+
+        pm1.getCommoditySold(TestCommon.CPU).setCapacity(100).setQuantity(40).setPeakQuantity(40);
+
+        shoppingLists[0].move(pm1);
+
+        economy.getSettings().setRightSizeLower(0.3).setRightSizeUpper(0.7);
+        economy.getCommodityBought(sl, TestCommon.CPU).setQuantity(40).setPeakQuantity(40);
+
+        vm.getCommoditySold(TestCommon.VCPU).setCapacity(100).setQuantity(90).setPeakQuantity(90);
+        vm.getCommoditySold(TestCommon.VCPU).getSettings().setCapacityIncrement(1);
+        vm.getSettings().setMinDesiredUtil(0.6).setMaxDesiredUtil(0.7);
+
+        Ledger ledger = new Ledger(economy);
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+        assertEquals(0, actions.size());
+    }
+
+    /**
      * In this scenario, the used value of VMem (90) sold by the VM is less than capacity (100).
      * The max utilization is configured to 80. The VM is expected to resize to the used value.
      * Resize decision depends solely on the commodity sold however topology has to be setup for
@@ -367,12 +399,49 @@ public class ResizerTest {
         assertEquals(ActionType.RESIZE, actions.get(0).getType());
         Resize resize1 = (Resize)actions.get(0);
         assertEquals(resize1.getActionTarget(), vm);
-        assertEquals(resize1.getNewCapacity(), resize1.getOldCapacity() - 10, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals("new capacity (" + resize1.getNewCapacity() + ") cannot resize below max quantity of 90",
+            resize1.getNewCapacity(), resize1.getOldCapacity() - 10, TestUtils.FLOATING_POINT_DELTA);
         assertEquals(ActionType.RESIZE, actions.get(1).getType());
         Resize resize2 = (Resize)actions.get(1);
         assertEquals(resize2.getActionTarget(), vm);
-        assertEquals(resize2.getNewCapacity(),  resize2.getOldCapacity() - 10, TestUtils.FLOATING_POINT_DELTA);
+        assertEquals("new capacity (" + resize1.getNewCapacity() + ") cannot resize below max quantity of 90",
+            resize2.getNewCapacity(),  resize2.getOldCapacity() - 10, TestUtils.FLOATING_POINT_DELTA);
 
+    }
+
+    /**
+     * When historical and max quantity or both set, resize should go below max quantity, but not
+     * below historical quantity.
+     */
+    @Test
+    public void testResizeDownLowerThanMaxQuantityAndHistoricalUsage() {
+        final float maxQuantity = 90;
+        final float historicalQuantity = 25;
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            100, 100, 1, 1, 1, 1, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+        vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(maxQuantity));
+        vm.getCommoditiesSold().stream().forEach(c -> c.setHistoricalQuantity(historicalQuantity));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertEquals(resize1.getOldCapacity(),  100, TestUtils.FLOATING_POINT_DELTA);
+        assertTrue("new capacity (" + resize1.getNewCapacity() + ") should resize below max quantity (" + maxQuantity + ").",
+            resize1.getNewCapacity() < 90);
+        assertTrue("new capacity (" + resize1.getNewCapacity() + ") should resize above historical quantity (" + historicalQuantity + ")",
+            resize1.getNewCapacity() >= 25);
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertEquals(resize2.getOldCapacity(),  100, TestUtils.FLOATING_POINT_DELTA);
+        assertTrue("new capacity (" + resize2.getNewCapacity() + ") should resize below max quantity (" + maxQuantity + ").",
+            resize2.getNewCapacity() < 90);
+        assertTrue("new capacity (" + resize2.getNewCapacity() + ") should resize above historical quantity (" + historicalQuantity + ")",
+            resize1.getNewCapacity() >= 25);
     }
 
     /**
@@ -525,6 +594,115 @@ public class ResizerTest {
         Resize resize2 = (Resize)actions.get(1);
         assertEquals(resize2.getActionTarget(), vm);
         assertEquals(90, resize2.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
+     * VM's VMEM and VCPU have low ROI.
+     * VM's VCPU and VMEM have capacities of 150 each, which exceeds PM's capacity.
+     * VM's CPU and MEM have capacity lower bound of 90.
+     * The capacity increment is 1.
+     * The desired capacity is 25.92 - result of calling calculateDesiredCapacity.
+     * That capacity will be bumped to 90 because of the capacity lower bound value.
+     * */
+    @Test
+    public void testResizeDownRespectsCapacityLowerBound() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            150, 150, 70, 70, 20, 20, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityLowerBound(90));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertEquals(90, resize1.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertEquals(90, resize2.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 20 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 20 of VM's VMEM.
+     * VM's VMEM and VCPU have low ROI.
+     * VM's VCPU and VMEM have capacities of 80 each.
+     * VM's CPU and MEM have lower bound of 90.
+     * The capacity increment is 1.
+     * If the current capacities is already below the lower bound, then lower bound is not a
+     * restricting factor in the resize down actions.
+     * */
+    @Test
+    public void testResizeDownCurrentCapacityBelowCapacityLowerBound() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            80, 80, 70, 70, 20, 20, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityLowerBound(90));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+    }
+
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 70 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 70 of VM's VMEM.
+     * VM's VCPU and VMEM have capacities of 80 each.
+     * The capacity increment is 1.
+     * The desired capacity is 90.72 - result of calling calculateDesiredCapacity.
+     * That capacity increase will be limited to 85 because of the capacity upper bound value.
+     * */
+    @Test
+    public void testResizeUpRespectsCapacityUpperBound() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            80, 80, 70, 70, 70, 70, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityUpperBound(85));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
+        assertEquals(ActionType.RESIZE, actions.get(0).getType());
+        Resize resize1 = (Resize)actions.get(0);
+        assertEquals(resize1.getActionTarget(), vm);
+        assertEquals(85, resize1.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+        assertEquals(ActionType.RESIZE, actions.get(1).getType());
+        Resize resize2 = (Resize)actions.get(1);
+        assertEquals(resize2.getActionTarget(), vm);
+        assertEquals(85, resize2.getNewCapacity(), TestUtils.FLOATING_POINT_DELTA);
+    }
+
+    /**
+     * Setup economy with one PM, one VM and one application.
+     * PM CPU capacity = 100, VM buys 70 from it. App buys 70 of VM's VCPU.
+     * PM MEM capacity = 100, VM buys 70 from it. App buys 70 of VM's VMEM.
+     * VM's VCPU and VMEM have capacities of 80 each.
+     * The capacity increment is 1.
+     * That capacity upper bound value is 75. If the current capacity is already above
+     * the upper bound, then the upper bound does not matter. And we will allow the generation
+     * of actions.
+     * */
+    @Test
+    public void testResizeUpWhenCapacityGreaterThanUpperBound() {
+        Economy economy = setupTopologyForResizeTest(100, 100,
+            80, 80, 70, 70, 70, 70, 0.65, 0.8,
+            RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
+
+        vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityUpperBound(75));
+
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        assertEquals(2, actions.size());
     }
 
     /**
@@ -708,13 +886,13 @@ public class ResizerTest {
         double vmVmemCapacity = 500;
         double vmemUsedByAppServer1 = 50;
         double vmemUsedByDbServer1 = 50;
-        double heapUsedByApp = 155;
+        double heapUsedByApp = 60;
         double vmMinDesiredUtil = 0.65;
         double vmMaxDesiredUtil = 0.75;
         double economyRightSizeLower = 1;
         double economyRightSizeUpper = 0.7;
-        double appServerHeapCapacity = 160;
-        double dbServerDbMemCapacity = 160;
+        double appServerHeapCapacity = 100;
+        double dbServerDbMemCapacity = 100;
 
         Economy economy = new Economy();
         pm = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0L),
@@ -780,8 +958,11 @@ public class ResizerTest {
 
         vm.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
         appserver1.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
+        appserver1.getCommoditiesSold().get(0).getSettings().setUtilizationUpperBound(0.7);
         appserver2.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
+        appserver2.getCommoditiesSold().get(0).getSettings().setUtilizationUpperBound(0.7);
         dbserver1.getSettings().setMaxDesiredUtil(vmMaxDesiredUtil).setMinDesiredUtil(vmMinDesiredUtil);
+        dbserver1.getCommoditiesSold().get(0).getSettings().setUtilizationUpperBound(0.7);
         economy.getSettings().setRightSizeLower(economyRightSizeLower);
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
 
@@ -792,11 +973,15 @@ public class ResizerTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         ledger = new Ledger(economy);
 
-        // VM tries resizing vMem down but this resize is prevented by the appServers cumulatively selling high heap/dbMem
-        // disallow appServer and dbServer resizes UPs when the resizes pushes the cumulative capacity over rawMaterialCap
+        // VM tries resizing vMem down (to 215) but this resize is prevented by the appServers cumulatively selling high
+        // heap/dbMem(300 total and 210 effective). Disallow appServer and dbServer resizes UPs when the resizes pushes
+        // the cumulative capacity over rawMaterialCap. But in this case, since the resizes remain below vMemcapacity,
+        // we allow them.
+        // NOTE: We would have had resize of vMem if we considered the effectiveCap on the appServers and dbServers instead
+        // of the actualCapacity
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
-        assertEquals(0, actions.size());
+        assertEquals(3, actions.size());
     }
 
     /**
@@ -897,7 +1082,7 @@ public class ResizerTest {
          */
 
         //APP buys DBMEM
-        actual = setupTopologyForDBHeapResizeTestAndRunResize(100, 100,
+        actual = setupTopologyForDBHeapResizeTestAndRunResize(150, 150,
                 100, 100, 40, 40,
                 35, 35, 35, 34,
                 0.65, 0.8, 0.65, 0.8,
@@ -907,7 +1092,7 @@ public class ResizerTest {
         assertEquals(0, actual.size());
 
         //APP buys HEAP
-        actual = setupTopologyForDBHeapResizeTestAndRunResize(100, 100,
+        actual = setupTopologyForDBHeapResizeTestAndRunResize(150, 150,
                 100, 100, 40, 40,
                 35, 35, 35, 34,
                 0.65, 0.8, 0.65, 0.8,
@@ -1190,7 +1375,7 @@ public class ResizerTest {
     @Test
     public void testResizeUpAmount() {
         double E = 0.00001;
-        Economy economy = setupTopologyForResizeTest(100, 100,
+        Economy economy = setupTopologyForResizeTest(150, 150,
                 100, 100, 70, 70, 95, 95, 0.65, 0.8,
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));

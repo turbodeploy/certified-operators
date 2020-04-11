@@ -427,16 +427,16 @@ public class AnalysisServer implements AutoCloseable {
                 @NonNull List<Action> secondRoundActions = new ArrayList<>();
                 AnalysisResults.Builder builder = results.toBuilder();
                 economy.getSettings().setResizeDependentCommodities(false);
-                secondRoundActions.addAll(ede
-                                .generateActions(economy, instInfo.isClassifyActions(), true, true,
-                                                false, true, false, new ReplayActions(), mktData)
-                                .stream().filter(action -> action instanceof ProvisionBase
-                                                || action instanceof Activate
-                                                // Extract resizes that explicitly set extractAction to true as part
-                                                // of resizeThroughSupplier provision actions.
-                                                || (action instanceof Resize
-                                                                && action.isExtractAction()))
-                                .collect(Collectors.toList()));
+                secondRoundActions.addAll(
+                    ede.generateActions(economy, instInfo.isClassifyActions(), true, true,
+                                        false, true, false, new ReplayActions(), mktData,
+                                        instInfo.getSuspensionsThrottlingConfig())
+                        .stream().filter(action -> action instanceof ProvisionBase
+                                      || action instanceof Activate
+                                        // Extract resizes that explicitly set extractAction to true as part
+                                        // of resizeThroughSupplier provision actions.
+                                      || (action instanceof Resize && action.isExtractAction()))
+                        .collect(Collectors.toList()));
                 for (Action action : secondRoundActions) {
                     ActionTO actionTO = AnalysisToProtobuf.actionTO(action,
                                     lastComplete.getTraderOids(),

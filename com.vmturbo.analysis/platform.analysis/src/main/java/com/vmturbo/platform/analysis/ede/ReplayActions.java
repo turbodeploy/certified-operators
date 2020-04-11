@@ -6,6 +6,9 @@ import java.util.NoSuchElementException;
 
 import com.google.common.collect.ImmutableList;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -142,15 +145,16 @@ public class ReplayActions {
      *
      * @param economy The {@link Economy} in which actions are to be replayed.
      * @param ledger The {@link Ledger} related to current {@link Economy}.
+     * @param suspensionsThrottlingConfig level of Suspension throttling.
      * @return action list related to suspension of trader.
      */
     public @NonNull List<@NonNull Action> tryReplayDeactivateActions(@NonNull Economy economy,
-                                                                     Ledger ledger) {
+                    Ledger ledger, SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
         @NonNull List<@NonNull Action> suspendActions = new ArrayList<>();
         if (getDeactivateActions().isEmpty()) {
             return suspendActions;
         }
-        Suspension suspensionInstance = new Suspension();
+        Suspension suspensionInstance = new Suspension(suspensionsThrottlingConfig);
         // adjust utilThreshold of the seller to maxDesiredUtil*utilTh. Thereby preventing moves
         // that force utilization to exceed maxDesiredUtil*utilTh.
         suspensionInstance.adjustUtilThreshold(economy, true);
@@ -162,19 +166,21 @@ public class ReplayActions {
                 );
                 @NonNull Trader newTrader = ported.getTarget();
                 if (ported.isValid() && isEligibleforSuspensionReplay(newTrader, economy)) {
-                    if (Suspension.getSuspensionsthrottlingconfig()
-                            == SuspensionsThrottlingConfig.CLUSTER) {
+                    if (suspensionsThrottlingConfig == SuspensionsThrottlingConfig.CLUSTER) {
                         Suspension.makeCoSellersNonSuspendable(economy, newTrader);
                     }
                     if (newTrader.getSettings().isControllable()) {
                         suspendActions.addAll(
                             suspensionInstance.deactivateTraderIfPossible(newTrader, economy,
-                                                                            ledger, true));
+                                                                          ledger, true));
                     } else {
                         // If controllable is false, deactivate the trader without checking criteria
                         // as entities may not be able to move out of the trader with controllable
                         // false.
                         suspendActions.add(ported.take());
+                        // Any orphan suspensions generated will be added to the replayed suspension's
+                        // subsequent actions list.
+                        suspensionInstance.suspendOrphanedCustomers(economy, ported);
                         suspendActions.addAll(ported.getSubsequentActions());
                     }
                 }

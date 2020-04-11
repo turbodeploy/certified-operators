@@ -33,6 +33,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 
@@ -193,7 +194,8 @@ public class ActionClassifierTest {
                                                                  ImmutableList.of(thirdDeactivate),
                                                                  firstTopology);
             assertEquals(1,
-                thirdReplayActions.tryReplayDeactivateActions(third, new Ledger(third)).size());
+                thirdReplayActions.tryReplayDeactivateActions(third, new Ledger(third),
+                                           SuspensionsThrottlingConfig.DEFAULT).size());
         } catch (ClassNotFoundException | IOException e) {
             fail();
         }

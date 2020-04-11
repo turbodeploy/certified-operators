@@ -27,6 +27,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
 
@@ -75,7 +76,7 @@ public class EdeIntegrationTest {
         pm2.getCommoditySold(TestUtils.CPU).setCapacity(100).setQuantity(10);
         pm3.getCommoditySold(TestUtils.CPU).setCapacity(11).setQuantity(0);
         // to test resize of VCPU on VM1
-        vm1.getCommoditySold(TestUtils.VCPU).setCapacity(100).setQuantity(80)
+        vm1.getCommoditySold(TestUtils.VCPU).setCapacity(70).setQuantity(65)
                 .getSettings().setCapacityIncrement(1);
 
         pm1.getSettings().setMaxDesiredUtil(0.7).setMinDesiredUtil(0.6).setCanAcceptNewCustomers(true)
@@ -124,14 +125,15 @@ public class EdeIntegrationTest {
         ReplayActions replayActions = new ReplayActions(ImmutableList.of(),
                                                     ImmutableList.of(deactivate), firstTopology);
         // assert absence of replayed suspension
-        assertTrue(replayActions.tryReplayDeactivateActions(first, ledger).isEmpty());
+        assertTrue(replayActions.tryReplayDeactivateActions(first, ledger, 
+                                                 SuspensionsThrottlingConfig.DEFAULT).isEmpty());
 
         // assert absence of provision/activates
         List<Action> provisionActions = Provision.provisionDecisions(first, ledger);
         assertTrue(provisionActions.isEmpty());
 
         // assert absence of suspension
-        Suspension suspension = new Suspension();
+        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
         List<Action> suspendActions = suspension.suspensionDecisions(first, ledger);
         assertTrue(suspendActions.isEmpty());
     }
@@ -149,7 +151,8 @@ public class EdeIntegrationTest {
                                                     ImmutableList.of(deactivate), firstTopology);
         Ledger ledger = new Ledger(first);
         // validate that suspension was replayed
-        assertFalse(replayActions.tryReplayDeactivateActions(first, ledger).isEmpty());
+        assertFalse(replayActions.tryReplayDeactivateActions(first, ledger, 
+                                                 SuspensionsThrottlingConfig.DEFAULT).isEmpty());
 
         // validate that there is a resize
         List<Action> resizes = Resizer.resizeDecisions(first, ledger);
@@ -160,7 +163,7 @@ public class EdeIntegrationTest {
         assertEquals(1, provisionActions.stream().filter(Activate.class::isInstance).count());
 
         // assert absence of 1 suspension
-        Suspension suspension = new Suspension();
+        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
         List<Action> suspendActions = suspension.suspensionDecisions(first, ledger);
         assertTrue(suspendActions.isEmpty());
     }

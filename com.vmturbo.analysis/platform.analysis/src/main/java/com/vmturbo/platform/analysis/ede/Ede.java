@@ -109,7 +109,8 @@ public final class Ede {
             boolean classifyActions, boolean isProvision, boolean isSuspension, boolean isResize,
             String mktName) {
         return generateActions(economy, classifyActions, isProvision, isSuspension,
-                               isResize, false, false, new ReplayActions(), mktName);
+                               isResize, false, false, new ReplayActions(), mktName,
+                               SuspensionsThrottlingConfig.DEFAULT);
     }
 
     /**
@@ -130,7 +131,8 @@ public final class Ede {
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
             boolean classifyActions, boolean isProvision, boolean isSuspension, boolean isResize) {
         return generateActions(economy, classifyActions, isProvision, isSuspension,
-                               isResize, false, false, new ReplayActions(), "unspecified|");
+                               isResize, false, false, new ReplayActions(), "unspecified|",
+                               SuspensionsThrottlingConfig.DEFAULT);
     }
 
     /**
@@ -149,6 +151,9 @@ public final class Ede {
      *                    algorithm.
      * @param mktData contains the market name and any stats to be written to the row
      *          delimited by "|"
+     * @param suspensionsThrottlingConfig level of Suspension throttling.
+     *         CLUSTER: Make co sellers of suspended seller suspendable false.
+     *         DEFAULT: Unlimited suspensions.
      * @return A list of actions suggested by the economic decisions engine.
      *
      * @see ActionCollapse#collapsed(List)
@@ -156,7 +161,8 @@ public final class Ede {
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                     boolean classifyActions, boolean isProvision, boolean isSuspension,
                     boolean isResize, boolean collapse, boolean isReplay,
-                    @NonNull ReplayActions seedActions, String mktData) {
+                    @NonNull ReplayActions seedActions, String mktData,
+                    SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
         String analysisLabel = "Analysis ";
         logger.info(analysisLabel + "Started.");
         @NonNull List<Action> actions = new ArrayList<>();
@@ -289,7 +295,7 @@ public final class Ede {
         statsUtils.after();
 
         if (isReplay) {
-            actions.addAll(seedActions.tryReplayDeactivateActions(economy, ledger));
+            actions.addAll(seedActions.tryReplayDeactivateActions(economy, ledger, suspensionsThrottlingConfig));
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
         }
 
@@ -320,7 +326,7 @@ public final class Ede {
 
         statsUtils.before();
         if (isSuspension) {
-            Suspension suspension = new Suspension();
+            Suspension suspension = new Suspension(suspensionsThrottlingConfig);
             // find if any seller is the sole provider in any market, if so, it should not
             // be considered as suspension candidate
             suspension.findSoleProviders(economy);
@@ -375,7 +381,9 @@ public final class Ede {
      * @param mktData contains the market name and any stats to be written to the row
      *          delimited by "|"
      * @param isRealTime True for analysis of a realtime topology
-     * @param suspensionsThrottlingConfig Whether suspensions should be capped to one per cluster.
+     * @param suspensionsThrottlingConfig level of Suspension throttling.
+     *         CLUSTER: Make co sellers of suspended seller suspendable false.
+     *         DEFAULT: Unlimited suspensions.
      * @return A list of actions suggested by the economic decisions engine.
      *
      * @see ActionCollapse#collapsed(List)
@@ -384,17 +392,18 @@ public final class Ede {
             boolean classifyActions, boolean isProvision, boolean isSuspension, boolean isResize,
             boolean collapse, @NonNull ReplayActions seedActions, String mktData,
             boolean isRealTime, SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
-        Suspension.setSuspensionsThrottlingConfig(suspensionsThrottlingConfig);
         @NonNull List<Action> actions = new ArrayList<>();
         // only run replay in first sub round for realTime market.
         if (isRealTime) {
             economy.getSettings().setResizeDependentCommodities(false);
             // run a round of analysis without provisions.
             actions.addAll(generateActions(economy, classifyActions, false, isSuspension,
-                            isResize, collapse, true, seedActions, mktData));
+                            isResize, collapse, true, seedActions, mktData,
+                            suspensionsThrottlingConfig));
         } else {
             actions.addAll(generateActions(economy, classifyActions, isProvision,
-                        isSuspension, isResize, collapse, false, new ReplayActions(), mktData));
+                            isSuspension, isResize, collapse, false, new ReplayActions(), mktData,
+                            suspensionsThrottlingConfig));
         }
 
         return actions;
