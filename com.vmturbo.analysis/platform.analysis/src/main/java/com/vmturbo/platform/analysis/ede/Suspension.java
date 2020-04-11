@@ -351,6 +351,7 @@ public class Suspension {
      *                         action takes place
      * @param traderToSuspend - the trader that satisfies the engagement criteria best
      * @param actions - a list that the suspend action would be added to
+     * @return Whether <b>traderToSuspend</b> was suspended successfully.
      */
     public boolean suspendTrader(Economy economy, @NonNull Basket triggeringBasket,
                                  Trader traderToSuspend, List<@NonNull Action> actions) {

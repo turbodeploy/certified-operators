@@ -136,7 +136,7 @@ public interface Action {
      *
      * <p>It is possible that the new action doesn't make sense for the new economy. e.g. A trader
      * with the same OID as the action's target might not exist there. In this case, a
-     * {@link NoSuchElementException} should be thrown.
+     * {@link NoSuchElementException} should be thrown.</p>
      *
      * <p>It is also possible that the new action doesn't bring the target economy closer to its
      * desired state, but in this case the new action will be returned to be further processed by a

@@ -33,6 +33,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     /**
      * Constructs a new Activate action with the specified target.
      *
+     * @param economy The economy containing <b>target</b>.
      * @param target The trader that will be activated as a result of taking {@code this} action.
      * @param triggeringBasket The basket of the market that benefits from activating target.
      * @param modelSeller The trader whose high profits led to activation.

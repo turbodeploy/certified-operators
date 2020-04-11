@@ -37,6 +37,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
     /**
      * Constructs a new Deactivate action with the specified target.
      *
+     * @param economy The economy containing <b>target</b>.
      * @param target The trader that will be deactivated as a result of taking {@code this} action.
      * @param triggeringBasket The basket bought of the market that benefits from deactivating
      *                         target or the basket sold by the trader that doesn't sell in any

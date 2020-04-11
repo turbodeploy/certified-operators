@@ -773,7 +773,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * the entity in the scope
      */
     @Override
-    public @NonNull Trader getCloneOfTrader (@NonNull Trader trader) {
+    public @NonNull Trader getCloneOfTrader(@NonNull Trader trader) {
         while (trader.isClone()) {
             trader = getTraders().get(trader.getCloneOf());
         }
