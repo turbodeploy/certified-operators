@@ -43,7 +43,7 @@ public class ReplayActions {
     /**
      * Constructs an empty {@link ReplayActions} object.
      */
-    public ReplayActions(){
+    public ReplayActions() {
         actions_ = ImmutableList.of();
         deactivateActions_ = ImmutableList.of();
         topology_ = new Topology();
