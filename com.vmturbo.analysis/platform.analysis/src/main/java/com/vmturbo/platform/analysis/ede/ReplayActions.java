@@ -123,19 +123,13 @@ public class ReplayActions {
                     List<Action> subActions = ported.getSubsequentActions();
                     actions.addAll(subActions);
 
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Replayed " + action.toString());
-                    }
+                    logger.debug("Replayed {}", action.toString());
                 } else {
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Attempted to replay " + action.toString()
-                                    + ", but it was no longer valid");
-                    }
+                    logger.debug("Attempted to replay {}, but it was no longer valid",
+                                    action.toString());
                 }
             } catch (Exception e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Could not replay " + action.toString(), e);
-                }
+                logger.debug("Could not replay {}", action.toString(), e);
             }
         } // end for each action
 
@@ -185,9 +179,7 @@ public class ReplayActions {
                     }
                 }
             } catch (Exception e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Could not replay " + deactivateAction.toString(), e);
-                }
+                logger.debug("Could not replay {}", deactivateAction.toString(), e);
             }
         }
         //reset the above set utilThreshold.
