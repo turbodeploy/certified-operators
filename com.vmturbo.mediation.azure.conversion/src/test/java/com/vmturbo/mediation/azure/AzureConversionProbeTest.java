@@ -40,23 +40,18 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         // check entityDTO field (new EntityDTOs created, etc.)
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
-
-        // verify there are 10 different entity types in new topology
-        assertEquals(10, entitiesByType.size());
+        assertEquals(8, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(2, entitiesByType.get(EntityType.DATABASE).size());
-        assertEquals(44, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
-        assertEquals(91, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
+        assertEquals(3, entitiesByType.get(EntityType.DATABASE).size());
+        assertEquals(52, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(119, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
-        assertEquals(216, entitiesByType.get(EntityType.COMPUTE_TIER).size());
-        assertEquals(19, entitiesByType.get(EntityType.DATABASE_TIER).size());
-        assertEquals(4, entitiesByType.get(EntityType.STORAGE_TIER).size());
         assertEquals(30, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
-        assertEquals(46, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(52, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(116, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
+        assertEquals(5, entitiesByType.get(EntityType.STORAGE_TIER).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);
@@ -73,21 +68,17 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        // verify there are 9 different entity types in new topology
-        assertEquals(9, entitiesByType.size());
+        assertEquals(7, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
-        assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
+        assertEquals(44, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(119, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
-        assertEquals(210, entitiesByType.get(EntityType.COMPUTE_TIER).size());
-        assertEquals(19, entitiesByType.get(EntityType.DATABASE_TIER).size());
-        assertEquals(4, entitiesByType.get(EntityType.STORAGE_TIER).size());
-        assertEquals(30, entitiesByType.get(EntityType.REGION).size());
+        assertEquals(31, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
-        assertEquals(6, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(44, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(70, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
+        assertEquals(5, entitiesByType.get(EntityType.STORAGE_TIER).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);

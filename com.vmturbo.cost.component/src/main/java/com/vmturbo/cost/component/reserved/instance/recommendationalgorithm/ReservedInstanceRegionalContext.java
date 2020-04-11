@@ -29,18 +29,18 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
     /**
      * Constructor, we only save the Region OID and DisplayName, not whole DTO.
      *
-     * @param masterAccountId master account ID.
+     * @param accountId account ID.
      * @param platform OS type.
      * @param tenancy tenancy.
      * @param computeTier template or instance type.
      * @param region region.
      */
-    public ReservedInstanceRegionalContext(@Nonnull long masterAccountId,
+    public ReservedInstanceRegionalContext(@Nonnull long accountId,
                                            @Nonnull OSType platform,
                                            @Nonnull Tenancy tenancy,
                                            @Nonnull TopologyEntityDTO computeTier,
                                            @Nonnull TopologyEntityDTO region) {
-        super(masterAccountId, platform, tenancy, computeTier);
+        super(accountId, platform, tenancy, computeTier);
         this.region = Objects.requireNonNull(region, "Region is null for RI.");
     }
 
@@ -90,7 +90,7 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getRegionId(), platform, tenancy, computeTier, masterAccountId);
+        return Objects.hash(getRegionId(), platform, tenancy, computeTier, accountId);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class ReservedInstanceRegionalContext extends ReservedInstanceContext {
             .append(" computeTierId=").append(computeTier.getOid())
             .append(" platform=").append(platform.name())
             .append(" tenancy=").append(tenancy.name())
-            .append(" masterAccountId=").append(masterAccountId);
+            .append(" accountId=").append(accountId);
         return builder.toString();
     }
 }

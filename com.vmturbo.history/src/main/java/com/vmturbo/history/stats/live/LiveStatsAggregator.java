@@ -5,6 +5,7 @@ import static gnu.trove.impl.Constants.DEFAULT_LOAD_FACTOR;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -38,7 +39,7 @@ import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.stats.MarketStatsAccumulator;
-import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
+import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
 import com.vmturbo.history.utils.HistoryStatsUtils;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -69,6 +70,12 @@ public class LiveStatsAggregator {
     private CapacityCache capacityCache = new CapacityCache();
 
     /**
+     * Commodity keys that exceeded their max allowed length, encountered during the lifetime of
+     * this {@link LiveStatsAggregator instance}.
+     */
+    Set<String> longCommodityKeys = new HashSet<>();
+
+    /**
      * {@link MarketStatsAccumulator}s by base entity type and environment type.
      */
     private Table<String, EnvironmentType, MarketStatsAccumulator> accumulatorsByEntityAndEnvType = HashBasedTable.create();
@@ -86,7 +93,7 @@ public class LiveStatsAggregator {
      * is not yet known. The key is the provider oid and the value is a list of
      * functions that would be executed when the provider capacities become available.
      */
-    private Multimap<Long, MarketStatsAccumulator.DelayedCommodityBoughtWriter> delayedCommoditiesBought
+    private Multimap<Long, DelayedCommodityBoughtWriter> delayedCommoditiesBought
             = HashMultimap.create();
 
     /**
@@ -185,8 +192,9 @@ public class LiveStatsAggregator {
         MarketStatsAccumulator marketStatsAccumulator =
                 accumulatorsByEntityAndEnvType.get(baseEntityType, entityDTO.getEnvironmentType());
         if (marketStatsAccumulator == null) {
-            marketStatsAccumulator = new MarketStatsAccumulator(topologyInfo, baseEntityType,
-                    entityDTO.getEnvironmentType(), historydbIO, commoditiesToExclude, loaders);
+            marketStatsAccumulator = MarketStatsAccumulator.create(topologyInfo, baseEntityType,
+                    entityDTO.getEnvironmentType(), historydbIO, commoditiesToExclude, loaders,
+                    longCommodityKeys);
             accumulatorsByEntityAndEnvType.put(baseEntityType, entityDTO.getEnvironmentType(), marketStatsAccumulator);
         }
 
@@ -228,6 +236,16 @@ public class LiveStatsAggregator {
     }
 
     /**
+     * Log a list of commodities that were shortened to fit in the database, if any.
+     */
+    public void logShortenedCommodityKeys() {
+        if (!longCommodityKeys.isEmpty()) {
+            logger.error("Following commodity keys needed to be shortened when persisted; " +
+                    "data access anomalies may result: {}", longCommodityKeys);
+        }
+    }
+
+    /**
      * Record stats information from the given {@link EntityDTO}. Stats data will be
      * batched to optimize the number of commands sent to the Relational Database.
      *
@@ -241,8 +259,12 @@ public class LiveStatsAggregator {
         cacheCapacities(entityDTO);
         // provide commodity sold capacitites for previously unsatisfied commodity bought
         handleDelayedCommoditiesBought(entityDTO.getOid());
-        // schedule the stats for the entity for persisting to db
-        aggregateEntityStats(entityDTO, entityByOid);
+        if (EntityType.fromSdkEntityType(entityDTO.getEntityType())
+                .map(EntityType::persistsStats)
+                .orElse(false)) {
+            // schedule the stats for the entity for persisting to db
+            aggregateEntityStats(entityDTO, entityByOid);
+        }
     }
 
     /**

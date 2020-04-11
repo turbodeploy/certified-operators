@@ -29,7 +29,7 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * A wrapper implementation around {@link CloudTopology} for all methods directly related to
- * {@link TopologyEntityDTO} instances. Provides an implemenation for all analogous methods
+ * {@link TopologyEntityDTO} instances. Provides an implementation for all analogous methods
  * relating to {@link ReservedInstanceBought} instances
  */
 public class CoverageTopologyImpl implements CoverageTopology {

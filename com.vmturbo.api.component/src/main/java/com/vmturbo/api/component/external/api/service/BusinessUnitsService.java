@@ -68,9 +68,9 @@ import com.vmturbo.common.protobuf.cost.Cost.GetDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 /**
@@ -380,19 +380,13 @@ public class BusinessUnitsService implements IBusinessUnitsService {
     @Override
     public List<StatSnapshotApiDTO> getActionCountStatsByUuid(final String uuid,
                                                               final ActionApiInputDTO inputDto) throws Exception {
-        SingleEntityRequest singleRequest = repositoryApi.entityRequest(uuidMapper.fromUuid(uuid).oid());
-        TopologyEntityDTO topologyEntityDTO = singleRequest
-                        .getFullEntity()
-                        .orElseThrow(() -> new UnknownObjectException(uuid));
-
         List<String> relatedEntityTypes = inputDto.getRelatedEntityTypes();
 
         if (relatedEntityTypes == null) {
-            relatedEntityTypes = topologyEntityDTO.getConnectedEntityListList()
-                    .stream()
-                    .map(connEnt -> connEnt.getConnectedEntityType())
-                    .distinct()
-                    .map(type ->  UIEntityType.fromType(type).apiStr())
+            final Set<ApiEntityType> expandedEntityTypes =
+                    ApiEntityType.ENTITY_TYPES_TO_EXPAND.get(ApiEntityType.BUSINESS_ACCOUNT);
+            relatedEntityTypes = expandedEntityTypes.stream()
+                    .map(ApiEntityType::apiStr)
                     .collect(Collectors.toList());
         }
 

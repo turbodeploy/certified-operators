@@ -32,8 +32,14 @@ spec:
     spec:
       containers:
       - name: {{ .Chart.Name }}
+{{- if .Values.global }}
+  {{- if .Values.global.customImageNames }}
         image: {{ template "datadog_image" . }}
+  {{- else }}
+        image: {{ template "image" . }}
+  {{- end }}
         imagePullPolicy: {{ template "pullPolicy" . }}
+{{- end }}
         env:
 {{ template "java.setJVMEnvironmentOptions" . }}
 {{ toYaml .Values.env | indent 8 }}
@@ -62,6 +68,9 @@ spec:
           readOnly: true
         - mountPath: /tmp
           name: mediation-datadog-tmpfs0
+        - mountPath: /etc/targets
+          name: datadog-secrets
+          readOnly: true
 {{- if .Values.global }}
   {{- if .Values.global.registry }}
     {{- if .Values.global.imagePullSecret }}
@@ -95,6 +104,10 @@ spec:
           optional: true
       - name: mediation-datadog-tmpfs0
         emptyDir: {}
+      - name: datadog-secrets
+        secret:
+          secretName: "datadog"
+          optional: true
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}

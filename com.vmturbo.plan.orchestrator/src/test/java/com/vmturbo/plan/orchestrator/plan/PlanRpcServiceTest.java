@@ -39,7 +39,7 @@ import com.vmturbo.common.protobuf.topology.AnalysisDTOMoles.AnalysisServiceMole
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 public class PlanRpcServiceTest {
 

@@ -26,9 +26,12 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.TargetsService;
+import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -39,6 +42,7 @@ import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
+import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.Epoch;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
@@ -64,10 +68,12 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtili
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 
 /**
@@ -88,7 +94,6 @@ public class StatsMapper {
      * This is a special "group by" sent in by the probe and transferred directly to/from history
      * component.
      */
-    private static final String PERCENTILE = "percentile";
     private final ConcurrentHashMap<Long, TargetApiDTO> uuidToTargetApiDtoMap = new ConcurrentHashMap<>();
 
     private static final ImmutableSet<String> apiRelationTypes = ImmutableSet.of(
@@ -138,8 +143,8 @@ public class StatsMapper {
      * The related type in the api request which should be normalized to another type.
      */
     private static final Map<String, String> RELATED_TYPES_TO_NORMALIZE = ImmutableMap.of(
-        UIEntityType.DATACENTER.apiStr(), UIEntityType.PHYSICAL_MACHINE.apiStr(),
-        StringConstants.CLUSTER, UIEntityType.PHYSICAL_MACHINE.apiStr()
+        ApiEntityType.DATACENTER.apiStr(), ApiEntityType.PHYSICAL_MACHINE.apiStr(),
+        StringConstants.CLUSTER, ApiEntityType.PHYSICAL_MACHINE.apiStr()
     );
 
     private final PaginationMapper paginationMapper;
@@ -390,7 +395,7 @@ public class StatsMapper {
         }
 
         // Set display name for this stat, do not set if it's empty
-        String displayName = buildStatDiplayName(convertedStatRecord);
+        String displayName = buildStatDisplayName(convertedStatRecord);
         if (!StringUtils.isEmpty(displayName)) {
             statApiDTO.setDisplayName(displayName);
         }
@@ -406,8 +411,8 @@ public class StatsMapper {
         }
         if (convertedStatRecord.getName().startsWith(StringConstants.STAT_PREFIX_CURRENT)) {
             StatFilterApiDTO resultsTypeFilter = new StatFilterApiDTO();
-            resultsTypeFilter.setType(com.vmturbo.components.common.utils.StringConstants.RESULTS_TYPE);
-            resultsTypeFilter.setValue(com.vmturbo.components.common.utils.StringConstants.BEFORE_PLAN);
+            resultsTypeFilter.setType(StringConstants.RESULTS_TYPE);
+            resultsTypeFilter.setValue(StringConstants.BEFORE_PLAN);
             filters.add(resultsTypeFilter);
         }
 
@@ -421,7 +426,7 @@ public class StatsMapper {
         if (!convertedStatRecord.getHistUtilizationValueList().isEmpty()) {
             final Optional<HistUtilizationValue> percentileValue =
                             convertedStatRecord.getHistUtilizationValueList().stream()
-                                            .filter(value -> PERCENTILE.equals(value.getType()))
+                                            .filter(value -> StringConstants.PERCENTILE.equals(value.getType()))
                                             .findAny();
             percentileValue.map(StatsMapper::calculatePercentile)
                             .map(StatsMapper::createPercentileApiDto)
@@ -467,7 +472,7 @@ public class StatsMapper {
     }
 
     @Nonnull
-    private String buildStatDiplayName(@Nonnull StatRecord statRecord) {
+    private String buildStatDisplayName(@Nonnull StatRecord statRecord) {
         // if this is a flow commodity, just display "FLOW"
         if (UICommodityType.FLOW.apiStr().equals(statRecord.getName())) {
             return "FLOW";
@@ -483,7 +488,7 @@ public class StatsMapper {
 
         // add key information
         if (!StringUtils.isEmpty(statRecord.getStatKey())) {
-            resultBuilder.append("KEY: ").append(statRecord.getStatKey());
+            resultBuilder.append(StatsUtils.COMMODITY_KEY_PREFIX).append(statRecord.getStatKey());
         }
 
         return resultBuilder.toString();
@@ -584,7 +589,29 @@ public class StatsMapper {
      */
     @Nonnull
     public StatsFilter newPeriodStatsFilter(@Nullable final StatPeriodApiInputDTO statApiInput) {
-        final StatsFilter.Builder filterRequestBuilder = StatsFilter.newBuilder();
+        return newPeriodStatsFilter(statApiInput, false);
+    }
+
+    /**
+     * Convert a {@link StatPeriodApiInputDTO} request from the REST API into a protobuf
+     * {@link StatsFilter} to send via gRPC to the History Service.
+     *
+     * <p>The StatApiInputDTO specifies the details of the /stats request, including a date range,
+     * commodities to query, and one of entity names / scopes / entity-type to query.
+     *
+     * <p>It also specifies filter clauses to use as in SQL 'where' clauses and 'group by' clauses
+     *
+     * @param statApiInput a {@link StatPeriodApiInputDTO} specifying query options for
+     *                     this /stats query.
+     * @param requestProjectedHeadroom request projected headroom or not
+     * @return a new instance of {@link StatsFilter} protobuf with fields set from the
+     *        given statApiInput
+     */
+    @Nonnull
+    StatsFilter newPeriodStatsFilter(@Nullable final StatPeriodApiInputDTO statApiInput,
+                                             final boolean requestProjectedHeadroom) {
+        final StatsFilter.Builder filterRequestBuilder = StatsFilter.newBuilder()
+            .setRequestProjectedHeadroom(requestProjectedHeadroom);
         if (statApiInput != null) {
 
             final String inputStartDate = statApiInput.getStartDate();
@@ -705,10 +732,26 @@ public class StatsMapper {
     public ClusterStatsRequest toClusterStatsRequest(
             @Nonnull final String uuid,
             @Nullable final StatPeriodApiInputDTO inputDto) {
+        return toClusterStatsRequest(uuid, inputDto, false);
+    }
+
+    /**
+     * Create a ClusterStatsRequest object from a cluster UUID and a StatPeriodApiInputDTO object.
+     *
+     * @param uuid UUID of a cluster
+     * @param inputDto input DTO containing details of the request.
+     * @param requestProjectedHeadroom request projected headroom or not
+     * @return a ClusterStatsRequest object contain details from the input DTO.
+     */
+    @Nonnull
+    public ClusterStatsRequest toClusterStatsRequest(
+        @Nonnull final String uuid,
+        @Nullable final StatPeriodApiInputDTO inputDto,
+        final boolean requestProjectedHeadroom) {
         return ClusterStatsRequest.newBuilder()
-                .setClusterId(Long.parseLong(uuid))
-                .setStats(newPeriodStatsFilter(inputDto))
-                .build();
+            .setClusterId(Long.parseLong(uuid))
+            .setStats(newPeriodStatsFilter(inputDto, requestProjectedHeadroom))
+            .build();
     }
 
     /**
@@ -898,7 +941,7 @@ public class StatsMapper {
                     }
                     // set related entity type
                     if (statRecord.hasAssociatedEntityType()) {
-                        statApiDTO.setRelatedEntityType(UIEntityType.fromType(
+                        statApiDTO.setRelatedEntityType(ApiEntityType.fromType(
                             statRecord.getAssociatedEntityType()).apiStr());
                     }
                     return statApiDTO;
@@ -962,5 +1005,74 @@ public class StatsMapper {
             resultBuilder.setTotal(statValue.getTotal() * 8);
         }
         return resultBuilder.build();
+    }
+
+    /**
+     * This method uses data from an api entity and populates data
+     * in the output EntityStatsApiDTO.
+     * @param apiId an api id which contains basic info about an entity
+     *              this is the input
+     * @param entityStatsApiDTO the output entity stats api dto to copy data into.
+     * @return the output entity stats api dto.
+     */
+    public static EntityStatsApiDTO populateEntityDataEntityStatsApiDTO(ApiId apiId,
+            EntityStatsApiDTO entityStatsApiDTO) {
+        entityStatsApiDTO.setUuid(apiId.uuid());
+        entityStatsApiDTO.setDisplayName(apiId.getDisplayName());
+        entityStatsApiDTO.setClassName(apiId.getClassName());
+        final Optional<EnvironmentType> envType =
+                Optional.of(EnvironmentTypeMapper.fromXLToApi(apiId.getEnvironmentType()));
+        if (envType.isPresent()) {
+            entityStatsApiDTO.setEnvironmentType(envType.get());
+        }
+        return entityStatsApiDTO;
+    }
+
+    /**
+     * This method uses data from an api entity and populates data
+     * in the output EntityStatsApiDTO.
+     * @param minimalEntity a minimal entity dto which contains basic info about an entity
+     *                      this is the input
+     * @param entityStatsApiDTO the output entity stats api dto to copy data into.
+     * @return the output entity stats api dto.
+     */
+    public static EntityStatsApiDTO populateEntityDataEntityStatsApiDTO(MinimalEntity minimalEntity,
+            EntityStatsApiDTO entityStatsApiDTO) {
+        entityStatsApiDTO.setUuid(Long.toString(minimalEntity.getOid()));
+        entityStatsApiDTO.setClassName(
+                ApiEntityType.fromType(minimalEntity.getEntityType()).apiStr());
+        entityStatsApiDTO.setDisplayName(minimalEntity.getDisplayName());
+        if (minimalEntity.hasEnvironmentType()) {
+            final Optional<EnvironmentType> envType = Optional.of(
+                    EnvironmentTypeMapper.fromXLToApi(minimalEntity.getEnvironmentType()));
+            if (envType.isPresent()) {
+                entityStatsApiDTO.setEnvironmentType(envType.get());
+            }
+        }
+        return entityStatsApiDTO;
+    }
+
+    /**
+     * This method uses data from an api entity and populates data
+     * in the output EntityStatsApiDTO.
+     * @param apiPartialEntity a partial entity dto which contains basic info about an entity
+     *                         this is the input
+     * @param entityStatsApiDTO the output entity stats api dto to copy data into.
+     * @return the output entity stats api dto.
+     */
+    public static EntityStatsApiDTO populateEntityDataEntityStatsApiDTO(ApiPartialEntity apiPartialEntity,
+            EntityStatsApiDTO entityStatsApiDTO) {
+        entityStatsApiDTO.setUuid(Long.toString(apiPartialEntity.getOid()));
+        entityStatsApiDTO.setClassName(
+                ApiEntityType.fromType(apiPartialEntity.getEntityType()).apiStr());
+        entityStatsApiDTO.setDisplayName(apiPartialEntity.getDisplayName());
+        if (apiPartialEntity.hasEnvironmentType()) {
+            final Optional<EnvironmentType> envType = Optional.of(
+                    EnvironmentTypeMapper.fromXLToApi(apiPartialEntity.getEnvironmentType()));
+            if (envType.isPresent()) {
+                entityStatsApiDTO.setEnvironmentType(envType.get());
+            }
+        }
+        return entityStatsApiDTO;
     }
 }

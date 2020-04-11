@@ -107,7 +107,6 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -139,9 +138,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.ConstraintType;
@@ -313,11 +312,11 @@ public class SearchServiceTest {
         when(repositoryApi.newSearchRequest(any())).thenReturn(mockSearchRequest);
         when(mockSearchRequest.getSEList()).thenReturn(Collections.emptyList());
         getSearchResults(searchService, null,
-                         Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()), null, null,
+                         Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()), null, null,
                          null, EnvironmentType.CLOUD, null, null);
         verify(repositoryApi).newSearchRequest(
             SearchProtoUtil.makeSearchParameters(SearchProtoUtil.entityTypeFilter(
-                    Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr())))
+                    Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr())))
                 .addSearchFilter(SearchProtoUtil.searchFilterProperty(
                         SearchProtoUtil.environmentTypeFilter(EnvironmentTypeEnum.EnvironmentType.CLOUD)))
                 .build());
@@ -476,7 +475,7 @@ public class SearchServiceTest {
     public void testGetSearchGroup() throws Exception {
         final SearchPaginationResponse paginationResponse =
             Mockito.mock(SearchPaginationResponse.class);
-        when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(false))).thenReturn(paginationResponse);
+        when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true))).thenReturn(paginationResponse);
         assertEquals(paginationResponse, searchService.getSearchResults(
             "myGroup",
             Lists.newArrayList("Group"),
@@ -491,7 +490,7 @@ public class SearchServiceTest {
             true));
         verify(targetsService, Mockito.never()).getTargets(null);
         verify(marketsService, Mockito.never()).getMarkets(Mockito.anyListOf(String.class));
-        verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(false));
+        verify(groupsService).getPaginatedGroupApiDTOs(any(), any(), any(), eq(EnvironmentType.ONPREM), any(), eq(true));
         verify(searchService).addNameMatcher(any(), any(), any());
 
     }
@@ -673,7 +672,7 @@ public class SearchServiceTest {
         BusinessUnitApiDTO businessUnitApiDTO = new BusinessUnitApiDTO();
         businessUnitApiDTO.setDisplayName("Test Business Account");
         final List<String> scopes = ImmutableList.of("target1", "target2");
-        final List<String> types = ImmutableList.of(UIEntityType.BUSINESS_ACCOUNT.apiStr());
+        final List<String> types = ImmutableList.of(ApiEntityType.BUSINESS_ACCOUNT.apiStr());
         Collection<BaseApiDTO> results = getSearchResults(searchService, null, types, scopes,
             null, null, null, null, null);
         verify(businessAccountRetriever).getBusinessAccountsInScope(scopes, null);
@@ -816,8 +815,8 @@ public class SearchServiceTest {
         verify(searchServiceSpy).searchEntities(captor.capture());
 
         final SearchEntitiesRequest params = captor.getValue();
-        assertEquals(1, params.getSearchParametersCount());
-        SearchParameters searchParameters = params.getSearchParameters(0);
+        assertEquals(1, params.getSearch().getSearchParametersCount());
+        SearchParameters searchParameters = params.getSearch().getSearchParameters(0);
         assertEquals(1, searchParameters.getSearchFilterCount());
         SearchFilter nameFilter = searchParameters.getSearchFilter(0);
         String value = nameFilter.getPropertyFilter().getStringFilter().getStringPropertyRegex();
@@ -833,7 +832,7 @@ public class SearchServiceTest {
     @Test
     public void testGetMembersBasedOnFilterWithGroupTypeQuery() throws Exception {
         final GroupApiDTO requestForVirtualMachineGroups = new GroupApiDTO();
-        requestForVirtualMachineGroups.setGroupType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        requestForVirtualMachineGroups.setGroupType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         requestForVirtualMachineGroups.setClassName(StringConstants.GROUP);
         final GroupApiDTO requestForAllGroups = new GroupApiDTO();
         requestForAllGroups.setClassName(StringConstants.GROUP);
@@ -853,7 +852,7 @@ public class SearchServiceTest {
         verify(groupsService, times(2)).getPaginatedGroupApiDTOs(any(), any(), resultCaptor.capture(), any(), any(), eq(false));
         // verify that first call to groupsService.getPaginatedGroupApiDTOs passed in VirtualMachine
         // as entityType argument
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(),
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
             resultCaptor.getAllValues().get(0));
         // verify that second call to groupsService.getPaginatedGroupApiDTOs had null as
         // entityType argument

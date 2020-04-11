@@ -8,19 +8,14 @@ import java.util.Map;
 
 import com.google.common.collect.Sets;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
 import com.vmturbo.cost.component.identity.IdentityProvider;
@@ -29,26 +24,29 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * This class tests methods in the ReservedInstanceSpecStore class.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class ReservedInstanceSpecStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private DSLContext dsl;
-
-    private ReservedInstanceSpecStore reservedInstanceSpecStore;
+    private ReservedInstanceSpecStore reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl,
+                new IdentityProvider(0), 10);
 
     private ReservedInstanceSpec specOne = ReservedInstanceSpec.newBuilder()
             .setId(111)
@@ -88,28 +86,6 @@ public class ReservedInstanceSpecStoreTest {
                             .setOfferingClass(OfferingClass.CONVERTIBLE)
                             .setTermYears(1)))
             .build();
-
-    /**
-     * Setup each test.
-     * @throws Exception due to database operations.
-     */
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        reservedInstanceSpecStore = new ReservedInstanceSpecStore(dsl,
-                new IdentityProvider(0), 10);
-    }
-
-    /**
-     * Tear down after each test.
-     */
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
 
     /**
      * Test updateReservedInstanceSpec method.

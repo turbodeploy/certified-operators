@@ -142,7 +142,7 @@ public class ProjectedRICoverageAndUtilStore {
      * types that are in the scope defined by using the filter's set of entity OIDs as the seed.
      *
      * @param filter The information about the scope to use to filter the Coverage Map.
-     * @return A map with key: RI_ID; value: EntityReservedInstanceCoverage.
+     * @return A map with key: entity_id; value: EntityReservedInstanceCoverage.
      */
     @Nonnull
     public Map<Long, EntityReservedInstanceCoverage>
@@ -340,5 +340,19 @@ public class ProjectedRICoverageAndUtilStore {
 
             return buyReservedInstanceStore.getBuyReservedInstances(buyReservedInstanceFilter);
         }
+    }
+
+    /**
+     * Query cost.buy_reserved_instance WHERE topology_context_id = {@param topologyContextId}.
+     *
+     * @param topologyContextId the (plan) topology for which RI purchases have been recommended
+     * @return a collection of {@link ReservedInstanceBought} representing the recommended RI purchases
+     */
+    public List<ReservedInstanceBought> resolveBuyRIsInScope(long topologyContextId) {
+        final BuyReservedInstanceFilter buyReservedInstanceFilter = BuyReservedInstanceFilter.newBuilder()
+                .addTopologyContextId(topologyContextId)
+                .build();
+
+        return buyReservedInstanceStore.getBuyReservedInstances(buyReservedInstanceFilter);
     }
 }

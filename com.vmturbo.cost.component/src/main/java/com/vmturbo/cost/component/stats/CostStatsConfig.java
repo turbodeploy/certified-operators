@@ -178,8 +178,8 @@ public class CostStatsConfig {
     }
 
     @Bean
-    public CostStatLatestTable entityCostHourTable() {
-        return new CostStatLatestTable(sqlDatabaseConfig.dsl(), costClock(),
+    public CostStatHourTable entityCostHourTable() {
+        return new CostStatHourTable(sqlDatabaseConfig.dsl(), costClock(),
                 ImmutableTableInfo.builder().statTableSnapshotTime(Tables.ENTITY_COST_BY_HOUR.CREATED_TIME)
                         .statTable(Tables.ENTITY_COST_BY_HOUR).shortTableName("entity_cost_by_hour")
                         .timeTruncateFn(time -> time.truncatedTo(ChronoUnit.HOURS)).build());

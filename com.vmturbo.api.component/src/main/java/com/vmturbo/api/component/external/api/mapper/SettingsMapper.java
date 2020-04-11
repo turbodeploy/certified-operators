@@ -40,6 +40,7 @@ import org.immutables.value.Value;
 import com.vmturbo.api.component.external.api.mapper.SettingSpecStyleMappingLoader.SettingSpecStyleMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerInfo;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.setting.SettingOptionApiDTO;
@@ -75,6 +76,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
+import com.vmturbo.common.protobuf.setting.SettingProto.ResetGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
@@ -91,7 +93,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.UpdateGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.DailyObservationWindowsCount;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
@@ -161,9 +163,11 @@ public class SettingsMapper {
             })
             .build();
 
-    public static final String GLOBAL_ACTION_SETTING_NAME = "Global Action Mode Defaults";
+    // The name of the global setting policy.
+    public static final String GLOBAL_SETTING_POLICY_NAME = "Global Defaults";
 
-    public static final int GLOBAL_ACTION_SETTING_NAME_ID = 55555;
+    // The id of the global setting policy.
+    public static final int GLOBAL_SETTING_POLICY_ID = 55555;
 
     /**
      * The special setting manager name for the nightly plan cluster headroom settings.
@@ -206,8 +210,9 @@ public class SettingsMapper {
      */
     public static final Map<String, String> GLOBAL_SETTING_ENTITY_TYPES =
         ImmutableMap.<String, String>builder()
-            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), UIEntityType.VIRTUAL_MACHINE.apiStr())
+            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), ApiEntityType.VIRTUAL_MACHINE.apiStr())
             .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
+            .put(GlobalSettingSpecs.MaxVMGrowthObservationPeriod.getSettingName(), SERVICE_ENTITY)
             .build();
 
     /**
@@ -266,6 +271,13 @@ public class SettingsMapper {
     @VisibleForTesting
     int resolveEntityType(@Nonnull final SettingsPolicyApiDTO settingPolicy)
             throws InvalidOperationException, UnknownObjectException {
+        // If the policy explicitly specifies an entity type, we will use that entity type.
+        if (settingPolicy.getEntityType() != null) {
+            return ApiEntityType.fromStringToSdkType(settingPolicy.getEntityType());
+        }
+
+        // If the policy DOES NOT explicitly specify an entity type we will infer the entity
+        // type from the scopes.
         if (settingPolicy.getScopes() == null || settingPolicy.getScopes().isEmpty()) {
             throw new InvalidOperationException("Unscoped setting policy: " +
                     settingPolicy.getDisplayName());
@@ -303,10 +315,12 @@ public class SettingsMapper {
             throw new UnknownObjectException("Group IDs " + groupIds + " not found.");
         } else if (groupsByEntityType.size() > 1) {
             // All the groups should share the same entity type.
-            throw new InvalidOperationException("Setting policy scopes have " +
+            // If the user wants to scope to a group that has more than one entity type they
+            // need to explicitly specify the entity type to apply the policy to.
+            throw new InvalidOperationException("Cannot infer entity type." +
+                " Please specify entity type directly in the request. Setting policy scopes have " +
                 "different entity types: " + groupsByEntityType.keySet().stream()
-                    .map(EntityType::forNumber)
-                    .map(EntityType::name)
+                    .map(ApiEntityType::fromSdkTypeToEntityTypeString)
                     .collect(Collectors.joining(",")));
         } else {
             return groupsByEntityType.keySet().iterator().next();
@@ -454,13 +468,11 @@ public class SettingsMapper {
             if (isVmEntityType(entityType) &&
                     involvedSettings.containsKey(rateOfResizeSettingName)) {
                 SettingApiDTO<?> settingApiDto = involvedSettings.remove(rateOfResizeSettingName);
-                settingService.updateGlobalSetting(
-                    UpdateGlobalSettingRequest.newBuilder()
-                        .setSettingSpecName(rateOfResizeSettingName)
-                        .setNumericSettingValue(
-                            SettingDTOUtil.createNumericSettingValue(
-                                Float.valueOf(SettingsMapper.inputValueToString(settingApiDto).orElse("0"))))
-                        .build());
+                settingService.updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder()
+                    .addSetting(Setting.newBuilder().setSettingSpecName(rateOfResizeSettingName)
+                        .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(
+                            Float.valueOf(SettingsMapper.inputValueToString(settingApiDto).orElse("0")))))
+                    .build());
             }
 
             if (!involvedSettings.isEmpty()) {
@@ -622,7 +634,7 @@ public class SettingsMapper {
 
         // If it's a plan we also need to return a UI setting for resize. This setting internally
         // corresponds to the resizes for vcpu and vmem.
-        if (isPlan && entityType.isPresent() && entityType.get().equals(UIEntityType.VIRTUAL_MACHINE.apiStr())) {
+        if (isPlan && entityType.isPresent() && entityType.get().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr())) {
             SettingApiDTO resizeSetting = createResizeSetting();
             settings.add(resizeSetting);
         }
@@ -744,7 +756,7 @@ public class SettingsMapper {
             // We need this check because some inject some fake setting policies without any entity
             // type to show in UI (like Global Action Mode Defaults.)
             if (info.hasEntityType()) {
-                apiDto.setEntityType(UIEntityType.fromType(info.getEntityType()).apiStr());
+                apiDto.setEntityType(ApiEntityType.fromType(info.getEntityType()).apiStr());
             }
             apiDto.setDisabled(!info.getEnabled());
             apiDto.setDefault(settingPolicy.getSettingPolicyType().equals(Type.DEFAULT));
@@ -788,10 +800,10 @@ public class SettingsMapper {
             if (isVmDefaultPolicy(settingPolicy)) {
                 injectGlobalSetting(GlobalSettingSpecs.RateOfResize, settingsByMgr,
                                 globalSettingNameToSettingMap);
-            } else if (isGlobalActionModePolicy(settingPolicy)) {
+            } else if (isGlobalSettingPolicy(settingPolicy)) {
                 apiDto.setEntityType(SERVICE_ENTITY);
-                injectGlobalSetting(GlobalSettingSpecs.DisableAllActions, settingsByMgr,
-                                globalSettingNameToSettingMap);
+                GlobalSettingSpecs.VISIBLE_TO_UI.forEach(globalSettingSpecs ->
+                    injectGlobalSetting(globalSettingSpecs, settingsByMgr, globalSettingNameToSettingMap));
             }
 
             final List<Setting> unhandledSettings = settingsByMgr.get(NO_MANAGER);
@@ -971,7 +983,7 @@ public class SettingsMapper {
         String settingUUID();
 
         //SettingApiDto entityType mapped to UIEntityType
-        UIEntityType entityType();
+        ApiEntityType entityType();
 
         /**
          * {@link SettingApiDTO} value as string.
@@ -987,7 +999,7 @@ public class SettingsMapper {
      */
     public static SettingValueEntityTypeKey getSettingValueEntityTypeKey(SettingApiDTO dto) {
         return ImmutableSettingValueEntityTypeKey.builder()
-                .entityType(UIEntityType.fromString(dto.getEntityType()))
+                .entityType(ApiEntityType.fromString(dto.getEntityType()))
                 .settingUUID(dto.getUuid())
                 .settingValue(SettingsMapper.inputValueToString(dto).orElse(""))
                 .build();
@@ -1075,8 +1087,8 @@ public class SettingsMapper {
         return (EntityType.VIRTUAL_MACHINE.getNumber() == entityType);
     }
 
-    private static boolean isGlobalActionModePolicy(SettingPolicy settingPolicy) {
-        return settingPolicy.getInfo().getName().equals(GLOBAL_ACTION_SETTING_NAME);
+    private static boolean isGlobalSettingPolicy(SettingPolicy settingPolicy) {
+        return settingPolicy.getInfo().getName().equals(GLOBAL_SETTING_POLICY_NAME);
     }
 
     private static Optional<SettingSpec> getSettingSpec(@Nonnull final String settingSpecName) {
@@ -1167,7 +1179,7 @@ public class SettingsMapper {
          * Get the {@link SettingApiDTO} associated with the entity setting for a particular entity
          * type represented by the input {@link SettingSpec}.
          *
-         * @param entityType The UI entity type (i.e. one of {@link UIEntityType}) to search for.
+         * @param entityType The UI entity type (i.e. one of {@link ApiEntityType}) to search for.
          * @return An {@link Optional} containing the {@link SettingApiDTO}. An empty optional if
          *         the input {@link SettingSpec} did not represent an entity setting, or if the
          *         input {@link SettingSpec} does not apply to the specified entity type.
@@ -1213,10 +1225,10 @@ public class SettingsMapper {
             switch (scope.getScopeCase()) {
                 case ENTITY_TYPE_SET:
                     scope.getEntityTypeSet().getEntityTypeList().forEach(entityType ->
-                            applicableTypes.add(UIEntityType.fromType(entityType).apiStr()));
+                            applicableTypes.add(ApiEntityType.fromType(entityType).apiStr()));
                     break;
                 case ALL_ENTITY_TYPE:
-                    for (UIEntityType validType : UIEntityType.values()) {
+                    for (ApiEntityType validType : ApiEntityType.values()) {
                         applicableTypes.add(validType.apiStr());
                     }
                     break;
@@ -1327,50 +1339,50 @@ public class SettingsMapper {
     }
 
     /**
-     * Update global action mode settings based on input setting policy received from UI.
-     * Sets to default value if setDefault is true. Currently only relevant for one global action
-     * mode setting GlobalSettingSpecs.DisableAllActions.
+     * Update global settings based on input setting policy received from UI.
+     * Sets to default value if setDefault is true.
+     *
      * @param setDefault if true then set default value.
      * @param settingPolicy read value for setting and set this value.
-     * @throws OperationFailedException if we are not able to set value for the setting.
      */
-    public void updateGlobalActionModeSetting(boolean setDefault, SettingsPolicyApiDTO settingPolicy)
-                    throws OperationFailedException {
-        SettingSpec disableAllActionsSetting = GlobalSettingSpecs.DisableAllActions.createSettingSpec();
-        final boolean valueToSet;
+    public void updateGlobalSettingPolicy(boolean setDefault, SettingsPolicyApiDTO settingPolicy) {
         if (setDefault) {
-            valueToSet = disableAllActionsSetting.getBooleanSettingValueType().getDefault();
+            if (settingPolicy.getSettingsManagers() == null) {
+                settingService.resetGlobalSetting(ResetGlobalSettingRequest.newBuilder()
+                    .addAllSettingSpecName(GlobalSettingSpecs.VISIBLE_TO_UI.stream()
+                        .map(GlobalSettingSpecs::getSettingName)
+                        .collect(Collectors.toSet())).build());
+            } else {
+                settingService.resetGlobalSetting(ResetGlobalSettingRequest.newBuilder()
+                    .addAllSettingSpecName(settingPolicy.getSettingsManagers().stream()
+                        .flatMap(manager -> manager.getSettings().stream()).map(BaseApiDTO::getUuid)
+                        .collect(Collectors.toSet())).build());
+            }
         } else {
-            valueToSet = settingPolicy.getSettingsManagers().stream()
-                    .flatMap(manager -> manager.getSettings().stream())
-                    .filter(setting -> setting.getUuid().equals(disableAllActionsSetting.getName()))
-                    .map(SettingsMapper::inputValueToString)
-                    .filter(Optional::isPresent).map(Optional::get)
-                    .map(Boolean::valueOf)
-                    .findFirst()
-                    .orElseThrow(() -> {
-                        String errorMsg = disableAllActionsSetting.getName() +
-                                " : not found in Global Settings.";
-                        return new OperationFailedException(errorMsg);
-                    });
-        }
+            final List<SettingApiDTO> involvedSettings = settingPolicy.getSettingsManagers().stream()
+                .flatMap(manager -> manager.getSettings().stream()).collect(Collectors.toList());
 
-        settingService.updateGlobalSetting(
-            UpdateGlobalSettingRequest.newBuilder()
-                .setSettingSpecName(disableAllActionsSetting.getName())
-                .setBooleanSettingValue(SettingDTOUtil.createBooleanSettingValue(valueToSet))
-                .build());
+            final Map<String, SettingSpec> specsByName = new HashMap<>();
+            settingService.searchSettingSpecs(SearchSettingSpecsRequest.newBuilder()
+                .addAllSettingSpecName(involvedSettings.stream().map(BaseApiDTO::getUuid)
+                    .collect(Collectors.toSet())).build())
+                .forEachRemaining(spec -> specsByName.put(spec.getName(), spec));
+
+            settingService.updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder().addAllSetting(
+                involvedSettings.stream().map(setting -> toProtoSetting(setting, specsByName.get(setting.getUuid())))
+                    .collect(Collectors.toList())).build());
+        }
     }
 
     private Map<String, Setting> getRelevantGlobalSettings(List<SettingPolicy> settingPolicies) {
         Set<String> globalSettingNames = settingPolicies.stream()
-                        .map(policy -> {
+                        .flatMap(policy -> {
                             if (isVmDefaultPolicy(policy)) {
-                                return GlobalSettingSpecs.RateOfResize.getSettingName();
-                            } else if (isGlobalActionModePolicy(policy)) {
-                                return GlobalSettingSpecs.DisableAllActions.getSettingName();
+                                return Stream.of(GlobalSettingSpecs.RateOfResize.getSettingName());
+                            } else if (isGlobalSettingPolicy(policy)) {
+                                return GlobalSettingSpecs.VISIBLE_TO_UI.stream().map(GlobalSettingSpecs::getSettingName);
                             } else {
-                                return null;
+                                return Stream.empty();
                             }
                         })
                         .filter(Objects::nonNull)
@@ -1439,7 +1451,7 @@ public class SettingsMapper {
         settingApiDTO.setValue(Long.toString(template.getId()));
         settingApiDTO.setValueType(InputValueType.STRING);
         settingApiDTO.setValueDisplayName(templateName);
-        settingApiDTO.setEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
+        settingApiDTO.setEntityType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
         return settingApiDTO;
     }
 
@@ -1462,7 +1474,7 @@ public class SettingsMapper {
         resizeSetting.setOptions(labelList);
         resizeSetting.setDefaultValue("MANUAL");
         resizeSetting.setDisplayName("Resize");
-        resizeSetting.setEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        resizeSetting.setEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         resizeSetting.setUuid(EntitySettingSpecs.Resize.getSettingName());
         resizeSetting.setValueType(InputValueType.STRING);
         return resizeSetting;

@@ -14,7 +14,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
@@ -113,7 +113,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             journalRecorder.recordCostJournals(costs);
 
             try {
-                entityCostStore.persistEntityCost(costs, cloudTopology);
+                entityCostStore.persistEntityCost(costs, cloudTopology, topologyInfo.getCreationTime());
             } catch (DbException e) {
                 logger.error("Failed to persist entity costs.", e);
             }

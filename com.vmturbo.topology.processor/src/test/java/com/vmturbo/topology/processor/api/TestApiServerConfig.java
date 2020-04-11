@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.api;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -63,9 +64,10 @@ import com.vmturbo.topology.processor.rest.OperationController;
 import com.vmturbo.topology.processor.rest.ProbeController;
 import com.vmturbo.topology.processor.rest.TargetController;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
+import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
@@ -148,24 +150,24 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public KeyValueStore keyValueStore() {
-        return Mockito.mock(KeyValueStore.class);
+        return mock(KeyValueStore.class);
     }
 
     @Bean
     protected IdentityService identityService() {
         return new IdentityService(new IdentityServiceInMemoryUnderlyingStore(
-                Mockito.mock(IdentityDatabaseStore.class)),
+                mock(IdentityDatabaseStore.class)),
                         new HeuristicsMatcher());
     }
 
     @Bean
     public EntityActionDao controllableDao() {
-        return Mockito.mock(EntityActionDao.class);
+        return mock(EntityActionDao.class);
     }
 
     @Bean
     public ProbeInfoCompatibilityChecker compatibilityChecker() {
-        return Mockito.mock(ProbeInfoCompatibilityChecker.class);
+        return mock(ProbeInfoCompatibilityChecker.class);
     }
 
     @Bean
@@ -183,9 +185,24 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
         return new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore()));
     }
 
+    /**
+     * Target DAO.
+     *
+     * @return {@link TargetDao}.
+     */
+    @Bean
+    public TargetDao targetDao() {
+        return mock(TargetDao.class);
+    }
+
+    /**
+     * Target store.
+     *
+     * @return {@link TargetStore}.
+     */
     @Bean
     public TargetStore targetStore() {
-        return new KVBackedTargetStore(keyValueStore(), probeStore(), targetIdentityStore());
+        return new CachingTargetStore(targetDao(), probeStore(), targetIdentityStore());
     }
 
     @Override
@@ -222,36 +239,36 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public DiscoveredGroupUploader groupRecorder() {
-        return Mockito.mock(DiscoveredGroupUploader.class);
+        return mock(DiscoveredGroupUploader.class);
     }
     @Bean
     public DiscoveredWorkflowUploader workflowRecorder() {
-        return Mockito.mock(DiscoveredWorkflowUploader.class);
+        return mock(DiscoveredWorkflowUploader.class);
     }
 
     @Bean
     public DiscoveredCloudCostUploader cloudCostUploadRecorder() {
-        return Mockito.mock(DiscoveredCloudCostUploader.class);
+        return mock(DiscoveredCloudCostUploader.class);
     }
 
     @Bean
     public DiscoveredTemplateDeploymentProfileUploader discoveredTemplatesUploader() {
-        return Mockito.mock(DiscoveredTemplateDeploymentProfileUploader.class);
+        return mock(DiscoveredTemplateDeploymentProfileUploader.class);
     }
 
     @Bean
     public TopologyHandler topologyHandler() {
-        return Mockito.mock(TopologyHandler.class);
+        return mock(TopologyHandler.class);
     }
 
     @Bean
     public DerivedTargetParser derivedTargetParser() {
-        return Mockito.mock(DerivedTargetParser.class);
+        return mock(DerivedTargetParser.class);
     }
 
     @Bean
     public GroupScopeResolver groupScopeResolver() {
-        GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+        GroupScopeResolver groupScopeResolver = mock(GroupScopeResolver.class);
         Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
                 .then(AdditionalAnswers.returnsSecondArg());
         return groupScopeResolver;
@@ -259,7 +276,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public TargetDumpingSettings targetDumpingSettings() {
-        TargetDumpingSettings targetDumpingSettings = Mockito.mock(TargetDumpingSettings.class);
+        TargetDumpingSettings targetDumpingSettings = mock(TargetDumpingSettings.class);
         Mockito.when(targetDumpingSettings.getDumpsToHold(any())).thenReturn(0);
         Mockito.doNothing().when(targetDumpingSettings).refreshSettings();
         return targetDumpingSettings;
@@ -272,7 +289,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     SystemNotificationProducer systemNotificationProducer() {
-        SystemNotificationProducer systemNotificationProducer = Mockito.mock(SystemNotificationProducer.class);
+        SystemNotificationProducer systemNotificationProducer = mock(SystemNotificationProducer.class);
         return systemNotificationProducer;
     }
 
@@ -295,13 +312,13 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
             targetDumpingSettings(),
             systemNotificationProducer(),
             1L, 1L, 1L,
-            5, 1, 1,
+            5, 10, 1, 1,
             TheMatrix.instance());
     }
 
     @Bean
     public Scheduler scheduler() {
-        return Mockito.mock(Scheduler.class);
+        return mock(Scheduler.class);
     }
 
     @Bean
@@ -331,7 +348,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public TopologyToSdkEntityConverter topologyToSdkEntityConverter() {
         return new TopologyToSdkEntityConverter(entityRepository(), targetStore(),
-                                                Mockito.mock(GroupScopeResolver.class));
+                                                mock(GroupScopeResolver.class));
     }
 
     @Bean

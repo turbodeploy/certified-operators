@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -67,9 +68,11 @@ public class ReservedInstanceAnalysisScope {
     private final boolean overrideRICoverage;
 
     /**
-     * The type of RI to be bought which includes offering class, payment option, term, purchase date.
+     * A map of purchase profiles for each cloud provider type. Each purchase profile
+     * describes the type of RI to be bought which includes offering class, payment option,
+     * term, purchase date.
      */
-    private final RIPurchaseProfile riPurchaseProfile;
+    private final Map<String, RIPurchaseProfile> riPurchaseProfiles;
 
     /**
      * The topology on which this analysis is going to be performed.
@@ -92,8 +95,9 @@ public class ReservedInstanceAnalysisScope {
      * @param overrideRICoverage    The coverage can be overriden by a percentage. false override
      *                              coverage means default maximum savings and true override
      *                              coverage means specific coverage
-     * @param profile               The type of RI to be bought which includes offering class,
-     *                              payment option, term, purchase date.
+     * @param profiles              The type of RI to be bought which includes offering class,
+     *                              payment option, term, purchase date for each service
+     *                              provider type.
      * @param topologyInfo          The topology for the analysis.
      */
     @VisibleForTesting
@@ -103,7 +107,7 @@ public class ReservedInstanceAnalysisScope {
                                             @Nullable Collection<Long> accounts,
                                             float preferredCoverage,
                                             boolean overrideRICoverage,
-                                            @Nullable RIPurchaseProfile profile,
+                                            @Nullable Map<String, RIPurchaseProfile> profiles,
                                             @Nonnull TopologyInfo topologyInfo) {
         if (CollectionUtils.isNotEmpty(platforms) && platforms.contains(OSType.UNKNOWN_OS)) {
             logger.warn("ReservedInstanceAnalysisScope platform contains illegal UNKNOWN_OS, removing it");
@@ -140,7 +144,7 @@ public class ReservedInstanceAnalysisScope {
         this.accounts = (accounts == null) ? null : ImmutableSet.copyOf(accounts);
         this.preferredCoverage = preferredCoverage;
         this.overrideRICoverage = overrideRICoverage;
-        this.riPurchaseProfile = profile;
+        this.riPurchaseProfiles = profiles;
         this.topologyInfo = topologyInfo;
     }
 
@@ -157,7 +161,7 @@ public class ReservedInstanceAnalysisScope {
                 startAnalysisRequest.getRegionsList(),
                 startAnalysisRequest.getTenanciesList(),
                 startAnalysisRequest.getAccountsList(), -1, false,
-                startAnalysisRequest.getPurchaseProfile(),
+                startAnalysisRequest.getPurchaseProfileByCloudtypeMap(),
                 startAnalysisRequest.getTopologyInfo());
     }
 
@@ -208,11 +212,55 @@ public class ReservedInstanceAnalysisScope {
         return overrideRICoverage;
     }
 
-    public RIPurchaseProfile getRiPurchaseProfile() {
-        return riPurchaseProfile;
+    public Map<String, RIPurchaseProfile> getRiPurchaseProfiles() {
+        return riPurchaseProfiles;
     }
 
     public TopologyInfo getTopologyInfo() {
         return topologyInfo;
+    }
+
+    /**
+     * Determines whether {@code accountOid} is in scope.
+     *
+     * @param accountOid The target account OID
+     * @return True, if the account is in scope or if account analysis is not constrained.
+     * False otherwise
+     */
+    public boolean isAccountInScope(long accountOid) {
+        return accounts.isEmpty() || accounts.contains(accountOid);
+    }
+
+    /**
+     * Determines whether {@code regionOid} is in scope.
+     *
+     * @param regionOid The target region OID
+     * @return True, if the region is in scope or if region analysis is not constrained.
+     * False otherwise
+     */
+    public boolean isRegionInScope(long regionOid) {
+        return regions.isEmpty() || regions.contains(regionOid);
+    }
+
+    /**
+     * Determines whether {@code platofrm} is in scope.
+     *
+     * @param platform The target platform
+     * @return True, if the platform is in scope or if platform analysis is not constrained.
+     * False otherwise
+     */
+    public boolean isPlatformInScope(@Nonnull OSType platform) {
+        return platforms.isEmpty() || platforms.contains(platform);
+    }
+
+    /**
+     * Determines whether {@code tenancy} is in scope.
+     *
+     * @param tenancy The target tenancy
+     * @return True, if the tenancy is in scope or if tenancy analysis is not constrained.
+     * False otherwise
+     */
+    public boolean isTenancyInScope(@Nonnull Tenancy tenancy) {
+        return tenancies.isEmpty() || tenancies.contains(tenancy);
     }
 }

@@ -22,7 +22,7 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 /**
@@ -34,6 +34,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
  * </ol>
  */
 public class BuyRiScopeHandler {
+
+    private static final Set<ApiEntityType> GROUP_OF_REGIONS = Collections.singleton(ApiEntityType.REGION);
+    private static final Set<GroupType> GROUP_OF_BILLING_FAMILY = Collections.singleton(GroupType.BILLING_FAMILY);
+    private static final Set<ApiEntityType> GROUP_OF_SERVICE_PROVIDERS = Collections.singleton(ApiEntityType.SERVICE_PROVIDER);
 
     /**
      * Extract action types from user input and selected scope. Selected scope affects whether
@@ -91,24 +95,22 @@ public class BuyRiScopeHandler {
 
         // Entity scope (single Region)
         if (scopeId.isEntity() && scopeId.getScopeTypes().isPresent()) {
-            if (scopeId.getScopeTypes().get().equals(Collections.singleton(UIEntityType.REGION))) {
+            if (GROUP_OF_REGIONS.equals(scopeId.getScopeTypes().orElse(null))) {
                 return ImmutableSet.of(scopeId.oid());
             }
             return Collections.emptySet();
         }
 
-        // Group scope (group of Regions or Billing Family)
+        // Group scope (Billing Family, group of Regions or group of Billing Family)
         if (scopeId.isGroup() && scopeId.getCachedGroupInfo().isPresent()) {
             final UuidMapper.CachedGroupInfo groupInfo = scopeId.getCachedGroupInfo().get();
 
             // Group of regions
-            if (groupInfo.getEntityTypes().equals(Collections.singleton(UIEntityType.REGION))) {
-                return groupInfo.getEntityIds();
-            }
-
-            // Billing Family
-            if (groupInfo.getGroupType() == GroupType.BILLING_FAMILY) {
-                // Return OIDs of accounts in Billing Family
+            if (GROUP_OF_REGIONS.equals(groupInfo.getEntityTypes())
+                    // Billing Family
+                    || groupInfo.getGroupType() == GroupType.BILLING_FAMILY
+                    // Group of Billing Family
+                    || GROUP_OF_BILLING_FAMILY.equals(groupInfo.getNestedGroupTypes())) {
                 return groupInfo.getEntityIds();
             }
         }
@@ -124,27 +126,27 @@ public class BuyRiScopeHandler {
      * @return true if the RI buy should be included, false otherwise.
      */
     public boolean shouldIncludeBuyRiDiscount(@Nonnull final ApiId inputScope) {
-        //only allow non-observer users.
-        if (UserScopeUtils.isUserObserver()) {
+        //only allow non-scoped-observer users.
+        if (UserScopeUtils.isUserObserver() && UserScopeUtils.isUserScoped()) {
             return false;
         }
         // The buy RI discount should be shown in the realtime market (global) scope and plans.
         if (inputScope.isRealtimeMarket() || inputScope.isPlan()) {
             return true;
         } else if (inputScope.isEntity() && inputScope.getScopeTypes().isPresent()) {
-            // The buy RI discount should be shown in scope of a region
-            return inputScope.getScopeTypes().get().equals(Collections.singleton(UIEntityType.REGION));
+            // The buy RI discount should be shown in scope of a region and a scoped based on service providers
+            return GROUP_OF_REGIONS.equals(inputScope.getScopeTypes().orElse(null)) ||
+                            GROUP_OF_SERVICE_PROVIDERS.equals(inputScope.getScopeTypes().orElse(null));
         } else if (inputScope.isGroup() && inputScope.getCachedGroupInfo().isPresent()) {
             final UuidMapper.CachedGroupInfo groupInfo = inputScope.getCachedGroupInfo().get();
 
             // If it is a group of region we should not exclude the buy RI discount
-            if (groupInfo.getEntityTypes().equals(Collections.singleton(UIEntityType.REGION))) {
+            if (GROUP_OF_REGIONS.equals(groupInfo.getEntityTypes())) {
                 return true;
             }
             // Otherwise only return true if this is a billing family or group of billing family
             return groupInfo.getGroupType() == GroupType.BILLING_FAMILY
-                    || groupInfo.getNestedGroupTypes().equals(
-                            Collections.singleton(GroupType.BILLING_FAMILY));
+                    || GROUP_OF_BILLING_FAMILY.equals(groupInfo.getNestedGroupTypes());
         }
         return false;
     }

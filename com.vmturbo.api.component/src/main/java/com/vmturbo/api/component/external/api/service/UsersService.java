@@ -67,7 +67,7 @@ import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
  * Users management service implementation.
@@ -166,9 +166,9 @@ public class UsersService implements IUsersService {
         this.groupsService = groupsService;
         this.widgetsetsService = widgetsetsService;
         // users cannot be created with the following group scopes
-        this.invalidScopes.add(UIEntityType.BUSINESS_ACCOUNT.displayName());
-        this.invalidScopes.add(UIEntityType.REGION.displayName());
-        this.invalidScopes.add(UIEntityType.AVAILABILITY_ZONE.displayName());
+        this.invalidScopes.add(ApiEntityType.BUSINESS_ACCOUNT.displayName());
+        this.invalidScopes.add(ApiEntityType.REGION.displayName());
+        this.invalidScopes.add(ApiEntityType.AVAILABILITY_ZONE.displayName());
         this.invalidScopes.add("ResourceGroup");
     }
 
@@ -503,10 +503,11 @@ public class UsersService implements IUsersService {
         try {
             String request = baseRequest().path("/users/remove/" + uuid).build().toUriString();
             HttpEntity<AuthUserDTO> entity = new HttpEntity<>(composeHttpHeaders());
+            String userName;
             try {
                 final ResponseEntity<AuthUserDTO> result = restTemplate_.exchange(request,
                     HttpMethod.DELETE, entity, AuthUserDTO.class);
-                final String userName = result.getBody() != null ? result.getBody().getUser() : "";
+                userName = result.getBody() != null ? result.getBody().getUser() : "";
                 final String details = String.format("Deleted user %s", userName);
                 AuditLog.newEntry(AuditAction.DELETE_USER,
                     details, true)
@@ -516,7 +517,7 @@ public class UsersService implements IUsersService {
                 logger_.error("Unable to remove user {}", uuid, e.getCause());
                 throw new IllegalArgumentException("Unable to remove user " + uuid, e.getCause());
             }
-            widgetsetsService.transferWidgetsets(uuid);
+            widgetsetsService.transferWidgetsets(uuid, userName);
             expireActiveSessions(uuid);
 
             return Boolean.TRUE;

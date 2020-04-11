@@ -77,13 +77,19 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
                 }
             }
             if (originalTopologyInfo.getTopologyType() == TopologyType.PLAN) {
+                // Update DB tables with the RI coverage results from the Actions:
+                // PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING
                 planProjectedRICoverageAndUtilStore.updateProjectedEntityToRIMappingTableForPlan(originalTopologyInfo,
                         riCoverageList);
+                // PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE
                 planProjectedRICoverageAndUtilStore.updateProjectedRICoverageTableForPlan(projectedTopologyId,
                         originalTopologyInfo,
                         riCoverageList);
-                planProjectedRICoverageAndUtilStore.updateProjectedRIUtilTableForPlan(originalTopologyInfo,
-                        riCoverageList);
+                // PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION
+                planProjectedRICoverageAndUtilStore.updateProjectedRIUtilTableForPlan(
+                        originalTopologyInfo,
+                        riCoverageList,
+                        projectedRICoverageAndUtilStore.resolveBuyRIsInScope(originalTopologyInfo.getTopologyContextId()));
             } else {
                 projectedRICoverageAndUtilStore.updateProjectedRICoverage(originalTopologyInfo,
                         riCoverageList);

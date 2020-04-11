@@ -11,7 +11,6 @@ import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.ActionTypeMapper;
-import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -20,9 +19,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.ClassicEnumMapper;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
@@ -91,7 +91,7 @@ public class GroupByFilters {
 
     public void setState(@Nonnull final ActionState state) {
         setValue(StringConstants.ACTION_STATES,
-            actionSpecMapper.mapXlActionStateToApi(state).name());
+            ActionSpecMapper.mapXlActionStateToApi(state).name());
     }
 
     public void setType(@Nonnull final ActionType type) {
@@ -102,6 +102,14 @@ public class GroupByFilters {
         setValue(StringConstants.ACTION_COST_TYPE, costType.name());
     }
 
+    /**
+     * Set filter by Action Severity value
+     * @param severity - the severity of the Action {@link Severity}
+     */
+    public void setActionRiskSeverity(@Nonnull final Severity severity) {
+        setValue(StringConstants.SEVERITY, severity.name());
+    }
+
     public void setReasonCommodity(final int reasonCommodityBaseType) {
         setValue(StringConstants.REASON_COMMODITY,
             ClassicEnumMapper.COMMODITY_TYPE_MAPPINGS.inverse()
@@ -110,7 +118,7 @@ public class GroupByFilters {
 
     public void setTargetEntityType(final int entityType) {
         setValue(StringConstants.TARGET_TYPE,
-            UIEntityType.fromType(entityType).apiStr());
+            ApiEntityType.fromType(entityType).apiStr());
     }
 
     /**

@@ -7,7 +7,6 @@ import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -23,17 +22,16 @@ import org.jooq.SQLDialect;
 import org.jooq.exception.DataAccessException;
 import org.mariadb.jdbc.MariaDbDataSource;
 
-import com.vmturbo.history.flyway.V1_27_Callback;
+import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
+import com.vmturbo.history.flyway.V1_28_1_And_V1_35_1_Callback;
+import com.vmturbo.sql.utils.flyway.ForgetMigrationCallback;
 
 public class SchemaUtil {
-    protected static final Logger logger = Logger.getLogger("com.vmturbo.history.db");
 
-    /**
-     * Mapping from SQL dialects to the corresponding java class name.
-     */
-    public static final ImmutableMap<SQLDialect, String> ADAPTER_TO_DRIVER = ImmutableMap.of(
-        SQLDialect.MYSQL, "com.mysql.jdbc.Driver",
-        SQLDialect.MARIADB, "org.mariadb.jdbc.Driver");
+    private SchemaUtil() {
+    }
+
+    protected static final Logger logger = Logger.getLogger("com.vmturbo.history.db");
 
     /**
      * The names of the SQL adapters we support.
@@ -41,12 +39,6 @@ public class SchemaUtil {
     public static final ImmutableMap<String, SQLDialect> SUPPORTED_ADAPTERS = ImmutableMap.of(
         SQLDialect.MYSQL.getNameLC(), SQLDialect.MYSQL,
         SQLDialect.MARIADB.getNameLC(), SQLDialect.MARIADB);
-
-    private static String COMM_SEP = "\\|";
-    private static Pattern COMM_SPLITTER = Pattern.compile(COMM_SEP);
-    private static String COMM_ATT_SEP = "/";
-    private static Pattern COMM_ATT_SPLITTER = Pattern.compile(COMM_ATT_SEP);
-    private static String COMM_GET_ALL = ".*";
 
     /**
      * Returns true if the dialect that this appliance is working against
@@ -57,7 +49,7 @@ public class SchemaUtil {
      */
     public static boolean isMysqlAdapter(String adapter) {
         SQLDialect dialect = SUPPORTED_ADAPTERS.get(adapter);
-        return dialect== SQLDialect.MYSQL || dialect== SQLDialect.MARIADB;
+        return dialect == SQLDialect.MYSQL || dialect == SQLDialect.MARIADB;
     }
 
     /**
@@ -76,8 +68,9 @@ public class SchemaUtil {
             + "...");
 
         Flyway fway = flyway(migrationLocationOverride);
-        if (clean)
+        if (clean) {
             fway.clean();
+        }
         if (version != null) {
             fway.setTarget(MigrationVersion.fromVersion(version.toString()));
         }
@@ -111,15 +104,23 @@ public class SchemaUtil {
             .orElseGet(SchemaUtil::locations);
 
         fway.setLocations(locations.toArray(new String[]{}));
-        fway.setCallbacks(new V1_27_Callback());
+        fway.setCallbacks(
+                // V1.27 migrations collided when 7.17 and 7.21 branches were merged
+                new ForgetMigrationCallback("1.27"),
+                // three migrations were changed in order to remove mention of MyISAM DB engine
+                new ResetChecksumsForMyIsamInfectedMigrations(),
+                // V1.28.1 and V1.35.1 java migrations needed to change
+                // V1.28.1 formerly supplied a checksum but no longer does
+                new V1_28_1_And_V1_35_1_Callback()
+        );
         return fway;
     }
 
     /**
      * Initializes the DB at the required version.
      *
-     * Uses less migration-lookup paths. Intended to be an easy way to initialize
-     * databases in development and not used in production.
+     * <p>Uses less migration-lookup paths. Intended to be an easy way to initialize
+     * databases in development and not used in production.</p>
      */
     public static void devInitDb() throws SQLException {
         Flyway fway = new Flyway();
@@ -130,7 +131,7 @@ public class SchemaUtil {
     }
 
     /**
-     * Clears the DB
+     * Clears the DB.
      * @param locationsOverride If set, overrides the location in the classpath to look for migrations.
      */
     public static void clearDb(Optional<String> locationsOverride) {
@@ -139,7 +140,7 @@ public class SchemaUtil {
     }
 
     /**
-     * Clears the DB
+     * Clears the DB.
      * @throws SQLException
      * @throws DataAccessException
      */
@@ -155,7 +156,7 @@ public class SchemaUtil {
     }
 
     /**
-     * Clears the DB
+     * Clears the DB.
      * @throws SQLException
      * @throws DataAccessException
      */

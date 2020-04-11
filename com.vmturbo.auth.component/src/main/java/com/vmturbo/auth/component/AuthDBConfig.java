@@ -9,17 +9,9 @@ import javax.sql.DataSource;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
-import org.jooq.DSLContext;
-import org.jooq.conf.RenderNameStyle;
-import org.jooq.conf.Settings;
-import org.jooq.impl.DefaultConfiguration;
-import org.jooq.impl.DefaultDSLContext;
-import org.jooq.impl.DefaultExecuteListenerProvider;
-import org.mariadb.jdbc.MariaDbDataSource;
-import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -230,13 +222,18 @@ public class AuthDBConfig extends SQLDatabaseConfig {
     @Primary
     public @Nonnull DataSource dataSource() {
         Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
-        String dbPassword = authDbPassword;
-        if (!credentials.isPresent()) {
-            // Use authDbPassword if specified;
-            // else, use the same externalized admin db password as prefix and append it with random characters.
-            dbPassword = !Strings.isEmpty(dbPassword) ? dbPassword : getRootSqlDBPassword() + generatePassword();
+        String dbPassword;
+        if (StringUtils.isNotEmpty(authDbPassword)) {
+            // Use authDbPassword if specified as environment variable.
+            dbPassword = authDbPassword;
+        } else if (!credentials.isPresent()) {
+            // else if db credentials do not exist in Consul, use the same externalized admin db
+            // password as prefix and append it with random characters, and store the encrypted db
+            // password in Consul.
+            dbPassword = getRootSqlDBPassword() + generatePassword();
             authKVConfig.authKeyValueStore().put(CONSUL_KEY, CryptoFacility.encrypt(dbPassword));
         } else {
+            // else, use the decrypted db password stored in Consul.
             dbPassword = getDecryptPassword(credentials.get());
         }
         // Get DataSource from the given DB schema name and user. Make sure we have the proper user

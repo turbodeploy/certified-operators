@@ -40,22 +40,26 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.TimeSlotReasonInformation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.CostJournal;
-import com.vmturbo.cost.calculation.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
@@ -72,6 +76,7 @@ import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ProvisionBySupplyTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ReconfigureTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ResizeTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -96,13 +101,15 @@ public class ActionInterpreter {
     private final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage;
     private static final Set<EntityState> evacuationEntityState =
         EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
+    private final CommodityIndex commodityIndex;
 
     ActionInterpreter(@Nonnull final CommodityConverter commodityConverter,
                       @Nonnull final Map<Long, ShoppingListInfo> shoppingListOidToInfos,
                       @Nonnull final CloudTopologyConverter cloudTc, Map<Long, TopologyEntityDTO> originalTopology,
                       @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
                       @Nonnull final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage,
-                      @Nonnull final TierExcluder tierExcluder) {
+                      @Nonnull final TierExcluder tierExcluder,
+                      @Nonnull final CommodityIndex commodityIndex) {
         this.commodityConverter = commodityConverter;
         this.shoppingListOidToInfos = shoppingListOidToInfos;
         this.cloudTc = cloudTc;
@@ -111,6 +118,7 @@ public class ActionInterpreter {
         this.cert = cert;
         this.projectedRiCoverage = projectedRiCoverage;
         this.tierExcluder = tierExcluder;
+        this.commodityIndex = commodityIndex;
     }
 
     /**
@@ -480,8 +488,7 @@ public class ActionInterpreter {
             if (!CollectionUtils.isEmpty(changeProviderList)) {
                 ActionDTO.Move.Builder builder = ActionDTO.Move.newBuilder()
                         .setTarget(createActionEntity(shoppingList.buyerId, projectedTopology))
-                        .addAllChanges(createChangeProviders(moveTO,
-                                projectedTopology, originalCloudTopology, shoppingList.buyerId));
+                        .addAllChanges(changeProviderList);
                 if (moveTO.hasScalingGroupId()) {
                     builder.setScalingGroupId(moveTO.getScalingGroupId());
                 }
@@ -530,11 +537,12 @@ public class ActionInterpreter {
     private ActionDTO.Resize interpretResize(@Nonnull final ResizeTO resizeTO,
                      @Nonnull final Map<Long, ProjectedTopologyEntity> projectedTopology) {
         final long entityId = resizeTO.getSellingTrader();
+        final CommoditySpecificationTO cs = resizeTO.getSpecification();
         final CommodityType topologyCommodityType =
-                commodityConverter.marketToTopologyCommodity(resizeTO.getSpecification())
+                commodityConverter.marketToTopologyCommodity(cs)
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "Resize commodity can't be converted to topology commodity format! "
-                                        + resizeTO.getSpecification()));
+                                        + cs));
         // Determine if this is a remove limit or a regular resize.
         final TopologyEntityDTO projectedEntity = projectedTopology.get(entityId).getEntity();
 
@@ -543,6 +551,14 @@ public class ActionInterpreter {
             projectedEntity.getCommoditySoldListList().stream()
                 .filter(commSold -> commSold.getCommodityType().equals(topologyCommodityType))
                 .findFirst();
+        Optional<CommoditySoldDTO> originalCommoditySold =
+                commodityIndex.getCommSold(projectedEntity.getOid(), topologyCommodityType);
+        ResizeTO adjustedResizeTO = resizeTO.toBuilder()
+                .setOldCapacity((float)TopologyConverter.reverseScaleComm(resizeTO.getOldCapacity(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .setNewCapacity((float)TopologyConverter.reverseScaleComm(resizeTO.getNewCapacity(),
+                    originalCommoditySold, CommoditySoldDTO::getScalingFactor))
+                .build();
         if (projectedEntity.getEntityType() == EntityType.VIRTUAL_MACHINE.getNumber()) {
             // If this is a VM and has a restricted capacity, we are going to assume it's a limit
             // removal. This logic seems like it could be fragile, in that limit may not be the
@@ -551,7 +567,7 @@ public class ActionInterpreter {
             TraderTO traderTO = oidToProjectedTraderTOMap.get(entityId);
             // find the commodity on the trader and see if there is a limit?
             for (CommoditySoldTO commoditySold : traderTO.getCommoditiesSoldList()) {
-                if (commoditySold.getSpecification().equals(resizeTO.getSpecification())) {
+                if (commoditySold.getSpecification().equals(cs)) {
                     // We found the commodity sold.  If it has a utilization upper bound < 1.0,
                     // then the commodity is restricted, and according to our VM-rule, we will
                     // treat this as a limit removal.
@@ -592,8 +608,8 @@ public class ActionInterpreter {
         }
         ActionDTO.Resize.Builder resizeBuilder = ActionDTO.Resize.newBuilder()
                 .setTarget(createActionEntity(entityId, projectedTopology))
-                .setNewCapacity(resizeTO.getNewCapacity())
-                .setOldCapacity(resizeTO.getOldCapacity())
+                .setNewCapacity(adjustedResizeTO.getNewCapacity())
+                .setOldCapacity(adjustedResizeTO.getOldCapacity())
                 .setCommodityType(topologyCommodityType);
         setHotAddRemove(resizeBuilder, resizeCommSold);
         if (resizeTO.hasScalingGroupId()) {
@@ -737,32 +753,29 @@ public class ActionInterpreter {
                     destAzOrRegion.getOid(), null, projectedTopology));
             }
             // Note that we also generate accounting actions for complete loss of RI coverage.
+            final boolean generateTierAction;
             final boolean isAccountingAction = destinationRegion == sourceRegion
                     && destTier == sourceTier
                     && (move.hasCouponDiscount() && move.hasCouponId() ||
                         sourceMarketTier instanceof RiDiscountedMarketTier);
-
             if (isAccountingAction) {
                 // We need to check if the original projected RI coverage of the target are the same.
                 // If they are the same, we should drop the action.
-                Optional<EntityReservedInstanceCoverage> originalRICoverage = cloudTc.getRiCoverageForEntity(targetOid);
-                float originialRICoverageValue = 0f;
-                if (originalRICoverage.isPresent()) {
-                    originialRICoverageValue = (float) originalRICoverage.get().getCouponsCoveredByRiMap()
-                            .values().stream().mapToDouble(Double::new).sum();
+                final double originalRICoverage = getTotalRiCoverage(
+                        cloudTc.getRiCoverageForEntity(targetOid).orElse(null));
+                final double projectedRICoverage = getTotalRiCoverage(
+                        projectedRiCoverage.get(targetOid));
+                generateTierAction = !areEqual(originalRICoverage, projectedRICoverage);
+                if (generateTierAction) {
+                    logger.debug("Accounting action for {} (OID: {}). " +
+                            "Original RI coverage: {}, projected RI coverage: {}.",
+                            target.getDisplayName(), target.getOid(),
+                            originalRICoverage, projectedRICoverage);
                 }
-                float projectedRICoverageValue = 0f;
-                Optional<EntityReservedInstanceCoverage> projectedRICoverage = Optional.ofNullable(projectedRiCoverage.get(targetOid));
-                if (projectedRICoverage.isPresent()) {
-                    projectedRICoverageValue = (float)projectedRICoverage.get().getCouponsCoveredByRiMap()
-                            .values().stream().mapToDouble(Double::new).sum();
-                }
-                if (originialRICoverageValue != projectedRICoverageValue) {
-                    // Tier change provider
-                    changeProviders.add(createChangeProvider(sourceTier.getOid(),
-                            destTier.getOid(), resourceId, projectedTopology));
-                }
-            } else if (destTier != sourceTier) {
+            } else {
+                generateTierAction = destTier != sourceTier;
+            }
+            if (generateTierAction) {
                 // Tier change provider
                 changeProviders.add(createChangeProvider(sourceTier.getOid(),
                         destTier.getOid(), resourceId, projectedTopology));
@@ -786,6 +799,19 @@ public class ActionInterpreter {
                     move.getDestination(), resourceId, projectedTopology));
         }
         return changeProviders;
+    }
+
+    private static double getTotalRiCoverage(
+            @Nullable final EntityReservedInstanceCoverage entityReservedInstanceCoverage) {
+        if (entityReservedInstanceCoverage == null) {
+            return 0D;
+        }
+        return entityReservedInstanceCoverage.getCouponsCoveredByRiMap().values().stream()
+                .mapToDouble(Double::doubleValue).sum();
+    }
+
+    private static boolean areEqual(final double d1, final double d2) {
+        return Math.abs(d1 - d2) <= 0.0001;
     }
 
     @Nonnull
@@ -934,8 +960,8 @@ public class ActionInterpreter {
 
     private ResizeExplanation interpretResizeExplanation(ResizeTO resizeTO) {
         ResizeExplanation.Builder builder = ResizeExplanation.newBuilder()
-            .setStartUtilization(resizeTO.getStartUtilization())
-            .setEndUtilization(resizeTO.getEndUtilization());
+            .setDeprecatedStartUtilization(resizeTO.getStartUtilization())
+            .setDeprecatedEndUtilization(resizeTO.getEndUtilization());
         if (resizeTO.hasScalingGroupId()) {
             builder.setScalingGroupId(resizeTO.getScalingGroupId());
         }
@@ -1000,8 +1026,10 @@ public class ActionInterpreter {
                         ChangeProviderExplanation.Congestion.newBuilder()
                         .addAllCongestedCommodities(
                                 moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
-                                        .map(commodityConverter::commodityIdToCommodityType)
-                                        .map(commType2ReasonCommodity())
+                                        .map(commodityConverter::commodityIdToCommodityTypeAndSlot)
+                                        .map(commTypeAndSlot2ReasonCommodity(
+                                            shoppingListOidToInfos.get(moveTO.getShoppingListToMove())
+                                                .getBuyerId(), moveTO.getSource()))
                                         .collect(Collectors.toList()))
                         .build()));
                 break;
@@ -1131,9 +1159,62 @@ public class ActionInterpreter {
         return ct -> ReasonCommodity.newBuilder().setCommodityType(ct).build();
     }
 
+    private Function<Pair<CommodityType, Optional<Integer>>, ReasonCommodity>
+        commTypeAndSlot2ReasonCommodity(final long buyer, final long source) {
+        return ct -> {
+            final CommodityType commType = ct.first;
+            final Optional<Integer> slot = ct.second;
+            final ReasonCommodity.Builder builder = ReasonCommodity.newBuilder().setCommodityType(commType);
+            slot.ifPresent(sl -> builder.setTimeSlot(TimeSlotReasonInformation.newBuilder()
+                .setSlot(sl)
+                .setTotalSlotNumber(getTotalTimeSlotNumber(commType, buyer, source))
+                .build()));
+            return builder.build();
+        };
+    }
+
     private static Collection<ReasonCommodity>
             commTypes2ReasonCommodities(Collection<CommodityType> types) {
         return types.stream().map(commType2ReasonCommodity()).collect(Collectors.toList());
+    }
+
+    /**
+     * Get total number of time slots for time slot commodity.
+     *
+     * @param commodityType Time slot {@link CommodityType}
+     * @param buyer Buyer Id
+     * @param moveSource Move source ID
+     * @return Total number of time slots, or 0 if cannot be determined
+     */
+    private int getTotalTimeSlotNumber(@Nonnull final CommodityType commodityType,
+            final long buyer, final long moveSource) {
+        final TopologyEntityDTO origTopology = originalTopology.get(buyer);
+        if (null == origTopology) {
+            logger.error("No originalTopology value found for key {}", () -> moveSource);
+            return 0;
+        }
+        final CommoditiesBoughtFromProvider commoditiesBoughtFromProvider =
+            origTopology.getCommoditiesBoughtFromProvidersList().stream()
+                .filter(e -> moveSource == e.getProviderId()).findFirst().orElse(null);
+        if (commoditiesBoughtFromProvider == null) {
+            logger.error("No commodities bought found for provider {}", () -> moveSource);
+            return 0;
+        }
+        final CommodityBoughtDTO commodityBought = commoditiesBoughtFromProvider.getCommodityBoughtList()
+            .stream().filter(e -> commodityType.getType() == (e.getCommodityType().getType()))
+            .findFirst().orElse(null);
+        if (commodityBought == null) {
+            logger.error("No CommodityBoughtDTO found for commodity type {}, entity id {}",
+                () -> commodityType, () -> moveSource);
+            return 0;
+        }
+        if (commodityBought.hasHistoricalUsed() && commodityBought.getHistoricalUsed().getTimeSlotCount() > 0) {
+            return commodityBought.getHistoricalUsed().getTimeSlotCount();
+        } else {
+            logger.error("No timeslots found for commodity type {}, entity id {}",
+                () -> commodityType, () -> moveSource);
+            return 0;
+        }
     }
 
     /**

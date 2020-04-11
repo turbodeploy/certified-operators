@@ -47,8 +47,15 @@ public class SMAReservedInstance {
 
     private final SMATemplate template;
 
-
-    private final int count;
+    /*
+     * The count of coupons this RI represents.  Count is a float, and not an int, to handle VMs
+     * that are covered by this RI, but isEligibleForScale is false.  For example, there is an
+     * RI that is t2.xlarge (24 coupons) and ISF, and it covers a VM that is t2.large (12 coupons);
+     * however, the VM has isEligibleForScale false.  Therefore, the RI only has 12 coupons available,
+     * because the VM, which is not eligible for scale is using 12 coupons.  Therefore, the RIs
+     * count is 0.5.
+     */
+    private final float count;
 
     /*
      * Reserved Instance is InstanceSizeFlexible or not based on context.
@@ -136,7 +143,7 @@ public class SMAReservedInstance {
                                final long businessAccount,
                                @Nonnull final SMATemplate template,
                                final long zone,
-                               final int count,
+                               final float count,
                                final boolean isf,
                                final boolean shared,
                                final boolean platformFlexible) {
@@ -200,7 +207,7 @@ public class SMAReservedInstance {
         return normalizedCount;
     }
 
-    public int getCount() {
+    public float getCount() {
         return count;
     }
 
@@ -390,8 +397,9 @@ public class SMAReservedInstance {
      */
 
     public boolean isVMDiscountedByThisRI(SMAVirtualMachine vm) {
-        float riCoverage = vm.getCurrentRICoverage();
-        return (riCoverage > SMAUtils.EPSILON && vm.getCurrentRIKey() == getRiKeyOid());
+        return (vm.getCurrentRI() != null &&
+            vm.getCurrentRI().getRiKeyOid() == getRiKeyOid()) &&
+            vm.getCurrentRICoverage() > SMAUtils.EPSILON;
     }
 
     /**

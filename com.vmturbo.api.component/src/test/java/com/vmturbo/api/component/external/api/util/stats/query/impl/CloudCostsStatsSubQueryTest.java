@@ -66,8 +66,9 @@ import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -118,25 +119,25 @@ public class CloudCostsStatsSubQueryTest {
 
     private final MinimalEntity businessAccount1 = MinimalEntity.newBuilder()
             .setDisplayName(ACCOUNT_NAME_1)
-            .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+            .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
             .setOid(ACCOUNT_ID_1)
             .build();
 
     private final MinimalEntity businessAccount2 = MinimalEntity.newBuilder()
             .setDisplayName(ACCOUNT_NAME_2)
-            .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+            .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
             .setOid(ACCOUNT_ID_2)
             .build();
 
     private final MinimalEntity cloudService1 = MinimalEntity.newBuilder()
             .setDisplayName(CLOUD_SERVICE_NAME_1)
-            .setEntityType(UIEntityType.CLOUD_SERVICE.typeNumber())
+            .setEntityType(ApiEntityType.CLOUD_SERVICE.typeNumber())
             .setOid(CLOUD_SERVICE_ID_1)
             .build();
 
     private final MinimalEntity cloudService2 = MinimalEntity.newBuilder()
             .setDisplayName(CLOUD_SERVICE_NAME_2)
-            .setEntityType(UIEntityType.CLOUD_SERVICE.typeNumber())
+            .setEntityType(ApiEntityType.CLOUD_SERVICE.typeNumber())
             .setOid(CLOUD_SERVICE_ID_2)
             .build();
 
@@ -163,26 +164,23 @@ public class CloudCostsStatsSubQueryTest {
             .build();
 
     @Before
-    public void setup() throws OperationFailedException {
+    public void setup() {
         MockitoAnnotations.initMocks(this);
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         when(thinTargetCache.getTargetInfo(TARGET_ID_1)).thenReturn(Optional.of(targetInfo1));
         when(thinTargetCache.getTargetInfo(TARGET_ID_2)).thenReturn(Optional.of(targetInfo2));
-        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
-                mockSupplyChainNodeFetcherBuilder();
-        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
         query = spy(new CloudCostsStatsSubQuery(repositoryApi, costRpc,
                 supplyChainFetcherFactory, thinTargetCache, new BuyRiScopeHandler(), storageStatsSubQuery, userSessionContext ));
     }
 
-    private SupplyChainNodeFetcherBuilder mockSupplyChainNodeFetcherBuilder()
-            throws OperationFailedException {
+    private SupplyChainNodeFetcherBuilder mockSupplyChainNodeFetcherBuilder(
+            Set<Long> fetchEntityIds) throws OperationFailedException {
         final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
                 mock(SupplyChainNodeFetcherBuilder.class);
         when(nodeFetcherBuilder.addSeedOids(any())).thenReturn(nodeFetcherBuilder);
         when(nodeFetcherBuilder.environmentType(any())).thenReturn(nodeFetcherBuilder);
         when(nodeFetcherBuilder.entityTypes(any())).thenReturn(nodeFetcherBuilder);
-        when(nodeFetcherBuilder.fetchEntityIds()).thenReturn(billingFamilyEntityIds);
+        when(nodeFetcherBuilder.fetchEntityIds()).thenReturn(fetchEntityIds);
         return nodeFetcherBuilder;
     }
 
@@ -212,7 +210,7 @@ public class CloudCostsStatsSubQueryTest {
 
 
         final GlobalScope globalScope = mock(GlobalScope.class);
-        when(globalScope.entityTypes()).thenReturn(Sets.newHashSet(UIEntityType.VIRTUAL_VOLUME));
+        when(globalScope.entityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.VIRTUAL_VOLUME));
         when(globalScope.environmentType()).thenReturn(Optional.of(EnvironmentType.CLOUD));
         StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
         when(statsQueryScope.getGlobalScope()).thenReturn(Optional.of(globalScope));
@@ -232,7 +230,7 @@ public class CloudCostsStatsSubQueryTest {
 
 
         final GlobalScope globalScope = mock(GlobalScope.class);
-        when(globalScope.entityTypes()).thenReturn(Sets.newHashSet(UIEntityType.VIRTUAL_VOLUME));
+        when(globalScope.entityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.VIRTUAL_VOLUME));
         when(globalScope.environmentType()).thenReturn(Optional.of(EnvironmentType.ON_PREM));
         StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
         when(statsQueryScope.getGlobalScope()).thenReturn(Optional.of(globalScope));
@@ -272,8 +270,13 @@ public class CloudCostsStatsSubQueryTest {
         StatsQueryContext context = mock(StatsQueryContext.class);
         ApiId apiId = mock(ApiId.class);
         when(apiId.getScopeTypes()).thenReturn(Optional.empty());
+        when(apiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
         when(context.getInputScope()).thenReturn(apiId);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
+        final GlobalScope globalScope = mock(GlobalScope.class);
+        StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
+        when(context.getQueryScope()).thenReturn(statsQueryScope);
+        when(context.getQueryScope().getGlobalScope()).thenReturn(Optional.of(globalScope));
 
         GetCloudCostStatsResponse response = GetCloudCostStatsResponse.newBuilder()
                 .addCloudStatRecord(CloudCostStatRecord.newBuilder()
@@ -341,8 +344,13 @@ public class CloudCostsStatsSubQueryTest {
         StatsQueryContext context = mock(StatsQueryContext.class);
         ApiId apiId = mock(ApiId.class);
         when(apiId.getScopeTypes()).thenReturn(Optional.empty());
+        when(apiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
         when(context.getInputScope()).thenReturn(apiId);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
+        final GlobalScope globalScope = mock(GlobalScope.class);
+        StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
+        when(context.getQueryScope()).thenReturn(statsQueryScope);
+        when(context.getQueryScope().getGlobalScope()).thenReturn(Optional.of(globalScope));
 
         GetCloudCostStatsResponse response = GetCloudCostStatsResponse.newBuilder()
                 .addCloudStatRecord(CloudCostStatRecord.newBuilder()
@@ -381,13 +389,15 @@ public class CloudCostsStatsSubQueryTest {
     }
 
     /**
-     * Test getAggregatedStats for resource group. Resource group contains only Virtual Volume as
+     * Test getAggregatedStats for resource group. Resource group contains only Virtual Machines as
      * member, so request cost cloud stats only for this entity type.
+     * Test count of workloads.
      *
      * @throws OperationFailedException on exceptions occur
      */
     @Test
     public void testGetAggregateStatsForResourceGroupScope() throws OperationFailedException {
+        final Set<Long> rgMembersOids = Sets.newHashSet(1L, 2L);
         final Set<StatApiInputDTO> requestedStats = createRequestStatsForResourceGroup();
 
         final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
@@ -397,16 +407,22 @@ public class CloudCostsStatsSubQueryTest {
 
         final ApiId apiId = mock(ApiId.class);
         when(apiId.getScopeTypes()).thenReturn(
-                Optional.of(Sets.newHashSet(UIEntityType.VIRTUAL_VOLUME)));
+                Optional.of(Sets.newHashSet(ApiEntityType.VIRTUAL_MACHINE)));
         when(apiId.isCloud()).thenReturn(true);
         when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+        when(apiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(true);
+        when(apiId.uuid()).thenReturn("123");
         when(context.getInputScope()).thenReturn(apiId);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
 
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
-        when(queryScope.getScopeOids()).thenReturn(Sets.newHashSet(1L, 2L));
+        when(queryScope.getScopeOids()).thenReturn(rgMembersOids);
         when(context.getQueryScope()).thenReturn(queryScope);
         when(context.getPlanInstance()).thenReturn(Optional.empty());
+
+        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
+                mockSupplyChainNodeFetcherBuilder(rgMembersOids);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
 
         // test that there is no scope expanding for resource groups
         verify(context.getQueryScope(), times(0)).getExpandedOids();
@@ -417,18 +433,29 @@ public class CloudCostsStatsSubQueryTest {
                 Cost.GetCloudCostStatsResponse.getDefaultInstance();
         when(costServiceMole.getCloudCostStats(costParamCaptor.capture())).thenReturn(response);
 
-        query.getAggregateStats(requestedStats, context);
+        final List<StatSnapshotApiDTO> aggregateStats =
+                query.getAggregateStats(requestedStats, context);
         final List<CloudCostStatsQuery> cloudCostStatsQueryList =
                 costParamCaptor.getValue().getCloudCostStatsQueryList();
 
         // Check that requests cost only for entity types existed in resource group.
-        // In our case request only stats for volume and don't request for vms, dbs and
+        // In our case request only stats for VMs and don't request for volumes, dbs and
         // dbServers
         Assert.assertEquals(cloudCostStatsQueryList.size(), 1);
         final List<Integer> entityTypeIds =
                 cloudCostStatsQueryList.get(0).getEntityTypeFilter().getEntityTypeIdList();
         Assert.assertEquals(entityTypeIds.size(), 1);
-        Assert.assertEquals(EntityType.VIRTUAL_VOLUME.getNumber(), entityTypeIds.get(0).intValue());
+        Assert.assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(),
+                entityTypeIds.get(0).intValue());
+
+        // check that count of workloads is calculated correctly (test RG has 2 VM as members)
+        final Optional<StatApiDTO> numWorkloadsStat = aggregateStats.iterator()
+                .next()
+                .getStatistics()
+                .stream()
+                .filter(stat -> stat.getName().equals(StringConstants.NUM_WORKLOADS))
+                .findFirst();
+        Assert.assertEquals(Float.valueOf(rgMembersOids.size()), numWorkloadsStat.get().getValue());
     }
 
     /**
@@ -443,10 +470,15 @@ public class CloudCostsStatsSubQueryTest {
         final Set<StatApiInputDTO> requestedStats =
                 Collections.singleton(createNumWorkloadsInputDto());
         final ApiId apiId = createApiIdMock(GroupType.BILLING_FAMILY,
-                Collections.singleton(UIEntityType.BUSINESS_ACCOUNT));
+                Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT));
+        when(apiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
         final StatsQueryContext context = createStatsQueryContextMock(apiId);
 
         // when
+        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
+                mockSupplyChainNodeFetcherBuilder(billingFamilyEntityIds);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
+
         final List<StatSnapshotApiDTO> result = query.getAggregateStats(requestedStats, context);
 
         // then
@@ -457,7 +489,7 @@ public class CloudCostsStatsSubQueryTest {
         Assert.assertEquals(billingFamilyEntityIds.size(), statApiDTO.getValue(), 0);
     }
 
-    private ApiId createApiIdMock(final GroupType groupType, final Set<UIEntityType> scopeTypes) {
+    private ApiId createApiIdMock(final GroupType groupType, final Set<ApiEntityType> scopeTypes) {
         final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
         when(cachedGroupInfo.getGroupType()).thenReturn(groupType);
         final ApiId apiId = mock(ApiId.class);
@@ -471,6 +503,8 @@ public class CloudCostsStatsSubQueryTest {
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(apiId);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
+        when(context.getInputScope().isRealtimeMarket()).thenReturn(false);
+        when(context.getInputScope().uuid()).thenReturn("1");
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
         when(queryScope.getScopeOids()).thenReturn(Sets.newHashSet(1L));
         when(context.getQueryScope()).thenReturn(queryScope);
@@ -480,10 +514,10 @@ public class CloudCostsStatsSubQueryTest {
 
     private StatApiInputDTO createNumWorkloadsInputDto() {
         final StatFilterApiDTO filterApiDTO = new StatFilterApiDTO();
-        filterApiDTO.setType("environmentType");
-        filterApiDTO.setValue("CLOUD");
+        filterApiDTO.setType(StringConstants.ENVIRONMENT_TYPE);
+        filterApiDTO.setValue(EnvironmentType.CLOUD.name());
         final StatApiInputDTO inputDTO = new StatApiInputDTO();
-        inputDTO.setName("numWorkloads");
+        inputDTO.setName(StringConstants.NUM_WORKLOADS);
         inputDTO.setFilters(Collections.singletonList(filterApiDTO));
         return inputDTO;
     }
@@ -506,7 +540,12 @@ public class CloudCostsStatsSubQueryTest {
 
         StatsQueryContext context = mock(StatsQueryContext.class);
         ApiId apiId = mock(ApiId.class);
+        final GlobalScope globalScope = mock(GlobalScope.class);
+        StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
+        when(context.getQueryScope()).thenReturn(statsQueryScope);
+        when(context.getQueryScope().getGlobalScope()).thenReturn(Optional.of(globalScope));
         when(apiId.getScopeTypes()).thenReturn(Optional.empty());
+        when(apiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
         when(context.getInputScope()).thenReturn(apiId);
         when(context.getTimeWindow()).thenReturn(Optional.empty());
 
@@ -549,7 +588,7 @@ public class CloudCostsStatsSubQueryTest {
     private StatRecord createCloudServiceStatRecord(long cloudServiceId, float cost) {
         return StatRecord.newBuilder()
                 .setAssociatedEntityId(cloudServiceId)
-                .setAssociatedEntityType(UIEntityType.CLOUD_SERVICE.typeNumber())
+                .setAssociatedEntityType(ApiEntityType.CLOUD_SERVICE.typeNumber())
                 .setUnits("$/h")
                 .setValues(StatValue.newBuilder().setAvg(cost).build())
                 .build();
@@ -557,23 +596,29 @@ public class CloudCostsStatsSubQueryTest {
 
     private Set<StatApiInputDTO> createRequestStats() {
         return Collections.singleton(createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
-                UIEntityType.VIRTUAL_MACHINE.apiStr()));
+                ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+    }
+
+    private Set<StatApiInputDTO> createRequestStatsForCloudTab() {
+        return Sets.newHashSet(createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
+                ApiEntityType.VIRTUAL_MACHINE.apiStr()), createNumWorkloadsInputDto());
     }
 
     private Set<StatApiInputDTO> createRequestStatsForResourceGroup() {
         final StatApiInputDTO vmStat =
                 createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
-                        UIEntityType.VIRTUAL_MACHINE.apiStr());
+                        ApiEntityType.VIRTUAL_MACHINE.apiStr());
         final StatApiInputDTO dbServerStat =
                 createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
-                        UIEntityType.DATABASE_SERVER.apiStr());
+                        ApiEntityType.DATABASE_SERVER.apiStr());
         final StatApiInputDTO dbStat =
                 createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
-                        UIEntityType.DATABASE.apiStr());
+                        ApiEntityType.DATABASE.apiStr());
         final StatApiInputDTO volumeStat =
                 createRequestStat(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY,
-                        UIEntityType.VIRTUAL_VOLUME.apiStr());
-        return Sets.newHashSet(vmStat, dbStat, dbServerStat, volumeStat);
+                        ApiEntityType.VIRTUAL_VOLUME.apiStr());
+        final StatApiInputDTO numWorkloads = createNumWorkloadsInputDto();
+        return Sets.newHashSet(vmStat, dbStat, dbServerStat, volumeStat, numWorkloads);
     }
 
     private StatApiInputDTO createRequestStat(String statName, String relatedEntityType) {
@@ -599,7 +644,7 @@ public class CloudCostsStatsSubQueryTest {
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
         when(inputScope.getScopeTypes()).thenReturn(Optional.of(
-            Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
+            Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -615,9 +660,11 @@ public class CloudCostsStatsSubQueryTest {
         when(inputScope.isCloud()).thenReturn(true);
         when(inputScope.isEntity()).thenReturn(false);
         when(inputScope.isGroup()).thenReturn(true);
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
+
         final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
         when(cachedGroupInfo.getEntityTypes())
-            .thenReturn(Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
+            .thenReturn(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
         when(cachedGroupInfo.getGroupType()).thenReturn(GroupType.BILLING_FAMILY);
         when(inputScope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
 
@@ -643,21 +690,22 @@ public class CloudCostsStatsSubQueryTest {
                         .setCostCategoryFilter(CostCategoryFilter.newBuilder()
                                 .addCostCategory(CostCategory.ON_DEMAND_COMPUTE).build())
             .setEntityTypeFilter(EntityTypeFilter.newBuilder()
-                .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .addEntityTypeId(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
             .setAccountFilter(AccountFilter.newBuilder().addAccountId(5L).build())
             .setRequestProjected(true)
            .build()).build()));
     }
 
-    /**gi
-     * Tests getting the costs for for cloud tab of realtime market.
+    /**
+     * Tests getting the costs and count of workloads for for cloud tab of realtime market.
      *
      * @throws Exception if something goes wrong.
      */
     @Test
     public void testGetAggregateStatsCloudTab() throws Exception {
         // ARRANGE
-        final Set<StatApiInputDTO> requestedStats = createRequestStats();
+        Set<Long> cloudTabWorkloads = Collections.singleton(1L);
+        final Set<StatApiInputDTO> requestedStats = createRequestStatsForCloudTab();
         requestedStats.iterator().next().setRelatedEntityType(null);
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
@@ -678,6 +726,7 @@ public class CloudCostsStatsSubQueryTest {
         when(inputScope.isEntity()).thenReturn(false);
         when(inputScope.isGroup()).thenReturn(false);
         when(inputScope.getCachedGroupInfo()).thenReturn(Optional.empty());
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
         // Behaviors associated to costRpcService
         ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
             ArgumentCaptor.forClass(Cost.GetCloudCostStatsRequest.class);
@@ -688,9 +737,13 @@ public class CloudCostsStatsSubQueryTest {
         // Behaviors associated to query scope
         when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
 
+        final SupplyChainNodeFetcherBuilder nodeFetcherBuilder =
+                mockSupplyChainNodeFetcherBuilder(cloudTabWorkloads);
+        when(supplyChainFetcherFactory.newNodeFetcher()).thenReturn(nodeFetcherBuilder);
+
 
         // ACT
-        query.getAggregateStats(requestedStats, context);
+        List<StatSnapshotApiDTO> aggregateStats = query.getAggregateStats(requestedStats, context);
 
         // ASSERT
         // make sure we made correct call to cost service
@@ -703,6 +756,16 @@ public class CloudCostsStatsSubQueryTest {
                         .build())
             .build()
         ));
+
+        // check that count of workloads is calculated correctly (test cloud tab has 1 workload)
+        final Optional<StatApiDTO> numWorkloadsStat = aggregateStats.iterator()
+                .next()
+                .getStatistics()
+                .stream()
+                .filter(stat -> stat.getName().equals(StringConstants.NUM_WORKLOADS))
+                .findFirst();
+        Assert.assertEquals(Float.valueOf(cloudTabWorkloads.size()),
+                numWorkloadsStat.get().getValue());
     }
 
     /**
@@ -716,7 +779,7 @@ public class CloudCostsStatsSubQueryTest {
         final Set<StatApiInputDTO> requestedStats = createRequestStats();
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
-        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.REGION)));
+        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(ApiEntityType.REGION)));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -733,8 +796,9 @@ public class CloudCostsStatsSubQueryTest {
         when(inputScope.isEntity()).thenReturn(true);
         when(inputScope.isGroup()).thenReturn(false);
         when(inputScope.getScopeTypes()).thenReturn(Optional
-                .of(Collections.singleton(UIEntityType.REGION)));
+                .of(Collections.singleton(ApiEntityType.REGION)));
         when(inputScope.getCachedGroupInfo()).thenReturn(Optional.empty());
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
 
         // Behaviors associated to costRpcService
         ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
@@ -758,7 +822,7 @@ public class CloudCostsStatsSubQueryTest {
                         .setCostCategoryFilter(CostCategoryFilter.newBuilder()
                                 .addCostCategory(CostCategory.ON_DEMAND_COMPUTE).build())
                         .setEntityTypeFilter(EntityTypeFilter.newBuilder()
-                                .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                                .addEntityTypeId(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                         .setRegionFilter(Cost.RegionFilter.newBuilder().addRegionId(5L).build())
                         .setRequestProjected(true)
                         .build()).build()
@@ -776,7 +840,7 @@ public class CloudCostsStatsSubQueryTest {
         final Set<StatApiInputDTO> requestedStats = createRequestStats();
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
-        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
+        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -792,9 +856,11 @@ public class CloudCostsStatsSubQueryTest {
         when(inputScope.isCloud()).thenReturn(true);
         when(inputScope.isEntity()).thenReturn(false);
         when(inputScope.isGroup()).thenReturn(true);
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
+
         final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
         when(cachedGroupInfo.getEntityTypes())
-                .thenReturn(Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
+                .thenReturn(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
         when(cachedGroupInfo.getNestedGroupTypes())
             .thenReturn(Collections.singleton(GroupType.BILLING_FAMILY));
         when(cachedGroupInfo.getGroupType()).thenReturn(GroupType.REGULAR);
@@ -822,7 +888,7 @@ public class CloudCostsStatsSubQueryTest {
                         .setCostCategoryFilter(CostCategoryFilter.newBuilder()
                                 .addCostCategory(CostCategory.ON_DEMAND_COMPUTE).build())
                         .setEntityTypeFilter(EntityTypeFilter.newBuilder()
-                                .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                                .addEntityTypeId(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                         .setAccountFilter(AccountFilter.newBuilder().addAccountId(5L))
                         .setRequestProjected(true)
                         .build()).build()
@@ -840,7 +906,7 @@ public class CloudCostsStatsSubQueryTest {
         final Set<StatApiInputDTO> requestedStats = createRequestStats();
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
-        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.REGION)));
+        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(ApiEntityType.REGION)));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -856,9 +922,11 @@ public class CloudCostsStatsSubQueryTest {
         when(inputScope.isCloud()).thenReturn(true);
         when(inputScope.isEntity()).thenReturn(false);
         when(inputScope.isGroup()).thenReturn(true);
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
+
         final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
         when(cachedGroupInfo.getEntityTypes())
-            .thenReturn(Collections.singleton(UIEntityType.REGION));
+            .thenReturn(Collections.singleton(ApiEntityType.REGION));
         when(cachedGroupInfo.getNestedGroupTypes())
                 .thenReturn(Collections.emptySet());
         when(cachedGroupInfo.getGroupType()).thenReturn(GroupType.REGULAR);
@@ -886,7 +954,7 @@ public class CloudCostsStatsSubQueryTest {
                                 .addCostCategory(CostCategory.ON_DEMAND_COMPUTE).build())
                         .setQueryId(0L)
                         .setEntityTypeFilter(EntityTypeFilter.newBuilder()
-                                .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                                .addEntityTypeId(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                         .setRegionFilter(RegionFilter.newBuilder().addRegionId(5L))
                         .setRequestProjected(true)
                         .build()).build()
@@ -906,12 +974,12 @@ public class CloudCostsStatsSubQueryTest {
         computeFilter.setValue(CostCategory.ON_DEMAND_COMPUTE.name());
         StatApiInputDTO vmCostStatApi = new StatApiInputDTO();
         vmCostStatApi.setName(CloudCostsStatsSubQuery.COST_PRICE_QUERY_KEY );
-        vmCostStatApi.setRelatedEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        vmCostStatApi.setRelatedEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         vmCostStatApi.setFilters(Collections.singletonList(computeFilter));
         final Set<StatApiInputDTO> requestedStats = Collections.singleton(vmCostStatApi);
         final StatsQueryContext context = mock(StatsQueryContext.class);
         final ApiId inputScope = mock(ApiId.class);
-        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(UIEntityType.VIRTUAL_MACHINE)));
+        when(inputScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE)));
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
 
         // Behaviors associated to context
@@ -927,13 +995,17 @@ public class CloudCostsStatsSubQueryTest {
         when(inputScope.isCloud()).thenReturn(true);
         when(inputScope.isEntity()).thenReturn(false);
         when(inputScope.isGroup()).thenReturn(true);
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
         final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
         when(cachedGroupInfo.getEntityTypes())
-                .thenReturn(Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
+                .thenReturn(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
         when(cachedGroupInfo.getNestedGroupTypes())
                 .thenReturn(Collections.emptySet());
         when(cachedGroupInfo.getGroupType()).thenReturn(GroupType.REGULAR);
         when(inputScope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
+
+        final GlobalScope globalScope = mock(GlobalScope.class);
+        when(context.getQueryScope().getGlobalScope()).thenReturn(Optional.of(globalScope));
 
         // Behaviors associated to costRpcService
         ArgumentCaptor<Cost.GetCloudCostStatsRequest> costParamCaptor =
@@ -957,7 +1029,7 @@ public class CloudCostsStatsSubQueryTest {
                         .setRequestProjected(true)
                         .setEntityFilter(EntityFilter.newBuilder().addEntityId(5L))
                         .setEntityTypeFilter(EntityTypeFilter.newBuilder()
-                                .addEntityTypeId(UIEntityType.VIRTUAL_MACHINE.sdkType().getNumber()))
+                                .addEntityTypeId(ApiEntityType.VIRTUAL_MACHINE.sdkType().getNumber()))
                         .setCostCategoryFilter(CostCategoryFilter.newBuilder()
                                 .addCostCategory(CostCategory.ON_DEMAND_COMPUTE))
                         .setCostSourceFilter(CostSourceFilter.newBuilder()
@@ -974,6 +1046,7 @@ public class CloudCostsStatsSubQueryTest {
         when(inputScope.isRealtimeMarket()).thenReturn(true);
         when(inputScope.isGroup()).thenReturn(false);
         when(inputScope.getScopeTypes()).thenReturn(Optional.empty());
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(inputScope);
@@ -989,8 +1062,9 @@ public class CloudCostsStatsSubQueryTest {
         UuidMapper.ApiId inputScope = mock(UuidMapper.ApiId.class);
         when(inputScope.isRealtimeMarket()).thenReturn(false);
         when(inputScope.isGroup()).thenReturn(false);
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
         when(inputScope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
+                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)));
         when(inputScope.oid()).thenReturn(ACCOUNT_ID_1);
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
@@ -1013,8 +1087,9 @@ public class CloudCostsStatsSubQueryTest {
         when(inputScope.isGroup()).thenReturn(true);
         when(inputScope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
         when(inputScope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(UIEntityType.BUSINESS_ACCOUNT)));
+                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)));
         when(inputScope.oid()).thenReturn(BILLING_FAMILY_ID);
+        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(inputScope);

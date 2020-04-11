@@ -87,7 +87,7 @@ public abstract class ComponentRestClient {
                 logger.trace("Executing request {}", request);
                 response = restTemplate.exchange(request, responseClass);
             } catch (RestClientException e) {
-                throw new CommunicationException("Error executing request " + request, e);
+                throw new CommunicationException(createCommunicationExceptionMessage(request), e);
             }
             if (response.getStatusCode() == HttpStatus.OK) {
                 final T result = response.getBody();
@@ -102,6 +102,17 @@ public abstract class ComponentRestClient {
             // This should never happen
             throw new CommunicationException(
                     "Unexpected HTTP status returned: " + response.getStatusCode());
+        }
+
+        /**
+         * Construct an error message based on the request.  This allows subclasses to sanitize the
+         * message in cases where the request may contain sensitive information like passwords.
+         *
+         * @param request the request that led to the communication exception.
+         * @return String giving the message to include in the exception that we throw.
+         */
+        protected String createCommunicationExceptionMessage(RequestEntity<?> request) {
+            return "Error executing request " + request;
         }
 
         /**

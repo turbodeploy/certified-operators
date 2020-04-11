@@ -7,11 +7,6 @@ import static com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier.UU
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.PREDEFINED_SECURITY_GROUPS_SET;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,13 +30,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.CompressionCodecs;
-import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
-import io.jsonwebtoken.impl.crypto.EllipticCurveProvider;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -55,18 +47,18 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import com.vmturbo.api.enums.UserRole;
-import com.vmturbo.auth.api.JWTKeyCodec;
 import com.vmturbo.auth.api.authentication.AuthenticationException;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.IAuthorizationVerifier;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
-import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.policy.UserPolicy;
+import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.store.sso.SsoUtil;
 import com.vmturbo.auth.component.widgetset.WidgetsetDbStore;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
@@ -74,9 +66,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.crypto.CryptoFacility;
 import com.vmturbo.kvstore.KeyValueStore;
 
 /**
@@ -103,44 +94,14 @@ public class AuthProvider {
      */
     private static final String PREFIX_GROUP_USERS = "groupusers/";
 
-    /**
-     * The keystore data file name.
-     */
-    private static final String VMT_PRIVATE_KEY_FILE = "vmt_helper_kv.inout";
-
-    /**
-     * The admin initialization file name.
-     */
-    private static final String VMT_INIT_KEY_FILE = "vmt_helper_init.inout";
-
-    /**
-     * The charset for the passwords.
-     */
-    private static final String CHARSET_CRYPTO = "UTF-8";
-
     private static final String UNABLE_TO_AUTHORIZE_THE_USER = "Unable to authorize the user: ";
     private static final String WITH_GROUP = " with group: ";
     private static final String AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER =
             "AUDIT::SUCCESS: Success authenticating user: ";
-
-    /**
-     * The private key.
-     * It is protected by synchronization on the instance.
-     */
-    private PrivateKey privateKey_ = null;
+    private final AuthInitProvider authInitProvider;
 
     private final Logger logger_ = LogManager.getLogger(AuthProvider.class);
     private static final Gson GSON = new GsonBuilder().create();
-
-    /**
-     * The init claim.
-     */
-    private static final String CLAIM = "initStatus";
-
-    /**
-     * The init status.
-     */
-    private static final String INIT_SUBJECT = "admin";
 
     /**
      * The key/value store.
@@ -158,13 +119,13 @@ public class AuthProvider {
      */
     private final @Nonnull SsoUtil ssoUtil;
 
+    private final UserPolicy userPolicy;
+
     /**
      * The identity generator prefix
      */
     @Value("${identityGeneratorPrefix}")
     private long identityGeneratorPrefix_;
-
-    private final Supplier<String> keyValueDir;
 
     /**
      * We may sometimes call the group service to verify scope groups.
@@ -185,7 +146,7 @@ public class AuthProvider {
     @VisibleForTesting
     public AuthProvider(@Nonnull final KeyValueStore keyValueStore,
                         @Nonnull final Supplier<String> keyValueDir) {
-        this(keyValueStore, null, keyValueDir, null);
+        this(keyValueStore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL));
     }
 
     /**
@@ -195,17 +156,20 @@ public class AuthProvider {
      * @param groupServiceClient gRPC client to access the group service.
      * @param keyValueDir Function to provide the directory to store private key value data.
      * @param widgetsetDbStore The store for managing widgetsets.
+     * @param userPolicy The system-wide user policy.
      */
     public AuthProvider(@Nonnull final KeyValueStore keyValueStore,
                         @Nullable final GroupServiceBlockingStub groupServiceClient,
                         @Nonnull final Supplier<String> keyValueDir,
-                        @Nullable final WidgetsetDbStore widgetsetDbStore) {
+                        @Nullable final WidgetsetDbStore widgetsetDbStore,
+                        @Nonnull UserPolicy userPolicy) {
         keyValueStore_ = Objects.requireNonNull(keyValueStore);
+        authInitProvider = new AuthInitProvider(keyValueStore, keyValueDir);
         ssoUtil = new SsoUtil();
-        this.keyValueDir = keyValueDir;
         IdentityGenerator.initPrefix(identityGeneratorPrefix_);
         this.groupServiceClient = Optional.ofNullable(groupServiceClient);
         this.widgetsetDbStore = widgetsetDbStore;
+        this.userPolicy = userPolicy;
     }
 
     /**
@@ -218,12 +182,11 @@ public class AuthProvider {
      * @param provider The login provider.
      * @return The generated JWT token.
      */
-    private @Nonnull JWTAuthorizationToken generateToken(final @Nonnull String userName,
-                                                         final @Nonnull String uuid,
-                                                         final @Nonnull List<String> roles,
-                                                         final @Nullable List<Long> scopeGroups,
-                                                         final @Nonnull AuthUserDTO.PROVIDER provider) {
-        final PrivateKey privateKey = getEncryptionKeyForVMTurboInstance();
+    @Nonnull
+    private JWTAuthorizationToken generateToken(final @Nonnull String userName,
+            final @Nonnull String uuid, final @Nonnull List<String> roles,
+            final @Nullable List<Long> scopeGroups, final @Nonnull AuthUserDTO.PROVIDER provider) {
+        final PrivateKey privateKey = authInitProvider.getEncryptionKeyForVMTurboInstance();
         JwtBuilder jwtBuilder = Jwts.builder()
                              .setSubject(userName)
                              .claim(IAuthorizationVerifier.ROLE_CLAIM, roles)
@@ -257,7 +220,7 @@ public class AuthProvider {
                                                          final @Nullable List<Long> scopeGroups,
                                                          final @Nonnull String ipAddress,
                                                          final @Nonnull AuthUserDTO.PROVIDER provider) {
-        final PrivateKey privateKey = getEncryptionKeyForVMTurboInstance();
+        final PrivateKey privateKey = authInitProvider.getEncryptionKeyForVMTurboInstance();
         JwtBuilder jwtBuilder = Jwts.builder()
                 .setSubject(userName)
                 .claim(IP_ADDRESS_CLAIM, ipAddress)
@@ -273,48 +236,6 @@ public class AuthProvider {
         String compact = jwtBuilder.compact();
 
         return new JWTAuthorizationToken(compact);
-    }
-
-    /**
-     * This method gets the private key that is stored in the dedicated docker volume.
-     *
-     * @return The private key that is stored in the dedicated docker volume.
-     */
-    private synchronized @Nonnull PrivateKey getEncryptionKeyForVMTurboInstance() {
-        if (privateKey_ != null) {
-            return privateKey_;
-        }
-
-        final String location = keyValueDir.get();
-        Path encryptionFile = Paths.get(location + "/" + VMT_PRIVATE_KEY_FILE);
-        try {
-            if (Files.exists(encryptionFile)) {
-                byte[] keyBytes = Files.readAllBytes(encryptionFile);
-                String cipherText = new String(keyBytes, CHARSET_CRYPTO);
-                privateKey_ = JWTKeyCodec.decodePrivateKey(CryptoFacility.decrypt(cipherText));
-                return privateKey_;
-            }
-
-            // We don't have the file or it is of the wrong length.
-            Path outputDir = Paths.get(location);
-            if (!Files.exists(outputDir)) {
-                Files.createDirectories(outputDir);
-            }
-
-            KeyPair keyPair = EllipticCurveProvider.generateKeyPair(SignatureAlgorithm.ES256);
-            String privateKeyEncoded = JWTKeyCodec.encodePrivateKey(keyPair);
-            String publicKeyEncoded = JWTKeyCodec.encodePublicKey(keyPair);
-
-            // Persist
-            Files.write(encryptionFile,
-                        CryptoFacility.encrypt(privateKeyEncoded).getBytes(CHARSET_CRYPTO));
-            keyValueStore_.put(IAuthStore.KV_KEY, publicKeyEncoded);
-            privateKey_ = keyPair.getPrivate();
-        } catch (IOException e) {
-            throw new SecurityException(e);
-        }
-
-        return privateKey_;
     }
 
     /**
@@ -422,41 +343,8 @@ public class AuthProvider {
      */
     public boolean checkAdminInit() throws SecurityException {
         // Make sure we have initialized the site secret.
-        getEncryptionKeyForVMTurboInstance();
         // The file contains the flag that specifies whether admin user has been initialized.
-        final String location = keyValueDir.get();
-        Path encryptionFile = Paths.get(location + "/" + VMT_INIT_KEY_FILE);
-        try {
-            if (Files.exists(encryptionFile)) {
-                byte[] keyBytes = Files.readAllBytes(encryptionFile);
-                String cipherText = new String(keyBytes, CHARSET_CRYPTO);
-                String token = CryptoFacility.decrypt(cipherText);
-                Optional<String> key = keyValueStore_.get(IAuthStore.KV_KEY);
-                if (!key.isPresent()) {
-                    throw new SecurityException("The public key is unavailable");
-                }
-                final Jws<Claims> claims =
-                        Jwts.parser().setSigningKey(JWTKeyCodec.decodePublicKey(key.get()))
-                            .parseClaimsJws(token);
-                final String status = (String)claims.getBody().get(CLAIM);
-                // Check subject.
-                if (!INIT_SUBJECT.equals(claims.getBody().getSubject())) {
-                    throw new SecurityException(
-                            "The admin instantiation status has been tampered with.");
-                }
-                // Check status validity
-                if (!"true".equals(status) && !"false".equals(status)) {
-                    throw new SecurityException(
-                            "The admin instantiation status has been tampered with.");
-                }
-                return Boolean.parseBoolean(status);
-            } else {
-                logger_.info("The admin user hasn't been initialized yet.");
-            }
-            return false;
-        } catch (IOException e) {
-            throw new SecurityException(e);
-        }
+        return authInitProvider.checkAdminInit();
     }
 
     /**
@@ -475,35 +363,17 @@ public class AuthProvider {
                              final @Nonnull String password)
             throws SecurityException {
         // Make sure we have initialized the site secret.
-        getEncryptionKeyForVMTurboInstance();
-        final String location = keyValueDir.get();
-        Path encryptionFile = Paths.get(location + "/" + VMT_INIT_KEY_FILE);
-        try {
-            if (Files.exists(encryptionFile)) {
-                return false;
-            }
-
-            String compact = Jwts.builder()
-                                 .setSubject(INIT_SUBJECT)
-                                 .claim(CLAIM, "true")
-                                 .compressWith(CompressionCodecs.GZIP)
-                                 .signWith(SignatureAlgorithm.ES256, privateKey_)
-                                 .compact();
-
-            // Persist the initialization status.
-            Files.write(encryptionFile,
-                        CryptoFacility.encrypt(compact).getBytes(CHARSET_CRYPTO));
+        if (authInitProvider.initAdmin(userName, password)) {
             try {
                 String adminUser = addImpl(AuthUserDTO.PROVIDER.LOCAL, userName, password,
-                    ImmutableList.of(ADMINISTRATOR), null);
+                        ImmutableList.of(ADMINISTRATOR), null);
                 createPredefinedExternalGroups();
                 return !adminUser.isEmpty();
-            }  catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 return false;
             }
-        } catch (IOException e) {
-            throw new SecurityException(e);
         }
+        return false;
     }
 
     private void createPredefinedExternalGroups() {
@@ -671,17 +541,11 @@ public class AuthProvider {
                                                        final @Nonnull String password,
                                                        final @Nonnull String ipAddress)
             throws AuthenticationException, SecurityException {
-        // Try local users first.
-        Optional<String> json = getKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LOCAL,
-                                                              userName));
-        if (!json.isPresent()) {
-            json = getKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LDAP, userName));
-        }
-
-        if (json.isPresent()) {
+        // Try persisted users first.
+        final Optional<UserInfo> userInfoOptional = retrievePersistedUser(userName);
+        if (userInfoOptional.isPresent()) {
             try {
-                String jsonData = json.get();
-                UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
+                final UserInfo info = userInfoOptional.get();
                 // Check the authentication.
                 if (!info.unlocked) {
                     logger_.warn("AUDIT::FAILURE:AUTH: Account is locked: " + userName);
@@ -713,6 +577,34 @@ public class AuthProvider {
         return authenticateADGroup(userName, password);
     }
 
+    /**
+     * Try to retrieve persisted user, which includes local and external user.
+     *
+     * @param userName user name.
+     * @return UserInfo if found the matched user.
+     */
+    private Optional<UserInfo> retrievePersistedUser(@Nonnull String userName) {
+        Optional<UserInfo> allowedUser = Optional.empty();
+        if (userPolicy.isLocalUserLoginAllowed()) {
+            allowedUser = getKVValue(composeUserInfoKey(PROVIDER.LOCAL, userName)).map(
+                    jsonData -> GSON.fromJson(jsonData, UserInfo.class));
+        }
+        if (!allowedUser.isPresent() && userPolicy.isADUserLoginAllowed()) {
+            allowedUser = getKVValue(composeUserInfoKey(PROVIDER.LDAP, userName)).map(
+                    jsonData -> GSON.fromJson(jsonData, UserInfo.class));
+        }
+
+        // Although in AD_ONLY mode, local user is NOT allowed to login,
+        // but when AD is not available, local admin user is allowed.
+        if (!allowedUser.isPresent() && !userPolicy.isLocalUserLoginAllowed()) {
+            reloadSSOConfiguration();
+            allowedUser = userPolicy.getAllowedUserToLoginInRecoveryMode(ssoUtil.isADAvailable(),
+                    () -> getKVValue(composeUserInfoKey(PROVIDER.LOCAL, userName)).map(
+                            jsonData -> GSON.fromJson(jsonData, UserInfo.class))
+                            .filter(userInfo -> roleMatched(userInfo.roles, ADMINISTRATOR)));
+        }
+        return allowedUser;
+    }
 
     /**
      * Authenticates the user when IP address is available.
@@ -792,10 +684,10 @@ public class AuthProvider {
                             .build());
 
             while (groups.hasNext()) {
-                Collection<UIEntityType> entityTypes = GroupProtoUtil.getEntityTypes(groups.next());
+                Collection<ApiEntityType> entityTypes = GroupProtoUtil.getEntityTypes(groups.next());
                 final Set<String> groupEntityTypes = entityTypes
                                 .stream()
-                                .map(UIEntityType::apiStr)
+                                .map(ApiEntityType::apiStr)
                                 .collect(Collectors.toSet());
                 if (entityTypes.size() == 0 || !UserScopeUtils.SHARED_USER_ENTITY_TYPES.containsAll(groupEntityTypes)) {
                     // invalid group assignment
@@ -1595,8 +1487,7 @@ public class AuthProvider {
      * 2. replace uuid (String) to uuid (long).<p>
      * Similar to the #1, just keeping the variable 'uuid' instead of changing it to oid.</p>
      */
-    @VisibleForTesting
-    static class UserInfo {
+    public static class UserInfo {
         AuthUserDTO.PROVIDER provider;
 
         String userName;
@@ -1610,6 +1501,10 @@ public class AuthProvider {
         List<Long> scopeGroups;
 
         boolean unlocked;
+
+        public boolean isAdminUser() {
+            return roles.stream().anyMatch(role -> role.equalsIgnoreCase(ADMINISTRATOR));
+        }
     }
 
     /**

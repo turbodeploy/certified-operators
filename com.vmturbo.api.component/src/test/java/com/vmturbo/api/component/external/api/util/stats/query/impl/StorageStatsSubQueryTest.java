@@ -22,16 +22,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.platform.common.dto.CommonDTO;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
@@ -45,15 +43,18 @@ import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.search.Search;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 
 public class StorageStatsSubQueryTest {
@@ -64,10 +65,13 @@ public class StorageStatsSubQueryTest {
     @Mock
     private RepositoryApi repositoryApi;
 
+    @Mock
+    private UserSessionContext userSessionContext;
+
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
-        query = new StorageStatsSubQuery(repositoryApi);
+        query = new StorageStatsSubQuery(repositoryApi, userSessionContext);
     }
 
     // Test SubQuery Method applicableInContext
@@ -102,7 +106,7 @@ public class StorageStatsSubQueryTest {
 
         ArgumentCaptor<Set<String>> getStats = new ArgumentCaptor();
         StatApiInputDTO statApiInputDTO = createStatApiInputDTO(NUM_VOLUMES,
-                UIEntityType.VIRTUAL_VOLUME,
+                ApiEntityType.VIRTUAL_VOLUME,
                 Collections.singletonList(StringConstants.ATTACHMENT));
         StatFilterApiDTO statFilterApiDTO = new StatFilterApiDTO();
         statFilterApiDTO .setType(StringConstants.ENVIRONMENT_TYPE);
@@ -124,7 +128,7 @@ public class StorageStatsSubQueryTest {
 
         final ArgumentCaptor<Set<String>> getStats = new ArgumentCaptor();
         StatApiInputDTO statApiInputDTO = createStatApiInputDTO(NUM_VOLUMES,
-                UIEntityType.VIRTUAL_VOLUME,
+                ApiEntityType.VIRTUAL_VOLUME,
                 Collections.singletonList(StringConstants.ATTACHMENT));
         StatFilterApiDTO statFilterApiDTO = new StatFilterApiDTO();
         statFilterApiDTO .setType(StringConstants.ENVIRONMENT_TYPE);
@@ -146,8 +150,8 @@ public class StorageStatsSubQueryTest {
 
         ArgumentCaptor<Set<String>> getStats = new ArgumentCaptor();
         StatApiInputDTO statApiInputDTO = createStatApiInputDTO(NUM_VOLUMES,
-            UIEntityType.VIRTUAL_VOLUME,
-            Collections.singletonList(UIEntityType.STORAGE_TIER.apiStr()));
+            ApiEntityType.VIRTUAL_VOLUME,
+            Collections.singletonList(ApiEntityType.STORAGE_TIER.apiStr()));
         StatFilterApiDTO statFilterApiDTO = new StatFilterApiDTO();
         statFilterApiDTO.setType(StringConstants.ENVIRONMENT_TYPE);
         statFilterApiDTO.setValue(EnvironmentType.ON_PREM.name());
@@ -170,7 +174,7 @@ public class StorageStatsSubQueryTest {
 
         ArgumentCaptor<Set<String>> getStats = new ArgumentCaptor();
         StatApiInputDTO statApiInputDTO = createStatApiInputDTO(NUM_VOLUMES,
-            UIEntityType.VIRTUAL_VOLUME,
+            ApiEntityType.VIRTUAL_VOLUME,
             Collections.singletonList(someOtherGrouping));
         when(context.findStats(getStats.capture())).thenReturn(Sets.newHashSet(statApiInputDTO));
 
@@ -188,8 +192,8 @@ public class StorageStatsSubQueryTest {
 
         ArgumentCaptor<Set<String>> getStats = new ArgumentCaptor();
         StatApiInputDTO statApiInputDTO = createStatApiInputDTO(NUM_VOLUMES,
-            UIEntityType.VIRTUAL_VOLUME,
-            Arrays.asList(StringConstants.ATTACHMENT, UIEntityType.STORAGE_TIER.apiStr()));
+            ApiEntityType.VIRTUAL_VOLUME,
+            Arrays.asList(StringConstants.ATTACHMENT, ApiEntityType.STORAGE_TIER.apiStr()));
         when(context.findStats(getStats.capture())).thenReturn(Sets.newHashSet(statApiInputDTO));
 
         SubQuerySupportedStats results = query.getHandledStats(context);
@@ -225,7 +229,7 @@ public class StorageStatsSubQueryTest {
         when(searchRequest.count()).thenReturn(2L);
 
         Set<StatApiInputDTO> requestedStats =
-            Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(StringConstants.ATTACHMENT)));
+            Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, ApiEntityType.VIRTUAL_VOLUME, Collections.singletonList(StringConstants.ATTACHMENT)));
 
         final List<StatSnapshotApiDTO> results = query.getAggregateStats(requestedStats, context);
 
@@ -235,7 +239,7 @@ public class StorageStatsSubQueryTest {
         Search.SearchParameters firstParam = searchParameters.get(0);
         assertThat(firstParam.getSearchFilterCount(), is(1));
         assertThat(firstParam.getSearchFilter(0).getPropertyFilter().getNumericFilter().getValue(),
-            is(Long.valueOf(UIEntityType.VIRTUAL_VOLUME.typeNumber())));
+            is(Long.valueOf(ApiEntityType.VIRTUAL_VOLUME.typeNumber())));
 
         // assert that to get one statistic with two records: attached and unattached
         assertThat(results.size(), is(1));
@@ -243,7 +247,7 @@ public class StorageStatsSubQueryTest {
         assertThat(statistics.size(), is(2));
         statistics.forEach(dto -> {
             assertThat(dto.getName(), is(NUM_VOLUMES));
-            assertThat(dto.getRelatedEntityType(), is(UIEntityType.VIRTUAL_VOLUME.apiStr()));
+            assertThat(dto.getRelatedEntityType(), is(ApiEntityType.VIRTUAL_VOLUME.apiStr()));
 
             List<StatFilterApiDTO> statFilterApiDTOS = dto.getFilters();
             assertThat(statFilterApiDTOS.size(), is(1));
@@ -294,7 +298,7 @@ public class StorageStatsSubQueryTest {
         when(searchRequest.getMinimalEntities()).thenReturn(stMinimalEntities.stream());
 
         Set<StatApiInputDTO> requestedStats =
-            Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(UIEntityType.STORAGE_TIER.apiStr())));
+            Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, ApiEntityType.VIRTUAL_VOLUME, Collections.singletonList(ApiEntityType.STORAGE_TIER.apiStr())));
 
         final List<StatSnapshotApiDTO> results = query.getAggregateStats(requestedStats, context);
 
@@ -326,12 +330,12 @@ public class StorageStatsSubQueryTest {
         assertThat(statistics.size(), is(3));
         statistics.forEach(dto -> {
             assertThat(dto.getName(), is(NUM_VOLUMES));
-            assertThat(dto.getRelatedEntityType(), is(UIEntityType.VIRTUAL_VOLUME.apiStr()));
+            assertThat(dto.getRelatedEntityType(), is(ApiEntityType.VIRTUAL_VOLUME.apiStr()));
 
             List<StatFilterApiDTO> statFilterApiDTOS = dto.getFilters();
             assertThat(statFilterApiDTOS.size(), is(1));
             StatFilterApiDTO statFilterApiDTO = statFilterApiDTOS.get(0);
-            assertThat(statFilterApiDTO.getType(), is(UIEntityType.STORAGE_TIER.apiStr()));
+            assertThat(statFilterApiDTO.getType(), is(ApiEntityType.STORAGE_TIER.apiStr()));
 
             assertThat(statFilterApiDTO.getValue(), isOneOf(stDisplayName1, stDisplayName2, stDisplayName3));
 
@@ -398,7 +402,7 @@ public class StorageStatsSubQueryTest {
         when(searchRequest.getMinimalEntities()).thenReturn(stMinimalEntities.stream());
 
         Set<StatApiInputDTO> requestedStats =
-            Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(UIEntityType.STORAGE_TIER.apiStr())));
+            Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, ApiEntityType.VIRTUAL_VOLUME, Collections.singletonList(ApiEntityType.STORAGE_TIER.apiStr())));
 
         final List<StatSnapshotApiDTO> results = query.getAggregateStats(requestedStats, context);
 
@@ -429,12 +433,12 @@ public class StorageStatsSubQueryTest {
         assertThat(statistics.size(), is(3));
         statistics.forEach(dto -> {
             assertThat(dto.getName(), is(NUM_VOLUMES));
-            assertThat(dto.getRelatedEntityType(), is(UIEntityType.VIRTUAL_VOLUME.apiStr()));
+            assertThat(dto.getRelatedEntityType(), is(ApiEntityType.VIRTUAL_VOLUME.apiStr()));
 
             List<StatFilterApiDTO> statFilterApiDTOS = dto.getFilters();
             assertThat(statFilterApiDTOS.size(), is(1));
             StatFilterApiDTO statFilterApiDTO = statFilterApiDTOS.get(0);
-            assertThat(statFilterApiDTO.getType(), is(UIEntityType.STORAGE_TIER.apiStr()));
+            assertThat(statFilterApiDTO.getType(), is(ApiEntityType.STORAGE_TIER.apiStr()));
 
             assertThat(statFilterApiDTO.getValue(), isOneOf(stDisplayName1, stDisplayName2, stDisplayName3));
 
@@ -536,7 +540,7 @@ public class StorageStatsSubQueryTest {
 
         // when getting stat
         Set<StatApiInputDTO> requestedStats =
-            Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, UIEntityType.VIRTUAL_VOLUME, Collections.singletonList(UIEntityType.STORAGE_TIER.apiStr())));
+            Sets.newHashSet(createStatApiInputDTO(NUM_VOLUMES, ApiEntityType.VIRTUAL_VOLUME, Collections.singletonList(ApiEntityType.STORAGE_TIER.apiStr())));
         final List<StatSnapshotApiDTO> results = query.getAggregateStats(requestedStats, context);
 
         // Result
@@ -568,12 +572,12 @@ public class StorageStatsSubQueryTest {
         assertThat(statistics.size(), is(3));
         statistics.forEach(dto -> {
             assertThat(dto.getName(), is(NUM_VOLUMES));
-            assertThat(dto.getRelatedEntityType(), is(UIEntityType.VIRTUAL_VOLUME.apiStr()));
+            assertThat(dto.getRelatedEntityType(), is(ApiEntityType.VIRTUAL_VOLUME.apiStr()));
 
             List<StatFilterApiDTO> statFilterApiDTOS = dto.getFilters();
             assertThat(statFilterApiDTOS.size(), is(1));
             StatFilterApiDTO statFilterApiDTO = statFilterApiDTOS.get(0);
-            assertThat(statFilterApiDTO.getType(), is(UIEntityType.STORAGE_TIER.apiStr()));
+            assertThat(statFilterApiDTO.getType(), is(ApiEntityType.STORAGE_TIER.apiStr()));
 
             assertThat(statFilterApiDTO.getValue(), isOneOf(stDisplayName1, stDisplayName2, stDisplayName3));
             final Function<String, Float> getExpectedCount = displayName -> {
@@ -659,12 +663,12 @@ public class StorageStatsSubQueryTest {
      * Create StatApiInputDTO Helper.
      *
      * @param name name of the stats
-     * @param relatedEntityType {@link UIEntityType} related entity type
+     * @param relatedEntityType {@link ApiEntityType} related entity type
      * @param groupBy list of group by
      * @return {@link StatApiInputDTO}
      */
     private StatApiInputDTO createStatApiInputDTO(@Nonnull final String name,
-                                                  @Nullable final UIEntityType relatedEntityType,
+                                                  @Nullable final ApiEntityType relatedEntityType,
                                                   @Nonnull final List<String> groupBy) {
         StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
         statApiInputDTO.setName(name);
@@ -683,7 +687,7 @@ public class StorageStatsSubQueryTest {
     private StatsQueryContext setupGlobalScope() {
         // Setup Context for Global Scope
         final GlobalScope globalScope = mock(GlobalScope.class);
-        when(globalScope.entityTypes()).thenReturn(Sets.newHashSet(UIEntityType.VIRTUAL_VOLUME));
+        when(globalScope.entityTypes()).thenReturn(Sets.newHashSet(ApiEntityType.VIRTUAL_VOLUME));
         StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
         when(statsQueryScope.getGlobalScope()).thenReturn(Optional.of(globalScope));
 

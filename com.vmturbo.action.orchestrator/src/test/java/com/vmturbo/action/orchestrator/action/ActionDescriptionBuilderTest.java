@@ -57,6 +57,7 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action cloudStorageMoveRecommendation;
     private ActionDTO.Action resizeRecommendation;
     private ActionDTO.Action resizeMemRecommendation;
+    private static final Long SWITCH1_ID = 77L;
     private ActionDTO.Action resizeVStorageRecommendation;
     private ActionDTO.Action resizeMemReservationRecommendation;
     private ActionDTO.Action resizeVcpuRecommendationForVM;
@@ -102,8 +103,11 @@ public class ActionDescriptionBuilderTest {
     private static final String REGION_DISPLAY_NAME = "Manhattan";
     private static final Long CONTAINER1_ID = 11L;
     private static final String CONTAINER1_DISPLAY_NAME = "container1_test";
+    private static final String SWITCH1_DISPLAY_NAME = "switch1_test";
+    private ActionDTO.Action resizePortChannelRecommendation;
 
     private EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
+    // private EntitiesAndSettingsSnapshot entitySettingsCacheDetachedVolume = mock(EntitiesAndSettingsSnapshot.class);
 
     @Before
     public void setup() {
@@ -124,6 +128,9 @@ public class ActionDescriptionBuilderTest {
                         SupportLevel.SUPPORTED).build();
         resizeRecommendation = makeRec(makeResizeInfo(VM1_ID), SupportLevel.SUPPORTED).build();
         resizeMemRecommendation = makeRec(makeResizeMemInfo(VM1_ID), SupportLevel.SUPPORTED).build();
+        resizePortChannelRecommendation = makeRec(makeResizeInfo(SWITCH1_ID,
+            CommodityDTO.CommodityType.PORT_CHANEL_VALUE, "PortChannelFI-IO:10.0.100.132:sys/switch-A/sys/chassis-1/slot-1",
+            1000, 2000), SupportLevel.SUPPORTED).build();
         resizeVStorageRecommendation = makeRec(makeResizeInfo(VM1_ID,
             CommodityDTO.CommodityType.VSTORAGE_VALUE, 2000, 4000),
             SupportLevel.SUPPORTED).build();
@@ -217,12 +224,30 @@ public class ActionDescriptionBuilderTest {
      */
     private ActionInfo.Builder makeResizeInfo(long targetId, int commodityType, float oldCapacity,
             float newCapacity) {
+        return makeResizeInfo(targetId, commodityType, null, oldCapacity, newCapacity);
+    }
+
+    /**
+     * Create a resize action info.
+     *
+     * @param targetId the target entity id
+     * @param commodityType type of the commodity to resize
+     * @param key key of the commodity to resize
+     * @param oldCapacity old capacity
+     * @param newCapacity new capacity
+     * @return {@link ActionInfo.Builder}
+     */
+    private ActionInfo.Builder makeResizeInfo(long targetId, int commodityType, String key,
+                                              float oldCapacity, float newCapacity) {
+        CommodityType.Builder commType = CommodityType.newBuilder().setType(commodityType);
+        if (key != null) {
+            commType.setKey(key);
+        }
         return ActionInfo.newBuilder().setResize(Resize.newBuilder()
-                .setCommodityType(CommodityType.newBuilder()
-                        .setType(commodityType).build())
-                .setOldCapacity(oldCapacity)
-                .setNewCapacity(newCapacity)
-                .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
+            .setCommodityType(commType)
+            .setOldCapacity(oldCapacity)
+            .setNewCapacity(newCapacity)
+            .setTarget(ActionOrchestratorTestUtils.createActionEntity(targetId)));
     }
 
     /**
@@ -623,7 +648,7 @@ public class ActionDescriptionBuilderTest {
                 VM1_DISPLAY_NAME)));
 
         String description = ActionDescriptionBuilder.buildActionDescription(
-            entitySettingsCache, resizeRecommendation);
+                                                     entitySettingsCache, resizeRecommendation);
 
         Assert.assertEquals(description, "Resize up VCPU for Virtual Machine vm1_test from 10 to 20");
     }
@@ -825,6 +850,22 @@ public class ActionDescriptionBuilderTest {
 
         Assert.assertEquals(description,
             "Provision Physical Machine similar to pm_source_test with scaled up Mem due to vm1_test");
+    }
+
+    /**
+     * Test port channel resize action description.
+     */
+    @Test
+    public void testBuildResizePortChannelOnSwitchActionDescription() throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(SWITCH1_ID)))
+            .thenReturn(createEntity(SWITCH1_ID,
+                EntityType.SWITCH.getNumber(),
+                SWITCH1_DISPLAY_NAME));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, resizePortChannelRecommendation);
+
+        Assert.assertEquals("Resize up Port Channel 10.0.100.132:sys/switch-A/sys/chassis-1/slot-1 for Switch switch1_test from 1,000 to 2,000", description);
     }
 
     @Test

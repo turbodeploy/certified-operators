@@ -21,18 +21,18 @@ public class ReservedInstanceZonalContext extends ReservedInstanceContext {
     /**
      * Constructor.
      *
-     * @param masterAccountId master account ID.
+     * @param accountId account ID.
      * @param platform OS type.
      * @param tenancy tenancy.
      * @param computeTier template or instance type.
      * @param availabilityZoneId availability zone.
      */
-    public ReservedInstanceZonalContext(long masterAccountId,
+    public ReservedInstanceZonalContext(long accountId,
                                         @Nonnull OSType platform,
                                         @Nonnull Tenancy tenancy,
                                         TopologyEntityDTO computeTier,
                                         long availabilityZoneId) {
-        super(masterAccountId, platform, tenancy, computeTier);
+        super(accountId, platform, tenancy, computeTier);
         this.availabilityZoneId = availabilityZoneId;
     }
 
@@ -55,7 +55,7 @@ public class ReservedInstanceZonalContext extends ReservedInstanceContext {
 
     @Override
     public int hashCode() {
-        return Objects.hash(computeTier, availabilityZoneId, platform, tenancy, masterAccountId);
+        return Objects.hash(computeTier, availabilityZoneId, platform, tenancy, accountId);
     }
 
     @Override
@@ -65,7 +65,7 @@ public class ReservedInstanceZonalContext extends ReservedInstanceContext {
             .append(" computeTierId=").append(computeTier.getOid())
             .append(" platform=").append(platform.name())
             .append(" tenancy=").append(tenancy.name())
-            .append(" masterAccountId=").append(masterAccountId);
+            .append(" accountId=").append(accountId);
         return builder.toString();
     }
 }

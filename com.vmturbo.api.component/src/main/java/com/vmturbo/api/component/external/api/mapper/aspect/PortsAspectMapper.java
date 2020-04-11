@@ -1,8 +1,8 @@
 package com.vmturbo.api.component.external.api.mapper.aspect;
 
-import static com.vmturbo.components.common.utils.StringConstants.RELATION;
-import static com.vmturbo.components.common.utils.StringConstants.RELATION_BOUGHT;
-import static com.vmturbo.components.common.utils.StringConstants.RELATION_SOLD;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION_BOUGHT;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION_SOLD;
 
 import java.util.List;
 import java.util.Map;
@@ -36,7 +36,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**

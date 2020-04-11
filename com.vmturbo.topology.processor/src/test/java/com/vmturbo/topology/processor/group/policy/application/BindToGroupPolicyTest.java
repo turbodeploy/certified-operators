@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
+import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.resolvedGroup;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.connectedTopologyEntity;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
@@ -135,9 +136,9 @@ public class BindToGroupPolicyTest {
     @Test
     public void testApplyEmpty() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-            .thenReturn(Collections.<Long>emptySet());
+            .thenReturn(resolvedGroup(consumerGroup));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-            .thenReturn(Collections.<Long>emptySet());
+            .thenReturn(resolvedGroup(providerGroup));
 
         applyPolicy(new BindToGroupPolicy(btgPolicy,
             new PolicyEntities(consumerGroup, Collections.emptySet()),
@@ -154,9 +155,9 @@ public class BindToGroupPolicyTest {
     @Test
     public void testApplyEmptyConsumers() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-            .thenReturn(Collections.<Long>emptySet());
+            .thenReturn(resolvedGroup(consumerGroup));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-            .thenReturn(Collections.singleton(1L));
+            .thenReturn(resolvedGroup(providerGroup, 1L));
 
         applyPolicy(new BindToGroupPolicy(btgPolicy,
             new PolicyEntities(consumerGroup, Collections.emptySet()),
@@ -175,9 +176,9 @@ public class BindToGroupPolicyTest {
     @Test
     public void testApplyEmptyProviders() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-            .thenReturn(Collections.singleton(4L));
+            .thenReturn(resolvedGroup(consumerGroup, 4L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-            .thenReturn(Collections.<Long>emptySet());
+            .thenReturn(resolvedGroup(providerGroup));
 
         applyPolicy(new BindToGroupPolicy(btgPolicy,
             new PolicyEntities(consumerGroup, Sets.newHashSet(6L)),
@@ -196,9 +197,9 @@ public class BindToGroupPolicyTest {
     @Test
     public void testApplyVmToHostAffinity() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-            .thenReturn(Sets.newHashSet(4L, 5L));
+            .thenReturn(resolvedGroup(consumerGroup, 4L, 5L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-            .thenReturn(Sets.newHashSet(1L, 2L));
+            .thenReturn(resolvedGroup(providerGroup, 1L, 2L));
 
         final PolicyApplicationResults results = applyPolicy(new BindToGroupPolicy(btgPolicy,
             new PolicyEntities(consumerGroup, Sets.newHashSet(6L)),
@@ -244,9 +245,9 @@ public class BindToGroupPolicyTest {
             .build();
 
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-            .thenReturn(Sets.newHashSet(4L, 5L));
+            .thenReturn(resolvedGroup(consumerGroup, 4L, 5L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-            .thenReturn(Collections.singleton(3L));
+            .thenReturn(resolvedGroup(providerGroup, 3L));
 
         final BindToGroupPolicy placementPolicy = new BindToGroupPolicy(policy,
                 new PolicyEntities(consumerGroup, Collections.emptySet()),
@@ -262,9 +263,9 @@ public class BindToGroupPolicyTest {
             searchParametersCollection(), EntityType.STORAGE_TIER_VALUE, 1213L);
 
         when(groupResolver.resolve(eq(virtualVolumeGroup), eq(topologyGraph)))
-            .thenReturn(Sets.newHashSet(9L, 10L));
+            .thenReturn(resolvedGroup(virtualVolumeGroup, 9L, 10L));
         when(groupResolver.resolve(eq(storageTierGroup), eq(topologyGraph)))
-            .thenReturn(Sets.newHashSet(7L));
+            .thenReturn(resolvedGroup(storageTierGroup, 7L));
 
         applyPolicy(new BindToGroupPolicy(btgPolicy,
             new PolicyEntities(virtualVolumeGroup, Collections.emptySet()),

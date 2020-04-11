@@ -28,7 +28,7 @@ import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.notification.NotificationStore;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.State;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;

@@ -46,6 +46,10 @@ class UtilProbeComponent extends MediationComponentMain {
     private String consulHost;
     @Value("${consul_port:}")
     private String consulPort;
+    @Value("${consulNamespace:}")
+    private String consulNamespace;
+    @Value("${enableConsulNamespace:false}")
+    private boolean enableConsulNamespace;
     @Value("${topologyProcessorInstance:}")
     private String topologyProcessorInstance;
     @Value("${kvStoreTimeoutSeconds:120}")
@@ -110,16 +114,16 @@ class UtilProbeComponent extends MediationComponentMain {
      */
     @Bean
     protected KeyValueStore getKeyValueStore() {
-        String logMessage = new StringBuilder()
-                .append("Initializing KV store:\n")
-                .append("Namespace: {}\n")
-                .append("Consul host: {}\n")
-                .append("Consul port: {}\n")
-                .append("Retry interval: {} ms\n")
-                .toString();
-        logger.info(logMessage, topologyProcessorInstance, consulHost,
-                consulPort, kvStoreTimeoutSeconds);
-        return new ConsulKeyValueStore(topologyProcessorInstance,
+        logger.info("Initializing KV store:\n" +
+                    "Namespace: {}\n" +
+                    "Consul host: {}\n" +
+                    "Consul port: {}\n" +
+                    "Retry interval: {} ms\n",
+                    topologyProcessorInstance, consulHost, consulPort, kvStoreTimeoutSeconds);
+
+        return new ConsulKeyValueStore(
+                ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace),
+                topologyProcessorInstance,
                 this.consulHost,
                 this.consulPort,
                 Long.parseLong(kvStoreTimeoutSeconds),

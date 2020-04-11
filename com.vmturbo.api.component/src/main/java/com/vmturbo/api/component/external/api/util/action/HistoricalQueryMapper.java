@@ -27,8 +27,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.A
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.TimeRange;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Responsible for mapping an {@link ActionApiInputDTO} to the matching queries to use in XL.
@@ -118,19 +118,19 @@ class HistoricalQueryMapper {
         final ActionGroupFilter.Builder agFilterBldr = ActionGroupFilter.newBuilder();
 
         CollectionUtils.emptyIfNull(query.actionInput().getActionModeList()).stream()
-            .map(actionSpecMapper::mapApiModeToXl)
+            .map(ActionSpecMapper::mapApiModeToXl)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .forEach(agFilterBldr::addActionMode);
 
         CollectionUtils.emptyIfNull(query.actionInput().getActionStateList()).stream()
-            .map(actionSpecMapper::mapApiStateToXl)
+            .map(ActionSpecMapper::mapApiStateToXl)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .forEach(agFilterBldr::addActionState);
 
         CollectionUtils.emptyIfNull(query.actionInput().getRiskSubCategoryList()).stream()
-            .map(actionSpecMapper::mapApiActionCategoryToXl)
+            .map(ActionSpecMapper::mapApiActionCategoryToXl)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .forEach(agFilterBldr::addActionCategory);
@@ -164,7 +164,7 @@ class HistoricalQueryMapper {
                         // The .get() is safe because we know it's a group (or else we wouldn't be
                         // in this block.
                         scope.getScopeTypes().get().stream()
-                            .map(UIEntityType::typeNumber)
+                            .map(ApiEntityType::typeNumber)
                             .forEach(mgmtSubgroupFilterBldr::addEntityType);
                     }
                 } else {

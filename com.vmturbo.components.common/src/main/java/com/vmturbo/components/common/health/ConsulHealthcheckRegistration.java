@@ -26,6 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.components.api.RetriableOperation;
+import com.vmturbo.components.api.RetriableOperation.ConfigurableBackoffStrategy;
 import com.vmturbo.components.api.RetriableOperation.Operation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -67,6 +68,7 @@ public class ConsulHealthcheckRegistration {
     private final String consulServiceNamePrefix;
 
     private int maxRetrySecs;
+    private int maxRetryDelaySecs;
 
 
     /**
@@ -83,6 +85,7 @@ public class ConsulHealthcheckRegistration {
      * @param serverPort the PORT for health checks for the component instances, used to construct
      *                   a health-check for this service
      * @param maxRetrySecs the maximum time window in which to keep retrying retry-able consul operations.
+     * @param maxRetryDelaySecs the maximum delay on a single retry
      * @param consulServiceNamePrefix Consul service name prefix to be appended to service name.
      * @param clock Clock to use for time.
      */
@@ -94,6 +97,7 @@ public class ConsulHealthcheckRegistration {
                                          final String instanceRoute,
                                          final Integer serverPort,
                                          final int maxRetrySecs,
+                                         final int maxRetryDelaySecs,
                                          final String consulServiceNamePrefix,
                                          final Clock clock) {
         this.consulClient = consulClient;
@@ -121,6 +125,7 @@ public class ConsulHealthcheckRegistration {
         }
         this.serverPort = serverPort;
         this.maxRetrySecs = maxRetrySecs;
+        this.maxRetryDelaySecs = maxRetryDelaySecs;
         this.consulServiceNamePrefix = consulServiceNamePrefix;
     }
 
@@ -183,6 +188,9 @@ public class ConsulHealthcheckRegistration {
     private void doConsulOperation(Operation<Response<Void>> operation) {
         try {
             RetriableOperation.newOperation(operation)
+                    .backoffStrategy(ConfigurableBackoffStrategy.newBuilder()
+                        .withMaxDelay(maxRetryDelaySecs * 1000)
+                        .build())
                     .retryOnException(e -> {
                         if (e instanceof ConsulException) {
                             Throwable cause = e.getCause();

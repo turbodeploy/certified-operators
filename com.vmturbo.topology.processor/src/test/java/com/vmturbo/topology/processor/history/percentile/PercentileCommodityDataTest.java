@@ -17,6 +17,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -45,6 +46,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
     private HistoryAggregationContext context;
 
     private Clock clock;
+    private TopologyInfo topologyInfo;
 
     /**
      * Initializes all resources required by tests.
@@ -56,6 +58,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
         config = new PercentileHistoricalEditorConfig(1, 24, 10, 100,
                         Collections.emptyMap(), null, clock);
         context = Mockito.mock(HistoryAggregationContext.class);
+        topologyInfo = TopologyInfo.newBuilder().setTopologyId(77777L).build();
     }
 
     /**
@@ -153,8 +156,7 @@ public class PercentileCommodityDataTest extends BaseGraphRelatedTest {
                                         .addUserSettings(SettingToPolicyId.newBuilder()
                                                         .setSetting(minObservationPeriodSetting)
                                                         .build()).build();
-        HistoryAggregationContext ctx = Mockito.spy(new HistoryAggregationContext(
-            new GraphWithSettings(new TopologyGraphCreator<>(
+        HistoryAggregationContext ctx = Mockito.spy(new HistoryAggregationContext(topologyInfo, new GraphWithSettings(new TopologyGraphCreator<>(
                         Collections.singletonMap(1L, TopologyEntity.newBuilder(
                                         entity.getTopologyEntityDtoBuilder()))).build(),
                         Collections.singletonMap(1L, settings), Collections.emptyMap()), false));

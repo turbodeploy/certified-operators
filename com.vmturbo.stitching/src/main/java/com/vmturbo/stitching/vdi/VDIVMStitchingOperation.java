@@ -49,6 +49,7 @@ public class VDIVMStitchingOperation extends VDIStitchingOperation {
                               CommodityBoughtMetadata.newBuilder()
                                               .setProviderType(EntityType.PHYSICAL_MACHINE)
                                               .addCommodityMetadata(CommodityType.CLUSTER)
+                                              .addCommodityMetadata(CommodityType.VMPM_ACCESS)
                                               .build()
               ));
     }

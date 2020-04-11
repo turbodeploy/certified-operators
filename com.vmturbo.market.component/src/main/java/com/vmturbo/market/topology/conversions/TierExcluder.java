@@ -6,12 +6,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
@@ -37,6 +39,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO.ActionTypeCase;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveTO;
+import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 /** This class reads the tier exclusion settings from group-component and keeps a track of the
  * commodities bought that need to be added to consumer and commodities sold that need to be
@@ -134,11 +137,16 @@ public class TierExcluder {
      * The commodities are then added to the entity when TopologyConverter converts
      * TopologyEntityDTO to TraderTO.
      * We store the mapping between consumer
+     *
      * @param topology the topology containing all the topology entity DTOs
+     * @param tierExcluderEntityOids oids of entities that may have ExcludedTemplates settings
      */
-    public void initialize(@Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology) {
+    public void initialize(@Nonnull final Map<Long, TopologyDTO.TopologyEntityDTO> topology,
+                           @Nonnull final Set<Long> tierExcluderEntityOids) {
+        final Stopwatch stopwatch = Stopwatch.createStarted();
         Map<Set<Long>, CommodityType> excludedTiersToCommodityType = Maps.newHashMap();
-        Stream<EntitySettingGroup> entitySettingGroups = fetchTierExclusionSettings();
+        Stream<EntitySettingGroup> entitySettingGroups =
+            fetchTierExclusionSettings(tierExcluderEntityOids);
         entitySettingGroups.forEach(entitySettingGroup -> {
             List<Long> excludedTiersList = entitySettingGroup.getSetting()
                 .getSortedSetOfOidSettingValue().getOidsList();
@@ -193,6 +201,7 @@ public class TierExcluder {
             }
         });
         isInitialized = true;
+        logger.info("TierExcluder initialization took {} ms.", stopwatch.elapsed(TimeUnit.MILLISECONDS));
     }
 
     /**
@@ -352,10 +361,17 @@ public class TierExcluder {
     /**
      * Fetch the tier exclusion settings from group component.
      *
+     * @param tierExcluderEntityOids oids of entities that may have ExcludedTemplates settings
      * @return the stream of entity setting group which have the template exclusion settings
      */
-    private Stream<EntitySettingGroup> fetchTierExclusionSettings() {
+    private Stream<EntitySettingGroup> fetchTierExclusionSettings(
+            @Nonnull final Set<Long> tierExcluderEntityOids) {
+        if (tierExcluderEntityOids.isEmpty()) {
+            return Stream.empty();
+        }
+
         EntitySettingFilter.Builder entitySettingFilter = EntitySettingFilter.newBuilder()
+            .addAllEntities(tierExcluderEntityOids)
             .addSettingName(EntitySettingSpecs.ExcludedTemplates.getSettingName());
         // Do not set topology selection in GetEntitySettingsRequest because resolved settings are
         // not uplodaded to group component for plans. So pick the real time settings always.
@@ -440,9 +456,19 @@ public class TierExcluder {
      * @param commSpecType the commSpecType
      * @return true if the comm spec was created for tier exclusion
      */
-    boolean isCommSpecTypeForTierExclusion(int commSpecType) {
+    private boolean isCommSpecTypeForTierExclusion(int commSpecType) {
         return tierExclusionCommodityTypes.contains(
             commodityConverter.commodityIdToCommodityType(commSpecType));
+    }
+
+    /**
+     * Is the comm spec for tier exclusion?
+     * @param commSpec the commSpec
+     * @return true if the comm spec was created for tier exclusion
+     */
+    boolean isCommSpecTypeForTierExclusion(CommoditySpecificationTO commSpec) {
+        return !MarketAnalysisUtils.CLONE_COMMODITIES_WITH_NEW_TYPE.contains(commSpec.getBaseType()) &&
+            isCommSpecTypeForTierExclusion(commSpec.getType());
     }
 
     /**

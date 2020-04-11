@@ -97,6 +97,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
@@ -124,8 +125,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -340,6 +343,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.ALLOCATE, actionApiDTO.getActionType());
         assertEquals(TARGET, actionApiDTO.getTarget().getDisplayName());
         assertEquals("3", actionApiDTO.getTarget().getUuid());
+        assertEquals("4", actionApiDTO.getTemplate().getUuid());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
     }
@@ -408,7 +412,7 @@ public class ActionSpecMapperTest {
      */
     @Test
     public void testMapStorageMoveWithoutSourceId() throws Exception {
-        ActionInfo moveInfo = getMoveActionInfo(UIEntityType.STORAGE.apiStr(), false);
+        ActionInfo moveInfo = getMoveActionInfo(ApiEntityType.STORAGE.apiStr(), false);
         Explanation compliance = Explanation.newBuilder()
                 .setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -441,7 +445,7 @@ public class ActionSpecMapperTest {
      */
     @Test
     public void testMapDiskArrayMoveWithoutSourceId() throws Exception {
-        ActionInfo moveInfo = getMoveActionInfo(UIEntityType.DISKARRAY.apiStr(), false);
+        ActionInfo moveInfo = getMoveActionInfo(ApiEntityType.DISKARRAY.apiStr(), false);
         Explanation compliance = Explanation.newBuilder()
                 .setMove(MoveExplanation.newBuilder()
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
@@ -694,7 +698,7 @@ public class ActionSpecMapperTest {
                 .thenReturn(projectedResponse);
 
         // act
-        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = mapper.createCloudResizeActionDetailsDTO(targetId);
+        CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = mapper.createCloudResizeActionDetailsDTO(targetId, null);
 
         // check
         assertNotNull(cloudResizeActionDetailsApiDTO);
@@ -731,8 +735,8 @@ public class ActionSpecMapperTest {
 
         Explanation resize = Explanation.newBuilder()
             .setResize(ResizeExplanation.newBuilder()
-                .setStartUtilization(0.2f)
-                .setEndUtilization(0.4f).build())
+                .setDeprecatedStartUtilization(0.2f)
+                .setDeprecatedEndUtilization(0.4f).build())
             .build();
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
@@ -767,8 +771,8 @@ public class ActionSpecMapperTest {
                 .build();
         Explanation resize = Explanation.newBuilder()
                 .setResize(ResizeExplanation.newBuilder()
-                        .setStartUtilization(0.2f)
-                        .setEndUtilization(0.4f).build())
+                        .setDeprecatedStartUtilization(0.2f)
+                        .setDeprecatedEndUtilization(0.4f).build())
                 .build();
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
             topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)));
@@ -782,10 +786,12 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
-        assertEquals(CommodityDTO.CommodityType.VMEM.name(),
+        assertEquals(UICommodityType.VMEM.apiStr(),
                 actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals("2097152.0", actionApiDTO.getCurrentValue());
+        assertEquals("1048576.0", actionApiDTO.getResizeToValue());
+        assertEquals(CommodityTypeUnits.VMEM.getUnits(), actionApiDTO.getValueUnits());
     }
-
 
     @Test
     public void testResizeHeapDetail() throws Exception {
@@ -799,8 +805,8 @@ public class ActionSpecMapperTest {
             .build();
         Explanation resize = Explanation.newBuilder()
             .setResize(ResizeExplanation.newBuilder()
-                .setStartUtilization(0.2f)
-                .setEndUtilization(0.4f).build())
+                .setDeprecatedStartUtilization(0.2f)
+                .setDeprecatedEndUtilization(0.4f).build())
             .build();
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
@@ -815,8 +821,48 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
 
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
-        assertEquals(CommodityDTO.CommodityType.HEAP.name(),
-            actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals(UICommodityType.HEAP.apiStr(), actionApiDTO.getRisk().getReasonCommodity());
+    }
+
+    /**
+     * Test that large capacities values in resize actions are formatted in a consistent way.
+     *
+     * @throws Exception when a problem occurs during mapping
+     */
+    @Test
+    public void testResizeLargeCapacities() throws Exception {
+        final long targetId = 1;
+        final float oldCapacity = 1024f * 1024 * 1024 * 2;
+        final float newCapacity = 1024f * 1024 * 1024 * 1;
+        final ActionInfo resizeInfo = ActionInfo.newBuilder()
+            .setResize(Resize.newBuilder()
+                .setTarget(ApiUtilsTest.createActionEntity(targetId))
+                .setOldCapacity(oldCapacity)
+                .setNewCapacity(newCapacity)
+                .setCommodityType(HEAP.getCommodityType()))
+            .build();
+        Explanation resize = Explanation.newBuilder()
+            .setResize(ResizeExplanation.newBuilder()
+                .setDeprecatedStartUtilization(0.2f)
+                .setDeprecatedEndUtilization(0.4f).build())
+            .build();
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+            topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
+            .thenReturn(req);
+
+        final ActionApiDTO actionApiDTO =
+            mapper.mapActionSpecToActionApiDTO(buildActionSpec(resizeInfo, resize), CONTEXT_ID);
+
+        // Verify that we set the context ID on the request.
+        verify(req).contextId(CONTEXT_ID);
+
+        assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
+        assertEquals(UICommodityType.HEAP.apiStr(), actionApiDTO.getRisk().getReasonCommodity());
+        // Check that the resize values are formatted in a consistent, API backwards-compatible way.
+        assertEquals(String.format("%.1f", oldCapacity), actionApiDTO.getCurrentValue());
+        assertEquals(String.format("%.1f", newCapacity), actionApiDTO.getResizeToValue());
     }
 
     /**
@@ -840,8 +886,8 @@ public class ActionSpecMapperTest {
 
         Explanation resize = Explanation.newBuilder()
                 .setResize(ResizeExplanation.newBuilder()
-                        .setStartUtilization(0.2f)
-                        .setEndUtilization(0.4f).build())
+                        .setDeprecatedStartUtilization(0.2f)
+                        .setDeprecatedEndUtilization(0.4f).build())
                 .build();
 
 
@@ -857,8 +903,41 @@ public class ActionSpecMapperTest {
         verify(req).contextId(CONTEXT_ID);
         assertEquals(ENTITY_TO_RESIZE_NAME, actionApiDTO.getTarget().getDisplayName());
         assertEquals(ActionType.RESIZE, actionApiDTO.getActionType());
-        assertEquals(CommodityDTO.CommodityType.MEM.name(),
-                actionApiDTO.getRisk().getReasonCommodity());
+        assertEquals(UICommodityType.MEM.apiStr(), actionApiDTO.getRisk().getReasonCommodity());
+    }
+
+    /**
+     * Tests proper translation of action severity from the internal
+     * XL format to the API action class.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testActionSeverityXlToApi() throws Exception {
+        final long targetId = 1L;
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+                topologyEntityDTO("EntityToActivate", targetId, EntityType.VIRTUAL_MACHINE_VALUE)));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
+                .thenReturn(req);
+        final Activate activate = Activate.newBuilder()
+                                    .setTarget(ApiUtilsTest.createActionEntity(
+                                                    targetId, EntityType.VIRTUAL_MACHINE_VALUE))
+                                    .build();
+        final Action action = Action.newBuilder()
+                                .setId(0)
+                                .setDeprecatedImportance(0.0d)
+                                .setExplanation(Explanation.getDefaultInstance())
+                                .setInfo(ActionInfo.newBuilder()
+                                                .setActivate(activate))
+                                .build();
+        final ActionSpec actionSpec = ActionSpec.newBuilder()
+                                            .setSeverity(Severity.CRITICAL)
+                                            .setRecommendation(action)
+                                            .build();
+        assertEquals(ActionSpecMapper.mapSeverityToApi(Severity.CRITICAL),
+                     mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID)
+                        .getRisk()
+                        .getSeverity());
     }
 
     @Test
@@ -890,8 +969,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.START, actionApiDTO.getActionType());
         Assert.assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                    CommodityDTO.CommodityType.CPU.name(),
-                    CommodityDTO.CommodityType.MEM.name()));
+                UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertNull(actionApiDTO.getNewLocation());
     }
@@ -929,7 +1007,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                        CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+                    UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertNull(actionApiDTO.getNewLocation());
     }
@@ -961,7 +1039,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
             IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+                UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
         assertEquals(DC1_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
         assertNull(actionApiDTO.getNewLocation());
     }
@@ -995,6 +1073,8 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.DELETE, actionApiDTO.getActionType());
         assertEquals(1, actionApiDTO.getVirtualDisks().size());
         assertEquals(filePath, actionApiDTO.getVirtualDisks().get(0).getDisplayName());
+        assertEquals("2.0", actionApiDTO.getCurrentValue());
+        assertEquals("MB", actionApiDTO.getValueUnits());
     }
 
     /**
@@ -1028,7 +1108,7 @@ public class ActionSpecMapperTest {
         assertEquals(ActionType.SUSPEND, actionApiDTO.getActionType());
         assertThat(actionApiDTO.getRisk().getReasonCommodity().split(","),
                 IsArrayContainingInAnyOrder.arrayContainingInAnyOrder(
-                        CommodityDTO.CommodityType.CPU.name(), CommodityDTO.CommodityType.MEM.name()));
+                    UICommodityType.CPU.apiStr(), UICommodityType.MEM.apiStr()));
     }
 
     @Test
@@ -1299,6 +1379,47 @@ public class ActionSpecMapperTest {
         assertThat(filter.getEndDate(), is(2_000_000L));
     }
 
+    /**
+     * Test that getting actions by market UUID fails if given future start time.
+     *
+     * @throws Exception should throw {@link IllegalArgumentException}.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetActionsByMarketUuidShouldFailGivenFutureStartTime() throws Exception {
+        final ActionApiInputDTO actionDTO = new ActionApiInputDTO();
+        final Long currentDateTime = DateTimeUtil.parseTime(DateTimeUtil.getNow());
+        final String futureDate = DateTimeUtil.addDays(currentDateTime, 2);
+        actionDTO.setStartTime(futureDate);
+        createFilter(actionDTO);
+    }
+
+    /**
+     * Test that getting actions by market UUID fails if given start time after end time.
+     *
+     * @throws Exception should throw {@link IllegalArgumentException}.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetActionsByMarketUuidShouldFailGivenStartTimeAfterEndTime() throws Exception {
+        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
+        String currentDateTime = DateTimeUtil.getNow();
+        String futureDate = DateTimeUtil.addDays(DateTimeUtil.parseTime(currentDateTime), 2);
+        actionDTO.setStartTime(futureDate);
+        actionDTO.setEndTime(currentDateTime);
+        createFilter(actionDTO);
+    }
+
+    /**
+     * Test that getting actions by market UUID fails if given end time and no start time.
+     *
+     * @throws Exception should throw {@link IllegalArgumentException}.
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetActionsByMarketUuidShouldFailGivenEndTimeOnly() throws Exception {
+        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
+        actionDTO.setEndTime(DateTimeUtil.getNow());
+        createFilter(actionDTO);
+    }
+
     @Test
     public void testCreateActionFilterEnvTypeCloud() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
@@ -1361,20 +1482,32 @@ public class ActionSpecMapperTest {
     }
 
     /**
+     * Tests that a list of API strings representing severity filters
+     * is translated correctly into an internal XL filter.
+     */
+    @Test
+    public void testCreateActionFilterWithSeverities() {
+        final ActionApiInputDTO inputDto = new ActionApiInputDTO();
+        inputDto.setRiskSeverityList(ImmutableList.of("Critical", "MAJOR"));
+        final ActionQueryFilter filter = mapper.createActionFilter(inputDto, Optional.empty(), null);
+        Assert.assertThat(filter.getSeveritiesList(), containsInAnyOrder(Severity.CRITICAL, Severity.MAJOR));
+    }
+
+    /**
      * Test that the related entity types from {@link ActionApiInputDTO} makes its way into
      * the mapped {@link ActionQueryFilter}.
      */
     @Test
     public void testCreateActionFilterWithInvolvedEntityTypes() {
         final ActionApiInputDTO inputDto = new ActionApiInputDTO();
-        inputDto.setRelatedEntityTypes(Arrays.asList(UIEntityType.VIRTUAL_MACHINE.apiStr(),
-            UIEntityType.PHYSICAL_MACHINE.apiStr()));
+        inputDto.setRelatedEntityTypes(Arrays.asList(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
+            ApiEntityType.PHYSICAL_MACHINE.apiStr()));
 
         final ActionQueryFilter filter = createFilter(inputDto);
 
         assertThat(filter.getEntityTypeList(),
-            containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.typeNumber(),
-                UIEntityType.PHYSICAL_MACHINE.typeNumber()));
+            containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
+                ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
     }
 
 
@@ -1406,7 +1539,7 @@ public class ActionSpecMapperTest {
         entitiesMap.put(1L, entity);
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), serviceEntityMapper, false);
         context.getOptionalEntity(1L).get().setCostPrice(1.0f);
 
@@ -1441,7 +1574,7 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapClearedState() {
-        Optional<ActionDTO.ActionState> state = mapper.mapApiStateToXl(com.vmturbo.api.enums.ActionState.CLEARED);
+        Optional<ActionDTO.ActionState> state = ActionSpecMapper.mapApiStateToXl(com.vmturbo.api.enums.ActionState.CLEARED);
         assertThat(state.get(), is(ActionDTO.ActionState.CLEARED));
     }
 
@@ -1484,7 +1617,7 @@ public class ActionSpecMapperTest {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
                 .setActionState(ActionDTO.ActionState.POST_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
-        com.vmturbo.api.enums.ActionState actionState = mapper.mapXlActionStateToApi(actionSpec.getActionState());
+        com.vmturbo.api.enums.ActionState actionState = ActionSpecMapper.mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
     }
 
@@ -1493,7 +1626,7 @@ public class ActionSpecMapperTest {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
                 .setActionState(ActionDTO.ActionState.PRE_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
-        com.vmturbo.api.enums.ActionState actionState = mapper.mapXlActionStateToApi(actionSpec.getActionState());
+        com.vmturbo.api.enums.ActionState actionState = ActionSpecMapper.mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
     }
 
@@ -1677,11 +1810,11 @@ public class ActionSpecMapperTest {
     }
 
     private ActionInfo getHostMoveActionInfo() {
-        return getMoveActionInfo(UIEntityType.PHYSICAL_MACHINE.apiStr(), true);
+        return getMoveActionInfo(ApiEntityType.PHYSICAL_MACHINE.apiStr(), true);
     }
 
     private ActionInfo getStorageMoveActionInfo() {
-        return getMoveActionInfo(UIEntityType.STORAGE.apiStr(), true);
+        return getMoveActionInfo(ApiEntityType.STORAGE.apiStr(), true);
     }
 
     private ActionInfo getMoveActionInfo(final String srcAndDestType, boolean hasSource) {
@@ -1702,8 +1835,8 @@ public class ActionSpecMapperTest {
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
             topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO(SOURCE, 1L, UIEntityType.fromString(srcAndDestType).typeNumber()),
-            topologyEntityDTO(DESTINATION, 2L, UIEntityType.fromString(srcAndDestType).typeNumber())));
+            topologyEntityDTO(SOURCE, 1L, ApiEntityType.fromString(srcAndDestType).typeNumber()),
+            topologyEntityDTO(DESTINATION, 2L, ApiEntityType.fromString(srcAndDestType).typeNumber())));
         when(repositoryApi.entitiesRequest(any()))
             .thenReturn(req);
 
@@ -1721,8 +1854,8 @@ public class ActionSpecMapperTest {
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
             topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO(SOURCE, 1L, UIEntityType.COMPUTE_TIER.typeNumber()),
-            topologyEntityDTO(DESTINATION, 2L, UIEntityType.COMPUTE_TIER.typeNumber())));
+            topologyEntityDTO(SOURCE, 1L, ApiEntityType.COMPUTE_TIER.typeNumber()),
+            topologyEntityDTO(DESTINATION, 2L, ApiEntityType.COMPUTE_TIER.typeNumber())));
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         return scaleInfo;
@@ -1737,7 +1870,7 @@ public class ActionSpecMapperTest {
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
                 topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-                topologyEntityDTO(SOURCE, 4L, UIEntityType.COMPUTE_TIER.typeNumber())));
+                topologyEntityDTO(SOURCE, 4L, ApiEntityType.COMPUTE_TIER.typeNumber())));
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         return allocateInfo;
@@ -1757,7 +1890,7 @@ public class ActionSpecMapperTest {
         final ServiceEntityApiDTO mappedE = new ServiceEntityApiDTO();
         mappedE.setDisplayName(displayName);
         mappedE.setUuid(Long.toString(oid));
-        mappedE.setClassName(UIEntityType.fromType(entityType).apiStr());
+        mappedE.setClassName(ApiEntityType.fromType(entityType).apiStr());
         when(serviceEntityMapper.toServiceEntityApiDTO(e)).thenReturn(mappedE);
 
         return e;
@@ -1810,7 +1943,7 @@ public class ActionSpecMapperTest {
 
     private SupplyChainNode makeSupplyChainNode(long oid) {
         return SupplyChainNode.newBuilder()
-            .setEntityType(UIEntityType.DATACENTER.apiStr())
+            .setEntityType(ApiEntityType.DATACENTER.apiStr())
             .putMembersByState(EntityState.ACTIVE.ordinal(),
                 MemberList.newBuilder().addMemberOids(oid).build())
             .build();

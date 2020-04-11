@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.topology;
 
+import static com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil.CLOUD_PROBE_TYPES;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -37,21 +39,6 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  * should have, based on its origin and, possibly, the entities its related to.
  */
 public class EnvironmentTypeInjector {
-
-    /**
-     * Entities discovered by these probes should be considered CLOUD entities.
-     */
-    private static final Set<SDKProbeType> CLOUD_PROBE_TYPES = ImmutableSet.of(
-        SDKProbeType.AWS,
-        SDKProbeType.AWS_COST,
-        SDKProbeType.AWS_BILLING,
-        SDKProbeType.AZURE,
-        SDKProbeType.AZURE_COST,
-        SDKProbeType.AZURE_EA,
-        SDKProbeType.AZURE_SERVICE_PRINCIPAL,
-        SDKProbeType.AZURE_STORAGE_BROWSE,
-        SDKProbeType.GCP,
-        SDKProbeType.GCP_COST);
 
     private static final Logger logger = LogManager.getLogger();
 

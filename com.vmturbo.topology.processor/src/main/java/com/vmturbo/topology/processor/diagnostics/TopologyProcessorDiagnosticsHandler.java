@@ -11,7 +11,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -21,6 +20,7 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Streams;
@@ -48,6 +48,7 @@ import com.vmturbo.components.common.diagnostics.PrometheusDiagnosticsProvider;
 import com.vmturbo.identity.store.PersistentIdentityStore;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.ProfileDTO.EntityProfileDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.topology.processor.TopologyProcessorComponent;
@@ -65,6 +66,7 @@ import com.vmturbo.topology.processor.operation.DiscoveryDumperSettings;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
+import com.vmturbo.topology.processor.scheduling.UnsupportedDiscoveryTypeException;
 import com.vmturbo.topology.processor.targets.InvalidTargetException;
 import com.vmturbo.topology.processor.targets.PersistentTargetSpecIdentityStore;
 import com.vmturbo.topology.processor.targets.Target;
@@ -152,9 +154,9 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         diagsWriter.writeZipEntry(SCHEDULES_DIAGS_FILE_NAME, targets.stream()
                 .map(Target::getId)
                 .map(scheduler::getDiscoverySchedule)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .map(schedule -> GSON.toJson(schedule, TargetDiscoverySchedule.class))
+                .map(DiscoverySchedule::from)
+                .filter(Objects::nonNull)
+                .map(schedule -> GSON.toJson(schedule, DiscoverySchedule.class))
                 .iterator());
 
         // Discovered costs
@@ -269,9 +271,9 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         diagsWriter.writeZipEntry(SCHEDULES_DIAGS_FILE_NAME, targets.stream()
                 .map(Target::getId)
                 .map(scheduler::getDiscoverySchedule)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .map(schedule -> GSON.toJson(schedule, TargetDiscoverySchedule.class))
+                .map(DiscoverySchedule::from)
+                .filter(Objects::nonNull)
+                .map(schedule -> GSON.toJson(schedule, DiscoverySchedule.class))
                 .iterator());
 
         // Entities (one file per target)
@@ -367,7 +369,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                     case IdentityProviderImpl.ID_DIAGS_FILE_NAME + DiagsZipReader.TEXT_DIAGS_SUFFIX:
                         identityProvider.restoreDiags(diagsLines);
                         break;
-                    case PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME:
+                    case PersistentTargetSpecIdentityStore.TARGET_IDENTIFIERS_DIAGS_FILE_NAME +
+                            DiagsZipReader.TEXT_DIAGS_SUFFIX:
                         restoreTargetIdentifiers(diagsLines);
                         break;
                     case TARGETS_DIAGS_FILE_NAME:
@@ -379,10 +382,11 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                     case PROBES_DIAGS_FILE_NAME:
                         restoreProbes(diagsLines);
                         break;
-                    case DiscoveredCloudCostUploader.DISCOVERED_CLOUD_COST_NAME:
+                    case DiscoveredCloudCostUploader.DISCOVERED_CLOUD_COST_NAME +
+                            DiagsZipReader.TEXT_DIAGS_SUFFIX:
                         discoveredCloudCostUploader.restoreDiags(diagsLines);
                         break;
-                    case PriceTableUploader.PRICE_TABLE_NAME:
+                    case PriceTableUploader.PRICE_TABLE_NAME + DiagsZipReader.TEXT_DIAGS_SUFFIX:
                         priceTableUploader.restoreDiags(diagsLines);
                         break;
                     default:
@@ -461,7 +465,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             .map(targetInfo -> {
                 try {
                     final Target target = targetStore.restoreTarget(targetInfo.getId(), targetInfo.getSpec());
-                    scheduler.setDiscoverySchedule(target.getId(), 365, TimeUnit.DAYS);
+                    scheduler.setDiscoverySchedule(target.getId(), DiscoveryType.FULL, 365, TimeUnit.DAYS, false);
                     return target;
                 } catch (InvalidTargetException e) {
                     // This shouldn't happen, because the createTarget method we use
@@ -473,6 +477,11 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                     // This shouldn't happen, because we restore the target right before setting
                     // the schedule.
                     logger.error("Target not found when attempting to set discovery schedule.", e);
+                    return null;
+                } catch (UnsupportedDiscoveryTypeException e) {
+                    // this should not happen, since we support FULL discovery for all targets
+                    logger.error("{} discovery not supported for target {}", DiscoveryType.FULL,
+                        targetInfo.getId());
                     return null;
                 }
             })
@@ -516,15 +525,26 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         Gson gson = new Gson();
         for (String json : serializedSchedules) {
             DiscoverySchedule schedule = gson.fromJson(json, DiscoverySchedule.class);
+            Map<DiscoveryType, Long> discoveryIntervalByType = new HashMap<>();
+            discoveryIntervalByType.put(DiscoveryType.FULL, schedule.getScheduleIntervalMillis());
+            if (schedule.getIncrementalIntervalMillis() != null) {
+                discoveryIntervalByType.put(DiscoveryType.INCREMENTAL,
+                    schedule.getIncrementalIntervalMillis());
+            }
+            discoveryIntervalByType.forEach((discoveryType, interval) -> {
                 try {
-                    scheduler.setDiscoverySchedule(
-                            schedule.getTargetId(),
-                            schedule.getScheduleIntervalMillis(),
-                            TimeUnit.MILLISECONDS);
+                    // don't attempt to discover targets loaded from diags, set the discovery
+                    // interval to 365 days in light of OM-47010
+                    scheduler.setDiscoverySchedule(schedule.getTargetId(), discoveryType, 365,
+                        TimeUnit.DAYS, false);
                 } catch (TargetNotFoundException e) {
                     logger.warn("While deserializing schedules, target id {} not found",
                         schedule.getTargetId());
+                } catch (UnsupportedDiscoveryTypeException e) {
+                    logger.warn("While deserializing schedules, {} discovery is not supported " +
+                        "for target {}", discoveryType, schedule.getTargetId());
                 }
+            });
         }
         logger.info("Done restoring schedules");
     }
@@ -649,18 +669,68 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     }
 
     /**
-     * Internal class used for deserializing schedules. Only care about target ID and the interval.
+     * Internal class used for deserializing schedules. Only care about target ID and intervals.
+     * It always contain the full discovery interval, and may also incremental discovery interval
+     * if it's supported by the target. If it's -1, it means it has been disabled by user.
      */
     private static class DiscoverySchedule {
         long targetId;
+        // interval for full discovery, do not change name of variable for backward compatibility
         long scheduleIntervalMillis;
+        Long incrementalIntervalMillis;
 
         public long getTargetId() {
             return targetId;
         }
 
+        public void setTargetId(long targetId) {
+            this.targetId = targetId;
+        }
+
         long getScheduleIntervalMillis() {
             return scheduleIntervalMillis;
+        }
+
+        public void setScheduleIntervalMillis(long scheduleIntervalMillis) {
+            this.scheduleIntervalMillis = scheduleIntervalMillis;
+        }
+
+        public Long getIncrementalIntervalMillis() {
+            return incrementalIntervalMillis;
+        }
+
+        public void setIncrementalIntervalMillis(Long incrementalIntervalMillis) {
+            this.incrementalIntervalMillis = incrementalIntervalMillis;
+        }
+
+        /**
+         * Converts the given schedule map to an instance of {@link DiscoverySchedule}.
+         *
+         * @param scheduleMap map from discovery type to related schedule
+         * @return {@link DiscoverySchedule}
+         */
+        @Nullable
+        public static DiscoverySchedule from(
+                @Nullable Map<DiscoveryType, TargetDiscoverySchedule> scheduleMap) {
+            if (scheduleMap == null || scheduleMap.isEmpty()) {
+                return null;
+            }
+
+            DiscoverySchedule discoverySchedule = new DiscoverySchedule();
+
+            TargetDiscoverySchedule fullSchedule = scheduleMap.get(DiscoveryType.FULL);
+            if (fullSchedule != null) {
+                discoverySchedule.setScheduleIntervalMillis(
+                    fullSchedule.getScheduleInterval(TimeUnit.MILLISECONDS));
+                discoverySchedule.setTargetId(fullSchedule.getTargetId());
+            }
+            TargetDiscoverySchedule incrementalSchedule = scheduleMap.get(DiscoveryType.INCREMENTAL);
+            if (incrementalSchedule != null) {
+                discoverySchedule.setIncrementalIntervalMillis(
+                    incrementalSchedule.getScheduleInterval(TimeUnit.MILLISECONDS));
+                discoverySchedule.setTargetId(incrementalSchedule.getTargetId());
+            }
+            return discoverySchedule;
         }
     }
 

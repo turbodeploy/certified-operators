@@ -20,9 +20,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
@@ -66,7 +63,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  *     - Default action policies
  *     - Other data in an entity including controllable, and overall state of an entity
  *
- * <p>TODO: Resize, Controllable
+ * <p>TODO: Controllable
  *
  * <p>NOTE: This stage requires probes to provide correct action capabilities for specific entity
  * types. In particular, if an action type is not supported for an entity type, the probe must
@@ -131,10 +128,15 @@ public class ProbeActionCapabilitiesApplicatorEditor {
 
     private void editActionCapabilities(@Nonnull final TopologyEntity entity,
                                         @Nonnull final Context context) {
-        List<Long> discoveryTargets =
-                entity.getDiscoveringTargetIds()
-                        .filter(context.targetsWithActionCapabilities::contains)
-                        .collect(Collectors.toList());
+
+        List<Long> discoveryTargets = new ArrayList<>();
+        List<String> discoveringProbes = new ArrayList<>();
+        entity.getDiscoveringTargetIds().filter(context.targetsWithActionCapabilities::contains)
+                .forEach(target -> {
+                    discoveryTargets.add(target);
+                    discoveringProbes.add(context.actionCapabilitiesTargets.get(target));
+                });
+
         if (discoveryTargets.isEmpty()) {
             // None of the probes that discover this entity has action capabilities set
             return;
@@ -166,15 +168,17 @@ public class ProbeActionCapabilitiesApplicatorEditor {
             return;
         }
 
-        editMovable(entity, actionElementsMap, context);
-        editCloneable(entity, actionElementsMap, context);
-        editSuspendable(entity, actionElementsMap, context);
+        editMovable(entity, actionElementsMap, context, discoveringProbes);
+        editResizeable(entity, actionElementsMap, context, discoveringProbes);
+        editCloneable(entity, actionElementsMap, context, discoveringProbes);
+        editSuspendable(entity, actionElementsMap, context, discoveringProbes);
+        editScalable(entity, actionElementsMap, context, discoveringProbes);
     }
 
     // edit cloneable
     private void editCloneable(@Nonnull final TopologyEntity entity,
                                Map<ActionType, List<ProbeAction>> actionElementsMap,
-                               @Nonnull final Context context) {
+                               @Nonnull final Context context, List<String> discoveringProbes) {
         final AnalysisSettings.Builder builder =
                 entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
 
@@ -194,7 +198,8 @@ public class ProbeActionCapabilitiesApplicatorEditor {
                     } else { // at least one of probes say "No" to "cloneable", so set it to "false"
                         builder.setCloneable(false);
                         context.editorSummary.increaseCloneableToFalseCount();
-                        logger.trace("Disabled provision for {}::{}", entity.getEntityType(), entity.getDisplayName());
+                        logger.trace("[{}] probes disabled provision for {}::{}",
+                                discoveringProbes, entity.getEntityType(), entity.getDisplayName());
                     }
                 });
     }
@@ -202,7 +207,7 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     // edit suspendable
     private void editSuspendable(@Nonnull final TopologyEntity entity,
                                  Map<ActionType, List<ProbeAction>> actionElementsMap,
-                                 @Nonnull final Context context) {
+                                 @Nonnull final Context context, List<String> discoveringProbes) {
         final AnalysisSettings.Builder builder =
                 entity.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder();
 
@@ -223,7 +228,8 @@ public class ProbeActionCapabilitiesApplicatorEditor {
                     } else { // at least one of probes say "No" to "suspendable", so set it to "false"
                         builder.setSuspendable(false);
                         context.editorSummary.increaseSuspendableToFalseCount();
-                        logger.trace("Disabled suspendable for {}::{}", entity.getEntityType(), entity.getDisplayName());
+                        logger.trace("[{}] probes disabled suspendable for {}::{}",
+                                discoveringProbes, entity.getEntityType(), entity.getDisplayName());
                     }
                 });
     }
@@ -231,7 +237,7 @@ public class ProbeActionCapabilitiesApplicatorEditor {
     // edit movable
     private void editMovable(@Nonnull final TopologyEntity entity,
                              Map<ActionType, List<ProbeAction>> actionElementsMap,
-                             @Nonnull final Context context) {
+                             @Nonnull final Context context, List<String> discoveringProbes) {
 
         // If VV's discoveryTarget(s) all indicated movable NOT_SUPPORTED,
         // The storage tier commodities of the VM, which VV is attached to, is set to movable false.
@@ -277,12 +283,75 @@ public class ProbeActionCapabilitiesApplicatorEditor {
                                     } else { // at least one of probes says "No" to "movable", so set it to "false"
                                         builder.setMovable(false);
                                         context.editorSummary.increaseMovableToFalseCount();
-                                        logger.trace("Disabled movable for {}::{} on provider {}",
+                                        logger.trace("[{}] probes disabled movable for {}::{} on provider {}",
+                                                    discoveringProbes,
                                                     entity.getEntityType(), entity.getDisplayName(),
                                                     builder.getProviderEntityType());
                                     }
                                 }
                         ));
+    }
+
+    // edit resizeable
+    private void editResizeable(@Nonnull final TopologyEntity entity,
+                             Map<ActionType, List<ProbeAction>> actionElementsMap,
+                             @Nonnull final Context context, List<String> discoveringProbes) {
+        entity.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
+                .forEach(builder ->
+                    updateProperty(ActionType.RIGHT_SIZE, actionElementsMap,
+                            (isResizeable) -> {
+                                if (builder.hasIsResizeable() && !builder.getIsResizeable()) {
+                                    return;
+                                }
+                                if (isResizeable) {
+                                    // all probes with action policies say it is resizeable,
+                                    if (!builder.hasIsResizeable()) {
+                                        builder.setIsResizeable(true);
+                                        context.editorSummary.increaseResizeableToTrueCount();
+                                    }
+                                } else { // at least one of probes says "No" to "resizeable", so set it to "false"
+                                    builder.setIsResizeable(false);
+                                    context.editorSummary.increaseResizeableToFalseCount();
+                                    logger.trace("[{}] probes disabled resizeable for {}::{} on commodity {}",
+                                            discoveringProbes,
+                                            entity.getEntityType(), entity.getDisplayName(),
+                                            builder.getCommodityType());
+                                }
+                            }
+                            ));
+
+    }
+
+    // edit scalable
+    private void editScalable(@Nonnull final TopologyEntity entity,
+                                Map<ActionType, List<ProbeAction>> actionElementsMap,
+                                @Nonnull final Context context, List<String> discoveringProbes) {
+        entity.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersBuilderList()
+                .forEach(builder ->
+                        updateProperty(ActionType.SCALE, actionElementsMap,
+                                (isScalable) -> {
+                                    // If the action is disabled at the entity level,
+                                    // do not override with probe's action policy
+                                    if (builder.hasScalable() && !builder.getScalable()) {
+                                        return;
+                                    }
+                                    if (isScalable) {
+                                        // all probes with action policies say it is scalable,
+                                        if (!builder.hasScalable()) {
+                                            builder.setScalable(true);
+                                            context.editorSummary.increaseScalableToTrueCount();
+                                        }
+                                    } else { // at least one of probes says "No" to "scalable", so set it to "false"
+                                        builder.setScalable(false);
+                                        context.editorSummary.increaseScalableToFalseCount();
+                                        logger.trace("[{}] probes disabled scalable for {}::{} on provider {}",
+                                                discoveringProbes,
+                                                entity.getEntityType(), entity.getDisplayName(),
+                                                builder.getProviderEntityType());
+                                    }
+                                }
+                        ));
+
     }
 
     /*
@@ -332,10 +401,7 @@ public class ProbeActionCapabilitiesApplicatorEditor {
         // targetsWithActionCapabilities stores a list of targets whose probes have proper action
         // capabilities set as determined by the TARGET_PROBE_HAS_ACTION_CAPABILITIES predicate
         private final List<Long> targetsWithActionCapabilities = new ArrayList<>();
-
-        // unsupportedActions stores unsupported actions (as determined by the IS_NOT_SUPPORTED_ACTION
-        // predicate) based on target ID: targetId -> (entityType, actionType)
-        private final Multimap<Long, ProbeAction> unsupportedActions = ArrayListMultimap.create();
+        private final Map<Long, String> actionCapabilitiesTargets = new HashMap<>();
 
         // Map of target Id and the associated action policies for different entity types belonging to the target
         private Map<Long, Map<EntityType, List<ProbeAction>>> entityTypesWithActionSettings = new HashMap<>();
@@ -371,8 +437,16 @@ public class ProbeActionCapabilitiesApplicatorEditor {
         private void cacheTargetsAndProbeActionCapabilities() {
 
             List<ActionType> editableActions = Arrays.asList(ActionType.MOVE,
+                                                                ActionType.RIGHT_SIZE,
+                                                                ActionType.SCALE,
                                                                 ActionType.SUSPEND,
                                                                 ActionType.PROVISION);
+
+            targetStore.getAll().stream().filter(TARGET_PROBE_HAS_ACTION_CAPABILITIES)
+                    .forEach(target -> {
+                        actionCapabilitiesTargets.put(target.getId(), target.getProbeInfo().getProbeType());
+                    });
+
             entityTypesWithActionSettings =
                     targetStore.getAll().stream()
                     .filter(TARGET_PROBE_HAS_ACTION_CAPABILITIES)
@@ -391,21 +465,12 @@ public class ProbeActionCapabilitiesApplicatorEditor {
             targetStore.getAll().stream().filter(TARGET_PROBE_HAS_ACTION_CAPABILITIES)
                     .forEach(target -> {
                                 targetsWithActionCapabilities.add(target.getId());
-                                target.getProbeInfo().getActionPolicyList().stream()
-                                        .filter(ActionPolicyDTO::hasEntityType)
-                                        .forEach(actionPolicyDTO ->
-                                                actionPolicyDTO.getPolicyElementList().stream()
-                                                        .filter(IS_NOT_SUPPORTED_ACTION)
-                                                        .forEach(e -> {
-                                                            unsupportedActions
-                                                                .put(target.getId(),
-                                                                        createProbeAction(actionPolicyDTO, e));
-                                                        }));
+                                actionCapabilitiesTargets.put(target.getId(), target.getProbeInfo().getProbeType());
                             }
                     );
 
+            logger.info("actionCapabilitiesTargets: {}", actionCapabilitiesTargets);
             logger.trace("actionsWithSettings: {}", entityTypesWithActionSettings);
-            logger.trace("unsupportedActions: {}", unsupportedActions);
             logger.trace("targetsWithActionCapabilities: {}", targetsWithActionCapabilities);
         }
     }
@@ -415,10 +480,30 @@ public class ProbeActionCapabilitiesApplicatorEditor {
         // commodities, we should upgrade the type. E.g. long type.
         private int movableToTrueCounter = 0;
         private int movableToFalseCounter = 0;
+        private int scalableToTrueCounter = 0;
+        private int scalableToFalseCounter = 0;
+        private int resizeableToTrueCounter = 0;
+        private int resizeableToFalseCounter = 0;
         private int cloneableToTrueCounter = 0;
         private int cloneableToFalseCounter = 0;
         private int suspendableToTrueCounter = 0;
         private int suspendableToFalseCounter = 0;
+
+        public int getScalableToTrueCounter() {
+            return scalableToTrueCounter;
+        }
+
+        public int getScalableToFalseCounter() {
+            return scalableToFalseCounter;
+        }
+
+        public int getResizeableToTrueCounter() {
+            return resizeableToTrueCounter;
+        }
+
+        public int getResizeableToFalseCounter() {
+            return resizeableToFalseCounter;
+        }
 
         public int getMovableToTrueCounter() {
             return movableToTrueCounter;
@@ -450,6 +535,22 @@ public class ProbeActionCapabilitiesApplicatorEditor {
 
         private void increaseMovableToFalseCount() {
             ++movableToFalseCounter;
+        }
+
+        private void increaseScalableToTrueCount() {
+            ++scalableToTrueCounter;
+        }
+
+        private void increaseScalableToFalseCount() {
+            ++scalableToFalseCounter;
+        }
+
+        private void increaseResizeableToTrueCount() {
+            ++resizeableToTrueCounter;
+        }
+
+        private void increaseResizeableToFalseCount() {
+            ++resizeableToFalseCounter;
         }
 
         private void increaseCloneableToTrueCount() {

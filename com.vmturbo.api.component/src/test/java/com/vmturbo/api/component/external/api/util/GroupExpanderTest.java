@@ -41,7 +41,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.group.api.GroupMemberRetriever;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -62,13 +62,13 @@ public class GroupExpanderTest {
             .setStaticGroupMembers(GroupDTO.StaticMembers.newBuilder()
                 .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
                     .setType(GroupDTO.MemberType.newBuilder()
-                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build())
+                        .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).build())
                     .addMembers(10L)
                     .addMembers(11L)
                     .build())
                 .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
                     .setType(GroupDTO.MemberType.newBuilder()
-                        .setEntity(UIEntityType.DATABASE.typeNumber()).build())
+                        .setEntity(ApiEntityType.DATABASE.typeNumber()).build())
                     .addMembers(20L)
                     .build())
                 .build())
@@ -83,7 +83,7 @@ public class GroupExpanderTest {
             .setDisplayName("foo")
             .setEntityFilters(EntityFilters.newBuilder()
                 .addEntityFilter(EntityFilter.newBuilder()
-                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                     .setSearchParametersCollection(
                         SearchParametersCollection.getDefaultInstance()
                     )
@@ -235,7 +235,7 @@ public class GroupExpanderTest {
                 .setStaticGroupMembers(GroupDTO.StaticMembers.newBuilder()
                     .addMembersByType(GroupDTO.StaticMembers.StaticMembersByType.newBuilder()
                         .setType(GroupDTO.MemberType.newBuilder()
-                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()).build())
+                            .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()).build())
                         .build())
                     .build())
                 .build())
@@ -246,7 +246,7 @@ public class GroupExpanderTest {
             .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(1234L).build());
 
         // ACT
-        Map<UIEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(1234L);
+        Map<ApiEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(1234L);
 
         //ASSERT
         assertThat(result.size(), equalTo(0));
@@ -264,12 +264,12 @@ public class GroupExpanderTest {
             .when(groupServiceSpy).getGroup(GroupID.newBuilder().setId(RG_OID).build());
 
         // ACT
-        Map<UIEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(RG_OID);
+        Map<ApiEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(RG_OID);
 
         //ASSERT
         assertThat(result.size(), equalTo(2));
-        assertThat(result.get(UIEntityType.VIRTUAL_MACHINE), equalTo(ImmutableSet.of(10L, 11L)));
-        assertThat(result.get(UIEntityType.DATABASE), equalTo(Collections.singleton(20L)));
+        assertThat(result.get(ApiEntityType.VIRTUAL_MACHINE), equalTo(ImmutableSet.of(10L, 11L)));
+        assertThat(result.get(ApiEntityType.DATABASE), equalTo(Collections.singleton(20L)));
     }
 
     /**
@@ -294,11 +294,11 @@ public class GroupExpanderTest {
                         .build()));
 
         // ACT
-        Map<UIEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(DYNAMIC_GROUP_OID);
+        Map<ApiEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(DYNAMIC_GROUP_OID);
 
         //ASSERT
         assertThat(result.size(), equalTo(1));
-        assertThat(result.get(UIEntityType.VIRTUAL_MACHINE), equalTo(ImmutableSet.of(10L, 11L,
+        assertThat(result.get(ApiEntityType.VIRTUAL_MACHINE), equalTo(ImmutableSet.of(10L, 11L,
             12L)));
     }
 
@@ -344,13 +344,13 @@ public class GroupExpanderTest {
                         .addMemberId(12)
                         .build()));
         // ACT
-        Map<UIEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(NESTED_GROUP_OID);
+        Map<ApiEntityType, Set<Long>> result = groupExpander.expandUuidToTypeToEntitiesMap(NESTED_GROUP_OID);
 
         //ASSERT
         assertThat(result.size(), equalTo(2));
-        assertThat(result.get(UIEntityType.VIRTUAL_MACHINE), equalTo(ImmutableSet.of(10L, 11L,
+        assertThat(result.get(ApiEntityType.VIRTUAL_MACHINE), equalTo(ImmutableSet.of(10L, 11L,
             12L)));
-        assertThat(result.get(UIEntityType.DATABASE), equalTo(Collections.singleton(20L)));
+        assertThat(result.get(ApiEntityType.DATABASE), equalTo(Collections.singleton(20L)));
     }
 
     /**

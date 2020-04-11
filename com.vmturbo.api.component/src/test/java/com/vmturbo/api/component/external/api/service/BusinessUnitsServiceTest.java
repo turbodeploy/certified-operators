@@ -70,12 +70,12 @@ import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -453,14 +453,14 @@ public class BusinessUnitsServiceTest {
 
         final SingleEntityRequest mockReq = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.newBuilder()
                         .setOid(OID_LONG)
-                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                         .build());
         when(repositoryApi.entityRequest(OID_LONG)).thenReturn(mockReq);
 
         TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
                         .setOid(OID_LONG)
                         .setDisplayName("foo")
-                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                         .build();
         when(mockReq.getFullEntity()).thenReturn(Optional.of(entityDTO));
 
@@ -496,22 +496,22 @@ public class BusinessUnitsServiceTest {
 
         final SingleEntityRequest mockReq = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.newBuilder()
                         .setOid(OID_LONG)
-                        .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+                        .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
                         .build());
         when(repositoryApi.entityRequest(OID_LONG)).thenReturn(mockReq);
 
         ConnectedEntity connectedEntity1 = ConnectedEntity.newBuilder()
                 .setConnectedEntityId(1)
-                .setConnectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setConnectedEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build();
         ConnectedEntity connectedEntity2 = ConnectedEntity.newBuilder()
                 .setConnectedEntityId(2)
-                .setConnectedEntityType(UIEntityType.VIRTUAL_VOLUME.typeNumber())
+                .setConnectedEntityType(ApiEntityType.VIRTUAL_VOLUME.typeNumber())
                 .build();
         TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
                         .setOid(OID_LONG)
                         .setDisplayName("account")
-                        .setEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber())
+                        .setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
                         .addConnectedEntityList(connectedEntity1)
                         .addConnectedEntityList(connectedEntity2)
                         .build();
@@ -538,6 +538,30 @@ public class BusinessUnitsServiceTest {
     }
 
     /**
+     * Test that if certain related entity types were not set, then we use default values which
+     * expand business account scope.
+     *
+     * @throws Exception if any mandatory RPC call fails.
+     */
+    @Test
+    public void testDefaultRelatedEntityTypesToBusinessUnits() throws Exception {
+        final ActionApiInputDTO initialActionDTO = new ActionApiInputDTO();
+        initialActionDTO.setEndTime(DateTimeUtil.getNow());
+        initialActionDTO.setEnvironmentType(EnvironmentType.CLOUD);
+
+        final ActionApiInputDTO expandedActionDTO = initialActionDTO;
+        expandedActionDTO.setRelatedEntityTypes(
+                ApiEntityType.ENTITY_TYPES_TO_EXPAND.get(ApiEntityType.BUSINESS_ACCOUNT)
+                        .stream()
+                        .map(ApiEntityType::apiStr)
+                        .collect(Collectors.toList()));
+
+        businessUnitsService.getActionCountStatsByUuid(UUID_STRING, initialActionDTO);
+
+        verify(entitiesService).getActionCountStatsByUuid(UUID_STRING, expandedActionDTO);
+    }
+
+    /**
      * Testing get entities by business unit.
      * @throws Exception If one of the necessary steps/RPCs failed.
      */
@@ -548,7 +572,7 @@ public class BusinessUnitsServiceTest {
 
         final SingleEntityRequest mockReq = ApiTestUtils.mockSingleEntityRequest(MinimalEntity.newBuilder()
                         .setOid(OID_LONG)
-                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                         .build());
         when(repositoryApi.entityRequest(OID_LONG)).thenReturn(mockReq);
 
@@ -556,7 +580,7 @@ public class BusinessUnitsServiceTest {
         TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
                         .setOid(OID_LONG)
                         .setDisplayName("foo")
-                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                         .addConnectedEntityList(connectedEntity)
                         .build();
         when(mockReq.getFullEntity()).thenReturn(Optional.of(entityDTO));

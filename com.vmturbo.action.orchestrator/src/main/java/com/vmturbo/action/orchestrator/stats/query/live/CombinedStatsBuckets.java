@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat.StatGroup;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 
@@ -78,6 +79,7 @@ class CombinedStatsBuckets {
                 bucketKey.explanation().ifPresent(bldr::setActionExplanation);
                 bucketKey.type().ifPresent(bldr::setActionType);
                 bucketKey.costType().ifPresent(bldr::setCostType);
+                bucketKey.severity().ifPresent(bldr::setSeverity);
                 bucketKey.targetEntityType().ifPresent(bldr::setTargetEntityType);
                 bucketKey.targetEntityId().ifPresent(bldr::setTargetEntityId);
                 bucketKey.reasonCommodityBaseType().ifPresent(bldr::setReasonCommodityBaseType);
@@ -147,6 +149,13 @@ class CombinedStatsBuckets {
         Optional<ActionCostType> costType();
 
         /**
+         * The {@link Severity} for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the severity.
+         */
+        Optional<Severity> severity();
+
+        /**
          * The type of the primary/target entity for this bucket.
          *
          * @return Value, or {@link Optional} if the requested group-by included the target entity type.
@@ -204,6 +213,9 @@ class CombinedStatsBuckets {
         }
         if (groupBy.contains(GroupBy.COST_TYPE)) {
             keyBuilder.costType(ActionDTOUtil.getActionCostTypeFromAction(action));
+        }
+        if (groupBy.contains(GroupBy.SEVERITY)) {
+            keyBuilder.severity(actionView.getActionSeverity());
         }
         if (groupBy.contains(GroupBy.TARGET_ENTITY_TYPE)) {
             try {

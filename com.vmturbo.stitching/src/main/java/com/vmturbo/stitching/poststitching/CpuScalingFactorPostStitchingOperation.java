@@ -2,8 +2,10 @@ package com.vmturbo.stitching.poststitching;
 
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU_PROVISIONED_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.CPU_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VCPU_VALUE;
 
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -43,7 +45,7 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
      * Update the 'CPU' sold
      */
     private static final Collection<Integer> COMMODITIES_TO_SCALE =
-            ImmutableSet.of(CPU_VALUE, CPU_PROVISIONED_VALUE);
+            ImmutableSet.of(CPU_VALUE, CPU_PROVISIONED_VALUE, VCPU_VALUE);
     private final CpuCapacityStore cpuCapacityStore;
 
     public CpuScalingFactorPostStitchingOperation(final CpuCapacityStore cpuCapacityStore) {
@@ -73,31 +75,34 @@ public class CpuScalingFactorPostStitchingOperation implements PostStitchingOper
                                 cpuCapacityStore.getScalingFactor(cpuModel)
                                         // if found, update the commodities for this entity
                                         .ifPresent(scalingFactor ->
-                                                updateScalingFactorForPm(entityToUpdate,
-                                                        scalingFactor)))));
+                                        updateScalingFactorForEntity(entityToUpdate,
+                                                        scalingFactor, new HashSet<Long>())))));
         return resultBuilder.build();
     }
 
     /**
-     * Set the scalingFactor for the given PM entity and all the VMs that buy from it.
-     * The commodities to scale are sold by the PM given, and we udpate the
-     * commodities for each VM that buys from the VM.
+     * Set the scalingFactor for the entity and all the consumers that buy from it.
+     * The commodities to scale are sold by the entity given, and we update the
+     * commodities for each entity that buys from it.
      *
-     * @param pmEntityToUpdate the TopologyEntity, a PM, to update.
-     * @param scalingFactor the scalingFactor to set on the PM commodities to which it should apply
+     * @param entityToUpdate the TopologyEntity to update.
+     * @param scalingFactor the scalingFactor to set on the entity.
+     * @param updatedSet A set of oids of entities that have already been updated.
      */
-    private void updateScalingFactorForPm(@Nonnull final TopologyEntity pmEntityToUpdate,
-                                          @Nonnull final Double scalingFactor) {
-        // update the scaling factor for the PM itself
-        updateScalingFactorForSoldCommodities(pmEntityToUpdate, scalingFactor);
-        // update the scaling factor for an VMs which buy from this PM
-        pmEntityToUpdate.getConsumers().stream()
-                .filter(consumerEntity -> consumerEntity.getEntityType() ==
-                        EntityType.VIRTUAL_MACHINE_VALUE)
-                .forEach(vmEntity -> {
-                    // add the scalingFactor to the CPU commodities bought by the VM
-                    updateScalingFactorForBoughtCommodities(vmEntity, scalingFactor);
-                });
+    private void updateScalingFactorForEntity(@Nonnull final TopologyEntity entityToUpdate,
+                                          @Nonnull final Double scalingFactor,
+                                          @Nonnull HashSet<Long> updatedSet) {
+        // Avoid potential for infinite recursion.
+        if (updatedSet.contains(entityToUpdate.getOid())) {
+            return;
+        }
+
+        updateScalingFactorForSoldCommodities(entityToUpdate, scalingFactor);
+        updateScalingFactorForBoughtCommodities(entityToUpdate, scalingFactor);
+        updatedSet.add(entityToUpdate.getOid());
+        entityToUpdate.getConsumers().forEach(
+                consumer -> updateScalingFactorForEntity(consumer, scalingFactor, updatedSet)
+        );
     }
 
     /**

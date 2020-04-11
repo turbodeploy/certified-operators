@@ -1,6 +1,7 @@
 package com.vmturbo.common.protobuf.topology;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
@@ -8,13 +9,30 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
 /**
  * Utility methods for environment types.
  */
 public class EnvironmentTypeUtil {
+    /**
+     * Entities discovered by these probes should be considered CLOUD entities.
+     */
+    public static final Set<SDKProbeType> CLOUD_PROBE_TYPES = ImmutableSet.of(
+        SDKProbeType.AWS,
+        SDKProbeType.AWS_COST,
+        SDKProbeType.AWS_BILLING,
+        SDKProbeType.AZURE,
+        SDKProbeType.AZURE_COST,
+        SDKProbeType.AZURE_EA,
+        SDKProbeType.AZURE_SERVICE_PRINCIPAL,
+        SDKProbeType.AZURE_STORAGE_BROWSE,
+        SDKProbeType.GCP,
+        SDKProbeType.GCP_COST);
+
     /**
      * Mapping between {@link EnvironmentType} enum values and their API
      * string representation.

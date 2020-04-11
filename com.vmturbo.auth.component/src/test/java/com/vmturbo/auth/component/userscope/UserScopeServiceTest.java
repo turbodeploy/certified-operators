@@ -11,7 +11,6 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 
 import io.grpc.stub.StreamObserver;
 
@@ -43,10 +42,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
-import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -367,27 +364,5 @@ public class UserScopeServiceTest {
         EntityAccessScopeResponse response = responseCaptor.getValue();
 
         verifyFullAccess(response.getEntityAccessScopeContents());
-    }
-
-
-    /**
-     * Verify that fetch static cloud infra for getEntityAccessScopeMembers.
-     */
-    @Test
-    public void testGetEntityAccessScopeMembersWithStaticCloudInfra() {
-        PropertyFilter propertyFilter = UserScopeService.STATIC_CLOUD_ENTITY_TYPES;
-        List<Long> sampleIDs = ImmutableList.of(101L);
-        doReturn(SearchEntityOidsResponse.newBuilder().addAllEntities(sampleIDs).build())
-                .when(searchService).searchEntityOids(eq(
-                SearchEntityOidsRequest.newBuilder().addSearchParameters(SearchParameters.newBuilder()
-                        .setStartingFilter(propertyFilter)).build()));
-        EntityAccessScopeResponse response = userScopeServiceClient.getEntityAccessScopeMembers(
-                EntityAccessScopeRequest.newBuilder()
-                        .addGroupId(1)
-                        .build());
-        List<Long> expectedList = Lists.newArrayList(sampleIDs);
-        expectedList.addAll(TEST_SUPPLY_CHAIN_OIDS);
-        Assert.assertThat(response.getEntityAccessScopeContents().getAccessibleOids().getArray().getOidsList(),
-                containsInAnyOrder(expectedList.toArray()));
     }
 }

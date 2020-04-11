@@ -4,10 +4,13 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyCollection;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -17,8 +20,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
+
+import io.grpc.stub.StreamObserver;
 
 import org.assertj.core.util.Lists;
 import org.junit.Rule;
@@ -26,8 +32,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 import org.mockito.runners.MockitoJUnitRunner;
-
-import io.grpc.stub.StreamObserver;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
@@ -41,17 +45,22 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.PlanTopologyStatsRes
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.PlanScenarioOrigin;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.repository.service.PlanStatsService.EntityAndStats;
 import com.vmturbo.repository.topology.TopologyID.TopologyType;
 import com.vmturbo.repository.topology.protobufs.TopologyProtobufReader;
 
@@ -163,7 +172,7 @@ public class PlanStatsServiceTest {
             noFilterPredicate,
             paginationParameters,
             entityReturnType,
-            responseObserver);
+            responseObserver, null);
 
         // Extract the results
         List<PlanEntityStats> returnedPlanEntityStats = new ArrayList<>();
@@ -259,7 +268,7 @@ public class PlanStatsServiceTest {
             noFilterPredicate,
             paginationParameters,
             entityReturnType,
-            responseObserver);
+            responseObserver, null);
 
         // Extract the results
         List<PlanEntityStats> returnedPlanEntityStats = new ArrayList<>();
@@ -381,7 +390,7 @@ public class PlanStatsServiceTest {
             topologyTypeToSortOn,
             paginationParameters,
             entityReturnType,
-            responseObserver);
+            responseObserver, null);
 
         // Extract the results
         List<PlanEntityAndCombinedStats> returnedPlanEntityCombinedStats = new ArrayList<>();
@@ -438,6 +447,106 @@ public class PlanStatsServiceTest {
             containsInAnyOrder(sourceEntityId,
                 projectedEntityId,
                 commonEntityId));
+    }
+
+    /**
+     * Test adding density stat to plan request data.
+     */
+    @Test
+    public void testRetrieveTopologyEntitiesAndStatsReturnDensityStats() {
+        //GIVEN
+        final long commonEntityId = 3L;
+        final ProjectedTopologyEntity commonTopologyEntityDTO = ProjectedTopologyEntity.newBuilder()
+                .setEntity(TopologyEntityDTO.newBuilder()
+                        .setOid(commonEntityId)
+                        .setEntityType(10)
+                        .setDisplayName("z"))
+                .build();
+
+        final TopologyProtobufReader projectedProtobufReader = mock(TopologyProtobufReader.class);
+        when(projectedProtobufReader.hasNext()).thenReturn(true).thenReturn(false);
+        when(projectedProtobufReader.nextChunk())
+                .thenReturn(Lists.newArrayList(commonTopologyEntityDTO));
+        final Predicate<TopologyEntityDTO> noFilterPredicate = (entity) -> true;
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                .addCommodityRequests(CommodityRequest.newBuilder()
+                        .setCommodityName(StringConstants.NUM_VMS_PER_HOST))
+                .build();
+
+        final StatEpoch statEpoch = StatEpoch.PLAN_SOURCE;
+        final long snapshotDate = Instant.now().toEpochMilli() + 100000;
+
+        final String relatedEntityType = ApiEntityType.PHYSICAL_MACHINE.apiStr();
+
+
+        PlanStatsService spyPlanStatServiceService = spy(planStatsService);
+        final Set<Long> providerIdsToIncrement = new HashSet<Long>();
+        providerIdsToIncrement.add(commonEntityId);
+        doReturn(providerIdsToIncrement)
+                .when(spyPlanStatServiceService)
+                .getProvidersToIncrementVMDensityStats(any(), any());
+
+        //WHEN
+        final Map<Long, EntityAndStats> results = spyPlanStatServiceService.retrieveTopologyEntitiesAndStats(
+                projectedProtobufReader, noFilterPredicate, statsFilter, statEpoch, snapshotDate,
+                relatedEntityType);
+
+        //THEN
+        assertTrue((results.containsKey(commonEntityId)));
+        EntityAndStats entityAndStats = results.get(commonEntityId);
+        List<StatRecord> statRecords = entityAndStats.stats.getStatSnapshots(0).getStatRecordsList();
+        assertTrue(statRecords.size() == 1);
+        assertTrue(statRecords.get(0).getName().equals(StringConstants.NUM_VMS_PER_HOST));
+        assertTrue(statRecords.get(0).getCapacity().getTotal() == 1);
+    }
+
+    /**
+     * Test no density stats if densityStatname is host specific but relatedEntityType is Storage.
+     */
+    @Test
+    public void testRetrieveTopologyEntitiesAndStatsReturnNoDensityStatsForMismatchedEntityType() {
+        //GIVEN
+        final long commonEntityId = 3L;
+        final ProjectedTopologyEntity commonTopologyEntityDTO = ProjectedTopologyEntity.newBuilder()
+                .setEntity(TopologyEntityDTO.newBuilder()
+                        .setOid(commonEntityId)
+                        .setEntityType(10)
+                        .setDisplayName("z"))
+                .build();
+
+        final TopologyProtobufReader projectedProtobufReader = mock(TopologyProtobufReader.class);
+        when(projectedProtobufReader.hasNext()).thenReturn(true).thenReturn(false);
+        when(projectedProtobufReader.nextChunk())
+                .thenReturn(Lists.newArrayList(commonTopologyEntityDTO));
+        final Predicate<TopologyEntityDTO> noFilterPredicate = (entity) -> true;
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                .addCommodityRequests(CommodityRequest.newBuilder()
+                        .setCommodityName(StringConstants.NUM_VMS_PER_HOST))
+                .build();
+
+        final StatEpoch statEpoch = StatEpoch.PLAN_SOURCE;
+        final long snapshotDate = Instant.now().toEpochMilli() + 100000;
+
+        final String relatedEntityType = ApiEntityType.STORAGE.apiStr();
+
+
+        PlanStatsService spyPlanStatServiceService = spy(planStatsService);
+        final Set<Long> providerIdsToIncrement = new HashSet<Long>();
+        providerIdsToIncrement.add(commonEntityId);
+        doReturn(providerIdsToIncrement)
+                .when(spyPlanStatServiceService)
+                .getProvidersToIncrementVMDensityStats(any(), any());
+
+        //WHEN
+        final Map<Long, EntityAndStats> results = spyPlanStatServiceService.retrieveTopologyEntitiesAndStats(
+                projectedProtobufReader, noFilterPredicate, statsFilter, statEpoch, snapshotDate,
+                relatedEntityType);
+
+        //THEN
+        assertTrue((results.containsKey(commonEntityId)));
+        EntityAndStats entityAndStats = results.get(commonEntityId);
+        List<StatRecord> statRecords = entityAndStats.stats.getStatSnapshots(0).getStatRecordsList();
+        assertTrue(statRecords.isEmpty());
     }
 
     /**

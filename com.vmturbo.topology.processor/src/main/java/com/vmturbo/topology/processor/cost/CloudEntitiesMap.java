@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.cost;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -7,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
@@ -33,7 +33,8 @@ public class CloudEntitiesMap implements Map<String, Long> {
             EntityType.REGION,
             EntityType.AVAILABILITY_ZONE,
             EntityType.RESERVED_INSTANCE,
-            EntityType.BUSINESS_ACCOUNT
+            EntityType.BUSINESS_ACCOUNT,
+            EntityType.SERVICE_PROVIDER
     );
 
     /**
@@ -43,6 +44,15 @@ public class CloudEntitiesMap implements Map<String, Long> {
     private static final Long FALLBACK_ACCOUNT_DEFAULT_OID = 0L; // used when no fallback account is found
 
     private final Map<String, Long> cloudEntityOidByLocalId = new HashMap<>();
+
+    /**
+     * Map to collect the IDs which are 'extra' in cloudEntityOidByLocalId.
+     * We need this map as we format the key in cloudEntityOidByLocalId to match other naming convention
+     * from various probes. like matching DB to DB costs in between Azure to Azure cost probes.
+     * Negative side effect of formatting is we may loose some OIDs.
+     * we want to keep them in this secondary map so it can used for lookup.
+     */
+    private final Map<String, Collection<String>> extraneousIdLookUps = new HashMap<>();
 
     /**
      * Create a new CloudEntitiesMap populated from the provided {@link StitchingContext}
@@ -62,9 +72,10 @@ public class CloudEntitiesMap implements Map<String, Long> {
     /**
      * Create a mapping of cloud entity local id's to oids, to facilitate later lookups by local id.
      * @param stitchingContext containing the cloud entities to include in the map.
+     * @param probeTypesForTargetIds list of probeTypes indexed by their OIDs.
      * @return A mapping from cloud discovered entity local id -> stitching entity oid
      */
-    private Map<String,Long> populateFrom(StitchingContext stitchingContext,
+    private Map<String, Long> populateFrom(StitchingContext stitchingContext,
                                          Map<Long, SDKProbeType> probeTypesForTargetIds) {
         // build a map allowing easy translation from cloud service local id's to TP oids
         cloudEntityOidByLocalId.clear();
@@ -79,10 +90,21 @@ public class CloudEntitiesMap implements Map<String, Long> {
                     // use the UUID syntax. I don't know why we use the UUID syntax
                     // for DB profiles but not VM profiles (they seem like they should be more
                     // consistent with each other), which is something to be followed up on.
-                    cloudEntityOidByLocalId.put(
-                            CloudCostUtils.databaseTierLocalNameToId(entity.getDisplayName(),
-                                    probeTypesForTargetIds.get(entity.getTargetId())),
-                            entity.getOid());
+                    String databaseTierName = CloudCostUtils.databaseTierLocalNameToId(entity.getDisplayName(),
+                            probeTypesForTargetIds.get(entity.getTargetId()));
+                    if (cloudEntityOidByLocalId.containsKey(databaseTierName)) {
+                        String databaseTierFullName = CloudCostUtils.databaseTierNameToFullId(
+                                entity.getDisplayName(),
+                                probeTypesForTargetIds.get(entity.getTargetId()));
+                        extraneousIdLookUps.compute(databaseTierName, (key, currentList) -> {
+                            currentList = currentList == null ? new ArrayList<>() : currentList;
+                            currentList.add(databaseTierFullName);
+                            return currentList;
+                        });
+                        cloudEntityOidByLocalId.put(databaseTierFullName, entity.getOid());
+                    } else {
+                        cloudEntityOidByLocalId.put(databaseTierName, entity.getOid());
+                    }
                 }
                 counter.getAndIncrement();
             });
@@ -254,5 +276,9 @@ public class CloudEntitiesMap implements Map<String, Long> {
     @Override
     public Set<Entry<String, Long>> entrySet() {
         return cloudEntityOidByLocalId.entrySet();
+    }
+
+    public Map<String, Collection<String>> getExtraneousIdLookUps() {
+        return extraneousIdLookUps;
     }
 }

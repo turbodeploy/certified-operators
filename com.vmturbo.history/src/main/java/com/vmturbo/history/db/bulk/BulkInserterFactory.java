@@ -154,7 +154,7 @@ public class BulkInserterFactory implements AutoCloseable {
     public void flushAll() throws InterruptedException {
         // first flush all inserters, so they can write pending records in parallel
         for (BulkInserter<?, ?> bulkInserter : inserters.values()) {
-            bulkInserter.flush();
+            bulkInserter.flush(false);
         }
         // then wait for them all to finish
         for (BulkInserter<?, ?> bulkInserter : inserters.values()) {

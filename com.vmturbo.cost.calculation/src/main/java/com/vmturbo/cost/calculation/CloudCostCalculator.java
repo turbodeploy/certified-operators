@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.PriceForG
 import com.vmturbo.common.protobuf.cost.Pricing.SpotInstancePriceTable.SpotPricesForTier;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceApplicatorFactory;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.LicensePriceTuple;
@@ -41,6 +41,7 @@ import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfi
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
@@ -154,7 +155,7 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             return CostJournal.empty(entity, entityInfoExtractor);
         }
 
-        final String entityTypeName = UIEntityType.fromSdkTypeToEntityTypeString(entityType);
+        final String entityTypeName = ApiEntityType.fromSdkTypeToEntityTypeString(entityType);
         final String entityName = entityInfoExtractor.getName(entity);
         try (TraxContext traxContext = Trax.track(entityTypeName, entityName, Long.toString(entityId), "COST")) {
             final Optional<ENTITY_CLASS> regionOpt = cloudTopology.getConnectedRegion(entityId);
@@ -241,6 +242,11 @@ public class CloudCostCalculator<ENTITY_CLASS> {
         final Optional<VirtualVolumeConfig> volumeConfigOpt = entityInfoExtractor.getVolumeConfig(entity);
         if (volumeConfigOpt.isPresent()) {
             final VirtualVolumeConfig volumeConfig = volumeConfigOpt.get();
+            // Ephemeral volumes are directly attached to the EC2 instance, so there's no need to calculate the cost.
+            if (volumeConfig.isEphemeral()) {
+                logger.debug("Skipping Volume cost calculation, {} is Ephemeral", entityId);
+                return;
+            }
             final Optional<ENTITY_CLASS> storageTierOpt = cloudTopology.getStorageTier(entityId);
             if (storageTierOpt.isPresent()) {
                 final ENTITY_CLASS storageTier = storageTierOpt.get();
@@ -445,7 +451,8 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             .build();
                     // Apply the reserved instance coverage, and return the percent of the entity's compute that's
                     // covered by reserved instances.
-                    reservedInstanceApplicator.recordRICoverage(computeTier, price);
+                    boolean recordLicenseCost = computeConfig.getLicenseModel() == LicenseModel.LICENSE_INCLUDED ? true : false;
+                    reservedInstanceApplicator.recordRICoverage(computeTier, price, recordLicenseCost);
                     recordVMIpCost(entity, computeTier, onDemandPriceTable.get(), journal);
                 }
             });
@@ -626,6 +633,11 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                                                  long tierId) {
         DbTierOnDemandPriceTable priceTable =
             onDemandPriceTable.getDbPricesByInstanceIdMap().get(tierId);
+        if (priceTable == null) {
+            logger.warn("No database price table found for db tier id {}. Returning null db price list",
+                    tierId);
+            return null;
+        }
         Optional<CloudCostDTO.DeploymentType> deploymentType =
             databaseConfig.getDeploymentType();
 

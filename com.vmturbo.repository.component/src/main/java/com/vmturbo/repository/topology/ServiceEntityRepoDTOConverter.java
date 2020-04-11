@@ -20,7 +20,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.DiscoveryOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.dto.CommoditiesBoughtRepoFromProviderDTO;
 import com.vmturbo.repository.dto.CommoditySoldRepoDTO;
 import com.vmturbo.repository.dto.ConnectedEntityRepoDTO;
@@ -47,7 +47,7 @@ public class ServiceEntityRepoDTOConverter {
         TopologyEntityDTO.Builder topologyEntityBuilder = TopologyEntityDTO.newBuilder();
         topologyEntityBuilder.setOid(Long.valueOf(serviceEntityRepoDTO.getOid()));
         topologyEntityBuilder.setDisplayName(serviceEntityRepoDTO.getDisplayName());
-        topologyEntityBuilder.setEntityType(UIEntityType.fromString(serviceEntityRepoDTO.getEntityType()).typeNumber());
+        topologyEntityBuilder.setEntityType(ApiEntityType.fromString(serviceEntityRepoDTO.getEntityType()).typeNumber());
         topologyEntityBuilder.setEnvironmentType(
             EnvironmentTypeUtil.fromApiString(serviceEntityRepoDTO.getEnvironmentType())
                 .orElse(EnvironmentType.UNKNOWN_ENV));

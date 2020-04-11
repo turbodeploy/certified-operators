@@ -480,6 +480,7 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
             boolean interrupted = Thread.currentThread().isInterrupted();
             for (IChunkProcessor<T> cp : chunkProcessors) {
                 try {
+                    timer.start(cp.getLabel());
                     cp.finish(objectCount, interrupted, infoSummary);
                 } catch (InterruptedException e) {
                     logger.warn(
@@ -492,6 +493,8 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                     logger.warn(
                             "Chunk procesor {} failed during finish processing for {}",
                             cp.getLabel(), infoSummary, e);
+                } finally {
+                    timer.stop();
                 }
             }
         }

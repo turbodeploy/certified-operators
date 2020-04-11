@@ -130,6 +130,9 @@ message TypeSpecificInfo {
         // A list of provider specific account attributes that are used to identify the pricing
         // applied to an account.  For example, Azure uses offer ID and enrollment number.
         repeated .common_dto.PricingIdentifier pricing_identifiers = 3;
+
+        // Flag to indicate RI support status.
+        optional bool riSupported = 4;
     }
 
     // Specific data for region
@@ -366,7 +369,6 @@ message PartialEntity {
         // subsets. We opt for clarity.
         ACTION = 10;
         API = 11;
-        HEADROOM_PLAN = 12;
     }
 
     // A minimal entity contains just the bare essentials.
@@ -471,20 +473,6 @@ message PartialEntity {
         }
     }
 
-    // Contains the fields required by cluster headroom plan.
-    message HeadroomPlanPartialEntity {
-        required int64 oid = 1;
-
-        optional string display_name = 2;
-
-        required int32 entity_type = 3;
-
-        optional .topology.EntityState entity_state = 4 [default = POWERED_ON];
-
-        // list of commodities sold, which can be found in PlanDTOUtil
-        repeated CommoditySoldDTO commodity_sold = 5;
-    }
-
     // The type of the entity.
     // The index should align with the Type value.
     oneof type {
@@ -495,7 +483,6 @@ message PartialEntity {
 
         ActionPartialEntity action = 10;
         ApiPartialEntity api = 11;
-        HeadroomPlanPartialEntity headroom_plan_partial_entity = 12;
     }
 }
 
@@ -637,6 +624,12 @@ message TopologyEntityDTO {
         // If true, it means we can consider resize up
         // and down for entity.
         optional bool is_eligible_for_scale = 11 [default = true];
+
+        // Whether the trader is a daemon. Entities that cannot move off of their supplier and have
+        // no meaning if moved off of that supplier are called daemons.  Daemons are identified by
+        // the probes.  In Classic applications with type GuestLoad are also considered daemons,
+        // even though the probes that create them do not currently mark them as daemons.
+        optional bool daemon = 12 [default = false];
     }
 
     optional Origin origin = 10;
@@ -1187,6 +1180,9 @@ message CommoditySoldDTO {
     // Certain probes may send more than one point per discovery request.
     optional UtilizationData utilizationData = 23;
 
+    // The thresholds (Ex. min/Max) for the commodity.
+    optional Thresholds thresholds = 24;
+
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
         // The type of commodity whose usage will be used as a factor.
@@ -1202,6 +1198,15 @@ message CommoditySoldDTO {
         // whether or not this commodity supports hot remove
         optional bool hot_remove_supported = 3 [default = false];
     }
+
+    // Threshold set for the commodity. The min/Max will be used by market to adjust resize actions.
+    message Thresholds {
+        // The min threshold of the commodity. We keep this to adjust the resize down actions.
+        optional double min = 1;
+        // The Max threshold of the commodity. We keep this to adjust the resize up actions.
+        optional double max = 2;
+    }
+
 }
 
 message IpAddress {

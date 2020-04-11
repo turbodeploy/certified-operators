@@ -119,6 +119,9 @@ message StatsFilter {
     // this is not an enum (latest/hourly/daily/monthly) to decouple from history implementation
     optional int64 rollup_period = 5;
 
+    // Request projected headroom or not.
+    optional bool requestProjectedHeadroom = 6 [default = false];
+
     // Specify the commodity to fetch along with filters and grouping
     message CommodityRequest {
 
@@ -343,16 +346,6 @@ message ProjectedStatsResponse {
     // The response for projected stats contains at most one snapshot,
     // because there is only one projection.
     optional StatSnapshot snapshot = 1;
-}
-
-// Request sent to the Stats Service when it is time to compute roll-up stats for clusters.
-message ClusterRollupRequest {
-    // The list of clusters for which stats roll-up should be calculated.
-    repeated .group.Grouping clustersToRollup = 1;
-}
-
-message ClusterRollupResponse {
-    // nothing to return
 }
 
 message DeletePlanStatsRequest{
@@ -585,6 +578,9 @@ service StatsHistoryService {
     //Get stats filtered by certain options and average over all desired entities in the cluser.
     rpc GetClusterStats(ClusterStatsRequest) returns (stream StatSnapshot);
 
+    // Get cluster stats for headroom plan, e.g. number of VMs.
+    rpc GetClusterStatsForHeadroomPlan(ClusterStatsRequest) returns (stream StatSnapshot);
+
     // Get stats from the latest projected topology.
     // Will return a response with no data if the stats service
     // doesn't have any projected stats.
@@ -594,10 +590,6 @@ service StatsHistoryService {
     // Will return a response for each entity with no data if the stats service
     // doesn't have any projected stats.
     rpc GetProjectedEntityStats(ProjectedEntityStatsRequest) returns (ProjectedEntityStatsResponse);
-
-    // Trigger a cluster-rollup computation for the given clusters.
-    // Will return no significant data.
-    rpc ComputeClusterRollup(ClusterRollupRequest) returns (ClusterRollupResponse);
 
     // Save values computed by the headroom plan in the cluster statistics table, where it can
     // be retrieved alongside other stats.

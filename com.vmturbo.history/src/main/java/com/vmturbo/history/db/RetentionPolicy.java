@@ -29,8 +29,8 @@ import org.jooq.DSLContext;
 import org.jooq.Result;
 import org.jooq.exception.DataAccessException;
 
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.schema.RetentionUtil;
-import com.vmturbo.history.schema.TimeFrame;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.AvailableTimestampsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.RetentionPoliciesRecord;

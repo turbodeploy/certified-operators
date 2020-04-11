@@ -1,6 +1,8 @@
 package com.vmturbo.repository.graph.driver;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -34,6 +36,8 @@ import com.arangodb.entity.BaseEdgeDocument;
 import com.arangodb.entity.CollectionType;
 import com.arangodb.entity.EdgeDefinition;
 import com.arangodb.model.CollectionCreateOptions;
+import com.arangodb.model.GraphCreateOptions;
+
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
 import com.vmturbo.repository.graph.parameter.CollectionParameter;
 import com.vmturbo.repository.graph.parameter.EdgeDefParameter;
@@ -179,7 +183,10 @@ public class ArangoGraphDatabaseDriverTest {
 
         arangoGraphDatabaseDriverTest.createGraph(p);
 
-        verify(mockArangoDatabase).createGraph(eq(graphName + collectionNameSuffix), edgeDefinitionEntityCaptor.capture());
+        ArgumentCaptor<GraphCreateOptions> optionsCaptor = ArgumentCaptor.forClass(GraphCreateOptions.class);
+
+        verify(mockArangoDatabase).createGraph(eq(graphName + collectionNameSuffix), edgeDefinitionEntityCaptor.capture(),
+                optionsCaptor.capture());
         assertEquals(edgeCollection1 + collectionNameSuffix, edgeDefinitionEntityCaptor.getValue().get(0).getCollection());
         assertTrue(edgeDefinitionEntityCaptor.getValue().get(0).getFrom().contains(vertexCollection1 + collectionNameSuffix));
         assertEquals(edgeCollection2 + collectionNameSuffix, edgeDefinitionEntityCaptor.getValue().get(1).getCollection());
@@ -255,6 +262,19 @@ public class ArangoGraphDatabaseDriverTest {
         arangoGraphDatabaseDriverTest.createIndex(p);
 
         verify(mockArangoCollection).createFulltextIndex(Arrays.asList(field), null);
+    }
+
+    @Test
+    public void testGraphCreationOptions() {
+        assertNull(arangoGraphDatabaseDriverTest.extractGraphCreateOptions(null));
+        // default params will result in a null options instance
+        assertNull(arangoGraphDatabaseDriverTest.extractGraphCreateOptions(new GraphParameter.Builder("empty")
+                .build()));
+        GraphCreateOptions options = arangoGraphDatabaseDriverTest.extractGraphCreateOptions(new GraphParameter.Builder("replicas set")
+                .replicaCount(5)
+                .build());
+        assertNotNull(options);
+        assertEquals(5, options.getReplicationFactor().intValue());
     }
 
     @Test(expected = GraphDatabaseException.class)

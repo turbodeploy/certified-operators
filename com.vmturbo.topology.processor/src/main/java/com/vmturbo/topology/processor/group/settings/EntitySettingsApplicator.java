@@ -19,13 +19,13 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
@@ -93,6 +94,7 @@ public class EntitySettingsApplicator {
                 for (SettingApplicator applicator: buildApplicators(topologyInfo, graphWithSettings)) {
                     applicator.apply(entity, settingsForEntity);
                 }
+
             });
     }
 
@@ -107,7 +109,7 @@ public class EntitySettingsApplicator {
                                                             @Nonnull final GraphWithSettings graphWithSettings) {
         return ImmutableList.of(new MoveApplicator(graphWithSettings),
                 new VMShopTogetherApplicator(topologyInfo),
-                new SuspendApplicator(),
+                new SuspendApplicator(true), new SuspendApplicator(false),
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
                 new MoveCommoditiesFromProviderTypesApplicator(EntitySettingSpecs.StorageMove,
@@ -133,8 +135,6 @@ public class EntitySettingsApplicator {
                         CommodityType.STORAGE_LATENCY),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.HeapUtilization,
                         CommodityType.HEAP),
-                new UtilizationThresholdApplicator(EntitySettingSpecs.CollectionTimeUtilization,
-                        CommodityType.COLLECTION_TIME),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.VCPURequestUtilization,
                         CommodityType.VCPU_REQUEST),
                 new UtilizationThresholdApplicator(EntitySettingSpecs.PoolCpuUtilizationThreshold,
@@ -158,6 +158,12 @@ public class EntitySettingsApplicator {
                         CommodityType.VSTORAGE),
                 new ResizeIncrementApplicator(EntitySettingSpecs.StorageIncrement,
                         CommodityType.STORAGE_AMOUNT),
+                new VMVMemThresholdApplicator(Arrays.asList(EntitySettingSpecs.ResizeVmemMinThreshold,
+                        EntitySettingSpecs.ResizeVmemMaxThreshold),
+                        CommodityType.VMEM),
+                new VMVCPUThresholdApplicator(Arrays.asList(EntitySettingSpecs.ResizeVcpuMinThreshold,
+                        EntitySettingSpecs.ResizeVcpuMaxThreshold),
+                        CommodityType.VCPU, graphWithSettings),
                 new ResizeTargetUtilizationCommodityBoughtApplicator(
                         EntitySettingSpecs.ResizeTargetUtilizationImageCPU,
                         CommodityType.IMAGE_CPU),
@@ -181,16 +187,9 @@ public class EntitySettingsApplicator {
                                         new VmInstanceStoreCommoditiesCreator(),
                                         new ComputeTierInstanceStoreCommoditiesCreator()),
                 new OverrideCapacityApplicator(EntitySettingSpecs.ViewPodActiveSessionsCapacity,
-                                                   CommodityType.ACTIVE_SESSIONS));
-    }
-
-    private static Collection<CommoditySoldDTO.Builder> getCommoditySoldBuilders(
-            TopologyEntityDTO.Builder entity, CommodityType commodityType) {
-        return entity.getCommoditySoldListBuilderList()
-                .stream()
-                .filter(commodity -> commodity.getCommodityType().getType() ==
-                        commodityType.getNumber())
-                .collect(Collectors.toList());
+                        CommodityType.ACTIVE_SESSIONS),
+                new VsanStorageApplicator(graphWithSettings),
+                new ResizeVStorageApplicator());
     }
 
     /**
@@ -266,21 +265,6 @@ public class EntitySettingsApplicator {
                     }
                 });
         }
-    }
-
-    /**
-     * Settings applicator, that requires multiple settings to be processed.
-     */
-    @FunctionalInterface
-    private interface SettingApplicator {
-        /**
-         * Applies settings to the specified entity.
-         *
-         * @param entity entity to apply settings to
-         * @param settings settings to apply
-         */
-        void apply(@Nonnull TopologyEntityDTO.Builder entity,
-                @Nonnull Map<EntitySettingSpecs, Setting> settings);
     }
 
     /**
@@ -434,30 +418,33 @@ public class EntitySettingsApplicator {
      */
     private static class VMShopTogetherApplicator implements SettingApplicator {
 
+        TopologyInfo topologyInfo_;
+
         private VMShopTogetherApplicator(TopologyInfo topologyInfo) {
             super();
+            topologyInfo_ = topologyInfo;
         }
 
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity,
                 @Nonnull Map<EntitySettingSpecs, Setting> settings) {
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE
-                    && settings.containsKey(EntitySettingSpecs.Move)
-                    && settings.containsKey(EntitySettingSpecs.StorageMove)) {
+                    && settings.containsKey(EntitySettingSpecs.ShopTogether)) {
                 // TODO: For migration plans from on prem to cloud or from cloud to cloud,
                 // we should shop together.
-                final String computeMoveSetting = settings.get(EntitySettingSpecs.Move)
-                        .getEnumSettingValue().getValue();
-                final String storageMoveSetting = settings.get(EntitySettingSpecs.StorageMove)
-                        .getEnumSettingValue().getValue();
-                boolean isAutomateOrManual = computeMoveSetting.equals(ActionMode.AUTOMATIC.name())
-                                || computeMoveSetting.equals(ActionMode.MANUAL.name());
+                final boolean isShopTogetherSettingEnabled = settings.get(EntitySettingSpecs.ShopTogether)
+                        .getBooleanSettingValue().getValue();
+                final boolean isRealTime = !TopologyDTOUtil.isPlan(topologyInfo_);
+
                 // Note: if a VM does not support shop together execution, even when move and storage
                 // move sets to Manual or Automatic, dont enable shop together.
                 // If the entity is a reserved VM then it should always shop together.
                 if (entity.getOrigin().hasReservationOrigin()) {
                     entity.getAnalysisSettingsBuilder().setShopTogether(true);
-                } else if (!computeMoveSetting.equals(storageMoveSetting) || !isAutomateOrManual
+                // Apply shop together to false only if shopTogether setting is disabled by user
+                // and topology is realtime. We don't want to do it for plans because other stages
+                // like "IgnoreConstraints" set shop together to 'true' and we don't want to override it here.
+                } else if ((!isShopTogetherSettingEnabled && isRealTime)
                         || entity.getEnvironmentType() == EnvironmentType.CLOUD) {
                     // user has to change default VM action settings to explicitly indicate they
                     // want to have compound move actions generated considering best placements in
@@ -469,8 +456,8 @@ public class EntitySettingsApplicator {
                     // user interface. So, we just disable shop together for them because it has
                     // no real advantage in the cloud.
                     entity.getAnalysisSettingsBuilder().setShopTogether(false);
-                    logger.debug("Shoptogether is disabled for {} with move mode {} and storage move mode {}.",
-                            entity.getDisplayName(), computeMoveSetting, storageMoveSetting);
+                    logger.debug("Shop together is disabled for {}.",
+                            entity.getDisplayName());
                 }
             } else if (entity.getEntityType() == EntityType.DATABASE_SERVER_VALUE ||
                     entity.getEntityType() == EntityType.DATABASE_VALUE) {
@@ -485,8 +472,9 @@ public class EntitySettingsApplicator {
      */
     private static class SuspendApplicator extends SingleSettingApplicator {
 
-        private SuspendApplicator() {
-            super(EntitySettingSpecs.Suspend);
+        private SuspendApplicator(boolean isEnabledByDefault) {
+            super(isEnabledByDefault ? EntitySettingSpecs.Suspend :
+                EntitySettingSpecs.DisabledSuspend);
         }
 
         @Override
@@ -585,6 +573,33 @@ public class EntitySettingsApplicator {
     }
 
     /**
+     * Applies the "ResizeVStorage" setting to {@link TopologyEntityDTO.Builder} which is an on-prem VM.
+     */
+    private static class ResizeVStorageApplicator extends SingleSettingApplicator {
+
+        private ResizeVStorageApplicator() {
+            super(EntitySettingSpecs.ResizeVStorage);
+        }
+
+        @Override
+        public void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                          @Nonnull final Setting setting) {
+            if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE &&
+                entity.getEnvironmentType() == EnvironmentType.ON_PREM) {
+                final boolean resizeable = setting.hasBooleanSettingValue() && setting.getBooleanSettingValue().getValue();
+                entity.getCommoditySoldListBuilderList().stream()
+                    .filter(c -> c.getCommodityType().getType() == CommodityType.VSTORAGE_VALUE)
+                    .forEach(commSoldBuilder -> {
+                        commSoldBuilder.setIsResizeable(resizeable);
+                        logger.trace("Setting resizable for {}:{}:{} to {}",
+                            entity.getEntityType(), entity.getDisplayName(),
+                            commSoldBuilder.getCommodityType(), resizeable);
+                    });
+            }
+        }
+    }
+
+    /**
      * Applies a Vcpu resize to the virtual machine represented in
      * {@link TopologyEntityDTO.Builder}.
      */
@@ -653,7 +668,8 @@ public class EntitySettingsApplicator {
         @Override
         public void apply(@Nonnull TopologyEntityDTO.Builder entity, @Nonnull Setting setting) {
             final float settingValue = setting.getNumericSettingValue().getValue();
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : SettingApplicator
+                    .getCommoditySoldBuilders(entity, commodityType)) {
                 commodity.setEffectiveCapacityPercentage(settingValue);
             }
         }
@@ -705,7 +721,8 @@ public class EntitySettingsApplicator {
             // We only want to do this for cluster headroom calculations.
             Preconditions.checkArgument(topologyInfo.getPlanInfo().getPlanProjectType() ==
                     PlanProjectType.CLUSTER_HEADROOM);
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : SettingApplicator
+                    .getCommoditySoldBuilders(entity, commodityType)) {
                 // We want to factor the max desired utilization into the effective capacity
                 // of the sold commodity. For cluster headroom calculations, the desired state has
                 // no effect because provisions/moves are disabled in the market analysis. However,
@@ -726,7 +743,8 @@ public class EntitySettingsApplicator {
         private void applyUtilizationChanges(@Nonnull TopologyEntityDTO.Builder entity,
                                              @Nonnull CommodityType commodityType,
                                              @Nullable Setting setting) {
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : SettingApplicator
+                    .getCommoditySoldBuilders(entity, commodityType)) {
                 if (setting != null) {
                     commodity.setEffectiveCapacityPercentage(
                             setting.getNumericSettingValue().getValue());
@@ -771,6 +789,120 @@ public class EntitySettingsApplicator {
             if (entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
                 entity.getAnalysisSettingsBuilder()
                     .setDesiredUtilizationRange(setting.getNumericSettingValue().getValue());
+            }
+        }
+    }
+
+    /**
+     * Applies VCPU min/Max to the virtual machine represented in {@link TopologyEntityDTO.Builder}.
+     */
+    private static class VMVCPUThresholdApplicator extends MultipleSettingsApplicator {
+
+        private final CommodityType commodityType;
+        // We need the graph to fin the core CPU speed of the hosting PM for the unit conversion.
+        private final TopologyGraph<TopologyEntity> graph;
+
+        private VMVCPUThresholdApplicator(@Nonnull final List<EntitySettingSpecs> settings,
+                                          @Nonnull final CommodityType commodityType,
+                                          @Nonnull final GraphWithSettings graphWithSettings) {
+            super(settings);
+            this.commodityType = Objects.requireNonNull(commodityType);
+            this.graph = graphWithSettings.getTopologyGraph();
+        }
+
+        @Override
+        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                             @Nonnull final Collection<Setting> settings) {
+            if (EntityType.VIRTUAL_MACHINE_VALUE == entity.getEntityType() &&
+                    EnvironmentType.ON_PREM == entity.getEnvironmentType()) {
+                // Gets the CPU speed of the PM.
+                final Optional<Integer> cpuSpeed = graph.getProviders(entity.getOid())
+                        .filter(provider -> provider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                        .filter(provider -> provider.getTypeSpecificInfo().getPhysicalMachine().hasCpuCoreMhz())
+                        .map(pm -> pm.getTypeSpecificInfo().getPhysicalMachine().getCpuCoreMhz())
+                        .findFirst();
+                if (cpuSpeed.isPresent()) {
+                    entity.getCommoditySoldListBuilderList().stream()
+                            .filter(commodity -> commodity.getCommodityType().getType() ==
+                                    commodityType.getNumber()).forEach(commodityBuilder -> {
+                        final Thresholds.Builder thresholdsBuilder = Thresholds.newBuilder();
+                        for (Setting setting : settings) {
+                            final float settingValue = setting.getNumericSettingValue().getValue();
+                            if (EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingSpec().getName()
+                                    .equals(setting.getSettingSpecName())) {
+                                thresholdsBuilder.setMin(settingValue * cpuSpeed.get());
+                            } else if (EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingSpec()
+                                    .getName().equals(setting.getSettingSpecName())) {
+                                thresholdsBuilder.setMax(settingValue * cpuSpeed.get());
+                            }
+                        }
+                        commodityBuilder.setThresholds(thresholdsBuilder);
+                    });
+                } else if (entity.getTypeSpecificInfo().getVirtualMachine().hasNumCpus()) {
+                    entity.getCommoditySoldListBuilderList().stream()
+                            .filter(commodity -> commodity.getCommodityType().getType() ==
+                                    commodityType.getNumber()).forEach(commodityBuilder -> {
+                        final Thresholds.Builder thresholdsBuilder = Thresholds.newBuilder();
+                        for (Setting setting : settings) {
+                            final float settingValue = setting.getNumericSettingValue().getValue();
+                            if (EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingSpec().getName()
+                                    .equals(setting.getSettingSpecName())) {
+                                thresholdsBuilder.setMin(settingValue *
+                                commodityBuilder.getCapacity()
+                                / entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus());
+                            } else if (EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingSpec()
+                                    .getName().equals(setting.getSettingSpecName())) {
+                                thresholdsBuilder.setMax(settingValue *
+                                commodityBuilder.getCapacity()
+                                / entity.getTypeSpecificInfo().getVirtualMachine().getNumCpus());
+                            }
+                        }
+                        commodityBuilder.setThresholds(thresholdsBuilder);
+                    });
+                } else {
+                    logger.error("VCPU threshold applicator couldn't find the CPU speed " +
+                            "of the host (VM: {})", entity.getDisplayName());
+                }
+            }
+        }
+    }
+
+    /**
+     * Applies VMem min/Max to the virtual machine represented in {@link TopologyEntityDTO.Builder}.
+     */
+    private static class VMVMemThresholdApplicator extends MultipleSettingsApplicator {
+
+        //VMem setting value is in MBs. Market expects it in KBs.
+        private final float conversionFactor = 1024.0f;
+        private final CommodityType commodityType;
+
+        private VMVMemThresholdApplicator(@Nonnull final List<EntitySettingSpecs> settings,
+                                          @Nonnull final CommodityType commodityType) {
+            super(settings);
+            this.commodityType = Objects.requireNonNull(commodityType);
+        }
+
+        @Override
+        protected void apply(@Nonnull final TopologyEntityDTO.Builder entity,
+                             @Nonnull final Collection<Setting> settings) {
+            if (EntityType.VIRTUAL_MACHINE_VALUE == entity.getEntityType() &&
+                    EnvironmentType.ON_PREM == entity.getEnvironmentType()) {
+                entity.getCommoditySoldListBuilderList().stream()
+                        .filter(commodity -> commodity.getCommodityType().getType() ==
+                                commodityType.getNumber()).forEach(commodityBuilder -> {
+                    final Thresholds.Builder thresholdsBuilder = Thresholds.newBuilder();
+                    for (Setting setting : settings) {
+                        final float settingValue = setting.getNumericSettingValue().getValue();
+                        if (EntitySettingSpecs.ResizeVmemMinThreshold.getSettingSpec().getName()
+                                .equals(setting.getSettingSpecName())) {
+                            thresholdsBuilder.setMin(settingValue * conversionFactor);
+                        } else if (EntitySettingSpecs.ResizeVmemMaxThreshold.getSettingSpec()
+                                .getName().equals(setting.getSettingSpecName())) {
+                            thresholdsBuilder.setMax(settingValue * conversionFactor);
+                        }
+                    }
+                    commodityBuilder.setThresholds(thresholdsBuilder);
+                });
             }
         }
     }
@@ -975,7 +1107,8 @@ public class EntitySettingsApplicator {
             if (settingValue == null) {
                 return;
             }
-            for (CommoditySoldDTO.Builder commodity : getCommoditySoldBuilders(entity, commodityType)) {
+            for (CommoditySoldDTO.Builder commodity : SettingApplicator
+                    .getCommoditySoldBuilders(entity, commodityType)) {
                 commodity.setCapacity(settingValue);
             }
         }

@@ -79,8 +79,9 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -184,8 +185,8 @@ public class PaginatedStatsExecutor {
          * replace requests for stats for a DATACENTER entity with the PHYSICAL_MACHINEs
          * in that DATACENTER.
          */
-        private final Map<UIEntityType, UIEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-                UIEntityType.DATACENTER, UIEntityType.PHYSICAL_MACHINE
+        private final Map<ApiEntityType, ApiEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
+                ApiEntityType.DATACENTER, ApiEntityType.PHYSICAL_MACHINE
         );
 
         /**
@@ -239,13 +240,70 @@ public class PaginatedStatsExecutor {
          * Kicks off reading and processing historical or projected stats request.
          */
         void processRequest() throws OperationFailedException {
+            sanitizeStartDateOrEndDate();
             if (isHistoricalStatsRequest()) {
                 runHistoricalStatsRequest();
             } else if (isProjectedStatsRequest()) {
                 runProjectedStatsRequest();
             } else {
-                throw new OperationFailedException("Invalid start and end date combination.");
+                throw new IllegalArgumentException("Invalid start and end date combination.");
             }
+        }
+
+        /**
+         * If ONLY one of startDate/endDate is provided, adjust their values so that are
+         * consistent in what they represent. (If both of them are provided or none of them is,
+         * there is no need to modify anything so the function does nothing.)
+         * Adjustment goes as follows:
+         * - If only endDate is provided:
+         * --- if end date is in the past, throw an exception since no assumption can be made for
+         *      the start date; it is considered invalid input.
+         * --- if end date is now* , set it to null. (When both dates are null, the most recent
+         *      timestamp is returned.)
+         * --- if end date is in the future, set the start date to current time
+         * - If only startDate is provided:
+         * --- if start date is in the past, set the end date to current time.
+         * --- if start date is now* , set it to null. (When both dates are null, the most recent
+         *      timestamp is returned.)
+         * --- if start date is in the future, set the end date equal to start date.
+         *
+         * <p>*'now' is considered a small time frame of current time up to a minute ago
+         */
+        protected void sanitizeStartDateOrEndDate() {
+            if (period == null || (period.getStartDate() == null && period.getEndDate() == null)) {
+                return;
+            }
+            // Use a small tolerance time window: [clockTimeNowTolerance, clockTimeNow]
+            // Timestamps up to 1 min before 'now' are considered 'now'
+            long clockTimeNowTolerance =
+                    clockTimeNow - TimeInMillisConstants.MINUTE_LENGTH_IN_MILLIS;
+            if (period.getStartDate() == null) {        // in this case we have just endDate
+                long inputEndTime = DateTimeUtil.parseTime(period.getEndDate());
+                if (inputEndTime < clockTimeNowTolerance) {
+                    // end date in the past
+                    throw new IllegalArgumentException(
+                            "Incorrect combination of start and end date: Start date missing & end date in the past.");
+                } else if (inputEndTime <= clockTimeNow) {
+                    // end date now (belongs to [clockTimeNowTolerance, clockTimeNow])
+                    period.setEndDate(null);
+                } else {
+                    // end date in the future
+                    period.setStartDate(Long.toString(clockTimeNow));
+                }
+            } else if (period.getEndDate() == null) {   // in this case we have just startDate
+                long inputStartTime = DateTimeUtil.parseTime(period.getStartDate());
+                if (inputStartTime < clockTimeNowTolerance) {
+                    // start date in the past
+                    period.setEndDate(Long.toString(clockTimeNow));
+                } else if (inputStartTime <= clockTimeNow) {
+                    // start date now (belongs to [clockTimeNowTolerance, clockTimeNow])
+                    period.setStartDate(null);
+                } else {
+                    // start date in the future
+                    period.setEndDate(Long.toString(inputStartTime));
+                }
+            }
+            // if none of startDate, endDate is null, there is no need to modify anything
         }
 
         /**
@@ -308,8 +366,8 @@ public class PaginatedStatsExecutor {
             //Process
             //  1. Call History component
             //      a. If no history results there will be no cost results
-            //  2. Call Cost component use entity list response from history results
-            //  3. Get Additional Entity Data list from 3.
+            //  2. Get Additional Entity Data.
+            //  3. Call Cost component use entity list response from history results
             //  4. Map all gathered results to apiDtos
             //  5. Create the pagination response
             //  6. Set the response for access outside of class
@@ -318,15 +376,20 @@ public class PaginatedStatsExecutor {
             final GetEntityStatsResponse historyEntityStatResponse =
                     requestHistoricalStats(entityStatsScope, this.period, paginationRequest);
 
-            //2. Cost Stats -  uses entities from historyStatsResponse to scope query for cost
             final List<Long> sortedList =  getSortedListFromHistoryResponse(historyEntityStatResponse);
             final Set<Long> entitiesSet = new HashSet<>(sortedList);
-            final GetCloudCostStatsResponse costStatsResponse =
-                    getCloudCostStatsForEntities(entitiesSet);
 
-            //3. Entity Info call
+            //2. Entity Info call
             final Map<Long, MinimalEntity> minimalEntityMap =
                     getMinimalEntitiesForEntityList(entitiesSet);
+
+            //3. Cost Stats -  uses entities from historyStatsResponse to scope query for cost
+            final GetCloudCostStatsResponse costStatsResponse = minimalEntityMap.entrySet()
+                .stream().map(entry -> entry.getValue())
+                .anyMatch(minEntity -> minEntity.getEnvironmentType() == EnvironmentType.CLOUD
+                    || minEntity.getEnvironmentType() == EnvironmentType.HYBRID)
+                        ? getCloudCostStatsForEntities(entitiesSet)
+                        : GetCloudCostStatsResponse.getDefaultInstance();
 
             //4. Combine Stats
             final List<EntityStatsApiDTO> combinedResultsInOrder =
@@ -437,12 +500,12 @@ public class PaginatedStatsExecutor {
                 }
                 // this is not a group, but an entity (or market, which doesn't have entity type).
                 // if the entity is a grouping entity, it should be handled by getAggregatedEntityStats
-                Optional<Set<UIEntityType>> scopeTypes = apiId.getScopeTypes();
+                Optional<Set<ApiEntityType>> scopeTypes = apiId.getScopeTypes();
 
                 if (scopeTypes.isPresent() &&
                         scopeTypes.get()
                                 .stream()
-                                .map(UIEntityType::apiStr)
+                                .map(ApiEntityType::apiStr)
                                 .anyMatch(statsMapper::shouldNormalize)) {
                     return true;
                 }
@@ -469,9 +532,7 @@ public class PaginatedStatsExecutor {
         private EntityStatsApiDTO constructEntityStatsDto(MinimalEntity serviceEntity, final boolean projectedStatsRequest,
                 final EntityStats entityStats, @Nonnull final StatScopesApiInputDTO inputDto) {
             final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-            entityStatsApiDTO.setUuid(Long.toString(serviceEntity.getOid()));
-            entityStatsApiDTO.setClassName(UIEntityType.fromType(serviceEntity.getEntityType()).apiStr());
-            entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
+            StatsMapper.populateEntityDataEntityStatsApiDTO(serviceEntity, entityStatsApiDTO);
             entityStatsApiDTO.setStats(new ArrayList<>());
             if (projectedStatsRequest && entityStats.getStatSnapshotsCount() > 0) {
                 // we expect either zero or one snapshot for each entity
@@ -568,7 +629,7 @@ public class PaginatedStatsExecutor {
             final EntityStatsScope.Builder entityStatsScope = EntityStatsScope.newBuilder();
             final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
                     // Treat unknown type as non-existent.
-                    .filter(type -> !type.equals(UIEntityType.UNKNOWN.apiStr()));
+                    .filter(type -> !type.equals(ApiEntityType.UNKNOWN.apiStr()));
             // Market stats request must be the only uuid in the scopes list
             if (StatsService.isMarketScoped(this.inputDto)) {
                 // 'relatedType' is required for full market entity stats
@@ -586,13 +647,13 @@ public class PaginatedStatsExecutor {
                 } else {
                     // Otherwise, just set the entityType field on the stats scope.
                     entityStatsScope.setEntityType(
-                            UIEntityType.fromString(relatedType.get()).typeNumber());
+                            ApiEntityType.fromString(relatedType.get()).typeNumber());
                 }
             } else if (inputDto.getScopes().size() == 1) {
                 // Check if we can do the global entity type optimization.
                 final Optional<Integer> globalEntityType =
                         getGlobalTempGroupEntityType(groupExpander.getGroup(inputDto.getScopes().get(0)));
-                final Optional<Integer> relatedTypeInt = relatedType.map(UIEntityType::fromString).map(UIEntityType::typeNumber);
+                final Optional<Integer> relatedTypeInt = relatedType.map(ApiEntityType::fromString).map(ApiEntityType::typeNumber);
                 if (globalEntityType.isPresent()
                         // We can only do the global entity type optimization if the related type
                         // is unset, or is the same as the global entity type. Why? Because the
@@ -608,7 +669,7 @@ public class PaginatedStatsExecutor {
                         entityStatsScope.setEntityList(EntityList.newBuilder()
                                 .addAllEntities(userSessionContext.getUserAccessScope()
                                         .getAccessibleOidsByEntityType(
-                                                UIEntityType.fromType(globalEntityType.get()).apiStr()))
+                                                ApiEntityType.fromType(globalEntityType.get()).apiStr()))
                                 .build());
                     } else {
                         entityStatsScope.setEntityType(globalEntityType.get());
@@ -680,9 +741,9 @@ public class PaginatedStatsExecutor {
 
             // if it is global temp group and need to expand, should return target expand entity type.
             if (isGlobalTempGroup && ENTITY_TYPES_TO_EXPAND.containsKey(
-                    UIEntityType.fromType(entityType))) {
+                    ApiEntityType.fromType(entityType))) {
                 return Optional.of(ENTITY_TYPES_TO_EXPAND.get(
-                        UIEntityType.fromType(entityType)).typeNumber());
+                        ApiEntityType.fromType(entityType)).typeNumber());
             } else if (isGlobalTempGroup) {
                 // if it is global temp group and not need to expand.
                 return Optional.of(entityType);
@@ -706,7 +767,7 @@ public class PaginatedStatsExecutor {
             final Set<Long> expandedUuids;
             final Optional<String> relatedType = Optional.ofNullable(inputDto.getRelatedType())
                     // Treat unknown type as non-existent.
-                    .filter(type -> !type.equals(UIEntityType.UNKNOWN.apiStr()));
+                    .filter(type -> !type.equals(ApiEntityType.UNKNOWN.apiStr()));
             // Market stats request must be the only uuid in the scopes list
             if (StatsService.isMarketScoped(inputDto)) {
                 // 'relatedType' is required for full market entity stats
@@ -751,16 +812,22 @@ public class PaginatedStatsExecutor {
                                     .collect(Collectors.toList()));
                 }
 
-                // Expand groups and perform supply chain traversal with the resulting seed
                 // Note that supply chain traversal will not happen if the list of related entity
                 // types is empty
 
-                Set<Long> uuids = groupExpander.expandUuids(seedUuids);
+                final Set<Long> uuids;
+                // TODO OM-57104 - move special resource group logic related to supplyChain in one place
+                // don't expand resource group scope otherwise we miss special resource group
+                // logic for supplyChain
+                if (!isResourceGroupRelatedScope(seedUuids)) {
+                    uuids = groupExpander.expandUuids(seedUuids);
+                } else {
+                    uuids = Collections.singleton(Long.parseLong(seedUuids.iterator().next()));
+                }
                 if (uuids.isEmpty()) {
                     return Collections.emptySet();
                 }
-                expandedUuids =
-                        performSupplyChainTraversal(uuids, relatedEntityTypes);
+                expandedUuids = performSupplyChainTraversal(uuids, relatedEntityTypes);
 
                 // if the user is scoped, we will filter the entities according to their scope
                 if (userSessionContext.isUserScoped()) {
@@ -768,6 +835,12 @@ public class PaginatedStatsExecutor {
                 }
             }
             return expandedUuids;
+        }
+
+        private boolean isResourceGroupRelatedScope(@Nonnull Set<String> seedUuids) {
+            return seedUuids.size() == 1 &&
+                    uuidMapper.fromOid(Long.parseLong(seedUuids.iterator().next()))
+                            .isResourceGroupOrGroupOfResourceGroups();
         }
 
         /**
@@ -908,7 +981,7 @@ public class PaginatedStatsExecutor {
             if (requestInputDto.getRelatedType() != null) {
                 EntityTypeFilter entityTypeFilter = EntityTypeFilter.newBuilder()
                         .addEntityTypeId(
-                                UIEntityType.fromString(
+                                ApiEntityType.fromString(
                                         requestInputDto.getRelatedType())
                                         .typeNumber())
                         .build();
@@ -1139,8 +1212,11 @@ public class PaginatedStatsExecutor {
                     mapAndCombineCloudAndHistoryStats(cloudCostStatsResponse, historyStatsResponse, new HashSet<>(sortedNextPageEntityIds));
 
             for (long entityUuid: sortedNextPageEntityIds) {
-                final EntityStatsApiDTO entityStatsApiDTO =
+                final Optional<EntityStatsApiDTO> entityStatsApiDTO =
                         constructEntityStatsApiDTOFromMinimalEntity(entityUuid, minimalEntityMap);
+                if (!entityStatsApiDTO.isPresent()) {
+                    continue;
+                }
 
                 Map<Long, List<StatApiDTO>> snapShotToStats =
                         combinedCloudAndHistoryStats.getOrDefault(entityUuid, Collections.emptyMap());
@@ -1149,14 +1225,14 @@ public class PaginatedStatsExecutor {
                         .stream()
                         .map(snapShotDate -> {
                             final StatSnapshotApiDTO statSnapshotApiDTO =
-                                    constructEntityStatsApiDtO(snapShotDate);
+                                    constructStatSnapshotApiDtO(snapShotDate);
                             statSnapshotApiDTO.setStatistics(snapShotToStats.get(snapShotDate));
                             return statSnapshotApiDTO;
                         }).collect(Collectors.toList());
 
-                entityStatsApiDTO.setStats(Lists.newArrayList(statSnapshotApiDTOS));
+                entityStatsApiDTO.get().setStats(Lists.newArrayList(statSnapshotApiDTOS));
 
-                entityStatsApiDTOS.add(entityStatsApiDTO);
+                entityStatsApiDTOS.add(entityStatsApiDTO.get());
             }
 
             return entityStatsApiDTOS;
@@ -1168,7 +1244,7 @@ public class PaginatedStatsExecutor {
          * @param date the date to set dto date value to
          * @return StatSnapshotApiDTO configured with date
          */
-        StatSnapshotApiDTO constructEntityStatsApiDtO(long date) {
+        StatSnapshotApiDTO constructStatSnapshotApiDtO(long date) {
             final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
             statSnapshotApiDTO.setDate(DateTimeUtil.toString(date));
             statSnapshotApiDTO.setEpoch( date <= clockTimeNow ? Epoch.HISTORICAL : Epoch.PROJECTED);
@@ -1180,16 +1256,14 @@ public class PaginatedStatsExecutor {
          *
          * @param entityUuid The entityUuid of interest
          * @param minimalEntityMap Map of entityUuids to their {@link MinimalEntity}
-         * @return {@link EntityStatsApiDTO}
+         * @return An Optional of the {@link EntityStatsApiDTO} created by the MinimalEntity
+         * retrieved from the map, or Optional.empty() if the given uuid does not exist in the map.
          */
-        EntityStatsApiDTO constructEntityStatsApiDTOFromMinimalEntity(Long entityUuid,
+        Optional<EntityStatsApiDTO> constructEntityStatsApiDTOFromMinimalEntity(Long entityUuid,
                 @Nonnull final Map<Long, MinimalEntity> minimalEntityMap) {
-            final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-            MinimalEntity minimalEntity = minimalEntityMap.get(entityUuid);
-            entityStatsApiDTO.setUuid(Long.toString(minimalEntity.getOid()));
-            entityStatsApiDTO.setClassName(UIEntityType.fromType(minimalEntity.getEntityType()).apiStr());
-            entityStatsApiDTO.setDisplayName(minimalEntity.getDisplayName());
-            return entityStatsApiDTO;
+            return Optional.ofNullable(minimalEntityMap.get(entityUuid))
+                    .map(minimalEntity -> StatsMapper.populateEntityDataEntityStatsApiDTO(
+                            minimalEntity, new EntityStatsApiDTO()));
         }
 
         /**

@@ -4,6 +4,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -15,9 +16,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
-import com.vmturbo.api.dto.statistic.StatHistUtilizationApiDTO;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -36,13 +34,16 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
+import com.vmturbo.api.dto.statistic.StatHistUtilizationApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -70,11 +71,14 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtili
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Unit tests for the static Mapper utility functions for the {@link StatsService}.
@@ -281,8 +285,14 @@ public class StatsMapperTest {
                 .addEntities(1L))
             .build();
         StatPeriodApiInputDTO apiRequestInput = new StatPeriodApiInputDTO();
-        apiRequestInput.setStartDate("-5d");
-        apiRequestInput.setEndDate("+2h");
+        final String startRelativeTime = "-5d";
+        final String endRelativeTime = "+2h";
+
+        final long expectedStart = DateTimeUtil.parseTime(startRelativeTime);
+        final long expectedEnd = DateTimeUtil.parseTime(endRelativeTime);
+
+        apiRequestInput.setStartDate(startRelativeTime);
+        apiRequestInput.setEndDate(endRelativeTime);
         final EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
         when(paginationMapper.toProtoParams(paginationRequest))
             .thenReturn(PaginationParameters.getDefaultInstance());
@@ -290,12 +300,9 @@ public class StatsMapperTest {
             apiRequestInput, paginationRequest);
 
         // calculate time ranges to test, with some slop to account for clock advance since mapping
-        Instant now = Instant.now();
-        Instant start = Instant.ofEpochMilli(requestProtobuf.getFilter().getStartDate());
-        Instant end = Instant.ofEpochMilli(requestProtobuf.getFilter().getEndDate());
-        Duration slop = Duration.ofSeconds(5);
-        assertThat(Duration.between(start, now).toDays(), equalTo(5L));
-        assertThat(Duration.between(now.minus(slop), end).toHours(), equalTo(2L));
+        final long slop_ms = 2_000;
+        assertThat(Math.abs(requestProtobuf.getFilter().getStartDate() - expectedStart), lessThan(slop_ms));
+        assertThat(Math.abs(requestProtobuf.getFilter().getEndDate() - expectedEnd), lessThan(slop_ms));
     }
 
     @Test
@@ -472,12 +479,13 @@ public class StatsMapperTest {
 
     private static final StatsFilter STATS_FILTER = StatsFilter.newBuilder()
             .setStartDate(7777)
+            .setRequestProjectedHeadroom(false)
             .build();
 
     @Test
     public void testClusterStatsRequest() {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-        when(statsMapper.newPeriodStatsFilter(period)).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(period, false)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
                 statsMapper.toClusterStatsRequest("7", period);
         assertThat(clusterStatsRequest.getClusterId(), is(planId));
@@ -487,7 +495,7 @@ public class StatsMapperTest {
     @Test
     public void testClusterStatsRequestWithNullPeriod() {
         final StatPeriodApiInputDTO period = null;
-        when(statsMapper.newPeriodStatsFilter(period)).thenReturn(STATS_FILTER);
+        when(statsMapper.newPeriodStatsFilter(period, false)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
                 statsMapper.toClusterStatsRequest("7", period);
         assertThat(clusterStatsRequest.getClusterId(), is(planId));
@@ -519,7 +527,7 @@ public class StatsMapperTest {
         List<StatApiInputDTO> statistics = Lists.newArrayListWithCapacity(1);
         // The API caller is requesting stats for a DATACENTER
         statistics.add(new StatApiInputDTO(CommodityType.CPU_ALLOCATION.name(),
-            UIEntityType.DATACENTER.apiStr(), null, null));
+            ApiEntityType.DATACENTER.apiStr(), null, null));
         statPeriodApiInputDTO.setStatistics(statistics);
         // Stats for a data center will be collected with a group entity type of PHYSICAL_MACHINE
         StatsFilter filter =
@@ -529,7 +537,7 @@ public class StatsMapperTest {
         filter.getCommodityRequestsList().stream()
             .filter(CommodityRequest::hasRelatedEntityType)
             .map(CommodityRequest::getRelatedEntityType)
-            .forEach(relatedEntityType -> assertEquals(UIEntityType.PHYSICAL_MACHINE.apiStr(), relatedEntityType));
+            .forEach(relatedEntityType -> assertEquals(ApiEntityType.PHYSICAL_MACHINE.apiStr(), relatedEntityType));
     }
 
     @Test
@@ -804,6 +812,110 @@ public class StatsMapperTest {
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(1, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> CollectionUtils.isEmpty(statApiDTO.getFilters())));
+    }
+
+    /**
+     * Test the population of an entity stats api dto from a minimal entity dto.
+     */
+    @Test
+    public void testPopulateEntityDataEntityStatApiDTOFromMinimalEntity() {
+        MinimalEntity vm = MinimalEntity.newBuilder()
+                .setOid(123L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("Test VM 1")
+                .setEnvironmentType(
+                        EnvironmentTypeMapper.fromApiToXL(
+                                com.vmturbo.api.enums.EnvironmentType.ONPREM))
+                .build();
+        EntityStatsApiDTO outputDTO = new EntityStatsApiDTO();
+
+        StatsMapper.populateEntityDataEntityStatsApiDTO(vm, outputDTO);
+        // Verify the data in the output
+        assertEquals("123", outputDTO.getUuid());
+        assertEquals("VirtualMachine", outputDTO.getClassName());
+        assertEquals("Test VM 1", outputDTO.getDisplayName());
+        assertEquals(com.vmturbo.api.enums.EnvironmentType.ONPREM, outputDTO.getEnvironmentType());
+
+        // Also test an entity without an env type
+        MinimalEntity pm = MinimalEntity.newBuilder()
+                .setOid(123L)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setDisplayName("Test PM 1")
+                .build();
+        EntityStatsApiDTO outputDTO2 = StatsMapper.populateEntityDataEntityStatsApiDTO(pm,
+                new EntityStatsApiDTO());
+        // Verify the data in the output
+        assertEquals("123", outputDTO2.getUuid());
+        assertEquals("PhysicalMachine", outputDTO2.getClassName());
+        assertEquals("Test PM 1", outputDTO2.getDisplayName());
+        //  no env type was specified.  So, this will be null
+        assertEquals(null, outputDTO2.getEnvironmentType());
+
+    }
+
+
+    /**
+     * Test the population of an entity stats api dto from an api id.
+     */
+    @Test
+    public void testPopulateEntityDataEntityStatApiDTOFromApiId() {
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(123L);
+        when(apiId.uuid()).thenReturn("123");
+        when(apiId.getClassName()).thenReturn("VirtualMachine");
+        when(apiId.getDisplayName()).thenReturn("Test VM 1");
+        when(apiId.getEnvironmentType())
+                .thenReturn(
+                        EnvironmentTypeMapper.fromApiToXL(
+                                com.vmturbo.api.enums.EnvironmentType.ONPREM));
+
+        EntityStatsApiDTO outputDTO = StatsMapper.populateEntityDataEntityStatsApiDTO(
+                apiId, new EntityStatsApiDTO());
+        // Verify the data in the output
+        assertEquals("123", outputDTO.getUuid());
+        assertEquals("VirtualMachine", outputDTO.getClassName());
+        assertEquals("Test VM 1", outputDTO.getDisplayName());
+        assertEquals(com.vmturbo.api.enums.EnvironmentType.ONPREM, outputDTO.getEnvironmentType());
+    }
+
+    /**
+     * Test the population of an entity stats api dto from an api partial entity dto.
+     */
+    @Test
+    public void testPopulateEntityDataEntityStatApiDTOFromApiPartialEntity() {
+
+        ApiPartialEntity apiPartialEntity = ApiPartialEntity.newBuilder()
+                .setOid(123L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("Test VM 1")
+                .setEnvironmentType(
+                        EnvironmentTypeMapper.fromApiToXL(
+                                com.vmturbo.api.enums.EnvironmentType.ONPREM))
+                .build();
+
+        EntityStatsApiDTO outputDTO = StatsMapper.populateEntityDataEntityStatsApiDTO(
+                apiPartialEntity, new EntityStatsApiDTO());
+        // Verify the data in the output
+        assertEquals("123", outputDTO.getUuid());
+        assertEquals("VirtualMachine", outputDTO.getClassName());
+        assertEquals("Test VM 1", outputDTO.getDisplayName());
+        assertEquals(com.vmturbo.api.enums.EnvironmentType.ONPREM, outputDTO.getEnvironmentType());
+
+        // Test without env type
+        ApiPartialEntity apiPartialEntityNoEnv = ApiPartialEntity.newBuilder()
+                .setOid(456L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("Test VM 2")
+                .build();
+
+        EntityStatsApiDTO outputDTONoEnv = new EntityStatsApiDTO();
+        StatsMapper.populateEntityDataEntityStatsApiDTO(apiPartialEntityNoEnv, outputDTONoEnv);
+        // Verify the data in the output
+        assertEquals("456", outputDTONoEnv.getUuid());
+        assertEquals("VirtualMachine", outputDTONoEnv.getClassName());
+        assertEquals("Test VM 2", outputDTONoEnv.getDisplayName());
+        assertEquals(null, outputDTONoEnv.getEnvironmentType());
     }
 
     /**

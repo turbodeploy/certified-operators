@@ -1,5 +1,7 @@
 package com.vmturbo.group.common;
 
+import java.util.List;
+
 public class ItemNotFoundException extends Exception {
     private ItemNotFoundException(final String message) {
         super(message);
@@ -20,6 +22,12 @@ public class ItemNotFoundException extends Exception {
     public static class SettingPolicyNotFoundException extends ItemNotFoundException {
         public SettingPolicyNotFoundException(final long id) {
             super("Setting Policy " + id + " not found.");
+        }
+    }
+
+    public static class SettingNotFoundException extends ItemNotFoundException {
+        public SettingNotFoundException(final List<String> settingSpecName) {
+            super("Setting " + settingSpecName + " not found.");
         }
     }
 

@@ -5,7 +5,6 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Map;
@@ -13,6 +12,7 @@ import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.naming.CommunicationException;
 import javax.naming.Context;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
@@ -23,6 +23,7 @@ import javax.naming.directory.InitialDirContext;
 import javax.naming.directory.SearchControls;
 import javax.naming.directory.SearchResult;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 import org.apache.commons.collections4.map.CaseInsensitiveMap;
@@ -35,6 +36,12 @@ import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
  * The {@link SsoUtil} is a SSO helper utility class.
  */
 public class SsoUtil {
+    /**
+     * Error message when AD is not setup.
+     */
+    @VisibleForTesting
+    public static final String AD_NOT_SETUP = "The AD has not been setup yet";
+    private static final String CTX_FACTORY = "com.sun.jndi.ldap.LdapCtxFactory";
     /**
      * The logger.
      */
@@ -156,7 +163,7 @@ public class SsoUtil {
         }
         // In case we have neither login provider URI nor domain name, don't even try to search.
         if (Strings.isNullOrEmpty(domainName_)) {
-            throw new SecurityException("The AD has not been setup yet");
+            throw new SecurityException(AD_NOT_SETUP);
         }
 
         Collection<String> ldapServers = new ArrayList<>();
@@ -436,7 +443,7 @@ public class SsoUtil {
                                                            final @Nonnull String user,
                                                            final @Nonnull String password) {
         Hashtable<String, String> props = new Hashtable<>();
-        props.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.ldap.LdapCtxFactory");
+        props.put(Context.INITIAL_CONTEXT_FACTORY, CTX_FACTORY);
         props.put(Context.PROVIDER_URL, server);
         if (secureLoginProvider_) {
             props.put(Context.SECURITY_PROTOCOL, "ssl");
@@ -445,5 +452,36 @@ public class SsoUtil {
         props.put(Context.SECURITY_PRINCIPAL, user);
         props.put(Context.SECURITY_CREDENTIALS, password);
         return props;
+    }
+
+    /**
+     * Checks whether AD is available.
+     *
+     * @return {@code true} iff LDAP is available.
+     */
+    public boolean isADAvailable() {
+        Collection<String> ldapServers = findLDAPServersInWindowsDomain();
+        for (String srv : ldapServers) {
+            Hashtable<String, String> props = new Hashtable<>();
+            props.put(Context.INITIAL_CONTEXT_FACTORY, CTX_FACTORY);
+            props.put(Context.PROVIDER_URL, srv);
+            if (secureLoginProvider_) {
+                props.put(Context.SECURITY_PROTOCOL, "ssl");
+            }
+            props.put(Context.SECURITY_AUTHENTICATION, "simple");
+            Integer timeout = Integer.getInteger("ldapTimeout", 2000);
+            props.put("com.sun.jndi.ldap.connect.timeout", timeout.toString());
+            props.put("com.sun.jndi.ldap.read.timeout", timeout.toString());
+            try {
+                InitialDirContext ctx = new InitialDirContext(props);
+                ctx.getAttributes("");
+                return true;
+            } catch (CommunicationException e) {
+                logger.warn("The AD server " + srv + " is unreachable.");
+            } catch (NamingException e) {
+                return true;
+            }
+        }
+        return false;
     }
 }

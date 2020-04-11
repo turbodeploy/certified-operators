@@ -29,14 +29,13 @@ import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -66,19 +65,6 @@ public class HistoricalQueryMapperTest {
         inputDto.setRiskSubCategoryList(Arrays.asList("effImpr", "compliance"));
 
         final ActionSpecMapper actionSpecMapper = mock(ActionSpecMapper.class);
-        when(actionSpecMapper.mapApiModeToXl(ActionMode.AUTOMATIC))
-            .thenReturn(Optional.of(ActionDTO.ActionMode.AUTOMATIC));
-        when(actionSpecMapper.mapApiModeToXl(ActionMode.MANUAL))
-            .thenReturn(Optional.of(ActionDTO.ActionMode.MANUAL));
-        when(actionSpecMapper.mapApiStateToXl(ActionState.ACCEPTED))
-            .thenReturn(Optional.of(ActionDTO.ActionState.QUEUED));
-        when(actionSpecMapper.mapApiStateToXl(ActionState.IN_PROGRESS))
-            .thenReturn(Optional.of(ActionDTO.ActionState.IN_PROGRESS));
-
-        when(actionSpecMapper.mapApiActionCategoryToXl("effImpr"))
-            .thenReturn(Optional.of(ActionCategory.EFFICIENCY_IMPROVEMENT));
-        when(actionSpecMapper.mapApiActionCategoryToXl("compliance"))
-            .thenReturn(Optional.of(ActionCategory.COMPLIANCE));
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(any(), any()))
@@ -105,9 +91,6 @@ public class HistoricalQueryMapperTest {
         final HistoricalActionStatsQuery grpcQuery = grpcQueries.get(apiId);
         assertThat(grpcQuery.getTimeRange().getStartTime(), is(startTime));
         assertThat(grpcQuery.getTimeRange().getEndTime(), is(endTime));
-
-        assertThat(grpcQuery.getActionGroupFilter().getActionCategoryList(),
-            containsInAnyOrder(ActionCategory.EFFICIENCY_IMPROVEMENT, ActionCategory.COMPLIANCE));
         assertThat(grpcQuery.getActionGroupFilter().getActionModeList(),
             containsInAnyOrder(ActionDTO.ActionMode.AUTOMATIC, ActionDTO.ActionMode.MANUAL));
         assertThat(grpcQuery.getActionGroupFilter().getActionStateList(),
@@ -130,7 +113,7 @@ public class HistoricalQueryMapperTest {
         when(mktScope.isRealtimeMarket()).thenReturn(true);
         ActionStatsQuery query = ImmutableActionStatsQuery.builder()
             .addScopes(mktScope)
-            .entityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .entityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .actionInput(new ActionApiInputDTO())
             .build();
         final Map<ApiId, MgmtUnitSubgroupFilter> filters = new HistoricalQueryMapper(
@@ -138,21 +121,21 @@ public class HistoricalQueryMapperTest {
             .extractMgmtUnitSubgroupFilter(query);
         assertTrue(filters.get(mktScope).getMarket());
         assertThat(filters.get(mktScope).getEntityTypeList(),
-            containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
+            containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
     }
 
     @Test
     public void testExtractRealtimeGlobalGroupFilter() {
         final CachedGroupInfo globalVmGroup = mock(CachedGroupInfo.class);
         when(globalVmGroup.getEntityTypes()).thenReturn(Collections.singleton(
-                        UIEntityType.VIRTUAL_MACHINE));
+                        ApiEntityType.VIRTUAL_MACHINE));
         when(globalVmGroup.isGlobalTempGroup()).thenReturn(true);
 
         final ApiId mktScope = mock(ApiId.class);
         when(mktScope.isRealtimeMarket()).thenReturn(false);
         when(mktScope.isGlobalTempGroup()).thenReturn(true);
         when(mktScope.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
-                        UIEntityType.VIRTUAL_MACHINE)));
+                        ApiEntityType.VIRTUAL_MACHINE)));
 
         ActionStatsQuery query = ImmutableActionStatsQuery.builder()
             .addScopes(mktScope)
@@ -165,7 +148,7 @@ public class HistoricalQueryMapperTest {
 
         // By default, the entity type of the global group is used.
         assertThat(filters.get(mktScope).getEntityTypeList(),
-            containsInAnyOrder(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
+            containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
     }
 
 }

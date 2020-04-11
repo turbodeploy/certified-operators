@@ -7,14 +7,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import org.springframework.web.socket.server.standard.ServerEndpointRegistration;
-
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.vmturbo.communication.WebsocketServerTransportManager;
 import com.vmturbo.communication.WebsocketServerTransportManager.TransportHandler;
@@ -35,7 +35,9 @@ import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.RemoteProbeStore;
 import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
-import com.vmturbo.topology.processor.targets.KVBackedTargetStore;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
+import com.vmturbo.topology.processor.targets.KvTargetDao;
+import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
 /**
@@ -89,8 +91,18 @@ public class TestMediationCommonConfig {
     }
 
     @Bean
+    public TargetDao targetDao() {
+        return new KvTargetDao(keyValueStore(), probeStore());
+    }
+
+    /**
+     * {@link TargetStore}.
+     *
+     * @return {@link TargetStore}.
+     */
+    @Bean
     public TargetStore targetStore() {
-        return new KVBackedTargetStore(keyValueStore(), probeStore(),
+        return new CachingTargetStore(targetDao(), probeStore(),
                 Mockito.mock(IdentityStore.class));
     }
 

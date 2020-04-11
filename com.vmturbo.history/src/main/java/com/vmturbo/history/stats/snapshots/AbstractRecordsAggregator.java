@@ -20,7 +20,7 @@ import org.jooq.Field;
 import org.jooq.Record;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.abstraction.tables.VmStatsLatest;
 
 /**

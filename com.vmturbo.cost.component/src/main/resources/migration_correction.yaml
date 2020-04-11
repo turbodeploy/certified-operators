@@ -4,4 +4,9 @@ migrationUpdates:
   - version: 1.26
     newChecksum: 546013560
   - version: 1.32
-    newChecksum: 1773912990
+    newChecksum: 979717315
+  - version: 1.33
+    newChecksum: 830813112
+  - version: 1.34
+    description: "update entity costs PK"
+    newChecksum: 629462111

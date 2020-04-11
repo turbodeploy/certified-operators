@@ -1,12 +1,17 @@
 package com.vmturbo.api.component.external.api;
 
+import static com.vmturbo.api.component.external.api.HeaderApiSecurityConfig.VENDOR_URL_CONTEXT_TAG;
+
 import java.nio.file.Paths;
 import java.util.List;
 
 import javax.servlet.ServletContext;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -19,7 +24,9 @@ import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.vmturbo.api.component.external.api.service.MarketsService;
+import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
 import com.vmturbo.components.common.LoggingFilter;
+import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * Configuration for the external Turbonomic REST API.
@@ -51,21 +58,43 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
     @Autowired
     private WebApplicationContext applicationContext;
 
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * The base URLs for the external REST API. All external REST API URL's should
      * start with one of these.
      */
-    public static final List<String> BASE_URL_MAPPINGS = ImmutableList.of(
-            // This is the base currently used in the new UX.
-            "/vmturbo/rest/*",
-            // This is the versioned name of the REST API, and should be preferred going forward
-            // It is aligned with the V2 API in OpsManager, which has a base URL of /api/v2
-            "/api/v3/*",
-            // for SAML filters, see ApiSecurityConfig#samlFilter
-            "/vmturbo/saml/*",
-            // We are also supporting /api as of OM-32218
-            "/api/*"
-            );
+    public static final List<String> BASE_URL_MAPPINGS = getBaseURLMappings();
+
+    /**
+     * Build base URLs for the external REST API. All external REST API URL's should
+     * start with one of these.
+     *
+     * @return base URLs for the external REST API.
+     */
+    private static ImmutableList<String> getBaseURLMappings() {
+        final Builder<String> urlListBuilder = ImmutableList.builder();
+        final ImmutableList<String> urlList = ImmutableList.of(
+                // This is the base currently used in the new UX.
+                "/vmturbo/rest/*",
+                // This is the versioned name of the REST API, and should be preferred going forward
+                // It is aligned with the V2 API in OpsManager, which has a base URL of /api/v2
+                "/api/v3/*",
+                // for SAML filters, see ApiSecurityConfig#samlFilter
+                "/vmturbo/saml/*",
+                // We are also supporting /api as of OM-32218
+                "/api/*");
+        urlListBuilder.addAll(urlList);
+        // if in integration mode, e.g. Cisco Intersight, adding vendor specific URL context too.
+        if (EnvironmentUtils.parseBooleanFromEnv(HeaderAuthenticationCondition.ENABLED)) {
+            EnvironmentUtils.getOptionalEnvProperty(VENDOR_URL_CONTEXT_TAG)
+                    .ifPresent(vendorUrlContext -> {
+                        urlListBuilder.add(String.format("/api/%s/v3/*", vendorUrlContext));
+                        logger.info("Adding vendor URl context: {}", vendorUrlContext);
+                    });
+        }
+        return urlListBuilder.build();
+    }
 
     /**
      * A logging filter to log requests coming in to the API component.

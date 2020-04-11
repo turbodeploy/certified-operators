@@ -58,8 +58,8 @@ public abstract class AbstractStatsLoadingTask<Config, T> implements IHistoryLoa
         commTypes.forEach(commType -> statsFilter.addCommodityRequests(CommodityRequest.newBuilder()
                         .setCommodityName(UICommodityType.fromType(commType).apiStr())));
 
-        statsFilter.setStartDate((long)(startMs * Units.MILLISECOND));
-        statsFilter.setEndDate((long)(endMs * Units.MILLISECOND));
+        statsFilter.setStartDate(startMs);
+        statsFilter.setEndDate(endMs);
         if (rollup != null) {
             statsFilter.setRollupPeriod(rollup);
         }

@@ -13,6 +13,7 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.identity.store.CachingIdentityStore;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.identity.store.PersistentIdentityStore;
+import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.securekvstore.SecureKeyValueStoreConfig;
 import com.vmturbo.topology.processor.KVConfig;
@@ -60,12 +61,30 @@ public class TargetConfig {
 
     @Bean
     public TargetStore targetStore() {
-        return new KVBackedTargetStore(
-                enableSecureStore ? vaultKeyValueStoreConfig.vaultKeyValueStore() : kvConfig.keyValueStore(),
+        CachingTargetStore store = new CachingTargetStore(targetDao(),
                 probeConfig.probeStore(),
                 identityStore());
+        probeConfig.probeStore().addListener(store);
+        return store;
     }
 
+    /**
+     * Persists target-related information.
+     *
+     * @return The {@link TargetDao}.
+     */
+    @Bean
+    public TargetDao targetDao() {
+        final KeyValueStore kvStore = enableSecureStore ?
+            vaultKeyValueStoreConfig.vaultKeyValueStore() : kvConfig.keyValueStore();
+        return new KvTargetDao(kvStore, probeConfig.probeStore());
+    }
+
+    /**
+     * Initializes identity generation with the correct prefix.
+     *
+     * @return The {@link IdentityInitializer}.
+     */
     @Bean
     public IdentityInitializer identityInitializer() {
         return new IdentityInitializer(identityGeneratorPrefix);

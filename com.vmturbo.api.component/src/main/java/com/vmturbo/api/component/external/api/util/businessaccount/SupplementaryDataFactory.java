@@ -59,13 +59,19 @@ public class SupplementaryDataFactory {
      * @param accountIds set of accountIds
      * @param allAccounts A hint to say whether these accounts represent ALL accounts. This
      *         allows us to optimize queries for related data, if necessary.
+     * @param fetchCost boolean which decides if fetching cost is necessary.
      * @return The {@link SupplementaryData}.
      */
     @Nonnull
-    public SupplementaryData newSupplementaryData(@Nonnull Set<Long> accountIds, boolean allAccounts) {
-        Map<Long, Float> costsByAccount;
+    public SupplementaryData newSupplementaryData(@Nonnull Set<Long> accountIds, boolean allAccounts,
+                                                  final boolean fetchCost) {
+        Map<Long, Float> costsByAccount = null;
         try {
-            costsByAccount = getCostsByAccount(accountIds, allAccounts);
+            if (fetchCost) {
+                costsByAccount = getCostsByAccount(accountIds, allAccounts);
+            } else {
+                logger.debug("Not fetching account expenses.");
+            }
         } catch (StatusRuntimeException e) {
             if (Code.UNAVAILABLE == e.getStatus().getCode()) {
                 // Any component may be down at any time. APIs like search should not fail

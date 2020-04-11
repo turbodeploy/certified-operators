@@ -56,6 +56,16 @@ public enum EntitySettingSpecs {
             actionExecutionModeSetToRecommend(), true),
 
     /**
+     * Shop together setting for VMs.
+     */
+    ShopTogether("shopTogether", "Shared-Nothing Migration",
+            Collections.emptyList(),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE),
+            new BooleanSettingDataType(false),
+            true),
+
+    /**
      * Resize action automation mode.
      *
      * For VM, this setting is only being used for commodities other than cpu, vcpu, mem and vmem.
@@ -150,12 +160,26 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.VIRTUAL_MACHINE), numeric(0, 1000000, 131072), true),
 
     /**
+     * Whether allow resizing VMEM commodity when it is collected from hypervisors only (not from ACM, APM, etc)
+     * If this setting is false, VMEMs collected from only hypervisors will not have RESIZE action.
+     */
+    UseHypervisorMetricsForResizing("useHypervisorMetricsForResizing", "Use hypervisor VMEM for resize",
+            Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), new BooleanSettingDataType(false), true),
+
+    /**
      * Suspend action automation mode.
      */
     Suspend("suspend", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
         EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.VIRTUAL_MACHINE,
             EntityType.CONTAINER_POD, EntityType.CONTAINER,
             EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
+
+    /**
+     * For some types of entities Suspend actions are disabled by default.
+     */
+    DisabledSuspend("suspendIsDisabled", "Suspend", Collections.emptyList(), SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.IO_MODULE), actionExecutionModeSetToDisabled(), true),
 
     /**
      * Delete action automation mode.
@@ -368,7 +392,7 @@ public enum EntitySettingSpecs {
             "Image CPU Target Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
-            numeric(1.0f, 100.0f, 100.0f), true),
+            numeric(1.0f, 100.0f, 70.0F), true),
 
     /**
      * Resize target Utilization for Image Mem.
@@ -377,7 +401,7 @@ public enum EntitySettingSpecs {
             "Image Mem Target Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
-            numeric(1.0f, 100.0f, 100.0f), true),
+            numeric(1.0f, 100.0f, 70.0F), true),
 
     /**
      * Resize target Utilization for Image Storage.
@@ -386,7 +410,7 @@ public enum EntitySettingSpecs {
             "Image Storage Target Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.BUSINESS_USER),
-            numeric(1.0f, 100.0f, 100.0f), true),
+            numeric(1.0f, 100.0f, 70.0F), true),
 
     /**
      * Resize target Utilization for Net Throughput.
@@ -479,7 +503,15 @@ public enum EntitySettingSpecs {
     VstorageIncrement("usedIncrement_VStorage", "Increment constant for VStorage [GB]",
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            numeric(0.0f/*min*/, 999999.0f/*max*/, 999999.0f/*default*/), true),
+            numeric(0.0f/*min*/, 999999.0f/*max*/, 1024.0f/*default*/), true),
+
+    /**
+     * Switch to enable/disable VStorage resizes.
+     */
+    ResizeVStorage("resizeVStorage", "Resize VStorage",
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
+        new BooleanSettingDataType(false), true),
 
     /**
      * Excluded Templates.
@@ -785,15 +817,6 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
             numeric(20f, 100f, 80f), true),
 
-    /**
-     * Collection time utilization threshold.
-     */
-    CollectionTimeUtilization("collectionTimeUtilization", "Collection Time Utilization",
-            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.APPLICATION, EntityType.APPLICATION_SERVER),
-            numeric(1f, 100f, 10f), true),
-
     IgnoreDirectories("ignoreDirectories", "Directories to ignore",
         Collections.emptyList(),
         SettingTiebreaker.SMALLER,
@@ -1035,6 +1058,7 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.Reconfigure.name,
             EntitySettingSpecs.Resize.name,
             EntitySettingSpecs.Suspend.name,
+            EntitySettingSpecs.DisabledSuspend.name,
             EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.name,
             EntitySettingSpecs.ResizeVcpuBelowMinThreshold.name,
             EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.name,
@@ -1043,7 +1067,9 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.ResizeVmemBelowMinThreshold.name,
             EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
             EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name,
-            EntitySettingSpecs.EnforceNonDisruptive.name);
+            EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
+            EntitySettingSpecs.EnforceNonDisruptive.name,
+            EntitySettingSpecs.ShopTogether.name);
 
     /**
      * Default value for a String-type SettingDataStructure = empty String.
@@ -1217,6 +1243,7 @@ public enum EntitySettingSpecs {
         return cls.isInstance(value) ? cls.cast(value) : null;
     }
 
+
     @Nonnull
     private static SettingDataStructure<?> actionExecutionModeSetToManual() {
         return new EnumSettingDataType<>(ActionMode.MANUAL, ActionMode.class);
@@ -1231,6 +1258,12 @@ public enum EntitySettingSpecs {
     private static SettingDataStructure<?> nonExecutableActionMode() {
         return new EnumSettingDataType<>(ActionMode.RECOMMEND, ActionMode.RECOMMEND, ActionMode.class);
     }
+
+    @Nonnull
+    private static SettingDataStructure<?> actionExecutionModeSetToDisabled() {
+        return new EnumSettingDataType<>(ActionMode.DISABLED, ActionMode.class);
+    }
+
 
     @Nonnull
     private static SettingDataStructure<?> numeric(float min, float max, float defaultValue) {

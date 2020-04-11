@@ -97,6 +97,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
@@ -119,12 +120,13 @@ import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -134,6 +136,14 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
  * returned from the API.
  */
 public class ActionSpecMapper {
+
+    /**
+     * Define the String format with which to encode floating point (double) values in actions.
+     *
+     * <p>We use this particular format for backwards-compatibility with API v2.</p>
+     */
+    private static final String FORMAT_FOR_ACTION_VALUES = "%.1f";
+
     // Currencies by numeric code map will is a map of numeric code to the Currency.
     // TODO: But the numeric code is not unique. As of writing this, there are a few currencies
     // which share numeric code. They are:
@@ -156,19 +166,19 @@ public class ActionSpecMapper {
     // END - Strings representing action categories in the API.
 
     private static final Set<String> SCALE_TIER_VALUES = ImmutableSet.of(
-            UIEntityType.COMPUTE_TIER.apiStr(), UIEntityType.DATABASE_SERVER_TIER.apiStr(),
-            UIEntityType.DATABASE_TIER.apiStr());
+            ApiEntityType.COMPUTE_TIER.apiStr(), ApiEntityType.DATABASE_SERVER_TIER.apiStr(),
+            ApiEntityType.DATABASE_TIER.apiStr());
 
     private static final Set<String> CLOUD_ACTIONS_TIER_VALUES = new ImmutableSet.Builder<String>()
                     .addAll(SCALE_TIER_VALUES)
-                    .add(UIEntityType.STORAGE_TIER.apiStr())
+                    .add(ApiEntityType.STORAGE_TIER.apiStr())
                     .build();
 
     /**
      * Map of entity types to shortened versions for action descriptions.
      */
     private static final Map<String, String> SHORTENED_ENTITY_TYPES = ImmutableMap.of(
-        UIEntityType.VIRTUAL_VOLUME.apiStr(), "Volume"
+        ApiEntityType.VIRTUAL_VOLUME.apiStr(), "Volume"
     );
 
     private final ActionSpecMappingContextFactory actionSpecMappingContextFactory;
@@ -388,7 +398,7 @@ public class ActionSpecMapper {
     }
 
     @Nonnull
-    public ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
+    public static ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
         switch (actionState) {
             case PRE_IN_PROGRESS:
             case POST_IN_PROGRESS:
@@ -406,7 +416,7 @@ public class ActionSpecMapper {
      * @return an {@link ActionState} enum, null if it's not an execution state
      */
     @Nullable
-    public ActionState mapXlActionStateToExecutionApi(@Nonnull final ActionDTO.ActionState actionState) {
+    private static ActionState mapXlActionStateToExecutionApi(@Nonnull final ActionDTO.ActionState actionState) {
         switch (actionState) {
             case PRE_IN_PROGRESS:
                 return ActionState.PRE_IN_PROGRESS;
@@ -433,7 +443,8 @@ public class ActionSpecMapper {
      *         no equivalent category exists in XL.
      */
     @Nonnull
-    public Optional<ActionDTO.ActionCategory> mapApiActionCategoryToXl(@Nonnull final String category) {
+    public static Optional<ActionDTO.ActionCategory> mapApiActionCategoryToXl(
+            @Nonnull final String category) {
         switch (category) {
             case API_CATEGORY_PERFORMANCE_ASSURANCE:
                 return Optional.of(ActionCategory.PERFORMANCE_ASSURANCE);
@@ -454,7 +465,8 @@ public class ActionSpecMapper {
             @Nonnull final ActionSpecMappingContext context,
             final long topologyContextId,
             @Nullable final ActionDetailLevel detailLevel)
-                    throws UnsupportedActionException, UnknownObjectException, ExecutionException, InterruptedException {
+                    throws UnsupportedActionException, UnknownObjectException,
+                           ExecutionException, InterruptedException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
         // actionID and uuid are the same
@@ -493,8 +505,7 @@ public class ActionSpecMapper {
 
         risk.setDescription(createRiskDescription(actionSpec, context));
         risk.setSubCategory(mapXlActionCategoryToApi(actionSpec.getCategory()));
-        risk.setSeverity(ActionDTOUtil.getSeverityName(
-            ActionDTOUtil.mapActionCategoryToSeverity(actionSpec.getCategory())));
+        risk.setSeverity(mapSeverityToApi(actionSpec.getSeverity()));
         risk.setReasonCommodity("");
         actionApiDTO.setRisk(risk);
 
@@ -613,6 +624,8 @@ public class ActionSpecMapper {
             AspectName.CLOUD, cloudAspect));
         context.getVMAspect(targetEntityId).map(vmAspect -> aspects.put(
             AspectName.VIRTUAL_MACHINE, vmAspect));
+        context.getDBAspect(targetEntityId).map(dbAspect -> aspects.put(
+            AspectName.DATABASE, dbAspect));
         targetEntity.setAspectsByName(aspects);
 
         // add more info for cloud actions
@@ -629,7 +642,7 @@ public class ActionSpecMapper {
              * target entity after converting to the ActionApiDTO. SO we need get VM ID from action info.
              */
             final boolean isVirtualVolumeTarget = targetEntity.getClassName()
-                            .equals(UIEntityType.VIRTUAL_VOLUME.apiStr());
+                            .equals(ApiEntityType.VIRTUAL_VOLUME.apiStr());
             final Long vmId = isVirtualVolumeTarget
                             ? ActionDTOUtil.getPrimaryEntity(action, false).getId()
                             : targetEntityId;
@@ -1041,7 +1054,8 @@ public class ActionSpecMapper {
 
         return reasonCommodities.stream()
                 .map(ReasonCommodity::getCommodityType)
-                .map(commodityType -> CommodityDTO.CommodityType.forNumber(commodityType.getType()).name())
+                .map(UICommodityType::fromType)
+                .map(UICommodityType::apiStr)
                 .collect(Collectors.joining(", "));
     }
 
@@ -1144,8 +1158,17 @@ public class ActionSpecMapper {
                 allocateActionSpec.getRecommendation().getExplanation().getAllocate().getInstanceSizeFamily();
         ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
         serviceEntityApiDTO.setDisplayName(templateFamily);
-        serviceEntityApiDTO.setClassName(UIEntityType.COMPUTE_TIER.apiStr());
+        serviceEntityApiDTO.setClassName(ApiEntityType.COMPUTE_TIER.apiStr());
         actionApiDTO.setCurrentEntity(serviceEntityApiDTO);
+
+        // Set the template for the current entity
+        final long workloadTierId = actionInfo.getAllocate().getWorkloadTier().getId();
+        final ServiceEntityApiDTO workloadTier = context.getEntity(workloadTierId);
+        TemplateApiDTO templateApiDTO = new TemplateApiDTO();
+        templateApiDTO.setUuid(workloadTier.getUuid());
+        templateApiDTO.setDisplayName(workloadTier.getDisplayName());
+        templateApiDTO.setClassName(workloadTier.getClassName());
+        actionApiDTO.setTemplate(templateApiDTO);
 
         // Set action current and new locations (should be the same for Allocate)
         setCurrentAndNewLocation(targetId, context, actionApiDTO);
@@ -1242,12 +1265,22 @@ public class ActionSpecMapper {
                 resize.getCommodityType().getType());
         Objects.requireNonNull(commodityType, "Commodity for number "
                 + resize.getCommodityType().getType());
-        actionApiDTO.getRisk().setReasonCommodity(commodityType.name());
+        actionApiDTO.getRisk().setReasonCommodity(UICommodityType.fromType(resize.getCommodityType()).apiStr());
         if (resize.hasCommodityAttribute()) {
             actionApiDTO.setResizeAttribute(resize.getCommodityAttribute().name());
         }
-        actionApiDTO.setCurrentValue(Float.toString(resize.getOldCapacity()));
-        actionApiDTO.setResizeToValue(Float.toString(resize.getNewCapacity()));
+        actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getOldCapacity()));
+        actionApiDTO.setResizeToValue(String.format(FORMAT_FOR_ACTION_VALUES, resize.getNewCapacity()));
+        try {
+            String units = CommodityTypeUnits.valueOf(commodityType.name()).getUnits();
+            if (!StringUtils.isEmpty(units)) {
+                actionApiDTO.setValueUnits(units);
+            }
+        } catch (IllegalArgumentException e) {
+            // the Enum is missing, it may be expected if there is no units associated with the
+            // commodity, or unexpected if someone forgot to define units for the commodity
+            logger.warn("No units for commodity {}", commodityType);
+        }
 
         // set current location, new location and cloud aspects for cloud resize actions
         if (resize.getTarget().getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
@@ -1356,9 +1389,8 @@ public class ActionSpecMapper {
 
         final List<String> reasonCommodityNames =
             activate.getTriggeringCommoditiesList().stream()
-                .map(commodityType -> CommodityDTO.CommodityType
-                    .forNumber(commodityType.getType()))
-                .map(CommodityDTO.CommodityType::name)
+                .map(UICommodityType::fromType)
+                .map(UICommodityType::apiStr)
                 .collect(Collectors.toList());
 
         actionApiDTO.getRisk()
@@ -1380,9 +1412,8 @@ public class ActionSpecMapper {
 
         final List<String> reasonCommodityNames =
                 deactivate.getTriggeringCommoditiesList().stream()
-                        .map(commodityType -> CommodityDTO.CommodityType
-                                .forNumber(commodityType.getType()))
-                        .map(CommodityDTO.CommodityType::name)
+                        .map(UICommodityType::fromType)
+                        .map(UICommodityType::apiStr)
                         .collect(Collectors.toList());
 
         actionApiDTO.getRisk().setReasonCommodity(
@@ -1414,7 +1445,9 @@ public class ActionSpecMapper {
         actionApiDTO.setActionType(ActionType.DELETE);
         long deletedSizeinKB = deleteExplanation.getSizeKb();
         if (deletedSizeinKB > 0) {
-            actionApiDTO.setCurrentValue(Math.round(deletedSizeinKB / Units.NUM_OF_KB_IN_MB) + "MB");
+            final double deletedSizeInMB = deletedSizeinKB / (double)Units.NUM_OF_KB_IN_MB;
+            actionApiDTO.setCurrentValue(String.format(FORMAT_FOR_ACTION_VALUES, deletedSizeInMB));
+            actionApiDTO.setValueUnits("MB");
         }
         // set the virtualDisks field on ActionApiDTO, only one VirtualDiskApiDTO should be set,
         // since there is only one file (on-prem) or volume (cloud) associated with DELETE action
@@ -1469,13 +1502,11 @@ public class ActionSpecMapper {
             .setVisible(true);
 
         if (inputDto != null) {
-            // TODO (roman, Dec 28 2016): This is only implementing a small subset of
-            // query options. Need to do another pass, including handling
-            // action states that don't map to ActionDTO.ActionState neatly,
-            // dealing with decisions/ActionModes, etc.
+            populateDateInput(inputDto, queryBuilder);
+
             if (inputDto.getActionStateList() != null) {
                 inputDto.getActionStateList().stream()
-                    .map(this::mapApiStateToXl)
+                    .map(ActionSpecMapper::mapApiStateToXl)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(queryBuilder::addStates);
@@ -1486,10 +1517,18 @@ public class ActionSpecMapper {
                 Stream.of(OPERATIONAL_ACTION_STATES).forEach(queryBuilder::addStates);
             }
 
+            if (inputDto.getRiskSeverityList() != null) {
+                inputDto.getRiskSeverityList().stream()
+                    .map(ActionSpecMapper::mapApiSeverityToXl)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .forEach(queryBuilder::addSeverities);
+            }
+
             // Map UI's ActionMode to ActionDTO.ActionMode and add them to filter
             if (inputDto.getActionModeList() != null) {
                 inputDto.getActionModeList().stream()
-                    .map(this::mapApiModeToXl)
+                    .map(ActionSpecMapper::mapApiModeToXl)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(queryBuilder::addModes);
@@ -1508,15 +1547,6 @@ public class ActionSpecMapper {
                 });
             }
 
-            // pass in start and end time
-            if (inputDto.getStartTime() != null && !inputDto.getStartTime().isEmpty()) {
-                queryBuilder.setStartDate(DateTimeUtil.parseTime(inputDto.getStartTime()));
-            }
-
-            if (inputDto.getEndTime() != null && !inputDto.getEndTime().isEmpty()) {
-                queryBuilder.setEndDate(DateTimeUtil.parseTime(inputDto.getEndTime()));
-            }
-
             if (inputDto.getEnvironmentType() != null) {
                 queryBuilder.setEnvironmentType(EnvironmentTypeMapper.fromApiToXL(
                                                     inputDto.getEnvironmentType()));
@@ -1524,8 +1554,8 @@ public class ActionSpecMapper {
 
             if (CollectionUtils.isNotEmpty(inputDto.getRelatedEntityTypes())) {
                 inputDto.getRelatedEntityTypes().stream()
-                    .map(UIEntityType::fromString)
-                    .map(UIEntityType::typeNumber)
+                    .map(ApiEntityType::fromString)
+                    .map(ApiEntityType::typeNumber)
                     .forEach(queryBuilder::addEntityType);
             }
         } else {
@@ -1545,8 +1575,84 @@ public class ActionSpecMapper {
         return queryBuilder.build();
     }
 
+    /**
+     * Handles time in the translation of an {@link ActionApiInputDTO}
+     * object to an {@link ActionQueryFilter} object.
+     * If the start time is not empty and the end time is empty,
+     * the end time is set to "now".
+     *
+     * <p>Some cases should not appear:
+     * <ul>
+     *     <li>If startTime is in the future.</li>
+     *     <li>If endTime precedes startTime.</li>
+     *     <li>If endTime only was passed.</li>
+     * </ul>
+     * In these cases an {@link IllegalArgumentException} is thrown.
+     * </p>
+     *
+     * @param input the {@link ActionApiDTO} object.
+     * @param queryBuilder the {@link ActionQueryFilter.Builder} object
+     *                     whose time entries must be populated
+     */
+    private static void populateDateInput(@Nonnull ActionApiInputDTO input,
+                                          @Nonnull final ActionQueryFilter.Builder queryBuilder) {
+        final String startTimeString = input.getStartTime();
+        final String endTimeString = input.getEndTime();
+        final String nowString = DateTimeUtil.getNow();
+
+        if (!StringUtils.isEmpty(startTimeString)) {
+            final long startTime = DateTimeUtil.parseTime(startTimeString);
+            final long now = DateTimeUtil.parseTime(nowString);
+
+            if (startTime > now) {
+                // start time is in the future.
+                throw new IllegalArgumentException("startTime " + startTimeString +
+                        " can't be in the future");
+            }
+            queryBuilder.setStartDate(startTime);
+
+            if (!StringUtils.isEmpty(endTimeString)) {
+                final long endTime = DateTimeUtil.parseTime(endTimeString);
+                if (endTime < startTime) {
+                    // end time is before start time
+                    throw new IllegalArgumentException("startTime " + startTimeString +
+                            " must precede endTime " + endTimeString);
+                }
+                queryBuilder.setEndDate(endTime);
+            } else {
+                // start time is set, but end time is null
+                // end time should be set to now
+                queryBuilder.setEndDate(now);
+            }
+        } else if (!StringUtils.isEmpty(endTimeString)) {
+            // start time is set, but end time is not
+            throw new IllegalArgumentException("startTime is required along with endTime");
+        }
+    }
+
     @Nonnull
-    public Optional<ActionDTO.ActionState> mapApiStateToXl(final ActionState stateStr) {
+    private static Optional<Severity> mapApiSeverityToXl(@Nonnull String apiSeverity) {
+        try {
+            return Optional.of(Severity.valueOf(apiSeverity.toUpperCase()));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Translates a {@link Severity} into a human-readable string
+     * to be returned by the API.
+     *
+     * @param severity the severity in internal XL format
+     * @return the API corresponding string
+     */
+    @Nonnull
+    public static String mapSeverityToApi(@Nonnull Severity severity) {
+        return severity.name();
+    }
+
+    @Nonnull
+    public static Optional<ActionDTO.ActionState> mapApiStateToXl(final ActionState stateStr) {
         switch (stateStr) {
             case READY:
                 return Optional.of(ActionDTO.ActionState.READY);
@@ -1570,10 +1676,12 @@ public class ActionSpecMapper {
     /**
      * Given an actionSpec fetches the corresponding action details.
      * @param action - ActionOrchestratorAction for the user sent action
+     * @param topologyContextId - the topology context that the action corresponds to
      * @return actionDetailsApiDTO which contains extra information about a given action
      */
     @Nullable
-    public ActionDetailsApiDTO createActionDetailsApiDTO(final ActionDTO.ActionOrchestratorAction action) {
+    public ActionDetailsApiDTO createActionDetailsApiDTO(
+            final ActionDTO.ActionOrchestratorAction action, Long topologyContextId) {
         final ActionSpec actionSpec = action.getActionSpec();
         if (actionSpec != null && actionSpec.hasRecommendation()) {
             ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
@@ -1601,7 +1709,7 @@ public class ActionSpecMapper {
                 long entityUuid;
                 ActionEntity entity;
                 try {
-                    entity = ActionDTOUtil.getPrimaryEntity(action.getActionSpec().getRecommendation());
+                    entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
                     entityUuid = entity.getId();
                 } catch (UnsupportedActionException e) {
                     logger.warn("Cannot create action details due to unsupported action type", e);
@@ -1611,7 +1719,7 @@ public class ActionSpecMapper {
                     logger.warn("Cannot create action details for on-prem actions");
                     return null;
                 }
-                return createCloudResizeActionDetailsDTO(entityUuid);
+                return createCloudResizeActionDetailsDTO(entityUuid, topologyContextId);
             }
             return null;
         }
@@ -1621,30 +1729,32 @@ public class ActionSpecMapper {
     /**
      * Create Cloud Resize Action Details DTO.
      * @param entityUuid - uuid of the action target entity
+     * @param topologyContextId - the topology context that the action corresponds to
      * @return cloudResizeActionDetailsDTO - this contains additional details about the action
      * like on-demand rates, costs and RI coverage before/after the resize
      */
     @Nonnull
-    public CloudResizeActionDetailsApiDTO createCloudResizeActionDetailsDTO(long entityUuid) {
+    public CloudResizeActionDetailsApiDTO createCloudResizeActionDetailsDTO(long entityUuid, Long topologyContextId) {
         CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = new CloudResizeActionDetailsApiDTO();
         // get on-demand costs
-        setOnDemandCosts(entityUuid, cloudResizeActionDetailsApiDTO);
+        setOnDemandCosts(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
         // get on-demand rates
-        setOnDemandRates(entityUuid, cloudResizeActionDetailsApiDTO);
+        setOnDemandRates(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
         // get RI coverage before/after
-        setRiCoverage(entityUuid, cloudResizeActionDetailsApiDTO);
+        setRiCoverage(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
         return cloudResizeActionDetailsApiDTO;
     }
 
     /**
      * Set on-demand costs for target entity which factors in RI usage.
+     *
      * @param entityUuid - uuid of target entity
+     * @param topologyContextId - context Id
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setOnDemandCosts(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+    private void setOnDemandCosts(long entityUuid, Long topologyContextId, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
         EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
-        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest
-                .newBuilder().addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+        CloudCostStatsQuery.Builder cloudCostStatsQueryBuilder = CloudCostStatsQuery.newBuilder()
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
                 // For cloud scale actions, the action savings will reflect only the savings from
@@ -1660,7 +1770,13 @@ public class ActionSpecMapper {
                         .setExclusionFilter(false)
                         .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
                         .addCostCategory(CostCategory.ON_DEMAND_LICENSE)
-                        .addCostCategory(CostCategory.RESERVED_LICENSE)))
+                        .addCostCategory(CostCategory.RESERVED_LICENSE)
+                        .build());
+        if (Objects.nonNull(topologyContextId)) {
+            cloudCostStatsQueryBuilder.setTopologyContextId(topologyContextId);
+        }
+        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(cloudCostStatsQueryBuilder.build())
                 .build();
         GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         int statRecordListSize = response.getCloudStatRecordList().size();
@@ -1684,28 +1800,37 @@ public class ActionSpecMapper {
 
     /**
      * Set on-demand template rates for the target entity.
+     *
      * @param entityUuid - uuid of target entity
+     * @param topologyContextId - topology context ID
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setOnDemandRates(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+    private void setOnDemandRates(long entityUuid, @Nullable Long topologyContextId,
+                                  CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
 
         // Get the On Demand compute costs
-        GetTierPriceForEntitiesRequest onDemandComputeCostsRequest = GetTierPriceForEntitiesRequest
-                .newBuilder().setOid(entityUuid)
-                .setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();
+        GetTierPriceForEntitiesRequest.Builder onDemandComputeCostsRequest = GetTierPriceForEntitiesRequest.newBuilder()
+                .setOid(entityUuid)
+                .setCostCategory(CostCategory.ON_DEMAND_COMPUTE);
+        if (Objects.nonNull(topologyContextId)) {
+            onDemandComputeCostsRequest.setTopologyContextId(topologyContextId);
+        }
         GetTierPriceForEntitiesResponse onDemandComputeCostsResponse = costServiceBlockingStub
-                .getTierPriceForEntities(onDemandComputeCostsRequest);
+                .getTierPriceForEntities(onDemandComputeCostsRequest.build());
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = onDemandComputeCostsResponse
                 .getBeforeTierPriceByEntityOidMap();
         Map<Long, CurrencyAmount> afterComputeCostByEntityOidMap = onDemandComputeCostsResponse
                 .getAfterTierPriceByEntityOidMap();
 
         // Get the On Demand License costs
-        GetTierPriceForEntitiesRequest onDemandLicenseCostsRequest = GetTierPriceForEntitiesRequest
-                .newBuilder().setOid(entityUuid)
-                .setCostCategory(CostCategory.ON_DEMAND_LICENSE).build();
+        GetTierPriceForEntitiesRequest.Builder onDemandLicenseCostsRequest = GetTierPriceForEntitiesRequest.newBuilder()
+                .setOid(entityUuid)
+                .setCostCategory(CostCategory.ON_DEMAND_LICENSE);
+        if (Objects.nonNull(topologyContextId)) {
+            onDemandLicenseCostsRequest.setTopologyContextId(topologyContextId);
+        }
         GetTierPriceForEntitiesResponse onDemandLicenseCostsResponse = costServiceBlockingStub
-                .getTierPriceForEntities(onDemandLicenseCostsRequest);
+                .getTierPriceForEntities(onDemandLicenseCostsRequest.build());
         Map<Long, CurrencyAmount> beforeLicenseComputeCosts = onDemandLicenseCostsResponse
                 .getBeforeTierPriceByEntityOidMap();
         Map<Long, CurrencyAmount> afterLicenseComputeCosts = onDemandLicenseCostsResponse
@@ -1745,9 +1870,10 @@ public class ActionSpecMapper {
     /**
      * Set RI Coverage before/after for the target entity.
      * @param entityUuid - uuid of target entity
+     * @param topologyContextId - the topology context for which RI coverage is being set
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setRiCoverage(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+    private void setRiCoverage(long entityUuid, Long topologyContextId, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
         final EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
 
         // get latest RI coverage for target entity
@@ -1778,12 +1904,15 @@ public class ActionSpecMapper {
         }
 
         // get projected RI coverage for target entity
-        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest =
+        Cost.GetProjectedEntityReservedInstanceCoverageRequest.Builder builder =
                 Cost.GetProjectedEntityReservedInstanceCoverageRequest
-                .newBuilder()
-                .setEntityFilter(entityFilter)
-                .build();
+                        .newBuilder()
+                        .setEntityFilter(entityFilter);
+        if (!Objects.isNull(topologyContextId)) {
+            builder.setTopologyContextId(topologyContextId);
+        }
 
+        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest = builder.build();
         Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedEntityReservedInstanceCoverageResponse =
                 reservedInstanceUtilizationCoverageServiceBlockingStub
                     .getProjectedEntityReservedInstanceCoverageStats(projectedEntityReservedInstanceCoverageRequest);
@@ -1885,7 +2014,7 @@ public class ActionSpecMapper {
      * @return ActionDTO.ActionMode
      */
     @Nonnull
-    public Optional<ActionDTO.ActionMode> mapApiModeToXl(final ActionMode actionMode) {
+    public static Optional<ActionDTO.ActionMode> mapApiModeToXl(final ActionMode actionMode) {
         switch (actionMode) {
             case DISABLED:
                 return Optional.of(ActionDTO.ActionMode.DISABLED);

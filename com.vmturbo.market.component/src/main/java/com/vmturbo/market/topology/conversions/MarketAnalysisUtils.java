@@ -114,7 +114,8 @@ public final class MarketAnalysisUtils {
      */
     public static final Set<Integer> CLONABLE_TYPES =
                     ImmutableSet.of(EntityType.PHYSICAL_MACHINE_VALUE, EntityType.STORAGE_VALUE,
-                                    EntityType.STORAGE_CONTROLLER_VALUE, EntityType.CHASSIS_VALUE);
+                                    EntityType.STORAGE_CONTROLLER_VALUE, EntityType.CHASSIS_VALUE,
+                                    EntityType.DISK_ARRAY_VALUE);
 
     /**
      * Flow commodities set for identifying flow commodities used in NCM.
@@ -209,8 +210,6 @@ public final class MarketAnalysisUtils {
     public static final Set<Integer> VDC_COMMODITY_TYPES =
                     ImmutableSet.of(CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE,
                                     CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE,
-                                    CommodityDTO.CommodityType.CPU_REQUEST_ALLOCATION_VALUE,
-                                    CommodityDTO.CommodityType.MEM_REQUEST_ALLOCATION_VALUE,
                                     CommodityDTO.CommodityType.STORAGE_ALLOCATION_VALUE,
                                     CommodityDTO.CommodityType.FLOW_ALLOCATION_VALUE);
 

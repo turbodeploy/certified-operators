@@ -10,17 +10,21 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
+
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetEntityReservedInstanceCoverageResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForAnalysisRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForAnalysisResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -97,13 +101,10 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                     .getAccountPricingDataByBusinessAccount(cloudTopo);
 
             // Get the existing RI bought.
-            final GetReservedInstanceBoughtByTopologyResponse riBoughtResponse =
-                riBoughtServiceClient.getReservedInstanceBoughtByTopology(
-                        GetReservedInstanceBoughtByTopologyRequest.newBuilder()
-                                .setTopologyType(topoInfo.getTopologyType())
-                                .setTopologyContextId(topoInfo.getTopologyContextId())
-                                .setScopeEntityType(topoInfo.getScopeEntityType())
-                                .addAllScopeSeedOids(topoInfo.getScopeSeedOidsList())
+            final GetReservedInstanceBoughtForAnalysisResponse riBoughtResponse =
+                riBoughtServiceClient.getReservedInstanceBoughtForAnalysis(
+                        GetReservedInstanceBoughtForAnalysisRequest.newBuilder()
+                                .setTopologyInfo(topoInfo)
                                 .build());
             final Map<Long, ReservedInstanceBought> riBoughtById =
                     new HashMap<>(riBoughtResponse.getReservedInstanceBoughtCount());
@@ -146,7 +147,26 @@ public class MarketCloudCostDataProvider implements CloudCostDataProvider {
                             riUtilizationServiceClient.getEntityReservedInstanceCoverage(
                     GetEntityReservedInstanceCoverageRequest.getDefaultInstance());
 
-            return new CloudCostData<>(coverageResponse.getCoverageByEntityIdMap(),
+            Map<Long, EntityReservedInstanceCoverage> coverageListMap = coverageResponse.getCoverageByEntityIdMap();
+            final Set<Long> riBoughtIds = riBoughtById.keySet();
+            // We filter the RI coverage to be fed into the market based on the scope of the RI's
+            // included in a plan. This is particularly pertinent in the case of an OCP plan running
+            // with different RI inclusion settings.
+            final Map<Long, EntityReservedInstanceCoverage> filteredCoverageMap = coverageListMap.values()
+                    .stream()
+                    .map(EntityReservedInstanceCoverage::toBuilder)
+                    .peek(coverageBuilder ->
+                            coverageBuilder.putAllCouponsCoveredByRi(
+                                    Maps.filterKeys(
+                                            coverageBuilder.getCouponsCoveredByRiMap(),
+                                            riBoughtIds::contains)))
+                    .map(EntityReservedInstanceCoverage.Builder::build)
+                    .collect(ImmutableMap.toImmutableMap(
+                            EntityReservedInstanceCoverage::getEntityId,
+                            Function.identity()));
+
+            return new CloudCostData<>(coverageListMap,
+                    filteredCoverageMap,
                     riBoughtById,
                     riSpecsById,
                     buyRIBoughtById, accountPricingDataByBusinessAccountOid);

@@ -20,18 +20,24 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
@@ -42,6 +48,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -53,6 +60,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -60,15 +68,23 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
+import com.vmturbo.topology.processor.template.TemplateConverterTestUtil;
+import com.vmturbo.topology.processor.template.VirtualMachineEntityConstructor;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * Unit test for {@link EntitySettingsApplicator}.
  */
+@RunWith(JUnitParamsRunner.class)
 public class EntitySettingsApplicatorTest {
 
     private static final long PARENT_ID = 23345;
     private static final long DEFAULT_SETTING_ID = 23346;
+
+    private static final Template VM_TEMPLATE = Template.newBuilder()
+            .setId(123)
+            .setTemplateInfo(TemplateConverterTestUtil.VM_TEMPLATE_INFO)
+            .build();
 
     private static final Setting INSTANCE_STORE_AWARE_SCALING_SETTING =
                     createInstanceStoreAwareScalingSetting(true);
@@ -169,9 +185,19 @@ public class EntitySettingsApplicatorTest {
 
 
     private static final Setting MOVE_MANUAL_SETTING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
-                    .build();
+            .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
+            .build();
+
+    private static final Setting SHOP_TOGETHER_ENABLED = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ShopTogether.getSettingName())
+            .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true).build())
+            .build();
+
+    private static final Setting SHOP_TOGETHER_DISABLED = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ShopTogether.getSettingName())
+            .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
+            .build();
 
     private static final Setting STORAGE_MOVE_MANUAL_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
@@ -248,6 +274,38 @@ public class EntitySettingsApplicatorTest {
     private static final Setting VM_VCPU_THROUGHPUT_RESIZE_TARGET_UTILIZATION = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.ResizeTargetUtilizationVcpu.getSettingName())
             .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(20))
+            .build();
+
+    /**
+     * VMem min setting.
+     */
+    private static final Setting VMEM_MIN_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemMinThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1024))
+            .build();
+
+    /**
+     * VMem Max setting.
+     */
+    private static final Setting VMEM_MAX_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemMaxThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10240))
+            .build();
+
+    /**
+     * VCPU min setting.
+     */
+    private static final Setting VCPU_MIN_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10))
+            .build();
+
+    /**
+     * VCPU Max setting.
+     */
+    private static final Setting VCPU_MAX_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingName())
+            .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(100))
             .build();
 
     private static final Setting.Builder RESIZE_SETTING_BUILDER = Setting.newBuilder()
@@ -444,6 +502,71 @@ public class EntitySettingsApplicatorTest {
                         .setMovable(true));
         applySettings(TOPOLOGY_INFO, entity, MOVE_DISABLED_SETTING);
         assertThat(entity.getCommoditiesBoughtFromProviders(0).getMovable(), is(false));
+    }
+
+    /**
+     * Tests applying of VMem/VCPU min/Max applicators for a VM.
+     */
+    @Test
+    public void testThresholdApplicatorForVM() {
+        long vmId = 7;
+        long pmId = 77;
+        double mbToKb = 1024;
+        final TypeSpecificInfo typeSpecificInfo = TypeSpecificInfo.newBuilder()
+                .setPhysicalMachine(PhysicalMachineInfo.newBuilder().setCpuCoreMhz(1000)).build();
+        final TopologyEntityDTO.Builder pm =
+                TopologyEntityDTO.newBuilder().setOid(pmId)
+                        .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .setTypeSpecificInfo(typeSpecificInfo);
+        TopologyEntityDTO.Builder entity = TopologyEntityDTO.newBuilder().setOid(vmId)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VMEM_VALUE)))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                        .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU_VALUE)))
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(pmId)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE));
+        final long entityId = entity.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
+                entityId, topologyEntityBuilder(entity),
+                pmId, topologyEntityBuilder(pm)));
+        applySettings(TOPOLOGY_INFO, applicator, graph, entityId, VMEM_MIN_SETTING,
+                VMEM_MAX_SETTING, VCPU_MIN_SETTING, VCPU_MAX_SETTING);
+        final Thresholds vMemCommoditySoldThresholds = entity.getCommoditySoldList(0).getThresholds();
+        final Thresholds vCPUCommoditySoldThresholds = entity.getCommoditySoldList(1).getThresholds();
+        // VMem min is 1GB
+        Assert.assertEquals(1024 * mbToKb, vMemCommoditySoldThresholds.getMin(), DELTA);
+        // VMem Max is 10GB
+        Assert.assertEquals(10240 * mbToKb, vMemCommoditySoldThresholds.getMax(), DELTA);
+        // VCPU min is 10 cores X 1000 (host CPU speed)
+        Assert.assertEquals(10_000, vCPUCommoditySoldThresholds.getMin(), DELTA);
+        // VCPU min is 100 cores X 1000 (host CPU speed)
+        Assert.assertEquals(100_000, vCPUCommoditySoldThresholds.getMax(), DELTA);
+    }
+
+    /**
+     * Tests applying of VCPU min/Max applicators for a VM from Template.
+     */
+    @Test
+    public void testThresholdApplicatorForTemplateVM() {
+        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setOid(888)
+                .setEnvironmentType(EnvironmentType.ON_PREM);
+        final TopologyEntityDTO.Builder entity =
+            new VirtualMachineEntityConstructor().createTopologyEntityFromTemplate(VM_TEMPLATE, builder,
+                Collections.emptyMap(), null);
+        final long entityId = entity.getOid();
+        final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator
+            .newGraph(ImmutableMap.of(entityId, topologyEntityBuilder(entity)));
+        applySettings(TOPOLOGY_INFO, applicator, graph, entityId, VCPU_MIN_SETTING, VCPU_MAX_SETTING);
+        final Thresholds vCPUCommoditySoldThresholds = entity.getCommoditySoldList(0).getThresholds();
+        // VCPU min is 10 cores X 200 (vm capacity / num cpu)
+        Assert.assertEquals(2000, vCPUCommoditySoldThresholds.getMin(), DELTA);
+        // VCPU min is 100 cores X 200 (vm capacity / num cpu)
+        Assert.assertEquals(20000, vCPUCommoditySoldThresholds.getMax(), DELTA);
     }
 
     /**
@@ -644,8 +767,70 @@ public class EntitySettingsApplicatorTest {
         assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(false));
     }
 
+    private Object parametersForShopTogether() {
+        TopologyInfo realtimeTopologyInfo = TopologyInfo.newBuilder()
+                .setTopologyType(TopologyType.REALTIME)
+                .build();
+
+        TopologyInfo planTopologyInfo = TopologyInfo.newBuilder()
+                .setPlanInfo(PlanTopologyInfo.getDefaultInstance())
+                .build();
+
+        return new Object[]{
+                // ShopTogether : ENABLED, REALTIME, PROBE VALUE : FALSE
+                // Probe value should supersede setting set in the UI
+                new Object[]{SHOP_TOGETHER_ENABLED, realtimeTopologyInfo, false, false},
+                // ShopTogether : ENABLED, REALTIME, PROBE VALUE : TRUE
+                // Probe value should supersede setting set in the UI
+                new Object[]{SHOP_TOGETHER_ENABLED, realtimeTopologyInfo, true, true},
+                // ShopTogether : DISABLED, REALTIME, PROBE VALUE : FALSE
+                // Override Probe value : Set false
+                new Object[]{SHOP_TOGETHER_DISABLED, realtimeTopologyInfo, false, false},
+                // ShopTogether : DISABLED, REALTIME, PROBE VALUE : TRUE
+                // Override Probe value : Set false
+                new Object[]{SHOP_TOGETHER_DISABLED, realtimeTopologyInfo, true, false},
+                // ShopTogether : DISABLED, PLAN, Probe/PreviousStage VALUE : TRUE
+                // Probe/PreviousStage value supersedes value in UI
+                new Object[]{SHOP_TOGETHER_DISABLED, planTopologyInfo, true, true},
+                // ShopTogether : DISABLED, PLAN, Probe/PreviousStage VALUE : FALSE
+                // Probe/PreviousStage value supersedes value in UI
+                new Object[]{SHOP_TOGETHER_DISABLED, planTopologyInfo, false, false},
+                // ShopTogether : ENABLED, PLAN, Probe/PreviousStage VALUE : TRUE
+                // Probe/PreviousStage value supersedes value in UI
+                new Object[]{SHOP_TOGETHER_ENABLED, planTopologyInfo, true, true},
+                // ShopTogether : ENABLED, PLAN, Probe/PreviousStage VALUE : False
+                // Probe/PreviousStage value supersedes value in UI
+                new Object[]{SHOP_TOGETHER_ENABLED, planTopologyInfo, false, false}
+        };
+    }
+
+    /**
+     * Test setting of shop together flag for VM (All cases explained in parameter method).
+     * @param shopTogetherSetting :  can be ENABLED/DISABLED
+     * @param topologyInfo : can be REALTIME/PLAN
+     * @param probeOrEarlierStageValue : can be T/F
+     * @param expectedFinalValue : final value will be T/F
+     */
     @Test
-    public void testShopTogetherApplicator() {
+    @Parameters(method = "parametersForShopTogether")
+    public void testShopTogetherApplicatorForVMs(Setting shopTogetherSetting,
+            TopologyInfo topologyInfo,
+            boolean probeOrEarlierStageValue,
+            boolean expectedFinalValue) {
+
+        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder()
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(probeOrEarlierStageValue))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .setMovable(true));
+        applySettings(topologyInfo, vm, shopTogetherSetting);
+        assertThat(vm.getAnalysisSettings().getShopTogether(), is(expectedFinalValue));
+    }
+
+    @Test
+    public void testShopTogetherApplicatorForPMs() {
         final TopologyEntityDTO.Builder pmSNMNotSupport = TopologyEntityDTO.newBuilder()
                         .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(false))
                         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
@@ -653,7 +838,7 @@ public class EntitySettingsApplicatorTest {
                                 .setProviderId(PARENT_ID)
                                 .setProviderEntityType(EntityType.DATACENTER_VALUE)
                                 .setMovable(true));
-        applySettings(TOPOLOGY_INFO, pmSNMNotSupport, MOVE_MANUAL_SETTING);
+        applySettings(TOPOLOGY_INFO, pmSNMNotSupport, MOVE_AUTOMATIC_SETTING);
         assertThat(pmSNMNotSupport.getAnalysisSettings().getShopTogether(), is(false));
 
         final TopologyEntityDTO.Builder pmSNMSupport = TopologyEntityDTO.newBuilder()
@@ -665,46 +850,6 @@ public class EntitySettingsApplicatorTest {
                                 .setMovable(true));
         applySettings(TOPOLOGY_INFO, pmSNMSupport, MOVE_MANUAL_SETTING);
         assertThat(pmSNMSupport.getAnalysisSettings().getShopTogether(), is(true));
-
-        final TopologyEntityDTO.Builder vmSNMNotSupported = TopologyEntityDTO.newBuilder()
-                .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(false))
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderId(PARENT_ID)
-                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                        .setMovable(true));
-        applySettings(TOPOLOGY_INFO, vmSNMNotSupported, MOVE_MANUAL_SETTING, STORAGE_MOVE_MANUAL_SETTING);
-        assertThat(vmSNMNotSupported.getAnalysisSettings().getShopTogether(), is(false));
-
-        final TopologyEntityDTO.Builder vmSNMSupported = TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                                .setProviderId(PARENT_ID)
-                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                                .setMovable(true));
-        applySettings(TOPOLOGY_INFO, vmSNMSupported, MOVE_AUTOMATIC_SETTING, STORAGE_MOVE_AUTOMATIC_SETTING);
-        assertThat(vmSNMSupported.getAnalysisSettings().getShopTogether(), is(true));
-
-        final TopologyEntityDTO.Builder vmSNMSupported2 = TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                                .setProviderId(PARENT_ID)
-                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                                .setMovable(true));
-        applySettings(TOPOLOGY_INFO, vmSNMSupported2, MOVE_MANUAL_SETTING, STORAGE_MOVE_AUTOMATIC_SETTING);
-        assertThat(vmSNMSupported2.getAnalysisSettings().getShopTogether(), is(false));
-
-        final TopologyEntityDTO.Builder vmSNMSupported3 = TopologyEntityDTO.newBuilder()
-                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
-                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                                .setProviderId(PARENT_ID)
-                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                                .setMovable(true));
-                applySettings(TOPOLOGY_INFO, vmSNMSupported3, MOVE_MANUAL_SETTING, STORAGE_MOVE_MANUAL_SETTING);
-                assertThat(vmSNMSupported3.getAnalysisSettings().getShopTogether(), is(true));
     }
 
     /**

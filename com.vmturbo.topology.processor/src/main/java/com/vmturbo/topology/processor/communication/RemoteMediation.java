@@ -11,6 +11,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.ActionRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
+import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
 import com.vmturbo.topology.processor.operation.Operation;
@@ -37,13 +38,15 @@ public interface RemoteMediation {
      * processing is reported to {@code responseHandler}.
      *
      * @param probeId probe to perform request on
+     * @param targetId target to discover
      * @param discoveryRequest discovery request data
      * @param responseHandler handler to accept discovery responses.
      * @throws ProbeException if probe requested does not exist.
      * @throws CommunicationException if some communication error occurred.
      * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void sendDiscoveryRequest(final long probeId, @Nonnull final DiscoveryRequest discoveryRequest,
+    void sendDiscoveryRequest(long probeId, long targetId,
+                              @Nonnull DiscoveryRequest discoveryRequest,
                     @Nonnull final IOperationMessageHandler<Discovery> responseHandler)
                     throws ProbeException, CommunicationException, InterruptedException;
 
@@ -92,16 +95,17 @@ public interface RemoteMediation {
             throws InterruptedException, ProbeException, CommunicationException;
 
     /**
-     * Remove message handlers matching the {@code shouldRemoveFilter}. Removing these handlers
-     * will cause messages targeting these handlers to be discarded. Probes do not support
-     * aborting an operation, so removing the handler can be used to discard the results
-     * of those operations.
+     * Remove message handlers and notify mediation clients about target removal.
      *
-     * @param shouldRemoveFilter A predicate method that checks whether a particular message
-     *                          handler should be removed. Handlers passed to this method
-     *                          that return true will be removed.
+     * @param probeId probe identifier
+     * @param targetId target identifier
+     * @param request request to send to remote containers
+     * @throws ProbeException if probe requested does not exist.
+     * @throws CommunicationException if some communication error occurred
+     * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void removeMessageHandlers(@Nonnull final Predicate<Operation> shouldRemoveFilter);
+    void handleTargetRemoval(long probeId, long targetId, @Nonnull TargetUpdateRequest request)
+                    throws CommunicationException, InterruptedException, ProbeException;
 
     /**
      * Check for expired operation handlers, expiring and removing any that have

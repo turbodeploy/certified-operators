@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.Strings;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -32,6 +33,8 @@ import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
  */
 public class EntitiesWriter extends TopologyWriterBase {
     private static Logger logger = LogManager.getLogger(EntitiesWriter.class);
+
+    static final int ENTITY_DISPLAY_NAME_MAX_LENGTH = Entities.ENTITIES.DISPLAY_NAME.getDataType().length();
 
     private final TopologyInfo topologyInfo;
     private final HistorydbIO historydbIO;
@@ -118,42 +121,46 @@ public class EntitiesWriter extends TopologyWriterBase {
 
         final Optional<EntityType> entityDBInfo =
             historydbIO.getEntityType(entityDTO.getEntityType());
-        if (!entityDBInfo.isPresent()) {
-            // entity type not found - some entity types are not persisted
+        if (entityDBInfo.map(EntityType::persistsEntity).orElse(false)) {
+            // entity type was found, and it has persistEntity use case
+            final String entityType = entityDBInfo.get().getName();
+            final long entityOid = entityDTO.getOid();
+            final String truncatedDisplayName =
+                    Strings.truncate(entityDTO.getDisplayName(), ENTITY_DISPLAY_NAME_MAX_LENGTH);
+            if (!truncatedDisplayName.equals(entityDTO.getDisplayName())) {
+                // log as [kept-portion]overflow
+                logger.warn("Truncated too-long entity display name for entity {} type {}: {}",
+                        entityOid, entityType, "[" + truncatedDisplayName + "]"
+                                + entityDTO.getDisplayName().substring(ENTITY_DISPLAY_NAME_MAX_LENGTH));
+            }
+            final EntitiesRecord record;
+            EntitiesRecord existingRecord = existingRecords.get(oid);
+            if (existingRecord == null) {
+                record = new EntitiesRecord();
+                record.setId(entityOid);
+            } else {
+                if (existingRecord.getDisplayName().equals(truncatedDisplayName) &&
+                        existingRecord.getCreationClass().equals(entityType)) {
+                    return Optional.empty();
+                }
+                logger.warn("Name or type for existing entity with oid {} has been changed: " +
+                                "displayName >{}< -> >{}<" +
+                                " creationType >{}< -> >{}<; db updated.", entityDTO.getOid(),
+                        existingRecord.getDisplayName(), truncatedDisplayName,
+                        existingRecord.getCreationClass(), entityType);
+                record = existingRecord;
+            }
+            // the table has a `name` column that is not used by anything, so we no longer
+            // populate it, and we will likely drop it from the schema at some point
+            record.setDisplayName(truncatedDisplayName);
+            record.setUuid(Long.toString(entityOid));
+            record.setCreationClass(entityType);
+            record.setCreatedAt(new Timestamp(snapshotTime));
+            return Optional.of(record);
+        } else {
+            // entity type not found, or found but not persisted
             return Optional.empty();
         }
-
-        final String entityType = entityDBInfo.get().getClsName();
-        final long entityOid = entityDTO.getOid();
-
-        final EntitiesRecord record;
-        EntitiesRecord existingRecord = existingRecords.get(oid);
-        if (existingRecord == null) {
-            record = new EntitiesRecord();
-            record.setId(entityOid);
-        } else {
-            if (existingRecord.getDisplayName().equals(entityDTO.getDisplayName()) &&
-                existingRecord.getCreationClass().equals(entityType)) {
-                return Optional.empty();
-            }
-            logger.warn("Name or type for existing entity with oid {} has been changed: " +
-                    "displayName >{}< -> >{}<" +
-                    " creationType >{}< -> >{}<; db updated.", entityDTO.getOid(),
-                existingRecord.getDisplayName(), entityDTO.getDisplayName(),
-                existingRecord.getCreationClass(), entityType);
-            record = existingRecord;
-        }
-        // in the Legacy OpsManager there is a "name" attribute different from the "displayName".
-        // I doubt it is used in the UX, but for backwards compatibility we will not leave this
-        // column null. This value is not provided in the input topology, so we will populate
-        // the "name" column with the following:
-        final String synthesizedEntityName = entityDTO.getDisplayName() + '-' + entityOid;
-        record.setName(synthesizedEntityName);
-        record.setDisplayName(entityDTO.getDisplayName());
-        record.setUuid(Long.toString(entityOid));
-        record.setCreationClass(entityType);
-        record.setCreatedAt(new Timestamp(snapshotTime));
-        return Optional.of(record);
     }
 
     /**

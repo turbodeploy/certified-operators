@@ -43,26 +43,22 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        // verify there are 14 different entity types in new topology
-        assertEquals(14, entitiesByType.size());
+        assertEquals(12, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(9, entitiesByType.get(EntityType.DATABASE_SERVER).size());
-        assertEquals(129, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
-        assertEquals(176, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
-        assertEquals(3, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(144, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
-        assertEquals(146, entitiesByType.get(EntityType.COMPUTE_TIER).size());
-        assertEquals(43, entitiesByType.get(EntityType.DATABASE_SERVER_TIER).size());
-        assertEquals(7, entitiesByType.get(EntityType.STORAGE_TIER).size());
-        assertEquals(45, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
+        assertEquals(8, entitiesByType.get(EntityType.DATABASE_SERVER).size());
+        assertEquals(26, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
+        assertEquals(4, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
 
         // unmodified
-        assertEquals(24, entitiesByType.get(EntityType.LOAD_BALANCER).size());
-        assertEquals(28, entitiesByType.get(EntityType.VIRTUAL_APPLICATION).size());
-        assertEquals(187, entitiesByType.get(EntityType.APPLICATION).size());
-        assertEquals(27, entitiesByType.get(EntityType.RESERVED_INSTANCE).size());
-        assertEquals(15, entitiesByType.get(EntityType.REGION).size());
+        assertEquals(5, entitiesByType.get(EntityType.LOAD_BALANCER).size());
+        assertEquals(7, entitiesByType.get(EntityType.VIRTUAL_APPLICATION).size());
+        assertEquals(31, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(15, entitiesByType.get(EntityType.RESERVED_INSTANCE).size());
+        assertEquals(16, entitiesByType.get(EntityType.REGION).size());
+        assertEquals(51, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
+        assertEquals(52, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
+        assertEquals(8, entitiesByType.get(EntityType.STORAGE_TIER).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);
@@ -80,32 +76,24 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        // verify there are 14 different entity types in new topology
-        assertEquals(14, entitiesByType.size());
+        assertEquals(11, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(1, entitiesByType.get(EntityType.DATABASE_SERVER).size());
-        assertEquals(15, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
-        assertEquals(16, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
+        assertEquals(2, entitiesByType.get(EntityType.DATABASE_SERVER).size());
+        assertEquals(87, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(144, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
-        assertEquals(146, entitiesByType.get(EntityType.COMPUTE_TIER).size());
-        assertEquals(43, entitiesByType.get(EntityType.DATABASE_SERVER_TIER).size());
-        assertEquals(7, entitiesByType.get(EntityType.STORAGE_TIER).size());
-        assertEquals(43, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
-        assertEquals(15, entitiesByType.get(EntityType.REGION).size());
+        assertEquals(16, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
-        assertEquals(3, entitiesByType.get(EntityType.LOAD_BALANCER).size());
-        assertEquals(3, entitiesByType.get(EntityType.VIRTUAL_APPLICATION).size());
-        assertEquals(20, entitiesByType.get(EntityType.APPLICATION).size());
-        assertEquals(1, entitiesByType.get(EntityType.RESERVED_INSTANCE).size());
+        assertEquals(62, entitiesByType.get(EntityType.LOAD_BALANCER).size());
+        assertEquals(72, entitiesByType.get(EntityType.VIRTUAL_APPLICATION).size());
+        assertEquals(238, entitiesByType.get(EntityType.APPLICATION).size());
+        assertEquals(50, entitiesByType.get(EntityType.AVAILABILITY_ZONE).size());
+        assertEquals(202, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
+        assertEquals(8, entitiesByType.get(EntityType.STORAGE_TIER).size());
 
         // ensure other fields are consistent with original discovery response
         verifyOtherFieldsNotModified(oldResponse, newResponse);
-
-        // check that displayName field is cleared for sub account target
-        assertThat(entitiesByType.get(EntityType.BUSINESS_ACCOUNT).get(0).hasDisplayName(), is(false));
     }
 
     private void verifyOtherFieldsNotModified(@Nonnull DiscoveryResponse oldResponse,

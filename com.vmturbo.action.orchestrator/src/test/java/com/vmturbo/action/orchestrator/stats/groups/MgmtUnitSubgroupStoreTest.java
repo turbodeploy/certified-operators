@@ -12,17 +12,12 @@ import java.util.Optional;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.action.orchestrator.db.Action;
 import com.vmturbo.action.orchestrator.stats.ManagementUnitType;
 import com.vmturbo.action.orchestrator.stats.aggregator.GlobalActionAggregator;
 import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroup.MgmtUnitSubgroupKey;
@@ -30,37 +25,25 @@ import com.vmturbo.action.orchestrator.stats.groups.MgmtUnitSubgroupStore.QueryR
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class MgmtUnitSubgroupStoreTest {
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Action.ACTION);
 
-    private Flyway flyway;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private MgmtUnitSubgroupStore mgmtUnitSubgroupStore;
-
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-
-        mgmtUnitSubgroupStore = new MgmtUnitSubgroupStore(dsl);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
+    private MgmtUnitSubgroupStore mgmtUnitSubgroupStore = new MgmtUnitSubgroupStore(dsl);
 
     @Test
     public void testUpsert() {
@@ -73,7 +56,6 @@ public class MgmtUnitSubgroupStoreTest {
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
                 mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key));
         assertThat(subgroups.get(key).key(), is(key));
-        assertThat(subgroups.get(key).id(), is(1));
     }
 
     @Test
@@ -86,7 +68,6 @@ public class MgmtUnitSubgroupStoreTest {
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
                 mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key));
         assertThat(subgroups.get(key).key(), is(key));
-        assertThat(subgroups.get(key).id(), is(1));
     }
 
     @Test
@@ -97,7 +78,10 @@ public class MgmtUnitSubgroupStoreTest {
             .mgmtUnitId(123)
             .mgmtUnitType(ManagementUnitType.CLUSTER)
             .build();
-        mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key1));
+        final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> initialSubgroups =
+            mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key1));
+        assertThat(initialSubgroups.get(key1).key(), is(key1));
+        final int key1Id = initialSubgroups.get(key1).id();
 
         final MgmtUnitSubgroupKey key2 = ImmutableMgmtUnitSubgroupKey.builder()
             .entityType(2)
@@ -107,10 +91,11 @@ public class MgmtUnitSubgroupStoreTest {
             .build();
         // Insert the same one again.
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
-                mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key2));
+                mgmtUnitSubgroupStore.ensureExist(Sets.newHashSet(key1, key2));
         assertThat(subgroups.get(key2).key(), is(key2));
+        assertThat(subgroups.get(key1).key(), is(key1));
         // ID should be the original ID.
-        assertThat(subgroups.get(key2).id(), is(2));
+        assertThat(subgroups.get(key1).id(), is(key1Id));
     }
 
     @Test
@@ -121,13 +106,16 @@ public class MgmtUnitSubgroupStoreTest {
             .mgmtUnitType(ManagementUnitType.CLUSTER)
             .mgmtUnitId(123)
             .build();
-        mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key));
+        final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> initialSubgroups =
+            mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key));
+        final int keyId = initialSubgroups.get(key).id();
+
         // Insert the same one again.
         final Map<MgmtUnitSubgroupKey, MgmtUnitSubgroup> subgroups =
                 mgmtUnitSubgroupStore.ensureExist(Collections.singleton(key));
         assertThat(subgroups.get(key).key(), is(key));
         // ID should be the original ID.
-        assertThat(subgroups.get(key).id(), is(1));
+        assertThat(subgroups.get(key).id(), is(keyId));
     }
 
     @Test

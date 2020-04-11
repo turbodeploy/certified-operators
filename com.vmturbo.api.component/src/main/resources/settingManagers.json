@@ -26,6 +26,7 @@
         "businessUserMove",
         "storageMove",
         "suspend",
+        "suspendIsDisabled",
         "delete",
         "resize",
         "provision",
@@ -40,7 +41,9 @@
         "resizeVmemAboveMaxThreshold",
         "resizeVmemBelowMinThreshold",
         "enforceNonDisruptive",
-        "disableAllActions"
+        "useHypervisorMetricsForResizing",
+        "disableAllActions",
+        "shopTogether"
       ],
       // Automation settings are pretty specific in the API/UI,
       // and the design is not finalized. So we put them in
@@ -135,6 +138,7 @@
         "maxObservationPeriodBusinessUser",
         "maxObservationPeriodVirtualMachine",
         "maxObservationPeriodDesktopPool",
+        "maxVMGrowthObservationPeriod",
         "resizeTargetUtilizationNetThroughput",
         "resizeTargetUtilizationIoThroughput",
         "resizeTargetUtilizationImageCPU",
@@ -153,7 +157,8 @@
         "poolMemoryUtilizationThreshold",
         "poolStorageUtilizationThreshold",
         "viewPodActiveSessionCapacity",
-        "dailyObservationWindowDesktopPool"
+        "dailyObservationWindowDesktopPool",
+        "resizeVStorage"
       ]
     },
     "storagesettingsmanager": {

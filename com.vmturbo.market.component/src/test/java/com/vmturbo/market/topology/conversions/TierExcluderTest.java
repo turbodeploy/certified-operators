@@ -155,7 +155,7 @@ public class TierExcluderTest {
             .addSettingGroup(entitySettingGroup1).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1));
 
         Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
             ImmutableMap.of(
@@ -182,7 +182,7 @@ public class TierExcluderTest {
             .addSettingGroup(entitySettingGroup2).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
             ImmutableMap.of(
@@ -212,7 +212,7 @@ public class TierExcluderTest {
             .addSettingGroup(entitySettingGroup2).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
             ImmutableMap.of(
@@ -241,7 +241,7 @@ public class TierExcluderTest {
             .addSettingGroup(entitySettingGroup2).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
             ImmutableMap.of(
@@ -265,7 +265,7 @@ public class TierExcluderTest {
             .addSettingGroup(EntitySettingGroup.getDefaultInstance()).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
             ImmutableMap.of(
@@ -287,7 +287,7 @@ public class TierExcluderTest {
             .addSettingGroup(entitySettingGroup1).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
             ImmutableMap.of(
@@ -314,7 +314,7 @@ public class TierExcluderTest {
             .setOid(dbOid)
             .setEntityType(EntityType.DATABASE_TIER_VALUE).build()));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
             ImmutableMap.of(
@@ -339,7 +339,7 @@ public class TierExcluderTest {
             .addSettingGroup(entitySettingGroup1).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
             ImmutableMap.of(
@@ -367,7 +367,7 @@ public class TierExcluderTest {
             .addSettingGroup(entitySettingGroup1).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(VM3).isEmpty());
         assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(VM4).isEmpty());
@@ -388,7 +388,7 @@ public class TierExcluderTest {
             .addSettingGroup(entitySettingGroup1).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
             ImmutableMap.of(
@@ -411,7 +411,7 @@ public class TierExcluderTest {
             .addSettingGroup(entitySettingGroup1).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(VM1).isEmpty());
         assertTrue(tierExcluder.getTierExclusionCommoditiesToBuy(VM2).isEmpty());
@@ -431,7 +431,7 @@ public class TierExcluderTest {
             .addSettingGroup(entitySettingGroup1).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         Map<Long, Set<Long>> expectedConsumerToPossibleSuppliers =
             ImmutableMap.of(
@@ -457,7 +457,7 @@ public class TierExcluderTest {
             .addAllSettingGroup(Arrays.asList(entitySettingGroup1)).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         SettingPolicy sp1 = createSettingPolicy(Arrays.asList(1L), 500L);
         SettingPolicy sp2 = createSettingPolicy(Arrays.asList(2L), 501L);
@@ -490,7 +490,7 @@ public class TierExcluderTest {
             .addAllSettingGroup(Arrays.asList(entitySettingGroup1, entitySettingGroup2)).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         SettingPolicy sp1 = createSettingPolicy(Arrays.asList(1L), 500L);
         // SP2 will never be fetched. Only 500 policy will be fetched because that's the one for VM1
@@ -549,7 +549,7 @@ public class TierExcluderTest {
             .addAllSettingGroup(Arrays.asList(entitySettingGroup1)).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         SettingPolicy sp1 = createSettingPolicy(Arrays.asList(1L, 2L, 3L, 4L, 5L), 500L);
         when(settingPolicyServiceMole.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()
@@ -575,7 +575,7 @@ public class TierExcluderTest {
             .addAllSettingGroup(Arrays.asList(entitySettingGroup1)).build();
         when(settingPolicyServiceMole.getEntitySettings(any())).thenReturn(Arrays.asList(response));
 
-        tierExcluder.initialize(topology);
+        tierExcluder.initialize(topology, ImmutableSet.of(VM1, VM2));
 
         SettingPolicy sp1 = createSettingPolicy(Arrays.asList(1L, 2L), 500L);
         when(settingPolicyServiceMole.listSettingPolicies(ListSettingPoliciesRequest.newBuilder()

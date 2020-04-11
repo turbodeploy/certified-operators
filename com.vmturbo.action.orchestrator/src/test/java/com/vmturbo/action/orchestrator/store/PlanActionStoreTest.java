@@ -21,6 +21,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -29,26 +30,23 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import org.apache.commons.collections4.ListUtils;
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -59,24 +57,26 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 /**
  * Integration tests related to the {@link PlanActionStoreTest}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    loader = AnnotationConfigContextLoader.class,
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=action"})
 public class PlanActionStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(com.vmturbo.action.orchestrator.db.Action.ACTION);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     private final long firstPlanId = 0xBEADED;
     private final long secondPlanId = 0xDADDA;
@@ -121,19 +121,15 @@ public class PlanActionStoreTest {
     private final EntitiesAndSettingsSnapshotFactory entitiesSnapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
+    ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
 
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
-        actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
+        actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId,
+            entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
 
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
@@ -145,12 +141,18 @@ public class PlanActionStoreTest {
                         actionModeCalculator, "Move VM from H1 to H2", 321L, 121L);
             });
         setEntitiesOIDs();
+        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
+            Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
+            return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action ->
+                ImmutableActionTargetInfo.builder()
+                    .targetId(100L).supportingLevel(SupportLevel.SUPPORTED).build()));
+        });
     }
 
     public void setEntitiesOIDs() {
-        when(entitiesSnapshotFactory.newSnapshot(any(), anyLong())).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong())).thenReturn(snapshot);
         // Hack: if plan source topology is not available, the fall back on realtime.
-        when(entitiesSnapshotFactory.newSnapshot(any(), eq(realtimeId))).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), any(), eq(realtimeId))).thenReturn(snapshot);
         for (long i=1; i<10;i++) {
             createMockEntity(i,EntityType.VIRTUAL_MACHINE.getNumber());
         }
@@ -162,11 +164,6 @@ public class PlanActionStoreTest {
         when(snapshot.getEntityFromOid(eq(id)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(id, type));
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
-    }
-
-    @After
-    public void teardown() throws Exception {
-        flyway.clean();
     }
 
     @Test
@@ -357,7 +354,7 @@ public class PlanActionStoreTest {
     @Test
     public void testStoreLoaderWithNoStores() {
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector).loadActionStores();
 
         assertTrue(loadedStores.isEmpty());
     }
@@ -377,13 +374,13 @@ public class PlanActionStoreTest {
 
         // Setup second planActionStore. This has 9 Buy RI Actions
         final ActionPlan buyRIActionPlan2 = buyRIActionPlan(3L, secondContextId, actionList(9));
-        PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId, entitiesSnapshotFactory, actionTranslator, realtimeId);
+        PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId, entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
         actionStore2.populateRecommendedActions(buyRIActionPlan2);
         expectedActionStores.put(secondContextId, actionStore2);
 
         // Load the stores from DB
         List<ActionStore> loadedStores =
-            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId).loadActionStores();
+            new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector).loadActionStores();
         loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
 
         // Assert that what we load from DB is the same as what we setup initially

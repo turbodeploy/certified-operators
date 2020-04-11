@@ -58,7 +58,7 @@ public interface CloudCostDataProvider {
     @Immutable
     class CloudCostData<T> {
 
-        private static final CloudCostData EMPTY = new CloudCostData<>(Collections.emptyMap(),
+        private static final CloudCostData EMPTY = new CloudCostData<>(Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap());
 
@@ -70,8 +70,11 @@ public interface CloudCostDataProvider {
 
         private final Map<Long, AccountPricingData<T>> accountPricingDataByBusinessAccountOid;
 
+        private final Map<Long, EntityReservedInstanceCoverage> filteredRiCoverageByEntityId;
+
 
         public CloudCostData(@Nonnull final Map<Long, EntityReservedInstanceCoverage> riCoverageByEntityId,
+                             @Nonnull final Map<Long, EntityReservedInstanceCoverage> filteredRiCoverageByEntityId,
                              @Nonnull final Map<Long, ReservedInstanceBought> riBoughtById,
                              @Nonnull final Map<Long, ReservedInstanceSpec> riSpecById,
                              @Nonnull final Map<Long, ReservedInstanceBought> buyRIBoughtById,
@@ -79,6 +82,7 @@ public interface CloudCostDataProvider {
                                      accountPricingDataByBusinessAccountOid) {
             this.riCoverageByEntityId = Objects.requireNonNull(riCoverageByEntityId);
             this.accountPricingDataByBusinessAccountOid = Objects.requireNonNull(accountPricingDataByBusinessAccountOid);
+            this.filteredRiCoverageByEntityId = Objects.requireNonNull(filteredRiCoverageByEntityId);
             // Combine RI Bought and RI Specs.
             this.riBoughtDataById = riBoughtById.values().stream()
                     .filter(riBought -> riSpecById.containsKey(riBought.getReservedInstanceBoughtInfo().getReservedInstanceSpec()))
@@ -120,6 +124,16 @@ public interface CloudCostDataProvider {
         @Nonnull
         public Optional<ReservedInstanceData> getBuyRIData(final long riBoughtId) {
             return Optional.ofNullable(buyRIBoughtDataById.get(riBoughtId));
+        }
+
+        @Nonnull
+        public Optional<EntityReservedInstanceCoverage> getFilteredRiCoverage(final long entityId) {
+            return Optional.ofNullable(filteredRiCoverageByEntityId.get(entityId));
+        }
+
+        @Nonnull
+        public Map<Long, EntityReservedInstanceCoverage> getFilteredRiCoverageByEntityId() {
+            return filteredRiCoverageByEntityId;
         }
 
         /**

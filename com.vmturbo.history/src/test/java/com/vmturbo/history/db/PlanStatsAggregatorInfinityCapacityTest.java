@@ -1,5 +1,7 @@
 package com.vmturbo.history.db;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
@@ -9,11 +11,13 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
@@ -21,8 +25,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.PlanStatsAggregator;
+import com.vmturbo.sql.utils.DbCleanupRule;
 
 /**
  * Edge unit test for {@link PlanStatsAggregator}.
@@ -30,7 +36,7 @@ import com.vmturbo.history.stats.PlanStatsAggregator;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes = {DbTestConfig.class})
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@DirtiesContext(classMode = ClassMode.BEFORE_CLASS)
 public class PlanStatsAggregatorInfinityCapacityTest {
     // TODO unify: revive tests
     private static final Logger logger = LogManager.getLogger();
@@ -41,7 +47,7 @@ public class PlanStatsAggregatorInfinityCapacityTest {
 
     @Autowired
     private DbTestConfig dbTestConfig;
-    private String testDbName;
+    private static String testDbName;
     private HistorydbIO historydbIO;
 
     private static final TopologyInfo TOPOLOGY_INFO = TopologyInfo.newBuilder()
@@ -50,6 +56,11 @@ public class PlanStatsAggregatorInfinityCapacityTest {
         .setCreationTime(SNAPSHOT_TIME)
         .build();
 
+    /**
+     * Common setup code.
+     *
+     * @throws Exception If anything goes wrong.
+     */
     @Before
     public void setup() throws Exception {
         testDbName = dbTestConfig.testDbName();
@@ -57,14 +68,34 @@ public class PlanStatsAggregatorInfinityCapacityTest {
         HistorydbIO.mappedSchemaForTests = testDbName;
         logger.info("Initializing DB - {}", testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
-        historydbIO.init(true, null, testDbName, Optional.empty());
+        // Important to NOT clear the old DB, because that will re-run all migrations.
+        // We rely on the "after" method to clean up the database after each test is done.
+        historydbIO.init(false, null, testDbName, Optional.empty());
 
         BasedbIO.setSharedInstance(historydbIO);
 
     }
 
+    /**
+     * Delete all data in database after every test.
+     *
+     * @throws Exception If there is an error.
+     */
     @After
-    public void after() throws Throwable {
+    public void after() throws Exception {
+        // Delete all data in any tables.
+        try (Connection conn = historydbIO.connection()) {
+            DbCleanupRule.cleanDb(historydbIO.using(conn), Vmtdb.VMTDB);
+        } catch (SQLException e) {
+            throw e;
+        }
+    }
+
+    /**
+     * Tear down the database after all tests execute.
+     */
+    @AfterClass
+    public static void teardown() {
         DBConnectionPool.instance.getInternalPool().close();
         try {
             SchemaUtil.dropDb(testDbName);

@@ -2,7 +2,12 @@ package com.vmturbo.reserved.instance.coverage.allocator.utils;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -61,5 +66,25 @@ public class ReservedInstanceHelper {
      */
     public static boolean isSpecPlatformFlexible(@Nonnull ReservedInstanceSpec riSpec) {
         return riSpec.getReservedInstanceSpecInfo().getPlatformFlexible();
+    }
+
+    /**
+     * Creates an identity set, based on the {@link ReservedInstanceBought}. This set has the benefit
+     * or not comparing all attributes with {@link ReservedInstanceBought} instances, with the assumption
+     * instances with the same ID will have identical attributes.
+     *
+     * @return A new identity set tailored to {@link ReservedInstanceBought} instances.
+     */
+    public static Set<ReservedInstanceBought> newRIBoughtIdentitySet() {
+        return new TreeSet<ReservedInstanceBought>(Comparator.comparing(ReservedInstanceBought::getId));
+    }
+
+    /**
+     * Creates a collector for {@link ReservedInstanceBought} instances, based on {@link #newRIBoughtIdentitySet()}.
+     *
+     * @return A {@link Collector} for collecting {@link ReservedInstanceBought} to a {@link Set}.
+     */
+    public static Collector<ReservedInstanceBought, ?, Set<ReservedInstanceBought>> toRIBoughtSet() {
+        return Collectors.toCollection(ReservedInstanceHelper::newRIBoughtIdentitySet);
     }
 }

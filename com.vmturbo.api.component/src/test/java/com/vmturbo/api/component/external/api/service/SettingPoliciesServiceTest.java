@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyReque
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.ResetSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
@@ -55,7 +56,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
@@ -143,7 +144,7 @@ public class SettingPoliciesServiceTest {
                 .thenReturn(Collections.singletonList(DEFAULT_POLICY));
         // Map should be empty, since the policy is a default type.
         when(settingsMapper.convertSettingPolicies(eq(ImmutableList.of(DEFAULT_POLICY,
-                settingsPoliciesService.createSettingPolicyForGlobalActionMode())),
+                settingsPoliciesService.createGlobalSettingPolicy())),
                 eq(Collections.emptySet())))
             .thenReturn(Collections.singletonList(RET_SP_DTO));
         List<SettingsPolicyApiDTO> ret =
@@ -160,7 +161,7 @@ public class SettingPoliciesServiceTest {
         // and statsMapper should be called with two policies : Default and Global.
         final List<SettingPolicy> settingPolicies = new LinkedList<>();
         settingPolicies.add(DEFAULT_POLICY);
-        settingPolicies.add(settingsPoliciesService.createSettingPolicyForGlobalActionMode());
+        settingPolicies.add(settingsPoliciesService.createGlobalSettingPolicy());
 
         List<SettingsPolicyApiDTO> ret =
                 settingsPoliciesService.getSettingsPolicies(false, Collections.emptyList());
@@ -202,7 +203,7 @@ public class SettingPoliciesServiceTest {
 
         List<SettingsPolicyApiDTO> ret =
                 settingsPoliciesService.getSettingsPolicies(false,
-                    Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()));
+                    Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
         assertThat(ret, containsInAnyOrder(RET_SP_DTO));
     }
 
@@ -263,11 +264,11 @@ public class SettingPoliciesServiceTest {
         when(settingsMapper.convertSettingPolicy(eq(SCOPE_POLICY)))
                 .thenReturn(RET_SP_DTO);
         when(settingBackend.updateGlobalSetting(
-            UpdateGlobalSettingRequest.newBuilder()
+            UpdateGlobalSettingRequest.newBuilder().addSetting(Setting.newBuilder()
                 .setSettingSpecName(rateOfResizeSettingName)
                 .setNumericSettingValue(
                     SettingDTOUtil.createNumericSettingValue(
-                        defaultValue))
+                        defaultValue)))
                 .build())).thenReturn(UpdateGlobalSettingResponse.newBuilder().build());
         final SettingsPolicyApiDTO retDto =
                 settingsPoliciesService.editSettingsPolicy(Long.toString(id), true, inputPolicy);

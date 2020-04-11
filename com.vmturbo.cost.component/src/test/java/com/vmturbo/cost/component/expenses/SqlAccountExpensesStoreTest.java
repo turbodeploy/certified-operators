@@ -13,32 +13,34 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.flywaydb.core.Flyway;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo;
 import com.vmturbo.common.protobuf.cost.Cost.AccountExpenses.AccountExpensesInfo.ServiceExpenses;
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.util.AccountExpensesFilter;
 import com.vmturbo.cost.component.util.AccountExpensesFilter.AccountExpenseFilterBuilder;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.sql.utils.DbException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class SqlAccountExpensesStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private static final long ACCOUNT_ID_1 = 1111L;
     private static final long ACCOUNT_ID_2 = 2222L;
@@ -96,24 +98,7 @@ public class SqlAccountExpensesStoreTest {
                     .build())
             .build();
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-    private Flyway flyway;
-    private AccountExpensesStore expensesStore;
-
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        flyway.clean();
-        flyway.migrate();
-        expensesStore = new SqlAccountExpensesStore(dbConfig.dsl(), Clock.systemDefaultZone(), 1);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
-
+    private AccountExpensesStore expensesStore = new SqlAccountExpensesStore(dbConfig.getDslContext(), Clock.systemDefaultZone(), 1);
 
     /**
      * Get the latest account expenses from {@link SqlAccountExpensesStore}.

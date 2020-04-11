@@ -98,7 +98,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 
@@ -149,11 +149,11 @@ public class EntitiesService implements IEntitiesService {
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
             ImmutableSet.of(
-                    UIEntityType.CHASSIS.apiStr(),
-                    UIEntityType.DATACENTER.apiStr(),
-                    UIEntityType.DISKARRAY.apiStr(),
-                    UIEntityType.LOGICALPOOL.apiStr(),
-                    UIEntityType.STORAGECONTROLLER.apiStr());
+                    ApiEntityType.CHASSIS.apiStr(),
+                    ApiEntityType.DATACENTER.apiStr(),
+                    ApiEntityType.DISKARRAY.apiStr(),
+                    ApiEntityType.LOGICALPOOL.apiStr(),
+                    ApiEntityType.STORAGECONTROLLER.apiStr());
 
     /**
      * When traversing the entities in a supply chain in the UI, the breadcrumb is
@@ -168,10 +168,10 @@ public class EntitiesService implements IEntitiesService {
      */
     private static final Map<String, Integer> BREADCRUMB_ENTITY_PRECEDENCE_MAP =
             ImmutableMap.of(
-                    UIEntityType.REGION.apiStr(), 1,
-                    UIEntityType.AVAILABILITY_ZONE.apiStr(), 2,
-                    UIEntityType.DATACENTER.apiStr(), 2,
-                    UIEntityType.CHASSIS.apiStr(), 2,
+                    ApiEntityType.REGION.apiStr(), 1,
+                    ApiEntityType.AVAILABILITY_ZONE.apiStr(), 2,
+                    ApiEntityType.DATACENTER.apiStr(), 2,
+                    ApiEntityType.CHASSIS.apiStr(), 2,
                     ConstraintType.CLUSTER.toString(), 3);
 
     /**
@@ -180,11 +180,11 @@ public class EntitiesService implements IEntitiesService {
      */
     private static final Set<String> BREADCRUMB_ENTITIES_TO_FETCH =
             new HashSet<>(Arrays.asList(
-                    UIEntityType.REGION.apiStr(),
-                    UIEntityType.AVAILABILITY_ZONE.apiStr(),
-                    UIEntityType.DATACENTER.apiStr(),
-                    UIEntityType.CHASSIS.apiStr(),
-                    UIEntityType.PHYSICAL_MACHINE.apiStr()));
+                    ApiEntityType.REGION.apiStr(),
+                    ApiEntityType.AVAILABILITY_ZONE.apiStr(),
+                    ApiEntityType.DATACENTER.apiStr(),
+                    ApiEntityType.CHASSIS.apiStr(),
+                    ApiEntityType.PHYSICAL_MACHINE.apiStr()));
 
     public EntitiesService(
         @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
@@ -318,7 +318,7 @@ public class EntitiesService implements IEntitiesService {
     public ActionPaginationResponse getActionsByEntityUuid(String uuid,
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
-        return actionSearchUtil.getActionsByEntity(uuidMapper.fromUuid(uuid), inputDto,
+        return actionSearchUtil.getActionsByScope(uuidMapper.fromUuid(uuid), inputDto,
                 paginationRequest);
     }
 
@@ -451,7 +451,7 @@ public class EntitiesService implements IEntitiesService {
         // The input entity is a storage device.
         // Skip supply-chain call for storage as it is not a consumer(direct/in-direct) of any
         // physical machine or virtual machine.
-        if (entityApiDTO.get().getClassName().equals(UIEntityType.STORAGE.apiStr())) {
+        if (entityApiDTO.get().getClassName().equals(ApiEntityType.STORAGE.apiStr())) {
             List<BaseApiDTO> result = Lists.newArrayList();
             getClusterApiDTO(entityOid).ifPresent(result::add);
             result.add(entityApiDTO.get());
@@ -468,8 +468,8 @@ public class EntitiesService implements IEntitiesService {
         // much overhead, as the seed for supply chain generation in this case starts from
         // virtual machine and above.
         if (!BREADCRUMB_ENTITIES_TO_FETCH.contains(entityApiDTO.get().getClassName()) &&
-            !entityApiDTO.get().getClassName().equals(UIEntityType.VIRTUAL_DATACENTER.apiStr())) {
-            entityTypesToFetch.add(UIEntityType.VIRTUAL_MACHINE.apiStr());
+            !entityApiDTO.get().getClassName().equals(ApiEntityType.VIRTUAL_DATACENTER.apiStr())) {
+            entityTypesToFetch.add(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         }
         // Add the input entity type itself.
         entityTypesToFetch.add(entityApiDTO.get().getClassName());
@@ -490,7 +490,7 @@ public class EntitiesService implements IEntitiesService {
                     // Drop VDC entities unless it is the same as the input entity.
                     // We do this now because VDC entity is not needed to get a cluster.
                     .filter(serviceEntityApiDTO ->
-                            !UIEntityType.VIRTUAL_DATACENTER.apiStr().equals(serviceEntityApiDTO.getClassName())
+                            !ApiEntityType.VIRTUAL_DATACENTER.apiStr().equals(serviceEntityApiDTO.getClassName())
                             || uuid.equals(serviceEntityApiDTO.getUuid()))
                     .collect(Collectors.toMap(apiDTO -> {
                         try {
@@ -530,17 +530,17 @@ public class EntitiesService implements IEntitiesService {
                 .stream()
                 // Remove VM entity from the result unless the input entity is the same VM.
                 .filter(serviceEntityApiDTO ->
-                        !UIEntityType.VIRTUAL_MACHINE.apiStr().equals(serviceEntityApiDTO.getClassName())
+                        !ApiEntityType.VIRTUAL_MACHINE.apiStr().equals(serviceEntityApiDTO.getClassName())
                         || entityApiDTO.getUuid().equals(serviceEntityApiDTO.getUuid()))
                 // Remove PM(Host) entity from the result unless the input entity is the same PM.
                 .filter(serviceEntityApiDTO ->
-                        !UIEntityType.PHYSICAL_MACHINE.apiStr().equals(serviceEntityApiDTO.getClassName())
+                        !ApiEntityType.PHYSICAL_MACHINE.apiStr().equals(serviceEntityApiDTO.getClassName())
                         || entityApiDTO.getUuid().equals(serviceEntityApiDTO.getUuid()))
                 .collect(Collectors.toList());
         // Find the oid of the Host the entity is connected to.
         for (Entry<Long, ServiceEntityApiDTO> entry : serviceEntityMap.entrySet()) {
             ServiceEntityApiDTO serviceEntityApiDTO = entry.getValue();
-            if (serviceEntityApiDTO.getClassName().equals(UIEntityType.PHYSICAL_MACHINE.apiStr())) {
+            if (serviceEntityApiDTO.getClassName().equals(ApiEntityType.PHYSICAL_MACHINE.apiStr())) {
                 long oidToQuery = uuidMapper.fromUuid(serviceEntityApiDTO.getUuid()).oid();
                 getClusterApiDTO(oidToQuery).ifPresent(result::add);
                 // We found the cluster that the PM belongs to, break out of the loop.
@@ -566,7 +566,7 @@ public class EntitiesService implements IEntitiesService {
             @Nonnull final Map<Long, ServiceEntityApiDTO> serviceEntityMap) {
         List<BaseApiDTO> result = Lists.newArrayList();
         if (BREADCRUMB_ENTITIES_TO_FETCH.contains(entityApiDTO.getClassName()) ||
-                entityApiDTO.getClassName().equals(UIEntityType.VIRTUAL_DATACENTER.apiStr())) {
+                entityApiDTO.getClassName().equals(ApiEntityType.VIRTUAL_DATACENTER.apiStr())) {
             // The input entity is below virtual machine.
             // Return an empty list.
             return result;
@@ -577,7 +577,7 @@ public class EntitiesService implements IEntitiesService {
         serviceEntityMap.entrySet()
                 .stream()
                 .filter(entry ->
-                        entry.getValue().getClassName().equals(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+                        entry.getValue().getClassName().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
                 .findFirst()
                 .ifPresent(entry ->
                         getClusterApiDTO(entry.getKey())
@@ -592,7 +592,7 @@ public class EntitiesService implements IEntitiesService {
         result.addAll(serviceEntityMap.values()
                 .stream()
                 // Drop the physical machine entity.
-                .filter(e -> !UIEntityType.PHYSICAL_MACHINE.apiStr().equals(e.getClassName()))
+                .filter(e -> !ApiEntityType.PHYSICAL_MACHINE.apiStr().equals(e.getClassName()))
                 // Drop the virtual machine entity if input entity is not a virtual machine.
                 // Only keep the virtual machine entity when the input entity itself is a virtual
                 // machine.
@@ -601,8 +601,8 @@ public class EntitiesService implements IEntitiesService {
                 //    [DataCenter]/[VM Cluster]/[Container]
                 // 2. The input entity is a kubernetes node (i.e., a VM)
                 //    [DataCenter]/[VM Cluster]/[VM]
-                .filter(e -> !UIEntityType.VIRTUAL_MACHINE.apiStr().equals(e.getClassName())
-                        || entityApiDTO.getClassName().equals(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+                .filter(e -> !ApiEntityType.VIRTUAL_MACHINE.apiStr().equals(e.getClassName())
+                        || entityApiDTO.getClassName().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
                 .collect(Collectors.toList()));
         // Sort the order.
         sortBreadCrumbResult(result);
@@ -743,7 +743,7 @@ public class EntitiesService implements IEntitiesService {
         long oid = uuidMapper.fromUuid(uuid).oid();
         GetEntitySettingPoliciesRequest request =
                 GetEntitySettingPoliciesRequest.newBuilder()
-                        .setEntityOid(oid)
+                        .addEntityOidList(Long.valueOf(uuid))
                         .build();
 
         GetEntitySettingPoliciesResponse response =

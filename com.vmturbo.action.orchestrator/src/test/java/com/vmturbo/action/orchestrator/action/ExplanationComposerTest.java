@@ -3,8 +3,11 @@ package com.vmturbo.action.orchestrator.action;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
 import static org.junit.Assert.assertEquals;
 
+import java.util.Collection;
+
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
 import org.junit.Test;
@@ -22,6 +25,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Evacuation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Performance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeactivateExplanation;
@@ -32,6 +36,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.TimeSlotReasonInformation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -89,6 +94,68 @@ public class ExplanationComposerTest {
         assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem, CPU",
             ExplanationComposer.composeExplanation(action));
             assertEquals("Current supplier can not satisfy the request for resource(s) Mem, CPU",
+            ExplanationComposer.shortExplanation(action));
+    }
+
+    /**
+     * Test congestion explanation.
+     */
+    @Test
+    public void testMoveCongestionReasonCommodity() {
+        final ActionInfo actionInfo = ActionInfo.newBuilder()
+                .setMove(Move.newBuilder()
+                    .setTarget(ActionEntity.newBuilder()
+                        .setId(2).setType(EntityType.DESKTOP_POOL_VALUE))
+                    .addChanges(ChangeProvider.newBuilder()
+                        .setSource(ActionEntity.newBuilder()
+                            .setId(1).setType(EntityType.DESKTOP_POOL_VALUE)
+                        )))
+            .build();
+
+        // commodity with no time slots
+        Explanation explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, CPU));
+        ActionDTO.Action action = createAction(actionInfo, explanation);
+        assertEquals("(^_^)~Mem, CPU congestion",
+            ExplanationComposer.composeExplanation(action));
+        assertEquals("Mem, CPU congestion",
+            ExplanationComposer.shortExplanation(action));
+
+        final ReasonCommodity tsCommoditySlot0Total6 = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            null, 0, 6);
+        explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, tsCommoditySlot0Total6));
+        action = createAction(actionInfo, explanation);
+
+        assertEquals("(^_^)~Mem, Pool CPU at 12:00 AM - 04:00 AM congestion",
+            ExplanationComposer.composeExplanation(action));
+        assertEquals("Mem, Pool CPU at 12:00 AM - 04:00 AM congestion",
+            ExplanationComposer.shortExplanation(action));
+
+        final ReasonCommodity tsCommoditySlot1Total3 = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            null, 1, 3);
+        explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, tsCommoditySlot1Total3));
+        action = createAction(actionInfo, explanation);
+
+        assertEquals("(^_^)~Mem, Pool CPU at 08:00 AM - 04:00 PM congestion",
+            ExplanationComposer.composeExplanation(action));
+        assertEquals("Mem, Pool CPU at 08:00 AM - 04:00 PM congestion",
+            ExplanationComposer.shortExplanation(action));
+
+        final ReasonCommodity tsInvalidSlot = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            null, -1, 3);
+        explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, tsInvalidSlot));
+        action = createAction(actionInfo, explanation);
+        assertEquals("(^_^)~Mem, Pool CPU congestion",
+            ExplanationComposer.composeExplanation(action));
+        assertEquals("Mem, Pool CPU congestion",
+            ExplanationComposer.shortExplanation(action));
+
+        final ReasonCommodity tsInvalidTotalSlotNumber = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
+            null, -0, 0);
+        explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, tsInvalidTotalSlotNumber));
+        action = createAction(actionInfo, explanation);
+        assertEquals("(^_^)~Mem, Pool CPU congestion",
+            ExplanationComposer.composeExplanation(action));
+        assertEquals("Mem, Pool CPU congestion",
             ExplanationComposer.shortExplanation(action));
     }
 
@@ -379,19 +446,20 @@ public class ExplanationComposerTest {
                                 .setType(CommodityDTO.CommodityType.VMEM_VALUE))))
                 .setExplanation(Explanation.newBuilder()
                     .setResize(ResizeExplanation.newBuilder()
-                        .setStartUtilization(0.2f)
-                        .setEndUtilization(0.4f)));
+                        .setDeprecatedStartUtilization(0.2f)
+                        .setDeprecatedEndUtilization(0.4f)));
 
-        // test a resize up
+        // test resize down by capacity
+        action.getInfoBuilder().getResizeBuilder().setOldCapacity(4).setNewCapacity(2).build();
         assertEquals("(^_^)~Underutilized VMem in Virtual Machine {entity:0:displayName:}",
             ExplanationComposer.composeExplanation(action.build()));
         assertEquals("Underutilized VMem",
             ExplanationComposer.shortExplanation(action.build()));
 
-        // test a resize down
-        action.getExplanationBuilder().getResizeBuilder().setStartUtilization(1).setEndUtilization(0);
+        // test resize up by capacity
+        action.getInfoBuilder().getResizeBuilder().setOldCapacity(2).setNewCapacity(4).build();
         assertEquals("(^_^)~VMem congestion in Virtual Machine {entity:0:displayName:}",
-                ExplanationComposer.composeExplanation(action.build()));
+            ExplanationComposer.composeExplanation(action.build()));
         assertEquals("VMem congestion",
             ExplanationComposer.shortExplanation(action.build()));
 
@@ -532,12 +600,42 @@ public class ExplanationComposerTest {
                 .build();
     }
 
+    private static Explanation createMoveExplanationWithCongestion(
+        final Collection<ReasonCommodity> reasonCommodities) {
+       return Explanation.newBuilder()
+            .setMove(MoveExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setCongestion(Congestion.newBuilder()
+                        .addAllCongestedCommodities(reasonCommodities))
+                    .build())
+                .build())
+            .build();
+    }
+
     private static ReasonCommodity createReasonCommodity(int baseType, String key) {
+        return createReasonCommodity(baseType, key, null, null);
+    }
+
+    private static ReasonCommodity createReasonCommodity(int baseType, String key,
+                 final Integer slot, final Integer totalSlotNumber) {
         CommodityType.Builder ct = TopologyDTO.CommodityType.newBuilder()
-                        .setType(baseType);
+            .setType(baseType);
         if (key != null) {
             ct.setKey(key);
         }
-        return ReasonCommodity.newBuilder().setCommodityType(ct.build()).build();
+
+        final ReasonCommodity.Builder reasonCommodity =
+            ReasonCommodity.newBuilder().setCommodityType(ct.build());
+        if (slot != null || totalSlotNumber != null) {
+            final TimeSlotReasonInformation.Builder timeSlot = TimeSlotReasonInformation.newBuilder();
+            if (slot != null) {
+                timeSlot.setSlot(slot);
+            }
+            if (totalSlotNumber != null) {
+                timeSlot.setTotalSlotNumber(totalSlotNumber);
+            }
+            reasonCommodity.setTimeSlot(timeSlot.build());
+        }
+        return reasonCommodity.build();
     }
 }

@@ -5,7 +5,7 @@
 #   * Take a backup (dump) of all databases in preparation for replacing mmfiles with rocksDB
 
 # Location for the mmfiles ArangoDB database backup
-MMFILES_DUMP_LOCATION=/home/arangodb/arangodb-dump/mmfiles-dump
+MMFILES_DUMP_LOCATION=/var/lib/arangodb3/mmfiles-dump
 
 if [[ -z ${LOG_TO_STDOUT} ]]; then
   export LOGGER_COMMAND="logger --tag arangodb -u /tmp/log.sock"

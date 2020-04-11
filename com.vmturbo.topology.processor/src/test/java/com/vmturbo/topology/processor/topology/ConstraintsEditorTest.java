@@ -5,23 +5,24 @@ import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.buildT
 import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.topology.processor.group.GroupConfig;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
+
+import io.grpc.stub.StreamObserver;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import com.google.common.collect.ImmutableList;
-
-import io.grpc.stub.StreamObserver;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -36,8 +37,10 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.ConstraintGroup;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreEntityTypes;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -51,8 +54,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.search.SearchResolver;
+import com.vmturbo.topology.processor.group.GroupConfig;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import org.mockito.Mockito;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
+import com.vmturbo.topology.processor.topology.ConstraintsEditor.ConstraintsEditorException;
 
 /**
  * Tests disabling of constraints
@@ -116,7 +121,7 @@ public class ConstraintsEditorTest {
     }
 
     @Test
-    public void testIgnoreConstraint() throws IOException {
+    public void testIgnoreConstraint() throws IOException, ConstraintsEditorException {
         final List<Grouping> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 2L)));
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
@@ -145,7 +150,7 @@ public class ConstraintsEditorTest {
     }
 
     @Test
-    public void testIgnoreConstraintTwoGroups() throws IOException {
+    public void testIgnoreConstraintTwoGroups() throws IOException, ConstraintsEditorException {
         final List<Grouping> groups = ImmutableList.of(
                 buildGroup(1L, ImmutableList.of(1L, 2L)),
                 buildGroup(2L, ImmutableList.of(3L, 4L))
@@ -173,7 +178,7 @@ public class ConstraintsEditorTest {
     }
 
     @Test
-    public void testIgnoreConstraintAllEntities() throws IOException {
+    public void testIgnoreConstraintAllEntities() throws IOException, ConstraintsEditorException {
         final List<Grouping> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 2L)));
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
@@ -203,8 +208,9 @@ public class ConstraintsEditorTest {
         Assert.assertTrue(graph.entitiesOfType(EntityType.VIRTUAL_MACHINE).allMatch(
                 vm -> vm.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder().getShopTogether()));
     }
+
     @Test
-    public void testIgnoreConstraintAllVMEntities() throws IOException {
+    public void testIgnoreConstraintAllVMEntities() throws IOException, ConstraintsEditorException {
         final List<Grouping> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 2L)));
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
@@ -225,9 +231,8 @@ public class ConstraintsEditorTest {
         List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
                 .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
                         IgnoreConstraint.newBuilder()
-                                .setIgnoreEntityTypes(IgnoreEntityTypes.newBuilder()
-                                        .addEntityTypes(EntityType.VIRTUAL_MACHINE)
-                                        .build())
+                                .setGlobalIgnoreEntityType(GlobalIgnoreEntityType.newBuilder()
+                                        .setEntityType(EntityType.VIRTUAL_MACHINE))
                                 .build()))
                 .build());
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
@@ -243,7 +248,7 @@ public class ConstraintsEditorTest {
     }
 
     @Test
-    public void testEditConstraintsForAlleviatePressurePlan() throws IOException {
+    public void testEditConstraintsForAlleviatePressurePlan() throws IOException, ConstraintsEditorException {
         final List<Grouping> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 3L, 4L, 5L, 6L)));
         final GroupTestService testService = new GroupTestService(groups);
         GrpcTestServer testServer = GrpcTestServer.newServer(testService);
@@ -366,10 +371,97 @@ public class ConstraintsEditorTest {
         }
 
         @Override
-        public Set<Long> resolve(Grouping group, TopologyGraph<TopologyEntity> topologyGraph) {
-            return new HashSet<>(group.getDefinition().getStaticGroupMembers()
-                            .getMembersByType(0)
-                            .getMembersList());
+        public ResolvedGroup resolve(Grouping group, TopologyGraph<TopologyEntity> topologyGraph) {
+            StaticMembersByType members = group.getDefinition().getStaticGroupMembers().getMembersByType(0);
+            return new ResolvedGroup(group, Collections.singletonMap(
+                ApiEntityType.fromType(members.getType().getEntity()), Sets.newHashSet(members.getMembersList())));
         }
+    }
+
+    /**
+     * Expect true with unsupported {@link IgnoreConstraint} of deprecated field IgnoreEntityTypes.
+     */
+    @Test
+    public void testHasUnsupportedIgnoreConstraintConfigurationsWithDeprecatedField() {
+        //GIVEN
+        IgnoreConstraint ignoreConstraint = IgnoreConstraint.newBuilder()
+                .setDeprecatedIgnoreEntityTypes(IgnoreEntityTypes.newBuilder()).build();
+
+        //WHEN
+        boolean response = ConstraintsEditor.hasUnsupportedIgnoreConstraintConfigurations(
+                Collections.singletonList(ignoreConstraint));
+
+        //THEN
+        Assert.assertTrue(response);
+    }
+
+    /**
+     * Expect true with unsupported {@link IgnoreConstraint} with misconfigured IgnoreGroup
+     */
+    @Test
+    public void testHasUnsupportedIgnoreConstraintConfigurationsWithMisconfiguredGroupField() {
+        //GIVEN
+        IgnoreConstraint ignoreConstraint = IgnoreConstraint.newBuilder()
+                .setIgnoreGroup(ConstraintGroup.newBuilder()).build();
+
+        //WHEN
+        boolean response = ConstraintsEditor.hasUnsupportedIgnoreConstraintConfigurations(
+                Collections.singletonList(ignoreConstraint));
+
+        //THEN
+        Assert.assertTrue(response);
+    }
+
+    /**
+     * Expect false with supported {@link IgnoreConstraint} configurations
+     */
+    @Test
+    public void testHasUnsupportedIgnoreConstraintConfigurationsWithSupportedFields() {
+        //GIVEN
+        IgnoreConstraint ignoreConstraint1 = IgnoreConstraint.newBuilder()
+                .setIgnoreGroup(ConstraintGroup.newBuilder().setGroupUuid(45L)).build();
+        IgnoreConstraint ignoreConstraint2 = IgnoreConstraint.newBuilder()
+                .setGlobalIgnoreEntityType(GlobalIgnoreEntityType.newBuilder()).build();
+        IgnoreConstraint ignoreConstraint3 =
+                IgnoreConstraint.newBuilder().setIgnoreAllEntities(true).build();
+
+        List<IgnoreConstraint> ignoreConstraints = new LinkedList<>();
+        ignoreConstraints.add(ignoreConstraint1);
+        ignoreConstraints.add(ignoreConstraint2);
+        ignoreConstraints.add(ignoreConstraint3);
+        //WHEN
+        boolean response = ConstraintsEditor.hasUnsupportedIgnoreConstraintConfigurations(ignoreConstraints);
+
+        //THEN
+        Assert.assertFalse(response);
+    }
+
+    /**
+     * Expected error thrown for unsupported {@link IgnoreConstraint} configuration
+     * @throws ConstraintsEditorException thrown if {@link IgnoreConstraint} has unsupported configs.
+     */
+    @Test(expected = ConstraintsEditorException.class)
+    public void testGetEntitiesOidsForIgnoredCommoditiesThrowsException()
+    throws IOException, ConstraintsEditorException {
+            final List<Grouping> groups = ImmutableList.of(buildGroup(1L, ImmutableList.of(1L, 2L)));
+            final GroupTestService testService = new GroupTestService(groups);
+            GrpcTestServer testServer = GrpcTestServer.newServer(testService);
+            testServer.start();
+            groupService = GroupServiceGrpc.newBlockingStub(testServer.getChannel());
+            constraintsEditor = new ConstraintsEditor(groupResolver, groupService);
+            final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+            topology.put(1L, buildTopologyEntity(1L, CommodityDTO.CommodityType.CLUSTER.getNumber()));
+            topology.put(2L, buildTopologyEntity(2L, CommodityDTO.CommodityType.CLUSTER.getNumber()));
+            topology.put(3L, buildTopologyEntity(3L, CommodityDTO.CommodityType.NETWORK.getNumber()));
+            List<ScenarioChange> changes = ImmutableList.of(ScenarioChange.newBuilder()
+                    .setPlanChanges(PlanChanges.newBuilder().addIgnoreConstraints(
+                            IgnoreConstraint.newBuilder().setIgnoreGroup(
+                                    ConstraintGroup.newBuilder()
+                                            .setCommodityType("ClusterCommodity"))
+                                    .build()))
+                    .build());
+            final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(topology);
+            Assert.assertEquals(3, getActiveCommodities(graph).count());
+            constraintsEditor.editConstraints(mock(TopologyGraph.class), changes, false);
     }
 }

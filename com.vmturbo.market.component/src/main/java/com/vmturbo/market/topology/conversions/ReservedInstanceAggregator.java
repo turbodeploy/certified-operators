@@ -23,7 +23,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
@@ -90,7 +90,7 @@ class ReservedInstanceAggregator {
                                 .getNumCoupons()).reversed()));
         final Map<ReservedInstanceKey, ReservedInstanceAggregate> riAggregates
                 = new HashMap<>();
-        final Map<Long, Double> couponsUsedByRi = cloudCostData.getCurrentRiCoverage().values()
+        final Map<Long, Double> couponsUsedByRi = cloudCostData.getFilteredRiCoverageByEntityId().values()
                 .stream().map(Cost.EntityReservedInstanceCoverage::getCouponsCoveredByRiMap)
                 .flatMap(map -> map.entrySet().stream())
                 .collect(Collectors.toMap(Entry::getKey, Entry::getValue, Double::sum));

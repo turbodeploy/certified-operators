@@ -20,7 +20,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsSt
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -31,6 +31,10 @@ public class StatsUtils {
 
     private static final String KBIT_SEC = "Kbit/sec";
     private static final String BIT_SEC = "bit/sec";
+    /**
+     * Prefix used for commodity key.
+     */
+    public static final String COMMODITY_KEY_PREFIX = "KEY: ";
 
     // map of commodity number to units-multiplier pair
     private static final Map<Integer, Pair<String, Integer>> UNITS_CONVERTER = ImmutableMap.of(
@@ -39,9 +43,9 @@ public class StatsUtils {
         CommodityType.IO_THROUGHPUT_VALUE, new Pair<>(KBIT_SEC, 8),
         CommodityType.SWAPPING_VALUE, new Pair<>(BIT_SEC, 8));
 
-    private static final Set<UIEntityType> SUPPORTED_RI_FILTER_TYPES =
-            Sets.immutableEnumSet(UIEntityType.AVAILABILITY_ZONE, UIEntityType.BUSINESS_ACCOUNT,
-                    UIEntityType.REGION, UIEntityType.SERVICE_PROVIDER);
+    private static final Set<ApiEntityType> SUPPORTED_RI_FILTER_TYPES =
+            Sets.immutableEnumSet(ApiEntityType.AVAILABILITY_ZONE, ApiEntityType.BUSINESS_ACCOUNT,
+                    ApiEntityType.REGION, ApiEntityType.SERVICE_PROVIDER);
 
     /**
      * Convert the default commodity units into converted units with multiplier that we need to
@@ -92,8 +96,11 @@ public class StatsUtils {
     }
 
     public static boolean isValidScopeForRIBoughtQuery(@Nonnull ApiId scope) {
-        return !UserScopeUtils.isUserObserver() &&
-                scope.getScopeTypes()
+        //Only allow non-scoped-observer users.
+        if (UserScopeUtils.isUserObserver() && UserScopeUtils.isUserScoped()) {
+            return false;
+        }
+        return scope.getScopeTypes()
                 // If this is scoped to a set of entity types, if any of the scope entity types
                 // are supported, RIs will be scoped through the supported types and non-supported
                 // types will be ignored

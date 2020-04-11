@@ -116,7 +116,7 @@ public class HistoryAggregator {
                         gatherEligibleCommodities(graph.getTopologyGraph(), editorsToRun);
         // store reference to the current settings for policies access
         // set up commodity builders lazy/fast access
-        HistoryAggregationContext context = new HistoryAggregationContext(graph, !CollectionUtils
+        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo, graph, !CollectionUtils
                         .isEmpty(changes));
 
         // this may initiate background loading of certain data
@@ -277,30 +277,36 @@ public class HistoryAggregator {
         for (IHistoricalEditor<?> editor : editorsToRun) {
             List<EntityCommodityReference> editorComms = commoditiesToEdit
                             .computeIfAbsent(editor, e -> new LinkedList<>());
-            graph.entities().filter(editor::isEntityApplicable).forEach(entity -> {
-                TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
-                // gather sold
-                for (CommoditySoldDTO.Builder commSold : entityBuilder
-                                .getCommoditySoldListBuilderList()) {
-                    if (editor.isCommodityApplicable(entity, commSold)) {
-                        editorComms.add(new EntityCommodityReference(entity.getOid(),
-                                                                     commSold.getCommodityType(),
-                                                                     null));
-                    }
-                }
-                // gather bought
-                for (CommoditiesBoughtFromProvider.Builder commBoughtFromProvider : entityBuilder
-                                .getCommoditiesBoughtFromProvidersBuilderList()) {
-                    for (CommodityBoughtDTO.Builder commBought : commBoughtFromProvider
-                                    .getCommodityBoughtBuilderList()) {
-                        if (editor.isCommodityApplicable(entity, commBought)) {
+            graph.entities()
+                .filter(editor::isEntityApplicable)
+                // Skip clones because this stage can end up setting '0' value for percentile and
+                // hence no resize actions. To fix this we have created a bug : OM-56643 and this condition
+                // should be removed with that fix.
+                .filter(entity -> !entity.getClonedFromEntity().isPresent())
+                .forEach(entity -> {
+                    TopologyEntityDTO.Builder entityBuilder = entity.getTopologyEntityDtoBuilder();
+                    // gather sold
+                    for (CommoditySoldDTO.Builder commSold : entityBuilder
+                                    .getCommoditySoldListBuilderList()) {
+                        if (editor.isCommodityApplicable(entity, commSold)) {
                             editorComms.add(new EntityCommodityReference(entity.getOid(),
-                                                                         commBought.getCommodityType(),
-                                                                         commBoughtFromProvider.getProviderId()));
+                                                                         commSold.getCommodityType(),
+                                                                         null));
                         }
                     }
-                }
-            });
+                    // gather bought
+                    for (CommoditiesBoughtFromProvider.Builder commBoughtFromProvider : entityBuilder
+                                    .getCommoditiesBoughtFromProvidersBuilderList()) {
+                        for (CommodityBoughtDTO.Builder commBought : commBoughtFromProvider
+                                        .getCommodityBoughtBuilderList()) {
+                            if (editor.isCommodityApplicable(entity, commBought)) {
+                                editorComms.add(new EntityCommodityReference(entity.getOid(),
+                                                                             commBought.getCommodityType(),
+                                                                             commBoughtFromProvider.getProviderId()));
+                            }
+                        }
+                    }
+                });
         }
         return commoditiesToEdit;
     }

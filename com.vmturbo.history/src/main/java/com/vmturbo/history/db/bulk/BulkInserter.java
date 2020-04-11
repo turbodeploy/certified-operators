@@ -161,7 +161,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
             // is there room for more?
             if (pendingRecords.size() >= batchSize) {
                 // nope, make some room
-                flush();
+                flush(false);
             }
             // now add our record
             Optional<OutT> out = recordTransformer.transform(record, inTable, outTable);
@@ -169,19 +169,8 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         }
     }
 
-    /**
-     * Flush the records currently on the pending records list by submiting a task to write them
-     * to the database.
-     *
-     * <p>Normally this occurs automatically when the flush threshold is attained, or when the
-     * inserter is closed. However, the operation may be explicitly invoked at any time.</p>
-     *
-     * <p>A flush operation may block if previous tasks submitted by this inserter have not yet
-     * harvested.</p>
-     *
-     * @throws InterruptedException if interrupted
-     */
-    void flush() throws InterruptedException {
+    @Override
+    public void flush(boolean awaitExecution) throws InterruptedException {
         int thisBatchNo;
         List<OutT> batch;
         // capture pending records and remove them from pending list
@@ -204,6 +193,9 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
             // OK, queue this batch up for execution
             pendingExecutions.addLast(executor.submit(
                     new InsertExecutor(dbInserter, thisBatchNo, batch)));
+        }
+        if (awaitExecution) {
+            quiesce();
         }
     }
 
@@ -252,7 +244,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
      *
      * @throws InterruptedException if interrupted
      */
-    void quiesce() throws InterruptedException {
+    public void quiesce() throws InterruptedException {
         while (handleOnePendingExecution()) {
         }
     }
@@ -387,9 +379,8 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         // return until that work is finished
         synchronized (this) {
             if (!closed.getAndSet(true)) {
-                // only the first closer will ever get hre
-                flush();
-                quiesce();
+                // only the first closer will ever get here
+                flush(true);
                 if (logger != null) {
                     inserterStats.logStats(logger);
                 }

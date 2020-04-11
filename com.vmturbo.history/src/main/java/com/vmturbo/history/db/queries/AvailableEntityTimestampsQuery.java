@@ -18,7 +18,7 @@ import org.jooq.SortOrder;
 import org.jooq.Table;
 
 import com.vmturbo.commons.TimeFrame;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.QueryBase;
 
@@ -44,7 +44,7 @@ public class AvailableEntityTimestampsQuery extends QueryBase {
      * @param entityOid         required entity OID (only if entityType is provided)
      * @param limit             max number of returned values, or 0 for no limit
      * @param fromInclusive     inclusive lower bound on returned timestamps
-     * @param toExclusive       exclusive upper bound on returned timestamps
+     * @param toInclusive       inclusive upper bound on returned timestamps
      * @param excludeProperties true if listed properties must not appear, else they must appear
      * @param propertyTypes     property types that must/must not appear in stats records considered
      */
@@ -53,11 +53,11 @@ public class AvailableEntityTimestampsQuery extends QueryBase {
             @Nullable String entityOid,
             int limit,
             @Nullable Timestamp fromInclusive,
-            @Nullable Timestamp toExclusive,
+            @Nullable Timestamp toInclusive,
             boolean excludeProperties,
             String... propertyTypes) {
         Table<? extends Record> entityTable = entityType != null
-                ? entityType.getTimeFrameTable(timeFrame)
+                ? entityType.getTimeFrameTable(timeFrame).get()
                 // This is a little goofy because market stats tables are not entity tables.
                 // It's like this now to support existing usage, but this deserves some later redesign
                 : getMarketStatsTimeFrameTable(timeFrame);
@@ -68,7 +68,7 @@ public class AvailableEntityTimestampsQuery extends QueryBase {
         }
         addSelectFields(snapshotTimeField);
         addTable(entityTable);
-        addFieldRangeCondition(snapshotTimeField, fromInclusive, toExclusive);
+        addFieldRangeCondition(snapshotTimeField, fromInclusive, toInclusive);
         if (propertyTypes.length > 0) {
             Field<String> propertyTypeField = getStringField(entityTable, StringConstants.PROPERTY_TYPE);
             addConditions(excludeProperties

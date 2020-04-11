@@ -50,7 +50,7 @@ public class ReservedInstanceContextTest {
     public void testReservedInstanceRegionalContextConstructor() {
         ReservedInstanceRegionalContext context = new ReservedInstanceRegionalContext(MASTER_ID,
             OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER, REGION);
-        Assert.assertTrue(context.getMasterAccountId() == MASTER_ID);
+        Assert.assertTrue(context.getAccountId() == MASTER_ID);
         Assert.assertTrue(context.getPlatform() == OSType.LINUX);
         Assert.assertTrue(context.getPlatform() != OSType.WINDOWS);
         Assert.assertTrue(context.getTenancy() == Tenancy.DEFAULT);
@@ -99,7 +99,7 @@ public class ReservedInstanceContextTest {
     public void testReservedInstanceZonalContextConstructor() {
         ReservedInstanceZonalContext context = new ReservedInstanceZonalContext(MASTER_ID,
             OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER, ZONE_ID);
-        Assert.assertTrue(context.getMasterAccountId() == MASTER_ID);
+        Assert.assertTrue(context.getAccountId() == MASTER_ID);
         Assert.assertTrue(context.getPlatform() == OSType.LINUX);
         Assert.assertTrue(context.getPlatform() != OSType.WINDOWS);
         Assert.assertTrue(context.getTenancy() == Tenancy.DEFAULT);
@@ -135,7 +135,7 @@ public class ReservedInstanceContextTest {
     public void testReservedInstanceContextConstructor() {
         ReservedInstanceContext zonalContext = new ReservedInstanceZonalContext(MASTER_ID,
             OSType.LINUX, Tenancy.DEFAULT, COMPUTE_TIER, ZONE_ID);
-        Assert.assertTrue(zonalContext.getMasterAccountId() == MASTER_ID);
+        Assert.assertTrue(zonalContext.getAccountId() == MASTER_ID);
         Assert.assertTrue(zonalContext.getPlatform() == OSType.LINUX);
         Assert.assertTrue(zonalContext.getPlatform() != OSType.WINDOWS);
         Assert.assertTrue(zonalContext.getTenancy() == Tenancy.DEFAULT);

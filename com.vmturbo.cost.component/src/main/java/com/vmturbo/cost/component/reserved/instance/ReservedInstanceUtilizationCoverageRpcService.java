@@ -3,11 +3,11 @@ package com.vmturbo.cost.component.reserved.instance;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Function;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.PlanProjectedEntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 
@@ -123,7 +124,8 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
 
             if (request.hasTopologyContextId() && request.getTopologyContextId() != realtimeTopologyContextId) {
                 final List<ReservedInstanceStatsRecord> statsRecords = planProjectedRICoverageAndUtilStore
-                                .getPlanReservedInstanceUtilizationStatsRecords(request.getTopologyContextId());
+                                .getPlanReservedInstanceUtilizationStatsRecords(request.getTopologyContextId(),
+                                        filter.getRegionFilter().getRegionIdList());
                 if (!CollectionUtils.isEmpty(statsRecords)) {
                     statRecords.add(statsRecords.get(0));
                 }
@@ -178,7 +180,8 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
 
             if (request.hasTopologyContextId() && request.getTopologyContextId() != realtimeTopologyContextId) {
                 final List<ReservedInstanceStatsRecord> statsRecords = planProjectedRICoverageAndUtilStore
-                                .getPlanReservedInstanceCoverageStatsRecords(request.getTopologyContextId());
+                                .getPlanReservedInstanceCoverageStatsRecords(request.getTopologyContextId(),
+                                        filter.getRegionFilter().getRegionIdList());
                 if (!CollectionUtils.isEmpty(statsRecords)) {
                     statRecords.add(statsRecords.get(0));
                 }
@@ -327,9 +330,22 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                     StreamObserver<Cost.GetProjectedEntityReservedInstanceCoverageResponse> responseObserver) {
         final ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter.newBuilder()
                 .entityFilter(request.getEntityFilter())
+                .topologyContextId(request.getTopologyContextId())
                 .build();
-        final Map<Long, EntityReservedInstanceCoverage> retCoverage = projectedRICoverageStore
-                .getScopedProjectedEntitiesRICoverages(filter);
+        Long topologyContextId = request.getTopologyContextId();
+        final Map<Long, EntityReservedInstanceCoverage> retCoverage;
+        if (!Objects.equals(realtimeTopologyContextId, topologyContextId)) {
+            PlanProjectedEntityReservedInstanceMappingFilter planProjectedRICoverageByEntityFilter = PlanProjectedEntityReservedInstanceMappingFilter
+                .newBuilder()
+                .entityFilter(request.getEntityFilter())
+                .topologyContextId(topologyContextId)
+                .build();
+            retCoverage = planProjectedRICoverageAndUtilStore.getPlanProjectedRiCoverage(
+                topologyContextId,
+                planProjectedRICoverageByEntityFilter);
+        } else {
+            retCoverage = projectedRICoverageStore.getScopedProjectedEntitiesRICoverages(filter);
+        }
         final Cost.GetProjectedEntityReservedInstanceCoverageResponse response =
                         Cost.GetProjectedEntityReservedInstanceCoverageResponse.newBuilder()
                                         .putAllCoverageByEntityId(retCoverage).build();

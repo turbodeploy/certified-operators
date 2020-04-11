@@ -139,7 +139,8 @@ public class ActionStoreConfig {
             actionModeCalculator(),
             entitySettingsCache(),
             actionTranslationConfig.actionTranslator(),
-            realtimeTopologyContextId);
+            realtimeTopologyContextId,
+            actionExecutionConfig.actionTargetSelector());
     }
 
     @Bean

@@ -18,9 +18,9 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Streams;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
@@ -28,6 +28,7 @@ import io.grpc.StatusRuntimeException;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Strings;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.CollectionUtils;
@@ -46,6 +47,7 @@ import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
@@ -77,7 +79,6 @@ import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationRespon
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IMarketsService;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.ParamStrings.MarketOperations;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
@@ -87,8 +88,6 @@ import com.vmturbo.common.protobuf.PaginationProtoUtil;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionOrchestratorAction;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionRequest;
-import com.vmturbo.common.protobuf.action.ActionDTO.FilteredActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -107,6 +106,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
+import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
@@ -123,8 +123,8 @@ import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreEntityTypes;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioId;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest;
@@ -205,6 +205,8 @@ public class MarketsService implements IMarketsService {
 
     private final ActionsServiceBlockingStub actionOrchestratorRpcService;
 
+    private final ActionSearchUtil actionSearchUtil;
+
     /**
      * For fetching plan entities and their related stats.
      */
@@ -233,6 +235,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                           @Nonnull final PlanEntityStatsFetcher planEntityStatsFetcher,
                           @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
+                          @Nonnull final ActionSearchUtil actionSearchUtil,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -260,6 +263,7 @@ public class MarketsService implements IMarketsService {
         this.searchServiceBlockingStub = Objects.requireNonNull(searchServiceBlockingStub);
         this.mergePolicyHandler =
                 new MergePolicyHandler(groupRpcService, policyRpcService, repositoryApi);
+        this.actionSearchUtil = actionSearchUtil;
     }
 
     /**
@@ -403,25 +407,11 @@ public class MarketsService implements IMarketsService {
     public ActionPaginationResponse getActionsByMarketUuid(String uuid,
                                                            ActionApiInputDTO inputDto,
                                                            ActionPaginationRequest paginationRequest) throws Exception {
-        handleInvalidCases(inputDto.getStartTime(), inputDto.getEndTime());
-        adjustEndTime(inputDto);
         final ApiId apiId = uuidMapper.fromUuid(uuid);
         final ActionQueryFilter filter = actionSpecMapper.createActionFilter(
-                inputDto, Optional.empty(), apiId);
-        final FilteredActionResponse response = actionRpcService.getAllActions(
-                FilteredActionRequest.newBuilder()
-                        .setTopologyContextId(apiId.oid())
-                        .setFilter(filter)
-                        .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))
-                        .build());
-        final List<ActionApiDTO> results = actionSpecMapper.mapActionSpecsToActionApiDTOs(
-                response.getActionsList().stream()
-                        .filter(ActionOrchestratorAction::hasActionSpec)
-                        .map(ActionOrchestratorAction::getActionSpec)
-                        .collect(Collectors.toList()), apiId.oid(), inputDto.getDetailLevel());
-        return PaginationProtoUtil.getNextCursor(response.getPaginationResponse())
-                .map(nextCursor -> paginationRequest.nextPageResponse(results, nextCursor, null))
-                .orElseGet(() -> paginationRequest.finalPageResponse(results, null));
+                                                inputDto, Optional.empty(), apiId);
+        return actionSearchUtil.callActionService(filter, paginationRequest, inputDto.getDetailLevel(),
+                apiId.getTopologyContextId());
     }
 
     /**
@@ -557,28 +547,28 @@ public class MarketsService implements IMarketsService {
         try {
             final Iterator<PolicyDTO.PolicyResponse> allPolicyResps = policyRpcService
                     .getAllPolicies(PolicyDTO.PolicyRequest.getDefaultInstance());
-            ImmutableList<PolicyResponse> policyRespList = ImmutableList.copyOf(allPolicyResps);
+            final List<Policy> policies = Streams.stream(allPolicyResps)
+                    .filter(PolicyResponse::hasPolicy)
+                    .map(PolicyResponse::getPolicy)
+                    .collect(Collectors.toList());
 
-            Set<Long> groupingIDS = policyRespList.stream()
-                    .filter(PolicyDTO.PolicyResponse::hasPolicy)
-                    .flatMap(resp -> GroupProtoUtil.getPolicyGroupIds(resp.getPolicy()).stream())
+            final Set<Long> groupingIDS = policies.stream()
+                    .map(GroupProtoUtil::getPolicyGroupIds)
+                    .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
-            final Map<Long, Grouping> groupings = new HashMap<>();
-            if (!groupingIDS.isEmpty()) {
-                groupRpcService.getGroups(GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder()
-                                .addAllId(groupingIDS)
-                                .setIncludeHidden(true))
-                        .build()).forEachRemaining(group -> groupings.put(group.getId(), group));
+            final Collection<Grouping> groupings;
+            if (groupingIDS.isEmpty()) {
+                groupings = Collections.emptySet();
+            } else {
+                final Iterator<Grouping> iterator = groupRpcService.getGroups(
+                        GetGroupsRequest.newBuilder()
+                                .setGroupFilter(GroupFilter.newBuilder()
+                                        .addAllId(groupingIDS)
+                                        .setIncludeHidden(true))
+                                .build());
+                groupings = Sets.newHashSet(iterator);
             }
-            final List<PolicyApiDTO> result = new ArrayList<>();
-            for (PolicyResponse response: policyRespList) {
-                if (response.hasPolicy()) {
-                    final PolicyApiDTO policy =
-                            policyMapper.policyToApiDto(response.getPolicy(), groupings);
-                    result.add(policy);
-                }
-            }
+            final List<PolicyApiDTO> result = policyMapper.policyToApiDto(policies, groupings);
             return result;
         } catch (RuntimeException e) {
             logger.error("Problem getting policies", e);
@@ -703,9 +693,6 @@ public class MarketsService implements IMarketsService {
      * Get real-time Actions by Market.
      *
      * @param uuid              uuid of the Market
-     * @param environmentType   environment type filter
-     * @param detailLevel       the level of Action details to be returned
-     * @param paginationRequest pagination data
      * @return {@link ActionPaginationResponse}
      * @throws Exception
      */
@@ -785,9 +772,9 @@ public class MarketsService implements IMarketsService {
                 updatedScenarioInfo.addChanges(ScenarioChange.newBuilder()
                         .setPlanChanges(PlanChanges.newBuilder()
                                 .addIgnoreConstraints(IgnoreConstraint.newBuilder()
-                                        .setIgnoreEntityTypes(IgnoreEntityTypes.newBuilder()
-                                                .addEntityTypes(EntityType.VIRTUAL_MACHINE)
-                                                .build())
+                                        .setGlobalIgnoreEntityType(
+                                                GlobalIgnoreEntityType.newBuilder()
+                                                .setEntityType(EntityType.VIRTUAL_MACHINE))
                                         .build())));
             } else {
                 logger.warn("Ignoring \"ignore constraints\" option because the scenario already has ignored "
@@ -1035,7 +1022,9 @@ public class MarketsService implements IMarketsService {
                 .getAction(actionRequest(marketUuid, actionuuid));
         if (action.hasActionSpec()) {
             // create action details dto based on action api dto which contains "explanation" with coverage information.
-            ActionDetailsApiDTO actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(action);
+            ActionDetailsApiDTO actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(
+                    action,
+                    Strings.isBlank(marketUuid) ? null : Long.valueOf(marketUuid));
             if (actionDetailsApiDTO == null) {
                 return new NoDetailsApiDTO();
             }
@@ -1141,67 +1130,6 @@ public class MarketsService implements IMarketsService {
         seEntity.setPlacedOn(placedOnJoiner.toString());
         seEntity.setNotPlacedOn(notPlacedOnJoiner.toString());
         return seEntity;
-    }
-
-    /**
-     * Connect to the stats service.  We use a setter to avoid circular dependencies
-     * in the Spring configuration in the API component.
-     *
-     * @param statsService the stats service.
-     */
-//    public void setStatsService(@Nonnull StatsService statsService) {
-//        this.statsService = Objects.requireNonNull(statsService);
-//    }
-
-    /**
-     * Handles invalid cases for the given startTime and endTime period and throws
-     * IllegalArgumentException when those cases happen. The cases are:
-     * <ul>
-     * <li>If startTime is in the future.</li>
-     * <li>If endTime precedes startTime.</li>
-     * <li>If endTime only was passed.</li>
-     * <ul/>
-     *
-     * @param startTime A DateTime string representing actions start Time query in the format
-     *                  defined in {@link DateTimeUtil}
-     * @param endTime   A DateTime string representing actions end Time query in the format
-     *                  defined in {@link DateTimeUtil}
-     */
-    private void handleInvalidCases(@Nullable final String startTime,
-                                    @Nullable final String endTime) {
-        if (startTime != null && !startTime.isEmpty()) {
-            Long startTimeLong = DateTimeUtil.parseTime(startTime);
-            if (startTimeLong > DateTimeUtil.parseTime(DateTimeUtil.getNow())) {
-                // startTime is in the future.
-                throw new IllegalArgumentException("startTime " + startTime +
-                        " can't be in the future");
-            }
-            if (endTime != null && !endTime.isEmpty()) {
-                Long endTimeLong = DateTimeUtil.parseTime(endTime);
-                if (endTimeLong < startTimeLong) {
-                    // endTime is before startTime
-                    throw new IllegalArgumentException("startTime " + startTime +
-                            " must precede endTime " + endTime);
-                }
-            }
-        } else if (endTime != null && !endTime.isEmpty()) {
-            // endTime only was passed.
-            throw new IllegalArgumentException("startTime is required along with endTime");
-        }
-    }
-
-    /**
-     * Adjusts endTime as part of the given {@link ActionApiInputDTO} if startTime was empty.
-     *
-     * @param inputDto The given {@link ActionApiInputDTO} that contains endTime to be adjusted
-     */
-    private static void adjustEndTime(ActionApiInputDTO inputDto) {
-        if (inputDto.getStartTime() != null && !inputDto.getStartTime().isEmpty()) {
-            if (inputDto.getEndTime() == null || inputDto.getEndTime().isEmpty()) {
-                // Set endTime to now if it was null/empty and startTime was passed.
-                inputDto.setEndTime(DateTimeUtil.getNow());
-            }
-        }
     }
 
     /**

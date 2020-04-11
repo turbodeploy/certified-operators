@@ -92,7 +92,7 @@ public class EntitySettingStoreTest {
             .build();
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         when(mockSnapshotCache.getSnapshot(anyLong())).thenReturn(Optional.empty());
         when(mockSnapshotCache.addSnapshot(anyLong(), any())).thenReturn(Optional.empty());
         when(snapshotFactory.createSnapshot(any(), any())).thenReturn(mockSnapshot);
@@ -100,8 +100,8 @@ public class EntitySettingStoreTest {
         when(settingStore.getSettingPolicies(eq(SettingPolicyFilter.newBuilder()
                 .withType(Type.DEFAULT)
                 .build())))
-            .thenReturn(Stream.empty())
-            .thenReturn(Stream.empty());
+            .thenReturn(Collections.emptyList())
+            .thenReturn(Collections.emptyList());
     }
 
     /**
@@ -113,7 +113,7 @@ public class EntitySettingStoreTest {
     }
 
     @Test
-    public void testStoreEntitySettings() {
+    public void testStoreEntitySettings() throws Exception {
         entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
@@ -123,7 +123,7 @@ public class EntitySettingStoreTest {
     }
 
     @Test
-    public void testDuplicateStoreEntitySettings() {
+    public void testDuplicateStoreEntitySettings() throws Exception {
         entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
         entitySettingStore.storeEntitySettings(contextId, topologyId,
@@ -136,7 +136,7 @@ public class EntitySettingStoreTest {
     }
 
     @Test
-    public void testStoreEntitySettingsDefaults() {
+    public void testStoreEntitySettingsDefaults() throws Exception {
         final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
             .setId(7L)
             .setInfo(SettingPolicyInfo.getDefaultInstance())
@@ -144,7 +144,7 @@ public class EntitySettingStoreTest {
         when(settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder()
                 .withType(Type.DEFAULT)
                 .build()))
-            .thenReturn(Stream.of(settingPolicy));
+            .thenReturn(Collections.singletonList(settingPolicy));
 
         entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
@@ -154,7 +154,7 @@ public class EntitySettingStoreTest {
     }
 
     @Test(expected = DataAccessException.class)
-    public void testStoreEntitySettingsDBException() {
+    public void testStoreEntitySettingsDBException() throws Exception {
         when(settingStore.getSettingPolicies(SettingPolicyFilter.newBuilder()
                 .withType(Type.DEFAULT)
                 .build()))
@@ -164,7 +164,7 @@ public class EntitySettingStoreTest {
     }
 
     @Test
-    public void testStoreEntitySettingsMultipleTopologies() {
+    public void testStoreEntitySettingsMultipleTopologies() throws Exception {
         entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
         entitySettingStore.storeEntitySettings(contextId, topologyId + 1,
@@ -178,7 +178,7 @@ public class EntitySettingStoreTest {
     }
 
     @Test
-    public void testGetEntitySettings() throws NoSettingsForTopologyException {
+    public void testGetEntitySettings() throws Exception {
         entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
@@ -198,7 +198,7 @@ public class EntitySettingStoreTest {
     }
 
     @Test
-    public void testGetEntitySettingsIdButNoContext() throws NoSettingsForTopologyException {
+    public void testGetEntitySettingsIdButNoContext() throws Exception {
         entitySettingStore.storeEntitySettings(realtimeContext, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
@@ -216,7 +216,7 @@ public class EntitySettingStoreTest {
     }
 
     @Test
-    public void testGetEntitySettingsNoIdAndNoContext() throws NoSettingsForTopologyException {
+    public void testGetEntitySettingsNoIdAndNoContext() throws Exception {
         entitySettingStore.storeEntitySettings(realtimeContext, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
@@ -232,7 +232,7 @@ public class EntitySettingStoreTest {
     }
 
     @Test
-    public void testGetEntitySettingsContextButNoId() throws NoSettingsForTopologyException {
+    public void testGetEntitySettingsContextButNoId() throws Exception {
         entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
@@ -250,14 +250,14 @@ public class EntitySettingStoreTest {
     }
 
     @Test(expected = NoSettingsForTopologyException.class)
-    public void testGetEntitySettingsContextNotFound() throws NoSettingsForTopologyException {
+    public void testGetEntitySettingsContextNotFound() throws Exception {
         entitySettingStore.getEntitySettings(TopologySelection.newBuilder()
                 .setTopologyContextId(contextId)
                 .build(), settingsFilter);
     }
 
     @Test(expected = NoSettingsForTopologyException.class)
-    public void testGetEntitySettingsTopologyNotFound() throws NoSettingsForTopologyException {
+    public void testGetEntitySettingsTopologyNotFound() throws Exception {
         entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
@@ -269,7 +269,7 @@ public class EntitySettingStoreTest {
     }
 
     @Test(expected = NoSettingsForTopologyException.class)
-    public void testGetEntitySettingsNoLatestTopology() throws NoSettingsForTopologyException {
+    public void testGetEntitySettingsNoLatestTopology() throws Exception {
         entitySettingStore.storeEntitySettings(contextId, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 

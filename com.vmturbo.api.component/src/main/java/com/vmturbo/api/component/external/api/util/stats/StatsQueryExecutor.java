@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -17,16 +18,22 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
 
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
@@ -42,7 +49,10 @@ import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.StatsUtils;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
@@ -61,12 +71,28 @@ public class StatsQueryExecutor {
 
     private final StatsQueryScopeExpander scopeExpander;
 
+    private final RepositoryApi repositoryApi;
+
+    private final UuidMapper uuidMapper;
+
     private final Set<StatsSubQuery> queries = new HashSet<>();
 
+    // entity types that don't support historical statistics
+    private final Set<ApiEntityType> entitiesWithoutHistoricalStats = ImmutableSet.of(ApiEntityType.COMPUTE_TIER,
+            ApiEntityType.DATABASE_TIER, ApiEntityType.DATABASE_SERVER_TIER, ApiEntityType.STORAGE_TIER);
+
+    // entity types with additional metrics which are not commodities
+    private final ImmutableMap<String, Set<String>> additionalEntityMetrics =
+            ImmutableMap.of(ApiEntityType.COMPUTE_TIER.name(), ImmutableSet.of(StringConstants.NUM_CORES));
+
     public StatsQueryExecutor(@Nonnull final StatsQueryContextFactory contextFactory,
-                              @Nonnull final StatsQueryScopeExpander scopeExpander) {
+                              @Nonnull final StatsQueryScopeExpander scopeExpander,
+                              @Nonnull final RepositoryApi repositoryApi,
+                              @Nonnull final UuidMapper uuidMapper) {
         this.contextFactory = contextFactory;
         this.scopeExpander = scopeExpander;
+        this.repositoryApi = repositoryApi;
+        this.uuidMapper = uuidMapper;
     }
 
     /**
@@ -120,6 +146,15 @@ public class StatsQueryExecutor {
             // In any other case - return empty stats.
             logger.warn("expandedScope is empty. scopeOID: {}", scope.oid());
             return Collections.emptyList();
+        }
+
+        // if scope is an entity without historical stats, get real-time stats from full entity
+        ApiId apiId = this.uuidMapper.fromUuid(scope.uuid());
+        // we only support entities with real-time stats, no groups
+        if (apiId.getScopeTypes().isPresent() && apiId.isEntity()
+                && entitiesWithoutHistoricalStats.contains(apiId.getScopeTypes().get().iterator().next())) {
+            Optional<TopologyDTO.TopologyEntityDTO> topologyEntityDTO = repositoryApi.entityRequest(scope.oid()).getFullEntity();
+            return createRealtimeStatSnapshots(inputDTO, topologyEntityDTO.orElse(null));
         }
 
         final StatsQueryContext context =
@@ -177,18 +212,6 @@ public class StatsQueryExecutor {
             })
             .collect(Collectors.toList());
 
-        // Check if allow showing cooling and power commodities.
-        // If not all the entities were discovered by Fabric, then don't allow.
-        // The reason that we need to check allowCoolingPower here is:
-        // Suppose scope is a mixed group with entities discovered by vCenter and Fabric.
-        // Then the target list contains both a vCenter target and a Fabric target.
-        // If we send this target list to StatsUtils#filterStats, the returned stats will still
-        // contain cooling and power because StatsUtils#allowCoolingPower will always return true.
-        final Map<Long, String> targetIdToCategory = context.getTargets().stream().collect(
-            Collectors.toMap(ThinTargetInfo::oid, thinTarget -> thinTarget.probeInfo().category()));
-        final boolean allowCoolingPower = scope.getDiscoveringTargetIds().stream().allMatch(targetId ->
-            ProbeCategory.FABRIC.getCategory().equalsIgnoreCase(targetIdToCategory.get(targetId)));
-
         // If the request does not contain a start or end time and the response statistics are more
         // than one record, flatten into one record. The API expects one timestamp, the latest.
         // todo: Roman Zimine OM-52892 Allow the ability to specify which query is required.
@@ -207,7 +230,111 @@ public class StatsQueryExecutor {
             stats.add(statSnapshotApiDTO);
         }
 
-        return StatsUtils.filterStats(stats, allowCoolingPower ? null : Collections.emptyList());
+        return StatsUtils.filterStats(stats,
+            allowCoolingPowerCommodities(scope, context) ? null : Collections.emptyList());
+    }
+
+    List<StatSnapshotApiDTO> createRealtimeStatSnapshots(StatPeriodApiInputDTO inputDTO,
+                                                          TopologyDTO.TopologyEntityDTO topologyEntityDTO) {
+        List<StatSnapshotApiDTO> statSnapshotApiDTOS = new ArrayList<>();
+        StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+        statSnapshotApiDTOS.add(statSnapshotApiDTO);
+
+        // if input has stats, only return those else return all
+        List<String> statsRequested = new ArrayList<>();
+        if (inputDTO.getStatistics() != null) {
+            inputDTO.getStatistics().forEach(stat -> {
+                if (stat.getName() != null) {
+                    statsRequested.add(stat.getName());
+                }
+            });
+        }
+
+        List<StatApiDTO> statApiDTOS = new ArrayList<>();
+        if (topologyEntityDTO != null) {
+            List<TopologyDTO.CommoditySoldDTO> soldCommodities = topologyEntityDTO.getCommoditySoldListList();
+            soldCommodities.forEach(commodity -> {
+                UICommodityType commodityType = UICommodityType.fromType(commodity.getCommodityType().getType());
+                if (statsRequested.isEmpty() || statsRequested.contains(commodityType.apiStr())) {
+                    StatApiDTO statApiDTO = new StatApiDTO();
+                    statApiDTO.setValue((float)commodity.getCapacity());
+                    statApiDTO.setName(commodityType.apiStr());
+                    statApiDTOS.add(statApiDTO);
+                }
+            });
+
+            // not all relevant metrics are available under commodities, some are under typeSpecificInfo.
+            String typeCase = topologyEntityDTO.getTypeSpecificInfo().getTypeCase().name();
+            if (additionalEntityMetrics.containsKey(typeCase)) {
+                additionalEntityMetrics.get(typeCase).forEach(metric -> {
+                    if (statsRequested.isEmpty() || statsRequested.contains(StringConstants.NUM_CORES)
+                            && metric.equals(StringConstants.NUM_CORES)) {
+                        StatApiDTO statApiDTO = new StatApiDTO();
+                        statApiDTO.setValue((float)topologyEntityDTO.getTypeSpecificInfo().getComputeTier()
+                                .getNumCores());
+                        statApiDTO.setName(StringConstants.NUM_CORES);
+                        statApiDTOS.add(statApiDTO);
+                    }
+                });
+            }
+
+            statSnapshotApiDTO.setStatistics(statApiDTOS);
+            statSnapshotApiDTO.setDate(DateTimeUtil.getNow());
+            statSnapshotApiDTO.setEpoch(Epoch.CURRENT);
+            return statSnapshotApiDTOS;
+        }
+        return statSnapshotApiDTOS;
+    }
+
+    /**
+     * Check if we should enable showing of cooling and power commodities. If not all the entities
+     * were discovered by Fabric, then don't allow. Suppose scope is a cluster from vc, only some
+     * hosts are stitched with Fabric target, then other hosts are 'pure' vCenter hosts, we don't
+     * want to show power/cooling commodities. If scope is a stitched host, then we want to show it.
+     * If we send this target list to StatsUtils#filterStats, the returned stats will still
+     * contain cooling and power because StatsUtils#allowCoolingPower will always return true.
+     *
+     * @param scope scope to check
+     * @param context context for the stats query
+     * @return true if allowing showing cooling and power commodities for the scope, otherwise false
+     */
+    private boolean allowCoolingPowerCommodities(@Nonnull ApiId scope, @Nonnull StatsQueryContext context) {
+        final Set<Long> fabricTargets = context.getTargets().stream()
+            .filter(thinTargetInfo -> ProbeCategory.FABRIC.getCategory().equalsIgnoreCase(
+                thinTargetInfo.probeInfo().category()))
+            .map(ThinTargetInfo::oid)
+            .collect(Collectors.toSet());
+        if (scope.isGroup()) {
+            Optional<CachedGroupInfo> cachedGroupInfo = scope.getCachedGroupInfo();
+            if (!cachedGroupInfo.isPresent()) {
+                return false;
+            }
+            Set<ApiEntityType> entityTypes = cachedGroupInfo.get().getEntityTypes();
+            // if no host or DC in this group, then do not show
+            if (!entityTypes.contains(ApiEntityType.PHYSICAL_MACHINE) &&
+                    !entityTypes.contains(ApiEntityType.DATACENTER)) {
+                return false;
+            }
+            // only show if all entities have fabric in their discovery target ids
+            Set<Long> entities = cachedGroupInfo.get().getEntityIds();
+            if (entities.isEmpty()) {
+                return false;
+            }
+            return repositoryApi.entitiesRequest(entities)
+                .getMinimalEntities()
+                .map(MinimalEntity::getDiscoveringTargetIdsList)
+                .allMatch(targetIds -> targetIds.stream().anyMatch(fabricTargets::contains));
+        } else if (scope.isTarget()) {
+            // if it's target, just check if it's fabric target
+            return fabricTargets.contains(scope.oid());
+        } else if (scope.isRealtimeMarket() || scope.isPlan()) {
+            // do not show for plan or market
+            return false;
+        }
+
+        // handle entity types like dc, host, chassis, etc., check if the entity contains
+        // FABRIC target in its discovery target ids
+        return scope.getDiscoveringTargetIds().stream().anyMatch(fabricTargets::contains);
     }
 
     /**
@@ -219,7 +346,7 @@ public class StatsQueryExecutor {
      */
     public static boolean scopeHasBusinessAccounts(@Nonnull final ApiId scope) {
         return scope.getScopeTypes().isPresent()
-                && scope.getScopeTypes().get().contains(UIEntityType.BUSINESS_ACCOUNT);
+                && scope.getScopeTypes().get().contains(ApiEntityType.BUSINESS_ACCOUNT);
     }
 
     /**

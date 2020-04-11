@@ -43,10 +43,10 @@ import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.tables.pojos.PolicyGroup;
 import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.db.tables.records.PolicyRecord;
-import com.vmturbo.group.group.DbCleanupRule;
-import com.vmturbo.group.group.DbConfigurationRule;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
 public class PolicyStoreTest {
 
@@ -54,12 +54,13 @@ public class PolicyStoreTest {
      * Rule to create the DB schema and migrate it.
      */
     @ClassRule
-    public static DbConfigurationRule dbConfig = new DbConfigurationRule("group_component");
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(GroupComponent.GROUP_COMPONENT);
+
     /**
      * Rule to automatically cleanup DB data before each test.
      */
     @Rule
-    public DbCleanupRule dbCleanup = new DbCleanupRule(dbConfig, GroupComponent.GROUP_COMPONENT);
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private static final long TARGET_ID = 107L;
 

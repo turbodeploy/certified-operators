@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.21.200-SNAPSHOT</version>
+        <version>7.21.5-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -303,6 +303,10 @@
             <scope>test</scope>
         </dependency>
         <!-- Common test utilities. -->
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>components-api-test</artifactId>

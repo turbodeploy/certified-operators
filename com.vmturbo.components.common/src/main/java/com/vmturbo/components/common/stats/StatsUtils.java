@@ -10,11 +10,14 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class StatsUtils {
+
+    private StatsUtils() {
+    }
 
     /**
      * Collect just the stats names to fetch from the list of commodities listed in this filter.
@@ -33,22 +36,22 @@ public class StatsUtils {
     /**
      * Mapping between a request of stats and the corresponding entity type.
      */
-    public static final Map<String, UIEntityType> COUNT_ENTITY_METRIC_NAMES =
-        ImmutableBiMap.<String, UIEntityType>builder()
-            .put(StringConstants.NUM_HOSTS, UIEntityType.PHYSICAL_MACHINE)
-            .put(StringConstants.NUM_STORAGES, UIEntityType.STORAGE)
-            .put(StringConstants.NUM_CONTAINERS, UIEntityType.CONTAINER)
-            .put(StringConstants.NUM_VDCS, UIEntityType.VIRTUAL_DATACENTER)
-            .put(StringConstants.NUM_VIRTUAL_DISKS, UIEntityType.VIRTUAL_VOLUME)
-            .put(StringConstants.NUM_VMS, UIEntityType.VIRTUAL_MACHINE)
-            .put(StringConstants.NUM_DBSS, UIEntityType.DATABASE_SERVER)
-            .put(StringConstants.NUM_DBS, UIEntityType.DATABASE)
-            .put(StringConstants.NUM_DAS, UIEntityType.DISKARRAY)
-            .put(StringConstants.NUM_LOADBALANCERS, UIEntityType.LOAD_BALANCER)
-            .put(StringConstants.NUM_DCS, UIEntityType.DATACENTER)
-            .put(StringConstants.NUM_APPS, UIEntityType.APPLICATION)
-            .put(StringConstants.NUM_VAPPS, UIEntityType.VIRTUAL_APPLICATION)
-            .put(StringConstants.NUM_NETWORKS, UIEntityType.NETWORK)
+    public static final Map<String, ApiEntityType> COUNT_ENTITY_METRIC_NAMES =
+        ImmutableBiMap.<String, ApiEntityType>builder()
+            .put(StringConstants.NUM_HOSTS, ApiEntityType.PHYSICAL_MACHINE)
+            .put(StringConstants.NUM_STORAGES, ApiEntityType.STORAGE)
+            .put(StringConstants.NUM_CONTAINERS, ApiEntityType.CONTAINER)
+            .put(StringConstants.NUM_VDCS, ApiEntityType.VIRTUAL_DATACENTER)
+            .put(StringConstants.NUM_VIRTUAL_DISKS, ApiEntityType.VIRTUAL_VOLUME)
+            .put(StringConstants.NUM_VMS, ApiEntityType.VIRTUAL_MACHINE)
+            .put(StringConstants.NUM_DBSS, ApiEntityType.DATABASE_SERVER)
+            .put(StringConstants.NUM_DBS, ApiEntityType.DATABASE)
+            .put(StringConstants.NUM_DAS, ApiEntityType.DISKARRAY)
+            .put(StringConstants.NUM_LOADBALANCERS, ApiEntityType.LOAD_BALANCER)
+            .put(StringConstants.NUM_DCS, ApiEntityType.DATACENTER)
+            .put(StringConstants.NUM_APPS, ApiEntityType.APPLICATION)
+            .put(StringConstants.NUM_VAPPS, ApiEntityType.VIRTUAL_APPLICATION)
+            .put(StringConstants.NUM_NETWORKS, ApiEntityType.NETWORK)
             .build();
 
     /**
@@ -65,5 +68,13 @@ public class StatsUtils {
                     .add(EntityType.REGION.getNumber())
                     .add(EntityType.AVAILABILITY_ZONE.getNumber())
                     .add(EntityType.BUSINESS_ACCOUNT.getNumber())
+                    .add(EntityType.CLOUD_SERVICE.getNumber())
+                    .add(EntityType.COMPUTE_TIER.getNumber())
+                    .add(EntityType.DATABASE_TIER.getNumber())
+                    .add(EntityType.DATABASE_SERVER_TIER.getNumber())
+                    .add(EntityType.STORAGE_TIER.getNumber())
+                    .add(EntityType.LOAD_BALANCER.getNumber())
+                    .add(EntityType.CONTAINER_SPEC.getNumber())
+                    .add(EntityType.SERVICE_PROVIDER.getNumber())
                     .build();
 }

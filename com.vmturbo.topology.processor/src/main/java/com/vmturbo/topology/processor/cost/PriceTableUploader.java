@@ -230,8 +230,7 @@ public class PriceTableUploader implements DiagsRestorable {
                     Long previousHashCode = previousPriceTableKeyToChecksumMap.get(probePriceData.priceTableKey);
                     if (previousHashCode != null && previousHashCode == hashcode) {
                         logger.info("Last processed upload hash is the same as this one [{}], skipping upload" +
-                                        " for this price table.",
-                                Long.toUnsignedString(hashcode));
+                                        " for this price table.", hashcode);
                     } else {
                         logger.info("Price table upload hash check: new upload {} not found in database." +
                                 " We will upload.", hashcode);
@@ -287,21 +286,25 @@ public class PriceTableUploader implements DiagsRestorable {
                 SDKProbeType sdkProbeType = probeTypesForTargetId.get(targetId);
                 ProbePriceData probePriceData = new ProbePriceData();
                 probePriceData.probeType = sdkProbeType.getProbeType();
-                // convert the price table for this probe type
-                probePriceData.priceTable = priceTableToCostPriceTable(priceTable, cloudEntitiesMap,
-                        SDKProbeType.create(sdkProbeType.getProbeType()));
-                // add the RI price table for this probe type
-                probePriceData.riSpecPrices = getRISpecPrices(priceTable, cloudEntitiesMap);
-
-                final Optional<PriceTableKey> optPriceTableKey =
-                        generatePriceTableKey(priceTable, targetId);
-
-                if (optPriceTableKey.isPresent()) {
-                    probePriceData.priceTableKey = optPriceTableKey.get();
-                    probePricesList.add(probePriceData);
+                if (priceTable.hasServiceProviderId()) {
+                    // convert the price table for this probe type
+                    probePriceData.priceTable = priceTableToCostPriceTable(priceTable, cloudEntitiesMap,
+                            cloudEntitiesMap.getExtraneousIdLookUps(),
+                            SDKProbeType.create(sdkProbeType.getProbeType()));
+                    // add the RI price table for this probe type
+                    probePriceData.riSpecPrices = getRISpecPrices(priceTable, cloudEntitiesMap);
+                    final Optional<PriceTableKey> optPriceTableKey =
+                            generatePriceTableKey(priceTable, cloudEntitiesMap);
+                    if (optPriceTableKey.isPresent()) {
+                        probePriceData.priceTableKey = optPriceTableKey.get();
+                        probePricesList.add(probePriceData);
+                    } else {
+                        logger.error("Unable to create price table key for price table (TargetID={})",
+                                targetId);
+                    }
                 } else {
-                    logger.error("Unable to create price table key for price table (TargetID={})",
-                            targetId);
+                    logger.error("Unable to create price table key for price table (TargetID={})." +
+                            "The price table is missing a service provider id.");
                 }
             });
         }
@@ -315,24 +318,25 @@ public class PriceTableUploader implements DiagsRestorable {
      * Generate {@link PriceTableKey} from a given priceTableKeyList and its probeType.
      *
      * @param priceTable used to extract priceTableKeys.
-     * @param targetId  targetId to which priceTable belongs to. Used to determine {@link SDKProbeType}.
+     * @param cloudEntitiesMap The map containing mapping of cloud entities to oids.
+     *
      * @return {@link PriceTableKey} which is sent to cost component.
      */
     @Nonnull
     private Optional<PriceTableKey> generatePriceTableKey(@Nonnull final PricingDTO.PriceTable priceTable,
-                                                @Nonnull final Long targetId) {
+                                                          final CloudEntitiesMap cloudEntitiesMap) {
         Builder priceTableKeyBuilder = PriceTableKey.newBuilder();
+        Long serviceProviderOid = cloudEntitiesMap.get(priceTable.getServiceProviderId());
+        if (serviceProviderOid != null) {
+            priceTableKeyBuilder.setServiceProviderId(serviceProviderOid);
+        } else {
+            logger.error("Service Provider not found in cloud entities map for {}", priceTable.getServiceProviderId());
+        }
         priceTable.getPriceTableKeysList().forEach(pricingIdentifier -> {
             priceTableKeyBuilder.putProbeKeyMaterial(pricingIdentifier.getIdentifierName().name(),
                     pricingIdentifier.getIdentifierValue());
         });
-
-        return targetStore.getProbeTypeForTarget(targetId)
-                .map(PricingGroupMapper::getPricingGroupForProbeType)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .map(priceTableKeyBuilder::setPricingGroup)
-                .map(PriceTableKey.Builder::build);
+        return Optional.of(priceTableKeyBuilder.build());
     }
 
     @VisibleForTesting
@@ -381,13 +385,16 @@ public class PriceTableUploader implements DiagsRestorable {
      * the original object to be returned, if that is preferred.
      *</p>
      * @param sourcePriceTable the input {@link PriceTable}
-     * @param cloudEntitiesMap the map of cloud entity id's -> oids
+     * @param cloudEntitiesMap the map of cloud entity id's -> oid.
+     * @param extraneousIdLookUps the map of cloud entities which were already.
+     * present in {@param cloudEntitiesMap}.
      * @param probeType the probe type that discovered this price table
      * @return the resulted protobuf price table
      */
     @VisibleForTesting
     PriceTable priceTableToCostPriceTable(@Nonnull PricingDTO.PriceTable sourcePriceTable,
                                           @Nonnull final Map<String, Long> cloudEntitiesMap,
+                                          final Map<String, Collection<String>> extraneousIdLookUps,
                                           SDKProbeType probeType) {
         logger.debug("Processing price table for probe type {}", probeType);
 
@@ -419,6 +426,7 @@ public class PriceTableUploader implements DiagsRestorable {
             // add Compute prices
             addPriceEntries(onDemandPriceTableForRegion.getComputePriceTableList(),
                     cloudEntitiesMap,
+                    Collections.emptyMap(),
                     entry -> entry.getRelatedComputeTier().getId(),
                     onDemandPricesBuilder::containsComputePricesByTierId,
                     (oid, entry) -> onDemandPricesBuilder.putComputePricesByTierId(oid,
@@ -428,6 +436,7 @@ public class PriceTableUploader implements DiagsRestorable {
             // add DB prices
             addPriceEntries(onDemandPriceTableForRegion.getDatabasePriceTableList(),
                     cloudEntitiesMap,
+                    extraneousIdLookUps,
                     entry -> entry.getRelatedDatabaseTier().getId(),
                     onDemandPricesBuilder::containsDbPricesByInstanceId,
                     (oid, pricesForTier) -> dbOnDemandPriceTableAdder(oid, pricesForTier, onDemandPricesBuilder),
@@ -436,6 +445,7 @@ public class PriceTableUploader implements DiagsRestorable {
             // add Storage prices
             addPriceEntries(onDemandPriceTableForRegion.getStoragePriceTableList(),
                     cloudEntitiesMap,
+                    Collections.emptyMap(),
                     entry -> {
                         // The storage id's being sent in the price table data don't match the
                         // billing and topology probe-assigned local id's we are using to identify
@@ -493,6 +503,7 @@ public class PriceTableUploader implements DiagsRestorable {
      *
      * @param priceEntries the set of "price lists per tier" we will be looking for new prices in.
      * @param cloudEntityOidByLocalId the local id -> entity oid map
+     * @param extraIdLookups to find localIds which are already in cloudEntityOidByLocalId.
      * @param localIdGetter a method to use for extracting the local id from the priceEntries
      * @param duplicateChecker a function that should check if prices already exist in the destination.
      * @param putMethod The method that adds the new prices to the map using the oid.
@@ -501,32 +512,55 @@ public class PriceTableUploader implements DiagsRestorable {
      */
     private static <PricesForTier> void addPriceEntries(@Nonnull List<PricesForTier> priceEntries,
                       @Nonnull final Map<String, Long> cloudEntityOidByLocalId,
+                      @Nonnull Map<String, Collection<String>> extraIdLookups,
                       Function<PricesForTier, String> localIdGetter,
                       Function<Long, Boolean> duplicateChecker,
                       BiConsumer<Long, PricesForTier> putMethod,
                       Multimap<String, String> missingTiers) {
         for (PricesForTier priceEntry : priceEntries) {
             // find the cloud tier oid this set of prices is associated to.
-            String localID = localIdGetter.apply(priceEntry);
-            Long oid = cloudEntityOidByLocalId.get(localID);
+            String localId = localIdGetter.apply(priceEntry);
+            Long oid = cloudEntityOidByLocalId.get(localId);
             if (oid == null) {
                 // track for logging purposes
-                missingTiers.put(priceEntry.getClass().getSimpleName(), localID);
+                missingTiers.put(priceEntry.getClass().getSimpleName(), localId);
             } else {
-                // if there is no price list for this "tier" yet, add these prices to the table.
-                // otherwise, if a price list already exists for the tier in this region, then
-                // skip adding our prices. we will NOT overwrite or even attempt to merge the data.
-                // We'll just log a warning and come back to this case if needed.
-                if (duplicateChecker.apply(oid)) {
-                    logger.warn("A price list of {} already exists for {} - skipping.",
-                            priceEntry.getClass().getSimpleName(), localID);
-                } else {
-                    // no pre-existing prices table found -- add ours to the map
-                    logger.trace("Adding price list of {} for {}",
-                            priceEntry.getClass().getSimpleName(), localID);
-                    putMethod.accept(oid, priceEntry);
+                checkDuplicateAndUpdatePriceBuilder(duplicateChecker, putMethod, priceEntry, localId, oid);
+                // OM-53299 There is an issue where we do not have costs for all the DB_TIERS
+                // and hence Market sets those Tier's compute cost to infinity.
+                // This workaround allows to match DB cost to their closest DB_Tier counterparts.
+                // see {@link CloudCostUtils.azureDatabaseTierFullNameToLocalName}
+                // this can be reused for other look ups as well.
+                if (extraIdLookups.containsKey(localId)) {
+                    Collection<String> extraIds = extraIdLookups.get(localId);
+                    extraIds.forEach(extraId -> {
+                        Long newOid = cloudEntityOidByLocalId.get(extraId);
+                        //inserting extra tiers which use the same priceEntry.
+                        checkDuplicateAndUpdatePriceBuilder(duplicateChecker, putMethod, priceEntry,
+                        localId, newOid);
+                    });
                 }
             }
+        }
+    }
+
+    private static <PricesForTier> void checkDuplicateAndUpdatePriceBuilder(
+            final Function<Long, Boolean> duplicateChecker,
+            final BiConsumer<Long, PricesForTier> putMethod,
+            final PricesForTier priceEntry,
+            final String localID,
+            final Long oid) {
+        // if there is no price list for this "tier" yet, add these prices to the table.
+        // otherwise, if a price list already exists for the tier in this region, then
+        // skip adding our prices. we will NOT overwrite or even attempt to merge the data.
+        if (duplicateChecker.apply(oid)) {
+            logger.warn("A price list of {} already exists for {} - skipping.",
+                    priceEntry.getClass().getSimpleName(), localID);
+        } else {
+            // no pre-existing prices table found -- add ours to the map
+            logger.trace("Adding price list of {} for {}",
+                    priceEntry.getClass().getSimpleName(), localID);
+            putMethod.accept(oid, priceEntry);
         }
     }
 
@@ -587,6 +621,7 @@ public class PriceTableUploader implements DiagsRestorable {
                         .setTenancy(sourceRiSpec.getTenancy())
                         .setType(sourceRiSpec.getType())
                         .setSizeFlexible(sourceRiSpec.getSizeFlexible())
+                        .setPlatformFlexible(sourceRiSpec.getPlatformFlexible())
                         .build();
                 // does this already exist? If so, log a warning
                 if (riPricesBySpec.containsKey(riSpecInfo)) {
@@ -656,55 +691,59 @@ public class PriceTableUploader implements DiagsRestorable {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags)
+            throws DiagnosticsException {
         if (collectedDiags.size() % 2 != 1) {
             //odd length because of one extra line for END_OF_TARGET_ID_MAPPINGS.
             throw new DiagnosticsException("Unexpected diags - should be odd length.");
         }
-
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         synchronized (sourcePriceTableByTargetId) {
             final JsonFormat.Parser parser = JsonFormat.parser().ignoringUnknownFields();
-            Map<Long, Collection<String>> targetIdToPriceTableKey = Maps.newHashMap();
-            Map<Collection<String>, PricingDTO.PriceTable.Builder> priceTableKeyToData = Maps.newHashMap();
+            final Map<Long, Set<PricingIdentifier>> targetIdToPriceTableKey = Maps.newHashMap();
+            final Map<Set<PricingIdentifier>, PricingDTO.PriceTable.Builder> priceTableKeyToData =
+                    Maps.newHashMap();
 
-            final Type typeRef = new TypeToken<Collection<String>>() {}.getType();
+            final Type typeRef = new TypeToken<Set<PricingIdentifier>>() {}.getType();
             boolean endOfTargetMappingSeen = false;
             for (int i = 0; i + 2 <= collectedDiags.size(); i += 2) {
                 if (collectedDiags.get(i).equals(END_OF_TARGET_ID_MAPPINGS)) {
-                    i--; // to align the offset of the counter which reads the list.
+                    // To align the offset of the counter which reads the list.
+                    i--;
                     endOfTargetMappingSeen = true;
                     continue;
                 }
                 try {
                     if (endOfTargetMappingSeen) {
-                        String priceTableKeys = collectedDiags.get(i);
-                        Collection<String> pricingIdentifier = gson.fromJson(priceTableKeys, typeRef);
-                        String priceTable = collectedDiags.get(i + 1);
-                        PricingDTO.PriceTable.Builder priceTableBldr = PricingDTO.PriceTable.newBuilder();
+                        final String priceTableKeys = collectedDiags.get(i);
+                        final Set<PricingIdentifier> pricingIdentifier =
+                                gson.fromJson(priceTableKeys, typeRef);
+                        final String priceTable = collectedDiags.get(i + 1);
+                        final PricingDTO.PriceTable.Builder priceTableBldr =
+                                PricingDTO.PriceTable.newBuilder();
                         parser.merge(priceTable, priceTableBldr);
                         priceTableKeyToData.put(pricingIdentifier, priceTableBldr);
                     } else {
-                        Long targetId = Long.valueOf(collectedDiags.get(i));
-                        String priceTableKeys = collectedDiags.get(i + 1);
-                        Collection<String> pricingIdentifier = gson.fromJson(priceTableKeys, typeRef);
+                        final Long targetId = Long.valueOf(collectedDiags.get(i));
+                        final String priceTableKeys = collectedDiags.get(i + 1);
+                        final Set<PricingIdentifier> pricingIdentifier =
+                                gson.fromJson(priceTableKeys, typeRef);
                         targetIdToPriceTableKey.put(targetId, pricingIdentifier);
                     }
-                } catch (NumberFormatException e) {
+                } catch (final NumberFormatException e) {
                     logger.error("Failed to find targetId for : {}", collectedDiags.get(i));
-                } catch (InvalidProtocolBufferException e) {
-                    logger.error("Failed to deserialize price table. Error: {}", e.getMessage());
-                } catch (JsonSyntaxException e) {
-                    throw new DiagnosticsException("Failed to deserialize JSON: " + priceTableKeyToData);
+                } catch (final InvalidProtocolBufferException e) {
+                    logger.error("Failed to deserialize price table", e);
+                } catch (final JsonSyntaxException e) {
+                    throw new DiagnosticsException(
+                            "Failed to deserialize JSON: " + priceTableKeyToData, e);
                 }
             }
-            targetIdToPriceTableKey.forEach((key, priceTableKey) -> sourcePriceTableByTargetId.put(key,
-                    priceTableKeyToData.getOrDefault(priceTableKey,
-                            PricingDTO.PriceTable.newBuilder()).build()));
+            targetIdToPriceTableKey.forEach(
+                    (key, priceTableKey) -> sourcePriceTableByTargetId.put(key,
+                            priceTableKeyToData.getOrDefault(priceTableKey,
+                                    PricingDTO.PriceTable.newBuilder()).build()));
         }
     }
 
@@ -719,7 +758,7 @@ public class PriceTableUploader implements DiagsRestorable {
      */
     public static class ProbePriceData {
         public String probeType;
-        public  PriceTable priceTable;
+        public PriceTable priceTable;
         public PriceTableKey priceTableKey;
         public List<ReservedInstanceSpecPrice> riSpecPrices;
 

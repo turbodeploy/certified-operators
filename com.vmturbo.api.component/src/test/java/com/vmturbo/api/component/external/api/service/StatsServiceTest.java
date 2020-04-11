@@ -25,6 +25,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import org.junit.Assert;
@@ -49,10 +52,12 @@ import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
+import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
@@ -96,10 +101,10 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -207,26 +212,27 @@ public class StatsServiceTest {
         when(apiId1.uuid()).thenReturn(oid1);
         when(apiId1.oid()).thenReturn(Long.parseLong(oid1));
         when(apiId1.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
-                        UIEntityType.PHYSICAL_MACHINE)));
+                        ApiEntityType.PHYSICAL_MACHINE)));
         when(apiId1.isGroup()).thenReturn(false);
+        when(apiId1.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
 
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId2.uuid()).thenReturn(oid2);
         when(apiId2.oid()).thenReturn(Long.parseLong(oid2));
         when(apiId2.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
-                        UIEntityType.PHYSICAL_MACHINE)));
+                        ApiEntityType.PHYSICAL_MACHINE)));
         when(apiId2.isGroup()).thenReturn(false);
+        when(apiId2.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
 
         when(uuidMapper.fromUuid(marketUuid)).thenReturn(marketApiId);
         when(marketApiId.getScopeTypes()).thenReturn(Optional.empty());
         when(marketApiId.isGroup()).thenReturn(false);
+        when(marketApiId.getEnvironmentType()).thenReturn(EnvironmentType.HYBRID);
 
         se1.setUuid(apiId1.uuid());
         se1.setClassName("ClassName-1");
         se2.setUuid(apiId2.uuid());
         se2.setClassName("ClassName-2");
-
-
     }
 
     @Test
@@ -243,20 +249,29 @@ public class StatsServiceTest {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Collections.singletonList("7"));
         inputDto.setPeriod(periodApiInputDTO);
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.uuid()).thenReturn("7");
+        when(apiId.oid()).thenReturn(7L);
+        when(apiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
+                ApiEntityType.COMPUTE_TIER)));
+        when(apiId.isGroup()).thenReturn(true);
+        when(apiId.getDisplayName()).thenReturn("Winter woede");
+        when(apiId.getClassName()).thenReturn("Cluster");
+        when(apiId.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
+        when(uuidMapper.fromOid(7)).thenReturn(apiId);
 
         final GroupDefinition clusterInfo = GroupDefinition.newBuilder()
                 .setType(GroupType.COMPUTE_HOST_CLUSTER)
                 .setDisplayName("Winter woede")
                 .build();
         when(groupServiceSpy.getGroups(GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder().addId(7)).build())).thenReturn(
-                                        Collections.singletonList(Grouping.newBuilder().setId(7)
-                                                        .setDefinition(clusterInfo).build()));
+                .setGroupFilter(GroupFilter.newBuilder().addId(7)).build())).thenReturn(
+                Collections.singletonList(Grouping.newBuilder().setId(7)
+                        .setDefinition(clusterInfo).build()));
 
         final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.getDefaultInstance();
-        when(statsMapper.toClusterStatsRequest("7", periodApiInputDTO))
-            .thenReturn(clusterStatsRequest);
-
+        when(statsMapper.toClusterStatsRequest("7", periodApiInputDTO, true))
+                .thenReturn(clusterStatsRequest);
         when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest))
                 .thenReturn(Collections.singletonList(STAT_SNAPSHOT));
         final StatSnapshotApiDTO apiSnapshot = new StatSnapshotApiDTO();
@@ -266,12 +281,10 @@ public class StatsServiceTest {
                 statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         verify(groupServiceSpy).getGroups(GetGroupsRequest.newBuilder()
-                        .setGroupFilter(GroupFilter.newBuilder().addId(7)).build());
-        verify(statsMapper).toClusterStatsRequest("7", periodApiInputDTO);
+                .setGroupFilter(GroupFilter.newBuilder().addId(7)).build());
+        verify(statsMapper).toClusterStatsRequest("7", periodApiInputDTO, true);
         verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
         verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
-
-        verify(paginationRequest).allResultsResponse(any());
 
         assertThat(response.getRawResults().size(), is(1));
         final EntityStatsApiDTO clusterStats = response.getRawResults().get(0);
@@ -279,6 +292,202 @@ public class StatsServiceTest {
         assertThat(clusterStats.getDisplayName(), is(clusterInfo.getDisplayName()));
         assertThat(clusterStats.getStats(), containsInAnyOrder(apiSnapshot));
         assertThat(clusterStats.getClassName(), is(StringConstants.CLUSTER));
+    }
+
+    /**
+     * Test cluster stats sorted by CPU headroom, ascending.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testClusterStatsSortingByCpuHeadRoomAscending() throws Exception {
+        Assert.assertEquals(ImmutableList.of(2L, 3L, 1L),
+                            prepareClusterStatsOrderingTest(StringConstants.CPU_HEADROOM, true));
+    }
+
+    /**
+     * Test cluster stats sorted by CPU headroom, descending.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testClusterStatsSortingByCpuHeadRoomDescending() throws Exception {
+        Assert.assertEquals(ImmutableList.of(1L, 3L, 2L),
+                            prepareClusterStatsOrderingTest(StringConstants.CPU_HEADROOM, false));
+    }
+
+    /**
+     * Test cluster stats sorted by memory utilization.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testClusterStatsSortingByMemUtilizationDescending() throws Exception {
+        Assert.assertEquals(ImmutableList.of(2L, 3L, 1L),
+                            prepareClusterStatsOrderingTest(StringConstants.MEM, false));
+    }
+
+    /**
+     * This method fakes three cluster with the following stats:
+     * <ul>
+     *     <li>Mem Utilization: 1/200, CPU headroom: 10</li>
+     *     <li>Mem Utilization: 2/3, CPU headroom: 1</li>
+     *     <li>Mem Utilization: 2/4, CPU headroom: 9</li>
+     * </ul>
+     * then sorts their stats according to the parameters passed to it,
+     * then takes the sorted list and returns their ids in that order.
+     *
+     * <p>For example, if we sort by mem utilization ascending,
+     *     what this method should return is: [1, 3, 2]
+     * </p>
+     * @param orderBy what statistic to order by.
+     *                Accepted values: {@link StringConstants#CPU_HEADROOM} and
+     *                {@link StringConstants#MEM}
+     * @param ascending whether the sorting should be ascending
+     * @return list of ids after sorting
+     * @throws Exception should not happen
+     */
+    private List<Long> prepareClusterStatsOrderingTest(@Nonnull String orderBy, boolean ascending)
+            throws Exception {
+        final EntityStatsPaginationRequest paginationRequest =
+                spy(new EntityStatsPaginationRequest("foo", 100, ascending, orderBy));
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+
+        // Add a cluster stat request.
+        final StatApiInputDTO statApiInputDTO1 = new StatApiInputDTO();
+        statApiInputDTO1.setName(StringConstants.CPU_HEADROOM);
+        final StatApiInputDTO statApiInputDTO2 = new StatApiInputDTO();
+        statApiInputDTO2.setName(StringConstants.MEM);
+        periodApiInputDTO.setStatistics(ImmutableList.of(statApiInputDTO1, statApiInputDTO2));
+
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(ImmutableList.of("1", "2", "3"));
+        inputDto.setPeriod(periodApiInputDTO);
+
+        final GroupDefinition clusterInfo1 = GroupDefinition.newBuilder()
+                                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                                                .setDisplayName("1")
+                                                .build();
+        final GroupDefinition clusterInfo2 = GroupDefinition.newBuilder()
+                                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                                                .setDisplayName("2")
+                                                .build();
+        final GroupDefinition clusterInfo3 = GroupDefinition.newBuilder()
+                                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                                                .setDisplayName("3")
+                                                .build();
+        when(groupServiceSpy.getGroups(any()))
+            .thenReturn(ImmutableList.of(Grouping.newBuilder()
+                                                .setId(1)
+                                                .setDefinition(clusterInfo1)
+                                                .build(),
+                                         Grouping.newBuilder()
+                                                .setId(2)
+                                                .setDefinition(clusterInfo2)
+                                                .build(),
+                                         Grouping.newBuilder()
+                                                .setId(3)
+                                                .setDefinition(clusterInfo3)
+                                                .build()));
+
+        final ApiId apiId1 = mock(ApiId.class);
+        when(uuidMapper.fromUuid("1")).thenReturn(apiId1);
+        when(uuidMapper.fromOid(1L)).thenReturn(apiId1);
+        when(apiId1.uuid()).thenReturn("1");
+        when(apiId1.oid()).thenReturn(1L);
+        when(apiId1.isGroup()).thenReturn(true);
+        when(apiId1.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
+        when(apiId1.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
+
+        final ApiId apiId2 = mock(ApiId.class);
+        when(uuidMapper.fromUuid("2")).thenReturn(apiId2);
+        when(uuidMapper.fromOid(2L)).thenReturn(apiId2);
+        when(apiId2.uuid()).thenReturn("2");
+        when(apiId2.oid()).thenReturn(2L);
+        when(apiId2.isGroup()).thenReturn(true);
+        when(apiId2.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
+        when(apiId2.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
+
+        final ApiId apiId3 = mock(ApiId.class);
+        when(uuidMapper.fromUuid("3")).thenReturn(apiId3);
+        when(uuidMapper.fromOid(3L)).thenReturn(apiId3);
+        when(apiId3.uuid()).thenReturn("3");
+        when(apiId3.oid()).thenReturn(3L);
+        when(apiId3.isGroup()).thenReturn(true);
+        when(apiId3.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
+        when(apiId3.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
+
+        final ClusterStatsRequest clusterStatsRequest1 = ClusterStatsRequest.newBuilder()
+                                                                .setClusterId(1L)
+                                                                .build();
+        final ClusterStatsRequest clusterStatsRequest2 = ClusterStatsRequest.newBuilder()
+                                                                .setClusterId(2L)
+                                                                .build();
+        final ClusterStatsRequest clusterStatsRequest3 = ClusterStatsRequest.newBuilder()
+                                                                .setClusterId(3L)
+                                                                .build();
+        when(statsMapper.toClusterStatsRequest("1", periodApiInputDTO, true))
+                .thenReturn(clusterStatsRequest1);
+        when(statsMapper.toClusterStatsRequest("2", periodApiInputDTO, true))
+                .thenReturn(clusterStatsRequest2);
+        when(statsMapper.toClusterStatsRequest("3", periodApiInputDTO, true))
+                .thenReturn(clusterStatsRequest3);
+
+        final StatSnapshot fakeSnapshot1 = StatSnapshot.newBuilder()
+                                                .setSnapshotDate(1L)
+                                                .build();
+        final StatSnapshot fakeSnapshot2 = StatSnapshot.newBuilder()
+                                                .setSnapshotDate(2L)
+                                                .build();
+        final StatSnapshot fakeSnapshot3 = StatSnapshot.newBuilder()
+                                                .setSnapshotDate(3L)
+                                                .build();
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest1))
+                .thenReturn(Collections.singletonList(fakeSnapshot1));
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest2))
+                .thenReturn(Collections.singletonList(fakeSnapshot2));
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest3))
+                .thenReturn(Collections.singletonList(fakeSnapshot3));
+
+        final StatSnapshotApiDTO apiSnapshot1 = makeStatApiDTO("1", 10.0f, 1.0f, 200.0f);
+        final StatSnapshotApiDTO apiSnapshot2 = makeStatApiDTO("2", 1.0f, 2.0f, 3.0f);
+        final StatSnapshotApiDTO apiSnapshot3 = makeStatApiDTO("3", 9.0f, 2.0f, 4.0f);
+
+        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot1)).thenReturn(apiSnapshot1);
+        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot2)).thenReturn(apiSnapshot2);
+        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot3)).thenReturn(apiSnapshot3);
+
+        final EntityStatsPaginationResponse response =
+                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+        return response.getRawResults().stream()
+                        .map(EntityStatsApiDTO::getUuid)
+                        .map(x -> Long.valueOf(x))
+                        .collect(Collectors.toList());
+    }
+
+    private StatSnapshotApiDTO makeStatApiDTO(@Nonnull String id, float cpuHeadRoom,
+                                              float memAvg, float memCap) {
+        final StatApiDTO statApiDTO1 = new StatApiDTO();
+        statApiDTO1.setName(StringConstants.CPU_HEADROOM);
+        final StatValueApiDTO statValueApiDTO1 = new StatValueApiDTO();
+        statValueApiDTO1.setAvg(cpuHeadRoom);
+        statApiDTO1.setValues(statValueApiDTO1);
+        statApiDTO1.setUuid(id);
+
+        final StatApiDTO statApiDTO2 = new StatApiDTO();
+        statApiDTO2.setName(StringConstants.MEM);
+        final StatValueApiDTO statValueApiDTO21 = new StatValueApiDTO();
+        statValueApiDTO21.setAvg(memAvg);
+        statApiDTO2.setValues(statValueApiDTO21);
+        final StatValueApiDTO statValueApiDTO22 = new StatValueApiDTO();
+        statValueApiDTO22.setAvg(memCap);
+        statApiDTO2.setCapacity(statValueApiDTO22);
+        statApiDTO2.setUuid(id);
+
+        final StatSnapshotApiDTO result = new StatSnapshotApiDTO();
+        result.setStatistics(ImmutableList.of(statApiDTO1, statApiDTO2));
+
+        return result;
     }
 
     @Test
@@ -362,7 +571,7 @@ public class StatsServiceTest {
                                                         .newBuilder()
                                                         .setType(MemberType
                                                             .newBuilder()
-                                                            .setEntity(UIEntityType.VIRTUAL_MACHINE
+                                                            .setEntity(ApiEntityType.VIRTUAL_MACHINE
                                                                             .typeNumber()))
                                                         .addMembers(2L)
                                                         .addMembers(1L)
@@ -474,7 +683,7 @@ public class StatsServiceTest {
                                         .newBuilder()
                                         .setType(MemberType
                                                 .newBuilder()
-                                                .setEntity(UIEntityType.PHYSICAL_MACHINE
+                                                .setEntity(ApiEntityType.PHYSICAL_MACHINE
                                                         .typeNumber())))))
                 .build();
 
@@ -498,7 +707,7 @@ public class StatsServiceTest {
                                         .newBuilder()
                                         .setType(MemberType
                                                 .newBuilder()
-                                                .setEntity(UIEntityType.PHYSICAL_MACHINE
+                                                .setEntity(ApiEntityType.PHYSICAL_MACHINE
                                                         .typeNumber())))))
                 .build();
 

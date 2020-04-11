@@ -192,7 +192,8 @@ public class MapperConfig {
                         magicScopeGateway(), communicationConfig.repositoryApi(),
                         communicationConfig.topologyProcessor(),
                         communicationConfig.planRpcService(), communicationConfig.groupRpcService(),
-                        communicationConfig.groupExpander());
+                        communicationConfig.groupExpander(), communicationConfig.thinTargetCache(),
+                        cloudTypeMapper());
         repositoryClientConfig.repository().addListener(uuidMapper);
         return uuidMapper;
     }
@@ -287,7 +288,7 @@ public class MapperConfig {
      */
     @Bean
     public RegionAspectMapper regionAspectMapper() {
-        return new RegionAspectMapper();
+        return new RegionAspectMapper(communicationConfig.supplyChainRpcService());
     }
 
     /**

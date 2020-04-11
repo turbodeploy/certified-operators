@@ -81,6 +81,12 @@ public enum ActionEnvironmentType {
                 return this != ActionEnvironmentType.CLOUD;
             case CLOUD:
                 return this != ActionEnvironmentType.ON_PREM;
+            case HYBRID:
+                // if the entity environment type is HYBRID,
+                // then all action environment types should be accepted
+                // there is no way (or reason) to query for
+                // "entities with hybrid environment type only"
+                return true;
             case UNKNOWN_ENV:
                 logger.warn("Asking if action env type matches {}. Always false.", environmentType);
                 return false;

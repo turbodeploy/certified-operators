@@ -48,7 +48,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
@@ -89,7 +89,7 @@ public class ServiceEntityMapper {
     public static ServiceEntityApiDTO toBasicEntity(@Nonnull final ApiPartialEntity topologyEntityDTO) {
         final ServiceEntityApiDTO baseApiDTO = new ServiceEntityApiDTO();
         baseApiDTO.setDisplayName(Objects.requireNonNull(topologyEntityDTO).getDisplayName());
-        baseApiDTO.setClassName(UIEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
+        baseApiDTO.setClassName(ApiEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
         baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
         setNonEmptyDisplayName(baseApiDTO);
         return baseApiDTO;
@@ -99,7 +99,7 @@ public class ServiceEntityMapper {
     public static ServiceEntityApiDTO toBasicEntity(@Nonnull final TopologyEntityDTO topologyEntityDTO) {
         final ServiceEntityApiDTO baseApiDTO = new ServiceEntityApiDTO();
         baseApiDTO.setDisplayName(Objects.requireNonNull(topologyEntityDTO).getDisplayName());
-        baseApiDTO.setClassName(UIEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
+        baseApiDTO.setClassName(ApiEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
         baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
         setNonEmptyDisplayName(baseApiDTO);
         return baseApiDTO;
@@ -109,7 +109,7 @@ public class ServiceEntityMapper {
     public static ServiceEntityApiDTO toBasicEntity(@Nonnull final MinimalEntity topologyEntityDTO) {
         final ServiceEntityApiDTO baseApiDTO = new ServiceEntityApiDTO();
         baseApiDTO.setDisplayName(Objects.requireNonNull(topologyEntityDTO).getDisplayName());
-        baseApiDTO.setClassName(UIEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
+        baseApiDTO.setClassName(ApiEntityType.fromType(topologyEntityDTO.getEntityType()).apiStr());
         baseApiDTO.setUuid(String.valueOf(topologyEntityDTO.getOid()));
         setNonEmptyDisplayName(baseApiDTO);
         return baseApiDTO;
@@ -342,8 +342,6 @@ public class ServiceEntityMapper {
             .build();
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
             .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                .setCostCategoryFilter(CostCategoryFilter.newBuilder()
-                    .addAllCostCategory(TEMPLATE_PRICE_CATEGORIES))
                 .setEntityFilter(entityFilter))
             .build();
         final GetCloudCostStatsResponse response =
@@ -364,7 +362,7 @@ public class ServiceEntityMapper {
         BaseApiDTO entityApiDTO = new BaseApiDTO();
         entityApiDTO.setUuid(String.valueOf(relatedEntity.getOid()));
         entityApiDTO.setDisplayName(relatedEntity.getDisplayName());
-        entityApiDTO.setClassName(UIEntityType.fromType(relatedEntity.getEntityType()).apiStr());
+        entityApiDTO.setClassName(ApiEntityType.fromType(relatedEntity.getEntityType()).apiStr());
         return entityApiDTO;
     }
 
@@ -422,12 +420,12 @@ public class ServiceEntityMapper {
                 .setSeedOid(oid)
                 .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(oid)
-                    .addEntityTypesToInclude(UIEntityType.VIRTUAL_MACHINE.apiStr())));
+                    .addEntityTypesToInclude(ApiEntityType.VIRTUAL_MACHINE.apiStr())));
         });
         supplyChainBlockingStub.getMultiSupplyChains(builder.build()).forEachRemaining(response -> {
             result.put(response.getSeedOid(),
                 response.getSupplyChain().getSupplyChainNodesList().stream()
-                    .filter(node -> node.getEntityType().equals(UIEntityType.VIRTUAL_MACHINE.apiStr()))
+                    .filter(node -> node.getEntityType().equals(ApiEntityType.VIRTUAL_MACHINE.apiStr()))
                     .map(RepositoryDTOUtil::getMemberCount)
                     .findFirst().orElse(0));
         });
@@ -436,8 +434,8 @@ public class ServiceEntityMapper {
     }
 
     private boolean shouldGetNumberOfVms(@Nonnull final ApiPartialEntity entity) {
-        return entity.getEntityType() == UIEntityType.REGION.typeNumber() ||
-            entity.getEntityType() == UIEntityType.AVAILABILITY_ZONE.typeNumber();
+        return entity.getEntityType() == ApiEntityType.REGION.typeNumber() ||
+            entity.getEntityType() == ApiEntityType.AVAILABILITY_ZONE.typeNumber();
     }
 
     private boolean shouldGetCostPrice(@Nonnull final ApiPartialEntity entity) {

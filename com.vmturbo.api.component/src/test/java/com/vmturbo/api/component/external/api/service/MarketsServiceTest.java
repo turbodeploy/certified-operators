@@ -51,6 +51,9 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
@@ -70,6 +73,7 @@ import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
+import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.action.EntitySeverityDTOMoles.EntitySeverityServiceMole;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.group.GroupDTO.CreateGroupRequest;
@@ -117,7 +121,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartial
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -211,6 +215,8 @@ public class MarketsServiceTest {
      */
     @Before
     public void startup() {
+        final ActionsServiceBlockingStub actionsRpcService = ActionsServiceGrpc.newBlockingStub(
+                grpcTestServer.getChannel());
         marketsService = new MarketsService(actionSpecMapper, uuidMapper,
             ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             policiesService,
@@ -230,9 +236,13 @@ public class MarketsServiceTest {
             serviceEntityMapper,
             severityPopulator,
             priceIndexPopulator,
-            ActionsServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            actionsRpcService,
             planEntityStatsFetcher,
             SearchServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            new ActionSearchUtil(actionsRpcService, actionSpecMapper, paginationMapper,
+                                 Mockito.mock(SupplyChainFetcherFactory.class),
+                                 Mockito.mock(GroupExpander.class),
+                                 REALTIME_CONTEXT_ID),
             REALTIME_CONTEXT_ID
         );
 
@@ -373,47 +383,6 @@ public class MarketsServiceTest {
     }
 
     /**
-     * Test that getting actions by market UUID fails if given future start time.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetActionsByMarketUuidShouldFailGivenFutureStartTime() throws Exception {
-        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
-        Long currentDateTime = DateTimeUtil.parseTime(DateTimeUtil.getNow());
-        String futureDate = DateTimeUtil.addDays(currentDateTime, 2);
-        actionDTO.setStartTime(futureDate);
-        marketsService.getActionsByMarketUuid(MARKET_UUID, actionDTO, null);
-    }
-
-    /**
-     * Test that getting actions by market UUID fails if given start time after end time.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetActionsByMarketUuidShouldFailGivenStartTimeAfterEndTime() throws Exception {
-        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
-        String currentDateTime = DateTimeUtil.getNow();
-        String futureDate = DateTimeUtil.addDays(DateTimeUtil.parseTime(currentDateTime), 2);
-        actionDTO.setStartTime(futureDate);
-        actionDTO.setEndTime(currentDateTime);
-        marketsService.getActionsByMarketUuid(MARKET_UUID, actionDTO, null);
-    }
-
-    /**
-     * Test that getting actions by market UUID fails if given end time and no start time.
-     *
-     * @throws Exception To satisfy compiler.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetActionsByMarketUuidShouldFailGivenEndTimeOnly() throws Exception {
-        ActionApiInputDTO actionDTO = new ActionApiInputDTO();
-        actionDTO.setEndTime(DateTimeUtil.getNow());
-        marketsService.getActionsByMarketUuid(MARKET_UUID, actionDTO, null);
-    }
-
-    /**
      * Test that getting entities by real market Id causes a searchEntities call
      * to the search rpc service.
      *
@@ -424,10 +393,10 @@ public class MarketsServiceTest {
         ApiTestUtils.mockRealtimeId(MARKET_UUID, REALTIME_PLAN_ID, uuidMapper);
 
         ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
-        se1.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se1.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         se1.setUuid("1");
         ApiPartialEntity entity = ApiPartialEntity.newBuilder()
-            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .setOid(1)
             .build();
         doReturn(SearchEntitiesResponse.newBuilder()
@@ -462,25 +431,25 @@ public class MarketsServiceTest {
         ApiTestUtils.mockPlanId(planUuid, uuidMapper);
 
         ServiceEntityApiDTO se1 = new ServiceEntityApiDTO();
-        se1.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se1.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         se1.setDisplayName("SE1");
         se1.setUuid("1");
         ServiceEntityApiDTO se2 = new ServiceEntityApiDTO();
-        se2.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se2.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         se2.setDisplayName("SE2");
         se2.setUuid("2");
         ServiceEntityApiDTO se3 = new ServiceEntityApiDTO();
-        se3.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se3.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         se3.setDisplayName("SE3");
         se3.setUuid("3");
         ServiceEntityApiDTO se4 = new ServiceEntityApiDTO();
-        se4.setClassName(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        se4.setClassName(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         se4.setDisplayName("SE4");
         se4.setUuid("4");
         final List<PartialEntity> partialEntities = Stream.of(1, 2, 3, 4)
             .map(id -> PartialEntity.newBuilder()
                 .setApi(ApiPartialEntity.newBuilder()
-                    .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                    .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                     .setOid(id))
                 .build())
             .collect(Collectors.toList());
@@ -562,7 +531,7 @@ public class MarketsServiceTest {
         scopes.add("4");
         statScopesApiInputDTO.setScopes(scopes);
         // Setting relatedType to VirtualMachine should have no impact on the results
-        statScopesApiInputDTO.setRelatedType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        statScopesApiInputDTO.setRelatedType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
         scopeApiArgument = ArgumentCaptor.forClass(StatScopesApiInputDTO.class);
         // Invoke the service and then verify that the service calls getStatsByUuidsQuery with a scope size of 2, since this is the overlap of the
         // group and the scope.
@@ -574,7 +543,7 @@ public class MarketsServiceTest {
         // This should be the same as the first test, but just verifying that the addition of the related entity
         // type does not change the scope sent to the getStatsByUuidsQuery
         inputDTO = new StatScopesApiInputDTO();
-        inputDTO.setRelatedType(UIEntityType.PHYSICAL_MACHINE.apiStr());
+        inputDTO.setRelatedType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
         marketsService.getStatsByEntitiesInGroupInMarketQuery(StatsService.MARKET, "5", inputDTO, paginationRequest);
         Mockito.verify(statsService, Mockito.times(3)).getStatsByUuidsQuery(scopeApiArgument.capture(), any());
         assertEquals(3, scopeApiArgument.getValue().getScopes().size());

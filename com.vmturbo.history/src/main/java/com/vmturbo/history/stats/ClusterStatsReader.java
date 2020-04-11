@@ -1,417 +1,238 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.components.common.utils.StringConstants.CPU_HEADROOM;
-import static com.vmturbo.components.common.utils.StringConstants.MEM_HEADROOM;
-import static com.vmturbo.components.common.utils.StringConstants.PROPERTY_TYPE;
-import static com.vmturbo.components.common.utils.StringConstants.STORAGE_HEADROOM;
-import static com.vmturbo.components.common.utils.StringConstants.TOTAL_HEADROOM;
-import static com.vmturbo.history.db.jooq.JooqUtils.getDateField;
+import static com.vmturbo.common.protobuf.utils.StringConstants.INTERNAL_NAME;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RECORDED_ON;
+import static com.vmturbo.common.protobuf.utils.StringConstants.SAMPLES;
+import static com.vmturbo.common.protobuf.utils.StringConstants.VALUE;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
-import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay.CLUSTER_STATS_BY_DAY;
-import static com.vmturbo.history.schema.abstraction.tables.ClusterStatsByMonth.CLUSTER_STATS_BY_MONTH;
-import static org.jooq.impl.DSL.min;
+import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;
+import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
 
-import java.math.BigDecimal;
-import java.sql.Date;
+import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
-
 import org.jooq.Condition;
 import org.jooq.Record;
-import org.jooq.Record5;
-import org.jooq.Select;
+import org.jooq.Result;
 import org.jooq.Table;
-import org.jooq.impl.DSL;
 
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.db.BasedbIO.Style;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
-import com.vmturbo.history.db.jooq.JooqUtils;
-import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
-import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByMonthRecord;
+import com.vmturbo.history.schema.abstraction.Tables;
+import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsLatestRecord;
+import com.vmturbo.history.stats.live.ComputedPropertiesProcessor;
+import com.vmturbo.history.stats.live.ComputedPropertiesProcessor.ClusterRecordsProcessor;
+import com.vmturbo.history.stats.live.ComputedPropertiesProcessor.ComputedPropertiesProcessorFactory;
+import com.vmturbo.history.stats.live.TimeRange;
+import com.vmturbo.history.stats.live.TimeRange.TimeRangeFactory.ClusterTimeRangeFactory;
 
 /**
- * This class is responsible for reading data from the cluster_stats tables.
+ * This class retrieves records from cluster_stats_* tables to satisfy API requests.
+ *
+ * <p>A timeframe is computed from the start and end times, and that determines which table is
+ * queried.</p>
  */
-class ClusterStatsReader {
+public class ClusterStatsReader {
     private final HistorydbIO historydbIO;
-    private static final Set<String> TOTAL_HEADROOM_STATS = ImmutableSet.of(
-        CPU_HEADROOM,
-        MEM_HEADROOM,
-        STORAGE_HEADROOM);
+    private final ClusterTimeRangeFactory timeRangeFactory;
+    private final ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory;
 
-    ClusterStatsReader(HistorydbIO historydbIO) {
+    /**
+     * Create a new instance.
+     *
+     * @param historydbIO                        Access to some DB utilities
+     * @param timeRangeFactory                   an instance of ClusterTimeRangeFactory used to
+     *                                           determine time frame for query results
+     * @param computedPropertiesProcessorFactory factory for processors tohandle computed properties
+     */
+    ClusterStatsReader(HistorydbIO historydbIO, ClusterTimeRangeFactory timeRangeFactory,
+            ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory) {
         this.historydbIO = historydbIO;
+        this.timeRangeFactory = timeRangeFactory;
+        this.computedPropertiesProcessorFactory = computedPropertiesProcessorFactory;
     }
 
     /**
-     * Gets stats records from CLUSTER_STATS_BY_DAY table based on an optional date range and a list
-     * of commodity names.
+     * Obtain records from the appropriate cluster stats table to satisfy an API request.
      *
-     * @param clusterUuid Cluster ID
-     * @param startDate The start date of the date range
-     * @param endDate The end date of the date range
-     * @param commodityNames Names in the property_type of each record
-     * @return A list of statistics records within the date range and with record property_types
-     *         that match commodity names.
-     * @throws VmtDbException vmtdb exception
-     */
-    @Nonnull List<ClusterStatsByDayRecord> getStatsRecordsByDay(
-            @Nonnull Long clusterUuid,
-            @Nonnull Long startDate,
-            @Nonnull Long endDate,
-            @Nonnull Set<String> commodityNames)
-            throws VmtDbException {
-        Objects.requireNonNull(clusterUuid);
-        Objects.requireNonNull(startDate);
-        Objects.requireNonNull(endDate);
-        Objects.requireNonNull(commodityNames);
-
-        return historydbIO.execute(Style.FORCED,
-            getClusterStatsQuery(CLUSTER_STATS_BY_DAY, clusterUuid, startDate, endDate, commodityNames))
-            .into(ClusterStatsByDayRecord.class);
-    }
-
-    /**
-     * Gets stats records from CLUSTER_STATS_BY_MONTH table based on an date range and a
-     * list of commodity names.
+     * <p>Records are returned in a wrapper that provides uniform access to record data regardless
+     * of the specific cluster_stats_* table from which the records were retrieved.</p>
      *
-     * @param clusterUuid Cluster ID
-     * @param startDate The start date of the date range
-     * @param endDate The end date of the date range
-     * @param commodityNames Names in the property_type of each record
-     * @return A list of statistics records within the date range and with record property_types
-     *         that match commodity names.
-     * @throws VmtDbException vmtdb exception
+     * @param clusterUuid   cluster ID
+     * @param startTime     beginning of time range of interest
+     * @param endTime       end of time range of interest
+     * @param propertyTypes property types of interest
+     * @return retrieved records, each wrapped in a {@link ClusterStatsRecordReader} instance.
+     * @throws VmtDbException if retrieval fails
      */
-    @Nonnull List<ClusterStatsByMonthRecord> getStatsRecordsByMonth(
-            @Nonnull Long clusterUuid,
-            @Nonnull Long startDate,
-            @Nonnull Long endDate,
-            @Nonnull Set<String> commodityNames)
-            throws VmtDbException {
-        Objects.requireNonNull(clusterUuid);
-        Objects.requireNonNull(startDate);
-        Objects.requireNonNull(endDate);
-        Objects.requireNonNull(commodityNames);
-
-        return historydbIO.execute(Style.FORCED,
-            getClusterStatsQuery(CLUSTER_STATS_BY_MONTH, clusterUuid, startDate, endDate, commodityNames))
-            .into(ClusterStatsByMonthRecord.class);
+    List<ClusterStatsRecordReader> getStatsRecords(long clusterUuid,
+            long startTime, long endTime, Optional<TimeFrame> timeFrame,
+            @Nonnull Set<String> propertyTypes) throws VmtDbException {
+        Objects.requireNonNull(propertyTypes);
+        StatsFilter statsFilter = StatsFilter.newBuilder()
+                .setStartDate(startTime)
+                .setEndDate(endTime)
+                .addAllCommodityRequests(propertyTypes.stream()
+                        .map(prop -> CommodityRequest.newBuilder().setCommodityName(prop).build())
+                        .collect(Collectors.toList()))
+                .build();
+        final ComputedPropertiesProcessor computedPropertiesProcessor =
+                computedPropertiesProcessorFactory.getProcessor(statsFilter, new ClusterRecordsProcessor());
+        final StatsFilter augmentedFilter = computedPropertiesProcessor.getAugmentedFilter();
+        Optional<TimeRange> timeRange = timeRangeFactory.resolveTimeRange(augmentedFilter,
+                Optional.of(Collections.singletonList(Long.toString(clusterUuid))),
+                Optional.empty(), Optional.empty(), timeFrame);
+        if (timeRange.isPresent()) {
+            final Set<String> augmentedPropertyTypes = augmentedFilter.getCommodityRequestsList().stream()
+                    .map(CommodityRequest::getCommodityName)
+                    .collect(Collectors.toSet());
+            final Result<? extends Record> records = getStatsRecords(clusterUuid, augmentedPropertyTypes, timeRange.get());
+            final Timestamp defaultTimestamp = timeRange.map(TimeRange::getMostRecentSnapshotTime).orElse(null);
+            final List<Record> result = computedPropertiesProcessor.processResults(records, defaultTimestamp);
+            return result.stream().map(ClusterStatsRecordReader::new).collect(Collectors.toList());
+        } else {
+            return Collections.emptyList();
+        }
     }
 
     /**
-     * A utility class for reading {@link ClusterStatsByDayRecord} and {@link ClusterStatsByMonthRecord}
-     * records using a common interface, since the schemas are very similar (except for the
-     * "aggregated" and "# samples" fields).
+     * Obtain records from the appropriate cluster stats table to satisfy an API request.
+     *
+     * <p>Records are returned in a wrapper that provides uniform access to record data regardless
+     * of the specific cluster_stats_* table from which the records were retrieved.</p>
+     *
+     * @param clusterUuid   cluster id
+     * @param propertyTypes property types of interest
+     * @param timeRange     time range determined from start end end times
+     * @return retrieved records, each wrapped in a {@link ClusterStatsRecordReader} instance
+     * @throws VmtDbException if retrieval fails
      */
-    public interface ClusterStatsRecordReader {
-        /**
-         * Get the recorded-on date from the cluster stat record.
-         *
-         * @return the recorded-on date
-         */
-        Date getRecordedOn();
+    Result<? extends Record> getStatsRecords(long clusterUuid, Set<String> propertyTypes, TimeRange timeRange)
+            throws VmtDbException {
+        Table<?> table = getStatsTable(timeRange.getTimeFrame());
+        List<Condition> conditions = new ArrayList<>();
+        conditions.add(getStringField(table, INTERNAL_NAME).eq(Long.toString(clusterUuid)));
+        // Don't add inCommodityNames condition if commodityNames is empty.
+        if (!propertyTypes.isEmpty()) {
+            conditions.add(getStringField(table, PROPERTY_TYPE).in(propertyTypes));
+        }
+        conditions.add(getTimestampField(table, RECORDED_ON).between(
+                new Timestamp(timeRange.getStartTime()), new Timestamp(timeRange.getEndTime())));
+
+        final Result<? extends Record> results = historydbIO.execute(Style.FORCED,
+                historydbIO.JooqBuilder().selectFrom(table)
+                        .where(conditions).getQuery());
+        return results;
+    }
+
+    /**
+     * Get the cluster_stats table for the given time frame.
+     *
+     * @param timeFrame time frame
+     * @return corresponding cluster_stats table
+     */
+    public static Table<?> getStatsTable(TimeFrame timeFrame) {
+        switch (timeFrame) {
+            case LATEST:
+                return CLUSTER_STATS_LATEST;
+            case HOUR:
+                return CLUSTER_STATS_BY_HOUR;
+            case DAY:
+                return Tables.CLUSTER_STATS_BY_DAY;
+            case MONTH:
+                return Tables.CLUSTER_STATS_BY_MONTH;
+            default:
+                throw new IllegalArgumentException(
+                        "Illegal time frame for cluster stats: " + timeFrame.name());
+        }
+    }
+
+    /**
+     * Wrapper for any of the various cluster_stats_* tables, providing uniform access to the
+     * column values.
+     */
+    public static class ClusterStatsRecordReader {
+
+        private final Record record;
 
         /**
-         * get the internal name from the cluster stat record.
+         * Wrap a cluster stats record.
          *
-         * @return the internal name
+         * @param record record to be wrapped
          */
-        String getInternalName();
+        ClusterStatsRecordReader(Record record) {
+            this.record = record;
+        }
 
         /**
-         * Get the property type from the cluster stat record.
+         * Get the id of the cluster to which this record applies.
          *
-         * @return the property type
+         * @return cluster id
          */
-        String getPropertyType();
+        public String getInternalName() {
+            return record.get(INTERNAL_NAME, String.class);
+        }
 
         /**
-         * Get the property subtype from the cluster stat record.
+         * Get the timestamp for this record.
+         *
+         * @return record timestamp
+         */
+        public Timestamp getRecordedOn() {
+            return record.get(RECORDED_ON, Timestamp.class);
+        }
+
+        /**
+         * Get this record's property type.
+         *
+         * @return property type
+         */
+        public String getPropertyType() {
+            return record.get(PROPERTY_TYPE, String.class);
+        }
+
+        /**
+         * Get this record's property subtype.
          *
          * @return the property subtype
          */
-        String getPropertySubType();
+        public String getPropertySubtype() {
+            return record.get(PROPERTY_SUBTYPE, String.class);
+        }
 
         /**
-         * Get the property value from the cluster stat record.
+         * Get this record's value.
          *
-         * @return value
+         * @return the value
          */
-        float getValue();
-    }
-
-    /**
-     * A {@link ClusterStatsRecordReader} that wraps access to a {@link ClusterStatsByDayRecord}.
-     */
-    public static class ClusterStatsByDayRecordReader implements ClusterStatsRecordReader {
-        @Nonnull final ClusterStatsByDayRecord record;
+        public Float getValue() {
+            Double value = record.get(VALUE, Double.class);
+            return value != null ? value.floatValue() : null;
+        }
 
         /**
-         * Create an instance that wraps the specified record.
+         * Get the number of samples averaged into this record's value.
          *
-         * @param record the record to read from
+         * @return sample count
          */
-        ClusterStatsByDayRecordReader(@Nonnull ClusterStatsByDayRecord record) {
-            Objects.requireNonNull(record);
-            this.record = record;
+        public Integer getSamples() {
+            return record instanceof ClusterStatsLatestRecord ? 1
+                    : record.get(SAMPLES, Integer.class);
         }
-
-        @Override
-        public Date getRecordedOn() {
-            return record.getRecordedOn();
-        }
-
-        @Override
-        public String getInternalName() {
-            return record.getInternalName();
-        }
-
-        @Override
-        public String getPropertyType() {
-            return record.getPropertyType();
-        }
-
-        @Override
-        public String getPropertySubType() {
-            return record.getPropertySubtype();
-        }
-
-        @Override
-        public float getValue() {
-            return record.getValue().floatValue();
-        }
-    }
-
-    /**
-     * A {@link ClusterStatsRecordReader} that wraps access to a {@link ClusterStatsByMonthRecord}.
-     */
-    public static class ClusterStatsByMonthRecordReader implements ClusterStatsRecordReader {
-        @Nonnull final ClusterStatsByMonthRecord record;
-
-        /**
-         * Create an instance that provides reads from the specified record.
-         *
-         * @param record the record to read from
-         */
-        ClusterStatsByMonthRecordReader(@Nonnull ClusterStatsByMonthRecord record) {
-            Objects.requireNonNull(record);
-            this.record = record;
-        }
-
-        @Override
-        public Date getRecordedOn() {
-            return record.getRecordedOn();
-        }
-
-        @Override
-        public String getInternalName() {
-            return record.getInternalName();
-        }
-
-        @Override
-        public String getPropertyType() {
-            return record.getPropertyType();
-        }
-
-        @Override
-        public String getPropertySubType() {
-            return record.getPropertySubtype();
-        }
-
-        @Override
-        public float getValue() {
-            return record.getValue().floatValue();
-        }
-    }
-
-    /**
-     * Get the full table Select query from the provided table.
-     * @param table The table to create the select for.
-     * @param clusterUuid The UUID of the Cluster to select stats for.
-     * @param startDate The start date of the range to build the select statement for.
-     * @param endDate The end date of the range to build the select statement for.
-     * @param commodityNames Names in the property_type of each record.
-     * @return a Select statement that will get the TotalHeadroom statistics from the provided table.
-     */
-    private Select<?> getClusterStatsQuery(@Nonnull Table<? extends Record> table,
-                                                @Nonnull Long clusterUuid,
-                                                @Nonnull Long startDate,
-                                                @Nonnull Long endDate,
-                                                @Nonnull Set<String> commodityNames
-    ) {
-        final boolean shouldQueryTotalHeadroom = commodityNames.contains(TOTAL_HEADROOM);
-
-        //Remove TOTAL_HEADROOM stat since we will collect that separately
-        final Set<String> filteredCommodityNames = Sets.difference(commodityNames, ImmutableSet.of(TOTAL_HEADROOM));
-
-        if (shouldQueryTotalHeadroom && filteredCommodityNames.isEmpty()) {
-            //If only requesting TotalHeadroom, simply query that then return with query results.
-            return getTotalClusterHeadroomSelect(table, true, clusterUuid, startDate, endDate);
-        }
-
-        //Retrieve the conditions to be used in querying the the cluster_stats_by_day table
-        final List<Condition> conditions =
-            getConditionsForClusterStatsQuery(table, true, clusterUuid, startDate, endDate, filteredCommodityNames);
-
-        if (shouldQueryTotalHeadroom) {
-            //When we get here, we should UNION ALL the Total Headroom stats and any other stats requested.
-            final Select<Record5<Date, String, String, String, BigDecimal>> totalHeadroomStatSelect =
-                getTotalClusterHeadroomSelect(table, true, clusterUuid, startDate, endDate);
-            final Select<Record5<Date, String, String, String, BigDecimal>> otherHeadroomStatsSelect =
-                getClusterStatsSelect(table, conditions);
-
-            return totalHeadroomStatSelect.unionAll(otherHeadroomStatsSelect);
-        }
-
-        return historydbIO.JooqBuilder().selectFrom(table).where(conditions).getQuery();
-    }
-
-    /**
-     * Get the Cluster Headroom Stats Select statement when also requesting Total Headroom stats.
-     *
-     * @param table the table to request from.
-     * @param conditions the where conditions for the query.
-     * @return the Select query for gathering the Headroom stats.
-     */
-    private Select<Record5<Date, String, String, String, BigDecimal>> getClusterStatsSelect(@Nonnull Table table,
-                                                                                            @Nonnull List<Condition> conditions) {
-        return historydbIO.JooqBuilder()
-            .select(
-                getDateField(table, StringConstants.RECORDED_ON),
-                getStringField(table, StringConstants.INTERNAL_NAME),
-                getStringField(table, StringConstants.PROPERTY_TYPE),
-                getStringField(table, StringConstants.PROPERTY_SUBTYPE),
-                JooqUtils.getBigDecimalField(table, StringConstants.VALUE)
-            ).from(table)
-            .where(conditions).getQuery();
-    }
-
-    /**
-     * To gather requestable statistic: TotalHeadroom which is an aggregation of 3 other Headroom
-     *  statistics: CPU_HEADROOM, MEM_HEADROOM, and STORAGE HEADROOM.
-     *
-     * Total Headroom is the following:
-     *  - Total Headroom Capacity: MIN(CPU_HEADROOM, MEM_HEADROOM, STORAGE_HEADROOM) capacities.
-     *  - Total Headroom Values: MIN(CPU_HEADROOM, MEM_HEADROOM, STORAGE_HEADROOM) values.
-     *
-     *  EXAMPLE:
-     *  - CPU Headroom: capacity = 100, value (headroom VMs) = 20  => used VMs (UI calculated): 80
-     *  - MEM Headroom: capacity = 80, value (headroom VMs) = 30   => used VMs (UI calculated): 50
-     *  - STG Headroom: capacity = 60, value (headroom VMs) = 40   => used VMs (UI calculated): 20
-     *
-     *  - Total Headroom: capacity = 60, value (headroom VMs) = 20    => used VMs (UI calculated): 40
-     *
-     * @param table The table to create the select for.
-     * @param isDayTable whether or not we are requesting stats from the DAY table.
-     * @param clusterUuid The UUID of the Cluster to select stats for.
-     * @param startDate The start date of the range to build the select statement for.
-     * @param endDate The end date of the range to build the select statement for.
-     * @return a Select statement that will get the TotalHeadroom statistics from the provided table.
-     */
-    private Select<Record5<Date, String, String, String, BigDecimal>> getTotalClusterHeadroomSelect(
-                                                                        @Nonnull Table table,
-                                                                        boolean isDayTable,
-                                                                        @Nonnull Long clusterUuid,
-                                                                        @Nonnull Long startDate,
-                                                                        @Nonnull Long endDate) {
-        final List<Condition> conditions =
-            getConditionsForClusterStatsQuery(table, isDayTable, clusterUuid, startDate, endDate, TOTAL_HEADROOM_STATS);
-
-        return historydbIO.JooqBuilder()
-            .select(getDateField(table, StringConstants.RECORDED_ON),
-                getStringField(table, StringConstants.INTERNAL_NAME),
-                DSL.inline(TOTAL_HEADROOM).as(getStringField(table, StringConstants.PROPERTY_TYPE)),
-                getStringField(table, StringConstants.PROPERTY_SUBTYPE),
-                min(JooqUtils.getBigDecimalField(table, StringConstants.VALUE))
-                    .as(JooqUtils.getBigDecimalField(table, StringConstants.VALUE)))
-            .from(table)
-            .where(conditions)
-            .groupBy(
-                getDateField(table, StringConstants.RECORDED_ON),
-                getStringField(table, StringConstants.INTERNAL_NAME),
-                getStringField(table, StringConstants.PROPERTY_SUBTYPE)
-            );
-    }
-
-    /**
-     * Get the conditions necessary for making the select queries to retrieve Headroom statistics.
-     *
-     * @param table The table to create the conditions for.
-     * @param isDayTable whether or not we are requesting stats from the DAY table.
-     * @param clusterUuid The UUID of the Cluster to select stats for.
-     * @param startDate The start date of the range to build the select statement for.
-     * @param endDate The end date of the range to build the select statement for.
-     * @param commodityNames Names in the property_type of each record.
-     * @return The List of Condition for the headroom query.
-     */
-    private List<Condition> getConditionsForClusterStatsQuery(@Nonnull Table table,
-                                                              boolean isDayTable,
-                                                              @Nonnull Long clusterUuid,
-                                                              @Nonnull Long startDate,
-                                                              @Nonnull Long endDate,
-                                                              @Nonnull Set<String> commodityNames) {
-        final List<Condition> conditions = new ArrayList<>();
-        conditions.add(getStringField(table, StringConstants.INTERNAL_NAME)
-            .eq(Long.toString(clusterUuid)));
-
-        // Don't add inCommodityNames condition if commodityNames is empty.
-        if (!commodityNames.isEmpty()) {
-            conditions.add(getStringField(table, PROPERTY_TYPE).in(commodityNames));
-        }
-
-        conditions.add(getDateConditionForClusterStatsQuery(table, isDayTable, clusterUuid, startDate, endDate, commodityNames));
-
-        return conditions;
-    }
-
-    /**
-     * Build and return the appropriate Condition for the date range when querying the
-     * cluster_stats_by_day table.
-     *
-     * @param table The table to create the conditions for.
-     * @param isDayTable whether or not we are requesting stats from the DAY table.
-     * @param clusterUuid The UUID of the Cluster to select stats for.
-     * @param startDate The start date of the range to build the select statement for.
-     * @param endDate The end date of the range to build the select statement for.
-     * @param commodityNames Names in the property_type of each record.
-     * @return The Condition for the date range.
-     */
-    private Condition getDateConditionForClusterStatsQuery(@Nonnull Table table,
-                                                           boolean isDayTable,
-                                                           @Nonnull Long clusterUuid,
-                                                           @Nonnull Long startDate,
-                                                           @Nonnull Long endDate,
-                                                           @Nonnull Set<String> commodityNames) {
-        if (isDayTable && startDate.equals(endDate)) {
-            //When querying the day table, if the startDate=endDate, create a subquery condition
-            //to retrieve the most recent records
-            final List<Condition> conditions = new ArrayList<>();
-            conditions.add(getStringField(table, StringConstants.INTERNAL_NAME).eq(Long.toString(clusterUuid)));
-
-            // Don't add inCommodityNames condition if commodityNames is empty.
-            if (!commodityNames.isEmpty()) {
-                conditions.add(getStringField(table, PROPERTY_TYPE).in(commodityNames));
-            }
-            conditions.add(getDateField(table, StringConstants.RECORDED_ON).lessOrEqual(new java.sql.Date(startDate)));
-
-            // Fetch the most recent records for this cluster
-            return getDateField(table, StringConstants.RECORDED_ON).eq(
-                historydbIO.JooqBuilder()
-                    .select(CLUSTER_STATS_BY_DAY.RECORDED_ON.max())
-                    .from(CLUSTER_STATS_BY_DAY)
-                    .where(conditions));
-        }
-        return getDateField(table, StringConstants.RECORDED_ON)
-            .between(new java.sql.Date(startDate), new java.sql.Date(endDate));
     }
 }

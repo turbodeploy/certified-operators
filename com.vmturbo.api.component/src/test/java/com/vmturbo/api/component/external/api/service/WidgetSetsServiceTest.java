@@ -58,6 +58,7 @@ public class WidgetSetsServiceTest {
     private static final String WIDGETSET_CATEGORY_2 = "category2";
     private static final String WIDGETSET_SCOPETYPE_2 = "scopetype2";
     private static final String WIDGETSET_NOT_FOUND_UUID = "9999";
+    private static final String USER_NAME = "user1";
 
     private WidgetsMoles.WidgetsetsServiceMole widgetsetsserviceSpy =
             spy(new WidgetsMoles.WidgetsetsServiceMole());
@@ -301,7 +302,7 @@ public class WidgetSetsServiceTest {
     public void testTransferWidgetset() throws Exception {
         // Arrange
         // Act
-        widgetSetsService.transferWidgetsets(WIDGETSET_UUID_1);
+        widgetSetsService.transferWidgetsets(WIDGETSET_UUID_1, USER_NAME);
         // Assert
         verify(widgetsetsserviceSpy).transferWidgetset(TransferWidgetsetRequest.newBuilder()
             .setRemovedUserid(WIDGETSET_UUID_1).build());

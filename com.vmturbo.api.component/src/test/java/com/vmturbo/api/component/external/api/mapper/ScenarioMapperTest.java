@@ -4,6 +4,7 @@ import static com.vmturbo.api.component.external.api.mapper.ScenarioMapper.MAX_U
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredOfferingClass;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredPaymentOption;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AzurePreferredTerm;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIDemandType;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
 import static org.hamcrest.core.Is.is;
@@ -17,6 +18,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -27,7 +29,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -86,14 +87,17 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.MaxUtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
@@ -102,12 +106,15 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.RISettingsEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
@@ -194,7 +201,7 @@ public class ScenarioMapperTest {
         dto.setProjectionDays(Collections.singletonList(2));
         dto.setTarget(entity(1));
         dto.setCount(6);
-        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        dto.setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
 
         //WHEN
         final List<ScenarioChange> changes = scenarioMapper.mapTopologyAddition(dto, new HashSet<>());
@@ -205,7 +212,7 @@ public class ScenarioMapperTest {
         assertEquals(6, addition.getAdditionCount());
         assertEquals(1, addition.getEntityId());
         assertEquals(Collections.singletonList(2), addition.getChangeApplicationDaysList());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), addition.getTargetEntityType());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(), addition.getTargetEntityType());
     }
 
     /**
@@ -240,7 +247,7 @@ public class ScenarioMapperTest {
         RemoveObjectApiDTO dto = new RemoveObjectApiDTO();
         dto.setProjectionDay(2);
         dto.setTarget(entity(1));
-        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        dto.setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
 
         //WHEN
         final ScenarioChange change = scenarioMapper.mapTopologyRemoval(dto);
@@ -248,7 +255,7 @@ public class ScenarioMapperTest {
         //THEN;
         TopologyRemoval removal = change.getTopologyRemoval();
         assertEquals(1, removal.getEntityId());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), removal.getTargetEntityType());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(), removal.getTargetEntityType());
         assertEquals(2, removal.getChangeApplicationDay());
     }
 
@@ -283,7 +290,7 @@ public class ScenarioMapperTest {
         dto.setProjectionDay(5);
         dto.setTarget(entity(1));
         dto.setTemplate(template(2));
-        dto.setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.apiStr());
+        dto.setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
 
         //WHEN
         final ScenarioChange change = scenarioMapper.mapTopologyReplace(dto);
@@ -293,7 +300,7 @@ public class ScenarioMapperTest {
         assertEquals(5, replace.getChangeApplicationDay());
         assertEquals(1, replace.getRemoveEntityId());
         assertEquals(2, replace.getAddTemplateId());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), replace.getTargetEntityType());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(), replace.getTargetEntityType());
     }
 
     /**
@@ -316,6 +323,84 @@ public class ScenarioMapperTest {
         assertEquals(1, replace.getRemoveEntityId());
         assertEquals(2, replace.getAddTemplateId());
         assertFalse(replace.hasTargetEntityType());
+    }
+
+    /**
+     * Tests that when a scope in the list of scopeDTOs passed when converting a ScenarioApiDTO to
+     * ScenarioInfo does not have a className and displayName, we populate these values by
+     * identifying the scope's uuid.
+     *
+     * @throws InvalidOperationException from toScenarioInfo, not expected
+     * @throws OperationFailedException from toScenarioInfo, not expected
+     */
+    @Test
+    public void getScopeFromScopeDtoWithoutClassNameAndDisplayName()
+            throws InvalidOperationException, OperationFailedException {
+        BaseApiDTO inputScopeDto = new BaseApiDTO();
+        inputScopeDto.setUuid("1");
+        ApiId apiIdMock = mock(ApiId.class);
+        when(apiIdMock.getClassName()).thenReturn("Entity");
+        when(apiIdMock.getDisplayName()).thenReturn("Entity 1");
+        when(uuidMapper.fromUuid("1")).thenReturn(apiIdMock);
+        ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
+        scenarioApiDTO.setScope(Collections.singletonList(inputScopeDto));
+
+        ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo(null, scenarioApiDTO);
+        PlanScope planScope = scenarioInfo.getScope();
+
+        assertNotNull(planScope);
+        assertEquals(1, planScope.getScopeEntriesCount());
+        assertEquals("Entity", planScope.getScopeEntries(0).getClassName());
+        assertEquals("Entity 1", planScope.getScopeEntries(0).getDisplayName());
+    }
+
+    /**
+     * Tests that when a scope in the list of scopeDTOs passed when converting a ScenarioApiDTO to
+     * ScenarioInfo has a different className than the one we got by identifying the scope's uuid,
+     * IllegalArgumentException is being thrown.
+     *
+     * @throws InvalidOperationException from toScenarioInfo, not expected
+     * @throws OperationFailedException from toScenarioInfo, not expected
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void getScopeFromScopeDtoWithWrongClassName()
+            throws InvalidOperationException, OperationFailedException {
+        BaseApiDTO inputScopeDto = new BaseApiDTO();
+        inputScopeDto.setUuid("1");
+        inputScopeDto.setClassName("WrongClassName");
+        ApiId apiIdMock = mock(ApiId.class);
+        when(apiIdMock.getClassName()).thenReturn("CorrectClassName");
+        when(apiIdMock.getDisplayName()).thenReturn("Entity 1");
+        when(uuidMapper.fromUuid("1")).thenReturn(apiIdMock);
+        ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
+        scenarioApiDTO.setScope(Collections.singletonList(inputScopeDto));
+
+        ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo(null, scenarioApiDTO);
+        // illegal argument exception excpected since the two class names do not match
+    }
+
+    /**
+     * Tests that when a scope in the list of scopeDTOs passed when converting a ScenarioApiDTO to
+     * ScenarioInfo does not have a uuid, IllegalArgumentException is being thrown.
+     *
+     * @throws InvalidOperationException from toScenarioInfo, not expected
+     * @throws OperationFailedException from toScenarioInfo, not expected
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void getScopeFromScopeDtoWithoutUuid()
+            throws InvalidOperationException, OperationFailedException {
+        BaseApiDTO inputScopeDto = new BaseApiDTO();
+        inputScopeDto.setClassName("Entity");
+        inputScopeDto.setClassName("Entity 1");
+        ApiId apiIdMock = mock(ApiId.class);
+        when(apiIdMock.getClassName()).thenReturn("CorrectClassName");
+        when(apiIdMock.getDisplayName()).thenReturn("Entity 1");
+        when(uuidMapper.fromUuid("1")).thenReturn(apiIdMock);
+        ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
+        scenarioApiDTO.setScope(Collections.singletonList(inputScopeDto));
+
+        ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo(null, scenarioApiDTO);
+        // illegal argument exception expected since the input scope does not have a uuid
     }
 
     @Test
@@ -376,6 +461,10 @@ public class ScenarioMapperTest {
     public void testInvalidChange() throws OperationFailedException {
         ScenarioApiDTO scenarioDto = new ScenarioApiDTO();
         scenarioDto.setScope(Collections.singletonList(entity(1)));
+        ApiId apiIdMock = mock(ApiId.class);
+        when(apiIdMock.getClassName()).thenReturn("Entity");
+        when(apiIdMock.getDisplayName()).thenReturn("Entity 1");
+        when(uuidMapper.fromUuid("1")).thenReturn(apiIdMock);
 
         ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioDto);
         assertEquals(0, info.getChangesList().stream().filter(c -> !c.hasSettingOverride()).count());
@@ -589,17 +678,23 @@ public class ScenarioMapperTest {
     }
 
     /**
-     * Tests ScenarioChange Object is correctly built to match SettingApiDTO configurations.
+     * Tests ScenarioChange Object is correctly built for both AWS and Azure to match SettingApiDTO configurations.
      */
     @Test
-    public void buildRISettingChangesShouldCreateScenarioChangeWithRISettingFromAWSRIsettings() {
+    public void testBuildRISettingChanges() {
         // GIVEN
         List<SettingApiDTO> riSettingList = new ArrayList<>();
-        riSettingList.add(createStringSetting(RIPurchase.getSettingName(), "true"));
-        riSettingList.add(createStringSetting(AWSPreferredOfferingClass.getSettingName(), "Convertible"));
-        riSettingList.add(createStringSetting(AWSPreferredPaymentOption.getSettingName(), "Partial Upfront"));
-        riSettingList.add(createStringSetting(AWSPreferredTerm.getSettingName(), "Years 1"));
-        riSettingList.add(createStringSetting(RIDemandType.getSettingName(), "Consumption"));
+        riSettingList.add(createStringSetting(RIPurchase.getSettingName(), Boolean.TRUE.toString()));
+        riSettingList.add(createStringSetting(AWSPreferredOfferingClass.getSettingName(),
+                RISettingsEnum.PreferredOfferingClass.CONVERTIBLE.name()));
+        riSettingList.add(createStringSetting(AWSPreferredPaymentOption.getSettingName(),
+                RISettingsEnum.PreferredPaymentOption.PARTIAL_UPFRONT.name()));
+        riSettingList.add(createStringSetting(AWSPreferredTerm.getSettingName(),
+                String.valueOf(RISettingsEnum.PreferredTerm.YEARS_3.name())));
+        riSettingList.add(createStringSetting(AzurePreferredTerm.getSettingName(),
+                String.valueOf(RISettingsEnum.PreferredTerm.YEARS_1.name())));
+        riSettingList.add(createStringSetting(RIDemandType.getSettingName(),
+                RISettingsEnum.DemandType.CONSUMPTION.name()));
 
         // WHEN
         final ScenarioChange scenarioChange = scenarioMapper.buildRISettingChanges(riSettingList);
@@ -608,9 +703,47 @@ public class ScenarioMapperTest {
         Assert.assertNotNull(scenarioChange);
         final RISetting riSetting = scenarioChange.getRiSetting();
         Assert.assertNotNull(riSetting);
-        Assert.assertEquals(OfferingClass.CONVERTIBLE, riSetting.getPreferredOfferingClass());
-        Assert.assertEquals(PaymentOption.PARTIAL_UPFRONT, riSetting.getPreferredPaymentOption());
-        Assert.assertEquals(1, riSetting.getPreferredTerm());
+        final RIProviderSetting awsRIProviderSetting = riSetting.getRiSettingByCloudtypeOrThrow(CloudType.AWS.name());
+        final RIProviderSetting azureRIProviderSetting = riSetting.getRiSettingByCloudtypeOrThrow(CloudType.AZURE.name());
+        Assert.assertNotNull(awsRIProviderSetting);
+        Assert.assertNotNull(azureRIProviderSetting);
+        Assert.assertEquals(DemandType.CONSUMPTION, riSetting.getDemandType());
+        Assert.assertEquals(OfferingClass.CONVERTIBLE, awsRIProviderSetting.getPreferredOfferingClass());
+        Assert.assertEquals(PaymentOption.PARTIAL_UPFRONT, awsRIProviderSetting.getPreferredPaymentOption());
+        Assert.assertEquals(3, awsRIProviderSetting.getPreferredTerm());
+        Assert.assertEquals(1, azureRIProviderSetting.getPreferredTerm());
+    }
+
+    /**
+     * Tests ScenarioChange Object is correctly built for AWS to match SettingApiDTO configurations.
+     */
+    @Test
+    public void testBuildRISettingChangesWithAWSOnly() {
+        // GIVEN
+        List<SettingApiDTO> riSettingList = new ArrayList<>();
+        riSettingList.add(createStringSetting(RIPurchase.getSettingName(), Boolean.TRUE.toString()));
+        riSettingList.add(createStringSetting(AWSPreferredOfferingClass.getSettingName(),
+                RISettingsEnum.PreferredOfferingClass.CONVERTIBLE.name()));
+        riSettingList.add(createStringSetting(AWSPreferredPaymentOption.getSettingName(),
+                RISettingsEnum.PreferredPaymentOption.PARTIAL_UPFRONT.name()));
+        riSettingList.add(createStringSetting(AWSPreferredTerm.getSettingName(),
+                RISettingsEnum.PreferredTerm.YEARS_1.name()));
+        riSettingList.add(createStringSetting(RIDemandType.getSettingName(),
+                RISettingsEnum.DemandType.CONSUMPTION.name()));
+
+        // WHEN
+        final ScenarioChange scenarioChange = scenarioMapper.buildRISettingChanges(riSettingList);
+
+        // THEN
+        Assert.assertNotNull(scenarioChange);
+        final RISetting riSetting = scenarioChange.getRiSetting();
+        Assert.assertNotNull(riSetting);
+        Assert.assertEquals(1, riSetting.getRiSettingByCloudtypeMap().size());
+        final RIProviderSetting riProviderSetting = riSetting.getRiSettingByCloudtypeOrThrow(CloudType.AWS.name());
+        Assert.assertNotNull(riProviderSetting);
+        Assert.assertEquals(OfferingClass.CONVERTIBLE, riProviderSetting.getPreferredOfferingClass());
+        Assert.assertEquals(PaymentOption.PARTIAL_UPFRONT, riProviderSetting.getPreferredPaymentOption());
+        Assert.assertEquals(1, riProviderSetting.getPreferredTerm());
         Assert.assertEquals(DemandType.CONSUMPTION, riSetting.getDemandType());
     }
 
@@ -678,30 +811,6 @@ public class ScenarioMapperTest {
 
         // THEN
         Assert.assertNotNull(scenarioChange);
-    }
-
-    /**
-     * Tests {@link PlanChanges.IgnoreConstraint} mapped to expected {@link RemoveConstraintApiDTO}
-     */
-    @Test
-    public void testToRemoveConstraintApiDTO() {
-        //GIVEN
-        long groupId = 1234;
-        BaseApiDTO baseApiDto = new BaseApiDTO();
-        when(contextMock.dtoForId(groupId)).thenReturn(baseApiDto);
-
-        IgnoreConstraint ignoreConstraint = IgnoreConstraint.newBuilder().setIgnoreGroup(
-                PlanChanges.ConstraintGroup.newBuilder()
-                        .setCommodityType("ClusterCommodity")
-                        .setGroupUuid(groupId).build())
-                .build();
-
-        //WHEN
-        RemoveConstraintApiDTO removeConstraintApiDTO= scenarioMapper.toRemoveConstraintApiDTO(ignoreConstraint, contextMock);
-
-        //THEN
-        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.ClusterCommodity));
-        assertThat(removeConstraintApiDTO.getTarget(), is(baseApiDto));
     }
 
     /**
@@ -804,7 +913,7 @@ public class ScenarioMapperTest {
                 .addChangeApplicationDays(3)
                 .setEntityId(1234)
                 .setAdditionCount(44)
-                .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
             .build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
@@ -817,7 +926,7 @@ public class ScenarioMapperTest {
         assertEquals(Collections.singletonList(3), changeDto.getProjectionDays());
         assertEquals(new Integer(44), changeDto.getCount());
         assertEquals("1234", changeDto.getTarget().getUuid());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
     }
 
     /**
@@ -875,7 +984,7 @@ public class ScenarioMapperTest {
                 .setTopologyRemoval(TopologyRemoval.newBuilder()
                         .setChangeApplicationDay(3)
                         .setEntityId(1234)
-                        .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                        .setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                 .build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
@@ -885,7 +994,7 @@ public class ScenarioMapperTest {
         RemoveObjectApiDTO changeDto = dto.getTopologyChanges().getRemoveList().get(0);
         assertEquals("1234", changeDto.getTarget().getUuid());
         assertEquals(new Integer(3), changeDto.getProjectionDay());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
     }
 
     /**
@@ -934,7 +1043,7 @@ public class ScenarioMapperTest {
                 .setChangeApplicationDay(3)
                 .setAddTemplateId(1234)
                 .setRemoveEntityId(5678)
-                .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             ).build());
 
         ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
@@ -945,7 +1054,7 @@ public class ScenarioMapperTest {
         assertEquals("1234", changeDto.getTemplate().getUuid());
         assertEquals("5678", changeDto.getTarget().getUuid());
         assertEquals(new Integer(3), changeDto.getProjectionDay());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), changeDto.getTargetEntityType());
     }
 
     /**
@@ -980,7 +1089,7 @@ public class ScenarioMapperTest {
             .setTopologyAddition(TopologyAddition.newBuilder()
                 .setAdditionCount(1)
                 .setEntityId(1)
-                .setTargetEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                .setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
             .build());
 
         ServiceEntityApiDTO vmDto = new ServiceEntityApiDTO();
@@ -1034,7 +1143,7 @@ public class ScenarioMapperTest {
         AddObjectApiDTO changeDto = dto.getTopologyChanges().getAddList().get(0);
         BaseApiDTO target = changeDto.getTarget();
         assertNull(target.getClassName());
-        assertEquals(UIEntityType.UNKNOWN.apiStr(), target.getDisplayName());
+        assertEquals(ApiEntityType.UNKNOWN.apiStr(), target.getDisplayName());
     }
 
     @Nonnull
@@ -1063,38 +1172,6 @@ public class ScenarioMapperTest {
         final Scenario scenario = buildScenario(ScenarioChange.newBuilder().build());
         final ScenarioApiDTO scenarioApiDTO = scenarioMapper.toScenarioApiDTO(scenario);
         Assert.assertTrue(scenarioApiDTO.getConfigChanges().getAutomationSettingList().isEmpty());
-    }
-
-    /**
-     * Tests converting of ScenarioApiDto to ScenarioInfo when Ignore Constraint setting is provided
-     * by scenarioApiDto
-     *
-     * @throws Exception UuidMapper throws, one of the underlying operations
-     * required to map the UUID to an {@link UuidMapper.ApiId} fails
-     */
-    @Test
-    public void testToScenarioInfoWithIgnoreGroupConstraintSetting() throws Exception {
-        final ScenarioApiDTO dto = new ScenarioApiDTO();
-        final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
-        List<RemoveConstraintApiDTO> removeConstraints = ImmutableList.of(
-                createRemoveConstraintApiDto("1", ConstraintType.ClusterCommodity),
-                createRemoveConstraintApiDto("2", ConstraintType.DataCenterCommodity)
-        );
-        configChanges.setRemoveConstraintList(removeConstraints);
-        dto.setConfigChanges(configChanges);
-        final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
-        final ScenarioChange scenarioChange = scenarioInfo.getChangesList().get(0);
-        Assert.assertTrue(scenarioChange.hasPlanChanges());
-        final IgnoreConstraint ignoreClusterCommodity =
-                scenarioChange.getPlanChanges().getIgnoreConstraints(0);
-        final IgnoreConstraint ignoreDataCenterCommodity =
-                scenarioChange.getPlanChanges().getIgnoreConstraints(1);
-        Assert.assertEquals(ConstraintType.ClusterCommodity.name(),
-                ignoreClusterCommodity.getIgnoreGroup().getCommodityType());
-        Assert.assertEquals(ConstraintType.DataCenterCommodity.name(),
-                ignoreDataCenterCommodity.getIgnoreGroup().getCommodityType());
-        Assert.assertEquals(1l, ignoreClusterCommodity.getIgnoreGroup().getGroupUuid());
-        Assert.assertEquals(2l, ignoreDataCenterCommodity.getIgnoreGroup().getGroupUuid());
     }
 
     /**
@@ -1253,7 +1330,7 @@ public class ScenarioMapperTest {
         final MaxUtilizationLevel maxUtilLevel = MaxUtilizationLevel.newBuilder()
                 .setPercentage(100)
                 .setGroupOid(12)
-                .setSelectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setSelectedEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build();
         List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
         changes.add(ScenarioChange.newBuilder()
@@ -1271,7 +1348,7 @@ public class ScenarioMapperTest {
         //THEN
         assertEquals(1, dtos.size());
         assertEquals(baseApiDto, dtos.get(0).getTarget());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), dtos.get(0).getSelectedEntityType());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), dtos.get(0).getSelectedEntityType());
         assertEquals(Integer.valueOf(100), dtos.get(0).getMaxPercentage());
     }
 
@@ -1284,7 +1361,7 @@ public class ScenarioMapperTest {
         //GIVEN
         final MaxUtilizationLevel maxUtilLevel = MaxUtilizationLevel.newBuilder()
                 .setPercentage(100)
-                .setSelectedEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setSelectedEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .build();
         List<ScenarioChange> changes = new ArrayList<ScenarioChange>();
         changes.add(ScenarioChange.newBuilder()
@@ -1302,7 +1379,7 @@ public class ScenarioMapperTest {
         //THEN
         assertEquals(1, dtos.size());
         assertNull(dtos.get(0).getTarget());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), dtos.get(0).getSelectedEntityType());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), dtos.get(0).getSelectedEntityType());
         assertEquals(Integer.valueOf(100), dtos.get(0).getMaxPercentage());
     }
 
@@ -1348,7 +1425,7 @@ public class ScenarioMapperTest {
 
         MaxUtilizationApiDTO maxUtil = new MaxUtilizationApiDTO();
         maxUtil.setMaxPercentage(100);
-        maxUtil.setSelectedEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
+        maxUtil.setSelectedEntityType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
         maxUtil.setTarget(baseApiDTO);
 
         List<MaxUtilizationApiDTO> maxUtilizations = new ArrayList<MaxUtilizationApiDTO>() {{
@@ -1360,11 +1437,11 @@ public class ScenarioMapperTest {
 
         //THEN
         int numberUtilizationSettings =
-            calculateNumberOfConvertedSettings(UIEntityType.PHYSICAL_MACHINE.typeNumber());
+            calculateNumberOfConvertedSettings(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
         assertEquals(numberUtilizationSettings, scenarioChanges.size());
         NumericSettingValue mLevel = scenarioChanges.get(0).getSettingOverride().getSetting().getNumericSettingValue();
         assertEquals(100, (int)mLevel.getValue());
-        assertEquals(UIEntityType.PHYSICAL_MACHINE.typeNumber(),
+        assertEquals(ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
             scenarioChanges.get(0).getSettingOverride().getEntityType());
         assertEquals(23, scenarioChanges.get(0).getSettingOverride().getGroupOid());
     }
@@ -1378,7 +1455,7 @@ public class ScenarioMapperTest {
         //GIVEN
         MaxUtilizationApiDTO maxUtil = new MaxUtilizationApiDTO();
         maxUtil.setMaxPercentage(100);
-        maxUtil.setSelectedEntityType(UIEntityType.PHYSICAL_MACHINE.apiStr());
+        maxUtil.setSelectedEntityType(ApiEntityType.PHYSICAL_MACHINE.apiStr());
         List<MaxUtilizationApiDTO> maxUtilizations = new ArrayList<MaxUtilizationApiDTO>() {{
             add(maxUtil);
         }};
@@ -1387,12 +1464,12 @@ public class ScenarioMapperTest {
         List<ScenarioChange> scenarioChanges = scenarioMapper.convertMaxUtilizationToSettingOverride(maxUtilizations);
 
         //THEN
-        int numberUtilizationSettings = calculateNumberOfConvertedSettings(UIEntityType.PHYSICAL_MACHINE.typeNumber());
+        int numberUtilizationSettings = calculateNumberOfConvertedSettings(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
         assertEquals(numberUtilizationSettings, scenarioChanges.size());
         assertEquals(numberUtilizationSettings, scenarioChanges.size());
         NumericSettingValue mLevel = scenarioChanges.get(0).getSettingOverride().getSetting().getNumericSettingValue();
         assertEquals(100, (int)mLevel.getValue());
-        assertEquals(UIEntityType.PHYSICAL_MACHINE.typeNumber(), scenarioChanges.get(0).getSettingOverride().getEntityType());
+        assertEquals(ApiEntityType.PHYSICAL_MACHINE.typeNumber(), scenarioChanges.get(0).getSettingOverride().getEntityType());
         assertEquals(0, scenarioChanges.get(0).getSettingOverride().getGroupOid());
     }
 
@@ -1594,7 +1671,7 @@ public class ScenarioMapperTest {
     public void testCreateApiSettingFromOverrideGlobalSetting() {
         //GIVEN
         SettingOverride.Builder settingOverride = buildSettingOverrideStringValue("foo", "value")
-                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber());
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
 
         final SettingApiDTO<String> settingApiDTO = new SettingApiDTO<>();
         final SettingApiDTOPossibilities possibilities = mock(SettingApiDTOPossibilities.class);
@@ -1630,7 +1707,7 @@ public class ScenarioMapperTest {
         when(settingsMapper.toSettingApiDto(any())).thenReturn(possibilities);
 
         SettingOverride.Builder settingOverride = buildSettingOverrideStringValue("foo", "value")
-                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber());
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
         //WHEN
         Collection<SettingApiDTO<String>> apiDtolist =
                 scenarioMapper.createApiSettingFromOverride(settingOverride.build(), contextMock);
@@ -1712,5 +1789,222 @@ public class ScenarioMapperTest {
             .filter(Optional::isPresent)
             .filter(spec -> scenarioMapper.isSettingSpecForEntityType(spec.get().getSettingSpec(), entityType))
             .count();
+    }
+
+    /**
+     * Tests mapping {@link RemoveConstraintApiDTO} to {@link IgnoreConstraint} ignoreAllEntities.
+     *
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
+    @Test
+    public void testToIgnoreConstraintIsIgnoreAllEntities()
+            throws OperationFailedException, IllegalArgumentException {
+        //GIVEN
+        RemoveConstraintApiDTO dto = new RemoveConstraintApiDTO();
+        dto.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
+
+        //WHEN
+        IgnoreConstraint response = scenarioMapper.toIgnoreConstraint(dto);
+
+        //THEN
+        assertTrue(response.getIgnoreAllEntities());
+        assertFalse(response.hasGlobalIgnoreEntityType());
+        assertFalse(response.hasIgnoreGroup());
+    }
+
+    /**
+     * Tests {@link RemoveConstraintApiDTO} to {@link IgnoreConstraint} ignores specific entity type.
+     *
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
+    @Test
+    public void testToIgnoreConstraintIsIgnoreAllConstraintsForEntityType()
+            throws OperationFailedException, IllegalArgumentException {
+        //GIVEN
+        RemoveConstraintApiDTO dto = new RemoveConstraintApiDTO();
+        dto.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
+        dto.setTargetEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+
+        //WHEN
+        IgnoreConstraint response = scenarioMapper.toIgnoreConstraint(dto);
+
+        //THEN
+        assertTrue(response.hasGlobalIgnoreEntityType());
+        assertTrue(response.getGlobalIgnoreEntityType().getEntityType() == EntityType.VIRTUAL_MACHINE);
+        assertFalse(response.hasIgnoreAllEntities());
+        assertFalse(response.hasIgnoreGroup());
+
+    }
+
+    /**
+     * Tests {@link RemoveConstraintApiDTO} to {@link IgnoreConstraint} for specific group.
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
+    @Test
+    public void testToIgnoreConstraintIsIgnoreConstraintForGroup()
+            throws OperationFailedException, IllegalArgumentException {
+        //GIVEN
+        RemoveConstraintApiDTO dto = new RemoveConstraintApiDTO();
+        dto.setConstraintType(ConstraintType.ClusterCommodity);
+        final long entityId = 1L;
+        dto.setTarget(entity(entityId));
+
+        ApiId apiId = mock(ApiId.class);
+        doReturn(entityId).when(apiId).oid();
+        doReturn(true).when(apiId).isGroup();
+        doReturn(apiId).when(uuidMapper).fromUuid(any());
+
+        //WHEN
+        IgnoreConstraint response = scenarioMapper.toIgnoreConstraint(dto);
+
+        //THEN
+        assertTrue(response.hasIgnoreGroup());
+        assertTrue(response.getIgnoreGroup().getCommodityType() ==
+                ConstraintType.ClusterCommodity.name());
+        assertTrue(response.getIgnoreGroup().getGroupUuid() == entityId);
+        assertFalse(response.hasGlobalIgnoreEntityType());
+        assertFalse(response.hasIgnoreAllEntities());
+    }
+
+    /**
+     * Tests {@link RemoveConstraintApiDTO} to {@link IgnoreConstraint} for specific group.
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testToIgnoreConstraintThrowsIllegalArgumentException()
+            throws OperationFailedException, IllegalArgumentException {
+        //GIVEN
+        RemoveConstraintApiDTO dto = new RemoveConstraintApiDTO();
+
+        //WHEN
+        scenarioMapper.toIgnoreConstraint(dto);
+    }
+
+    /**
+     * Tests map {@link IgnoreConstraint} ignoreAllEntities to {@link RemoveConstraintApiDTO}.
+     */
+    @Test
+    public void testToRemoveConstraintApiDTOFromIgnoreAllEntities() {
+        //GIVEN
+        final IgnoreConstraint constraint = IgnoreConstraint.newBuilder()
+                .setIgnoreAllEntities(true)
+                .build();
+
+        //WHEN
+        RemoveConstraintApiDTO removeConstraintApiDTO =
+                scenarioMapper.toRemoveConstraintApiDTO(constraint, null);
+
+        //THEN
+        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.GlobalIgnoreConstraint));
+        assertNull(removeConstraintApiDTO.getTarget());
+        assertNull(removeConstraintApiDTO.getTarget());
+    }
+
+    /**
+     * Tests map {@link IgnoreConstraint} ignoreEntityType to {@link RemoveConstraintApiDTO}.
+     */
+    @Test
+    public void testToRemoveConstraintApiDTOFromGlobalIgnoreEntityType() {
+        //GIVEN
+        final IgnoreConstraint constraint = IgnoreConstraint.newBuilder()
+                .setGlobalIgnoreEntityType(
+                        GlobalIgnoreEntityType.newBuilder()
+                                .setEntityType(EntityType.VIRTUAL_MACHINE))
+                .build();
+
+        //WHEN
+        RemoveConstraintApiDTO removeConstraintApiDTO =
+                scenarioMapper.toRemoveConstraintApiDTO(constraint, null);
+
+        //THEN
+        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.GlobalIgnoreConstraint));
+        assertThat(removeConstraintApiDTO.getTargetEntityType(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertNull(removeConstraintApiDTO.getTarget());
+    }
+
+    /**
+     * Tests map {@link IgnoreConstraint} perGroup to {@link RemoveConstraintApiDTO}.
+     */
+    @Test
+    public void testToRemoveConstraintApiDTOFromIgnoreGroup() {
+        //GIVEN
+        long groupId = 1234;
+        GroupApiDTO groupApiDTO = new GroupApiDTO();
+        groupApiDTO.setGroupType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        when(contextMock.dtoForId(groupId)).thenReturn(groupApiDTO);
+        when(contextMock.groupIdExists(groupId)).thenReturn(true);
+
+        IgnoreConstraint ignoreConstraint = IgnoreConstraint.newBuilder()
+                .setIgnoreGroup(PlanChanges.ConstraintGroup.newBuilder()
+                        .setCommodityType("ClusterCommodity")
+                        .setGroupUuid(groupId).build())
+                .build();
+
+        //WHEN
+        RemoveConstraintApiDTO removeConstraintApiDTO =
+                scenarioMapper.toRemoveConstraintApiDTO(ignoreConstraint, contextMock);
+
+        //THEN
+        assertThat(removeConstraintApiDTO.getConstraintType(), is(ConstraintType.ClusterCommodity));
+        assertThat(removeConstraintApiDTO.getTarget(), is(groupApiDTO));
+        assertTrue(removeConstraintApiDTO.getTargetEntityType() == ApiEntityType.VIRTUAL_MACHINE.apiStr());
+    }
+
+    @Test
+    public void testToApiRIChange() throws Exception {
+        // GIVEN
+        RIProviderSetting.Builder awsRISetting = RIProviderSetting.newBuilder();
+        RIProviderSetting.Builder azureRISetting = RIProviderSetting.newBuilder();
+
+        awsRISetting.setPreferredOfferingClass(OfferingClass.CONVERTIBLE);
+        awsRISetting.setPreferredPaymentOption(PaymentOption.PARTIAL_UPFRONT);
+        awsRISetting.setPreferredTerm(RISettingsEnum.PreferredTerm.YEARS_3.getYears());
+        azureRISetting.setPreferredTerm(RISettingsEnum.PreferredTerm.YEARS_1.getYears());
+
+        RISetting.Builder riSetting = RISetting.newBuilder();
+        riSetting.setDemandType(DemandType.CONSUMPTION);
+
+        riSetting.putRiSettingByCloudtype(CloudType.AWS.name(), awsRISetting.build());
+        riSetting.putRiSettingByCloudtype(CloudType.AZURE.name(), azureRISetting.build());
+        Scenario scenario = buildScenario(ScenarioChange.newBuilder()
+                .setRiSetting(riSetting).build());
+
+        // WHEN
+        ScenarioApiDTO dto = scenarioMapper.toScenarioApiDTO(scenario);
+
+        // THEN
+        assertNotNull(dto.getConfigChanges());
+        assertNotNull(dto.getConfigChanges().getRiSettingList());
+        assertEquals(5, dto.getConfigChanges().getRiSettingList().size());
+
+        dto.getConfigChanges().getRiSettingList().forEach(settingDTO -> {
+            GlobalSettingSpecs setting = GlobalSettingSpecs.getSettingByName(settingDTO.getUuid())
+                    .orElseThrow(() -> new AssertionError("RI Setting not found: " + settingDTO.getUuid()));
+            switch (setting) {
+                case RIDemandType:
+                    assertEquals(DemandType.CONSUMPTION.name(), settingDTO.getValue());
+                    break;
+                case AWSPreferredOfferingClass:
+                    assertEquals(OfferingClass.CONVERTIBLE.name(), settingDTO.getValue());
+                    break;
+                case AWSPreferredPaymentOption:
+                    assertEquals(PaymentOption.PARTIAL_UPFRONT.name(), settingDTO.getValue());
+                    break;
+                case AWSPreferredTerm:
+                    assertEquals(RISettingsEnum.PreferredTerm.YEARS_3.name(), settingDTO.getValue());
+                    break;
+                case AzurePreferredTerm:
+                    assertEquals(RISettingsEnum.PreferredTerm.YEARS_1.name(), settingDTO.getValue());
+                    break;
+            }
+        });
     }
 }

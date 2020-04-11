@@ -89,6 +89,20 @@
           "BAR"
         ]
       }
+    },
+
+    {
+      "name": "foo",
+      "path": {
+        "rootPathNode": {
+          "nodeName": "Automation"
+        }
+      },
+      "globalSettingSpec": {
+      },
+      "stringSettingValueType": {
+        "default": "aaa"
+      }
     }
   ]
 }

@@ -3,9 +3,9 @@ package com.vmturbo.api.component.communication;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -19,12 +19,11 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
-
-import org.apache.commons.collections.CollectionUtils;
 
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -49,10 +48,12 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
@@ -60,7 +61,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -209,42 +209,92 @@ public class RepositoryApi {
      */
     @Nonnull
     public RepositoryRequestResult getByIds(@Nonnull Collection<Long> oids,
-            @Nonnull Collection<EntityType> entityTypes, boolean allAccounts)
+            @Nonnull Set<EntityType> entityTypes, boolean allAccounts)
             throws ConversionException, InterruptedException {
         if (oids.isEmpty()) {
             return new RepositoryRequestResult(Collections.emptySet(), Collections.emptySet());
+        }
+        final Collection<ServiceEntityApiDTO> seList = getServiceEntities(oids, entityTypes);
+        final Collection<BusinessUnitApiDTO> buList;
+        if (entityTypes.isEmpty() || entityTypes.contains(EntityType.BUSINESS_ACCOUNT)) {
+            final Collection<Long> buOids = new LinkedList<>(oids);
+            // Load all the rest OIDs. We assume that only BusinessAccounts should be left here
+            buOids.removeAll(Collections2.transform(seList, se -> Long.parseLong(se.getUuid())));
+            buList = getBusinessUnits(buOids, allAccounts);
+        } else {
+            buList = Collections.emptyList();
+        }
+        severityPopulator.populate(realtimeTopologyContextId, seList);
+        return new RepositoryRequestResult(buList, seList);
+    }
+
+    /**
+     * Returns converted service entity DTOs.
+     * Business users require another request to Repository in order to get all the required
+     * data that's why business accounts in the repository response are just omited in this method.
+     *
+     * @param oids OIDs to retrieve
+     * @param entityTypes entity types to retrieve
+     * @return collection of converted service entities WITHOUT any business accounts
+     */
+    @Nonnull
+    private Collection<ServiceEntityApiDTO> getServiceEntities(@Nonnull Collection<Long> oids,
+            @Nonnull Set<EntityType> entityTypes) {
+        if (entityTypes.equals(Collections.singleton(EntityType.BUSINESS_ACCOUNT)) || oids.isEmpty()) {
+            return Collections.emptyList();
         }
         final RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
                 .addAllEntityOids(oids)
                 .setTopologyContextId(realtimeTopologyContextId)
                 .setTopologyType(TopologyType.SOURCE)
-                .addAllEntityType(
-                        entityTypes.stream().map(EntityType::getNumber).collect(Collectors.toSet()))
+                .addAllEntityType(entityTypes.stream()
+                        .filter(entityType -> entityType != EntityType.BUSINESS_ACCOUNT)
+                        .map(EntityType::getNumber)
+                        .collect(Collectors.toSet()))
+                .setReturnType(Type.API)
+                .build();
+        final Iterator<PartialEntityBatch> iterator =
+                repositoryService.retrieveTopologyEntities(request);
+        final Collection<ApiPartialEntity> serviceEntitiesTE = new ArrayList<>();
+        while (iterator.hasNext()) {
+            final PartialEntityBatch batch = iterator.next();
+            for (PartialEntity partialEntity : batch.getEntitiesList()) {
+                final ApiPartialEntity entity = partialEntity.getApi();
+                if (entity.getEntityType() != EntityType.BUSINESS_ACCOUNT_VALUE) {
+                    // Business accounts will be loaded separately. Just ignore them here.
+                    serviceEntitiesTE.add(entity);
+                }
+            }
+        }
+        return serviceEntitiesTE.stream()
+                .map(serviceEntityMapper::toServiceEntityApiDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Nonnull
+    private Collection<BusinessUnitApiDTO> getBusinessUnits(@Nonnull Collection<Long> oids,
+            boolean allAccounts) {
+        if (oids.isEmpty()) {
+            return Collections.emptyList();
+        }
+        final RetrieveTopologyEntitiesRequest request = RetrieveTopologyEntitiesRequest.newBuilder()
+                .addAllEntityOids(oids)
+                .setTopologyContextId(realtimeTopologyContextId)
+                .setTopologyType(TopologyType.SOURCE)
+                .addEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
                 .setReturnType(Type.FULL)
                 .build();
         final Iterator<PartialEntityBatch> iterator =
                 repositoryService.retrieveTopologyEntities(request);
         final List<TopologyEntityDTO> businessAccountsTE = new ArrayList<>();
-        final Collection<TopologyEntityDTO> serviceEntitiesTE = new ArrayList<>();
         while (iterator.hasNext()) {
             final PartialEntityBatch batch = iterator.next();
             for (PartialEntity partialEntity : batch.getEntitiesList()) {
                 final TopologyEntityDTO entity = partialEntity.getFullEntity();
-                if (entity.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
                     businessAccountsTE.add(entity);
-                } else {
-                    serviceEntitiesTE.add(entity);
-                }
             }
         }
-
-        final Collection<ServiceEntityApiDTO> seList = serviceEntitiesTE.stream()
-                .map(serviceEntityMapper::toServiceEntityApiDTO)
-                .collect(Collectors.toList());
-        final Collection<BusinessUnitApiDTO> buList =
-                businessAccountMapper.convert(businessAccountsTE, allAccounts);
-        severityPopulator.populate(realtimeTopologyContextId, seList);
-        return new RepositoryRequestResult(buList, seList);
+        return businessAccountMapper.convert(businessAccountsTE, allAccounts);
     }
 
     /**
@@ -312,16 +362,12 @@ public class RepositoryApi {
                 throws InterruptedException, ConversionException {
             final Map<Long, ServiceEntityApiDTO> entities;
             if (aspectMapper == null) {
-                // Do the conversion in bulk.
                 entities = serviceEntityMapper.toServiceEntityApiDTOMap(getEntities()
                         .collect(Collectors.toList()));
             } else {
-                entities = new HashMap<>();
-                final Iterator<TopologyEntityDTO> iterator = getFullEntities().iterator();
-                while (iterator.hasNext()) {
-                    final TopologyEntityDTO entity = iterator.next();
-                    entities.put(entity.getOid(), entityWithAspects(entity, aspectMapper, requestedAspects));
-                }
+                List<TopologyEntityDTO> entityList = getFullEntities().collect(Collectors.toList());
+                entities = entitiesWithAspects(entityList, aspectMapper, requestedAspects);
+
                 setEntitiesCost(entities.values());
             }
             severityPopulator.populate(contextId, entities.values());
@@ -337,58 +383,73 @@ public class RepositoryApi {
 
             if (aspectMapper == null) {
                 entities = getEntities()
-                    .map(serviceEntityMapper::toServiceEntityApiDTO)
-                    .collect(Collectors.toList());
+                        .map(serviceEntityMapper::toServiceEntityApiDTO)
+                        .collect(Collectors.toList());
             } else {
-                entities = new ArrayList<>();
-                final Iterator<TopologyEntityDTO> iterator = getFullEntities().iterator();
-                while (iterator.hasNext()) {
-                    final TopologyEntityDTO entity = iterator.next();
-                    entities.add(entityWithAspects(entity, aspectMapper, requestedAspects));
-                }
+                List<TopologyEntityDTO> topologyEntities = getFullEntities().collect(Collectors.toList());
+                entities = entitiesWithAspects(topologyEntities, aspectMapper, requestedAspects).values().stream().collect(Collectors.toList());
             }
             severityPopulator.populate(contextId, entities);
             return entities;
+
         }
 
-        @Nonnull
-        private ServiceEntityApiDTO entityWithAspects(@Nonnull final TopologyEntityDTO entity,
-                @Nonnull EntityAspectMapper aspectMapper,
-                @Nullable Collection<String> requestedAspects)
-                throws ConversionException, InterruptedException {
+        /**
+         * Convert an entity with aspect using the aspect map.
+         *
+         * @param entity entity to convert
+         * @param aspects a map containing all aspects of all entities.
+         * @return service entity
+         */
+        private ServiceEntityApiDTO entityToSeWithAspect(TopologyEntityDTO entity, Map<Long, Map<AspectName, EntityAspect>> aspects) {
             final ServiceEntityApiDTO se = serviceEntityMapper.toServiceEntityApiDTO(entity);
-            if (CollectionUtils.isNotEmpty(requestedAspects)) {
-                final Map<AspectName, EntityAspect> aspectsByName = new HashMap<>();
-                final TemplateApiDTO template = new TemplateApiDTO();
-                BaseApiDTO cloudTemplate = null;
 
-                for (String requestedAspect: requestedAspects) {
-                    final AspectName aspectName = AspectName.fromString(requestedAspect);
-                    final EntityAspect entityAspect = aspectMapper.getAspectByEntity(entity, aspectName);
-                    // aspect may be null, for example: cloud aspect for on_prem vm
-                    if (entityAspect != null) {
-                        aspectsByName.put(aspectName, entityAspect);
-                        if (entityAspect instanceof CloudAspectApiDTO) {
-                            CloudAspectApiDTO cloudAspect = (CloudAspectApiDTO)entityAspect;
-                            if (cloudTemplate == null) {
-                                cloudTemplate = cloudAspect.getTemplate();
-                            }
+            if (aspects.containsKey(entity.getOid())) {
+                Map<AspectName, EntityAspect> aspectMap = aspects.get(entity.getOid());
+
+                for (EntityAspect aspect : aspectMap.values()) {
+                    if (aspect instanceof CloudAspectApiDTO) {
+                        BaseApiDTO cloudTemplate = ((CloudAspectApiDTO)aspect).getTemplate();
+                        if (cloudTemplate != null) {
+                            final TemplateApiDTO template = new TemplateApiDTO();
+                            template.setUuid(cloudTemplate.getUuid());
+                            template.setDisplayName(cloudTemplate.getDisplayName());
+                            se.setTemplate(template);
+                            break;
                         }
                     }
                 }
 
-                if (cloudTemplate != null) {
-                    template.setUuid(cloudTemplate.getUuid());
-                    template.setDisplayName(cloudTemplate.getDisplayName());
-                    se.setTemplate(template);
-                }
-
-                se.setAspectsByName(aspectsByName);
-            } else {
-                se.setAspectsByName(aspectMapper.getAspectsByEntity(entity));
+                se.setAspectsByName(aspectMap);
             }
 
             return se;
+        }
+
+        /**
+         * Return service entities with aspects.
+         *
+         * @param entities list of topology entities
+         * @param aspectMapper aspect mapper
+         * @param requestedAspects list of requested aspects. if null or empty, we will use all aspects
+         * @return a map of oid -> serviceEntity
+         * @throws ConversionException if conversion failed.
+         * @throws InterruptedException if interrupted
+         */
+        @Nonnull
+        private Map<Long, ServiceEntityApiDTO> entitiesWithAspects(@Nonnull final List<TopologyEntityDTO> entities,
+              @Nonnull EntityAspectMapper aspectMapper,
+              @Nullable Collection<String> requestedAspects)
+                throws ConversionException, InterruptedException {
+
+            // create a map of oid -> map of aspectName -> aspect
+            Map<Long, Map<AspectName, EntityAspect>> aspects = aspectMapper.getAspectsByEntities(entities, requestedAspects);
+
+            // return a map of oid -> serviceEntity with aspect
+            return entities.stream().collect(Collectors.toMap(
+                    TopologyEntityDTO::getOid,
+                    entity -> entityToSeWithAspect(entity, aspects)
+                   ));
         }
 
         /**
@@ -441,7 +502,8 @@ public class RepositoryApi {
 
             this.retriever = new PartialEntityRetriever(type ->
                 searchServiceBlockingStub.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
-                    .addAllSearchParameters(params)
+                    .setSearch(SearchQuery.newBuilder()
+                        .addAllSearchParameters(params))
                     .setReturnType(type)
                     .build()),
                 serviceEntityMapper,
@@ -471,7 +533,8 @@ public class RepositoryApi {
         public Set<Long> getOids() {
             return Sets.newHashSet(searchServiceBlockingStub.searchEntityOids(
                 SearchEntityOidsRequest.newBuilder()
-                    .addAllSearchParameters(params)
+                    .setSearch(SearchQuery.newBuilder()
+                        .addAllSearchParameters(params))
                     .build()).getEntitiesList());
         }
 
@@ -484,7 +547,10 @@ public class RepositoryApi {
         public Future<Set<Long>> getOidsFuture() {
             final OidSetObserver observer = new OidSetObserver();
             searchServiceStub.searchEntityOids(
-                    SearchEntityOidsRequest.newBuilder().addAllSearchParameters(params).build(),
+                    SearchEntityOidsRequest.newBuilder()
+                        .setSearch(SearchQuery.newBuilder()
+                            .addAllSearchParameters(params))
+                        .build(),
                     observer);
             return observer.getFuture();
         }
@@ -495,7 +561,8 @@ public class RepositoryApi {
          */
         public long count() {
             return searchServiceBlockingStub.countEntities(CountEntitiesRequest.newBuilder()
-                .addAllSearchParameters(params)
+                .setSearch(SearchQuery.newBuilder()
+                    .addAllSearchParameters(params))
                 .build()).getEntityCount();
         }
 
@@ -826,7 +893,7 @@ public class RepositoryApi {
          * @return The request, for chaining.
          */
         @Nonnull
-        public REQ restrictTypes(@Nonnull final Collection<UIEntityType> types) {
+        public REQ restrictTypes(@Nonnull final Collection<ApiEntityType> types) {
             types.forEach(type -> requestBuilder.addEntityType(type.typeNumber()));
             return clazz.cast(this);
         }

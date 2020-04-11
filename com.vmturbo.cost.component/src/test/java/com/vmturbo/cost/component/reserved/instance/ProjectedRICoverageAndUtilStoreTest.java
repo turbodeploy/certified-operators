@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -26,11 +27,8 @@ import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
@@ -48,20 +46,16 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
 
 /**
  * Unit tests for {@link ProjectedRICoverageAndUtilStore}.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class ProjectedRICoverageAndUtilStoreTest {
 
     private final Long realtimeTopologyContextId = 777777L;
@@ -429,5 +423,25 @@ public class ProjectedRICoverageAndUtilStoreTest {
         assertThat(statsRecord.getCapacity().getTotal(), equalTo(175.0F));
         assertThat(statsRecord.getValues().getTotal(), equalTo(75.0F));
         assertThat(statsRecord.getSnapshotDate(), greaterThan(Instant.now().toEpochMilli()));
+    }
+
+    /**
+     * Tests ProjectedRICoverageAndUtilStore::resolveBuyRIsInScope to ensure the database
+     * is queried with the proper condition.
+     */
+    @Test
+    public void testResolveBuyRIsInScope() {
+        final long topologyContextId = 123L;
+
+        store.resolveBuyRIsInScope(topologyContextId);
+
+        ArgumentCaptor<BuyReservedInstanceFilter> buyReservedInstanceFilterArgumentCaptor =
+                ArgumentCaptor.forClass(BuyReservedInstanceFilter.class);
+        verify(buyReservedInstanceStore).getBuyReservedInstances(buyReservedInstanceFilterArgumentCaptor.capture());
+
+        final org.jooq.Condition[] conditions = buyReservedInstanceFilterArgumentCaptor.getValue().getConditions();
+
+        assertThat(conditions.length, equalTo(1));
+        assertThat(conditions[0], equalTo(Tables.BUY_RESERVED_INSTANCE.TOPOLOGY_CONTEXT_ID.eq(topologyContextId)));
     }
 }

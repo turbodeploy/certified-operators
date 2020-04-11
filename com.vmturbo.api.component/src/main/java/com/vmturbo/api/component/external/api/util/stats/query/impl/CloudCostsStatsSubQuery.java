@@ -48,6 +48,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
@@ -79,10 +80,10 @@ import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudExpenseStatsRequest.GroupByType;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -101,14 +102,14 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         StringConstants.NUM_DBSS, "currentNumDBSs");
 
     private static final Map<String, List<String>> WORKLOAD_NAME_TO_ENTITY_TYPES = ImmutableMap.of(
-        StringConstants.NUM_VMS, Collections.singletonList(UIEntityType.VIRTUAL_MACHINE.apiStr()),
-        StringConstants.NUM_DBS, Collections.singletonList(UIEntityType.DATABASE.apiStr()),
-        StringConstants.NUM_DBSS, Collections.singletonList(UIEntityType.DATABASE_SERVER.apiStr()),
+        StringConstants.NUM_VMS, Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
+        StringConstants.NUM_DBS, Collections.singletonList(ApiEntityType.DATABASE.apiStr()),
+        StringConstants.NUM_DBSS, Collections.singletonList(ApiEntityType.DATABASE_SERVER.apiStr()),
         StringConstants.NUM_WORKLOADS, new ArrayList<>(WORKLOAD_ENTITY_TYPES_API_STR)
     );
 
-    private static final Set<UIEntityType> ENTITY_TYPES_TO_GET_COST_BY_FILTER = ImmutableSet.of(
-        UIEntityType.BUSINESS_ACCOUNT, UIEntityType.REGION, UIEntityType.AVAILABILITY_ZONE
+    private static final Set<ApiEntityType> ENTITY_TYPES_TO_GET_COST_BY_FILTER = ImmutableSet.of(
+        ApiEntityType.BUSINESS_ACCOUNT, ApiEntityType.REGION, ApiEntityType.AVAILABILITY_ZONE
     );
 
     /**
@@ -212,18 +213,19 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
     private static boolean isGroupByAttachment(Set<StatApiInputDTO> requestedStats) {
         return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
-                UIEntityType.VIRTUAL_VOLUME.apiStr().equals(requestedStat.getRelatedEntityType()));
+                ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(requestedStat.getRelatedEntityType()));
     }
 
     private static boolean isGroupByStorageTier(Set<StatApiInputDTO> requestedStats) {
-        return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()) &&
-                UIEntityType.VIRTUAL_VOLUME.apiStr().equals(requestedStat.getRelatedEntityType()));
+        return requestedStats.stream().anyMatch(requestedStat -> requestedStat.getGroupBy() != null && requestedStat.getGroupBy().contains(ApiEntityType.STORAGE_TIER.apiStr()) &&
+                ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(requestedStat.getRelatedEntityType()));
     }
 
     @Nonnull
     @Override
     public List<StatSnapshotApiDTO> getAggregateStats(@Nonnull final Set<StatApiInputDTO> requestedStats,
                                                       @Nonnull final StatsQueryContext context) throws OperationFailedException {
+        final Optional<GlobalScope> globalScope = context.getQueryScope().getGlobalScope();
         final Set<String> requestGroupBySet = requestedStats.stream()
             .filter(dto -> dto.getGroupBy() != null)
             .flatMap(apiInputDTO -> apiInputDTO.getGroupBy().stream())
@@ -243,10 +245,10 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             if (requestGroupBySet.contains(CLOUD_SERVICE)) {
                 // for group by Cloud services, we need to find all the services and
                 // stitch with expenses in Cost component
-                entityDTOs = getDiscoveredEntityDTOs(UIEntityType.CLOUD_SERVICE);
+                entityDTOs = getDiscoveredEntityDTOs(ApiEntityType.CLOUD_SERVICE);
             } else if (requestGroupBySet.contains(BUSINESS_UNIT)) {
                 // get business accounts
-                entityDTOs = getDiscoveredEntityDTOs(UIEntityType.BUSINESS_ACCOUNT);
+                entityDTOs = getDiscoveredEntityDTOs(ApiEntityType.BUSINESS_ACCOUNT);
             } else {
                 entityDTOs = Collections.emptyMap();
             }
@@ -273,7 +275,17 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             if (shouldQueryUsingFilter(inputScope) || isResourceGroup(inputScope)) {
                 cloudEntityOids = context.getQueryScope().getScopeOids();
             } else {
-                cloudEntityOids = context.getQueryScope().getExpandedOids();
+                Set<Long> expandedOids = context.getQueryScope().getExpandedOids();
+                if (!globalScope.isPresent() && expandedOids.isEmpty()) {
+                    // Do not fetch costs without entityFilter if it is not global scoped and
+                    // there are no expanded Oids as this leads to querying for all entities;
+                    // which is incorrect if user is scoped.
+                    logger.debug("Query not for global scope and no oids found in expanded scope." +
+                            "Can not fetch cost stats.");
+                    cloudEntityOids = null;
+                } else {
+                    cloudEntityOids = expandedOids;
+                }
             }
             /*
              * Queries with name {@link #COST_PRICE_QUERY_KEY is used for querying to cost component.
@@ -300,7 +312,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 // add List<StatSnapshotApiDTO> if group by attachment
                 if (isGroupByAttachment) {
                     // Get all the Virtual Volume Oid in the CloudCostStatRecords
-                    Set<StatApiInputDTO> groupByAttachmentStatApiInputDtos = requestedStats.stream().filter(rs -> UIEntityType.VIRTUAL_VOLUME.apiStr().equals(rs.getRelatedEntityType()) && rs.getGroupBy().contains(StringConstants.ATTACHMENT))
+                    Set<StatApiInputDTO> groupByAttachmentStatApiInputDtos = requestedStats.stream().filter(rs -> ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(rs.getRelatedEntityType()) && rs.getGroupBy().contains(StringConstants.ATTACHMENT))
                             .collect(Collectors.toSet());
                     List<StatSnapshotApiDTO> groupByAttachmentStat = getGroupByVVAttachmentStat(cloudCostStatRecords, groupByAttachmentStatApiInputDtos);
                     if (CollectionUtils.isNotEmpty(groupByAttachmentStat)) {
@@ -310,7 +322,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
 
                 // add List<StatSnapshotApiDTO> if group by storage tier
                 if (isGroupByStorageTier) {
-                    Set<StatApiInputDTO> groupByStorageTierStatApiInputDtos = requestedStats.stream().filter(rs -> UIEntityType.VIRTUAL_VOLUME.apiStr().equals(rs.getRelatedEntityType()) && rs.getGroupBy().contains(UIEntityType.STORAGE_TIER.apiStr()))
+                    Set<StatApiInputDTO> groupByStorageTierStatApiInputDtos = requestedStats.stream().filter(rs -> ApiEntityType.VIRTUAL_VOLUME.apiStr().equals(rs.getRelatedEntityType()) && rs.getGroupBy().contains(ApiEntityType.STORAGE_TIER.apiStr()))
                             .collect(Collectors.toSet());
                     List<StatSnapshotApiDTO> groupByStorageTierStat = getGroupByStorageTierStat(cloudCostStatRecords, groupByStorageTierStatApiInputDtos);
                     if (CollectionUtils.isNotEmpty(groupByStorageTierStat)) {
@@ -325,14 +337,19 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             }
             statsResponse = mergeStatSnapshotApiDTOWithDate(statSnapshots);
             // add numWorkloads, numVMs, numDBs, numDBSs if requested
-            final List<StatApiDTO> numWorkloadStats =
-                    getNumWorkloadStatSnapshot(requestedStats, context);
+            final List<StatApiDTO> numWorkloadStats = getNumWorkloadStatSnapshot(requestedStats, context);
             if (!numWorkloadStats.isEmpty()) {
                 // add the numWorkloads to the same timestamp it it exists.
                 if (statSnapshots.isEmpty()) {
-                    StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
-                    context.getTimeWindow()
-                            .ifPresent(window -> statSnapshotApiDTO.setDate(DateTimeUtil.toString(window.endTime())));
+                    final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+                    final long statsTime;
+                    if (context.getTimeWindow().isPresent()) {
+                        TimeWindow window = context.getTimeWindow().get();
+                        statsTime = window.endTime();
+                    } else {
+                        statsTime = context.getCurTime();
+                    }
+                    statSnapshotApiDTO.setDate(DateTimeUtil.toString(statsTime));
                     statSnapshotApiDTO.setStatistics(numWorkloadStats);
                     statsResponse.add(statSnapshotApiDTO);
                 } else {
@@ -374,12 +391,12 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     @Nonnull
     private Set<StatApiInputDTO> filterRequestedCostStatsForResourceGroups(
             @Nonnull Set<StatApiInputDTO> requestedCostPriceStats, @Nonnull ApiId inputScope) {
-        final Optional<Set<UIEntityType>> scopeTypesOpt = inputScope.getScopeTypes();
+        final Optional<Set<ApiEntityType>> scopeTypesOpt = inputScope.getScopeTypes();
 
         if (scopeTypesOpt.isPresent()) {
             final Set<String> entityTypesInResourceGroup = scopeTypesOpt.get()
                     .stream()
-                    .map(UIEntityType::apiStr)
+                    .map(ApiEntityType::apiStr)
                     .collect(Collectors.toSet());
             return requestedCostPriceStats.stream()
                     .filter(el -> entityTypesInResourceGroup.contains(el.getRelatedEntityType()))
@@ -483,9 +500,9 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             }
 
             requestedStats.stream().forEach(requestedStat -> {
-                UIEntityType requestEntityType = UIEntityType.fromString(requestedStat.getRelatedEntityType());
+                ApiEntityType requestEntityType = ApiEntityType.fromString(requestedStat.getRelatedEntityType());
 
-                if (UIEntityType.UNKNOWN.equals(requestEntityType)) {
+                if (ApiEntityType.UNKNOWN.equals(requestEntityType)) {
                     logger.error("Unknown request entityType {}", requestedStat.getRelatedEntityType());
                 } else {
                     StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
@@ -497,7 +514,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         .map(entry -> {
                             CloudCostStatRecord.StatRecord statRecord = recordAggregator.aggregate(entry.getValue(),
                                 Optional.of(Integer.valueOf(requestEntityType.typeNumber())), false);
-                            return toStatApiDTO(StringConstants.COST_PRICE, statRecord, createStatFilterApiDTO(UIEntityType.STORAGE_TIER.apiStr(), entry.getKey()));
+                            return toStatApiDTO(StringConstants.COST_PRICE, statRecord, createStatFilterApiDTO(ApiEntityType.STORAGE_TIER.apiStr(), entry.getKey()));
                         })
                         .collect(Collectors.toList());
 
@@ -570,8 +587,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                 statSnapshotApiDTO.setDisplayName(requestedStat.getName());
                 statSnapshotApiDTO.setDate(DateTimeUtil.toString(cloudCostStatRecord.getSnapshotDate()));
 
-                UIEntityType requestRelatedEntityType = UIEntityType.fromString(requestedStat.getRelatedEntityType());
-                if (UIEntityType.UNKNOWN.equals(requestRelatedEntityType)) {
+                ApiEntityType requestRelatedEntityType = ApiEntityType.fromString(requestedStat.getRelatedEntityType());
+                if (ApiEntityType.UNKNOWN.equals(requestRelatedEntityType)) {
                     logger.error("Unknown related entity type {} from request.", requestedStat.getRelatedEntityType());
                 } else {
                     final Optional<Integer> relatedEntityTypeIdOpt = Optional.of(Integer.valueOf(requestRelatedEntityType.typeNumber()));
@@ -634,7 +651,6 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      */
     private List<StatApiDTO> getNumWorkloadStatSnapshot(@Nonnull final Set<StatApiInputDTO> statsFilters,
                                                         @Nonnull final StatsQueryContext context) throws OperationFailedException {
-        final Set<Long> scopeIds = context.getQueryScope().getScopeOids();
         List<StatApiDTO> stats = Lists.newArrayList();
         for (StatApiInputDTO statApiInputDTO : statsFilters) {
             if (isVirtualVolumeCount(statApiInputDTO)) {
@@ -645,13 +661,13 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
             } else {
                 List<String> entityTypes = WORKLOAD_NAME_TO_ENTITY_TYPES.get(statApiInputDTO.getName());
                 if (entityTypes != null) {
-                    final Optional<Set<UIEntityType>> scopeTypesOpt =
+                    final Optional<Set<ApiEntityType>> scopeTypesOpt =
                             context.getInputScope().getScopeTypes();
                     // filter out entityTypes which don't exist in scope
                     if (scopeTypesOpt.isPresent() && isResourceGroup(context.getInputScope())) {
                         final Set<String> entityTypesFromScope = scopeTypesOpt.get()
                                 .stream()
-                                .map(UIEntityType::apiStr)
+                                .map(ApiEntityType::apiStr)
                                 .collect(Collectors.toSet());
                         entityTypes = entityTypes.stream()
                                         .filter(entityTypesFromScope::contains)
@@ -659,8 +675,12 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                     }
                 }
                 if (entityTypes != null && !entityTypes.isEmpty()) {
+                    final Set<Long> scopeIds = context.getQueryScope().getScopeOids();
+                    final Set<Long> fetchedScope =
+                            context.getInputScope().isResourceGroupOrGroupOfResourceGroups() ?
+                                    Collections.singleton(context.getInputScope().oid()) : scopeIds;
                     final float numWorkloads = supplyChainFetcherFactory.newNodeFetcher()
-                            .addSeedOids(scopeIds)
+                            .addSeedOids(fetchedScope)
                             .entityTypes(entityTypes)
                             .environmentType(EnvironmentType.CLOUD)
                             .fetchEntityIds()
@@ -682,10 +702,10 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     private List<CloudCostStatRecord> getCloudStatRecordList(@Nonnull final Set<StatApiInputDTO> stats,
-                                                             @Nonnull final Set<Long> entityStatOids,
+                                                             @Nullable final Set<Long> entityStatOids,
                                                              @Nonnull final StatsQueryContext context,
-                                                             @Nonnull final boolean isGenericGroupBy) {
-        if (stats.isEmpty()) {
+                                                             final boolean isGenericGroupBy) {
+        if (stats.isEmpty() || entityStatOids == null) {
             return Collections.emptyList();
         }
         Set<CloudCostStatsQuery> cloudCostStatsQueries = Sets.newHashSet();
@@ -698,9 +718,9 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         List<String> costCategoryValues = Arrays.stream(CostCategory.values()).map(Enum::name).collect(toList());
         stats.forEach(statApiInputDTO -> {
             Builder cloudCostStatsQuery = CloudCostStatsQuery.newBuilder();
-            if (UIEntityType.fromString(statApiInputDTO.getRelatedEntityType()) != UIEntityType.UNKNOWN) {
+            if (ApiEntityType.fromString(statApiInputDTO.getRelatedEntityType()) != ApiEntityType.UNKNOWN) {
                 EntityTypeFilter.Builder entityTypeFilter = EntityTypeFilter.newBuilder();
-                entityTypeFilter.addEntityTypeId(UIEntityType
+                entityTypeFilter.addEntityTypeId(ApiEntityType
                         .fromStringToSdkType(statApiInputDTO.getRelatedEntityType()));
                 cloudCostStatsQuery.setEntityTypeFilter(entityTypeFilter);
             }
@@ -741,11 +761,35 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
                         .build());
             }
             context.getPlanInstance().ifPresent(plan -> cloudCostStatsQuery.setTopologyContextId(plan.getPlanId()));
-            cloudCostStatsQueries.add(cloudCostStatsQuery.build());
+            Optional<Builder> cloudCostStatsQueryOptional =
+                    updateQueriesByUserScope(context, cloudCostStatsQuery);
+            cloudCostStatsQueryOptional.ifPresent(updatedCloudCostQuery ->
+                    cloudCostStatsQueries.add(updatedCloudCostQuery.build()));
         });
-        GetCloudCostStatsRequest getCloudExpenseStatsRequest = GetCloudCostStatsRequest.newBuilder()
-                .addAllCloudCostStatsQuery(cloudCostStatsQueries).build();
-        return costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest).getCloudStatRecordList();
+        if (cloudCostStatsQueries.isEmpty()) {
+            return Collections.emptyList();
+        } else {
+            GetCloudCostStatsRequest getCloudExpenseStatsRequest = GetCloudCostStatsRequest.newBuilder()
+                    .addAllCloudCostStatsQuery(cloudCostStatsQueries).build();
+            return costServiceRpc.getCloudCostStats(getCloudExpenseStatsRequest).getCloudStatRecordList();
+        }
+    }
+
+    private Optional<Builder> updateQueriesByUserScope(
+            @Nonnull final StatsQueryContext context,
+            @Nonnull final Builder cloudCostStatsQuery) {
+        Set<Long> expandedOids = context.getQueryScope().getExpandedOids();
+        if (context.getInputScope().getScopeTypes().isPresent() &&
+                shouldQueryUsingFilter(context.getInputScope()) &&
+                userSessionContext.isUserObserver()
+                && userSessionContext.isUserScoped()) {
+            if (expandedOids.isEmpty()) {
+                return Optional.empty();
+            } else {
+                cloudCostStatsQuery.getEntityFilterBuilder().addAllEntityId(expandedOids);
+            }
+        }
+        return Optional.of(cloudCostStatsQuery);
     }
 
     private void addCloudCostStatsQueryFilter(@Nonnull final Builder cloudCostStatsQuery,
@@ -754,7 +798,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         //TODO consider create default Cloud group (probably in Group component). Currently the only group
         if (!entityStatOids.isEmpty()) {
             if (context.getInputScope().getScopeTypes().isPresent() && shouldQueryUsingFilter(context.getInputScope())) {
-                UIEntityType scopeType =
+                ApiEntityType scopeType =
                         context.getInputScope().getScopeTypes().get().iterator().next();
                 switch (scopeType) {
                     case BUSINESS_ACCOUNT:
@@ -844,7 +888,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
     }
 
     // Get discovered entities.
-    private Map<Long, MinimalEntity> getDiscoveredEntityDTOs(UIEntityType entityType) {
+    private Map<Long, MinimalEntity> getDiscoveredEntityDTOs(ApiEntityType entityType) {
         // find all cloud services
         return repositoryApi.newSearchRequest(SearchProtoUtil.makeSearchParameters(
             SearchProtoUtil.entityTypeFilter(entityType)).build())
@@ -1003,7 +1047,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         }
         // set related entity type
         if (statRecord.hasAssociatedEntityType()) {
-            statApiDTO.setRelatedEntityType(UIEntityType.fromType(
+            statApiDTO.setRelatedEntityType(ApiEntityType.fromType(
                     statRecord.getAssociatedEntityType()).apiStr());
         }
         return statApiDTO;
@@ -1032,7 +1076,7 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         final List<String> listOfGroupBy = statApiInputDTO.getGroupBy();
         boolean isGroupBy = (listOfGroupBy != null && listOfGroupBy.size() == 1 &&
                 (listOfGroupBy.contains(StringConstants.ATTACHMENT) ||
-                        listOfGroupBy.contains(UIEntityType.STORAGE_TIER.apiStr()))) ||
+                        listOfGroupBy.contains(ApiEntityType.STORAGE_TIER.apiStr()))) ||
                 listOfGroupBy == null || listOfGroupBy.isEmpty();
         return isSupportedStatCountQuery && isGroupBy;
     }

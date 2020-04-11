@@ -1,10 +1,10 @@
 package com.vmturbo.history.db;
 
+import static com.vmturbo.commons.TimeFrame.DAY;
+import static com.vmturbo.commons.TimeFrame.HOUR;
+import static com.vmturbo.commons.TimeFrame.LATEST;
+import static com.vmturbo.commons.TimeFrame.MONTH;
 import static com.vmturbo.history.schema.HistoryVariety.ENTITY_STATS;
-import static com.vmturbo.history.schema.TimeFrame.DAY;
-import static com.vmturbo.history.schema.TimeFrame.HOUR;
-import static com.vmturbo.history.schema.TimeFrame.LATEST;
-import static com.vmturbo.history.schema.TimeFrame.MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.AVAILABLE_TIMESTAMPS;
 import static com.vmturbo.history.schema.abstraction.Tables.RETENTION_POLICIES;
 import static java.time.temporal.ChronoUnit.DAYS;
@@ -29,8 +29,8 @@ import org.springframework.test.annotation.DirtiesContext.ClassMode;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.schema.HistoryVariety;
-import com.vmturbo.history.schema.TimeFrame;
 import com.vmturbo.history.schema.abstraction.tables.records.AvailableTimestampsRecord;
 import com.vmturbo.history.stats.DbTestConfig;
 

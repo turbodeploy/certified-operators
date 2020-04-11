@@ -8,10 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.GlobalSettingSpec;
@@ -20,6 +22,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.components.common.mail.MailConfiguration.EncryptionType;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
 import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OsMigrationProfileOption;
+import com.vmturbo.components.common.setting.RISettingsEnum.PreferredOfferingClass;
 
 /**
  * Enumeration for all the pre-built global settings.
@@ -92,7 +95,7 @@ public enum GlobalSettingSpecs {
             Collections.emptyList()),
 
     PlanRetentionDays("planRetentionDays", "Saved plans [Days]",
-            numeric(15f/*min*/, 365f/*max*/, 30f/*default*/),
+            numeric(1f/*min*/, 365f/*max*/, 14f/*default*/),
             Collections.emptyList()),
 
     MaxConcurrentPlanInstances("maxConcurrentPlanInstances", "Maximum Number of Plan Instances Allowed To Run Concurrently",
@@ -143,7 +146,7 @@ public enum GlobalSettingSpecs {
      * Global AZURE RI setting for Offering Class.
      */
     AzurePreferredOfferingClass("ri.azure.preferredOfferingClass", "Type",
-            new EnumSettingDataType<>(RISettingsEnum.PreferredOfferingClass.STANDARD,
+            new EnumSettingDataType<>(PreferredOfferingClass.CONVERTIBLE,
                                     RISettingsEnum.PreferredOfferingClass.class),
             Lists.newArrayList(CategoryPathConstants.RI, CategoryPathConstants.AZURE)),
 
@@ -182,6 +185,13 @@ public enum GlobalSettingSpecs {
     DisableAllActions("disableAllActions", "Disable All Actions",
             new BooleanSettingDataType(false),
             Collections.emptyList()),
+
+    /**
+     * Max observation period for VM growth.
+     */
+    MaxVMGrowthObservationPeriod("maxVMGrowthObservationPeriod",
+        "VM Growth Observation (months)",
+        numeric(1, 24, 1), Collections.emptyList()),
 
     /**
      * Settings for OS migration.
@@ -239,6 +249,11 @@ public enum GlobalSettingSpecs {
             new BooleanSettingDataType(false),
             Collections.emptyList());
 
+    /**
+     * A list of global settings that are visible to the UI.
+     */
+    public static final Set<GlobalSettingSpecs> VISIBLE_TO_UI = ImmutableSet.of(
+        DisableAllActions, MaxVMGrowthObservationPeriod);
 
     /**
      * Setting name to setting enumeration value map for fast access.

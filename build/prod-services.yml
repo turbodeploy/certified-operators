@@ -344,6 +344,50 @@ services:
       instance_id: mediation-netapp-1
     restart: always
 
+  mediation-nutanix-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.nutanix.component
+    environment:
+      consul_host: consul
+      component_type: mediation-nutanix
+      instance_id: mediation-nutanix-1
+    restart: always
+
+  mediation-intersightucs-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.ucs.component
+    environment:
+      consul_host: consul
+      component_type: mediation-intersightucs
+      instance_id: mediation-intersightucs-1
+    restart: always
+
+  mediation-intersighthyperflex-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.hyperflex.component
+    environment:
+      consul_host: consul
+      component_type: mediation-intersighthyperflex
+      instance_id: mediation-intersighthyperflex-1
+    restart: always
+
+  mediation-intersight-prod:
+    extends:
+      file: common-services.yml
+      service: prod-mediation-component
+    image: turbonomic/com.vmturbo.mediation.intersight.server.component
+    environment:
+      consul_host: consul
+      component_type: mediation-intersight
+      instance_id: mediation-intersight-1
+    restart: always
+
   mediation-ucs-prod:
     extends:
       file: common-services.yml

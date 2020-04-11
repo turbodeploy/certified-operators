@@ -35,6 +35,7 @@ import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
+import com.vmturbo.platform.analysis.actions.Resize;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
@@ -257,10 +258,15 @@ public class TopologyEntitiesHandler {
             // actions on the newly provisioned entities, excluding the provisioned entities will cause those
             // actions to reference entities not actually in the projected topology.
             @NonNull List<Action> secondRoundActions = ede.generateActions(economy, true, true,
-                true, false, true, false, seedActions, marketId).stream()
+                true, false, true, false, seedActions, marketId,
+                analysisConfig.getSuspensionsThrottlingConfig()).stream()
                 .filter(action -> (action instanceof ProvisionByDemand
                                 || action instanceof ProvisionBySupply
-                                || action instanceof Activate))
+                                || action instanceof Activate)
+                                // Extract resize actions that explicitly set extractAction
+                                // to true as part of resizeThroughSupplier
+                                // provision actions.
+                                || action instanceof Resize && action.isExtractAction())
                 .collect(Collectors.toList());
             List<Trader> provisionedTraders = Lists.newArrayList();
 

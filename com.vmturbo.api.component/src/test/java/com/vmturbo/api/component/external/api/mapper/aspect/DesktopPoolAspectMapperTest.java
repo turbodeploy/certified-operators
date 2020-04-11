@@ -38,7 +38,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DesktopPoolInfo.VmWithSnapshot;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.DesktopPoolData;
@@ -91,7 +91,7 @@ public class DesktopPoolAspectMapperTest extends BaseAspectMapperTest {
                 .build();
         final SearchRequest searchRequest = ApiTestUtils.mockSearchMinReq(Collections.singletonList(
                 MinimalEntity.newBuilder()
-                        .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+                        .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
                         .setOid(PHYSICAL_MACHINE_OID)
                         .build()));
         final Grouping cluster = Grouping.newBuilder()

@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.market.topology.MarketTier;
@@ -112,7 +112,8 @@ public class InterpretCloudExplanationTest {
         // We create action interpreter as a spy because we want to mock the interpretation of the
         // move action, but we want to test the explanation.
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
-            cloudTc, originalTopology, oidToTraderTOMap, cert, projectedRiCoverage, tierExcluder));
+            cloudTc, originalTopology, oidToTraderTOMap, cert, projectedRiCoverage, tierExcluder,
+            CommodityIndex.newFactory().newIndex()));
 
         initialCoverage = Optional.of(EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
             .putCouponsCoveredByRi(1L, 4)

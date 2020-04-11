@@ -76,6 +76,7 @@ import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.store.AuthProvider;
@@ -618,30 +619,37 @@ public class RestTest {
 
         // The authenticate call does not require any prior authentication.
         //SecurityContextHolder.getContext().setAuthentication(null);
+        final AuthorizeUserInputDTO dto = new AuthorizeUserInputDTO("user11", null, "1.1.1.1");
 
-        mockMvc.perform(get("/users/authorize/user11/10.10.10.1")
+        String json = GSON.toJson(dto, AuthorizeUserInputDTO.class);
+        mockMvc.perform(post("/users/authorize")
+                .content(json)
+                .contentType(RET_TYPE)
                 .accept(RET_TYPE))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
+
         SecurityContextHolder.getContext().setAuthentication(null);
     }
 
-    // Negative path
-    @Test
+    /**
+     *  Negative path, test it will reject invalid user.
+     */
+    @Test(expected = NestedServletException.class)
     public void testAuthorizeInvalidUser() throws Exception {
         // The logon is here to work around the issue with the WebSecurity setup.
         logon("ADMINISTRATOR");
-        String result = mockMvc.perform(postAddSSO(1))
-                .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
-        validateAddUserResult(result);
+        final AuthorizeUserInputDTO dto =
+                new AuthorizeUserInputDTO("wronguser", null, "1.1.1.1");
 
-        // The authorization call require valid JWT token with administrator role
-        SecurityContextHolder.getContext().setAuthentication(null);
-        mockMvc.perform(get("/users/authorize/user1/10.10.10.1")
+        String json = GSON.toJson(dto, AuthorizeUserInputDTO.class);
+        mockMvc.perform(post("/users/authorize")
+                .content(json)
+                .contentType(RET_TYPE)
                 .accept(RET_TYPE))
                 .andExpect(status().is4xxClientError())
                 .andReturn().getResponse().getContentAsString();
+        SecurityContextHolder.getContext().setAuthentication(null);
     }
 
     // Happy path
@@ -656,7 +664,13 @@ public class RestTest {
         result = mockMvc.perform(postAddSSOGroup())
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
-        mockMvc.perform(get("/users/authorize/user1/group/10.10.10.1")
+        AuthorizeUserInputDTO dto =
+                new AuthorizeUserInputDTO("user1", "group", "1.1.1.1");
+
+        String json = GSON.toJson(dto, AuthorizeUserInputDTO.class);
+        mockMvc.perform(post("/users/authorize")
+                .content(json)
+                .contentType(RET_TYPE)
                 .accept(RET_TYPE))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
@@ -678,12 +692,19 @@ public class RestTest {
         result = mockMvc.perform(postAddSSOGroup())
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
+
         try {
-            // pass group1, wrong group
-            mockMvc.perform(get("/users/authorize/user1/group1/10.10.10.1")
+            AuthorizeUserInputDTO dto =
+                    new AuthorizeUserInputDTO("user1", "group1", "1.1.1.1");
+
+            String json = GSON.toJson(dto, AuthorizeUserInputDTO.class);
+            mockMvc.perform(post("/users/authorize")
+                    .content(json)
+                    .contentType(RET_TYPE)
                     .accept(RET_TYPE))
                     .andExpect(status().is4xxClientError())
                     .andReturn().getResponse().getContentAsString();
+
         } finally {
             SecurityContextHolder.getContext().setAuthentication(null);
             // clean security groups so it doesn't affect other tests

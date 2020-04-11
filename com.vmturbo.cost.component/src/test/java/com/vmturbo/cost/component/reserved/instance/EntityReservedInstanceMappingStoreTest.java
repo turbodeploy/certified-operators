@@ -1,70 +1,56 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.junit.Assert.assertEquals;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-
-import org.apache.commons.collections4.MultiValuedMap;
-import org.flywaydb.core.Flyway;
-import org.jooq.DSLContext;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import org.jooq.DSLContext;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo;
-import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
+import com.vmturbo.cost.component.db.Cost;
 import com.vmturbo.cost.component.db.Tables;
-import com.vmturbo.cost.component.db.tables.pojos.EntityToReservedInstanceMapping;
 import com.vmturbo.cost.component.db.tables.records.EntityToReservedInstanceMappingRecord;
-import com.vmturbo.cost.component.db.tables.records.ReservedInstanceBoughtRecord;
-import com.vmturbo.cost.component.db.tables.records.ReservedInstanceSpecRecord;
-import com.vmturbo.cost.component.identity.IdentityProvider;
-import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
-import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
-import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
-import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
+/**
+ * Unit tests for {@link EntityReservedInstanceMappingStore}.
+ */
 public class EntityReservedInstanceMappingStoreTest {
 
-    private final static double DELTA = 0.000001;
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Cost.COST);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
+    private static final double DELTA = 0.000001;
 
-    private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private ReservedInstanceBoughtStore reservedInstanceBoughtStore;
-
-    private DSLContext dsl;
+    private EntityReservedInstanceMappingStore entityReservedInstanceMappingStore
+        = new EntityReservedInstanceMappingStore(dsl);
 
     final EntityRICoverageUpload coverageOne = EntityRICoverageUpload.newBuilder()
             .setEntityId(123L)
@@ -101,15 +87,6 @@ public class EntityReservedInstanceMappingStoreTest {
                     .setCoveredCoupons(30)
                     .setRiCoverageSource(Coverage.RICoverageSource.SUPPLEMENTAL_COVERAGE_ALLOCATION))
             .build();
-
-    @Before
-    public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        entityReservedInstanceMappingStore = new EntityReservedInstanceMappingStore(dsl);
-    }
 
     @Test
     public void testUpdateAndGetRIMapping() {

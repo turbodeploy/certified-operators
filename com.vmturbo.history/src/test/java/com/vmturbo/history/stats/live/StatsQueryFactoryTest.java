@@ -1,22 +1,23 @@
 package com.vmturbo.history.stats.live;
 
 import static com.vmturbo.history.schema.abstraction.Tables.MARKET_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_MONTH;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
-import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_MONTH;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
+
+import com.google.common.collect.Lists;
 
 import org.jooq.Condition;
 import org.jooq.impl.DSL;
 import org.junit.Test;
 
-import com.google.common.collect.Lists;
-
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.history.db.HistorydbIO;
@@ -111,5 +112,53 @@ public class StatsQueryFactoryTest {
         assertThat(propertiesConditionsString, containsString(Y_TEST));
     }
 
+    /**
+     * Should return empty optional when env type hybrid.
+     */
+    @Test
+    public void testEnvironmentTypeCondWithHybrid() {
+        //GIVEN
+        final EnvironmentType environmentType = EnvironmentType.HYBRID;
+        final StatsQueryFactory statsQueryFactory = new DefaultStatsQueryFactory(mock(HistorydbIO.class));
+
+        //WHEN
+        final Optional<Condition> response = statsQueryFactory.environmentTypeCond(environmentType, MARKET_STATS_LATEST);
+
+        //THEN
+        assertFalse(response.isPresent());
+    }
+
+    /**
+     * Should return non empty optional when env type on-prem.
+     */
+    @Test
+    public void testEnvironmentTypeCondWithOnPrem() {
+        //GIVEN
+        final EnvironmentType environmentType = EnvironmentType.ON_PREM;
+        final StatsQueryFactory statsQueryFactory = new DefaultStatsQueryFactory(mock(HistorydbIO.class));
+
+        //WHEN
+        final Optional<Condition> response = statsQueryFactory.environmentTypeCond(environmentType, MARKET_STATS_LATEST);
+
+        //THEN
+        assertTrue(response.isPresent());
+    }
+
+    /**
+     * Should return empty optional when table is not market.
+     */
+    @Test
+    public void testEnvironmentTypeCondWithOnPremAndNonMarketTable() {
+        //GIVEN
+        final EnvironmentType environmentType = EnvironmentType.HYBRID;
+        final StatsQueryFactory statsQueryFactory = new DefaultStatsQueryFactory(mock(HistorydbIO.class));
+
+        //WHEN
+        final Optional<Condition> response = statsQueryFactory.environmentTypeCond(environmentType,
+                Tables.CLUSTER_STATS_BY_DAY);
+
+        //THEN
+        assertFalse(response.isPresent());
+    }
 
 }

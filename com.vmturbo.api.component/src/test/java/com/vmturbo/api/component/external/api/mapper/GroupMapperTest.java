@@ -1,7 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.components.common.utils.StringConstants.RESOURCE_GROUP;
-import static com.vmturbo.components.common.utils.StringConstants.WORKLOAD;
+import static com.vmturbo.common.protobuf.utils.StringConstants.RESOURCE_GROUP;
+import static com.vmturbo.common.protobuf.utils.StringConstants.WORKLOAD;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -12,6 +12,8 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -25,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -36,6 +39,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -51,6 +55,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ObjectsPage;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.dto.businessunit.BusinessUnitApiDTO;
@@ -96,6 +101,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
@@ -106,12 +112,12 @@ import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingConditi
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -179,14 +185,14 @@ public class GroupMapperTest {
     private static final MinimalEntity ENTITY_VM1 =  MinimalEntity.newBuilder()
             .setOid(3L)
             .setDisplayName("foo")
-            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .addDiscoveringTargetIds(AWS_TARGET.oid())
             .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
             .build();
     private static final MinimalEntity VC_VM =  MinimalEntity.newBuilder()
             .setOid(4L)
             .setDisplayName("vm-1")
-            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .addDiscoveringTargetIds(VC_TARGET.oid())
             .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
             .build();
@@ -270,7 +276,7 @@ public class GroupMapperTest {
     @Test
     public void testToGroupInfoStaticGroup() throws Exception {
         final String displayName = "group-foo";
-        final String groupType = UIEntityType.VIRTUAL_MACHINE.apiStr();
+        final String groupType = ApiEntityType.VIRTUAL_MACHINE.apiStr();
         final Boolean isStatic = true;
         final Optional<String> uuid = Optional.of("123");
         final GroupApiDTO groupDto = new GroupApiDTO();
@@ -297,7 +303,7 @@ public class GroupMapperTest {
     @Test
     public void testToGroupInfoDynamicGroupByPM() throws Exception {
         final String displayName = "group-foo";
-        final String groupType = UIEntityType.PHYSICAL_MACHINE.apiStr();
+        final String groupType = ApiEntityType.PHYSICAL_MACHINE.apiStr();
         final Boolean isStatic = false;
         final GroupApiDTO groupDto = new GroupApiDTO();
         final FilterApiDTO filterApiDTOFirst = new FilterApiDTO();
@@ -321,7 +327,7 @@ public class GroupMapperTest {
         // Verify the first search parameters' starting filter is PM entity
         assertEquals("entityType", entityFilter.getSearchParametersCollection()
                         .getSearchParameters(0).getStartingFilter().getPropertyName());
-        assertEquals(UIEntityType.PHYSICAL_MACHINE.typeNumber(),
+        assertEquals(ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
                         entityFilter.getSearchParametersCollection().getSearchParameters(0)
                                         .getStartingFilter().getNumericFilter().getValue());
         // Verify the first search parameters are byName search for PM
@@ -345,7 +351,7 @@ public class GroupMapperTest {
     @Test
     public void testToGroupInfoDynamicGroupByVM() throws Exception {
         final String displayName = "group-foo";
-        final String groupType = UIEntityType.VIRTUAL_MACHINE.apiStr();
+        final String groupType = ApiEntityType.VIRTUAL_MACHINE.apiStr();
         final Boolean isStatic = false;
         final GroupApiDTO groupDto = new GroupApiDTO();
         final FilterApiDTO filterApiDTOFirst = new FilterApiDTO();
@@ -361,6 +367,7 @@ public class GroupMapperTest {
         groupDto.setDisplayName(displayName);
         groupDto.setGroupType(groupType);
         groupDto.setIsStatic(isStatic);
+        groupDto.setLogicalOperator("OR");
         groupDto.setCriteriaList(criteriaList);
 
         final GroupDefinition groupDefinition = groupMapper.toGroupDefinition(groupDto);
@@ -372,12 +379,13 @@ public class GroupMapperTest {
         assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), entityFilter.getEntityType());
         assertEquals(GroupDefinition.SelectionCriteriaCase.ENTITY_FILTERS,
                         groupDefinition.getSelectionCriteriaCase());
+        assertEquals(LogicalOperator.OR, entityFilter.getLogicalOperator());
         assertEquals(2, entityFilter.getSearchParametersCollection().getSearchParametersCount());
         SearchParameters firstSearchParameters =
                         entityFilter.getSearchParametersCollection().getSearchParameters(0);
         // Verify the first search parameters' starting filter is VM entity
         assertEquals("entityType", firstSearchParameters.getStartingFilter().getPropertyName());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(),
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
                         firstSearchParameters.getStartingFilter().getNumericFilter().getValue());
         // Verify the first search parameters are byName search for VM
         assertEquals("displayName", firstSearchParameters.getSearchFilter(0).getPropertyFilter()
@@ -390,7 +398,7 @@ public class GroupMapperTest {
                         entityFilter.getSearchParametersCollection().getSearchParameters(1);
         // Verify the second search parameters' starting filter is PM entity
         assertEquals("entityType", secondSearchParameters.getStartingFilter().getPropertyName());
-        assertEquals(UIEntityType.PHYSICAL_MACHINE.typeNumber(),
+        assertEquals(ApiEntityType.PHYSICAL_MACHINE.typeNumber(),
                         secondSearchParameters.getStartingFilter().getNumericFilter().getValue());
         // Verify the first search filter is ByName search for PM
         assertEquals("displayName", secondSearchParameters.getSearchFilter(0).getPropertyFilter()
@@ -407,7 +415,7 @@ public class GroupMapperTest {
         // Verify the third search filter is by Entity search for VM
         assertEquals("entityType", secondSearchParameters.getSearchFilter(2).getPropertyFilter()
                         .getPropertyName());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(), secondSearchParameters
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(), secondSearchParameters
                         .getSearchFilter(2).getPropertyFilter().getNumericFilter().getValue());
     }
 
@@ -424,12 +432,12 @@ public class GroupMapperTest {
         final Grouping group = Grouping.newBuilder().setId(oid)
                         .addExpectedTypes(MemberType
                                         .newBuilder()
-                                        .setEntity(UIEntityType.PHYSICAL_MACHINE.typeNumber()))
+                                        .setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
                         .setDefinition(GroupDefinition
                             .newBuilder().setType(GroupType.REGULAR).setDisplayName(displayName)
                             .setEntityFilters(EntityFilters.newBuilder().addEntityFilter(EntityFilter
                                         .newBuilder()
-                                        .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+                                        .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
                                         .setSearchParametersCollection(SearchParametersCollection
                                                         .newBuilder()
                                                         .addSearchParameters(SEARCH_PARAMETERS
@@ -455,7 +463,7 @@ public class GroupMapperTest {
 
         assertThat(dto.getUuid(), is(Long.toString(oid)));
         assertThat(dto.getDisplayName(), is(displayName));
-        assertThat(dto.getGroupType(), is(UIEntityType.PHYSICAL_MACHINE.apiStr()));
+        assertThat(dto.getGroupType(), is(ApiEntityType.PHYSICAL_MACHINE.apiStr()));
         assertFalse(dto.getIsStatic());
         assertThat(dto.getClassName(), is(StringConstants.GROUP));
         assertThat(dto.getCriteriaList().get(0).getFilterType(), is("pmsByName"));
@@ -482,12 +490,13 @@ public class GroupMapperTest {
         final Grouping group = Grouping.newBuilder().setId(oid)
                         .addExpectedTypes(MemberType
                                         .newBuilder()
-                                        .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                                        .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                         .setDefinition(GroupDefinition
                         .newBuilder().setType(GroupType.REGULAR).setDisplayName(displayName)
                         .setEntityFilters(EntityFilters.newBuilder().addEntityFilter(EntityFilter
                                         .newBuilder()
-                                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+                                        .setLogicalOperator(LogicalOperator.OR)
                                         .setSearchParametersCollection(SearchParametersCollection
                                                         .newBuilder()
                                                         .addSearchParameters(vmParameters)
@@ -509,7 +518,8 @@ public class GroupMapperTest {
 
         assertEquals(Long.toString(oid), dto.getUuid());
         assertEquals(displayName, dto.getDisplayName());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), dto.getGroupType());
+        assertEquals("OR", dto.getLogicalOperator());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), dto.getGroupType());
         assertEquals(isStatic, dto.getIsStatic());
         assertEquals(StringConstants.GROUP, dto.getClassName());
         assertEquals("vmsByName", dto.getCriteriaList().get(0).getFilterType());
@@ -579,7 +589,7 @@ public class GroupMapperTest {
         SearchParameters param = parameters.get(0);
 
         // verify that the starting filter is PM
-        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.PHYSICAL_MACHINE), param.getStartingFilter());
+        assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.PHYSICAL_MACHINE), param.getStartingFilter());
 
         // 2 search filters after starting filter
         assertEquals(2, param.getSearchFilterCount());
@@ -618,7 +628,7 @@ public class GroupMapperTest {
      */
     @Test
     public void testPMsByClusterNameToSearchParameters() throws OperationFailedException {
-        GroupApiDTO groupDto = groupApiDTO(AND, UIEntityType.PHYSICAL_MACHINE.apiStr(),
+        GroupApiDTO groupDto = groupApiDTO(AND, ApiEntityType.PHYSICAL_MACHINE.apiStr(),
                 filterDTO(EntityFilterMapper.EQUAL, FOO, "pmsByClusterName"));
         List<SearchParameters> parameters =
                 entityFilterMapper.convertToSearchParameters(
@@ -627,7 +637,7 @@ public class GroupMapperTest {
         SearchParameters param = parameters.get(0);
 
         // verify that the starting filter is PM
-        assertEquals(SearchProtoUtil.entityTypeFilter(UIEntityType.PHYSICAL_MACHINE),
+        assertEquals(SearchProtoUtil.entityTypeFilter(ApiEntityType.PHYSICAL_MACHINE),
                 param.getStartingFilter());
 
         // 1 search filters after starting filter
@@ -695,7 +705,7 @@ public class GroupMapperTest {
                                                                         .newBuilder()
                                                                         .setType(MemberType
                                                                                         .newBuilder()
-                                                                                        .setEntity(UIEntityType.PHYSICAL_MACHINE
+                                                                                        .setEntity(ApiEntityType.PHYSICAL_MACHINE
                                                                                                         .typeNumber()))
                                                                         .addMembers(10L))))
                         .build();
@@ -723,7 +733,7 @@ public class GroupMapperTest {
         assertEquals(1, dto.getMemberUuidList().size());
         assertEquals("10", dto.getMemberUuidList().get(0));
         assertEquals("cool boy", dto.getDisplayName());
-        assertEquals(UIEntityType.PHYSICAL_MACHINE.apiStr(), dto.getGroupType());
+        assertEquals(ApiEntityType.PHYSICAL_MACHINE.apiStr(), dto.getGroupType());
         assertEquals(EnvironmentType.ONPREM, dto.getEnvironmentType());
     }
 
@@ -739,7 +749,7 @@ public class GroupMapperTest {
                                                                         .newBuilder()
                                                                         .setType(MemberType
                                                                                         .newBuilder()
-                                                                                        .setEntity(UIEntityType.VIRTUAL_MACHINE
+                                                                                        .setEntity(ApiEntityType.VIRTUAL_MACHINE
                                                                                                         .typeNumber()))
                                                                         .addMembers(10L))))
                         .build();
@@ -770,7 +780,7 @@ public class GroupMapperTest {
         assertEquals(1, dto.getMemberUuidList().size());
         assertEquals("10", dto.getMemberUuidList().get(0));
         assertEquals("red silence", dto.getDisplayName());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.apiStr(), dto.getGroupType());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), dto.getGroupType());
         assertEquals(EnvironmentType.ONPREM, dto.getEnvironmentType());
     }
 
@@ -786,7 +796,7 @@ public class GroupMapperTest {
                                                                         .newBuilder()
                                                                         .setType(MemberType
                                                                                         .newBuilder()
-                                                                                        .setEntity(UIEntityType.STORAGE
+                                                                                        .setEntity(ApiEntityType.STORAGE
                                                                                                         .typeNumber()))
                                                                         .addMembers(10L))))
                         .build();
@@ -814,7 +824,7 @@ public class GroupMapperTest {
         assertEquals(1, dto.getMemberUuidList().size());
         assertEquals("10", dto.getMemberUuidList().get(0));
         assertEquals("cool girl", dto.getDisplayName());
-        assertEquals(UIEntityType.STORAGE.apiStr(), dto.getGroupType());
+        assertEquals(ApiEntityType.STORAGE.apiStr(), dto.getGroupType());
         assertEquals(EnvironmentType.ONPREM, dto.getEnvironmentType());
     }
 
@@ -837,7 +847,7 @@ public class GroupMapperTest {
         final StaticMembersByType memberByType =
                         groupDefinition.getStaticGroupMembers().getMembersByType(0);
         assertThat(memberByType.getType().getEntity(),
-                        is(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
+                        is(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(memberByType.getMembersList(), containsInAnyOrder(7L));
         assertThat(groupDefinition.getDisplayName(), is("foo"));
         assertTrue(groupDefinition.getOptimizationMetadata().getIsGlobalScope());
@@ -866,7 +876,7 @@ public class GroupMapperTest {
         final StaticMembersByType memberByType =
                         groupDefinition.getStaticGroupMembers().getMembersByType(0);
         assertThat(memberByType.getType().getEntity(),
-                        is(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
+                        is(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(memberByType.getMembersList(), containsInAnyOrder(7L));
         assertThat(groupDefinition.getDisplayName(), is("foo"));
         assertFalse(groupDefinition.getOptimizationMetadata().getIsGlobalScope());
@@ -888,7 +898,7 @@ public class GroupMapperTest {
         final StaticMembersByType memberByType =
                         groupDefinition.getStaticGroupMembers().getMembersByType(0);
         assertThat(memberByType.getType().getEntity(),
-                        is(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
+                        is(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(memberByType.getMembersList(), containsInAnyOrder(1L));
         assertThat(groupDefinition.getDisplayName(), is("foo"));
         assertFalse(groupDefinition.getOptimizationMetadata().getIsGlobalScope());
@@ -915,7 +925,7 @@ public class GroupMapperTest {
         StaticMembersByType memberByType =
                         groupDefinition.getStaticGroupMembers().getMembersByType(0);
         assertThat(memberByType.getType().getEntity(),
-                        is(UIEntityType.VIRTUAL_MACHINE.typeNumber()));
+                        is(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
         assertThat(memberByType.getMembersList(), containsInAnyOrder(7L));
         assertThat(groupDefinition.getDisplayName(), is("foo"));
         assertFalse(groupDefinition.getOptimizationMetadata().getIsGlobalScope());
@@ -1021,26 +1031,26 @@ public class GroupMapperTest {
                         .newBuilder()
                         .setType(MemberType
                             .newBuilder()
-                            .setEntity(UIEntityType.VIRTUAL_MACHINE.typeNumber()))
+                            .setEntity(ApiEntityType.VIRTUAL_MACHINE.typeNumber()))
                         .addMembers(1L)
                         .addMembers(2L))
                     .addMembersByType(StaticMembersByType
                         .newBuilder()
                         .setType(MemberType
                             .newBuilder()
-                            .setEntity(UIEntityType.DATABASE.typeNumber()))
+                            .setEntity(ApiEntityType.DATABASE.typeNumber()))
                         .addMembers(3L))
                     .addMembersByType(StaticMembersByType
                         .newBuilder()
                         .setType(MemberType
                             .newBuilder()
-                            .setEntity(UIEntityType.DATABASE_SERVER.typeNumber()))
+                            .setEntity(ApiEntityType.DATABASE_SERVER.typeNumber()))
                         .addMembers(4L))
                     .addMembersByType(StaticMembersByType
                         .newBuilder()
                         .setType(MemberType
                             .newBuilder()
-                            .setEntity(UIEntityType.VIRTUAL_VOLUME.typeNumber()))
+                            .setEntity(ApiEntityType.VIRTUAL_VOLUME.typeNumber()))
                         .addAllMembers(Arrays.asList(5L, 6L, 7L, 8L, 9L)))
                 ))
             .build();
@@ -1089,7 +1099,7 @@ public class GroupMapperTest {
                                                                         .newBuilder()
                                                                         .setType(MemberType
                                                                                         .newBuilder()
-                                                                                        .setEntity(UIEntityType.VIRTUAL_MACHINE
+                                                                                        .setEntity(ApiEntityType.VIRTUAL_MACHINE
                                                                                                         .typeNumber()))
                                                                         .addMembers(1L))))
                         .build();
@@ -1133,7 +1143,7 @@ public class GroupMapperTest {
                                                                         .newBuilder()
                                                                         .setType(MemberType
                                                                                         .newBuilder()
-                                                                                        .setEntity(UIEntityType.VIRTUAL_MACHINE
+                                                                                        .setEntity(ApiEntityType.VIRTUAL_MACHINE
                                                                                                         .typeNumber())))))
                         .build();
 
@@ -1157,7 +1167,7 @@ public class GroupMapperTest {
         verify(repositoryApi, Mockito.times(2)).newSearchRequest(captor.capture());
         final SearchParameters params = captor.getValue();
         assertThat(params.getStartingFilter(),
-                        is(SearchProtoUtil.entityTypeFilter(UIEntityType.VIRTUAL_MACHINE)));
+                        is(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_MACHINE)));
         assertThat(params.getSearchFilterList(), containsInAnyOrder(SearchProtoUtil
                         .searchFilterProperty(SearchProtoUtil.stateFilter(UIEntityState.ACTIVE))));
     }
@@ -1173,7 +1183,7 @@ public class GroupMapperTest {
                                                                         .newBuilder()
                                                                         .setType(MemberType
                                                                                         .newBuilder()
-                                                                                        .setEntity(UIEntityType.VIRTUAL_MACHINE
+                                                                                        .setEntity(ApiEntityType.VIRTUAL_MACHINE
                                                                                                         .typeNumber())))))
                         .build();
 
@@ -1369,7 +1379,7 @@ public class GroupMapperTest {
     private void testExactStringMatchingFilter(boolean positiveMatching)
                     throws Exception {
         final String displayName = "group-foo";
-        final String groupType = UIEntityType.VIRTUAL_MACHINE.apiStr();
+        final String groupType = ApiEntityType.VIRTUAL_MACHINE.apiStr();
         final Boolean isStatic = false;
         final GroupApiDTO groupDto = new GroupApiDTO();
         final FilterApiDTO filterApiDTOFirst = new FilterApiDTO();
@@ -1394,7 +1404,7 @@ public class GroupMapperTest {
         SearchParameters searchParam = groupDefinition.getEntityFilters().getEntityFilter(0)
                         .getSearchParametersCollection().getSearchParameters(0);
         assertEquals("entityType", searchParam.getStartingFilter().getPropertyName());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(),
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
                         searchParam.getStartingFilter().getNumericFilter().getValue());
         // Verify the first search parameters are by state search for VM
         assertEquals("state", searchParam.getSearchFilter(0).getPropertyFilter().getPropertyName());
@@ -1411,7 +1421,7 @@ public class GroupMapperTest {
     @Test
     public void testVmsConnectedToNetwork() throws Exception {
         final String displayName = "group-foo";
-        final String groupType = UIEntityType.VIRTUAL_MACHINE.apiStr();
+        final String groupType = ApiEntityType.VIRTUAL_MACHINE.apiStr();
         final String regex = ".*";
         final GroupApiDTO groupDto = new GroupApiDTO();
         final FilterApiDTO filterApiDTOFirst = new FilterApiDTO();
@@ -1436,7 +1446,7 @@ public class GroupMapperTest {
         // Verify the first search parameters' starting filter is VM entity
         assertEquals("entityType", entityFilter.getSearchParametersCollection()
                         .getSearchParameters(0).getStartingFilter().getPropertyName());
-        assertEquals(UIEntityType.VIRTUAL_MACHINE.typeNumber(),
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.typeNumber(),
                         entityFilter.getSearchParametersCollection().getSearchParameters(0)
                                         .getStartingFilter().getNumericFilter().getValue());
         // Verify the first search parameters are by state search for VM
@@ -1493,13 +1503,13 @@ public class GroupMapperTest {
         MinimalEntity entVM1 =  MinimalEntity.newBuilder()
                         .setOid(uuid1)
                         .setDisplayName("foo")
-                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                         .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
                         .build();
         MinimalEntity entVM2 =  MinimalEntity.newBuilder()
                         .setOid(uuid2)
                         .setDisplayName("foo")
-                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                         .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.ON_PREM)
                         .build();
         List<MinimalEntity> listVMs = new ArrayList<>();
@@ -1547,6 +1557,7 @@ public class GroupMapperTest {
         targets.add(AWS_TARGET);
         final GroupApiDTO groupDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
@@ -1577,6 +1588,7 @@ public class GroupMapperTest {
         targets.add(AWS_TARGET);
         final GroupApiDTO groupDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
@@ -1607,6 +1619,7 @@ public class GroupMapperTest {
         targets.add(AWS_TARGET);
         final GroupApiDTO groupDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         Assert.assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
@@ -1649,14 +1662,14 @@ public class GroupMapperTest {
                 .setOid(uuid1)
                 .setDisplayName("foo1")
                 .addDiscoveringTargetIds(AWS_TARGET.oid())
-                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
         final MinimalEntity entVM2 =  MinimalEntity.newBuilder()
                 .setOid(uuid2)
                 .setDisplayName("foo2")
                 .addDiscoveringTargetIds(AZURE_TARGET.oid())
-                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
         List<MinimalEntity> listVMs = new ArrayList<>();
@@ -1677,6 +1690,7 @@ public class GroupMapperTest {
         // test with only one type, cloudType should be AWS
         final GroupApiDTO groupApiDTO =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAws), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         assertEquals(groupApiDTO.getCloudType(), CloudType.AWS);
@@ -1693,6 +1707,7 @@ public class GroupMapperTest {
         // test with both AWS and Azure, cloudType should be Hybrid
         final GroupApiDTO groupApiDTO2 =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupHybrid), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         assertEquals(groupApiDTO2.getCloudType(), CloudType.HYBRID);
@@ -1730,7 +1745,7 @@ public class GroupMapperTest {
                 .setOid(uuid1)
                 .setDisplayName("foo1")
                 .addDiscoveringTargetIds(AWS_TARGET.oid())
-                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
 
@@ -1738,7 +1753,7 @@ public class GroupMapperTest {
                 .setOid(uuid2)
                 .setDisplayName("foo2")
                 .addDiscoveringTargetIds(AZURE_TARGET.oid())
-                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
                 .build();
 
@@ -1746,7 +1761,7 @@ public class GroupMapperTest {
                 .setOid(uuid3)
                 .setDisplayName("foo3")
                 .addDiscoveringTargetIds(VC_TARGET.oid())
-                .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                 .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
                 .build();
 
@@ -1766,6 +1781,7 @@ public class GroupMapperTest {
 
         final GroupApiDTO groupApiDTO =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), true, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         assertEquals(EnvironmentType.HYBRID, groupApiDTO.getEnvironmentType());
@@ -1827,6 +1843,7 @@ public class GroupMapperTest {
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
         final GroupApiDTO groupDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         assertEquals(groupDto.getEnvironmentType(), EnvironmentType.CLOUD);
@@ -1853,7 +1870,7 @@ public class GroupMapperTest {
             .setDisplayName("VM in cloud stitched to AppD")
             .addDiscoveringTargetIds(APPD_TARGET.oid())
             .addDiscoveringTargetIds(AWS_TARGET.oid())
-            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .setEnvironmentType(com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType.CLOUD)
             .buildPartial();
         List<MinimalEntity> listVMs = new ArrayList<>();
@@ -1867,6 +1884,7 @@ public class GroupMapperTest {
 
         final GroupApiDTO convertedDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
         assertEquals(EnvironmentType.CLOUD, convertedDto.getEnvironmentType());
@@ -1895,7 +1913,7 @@ public class GroupMapperTest {
 
         MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Collections.singletonList(
                 MinimalEntity.newBuilder().setOid(1L)
-                        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+                        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
                         .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
                         .build()));
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
@@ -1975,6 +1993,7 @@ public class GroupMapperTest {
             .build();
         GroupApiDTO mappedDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
 
@@ -2037,6 +2056,7 @@ public class GroupMapperTest {
             .build();
         final GroupApiDTO mappedDto =
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers), false, null, null)
+                        .getObjects()
                         .iterator()
                         .next();
 
@@ -2132,7 +2152,7 @@ public class GroupMapperTest {
                         .build());
         final List<GroupApiDTO> resultPage1 = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
-                paginationRequest, null);
+                paginationRequest, null).getObjects();
         Assert.assertEquals(2, resultPage1.size());
         Assert.assertEquals(Sets.newHashSet(group2.getId(), group3.getId()), resultPage1.stream()
                 .map(GroupApiDTO::getUuid)
@@ -2143,10 +2163,63 @@ public class GroupMapperTest {
                 new SearchPaginationRequest("2", 2, true, "COST");
         final List<GroupApiDTO> resultPage2 = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
-                paginationRequest2, null);
+                paginationRequest2, null).getObjects();
         Assert.assertEquals(1, resultPage2.size());
         Assert.assertEquals(group1.getId(),
                 Long.parseLong(resultPage2.iterator().next().getUuid()));
+    }
+
+    /**
+     * Assert that we still return partial results when individual component queries fail.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testMissingDataDueToError() throws Exception {
+        final Grouping group1 = Grouping.newBuilder()
+            .setId(1L)
+            .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.RESOURCE)
+                .setOwner(77)
+                .setDisplayName("rg-1"))
+            .build();
+        final GroupAndMembers groupAndMembers1 = ImmutableGroupAndMembers.builder()
+            .group(group1)
+            .entities(Arrays.asList(10L, 11L))
+            .members(Arrays.asList(10L, 11L))
+            .build();
+        final SearchPaginationRequest paginationRequest =
+            new SearchPaginationRequest("0", 3, false, "SEVERITY");
+        // Severity returns error.
+        doReturn(Optional.of(Status.INTERNAL.asException())).when(severityService).getEntitySeveritiesError(any());
+
+        // Cost service returns error.
+        doReturn(Optional.of(Status.INTERNAL.asException())).when(costServiceMole).getCloudCostStatsError(any());
+
+        // Entity search throws exception.
+        RepositoryApi.SearchRequest req = ApiTestUtils.mockSearchIdReq(Collections.emptySet());
+        CompletableFuture<Set<Long>> oidsFuture = new CompletableFuture<>();
+        oidsFuture.completeExceptionally(Status.INTERNAL.asRuntimeException());
+        when(req.getOidsFuture()).thenReturn(oidsFuture);
+        when(repositoryApi.newSearchRequest(any())).thenReturn(req);
+
+        // Entities fetch throws exception.
+        RepositoryApi.MultiEntityRequest entityReq = ApiTestUtils.mockMultiMinEntityReq(Collections.emptyList());
+        CompletableFuture<Set<Long>> minsFuture = new CompletableFuture<>();
+        minsFuture.completeExceptionally(Status.INTERNAL.asRuntimeException());
+        doAnswer(invocation -> {
+            StreamObserver<MinimalEntity> observer = invocation.getArgumentAt(0, StreamObserver.class);
+            observer.onError(Status.INTERNAL.asRuntimeException());
+            return null;
+        }).when(entityReq).getMinimalEntities(any());
+        when(repositoryApi.entitiesRequest(any())).thenReturn(entityReq);
+
+        final ObjectsPage<GroupApiDTO> resultPage = groupMapper.toGroupApiDto(
+            Arrays.asList(groupAndMembers1), false,
+            paginationRequest, null);
+
+        assertThat(resultPage.getObjects().size(), is(1));
     }
 
     /**
@@ -2208,7 +2281,7 @@ public class GroupMapperTest {
                         .build()));
         final List<GroupApiDTO> resultPage = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
-                paginationRequest, null);
+                paginationRequest, null).getObjects();
         Assert.assertEquals(3, resultPage.size());
         Assert.assertEquals(Long.toString(group3.getId()), resultPage.get(0).getUuid());
         Assert.assertEquals(Long.toString(group1.getId()), resultPage.get(1).getUuid());
@@ -2260,7 +2333,7 @@ public class GroupMapperTest {
                 new SearchPaginationRequest("0", 3, true, "NAME");
         final List<GroupApiDTO> resultPage = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
-                paginationRequest, null);
+                paginationRequest, null).getObjects();
         Assert.assertEquals(3, resultPage.size());
         Assert.assertEquals(Long.toString(group2.getId()), resultPage.get(0).getUuid());
         Assert.assertEquals(Long.toString(group3.getId()), resultPage.get(1).getUuid());
@@ -2284,16 +2357,16 @@ public class GroupMapperTest {
         Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        null).size());
+                        null).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.ONPREM).size());
+                        EnvironmentType.ONPREM).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.HYBRID).size());
+                        EnvironmentType.HYBRID).getObjects().size());
         Assert.assertEquals(0,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.CLOUD).size());
+                        EnvironmentType.CLOUD).getObjects().size());
     }
 
     /**
@@ -2313,16 +2386,16 @@ public class GroupMapperTest {
         Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        null).size());
+                        null).getObjects().size());
         Assert.assertEquals(0,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.ONPREM).size());
+                        EnvironmentType.ONPREM).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.HYBRID).size());
+                        EnvironmentType.HYBRID).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.CLOUD).size());
+                        EnvironmentType.CLOUD).getObjects().size());
     }
 
     /**
@@ -2342,16 +2415,16 @@ public class GroupMapperTest {
         Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        null).size());
+                        null).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.ONPREM).size());
+                        EnvironmentType.ONPREM).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.HYBRID).size());
+                        EnvironmentType.HYBRID).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.CLOUD).size());
+                        EnvironmentType.CLOUD).getObjects().size());
     }
 
     /**
@@ -2369,17 +2442,63 @@ public class GroupMapperTest {
         Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        null).size());
+                        null).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.ONPREM).size());
+                        EnvironmentType.ONPREM).getObjects().size());
         Assert.assertEquals(1,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.HYBRID).size());
+                        EnvironmentType.HYBRID).getObjects().size());
         Assert.assertEquals(0,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
-                        EnvironmentType.CLOUD).size());
+                        EnvironmentType.CLOUD).getObjects().size());
         Mockito.verify(repositoryApi, Mockito.never()).entitiesRequest(Mockito.any());
+    }
+
+    /**
+     * Tests how the total size is calculated when filtering is applied.
+     *
+     * @throws Exception on exceptions occurred
+     */
+    @Test
+    public void testTotalSizeWhenFiltered() throws Exception {
+        targets.add(VC_TARGET);
+        final Grouping grouping1 = Grouping.newBuilder().setId(1L).build();
+        final Grouping grouping2 = Grouping.newBuilder().setId(2L).build();
+        final Grouping grouping3 = Grouping.newBuilder().setId(3L).build();
+        final Grouping grouping4 = Grouping.newBuilder().setId(4L).build();
+        final GroupAndMembers groupAndMembers1 = createGroup(grouping1, VC_VM.getOid());
+        final GroupAndMembers groupAndMembers2 = createGroup(grouping2, VC_VM.getOid());
+        final GroupAndMembers groupAndMembers3 = createGroup(grouping3, ENTITY_VM1.getOid());
+        final GroupAndMembers groupAndMembers4 = createGroup(grouping4, VC_VM.getOid(), ENTITY_VM1.getOid());
+        targets.add(VC_TARGET);
+        targets.add(AWS_TARGET);
+        final List<GroupAndMembers> requestedGroups =
+                Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3,
+                        groupAndMembers4);
+        final MultiEntityRequest req1 =
+                ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(ENTITY_VM1, VC_VM));
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req1);
+        final SearchPaginationRequest request = new SearchPaginationRequest("0", 1, true, null);
+        final ObjectsPage<GroupApiDTO> response1 =
+                groupMapper.toGroupApiDto(requestedGroups, false, request, null);
+        Assert.assertEquals(4, response1.getTotalCount());
+        Assert.assertEquals(1, response1.getObjects().size());
+
+        final ObjectsPage<GroupApiDTO> response2 =
+                groupMapper.toGroupApiDto(requestedGroups, false, request, EnvironmentType.ONPREM);
+        Assert.assertEquals(3, response2.getTotalCount());
+        Assert.assertEquals(1, response2.getObjects().size());
+
+        final ObjectsPage<GroupApiDTO> response3 =
+                groupMapper.toGroupApiDto(requestedGroups, false, request, EnvironmentType.HYBRID);
+        Assert.assertEquals(4, response3.getTotalCount());
+        Assert.assertEquals(1, response3.getObjects().size());
+
+        final ObjectsPage<GroupApiDTO> response4 =
+                groupMapper.toGroupApiDto(requestedGroups, false, request, EnvironmentType.CLOUD);
+        Assert.assertEquals(2, response4.getTotalCount());
+        Assert.assertEquals(1, response4.getObjects().size());
     }
 
     private GroupAndMembers createGroup(@Nonnull Grouping grouping, Long... members) {

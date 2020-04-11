@@ -279,6 +279,7 @@ public class ActionTranslator {
             .setExplanation(ExplanationComposer.composeExplanation(
                 recommendationForDisplay, settingPolicyIdToSettingPolicyName))
             .setCategory(actionView.getActionCategory())
+            .setSeverity(actionView.getActionSeverity())
             .setDescription(actionView.getDescription());
 
         // If the user has an observer role, all actions should be dropped to RECOMMEND

@@ -17,12 +17,15 @@ import com.vmturbo.components.common.BaseVmtComponent.ContextConfigurationExcept
 public class PropertiesLoaderTest {
 
     private static final String COMPONENT_TYPE = "test-component";
+    private static final String XL_COMPONENT_TYPE = "auth";
     private static final String GOOD_TEST_YAML_FILE_PATH = "configmap/sample_properties.yaml";
+    private static final String GOOD_AUTH_TEST_YAML_FILE_PATH = "configmap/sample_auth_properties.yaml";
     private static final String BAD_TEST_YAML_FILE_PATH = "other-properties/doesnt-exist.yaml";
     private static final String GOOD_OTHER_PROPERTIES_RESOURCE = "other-properties";
+    private static final String GOOD_TEST_SECRET_FILE_PATH = "secretMap/sample_file_username_password_secret";
 
     /**
-     * Test reading properties.yaml file and merging the different sections to return
+     * Test reading properties.yaml and secret file, and merging the different sections to return
      * a single PropertiesSource. The sections in increasing priority order are:
      * <ol>
      *     <li>defaultProperties: global:
@@ -32,8 +35,7 @@ public class PropertiesLoaderTest {
      * </ol>
      * with a property key/value defined in a lower priority section overridden by
      * the same property key in a higher priority section.
-     *
-     * <p>Note that the underlying ConfigMapPropertiesReader is more fully tested separately.
+     * Note that the underlying ConfigMapPropertiesReader is more fully tested separately.
      *
      * @throws ContextConfigurationException if there is a semantic error in the configuration file
      */
@@ -41,13 +43,67 @@ public class PropertiesLoaderTest {
     public void testPropertiesYamlReaderSuccess() throws ContextConfigurationException {
         // act
         final PropertySource<?> propertiesSource = PropertiesLoader.fetchConfigurationProperties(
-            COMPONENT_TYPE, GOOD_TEST_YAML_FILE_PATH);
+            COMPONENT_TYPE, GOOD_TEST_YAML_FILE_PATH, BAD_TEST_YAML_FILE_PATH);
         // assert
         assertThat(propertiesSource.getProperty("foo"), equalTo("123"));
         assertThat(propertiesSource.getProperty("bar"), equalTo("789"));
         assertThat(propertiesSource.getProperty("xyz"), equalTo("999"));
         assertThat(propertiesSource.getProperty("new"), equalTo("this is new"));
         assertThat(propertiesSource.getProperty("unused"), equalTo(null));
+    }
+
+    /**
+     * Test reading properties.yaml and secret file, and merging the different sections to return
+     * a single PropertiesSource. The sections in increasing priority order are:
+     * <ol>
+     *     <li>defaultProperties: global:
+     *     <li>defauProperties: [component-type]:
+     *     <li>customProperties: global: </li>
+     *     <li>customProperties: [component-type]: </li>
+     * </ol>
+     * with a property key/value defined in a lower priority section overridden by
+     * the same property key in a higher priority section.
+     * Secrets are:
+     * password: A1a-9Y9tLPAX2NXOJYb9
+     * username: v-kubernetes-coke-plan--3AvWqRZs
+     * Note that the underlying ConfigMapPropertiesReader is more fully tested separately.
+     * Note that the underlying SecretPropertiesReader is more fully tested separately.
+     *
+     * @throws ContextConfigurationException if there is a semantic error in the configuration file
+     */
+    @Test
+    public void testPropertiesYamlReaderSuccessWithSecret() throws ContextConfigurationException {
+        // act
+        final PropertySource<?> propertiesSource = PropertiesLoader.fetchConfigurationProperties(
+                XL_COMPONENT_TYPE, GOOD_AUTH_TEST_YAML_FILE_PATH, GOOD_TEST_SECRET_FILE_PATH);
+        // assert
+        assertThat(propertiesSource.getProperty("foo"), equalTo("123"));
+        assertThat(propertiesSource.getProperty("bar"), equalTo("789"));
+        assertThat(propertiesSource.getProperty("xyz"), equalTo("999"));
+        assertThat(propertiesSource.getProperty("new"), equalTo("this is new"));
+        assertThat(propertiesSource.getProperty("unused"), equalTo(null));
+        assertThat(propertiesSource.getProperty("authDbUsername"), equalTo("v-kubernetes-coke-plan--3AvWqRZs"));
+        assertThat(propertiesSource.getProperty("authDbPassword"), equalTo("A1a-9Y9tLPAX2NXOJYb9"));
+    }
+
+
+    /**
+     * Test reading secret file for ArangoDB credential.
+     * Secrets are:
+     * password: A1a-9Y9tLPAX2NXOJYb9
+     * username: v-kubernetes-coke-plan--3AvWqRZs
+     * Note that the underlying SecretPropertiesReader is more fully tested separately.
+     *
+     * @throws ContextConfigurationException if there is a semantic error in the configuration file
+     */
+    @Test
+    public void testPropertiesYamlReaderSuccessWithArangoSecret() throws ContextConfigurationException {
+        // act
+        final PropertySource<?> propertiesSource = PropertiesLoader.fetchConfigurationProperties(
+                "repository", GOOD_AUTH_TEST_YAML_FILE_PATH, GOOD_TEST_SECRET_FILE_PATH);
+        // assert
+        assertThat(propertiesSource.getProperty("arangoDBUsername"), equalTo("v-kubernetes-coke-plan--3AvWqRZs"));
+        assertThat(propertiesSource.getProperty("arangoDBPassword"), equalTo("A1a-9Y9tLPAX2NXOJYb9"));
     }
 
     /**
@@ -58,7 +114,8 @@ public class PropertiesLoaderTest {
     @Test(expected = ContextConfigurationException.class)
     public void testPropertiesYamlReaderMissingFile() throws ContextConfigurationException {
         // act
-        PropertiesLoader.fetchConfigurationProperties(COMPONENT_TYPE, BAD_TEST_YAML_FILE_PATH);
+        PropertiesLoader.fetchConfigurationProperties(COMPONENT_TYPE, BAD_TEST_YAML_FILE_PATH,
+                GOOD_TEST_YAML_FILE_PATH);
         // assert
         fail("Should never reach here - exception should have been thrown");
     }

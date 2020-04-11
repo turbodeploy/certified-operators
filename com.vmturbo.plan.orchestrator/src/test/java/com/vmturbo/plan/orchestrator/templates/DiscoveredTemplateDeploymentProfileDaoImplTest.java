@@ -13,17 +13,12 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfile;
 import com.vmturbo.common.protobuf.plan.DeploymentProfileDTO.DeploymentProfileInfo;
@@ -36,54 +31,42 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
+import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.plan.orchestrator.deployment.profile.DeploymentProfileDaoImpl;
 import com.vmturbo.plan.orchestrator.reservation.ReservationDaoImpl;
 import com.vmturbo.plan.orchestrator.templates.DiscoveredTemplateDeploymentProfileDaoImpl.TemplateInfoToDeploymentProfileMap;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=plan"})
 public class DiscoveredTemplateDeploymentProfileDaoImplTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private DiscoveredTemplateDeploymentProfileDaoImpl discoveredTemplateDeploymentProfileDao;
+    private DiscoveredTemplateDeploymentProfileDaoImpl discoveredTemplateDeploymentProfileDao
+        = new DiscoveredTemplateDeploymentProfileDaoImpl(dsl);
 
-    private TemplatesDaoImpl templatesDao;
+    private TemplatesDaoImpl templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
+        new IdentityInitializer(0));
 
-    private DeploymentProfileDaoImpl deploymentProfileDao;
+    private DeploymentProfileDaoImpl deploymentProfileDao = new DeploymentProfileDaoImpl(dsl);
 
-    private ReservationDaoImpl reservationDao;
+    private ReservationDaoImpl reservationDao = new ReservationDaoImpl(dsl);
 
     @Before
     public void setup() throws Exception {
         IdentityGenerator.initPrefix(0);
-        prepareDatabase();
-    }
-
-    private void prepareDatabase() throws Exception {
-        flyway = dbConfig.flyway();
-        final DSLContext dsl = dbConfig.dsl();
-        deploymentProfileDao = new DeploymentProfileDaoImpl(dsl);
-        flyway.clean();
-        flyway.migrate();
-
-        discoveredTemplateDeploymentProfileDao = new DiscoveredTemplateDeploymentProfileDaoImpl(dsl);
-        templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
-                new IdentityInitializer(0));
-        reservationDao = new ReservationDaoImpl(dsl);
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     /**

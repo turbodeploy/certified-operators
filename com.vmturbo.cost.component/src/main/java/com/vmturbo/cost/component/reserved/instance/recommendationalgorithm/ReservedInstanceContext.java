@@ -14,10 +14,9 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 public abstract class ReservedInstanceContext {
 
     /**
-     * Billing family (master account) id of the reserved instance.
-     * Each reserved instance belongs to an account, each account belongs to a billing family.
+     * The business account associated with the RI or demand.
      */
-    protected long masterAccountId;
+    protected long accountId;
 
     /**
      * Operating Systems such as Linux, Windows.
@@ -42,23 +41,23 @@ public abstract class ReservedInstanceContext {
     /**
      * Constructor.
      *
-     * @param masterAccountId master account ID
+     * @param accountId The account ID
      * @param platform what is the OS? e.g. LINUX or WINDOWS
      * @param tenancy how are underlying resources used? e.g. DEFAULT (shared), DEDICATED
      * @param computeTier computeTier
      */
-    public ReservedInstanceContext(@Nonnull long masterAccountId,
+    public ReservedInstanceContext(@Nonnull long accountId,
                                    @Nonnull OSType platform,
                                    @Nonnull Tenancy tenancy,
                                    @Nonnull TopologyEntityDTO computeTier) {
-        this.masterAccountId = masterAccountId;
+        this.accountId = accountId;
         this.platform = Objects.requireNonNull(platform, "Platform is null for RI.");
         this.tenancy = Objects.requireNonNull(tenancy, "Tenancy is null for RI.");
         this.computeTier = computeTier;
     }
 
-    public long getMasterAccountId() {
-        return masterAccountId;
+    public long getAccountId() {
+        return accountId;
     }
 
     @Nonnull
@@ -89,7 +88,7 @@ public abstract class ReservedInstanceContext {
             return false;
         }
         final ReservedInstanceContext context = (ReservedInstanceContext)o;
-        return  Objects.equals(masterAccountId, context.getMasterAccountId()) &&
+        return  Objects.equals(accountId, context.getAccountId()) &&
                 Objects.equals(platform, context.getPlatform()) &&
                 Objects.equals(tenancy, context.getTenancy()) &&
                 Objects.equals(computeTier, context.getComputeTier());

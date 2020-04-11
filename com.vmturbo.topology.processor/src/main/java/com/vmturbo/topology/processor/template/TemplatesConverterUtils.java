@@ -371,12 +371,17 @@ public class TemplatesConverterUtils {
             .collect(Collectors.toList());
     }
 
-    public static CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {
+    static CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {
+        return createCommodityBoughtDTO(commodityType, Optional.empty(), used);
+    }
+
+    static CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, Optional<String> key, double used) {
+        final CommodityType.Builder commType = CommodityType.newBuilder().setType(commodityType);
+        key.ifPresent(commType::setKey);
         return CommodityBoughtDTO.newBuilder()
             .setUsed(used)
             .setActive(true)
-            .setCommodityType(CommodityType.newBuilder()
-                .setType(commodityType))
+            .setCommodityType(commType)
             .build();
     }
 

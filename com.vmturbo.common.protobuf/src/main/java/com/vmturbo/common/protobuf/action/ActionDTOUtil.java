@@ -50,7 +50,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPart
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -73,6 +73,10 @@ public class ActionDTOUtil {
     // FIXME Embed semantics in the commodity key string is an hack. We need to have a better way to
     // express those relations
     public static final String COMMODITY_KEY_SEPARATOR = "::";
+
+    // Some port channel commodities have keys with this prefix. If they do have this as a prefix,
+    // we need to remove it before displaying it in the UI.
+    private static final String PORT_CHANNEL_KEY_PREFIX = "PortChannelFI-IO:";
 
     // this prefix designates that the rest of the string needs to pass through a translation phase
     // This "translation" mechanism is specific to the action explanation and is meant to be resolved
@@ -427,27 +431,6 @@ public class ActionDTOUtil {
     }
 
     /**
-     * Map the action category to a severity category.
-     *
-     * @param category The {@link ActionDTO.ActionCategory}.
-     * @return The name of the severity category.
-     */
-    @Nonnull
-    public static Severity mapActionCategoryToSeverity(@Nonnull final ActionCategory category) {
-        switch (category) {
-            case PERFORMANCE_ASSURANCE:
-            case COMPLIANCE:
-                return Severity.CRITICAL;
-            case PREVENTION:
-                return Severity.MAJOR;
-            case EFFICIENCY_IMPROVEMENT:
-                return Severity.MINOR;
-            default:
-                return Severity.NORMAL;
-        }
-    }
-
-    /**
      * Set the severity using the naming scheme expected by the UI.
      *
      * @param severity The severity whose name should be retrieved
@@ -764,11 +747,19 @@ public class ActionDTOUtil {
             String commKeyPrefix = commKey.substring(0, commKeyPrefixExpected.length()).toLowerCase();
             // and check if the key has the prefix, and remove it.
             if (commKeyPrefix.startsWith(commKeyPrefixExpected)) {
-                commKey = commKey.substring(commKeyPrefixExpected.length(), commKey.length());
+                commKey = commKey.substring(commKeyPrefixExpected.length());
             }
 
             // append the modified key to the display name.
             // This will show the specific network name in it.
+            commodityDisplayName += " " + commKey;
+        } else if (commodity == UICommodityType.PORT_CHANEL) {
+            // If the commodity type is port channel, we need to append the name of the port channel.
+            // The name of the portChannel is stored in the key currently. So we append the key.
+            String commKey = commType.getKey();
+            if (commKey.startsWith(PORT_CHANNEL_KEY_PREFIX)) {
+                commKey = commKey.substring(PORT_CHANNEL_KEY_PREFIX.length());
+            }
             commodityDisplayName += " " + commKey;
         }
 
@@ -890,7 +881,7 @@ public class ActionDTOUtil {
      */
     public static String beautifyEntityTypeAndName(@Nonnull final ActionPartialEntity entityDTO) {
         return new StringBuilder()
-                .append(UIEntityType.fromType(entityDTO.getEntityType()).displayName())
+                .append(ApiEntityType.fromType(entityDTO.getEntityType()).displayName())
                 .append(" ")
                 .append(entityDTO.getDisplayName())
                 .toString();

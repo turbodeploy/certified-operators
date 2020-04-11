@@ -111,7 +111,7 @@ public class WebsocketNotificationReceiver<T extends AbstractMessage> implements
     }
 
     private void processMessage(@Nonnull T message) throws IOException {
-        // Websockets right now do not suppoert message committing
+        // Websockets right now do not support message committing
         listeners.forEach(listener -> listener.accept(message, () -> {}));
     }
 

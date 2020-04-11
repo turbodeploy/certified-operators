@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.topology;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -8,6 +9,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
@@ -88,14 +90,14 @@ public class LocalCostDataProvider implements CloudCostDataProvider {
             riBoughtStore.getReservedInstanceBoughtByFilter(ReservedInstanceBoughtFilter
                         .newBuilder()
                         .cloudScopeTuples(
-                        repositoryClient.getEntityOidsByType(topoInfo.getScopeSeedOidsList(),
+                        repositoryClient.getEntityOidsByTypeForRIQuery(topoInfo.getScopeSeedOidsList(),
                                     realtimeTopologyContextId, this.supplyChainServiceBlockingStub))
                     .build()).stream()
                 .collect(Collectors.toMap(ReservedInstanceBought::getId, Function.identity()));
         final Map<Long, ReservedInstanceSpec> riSpecById = riSpecStore.getAllReservedInstanceSpec().stream()
                 .collect(Collectors.toMap(ReservedInstanceSpec::getId, Function.identity()));
-        return new CloudCostData<>(entityRiMappingStore.getEntityRiCoverage(), riBoughtById,
-                riSpecById, Collections.emptyMap(), accountPricingIdByBusinessAccountOid);
+        return new CloudCostData<>(entityRiMappingStore.getEntityRiCoverage(), entityRiMappingStore.getEntityRiCoverage(),
+                riBoughtById, riSpecById, Collections.emptyMap(), accountPricingIdByBusinessAccountOid);
     }
 }
 

@@ -1,6 +1,6 @@
 package com.vmturbo.history.stats;
 
-import static com.vmturbo.components.common.utils.StringConstants.NUM_HOSTS;
+import static com.vmturbo.common.protobuf.utils.StringConstants.NUM_HOSTS;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.Matchers.any;
@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,8 +70,8 @@ import com.vmturbo.history.schema.abstraction.tables.AppStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
 import com.vmturbo.history.schema.abstraction.tables.records.HistUtilizationRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
-import com.vmturbo.history.stats.MarketStatsAccumulator.DelayedCommodityBoughtWriter;
-import com.vmturbo.history.stats.MarketStatsAccumulator.MarketStatsData;
+import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.DelayedCommodityBoughtWriter;
+import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.live.LiveStatsAggregator.CapacityCache;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -121,7 +122,7 @@ public class MarketStatsAccumulatorTest {
     @Captor
     private ArgumentCaptor<List<Query>> queryListCaptor;
     private BulkLoader<HistUtilizationRecord> mockBulkLoader;
-    private MarketStatsAccumulator marketStatsAccumulator;
+    private MarketStatsAccumulatorImpl marketStatsAccumulator;
 
     /**
      * Create test entities used in tests.
@@ -145,8 +146,8 @@ public class MarketStatsAccumulatorTest {
         when(loaderFactory.getLoader(any())).thenReturn((BulkLoader<Record>)loaderLatestTable);
         when(loaderFactory.getLoader(HistUtilization.HIST_UTILIZATION)).thenReturn(mockBulkLoader);
         this.marketStatsAccumulator =
-                new MarketStatsAccumulator(TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
-                        historydbIO, commoditiesToExclude, loaderFactory);
+                new MarketStatsAccumulatorImpl(TOPOLOGY_INFO, APP_ENTITY_TYPE, EnvironmentType.ON_PREM,
+                        historydbIO, commoditiesToExclude, loaderFactory, new HashSet<>());
     }
 
 

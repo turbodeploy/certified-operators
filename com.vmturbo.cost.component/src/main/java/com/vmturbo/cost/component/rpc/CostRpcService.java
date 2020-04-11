@@ -64,10 +64,10 @@ import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceImplBase;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.commons.forecasting.ForecastingContext;
 import com.vmturbo.commons.forecasting.RegressionForecastingStrategy;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
@@ -197,6 +197,8 @@ public class CostRpcService extends CostServiceImplBase {
     @Override
     public void getTierPriceForEntities(GetTierPriceForEntitiesRequest request, StreamObserver<GetTierPriceForEntitiesResponse> responseObserver) {
         Long oid = request.getOid();
+        final boolean isPlanRequest = request.hasTopologyContextId()
+                && request.getTopologyContextId() != realtimeTopologyContextId;
         CostCategory category = request.getCostCategory();
         try {
             Map<Long, Map<Long, EntityCost>> queryResult =
@@ -212,8 +214,11 @@ public class CostRpcService extends CostServiceImplBase {
                     .build());
             Map<Long, EntityCost> beforeEntityCostbyOid =
                 Iterables.getOnlyElement(queryResult.values(), Collections.emptyMap());
-            Map<Long, EntityCost> afterEntityCostbyOid = projectedEntityCostStore.getProjectedEntityCosts(
-                    new HashSet<>(Collections.singletonList(oid)));
+            Set<Long> entityOids = new HashSet<>(Collections.singletonList(oid));
+            Map<Long, EntityCost> afterEntityCostbyOid = isPlanRequest ?
+                    planProjectedEntityCostStore
+                            .getPlanProjectedEntityCosts(entityOids, request.getTopologyContextId()) :
+                    projectedEntityCostStore.getProjectedEntityCosts(entityOids);
             Map<Long, CurrencyAmount> beforeCurrencyAmountByOid = new HashMap<>();
             Map<Long, CurrencyAmount> afterCurrencyAmountByOid = new HashMap<>();
             for (Map.Entry<Long, EntityCost> entry : beforeEntityCostbyOid.entrySet()) {
@@ -763,7 +768,7 @@ public class CostRpcService extends CostServiceImplBase {
     public void deletePlanEntityCosts(DeletePlanEntityCostsRequest request, StreamObserver<DeletePlanEntityCostsResponse> responseObserver) {
         final long planId = request.getPlanId();
         try {
-            final int rowsDeleted = planProjectedEntityCostStore.deletePlanProjectedEntityCost(planId);
+            final int rowsDeleted = planProjectedEntityCostStore.deletePlanProjectedCosts(planId);
             final DeletePlanEntityCostsResponse response =
                             DeletePlanEntityCostsResponse.newBuilder().setDeleted(rowsDeleted > 0).build();
             responseObserver.onNext(response);

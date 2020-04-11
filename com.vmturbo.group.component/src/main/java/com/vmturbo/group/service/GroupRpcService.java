@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableTable;
 import com.google.common.collect.Table;
 
 import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
 import org.apache.commons.lang3.StringUtils;
@@ -67,8 +68,10 @@ import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceImplBase;
 import com.vmturbo.common.protobuf.search.Search;
+import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
@@ -81,6 +84,7 @@ import com.vmturbo.group.group.TemporaryGroupCache;
 import com.vmturbo.group.group.TemporaryGroupCache.InvalidTempGroupException;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.service.TransactionProvider.Stores;
+import com.vmturbo.group.setting.DiscoveredSettingPoliciesUpdater;
 import com.vmturbo.group.stitching.GroupStitchingContext;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.group.stitching.StitchingGroup;
@@ -100,12 +104,12 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     private final UserSessionContext userSessionContext;
 
-    private final TransactionProvider transactionProvider;
-
     private final GroupStitchingManager groupStitchingManager;
     private final IdentityProvider identityProvider;
 
     private final TargetSearchServiceBlockingStub targetSearchService;
+    private final DiscoveredSettingPoliciesUpdater settingPolicyUpdater;
+    private final GrpcTransactionUtil grpcTransactionUtil;
 
     /**
      * Constructs group gRPC service.
@@ -116,21 +120,24 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param transactionProvider transaction provider
      * @param identityProvider identity provider to assign OIDs to user groups
      * @param targetSearchService target search service for dynamic groups
+     * @param settingPolicyUpdater updater for the discovered setting policies
      */
     public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
-                           @Nonnull final SearchServiceBlockingStub searchServiceRpc,
-                           @Nonnull final UserSessionContext userSessionContext,
-                           @Nonnull final GroupStitchingManager groupStitchingManager,
+            @Nonnull final SearchServiceBlockingStub searchServiceRpc,
+            @Nonnull final UserSessionContext userSessionContext,
+            @Nonnull final GroupStitchingManager groupStitchingManager,
             @Nonnull TransactionProvider transactionProvider,
             @Nonnull IdentityProvider identityProvider,
-            @Nonnull TargetSearchServiceBlockingStub targetSearchService) {
+            @Nonnull TargetSearchServiceBlockingStub targetSearchService,
+            @Nonnull DiscoveredSettingPoliciesUpdater settingPolicyUpdater) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.groupStitchingManager = Objects.requireNonNull(groupStitchingManager);
-        this.transactionProvider = Objects.requireNonNull(transactionProvider);
         this.identityProvider = Objects.requireNonNull(identityProvider);
         this.targetSearchService = Objects.requireNonNull(targetSearchService);
+        this.settingPolicyUpdater = Objects.requireNonNull(settingPolicyUpdater);
+        this.grpcTransactionUtil = new GrpcTransactionUtil(transactionProvider, logger);
     }
 
     @Override
@@ -141,7 +148,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .withDescription("No group filter is present.").asException());
             return;
         }
-        executeOperation(responseObserver, (stores) -> {
+        grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
             final Collection<Long> listOfGroups = getGroupIds(stores.getGroupStore(), request);
             responseObserver.onNext(
                     CountGroupsResponse.newBuilder().setCount(listOfGroups.size()).build());
@@ -157,7 +164,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .withDescription("No group filter is present.").asException());
             return;
         }
-        executeOperation(responseObserver, stores -> {
+        grpcTransactionUtil.executeOperation(responseObserver, stores -> {
             final Collection<Grouping> listOfGroups = getListOfGroups(stores.getGroupStore(), request);
             listOfGroups.forEach(responseObserver::onNext);
             responseObserver.onCompleted();
@@ -244,7 +251,7 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     @Override
     public void deleteGroup(GroupID gid, StreamObserver<DeleteGroupResponse> responseObserver) {
-        executeOperation(responseObserver,
+        grpcTransactionUtil.executeOperation(responseObserver,
                 stores -> deleteGroup(stores, gid, responseObserver));
     }
 
@@ -269,7 +276,6 @@ public class GroupRpcService extends GroupServiceImplBase {
             responseObserver.onNext(DeleteGroupResponse.newBuilder().setDeleted(true).build());
             responseObserver.onCompleted();
         } else {
-            stores.getSettingPolicyStore().onGroupDeleted(gid.getId());
             stores.getPlacementPolicyStore()
                     .deletePoliciesForGroupBeingRemoved(Collections.singleton(groupId));
             stores.getGroupStore().deleteGroup(gid.getId());
@@ -278,24 +284,10 @@ public class GroupRpcService extends GroupServiceImplBase {
         }
     }
 
-    private void executeOperation(@Nonnull StreamObserver<?> responseObserver,
-            @Nonnull StoreOperation storeOperation) {
-        try {
-            transactionProvider.transaction(stores -> {
-                storeOperation.execute(stores);
-                return true;
-            });
-        } catch (StoreOperationException e) {
-            logger.error("Failed to perform operation", e);
-            responseObserver.onError(
-                    e.getStatus().withDescription(e.getLocalizedMessage()).asException());
-        }
-    }
-
     @Override
     public void getMembers(final GroupDTO.GetMembersRequest request,
             final StreamObserver<GroupDTO.GetMembersResponse> responseObserver) {
-        executeOperation(responseObserver,
+        grpcTransactionUtil.executeOperation(responseObserver,
                 (stores) -> getMembers(stores.getGroupStore(), request, responseObserver));
     }
 
@@ -353,25 +345,33 @@ public class GroupRpcService extends GroupServiceImplBase {
             }
         }
         for (Long groupId: realGroupIds) {
-            final Collection<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId),
+            try {
+                final Collection<Long> members = getGroupMembers(groupStore, Collections.singleton(groupId),
                     request.getExpandNestedGroups());
-            // verify the user has access to all of the group members before returning any of them.
-            if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
-                if (!request.getExpandNestedGroups()) {
-                    // Need to use the expanded members for checking access, if we didn't already fetch them
-                    UserScopeUtils.checkAccess(userSessionContext,
+                // verify the user has access to all of the group members before returning any of them.
+                if (request.getEnforceUserScope() && userSessionContext.isUserScoped()) {
+                    if (!request.getExpandNestedGroups()) {
+                        // Need to use the expanded members for checking access, if we didn't already fetch them
+                        UserScopeUtils.checkAccess(userSessionContext,
                             getGroupMembers(groupStore, Collections.singleton(groupId), true));
-                } else {
-                    UserScopeUtils.checkAccess(userSessionContext, members);
+                    } else {
+                        UserScopeUtils.checkAccess(userSessionContext, members);
+                    }
                 }
-            }
-            // return members
-            logger.trace("Returning group ({}) with {} members", groupId, members.size());
-            final GetMembersResponse response = GetMembersResponse.newBuilder()
+                // return members
+                logger.trace("Returning group ({}) with {} members", groupId, members.size());
+                final GetMembersResponse response = GetMembersResponse.newBuilder()
                     .setGroupId(groupId)
                     .addAllMemberId(members)
                     .build();
-            responseObserver.onNext(response);
+                responseObserver.onNext(response);
+            } catch (StoreOperationException | UserAccessScopeException | DataAccessException e) {
+                // We don't want a failure to retrieve the members of one group to result in a failure
+                // to retrieve members of all groups.
+                // In the future it might be worth it to try to detect database connection issues
+                // here, and NOT retry in that case.
+                logger.error("Failed to retrieve members for group " + groupId, e);
+            }
         }
         responseObserver.onCompleted();
     }
@@ -388,7 +388,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(),
                     request.getEntityIdList());
         }
-        executeOperation(responseObserver,
+        grpcTransactionUtil.executeOperation(responseObserver,
                 (stores) -> getGroupForEntity(stores.getGroupStore(), request, responseObserver));
     }
 
@@ -446,7 +446,7 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     @Override
     public void getTags(GetTagsRequest request, StreamObserver<GetTagsResponse> responseObserver) {
-        executeOperation(responseObserver, (stores) -> {
+        grpcTransactionUtil.executeOperation(responseObserver, (stores) -> {
             final Map<Long, Map<String, Set<String>>> tagsToGroups =
                     stores.getGroupStore().getTags(request.getGroupIdList());
             final Map<Long, Tags> tagsMap = tagsToGroups.entrySet()
@@ -469,7 +469,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     @Override
     public void getOwnersOfGroups(GetOwnersRequest request,
             StreamObserver<GetOwnersResponse> responseObserver) {
-        executeOperation(responseObserver, stores -> {
+        grpcTransactionUtil.executeOperation(responseObserver, stores -> {
             final List<Long> groupIdList = request.getGroupIdList();
             if (groupIdList != null) {
                 final Set<Long> ownersForGroups = stores.getGroupStore()
@@ -537,7 +537,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     @Override
     public void createGroup(@Nonnull CreateGroupRequest request,
             @Nonnull StreamObserver<CreateGroupResponse> responseObserver) {
-        executeOperation(responseObserver,
+        grpcTransactionUtil.executeOperation(responseObserver,
                 stores -> createGroup(stores.getGroupStore(), request, responseObserver));
     }
 
@@ -625,7 +625,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     @Override
     public void updateGroup(@Nonnull UpdateGroupRequest request,
             @Nonnull StreamObserver<UpdateGroupResponse> responseObserver) {
-        executeOperation(responseObserver,
+        grpcTransactionUtil.executeOperation(responseObserver,
                 stores -> updateGroup(stores.getGroupStore(), request, responseObserver));
     }
 
@@ -688,7 +688,7 @@ public class GroupRpcService extends GroupServiceImplBase {
     @Override
     public void getGroup(@Nonnull GroupID request,
             @Nonnull StreamObserver<GetGroupResponse> responseObserver) {
-        executeOperation(responseObserver,
+        grpcTransactionUtil.executeOperation(responseObserver,
                 stores -> getGroup(stores.getGroupStore(), request, responseObserver));
     }
 
@@ -862,18 +862,24 @@ public class GroupRpcService extends GroupServiceImplBase {
 
             // Convert any ClusterMemberFilters to static set member checks based
             // on current group membership info
-            Search.SearchEntityOidsRequest.Builder searchRequestBuilder =
-                    Search.SearchEntityOidsRequest.newBuilder();
+            final List<SearchParameters> finalParams = new ArrayList<>(searchParameters.size());
             final SearchFilterResolver searchFilterResolver =
                     new GroupComponentSearchFilterResolver(targetSearchService, groupStore);
             for (SearchParameters params : searchParameters) {
-                searchRequestBuilder.addSearchParameters(
-                        searchFilterResolver.resolveExternalFilters(params));
+                finalParams.add(searchFilterResolver.resolveExternalFilters(params));
             }
-            final Search.SearchEntityOidsRequest searchRequest = searchRequestBuilder.build();
-            final Search.SearchEntityOidsResponse searchResponse =
-                    searchServiceRpc.searchEntityOids(searchRequest);
-            memberOids.addAll(searchResponse.getEntitiesList());
+            try {
+                final Search.SearchEntityOidsResponse searchResponse =
+                    searchServiceRpc.searchEntityOids(SearchEntityOidsRequest.newBuilder()
+                        .setSearch(SearchQuery.newBuilder()
+                            .addAllSearchParameters(finalParams)
+                            .setLogicalOperator(entityFilter.getLogicalOperator()))
+                        .build());
+                memberOids.addAll(searchResponse.getEntitiesList());
+            } catch (StatusRuntimeException e) {
+                logger.error("Error resolving filter {}. Error: {}. Some members may be missing.",
+                    entityFilter, e.getMessage());
+            }
         }
         return memberOids;
     }
@@ -1126,6 +1132,11 @@ public class GroupRpcService extends GroupServiceImplBase {
                 groupStitchingContext.setTargetGroups(targetId, record.getProbeType(),
                         record.getUploadedGroupsList());
                 policiesByTarget.put(targetId, record.getDiscoveredPolicyInfosList());
+                logger.debug("Target {} reported following setting policies: {}", () -> targetId,
+                        () -> record.getDiscoveredSettingPoliciesList()
+                                .stream()
+                                .map(DiscoveredSettingPolicyInfo::getName)
+                                .collect(Collectors.joining(",")));
                 settingPoliciesByTarget.put(targetId, record.getDiscoveredSettingPoliciesList());
             } else {
                 groupStitchingContext.addUndiscoveredTarget(targetId);
@@ -1139,7 +1150,7 @@ public class GroupRpcService extends GroupServiceImplBase {
 
         @Override
         public void onCompleted() {
-            executeOperation(responseObserver, this::onCompleted);
+            grpcTransactionUtil.executeOperation(responseObserver, this::onCompleted);
         }
 
         private void onCompleted(@Nonnull Stores stores) throws StoreOperationException {
@@ -1165,39 +1176,20 @@ public class GroupRpcService extends GroupServiceImplBase {
             // and policies will be lost
             stores.getPlacementPolicyStore()
                     .deletePoliciesForGroupBeingRemoved(stitchingResult.getGroupsToDelete());
-            for (Long removedGroup : stitchingResult.getGroupsToDelete()) {
-                stores.getSettingPolicyStore().onGroupDeleted(removedGroup);
-            }
             stores.getGroupStore()
                     .updateDiscoveredGroups(groupsToAdd, groupsToUpdate,
                             stitchingResult.getGroupsToDelete());
             final Table<Long, String, Long> allGroupsMap = createGroupIdTable(stitchingResult);
+
             for (Entry<Long, List<DiscoveredPolicyInfo>> entry : policiesByTarget.entrySet()) {
                 stores.getPlacementPolicyStore()
                         .updateTargetPolicies(entry.getKey(), entry.getValue(),
                                 allGroupsMap.row(entry.getKey()));
             }
-            for (Entry<Long, List<DiscoveredSettingPolicyInfo>> entry : settingPoliciesByTarget.entrySet()) {
-                stores.getSettingPolicyStore()
-                        .updateTargetSettingPolicies(entry.getKey(), entry.getValue(),
-                                allGroupsMap.row(entry.getKey()));
-            }
+            settingPolicyUpdater.updateSettingPolicies(stores.getSettingPolicyStore(),
+                    settingPoliciesByTarget, allGroupsMap);
             responseObserver.onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
             responseObserver.onCompleted();
         }
-    }
-
-    /**
-     * Operation with stores to be executed in a transaction.
-     */
-    @FunctionalInterface
-    private interface StoreOperation {
-        /**
-         * Executes an operation.
-         *
-         * @param stores stores that are available within a transaction
-         * @throws StoreOperationException exception to be thrown if something failed.
-         */
-        void execute(@Nonnull Stores stores) throws StoreOperationException;
     }
 }

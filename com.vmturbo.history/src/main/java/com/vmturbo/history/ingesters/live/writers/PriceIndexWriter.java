@@ -11,13 +11,13 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.RetentionPolicy;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.writers.ProjectedTopologyWriterBase;
 import com.vmturbo.history.schema.HistoryVariety;
-import com.vmturbo.history.schema.TimeFrame;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.AvailableTimestampsRecord;
 import com.vmturbo.history.stats.priceindex.DBPriceIndexVisitor.DBPriceIndexVisitorFactory;
@@ -66,7 +66,7 @@ public class PriceIndexWriter extends ProjectedTopologyWriterBase {
             priceIndices.visit(visitorFactory.newVisitor(topologyInfo, loaders));
             // assuming we wrote any records to entity_stats tables, record this topology's snapshot_time in
             // available_timestamps table for PRICE_DATA
-            if (loaders.getStats().getOutTables().stream().anyMatch(t -> EntityType.fromTable(t) != null)) {
+            if (loaders.getStats().getOutTables().stream().anyMatch(t -> EntityType.fromTable(t).isPresent())) {
                 AvailableTimestampsRecord record = Tables.AVAILABLE_TIMESTAMPS.newRecord();
                 Timestamp snapshot_time = new Timestamp(topologyInfo.getCreationTime());
                 record.setTimeStamp(snapshot_time);

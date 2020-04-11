@@ -199,7 +199,7 @@ public class ClusterMgrService {
     private static final String CURL_COMMAND = "curl";
     @VisibleForTesting
     static final String UPLOAD_VMTURBO_COM_URL =
-        "http://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi";
+        "https://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi";
 
     private static Logger log = LogManager.getLogger();
 
@@ -426,7 +426,7 @@ public class ClusterMgrService {
             if (StringUtils.startsWith(key, keyPrefix)) {
                 String remainder = StringUtils.removeStart(key, keyPrefix);
                 if (remainder.length() > 0) {
-                    answer.put(remainder, v.getValueAsString().or(""));
+                    answer.put(remainder, v.getValueAsString().orElse(""));
                 }
             }
         }
@@ -443,7 +443,7 @@ public class ClusterMgrService {
      */
     @Nullable
     private String getComponentKeyValue(String propertyKey) {
-        return consulService.getValueAsString(propertyKey).orNull();
+        return consulService.getValueAsString(propertyKey).orElse(null);
     }
 
     /**
@@ -506,7 +506,7 @@ public class ClusterMgrService {
             // if the check is "passing" then the component is RUNNING
             // o/w the check is failing -- if there is output, report an UNHEALTHY status
             // o/w the check is failing and there is no output -- this is UNKNOWN
-            final String healthOutput = checkResult.getOutput().or(ComponentState.UNKNOWN.name());
+            final String healthOutput = checkResult.getOutput().orElse(ComponentState.UNKNOWN.name());
             final ComponentState result = checkResult.getStatus().equalsIgnoreCase(CONSUL_HEALTH_CHECK_PASSING_RESULT) ?
                     ComponentState.RUNNING :
                     // if the output ends with 'no such host', the health endpoint poll failed.
@@ -531,7 +531,7 @@ public class ClusterMgrService {
         Map<String, HealthCheck> retVal = new HashMap<>();
         for (String componentInstance : discoveredComponents) {
             for (HealthCheck check : consulService.getServiceHealth(componentInstance)) {
-                retVal.put(check.getServiceId().or(componentInstance), check);
+                retVal.put(check.getServiceId().orElse(componentInstance), check);
             }
         }
         return retVal;
@@ -1324,7 +1324,7 @@ public class ClusterMgrService {
      */
     @Nonnull
     private String getComponentVersionString(@Nonnull final String componentType) {
-        com.google.common.base.Optional<String> componentVersion = consulService.getValueAsString(
+        Optional<String> componentVersion = consulService.getValueAsString(
             componentType + "-1/" + COMPONENT_VERSION_KEY);
         return componentVersion.isPresent() ? componentVersion.get() : UNKNOWN_VERSION_STRING;
     }

@@ -22,12 +22,13 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 
 public class GroupFilterMapper {
@@ -150,42 +151,45 @@ public class GroupFilterMapper {
      * {@link GroupFilter} object which can be used to represent a dynamic group.
      *
      * @param groupType The group type which these filter is applied on.
+     * @param logicalOperator The logical operator to use to combine the criteria.
      * @param criteriaList The list of criteria from UI.
      * @return A {@link GroupFilter} object which represent input constraints.
      * @throws OperationFailedException If the input filters cannot be converted.
      */
     @Nonnull
     public GroupFilter apiFilterToGroupFilter(@Nonnull GroupType groupType,
-                    @Nonnull final List<FilterApiDTO> criteriaList)
+                                              @Nonnull final LogicalOperator logicalOperator,
+                                              @Nonnull final List<FilterApiDTO> criteriaList)
                                     throws OperationFailedException {
 
         GroupFilter.Builder groupFilter = GroupFilter.newBuilder();
         //Set the group type in the filter
         groupFilter.setGroupType(groupType);
+        groupFilter.setLogicalOperator(logicalOperator);
 
         // Validate the filters sent and convert them
         for (FilterApiDTO filterApiDTO : criteriaList) {
             // Validate the filter
             if (!GROUP_TYPE_AND_PROPERTY_TO_FILTER_TYPE.row(groupType)
-                            .values()
-                            .contains(filterApiDTO.getFilterType())) {
+                .values()
+                .contains(filterApiDTO.getFilterType())) {
                 final String errMsg = String.format("Group type `%s` does not support filter `%s`.",
-                                groupType, filterApiDTO.getFilterType());
+                    groupType, filterApiDTO.getFilterType());
                 logger.error(errMsg);
                 throw new OperationFailedException(errMsg);
             }
 
             // get the converter for the filter and apply it.
             final Optional<PropertyFilter> convertedFilter = API_FILTER_TO_CONVERTER
-                            .getOrDefault(filterApiDTO.getFilterType(),
-                                            filter -> Optional.empty())
-                            .apply(filterApiDTO);
+                .getOrDefault(filterApiDTO.getFilterType(),
+                    filter -> Optional.empty())
+                .apply(filterApiDTO);
 
             if (convertedFilter.isPresent()) {
                 groupFilter.addPropertyFilters(convertedFilter.get());
             } else {
                 logger.error("Cannot convert property filter {}",
-                                filterApiDTO);
+                    filterApiDTO);
                 throw new OperationFailedException("Cannot convert the requested criteria.");
             }
         }

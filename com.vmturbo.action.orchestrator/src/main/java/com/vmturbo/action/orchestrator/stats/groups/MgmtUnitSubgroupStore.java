@@ -200,7 +200,8 @@ public class MgmtUnitSubgroupStore {
                     Integer::shortValue)));
         }
 
-        if (mgmtUnitSubgroupFilter.hasEnvironmentType()) {
+        if (mgmtUnitSubgroupFilter.hasEnvironmentType() &&
+                mgmtUnitSubgroupFilter.getEnvironmentType() != EnvironmentType.HYBRID) {
             conditions.add(MGMT_UNIT_SUBGROUP.ENVIRONMENT_TYPE.eq(
                 (short)mgmtUnitSubgroupFilter.getEnvironmentType().getNumber()));
         }

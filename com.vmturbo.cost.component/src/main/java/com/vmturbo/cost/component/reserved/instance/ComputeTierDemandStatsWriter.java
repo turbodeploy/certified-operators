@@ -1,5 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static com.vmturbo.cost.component.db.Tables.COMPUTE_TIER_TYPE_HOURLY_BY_WEEK;
+
 import java.math.BigDecimal;
 import java.util.Calendar;
 import java.util.Collections;
@@ -29,6 +31,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
@@ -115,27 +118,7 @@ public class ComputeTierDemandStatsWriter {
         calendar.setTimeInMillis(topologyCreationTime);
         int topologyForHour = calendar.get(Calendar.HOUR_OF_DAY);
         int topologyForDay = calendar.get(Calendar.DAY_OF_WEEK);
-        // We just need stats from one topology per hour.
-        // Skip topologies if we already have data for that hour.
-        // If the process restarts, we may process additional topologies for
-        // the hour and this would affect the computed weighted values.
-        // Few ways to fix this case:
-        //  a) Add an updated time column to the RI Demand stats table. But
-        //      this is expensive.
-        //  b) After every upload, persist the lastProcessedHour value to Consul
-        //     and load this value during startup. This approach won't work
-        //     if the component fails after persisting stats in the DB but before
-        //     updating in Consul. So the persistence to the DB and write to Consul
-        //     would have to be atomic for it work and this significantly increases
-        //     the complexity.
-        //  c) Create another table in the Cost DB which is mainly to store the
-        //     lastProcessedHour value and we commit it in the same transaction
-        //      as the stats upload.
-        // With the Consul approach
-        // Since some discrepancy in the data is acceptable, handling this
-        // edge case is deemed not necessary.
-        // If there is clock skew, we may compute stats for the same hour
-        // more than once. This corner case is not handled.
+
         if ((isProjectedTopology && lastProjectedTopologyProcessedHour == topologyForHour)
                 || (!isProjectedTopology && lastSourceTopologyProcessedHour == topologyForHour)) {
             logger.info("Already processed a topology for the hour: {}, day: {}." +
@@ -145,6 +128,21 @@ public class ComputeTierDemandStatsWriter {
                     topologyType,
                     topologyInfo,
                     isProjectedTopology ? lastProjectedTopologyProcessedHour : lastSourceTopologyProcessedHour);
+            return;
+        }
+
+        // Checks whether an entry is present in Cost.LAST_UPDATED table corresponding to the table
+        // and the column which are about to be updated. If found then they are not updated. This is
+        // necessary to avoid double counting for that hour in case the component restarts after a
+        // crash.
+        boolean isUpdatedInLastHour = computeTierDemandStatsStore
+                .isUpdatedInLastHour(Tables.COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.getName(),
+                isProjectedTopology ?
+                COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COUNT_FROM_SOURCE_TOPOLOGY.getName() :
+                COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COUNT_FROM_PROJECTED_TOPOLOGY.getName());
+
+        if (isUpdatedInLastHour) {
+            logger.info("Table has already been updated for this hour. Skip Updating.");
             return;
         }
 
@@ -176,7 +174,7 @@ public class ComputeTierDemandStatsWriter {
         try {
             final DataMetricTimer statsUpLoadToDBDurationTimer =
                     COMPUTE_TIER_STATS_UPLOAD_TO_DB_TIME_SUMMARY.startTimer();
-            computeTierDemandStatsStore.persistComputeTierDemandStats(statsRecordsToUpload);
+            computeTierDemandStatsStore.persistComputeTierDemandStats(statsRecordsToUpload, isProjectedTopology);
             double statsUploadTime = statsUpLoadToDBDurationTimer.observe();
             logger.info("Time to upload {} {} stats to DB for day: {}, hour: {} = {} secs",
                     statsRecordsToUpload.size(), isProjectedTopology ? "Projected" : "Live",
@@ -341,7 +339,7 @@ public class ComputeTierDemandStatsWriter {
                             (byte)topologyForDay,
                             statsRecord.targetId,
                             statsRecord.instanceType,
-                            statsRecord.availabilityZone,
+                            statsRecord.regionOrZone,
                             statsRecord.platform,
                             statsRecord.tenancy,
                             newCountFromSourceTopology,
@@ -353,7 +351,7 @@ public class ComputeTierDemandStatsWriter {
                     (byte)topologyForDay,
                     statsRecord.targetId,
                     statsRecord.instanceType,
-                    statsRecord.availabilityZone,
+                    statsRecord.regionOrZone,
                     statsRecord.platform,
                     statsRecord.tenancy,
                     newCountFromSourceTopology,
@@ -402,7 +400,7 @@ public class ComputeTierDemandStatsWriter {
                 riDemandStatsMap.put(
                         new ComputeTierDemandStatsRecord(riStatRecord.getAccountId(),
                                 riStatRecord.getComputeTierId(),
-                                riStatRecord.getAvailabilityZone(),
+                                riStatRecord.getRegionOrZoneId(),
                                 riStatRecord.getPlatform(),
                                 riStatRecord.getTenancy()),
                         new WeightedCounts(
@@ -461,7 +459,7 @@ public class ComputeTierDemandStatsWriter {
 
         private final long targetId;
 
-        private final long availabilityZone;
+        private final long regionOrZone;
 
         private final long instanceType;
 
@@ -471,12 +469,12 @@ public class ComputeTierDemandStatsWriter {
 
         ComputeTierDemandStatsRecord(long targetId,
                             long instanceType,
-                            long availabilityZone,
+                            long regionOrZone,
                             byte platform,
                             byte tenancy) {
             this.targetId = targetId;
             this.instanceType = instanceType;
-            this.availabilityZone = availabilityZone;
+            this.regionOrZone = regionOrZone;
             this.platform = platform;
             this.tenancy = tenancy;
         }
@@ -496,7 +494,7 @@ public class ComputeTierDemandStatsWriter {
 
             return (otherRec.targetId == this.targetId &&
                     otherRec.instanceType == this.instanceType &&
-                    otherRec.availabilityZone == this.availabilityZone &&
+                    otherRec.regionOrZone == this.regionOrZone &&
                     otherRec.platform == this.platform &&
                     otherRec.tenancy == this.tenancy);
         }
@@ -504,7 +502,7 @@ public class ComputeTierDemandStatsWriter {
         @Override
         public int hashCode() {
             return Objects.hash(targetId, instanceType,
-                    availabilityZone, platform, tenancy);
+                    regionOrZone, platform, tenancy);
         }
     }
 

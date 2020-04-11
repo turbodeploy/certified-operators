@@ -157,6 +157,16 @@ public class BusinessAccountPriceTableKeyStore implements DiagsRestorable {
     }
 
     /**
+     * Retrieve mapping of all businessAccount OIDs to {@link PriceTableKey} indexed by BA OIDs.
+     *
+     * @return map of BA OIDs to {@link PriceTableKey}.
+     */
+    @Nonnull
+    public Map<Long, Long> fetchAllPriceTableKeyOidsByBusinessAccount() {
+        return fetchPriceTableKeyOidsByBusinessAccount(Collections.emptySet());
+    }
+
+    /**
      * Remove BA oid from {@link Tables#BUSINESS_ACCOUNT_PRICE_TABLE_KEY} and remove orphaned
      * priceTableOids. We determine priceTableOids which are still being used in
      * {@link Tables#BUSINESS_ACCOUNT_PRICE_TABLE_KEY} and remove it from the list of

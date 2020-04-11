@@ -1,6 +1,7 @@
 package com.vmturbo.group.service;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -28,6 +29,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceImplBase;
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.CreateSettingPolicyResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.DeleteSettingPolicyRequest;
@@ -62,11 +64,12 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResp
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.ImmutableUpdateException.ImmutableSettingPolicyUpdateException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
+import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.EntitySettingStore;
 import com.vmturbo.group.setting.EntitySettingStore.NoSettingsForTopologyException;
+import com.vmturbo.group.setting.ISettingPolicyStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
@@ -90,25 +93,44 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     private final long realtimeTopologyContextId;
 
     private final int entitySettingsResponseChunkSize;
+    private final IdentityProvider identityProvider;
+    private final GrpcTransactionUtil grpcTransactionUtil;
 
     private static final Set<String> IMMUTABLE_ACTION_SETTINGS = ImmutableSet.<String>builder()
             .add(EntitySettingSpecs.Move.getSettingName()).add(EntitySettingSpecs.StorageMove.getSettingName())
             .add(EntitySettingSpecs.Provision.getSettingName()).add(EntitySettingSpecs.Suspend.getSettingName())
+            .add(EntitySettingSpecs.DisabledSuspend.getSettingName())
             .add(EntitySettingSpecs.Activate.getSettingName()).add(EntitySettingSpecs.Resize.getSettingName())
             .add(EntitySettingSpecs.Reconfigure.getSettingName()).build();
 
+    /**
+     * Constructs setting policy gRPC service.
+     *
+     * @param settingStore setting store to use
+     * @param settingSpecStore setting spec store
+     * @param entitySettingStore entity setting store
+     * @param actionsServiceClient actions gRPC client
+     * @param identityProvider identity provider
+     * @param transactionProvider transaction provider to operate with DB objects
+     * @param realtimeTopologyContextId realtimme topology context ID
+     * @param entitySettingsResponseChunkSize entity setttings chunk size
+     */
     public SettingPolicyRpcService(@Nonnull final SettingStore settingStore,
                                    @Nonnull final SettingSpecStore settingSpecStore,
                                    @Nonnull final EntitySettingStore entitySettingStore,
                                    @Nonnull final ActionsServiceBlockingStub actionsServiceClient,
+                                   @Nonnull final IdentityProvider identityProvider,
+                                   @Nonnull final TransactionProvider transactionProvider,
                                    final long realtimeTopologyContextId,
                                    final int entitySettingsResponseChunkSize) {
         this.settingStore = Objects.requireNonNull(settingStore);
         this.entitySettingStore = Objects.requireNonNull(entitySettingStore);
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.actionsServiceClient = Objects.requireNonNull(actionsServiceClient);
+        this.identityProvider = Objects.requireNonNull(identityProvider);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.entitySettingsResponseChunkSize = entitySettingsResponseChunkSize;
+        this.grpcTransactionUtil = new GrpcTransactionUtil(transactionProvider, logger);
     }
 
     /**
@@ -123,20 +145,24 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             return;
         }
 
-        try {
-            final SettingPolicy policy =
-                    settingStore.createUserSettingPolicy(request.getSettingPolicyInfo());
-            responseObserver.onNext(CreateSettingPolicyResponse.newBuilder()
-                    .setSettingPolicy(policy)
-                    .build());
-            responseObserver.onCompleted();
-        } catch (InvalidItemException e) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getMessage()).asException());
-        } catch (DuplicateNameException e) {
-            responseObserver.onError(Status.ALREADY_EXISTS
-                    .withDescription(e.getMessage()).asException());
-        }
+        final SettingPolicy policy = SettingPolicy.newBuilder()
+                .setInfo(request.getSettingPolicyInfo())
+                .setId(identityProvider.next())
+                .setSettingPolicyType(Type.USER)
+                .build();
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> createSettingPolicy(stores.getSettingPolicyStore(), policy,
+                        responseObserver));
+    }
+
+    private void createSettingPolicy(@Nonnull ISettingPolicyStore settingPolicyStore,
+            @Nonnull SettingPolicy policy,
+            @Nonnull StreamObserver<CreateSettingPolicyResponse> responseObserver)
+            throws StoreOperationException {
+        settingPolicyStore.createSettingPolicies(Collections.singletonList(policy));
+        responseObserver.onNext(
+                CreateSettingPolicyResponse.newBuilder().setSettingPolicy(policy).build());
+        responseObserver.onCompleted();
     }
 
     /**
@@ -211,21 +237,23 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                     .asException());
             return;
         }
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> deleteSettingPolicy(request, responseObserver,
+                        stores.getSettingPolicyStore()));
+    }
 
-        try {
-            logger.info("Attempting to delete setting policy {}...", request.getId());
-            SettingPolicy deletedSettingPolicy = settingStore.deleteUserSettingPolicy(request.getId());
-            logger.info("Deleted setting policy: {}", request.getId());
-            cancelAutomationActions(deletedSettingPolicy);
-            responseObserver.onNext(DeleteSettingPolicyResponse.getDefaultInstance());
-            responseObserver.onCompleted();
-        } catch (SettingPolicyNotFoundException e) {
-            responseObserver.onError(Status.NOT_FOUND
-                    .withDescription(e.getMessage()).asException());
-        } catch (ImmutableSettingPolicyUpdateException e) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getMessage()).asException());
-        }
+    private void deleteSettingPolicy(@Nonnull DeleteSettingPolicyRequest request,
+            @Nonnull StreamObserver<DeleteSettingPolicyResponse> responseObserver,
+            @Nonnull ISettingPolicyStore settingPolicyStore) throws StoreOperationException {
+        logger.info("Attempting to delete setting policy {}...", request.getId());
+        final SettingPolicy policy = settingPolicyStore.getPolicy(request.getId())
+                .orElseThrow(() -> new StoreOperationException(Status.NOT_FOUND,
+                        "Policy not found by id " + request.getId()));
+        settingPolicyStore.deletePolicies(Collections.singletonList(request.getId()), Type.USER);
+        logger.info("Deleted setting policy: {}", request.getId());
+        cancelAutomationActions(policy);
+        responseObserver.onNext(DeleteSettingPolicyResponse.getDefaultInstance());
+        responseObserver.onCompleted();
     }
 
     /**
@@ -263,14 +291,26 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                     .withDescription("Request must have one of ID and Name!").asException());
             return;
         }
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> getSettingPolicy(request, responseObserver,
+                        stores.getSettingPolicyStore()));
+    }
 
-        final Optional<SettingPolicy> foundPolicy = request.hasId() ?
-                settingStore.getSettingPolicy(request.getId()) :
-                settingStore.getSettingPolicy(request.getName());
-
+    private void getSettingPolicy(@Nonnull GetSettingPolicyRequest request,
+            @Nonnull StreamObserver<GetSettingPolicyResponse> responseObserver,
+            @Nonnull ISettingPolicyStore settingPolicyStore) throws StoreOperationException {
+        final Optional<SettingPolicy> foundPolicy;
+        if (request.hasId()) {
+            foundPolicy = settingPolicyStore.getPolicy(request.getId());
+        } else {
+            final Collection<SettingProto.SettingPolicy> policies = settingPolicyStore.getPolicies(
+                    SettingPolicyFilter.newBuilder().withName(request.getName()).build());
+            foundPolicy =
+                    policies.isEmpty() ? Optional.empty() : Optional.of(policies.iterator().next());
+        }
         final GetSettingPolicyResponse response = foundPolicy.map(settingPolicy -> {
-            final GetSettingPolicyResponse.Builder respBuilder = GetSettingPolicyResponse.newBuilder()
-                    .setSettingPolicy(settingPolicy);
+            final GetSettingPolicyResponse.Builder respBuilder =
+                    GetSettingPolicyResponse.newBuilder().setSettingPolicy(settingPolicy);
             if (request.getIncludeSettingSpecs()) {
                 getSpecsForPolicy(settingPolicy).forEach(respBuilder::addSettingSpecs);
             }
@@ -307,7 +347,16 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      */
     @Override
     public void listSettingPolicies(ListSettingPoliciesRequest request,
-                                    StreamObserver<SettingPolicy> responseObserver) {
+            StreamObserver<SettingPolicy> responseObserver) {
+
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> listSettingPolicies(request, responseObserver,
+                        stores.getSettingPolicyStore()));
+    }
+
+    private void listSettingPolicies(@Nonnull ListSettingPoliciesRequest request,
+            @Nonnull StreamObserver<SettingPolicy> responseObserver,
+            @Nonnull ISettingPolicyStore settingPolicyStore) throws StoreOperationException {
         final SettingPolicyFilter.Builder filterBuilder = SettingPolicyFilter.newBuilder();
         if (request.hasTypeFilter()) {
             filterBuilder.withType(request.getTypeFilter());
@@ -315,7 +364,8 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         if (!request.getIdFilterList().isEmpty()) {
             request.getIdFilterList().forEach(filterBuilder::withId);
         }
-        Stream<SettingPolicy> settingPolicies = settingStore.getSettingPolicies(filterBuilder.build());
+        final Collection<SettingPolicy> settingPolicies =
+                settingPolicyStore.getPolicies(filterBuilder.build());
         if (request.hasContextId() && request.getContextId() != realtimeTopologyContextId) {
             // we need to create new policies for plan, because plan has a different set of action settings
             // as default. we assume all actions are in automatic mode in plan.
@@ -345,15 +395,27 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      */
     @Override
     public void getSettingPoliciesUsingSchedule(final GetSettingPoliciesUsingScheduleRequest request,
-                                                final StreamObserver<SettingPolicy> responseObserver) {
+            final StreamObserver<SettingPolicy> responseObserver) {
         if (!request.hasScheduleId()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                .withDescription("Request must have a schedule ID!").asException());
+            responseObserver.onError(
+                    Status.INVALID_ARGUMENT.withDescription("Request must have a schedule ID!")
+                            .asException());
             return;
         }
-        Stream<SettingPolicy> settingPolicies = settingStore.getSettingPoliciesUsingSchedule(
-            request.getScheduleId());
-        settingPolicies.forEach(responseObserver::onNext);
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> getSettingPoliciesUsingSchedule(request, responseObserver,
+                        stores.getSettingPolicyStore()));
+    }
+
+    private void getSettingPoliciesUsingSchedule(
+            final GetSettingPoliciesUsingScheduleRequest request,
+            final StreamObserver<SettingPolicy> responseObserver,
+            @Nonnull ISettingPolicyStore settingPolicyStore) throws StoreOperationException {
+        final Collection<SettingPolicy> settingPolicies = settingPolicyStore.getPolicies(
+                SettingPolicyFilter.newBuilder().withScheduleId(request.getScheduleId()).build());
+        for (SettingPolicy policy : settingPolicies) {
+            responseObserver.onNext(policy);
+        }
         responseObserver.onCompleted();
     }
 
@@ -436,10 +498,19 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                 final Context contextVal = context.getValue().get();
                 logger.info("Completed uploading of {} entity settings in context: {}",
                     allEntitySettings.size(), contextVal);
-                entitySettingStore.storeEntitySettings(contextVal.getTopologyContextId(),
-                    contextVal.getTopologyId(), allEntitySettings.stream());
-                responseObserver.onNext(UploadEntitySettingsResponse.newBuilder().build());
-                responseObserver.onCompleted();
+                try {
+                    entitySettingStore.storeEntitySettings(contextVal.getTopologyContextId(),
+                            contextVal.getTopologyId(), allEntitySettings.stream());
+                    responseObserver.onNext(UploadEntitySettingsResponse.newBuilder().build());
+                    responseObserver.onCompleted();
+                } catch (StoreOperationException e) {
+                    logger.error(
+                            "Failed to process UploadEntitySettingsRequest request for context " +
+                                    contextVal.getTopologyContextId() + " topology " +
+                                    contextVal.getTopologyId(), e);
+                    responseObserver.onError(
+                            e.getStatus().withDescription(e.getMessage()).asException());
+                }
             }
         }
     }
@@ -469,6 +540,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
                 final Map<Long, SettingPolicyId> settingPolicyById =
                     settingStore.getSettingPolicies(settingPolicyFilter.build())
+                        .stream()
                         .collect(Collectors.toMap(SettingPolicy::getId,
                             policy -> SettingPolicyId.newBuilder()
                                 .setPolicyId(policy.getId())
@@ -531,6 +603,9 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             logger.error("Topology not found for entity settings request: {}", e.getMessage());
             responseObserver.onError(Status.NOT_FOUND
                     .withDescription(e.getMessage()).asException());
+        } catch (StoreOperationException e) {
+            logger.error("Failed to get entity settings for " + request, e);
+            responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
         }
     }
 
@@ -541,20 +616,26 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     public void getEntitySettingPolicies(final GetEntitySettingPoliciesRequest request,
                                          final StreamObserver<GetEntitySettingPoliciesResponse> responseStreamObserver) {
 
-        if (!request.hasEntityOid()) {
+        if (request.getEntityOidListList().isEmpty()) {
             responseStreamObserver.onNext(GetEntitySettingPoliciesResponse.getDefaultInstance());
             responseStreamObserver.onCompleted();
             return;
         }
 
-        GetEntitySettingPoliciesResponse.Builder response =
-                GetEntitySettingPoliciesResponse.newBuilder();
-
-        entitySettingStore.getEntitySettingPolicies(request.getEntityOid())
-                .forEach(settingPolicy -> response.addSettingPolicies(settingPolicy));
-
-        responseStreamObserver.onNext(response.build());
-        responseStreamObserver.onCompleted();
+        GetEntitySettingPoliciesResponse.Builder response = GetEntitySettingPoliciesResponse.newBuilder();
+        Set<SettingPolicy> policies = new HashSet<>();
+        try {
+            entitySettingStore.getEntitySettingPolicies(request.getEntityOidListList()
+                .stream().collect(Collectors.toSet())).forEach(p -> policies.add(p));
+            response.addAllSettingPolicies(policies);
+            responseStreamObserver.onNext(response.build());
+            responseStreamObserver.onCompleted();
+        } catch (StoreOperationException e) {
+            logger.error("Failed processing entity setting policies request for " +
+                request.getEntityOidListList(), e);
+            responseStreamObserver.onError(
+                e.getStatus().withDescription(e.getMessage()).asException());
+        }
     }
 
     /**
@@ -564,7 +645,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     public void getSettingPoliciesForGroup(final GetSettingPoliciesForGroupRequest request,
                                            final StreamObserver<GetSettingPoliciesForGroupResponse> responseStreamObserver) {
 
-        Map<Long, List<SettingPolicy>> groupIdToSettingPolicies =
+        Map<Long, Set<SettingPolicy>> groupIdToSettingPolicies =
                 settingStore.getSettingPoliciesForGroups(new HashSet<>(request.getGroupIdsList()));
 
         GetSettingPoliciesForGroupResponse.Builder response =

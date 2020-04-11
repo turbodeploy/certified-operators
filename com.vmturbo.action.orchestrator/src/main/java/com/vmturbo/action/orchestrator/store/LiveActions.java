@@ -1,5 +1,7 @@
 package com.vmturbo.action.orchestrator.store;
 
+import static com.vmturbo.auth.api.authorization.scoping.UserScopeUtils.STATIC_CLOUD_ENTITY_TYPES;
+
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -42,6 +44,7 @@ import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -50,6 +53,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
 /**
@@ -532,17 +536,26 @@ class LiveActions implements QueryableActionViews {
 
         if (userSessionContext.isUserScoped()) {
             try {
-                if (!userSessionContext.getUserAccessScope()
-                        .containsAny(ActionDTOUtil.getInvolvedEntityIds(action.getRecommendation()))) {
+                EntityAccessScope entityAccessScope = userSessionContext.getUserAccessScope();
+                Set<Long> involvedEntityIds = ActionDTOUtil.getInvolvedEntityIds(action.getRecommendation());
+                if (!entityAccessScope.containsAny(involvedEntityIds)) {
                     throw new UserAccessScopeException("User does not have access to all entities involved in action.");
+                }
+                OidSet cloudStaticEntities = entityAccessScope
+                        .getAccessibleOidsByEntityTypes(STATIC_CLOUD_ENTITY_TYPES);
+                // Check if involved entities are accessible for scoped user and is not a Cloud Static Entities.
+                boolean hasAccess =
+                        involvedEntityIds.stream().anyMatch(entityId ->
+                                (entityAccessScope.contains(entityId) &&
+                                        !cloudStaticEntities.contains(entityId)));
+                if (!hasAccess) {
+                    throw new UserAccessScopeException("User does not have access to entity involved in action");
                 }
             } catch (UnsupportedActionException uae) {
                 logger.error("Unsupported action", uae);
             }
         }
     }
-
-
 
     private static class Metrics {
         private static final DataMetricSummary ACTION_COUNTS_SUMMARY = DataMetricSummary.builder()

@@ -6,7 +6,9 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -107,6 +109,7 @@ public class ActionStatsQueryExecutorTest {
 
         assertThat(retStats.keySet(), contains(apiId));
         assertThat(retStats.get(apiId), is(expectedRetStats));
+        verify(currentQueryMapper, never()).mapToCurrentQueries(any());
     }
 
     @Test
@@ -154,5 +157,6 @@ public class ActionStatsQueryExecutorTest {
 
         assertThat(snapshots.keySet(), contains(scopeId));
         assertThat(snapshots.get(scopeId), contains(translatedLiveStat));
+        verify(historicalQueryMapper, never()).mapToHistoricalQueries(any());
     }
 }

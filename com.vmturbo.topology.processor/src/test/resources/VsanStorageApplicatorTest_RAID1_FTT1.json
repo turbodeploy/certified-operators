@@ -1,0 +1,290 @@
+{
+  "entityType": 2,
+  "oid": "73364005189248",
+  "displayName": "vsanDatastore (Cluster1)",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 64
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "effectiveCapacityPercentage": 100.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 8
+    },
+    "used": 16639.39757490158,
+    "peak": 0.0,
+    "capacity": 20473.9609375,
+    "effectiveCapacityPercentage": 90.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "capacityIncrement": 102400.0,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_423822fc-1916-06d2-eb17-1e77dc1b25e3"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73364005189255",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_42381da5-12fa-1e82-2f1c-887419380d43"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73364005189256",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 6
+    },
+    "used": 202368.27952480316,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_4238c2c1-3d94-a73c-fdcc-3edd3a89e804"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73364005189258",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_4238e933-3923-8334-37fe-3aec8fbd046f"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73364005189257",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 22
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "effectiveCapacityPercentage": 100.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "StorageCluster::7bc730bbc23f729bfe2f47318836366d6b1e2503"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73364005189257",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 10240.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "movable": true
+  }, {
+    "providerId": "73364005189258",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 10240.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "movable": true
+  }, {
+    "providerId": "73364005189256",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 10240.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "movable": true
+  }, {
+    "providerId": "73364005189255",
+    "providerEntityType": 14,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 8
+      },
+      "used": 10240.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 6
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "movable": true
+  }, {
+    "providerId": "73364005189234",
+    "providerEntityType": 11,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 60,
+        "key": "DiskArray-525d5005cda275d5-e901b76e1a09c2a6"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }],
+    "movable": true
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "VcTgtIdAndInternalName": "61018ea83663817ddf235e63d173024afb5debf5"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1583398769912",
+      "discoveredTargetData": {
+        "73364004639360": {
+          "vendorId": "datastore-170"
+        }
+      }
+    }
+  },
+  "tags": {
+  },
+  "environmentType": "ON_PREM",
+  "typeSpecificInfo": {
+    "storage": {
+      "storageType": "VSAN",
+      "isLocal": false,
+      "policy": {
+        "redundancy": "RAID1",
+        "failuresToTolerate": 1,
+        "spaceReservationPct": 0,
+        "raidFactor": 0.5
+      },
+      "rawCapacity": {
+        "capacity": "40947",
+        "free": "7669",
+        "uncommitted": "169089"
+      }
+    }
+  }
+}

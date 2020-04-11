@@ -29,8 +29,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
-import com.vmturbo.components.common.utils.StringConstants;
-import com.vmturbo.cost.calculation.CostJournal;
+import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.market.MarketNotificationSender;
 import com.vmturbo.market.rpc.MarketDebugRpcService;
 import com.vmturbo.topology.processor.api.util.TopologyProcessingGate;
@@ -268,11 +268,14 @@ public class MarketRunner {
                                                       analysis.getActionPlan().get().getId());
                     serverApi.notifyActionsRecommended(analysis.getActionPlan().get());
 
+                    // A flag that shows if there is any cloud entity in the topology or not.
+                    final boolean hasAnyCloudEntity = !CollectionUtils.isEmpty(analysis.getOriginalCloudTopology().getEntities());
+
                     // Send projected entity costs. We only send them for the real time topology.
                     final Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts =
                                                                analysis.getProjectedCosts().get();
 
-                    if (!CollectionUtils.isEmpty(projectedCosts)) {
+                    if (hasAnyCloudEntity) {
                         serverApi.notifyProjectedEntityCosts(analysis.getTopologyInfo(),
                                 analysis.getProjectedTopologyId().get(),
                                 Collections2.transform(projectedCosts
@@ -285,7 +288,7 @@ public class MarketRunner {
                     final Map<Long, EntityReservedInstanceCoverage> projectedCoverage =
                                                           analysis.getProjectedEntityRiCoverage()
                                                                           .get();
-                    if (!CollectionUtils.isEmpty(projectedCoverage)) {
+                    if (hasAnyCloudEntity) {
                         serverApi.notifyProjectedEntityRiCoverage(analysis.getTopologyInfo(),
                                 analysis.getProjectedTopologyId()
                                         .get(),

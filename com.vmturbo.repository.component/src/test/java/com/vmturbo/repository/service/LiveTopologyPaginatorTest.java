@@ -16,7 +16,7 @@ import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.SearchOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.repository.listener.realtime.RepoGraphEntity;
 import com.vmturbo.repository.service.LiveTopologyPaginator.PaginatedResults;
 
@@ -24,19 +24,19 @@ public class LiveTopologyPaginatorTest {
 
     private final RepoGraphEntity host1 = RepoGraphEntity.newBuilder(TopologyEntityDTO.newBuilder()
         .setOid(3)
-        .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+        .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
         .setDisplayName("c")
         .build()).build();
 
     private final RepoGraphEntity host2 = RepoGraphEntity.newBuilder(TopologyEntityDTO.newBuilder()
         .setOid(2)
-        .setEntityType(UIEntityType.PHYSICAL_MACHINE.typeNumber())
+        .setEntityType(ApiEntityType.PHYSICAL_MACHINE.typeNumber())
         .setDisplayName("b")
         .build()).build();
 
     private final RepoGraphEntity vm = RepoGraphEntity.newBuilder(TopologyEntityDTO.newBuilder()
         .setOid(1)
-        .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+        .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
         .setDisplayName("a")
         .build()).build();
 
@@ -127,12 +127,12 @@ public class LiveTopologyPaginatorTest {
         // Two entities with the same name should be sorted by ID.
         final RepoGraphEntity vm2 = RepoGraphEntity.newBuilder(TopologyEntityDTO.newBuilder()
             .setOid(vm.getOid() + 1)
-            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .setDisplayName(vm.getDisplayName())
             .build()).build();
         final RepoGraphEntity vm3 = RepoGraphEntity.newBuilder(TopologyEntityDTO.newBuilder()
             .setOid(vm.getOid() + 2)
-            .setEntityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .setDisplayName(vm.getDisplayName())
             .build()).build();
         final List<RepoGraphEntity> entities = Arrays.asList(vm2, vm, vm3);

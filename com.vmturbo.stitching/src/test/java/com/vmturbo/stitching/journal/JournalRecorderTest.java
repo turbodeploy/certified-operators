@@ -148,10 +148,25 @@ public class JournalRecorderTest {
         final StringBuilder builder = new StringBuilder();
         final JournalRecorder recorder = new StringBuilderRecorder(builder);
 
-        recorder.recordOperationEnd(operation, 40, 0, 0, Duration.ofSeconds(1));
+        recorder.recordOperationEnd(operation, Collections.emptyList(), 40, 0, 0, Duration.ofSeconds(1));
         assertEquals("----------------------------------- END: foo -----------------------------------\n" +
                 "----------------------- 0/40 changesets shown. Took: 1s ------------------------\n" +
                 "\n", builder.toString());
+    }
+
+    @Test
+    public void recordOperationEndWithDetails() {
+        final JournalableOperation operation = mock(JournalableOperation.class);
+        when(operation.getOperationName()).thenReturn("foo");
+
+        final StringBuilder builder = new StringBuilder();
+        final JournalRecorder recorder = new StringBuilderRecorder(builder);
+
+        recorder.recordOperationEnd(operation, Collections.singleton("bar"), 40, 0, 0, Duration.ofSeconds(1));
+        assertEquals("----------------------------------- END: foo -----------------------------------\n" +
+            "------------------------------------- bar --------------------------------------\n" +
+            "----------------------- 0/40 changesets shown. Took: 1s ------------------------\n" +
+            "\n", builder.toString());
     }
 
     @Test
@@ -162,7 +177,7 @@ public class JournalRecorderTest {
         final StringBuilder builder = new StringBuilder();
         final JournalRecorder recorder = new StringBuilderRecorder(builder);
 
-        recorder.recordOperationEnd(operation, 0, 0, 0, Duration.ofSeconds(0));
+        recorder.recordOperationEnd(operation, Collections.emptyList(), 0, 0, 0, Duration.ofSeconds(0));
         assertEquals("----------------------------------- END: foo -----------------------------------\n" +
                 "\n",
             builder.toString());

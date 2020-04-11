@@ -38,8 +38,10 @@ import com.vmturbo.cost.calculation.ReservedInstanceApplicator.ReservedInstanceA
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -88,6 +90,9 @@ public class CloudCostCalculatorTest {
     private static final Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = Maps.newHashMap();
 
     private static final NetworkConfig networkConfig = mock(NetworkConfig.class);
+
+    private final ComputeConfig computeConfig = new ComputeConfig(OSType.WINDOWS, Tenancy.DEFAULT,
+            VMBillingType.RESERVED, 4, EntityDTO.LicenseModel.LICENSE_INCLUDED);
 
     private static final double BASE_PRICE = 10.0;
     private static final double DEFAULT_RI_COVERAGE = 0.2;
@@ -144,7 +149,7 @@ public class CloudCostCalculatorTest {
 
     private static final PriceTable PRICE_TABLE = thePriceTable();
 
-    private static final CloudCostData CLOUD_COST_DATA = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+    private static final CloudCostData CLOUD_COST_DATA = new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
         Collections.emptyMap(), Collections.emptyMap());
 
     private static final double DELTA = 0.0001;
@@ -171,7 +176,7 @@ public class CloudCostCalculatorTest {
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
             mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier, price)).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(riApplicator.recordRICoverage(computeTier, price, true)).thenReturn(trax(DEFAULT_RI_COVERAGE));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
             any(), eq(infoExtractor), eq(CLOUD_COST_DATA), eq(topologyRiCoverage)))
             .thenReturn(riApplicator);
@@ -216,7 +221,7 @@ public class CloudCostCalculatorTest {
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(eq(computeTier), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(riApplicator.recordRICoverage(eq(computeTier), any(), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                 any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -282,7 +287,7 @@ public class CloudCostCalculatorTest {
         // Configure ReservedInstanceApplicator
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(eq(computeTier), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
+        when(riApplicator.recordRICoverage(eq(computeTier), any(), any())).thenReturn(trax(DEFAULT_RI_COVERAGE));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                 any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -324,7 +329,7 @@ public class CloudCostCalculatorTest {
         // Set up the RI applicator (no RI)
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(computeTier, price)).thenReturn(trax(0.0));
+        when(riApplicator.recordRICoverage(computeTier, price, true)).thenReturn(trax(0.0));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
             any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -364,7 +369,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostIOPS() {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0))
+                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0, false))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
@@ -385,7 +390,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostGBMonth() {
         final int vVolSizeMb = 19; // should be >= GB_RANGE
         final CostJournal<TestEntityClass> journal =
-                createCostJournalForVolumeCostCalculation(vVolSizeMb);
+                createCostJournalForVolumeCostCalculation(vVolSizeMb, false);
 
         assertThat(journal.getTotalHourlyCost().getValue(),
             closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
@@ -399,7 +404,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostSizeEqualToEndRange() {
         final int vVolSizeMb = 32;
         final CostJournal<TestEntityClass> journal =
-                createCostJournalForVolumeCostCalculation(vVolSizeMb);
+                createCostJournalForVolumeCostCalculation(vVolSizeMb, false);
         assertThat(journal.getTotalHourlyCost().getValue(),
                 closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
                         + GB_MONTH_PRICE_32, DELTA));
@@ -412,10 +417,11 @@ public class CloudCostCalculatorTest {
      * @return {@link CostJournal} for volume of a given virtual volume size.
      */
     private CostJournal<TestEntityClass> createCostJournalForVolumeCostCalculation(
-                                                            final int vVolSizeMb) {
+            final int vVolSizeMb,
+            final boolean isEphemeral) {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024))
+                .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024, isEphemeral))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
@@ -528,7 +534,7 @@ public class CloudCostCalculatorTest {
         // Set up the RI applicator (no RI)
         final ReservedInstanceApplicator<TestEntityClass> riApplicator =
                 mock(ReservedInstanceApplicator.class);
-        when(riApplicator.recordRICoverage(eq(computeTier), any())).thenReturn(trax(0.0));
+        when(riApplicator.recordRICoverage(eq(computeTier), any(), any())).thenReturn(trax(0.0));
         when(reservedInstanceApplicatorFactory.newReservedInstanceApplicator(
                 any(), eq(infoExtractor), eq(cloudCostData), eq(topologyRiCoverage)))
                 .thenReturn(riApplicator);
@@ -598,6 +604,18 @@ public class CloudCostCalculatorTest {
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(noCostEntity);
         assertThat(journal.getEntity(), is(noCostEntity));
+        assertThat(journal.getTotalHourlyCost().getValue(), is(0.0));
+        assertThat(journal.getCategories(), is(Collections.emptySet()));
+    }
+
+    /**
+     * Verify that an Ephemeral Volume returns an empty journal.
+     */
+    @Test
+    public void testEphemeralVolumeEmptyCost() {
+        final int vVolSizeMb = 19;
+        final CostJournal<TestEntityClass> journal =
+                createCostJournalForVolumeCostCalculation(vVolSizeMb, true);
         assertThat(journal.getTotalHourlyCost().getValue(), is(0.0));
         assertThat(journal.getCategories(), is(Collections.emptySet()));
     }
@@ -740,7 +758,7 @@ public class CloudCostCalculatorTest {
     private CloudCostData createCloudCostDataWithAccountPricingTable(Long baOid, AccountPricingData accountPricingData) {
         Map<Long, AccountPricingData> accountPricingDataByBusinessAccount = new HashMap<>();
         accountPricingDataByBusinessAccount.put(baOid, accountPricingData);
-        return new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+        return new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), accountPricingDataByBusinessAccount);
     }
 }

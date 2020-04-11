@@ -25,10 +25,12 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -184,21 +186,40 @@ public class CommodityConverter {
                 1.0f : effectiveCapacityPercentage;
         float scale = effectiveCapacityPercentage < 1.0f ?
                 1.0f : effectiveCapacityPercentage;
-        final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
+
+        resizable = resizable && !MarketAnalysisUtils.PROVISIONED_COMMODITIES.contains(type)
+                && !TopologyConversionUtils.isEntityConsumingCloud(dto)
+                // We do not want to resize idle entities. If the resizable flag
+                // is not set to false for idle entities, they can get resized
+                // because of historical utilization.
+                && dto.getEntityState() == EntityState.POWERED_ON;
+
+        // Overwrite the flag for vSAN
+        if (TopologyConversionUtils.isVsanStorage(dto)
+                && type == CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE) {
+            resizable = true;
+        }
+
+        final CommodityDTOs.CommoditySoldSettingsTO.Builder economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
-                        .setResizable(resizable && !MarketAnalysisUtils.PROVISIONED_COMMODITIES.contains(type)
-                                && !TopologyConversionUtils.isEntityConsumingCloud(dto)
-                                // We do not want to resize idle entities. If the resizable flag
-                                // is not set to false for idle entities, they can get resized
-                                // because of hitorical utilization.
-                                && dto.getEntityState() == EntityState.POWERED_ON)
-                        .setCapacityIncrement(topologyCommSold.getCapacityIncrement())
+                        .setResizable(resizable)
+                        .setCapacityIncrement(topologyCommSold.getCapacityIncrement() * scalingFactor)
                         .setCapacityUpperBound(capacity)
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
                                 scale, dto))
-                        .setUpdateFunction(updateFunction(topologyCommSold))
-                        .build();
+                        .setUpdateFunction(updateFunction(topologyCommSold));
+
+        // Set thresholds for the commodity sold (min/Max of VCPU/VMem for on-prem VMs).
+        if (topologyCommSold.hasThresholds()) {
+            final Thresholds threshold = topologyCommSold.getThresholds();
+            final float maxThreshold = Double.valueOf(threshold.getMax()).floatValue();
+            final float minThreshold = Double.valueOf(threshold.getMin()).floatValue();
+            economyCommSoldSettings.setCapacityUpperBound(maxThreshold);
+            economyCommSoldSettings.setCapacityLowerBound(minThreshold);
+            logger.debug("Thresholds for {} of entity {} is Max: {} min: {}",
+                    comName, dto.getDisplayName(), maxThreshold, minThreshold);
+        }
 
         // not mandatory (e.g. for access commodities)
         double maxQuantity = topologyCommSold.hasHistoricalUsed()
@@ -220,6 +241,7 @@ public class CommodityConverter {
                 maxQuantityFloat = 0;
             }
         }
+        maxQuantityFloat *= scalingFactor;
         // if entry not present, initialize to 0
         int numConsumers = Optional.ofNullable(numConsumersOfSoldCommTable.get(dto.getOid(),
                 topologyCommSold.getCommodityType())).map(o -> o.intValue()).orElse(0);
@@ -227,6 +249,7 @@ public class CommodityConverter {
                                   topologyCommSold.hasHistoricalPeak()
                                                   ? TopologyDTO.CommoditySoldDTO::getHistoricalPeak
                                                   : null);
+        peak *= scalingFactor;
         if (peak < used) {
             peak = used;
         }
@@ -379,6 +402,15 @@ public class CommodityConverter {
         return commodityTypeAllocator.marketToTopologyCommodity(marketCommodity, slotIndex);
     }
 
+    /**
+     * Check if commodity for the specified market spec is timeslot commodity.
+     *
+     * @param marketCommodity Market commodity spec
+     * @return True if timeslot commodity
+     */
+    public boolean isTimeSlotCommodity(final CommoditySpecificationTO marketCommodity) {
+        return commodityTypeAllocator.isTimeSlotCommodity(marketCommodity);
+    }
 
     /**
      * Constructs a string that can be used for debug purposes.
@@ -561,10 +593,28 @@ public class CommodityConverter {
         return specs.iterator().next();
     }
 
+    /**
+     * Retrieve commodity type for the specified market commodity ID.
+     * @param marketCommodityId Market commodity ID
+     * @return {@link CommodityType}
+     */
     @VisibleForTesting
     @Nonnull
     CommodityType commodityIdToCommodityType(final int marketCommodityId) {
         return commodityTypeAllocator.marketCommIdToCommodityType(marketCommodityId);
+    }
+
+    /**
+     * Retrieve commodity type and slot number for the specified market commodity ID.
+     *
+     * @param marketCommodityId Market commodity ID
+     * @return Pair containing {@link CommodityType} and slot number for time slot commodities
+     *              or empty Optional for non-time slot commodities
+     */
+    @Nonnull
+    Pair<CommodityType, Optional<Integer>> commodityIdToCommodityTypeAndSlot(
+        final int marketCommodityId) {
+        return commodityTypeAllocator.marketCommIdToCommodityTypeAndSlot(marketCommodityId);
     }
 
     /**

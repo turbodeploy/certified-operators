@@ -15,20 +15,13 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -39,46 +32,39 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplatesFilter;
 import com.vmturbo.commons.idgen.IdentityInitializer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.plan.orchestrator.db.Plan;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-    classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=plan"})
+/**
+ * Unit tests for {@link TemplatesDao}.
+ */
 public class TemplatesDaoImplTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(Plan.PLAN);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private TemplatesDaoImpl templatesDao;
+    private TemplatesDaoImpl templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
+        new IdentityInitializer(0));
 
+    /**
+     * Captures expected exceptions in a test.
+     */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
-    @Before
-    public void setup() throws Exception {
-        prepareDatabase();
-    }
-
-    private void prepareDatabase() throws Exception {
-        flyway = dbConfig.flyway();
-        final DSLContext dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        templatesDao = new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
-                new IdentityInitializer(0));
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
-    }
 
     @Test
     public void testCreateTemplate() throws DuplicateTemplateException {
@@ -202,7 +188,7 @@ public class TemplatesDaoImplTest {
     @Test
     public void testLoadDefaultTemplates() {
         final TemplatesDao templatesDao =
-                new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+                new TemplatesDaoImpl(dsl, "testDefaultTemplates.json",
                         new IdentityInitializer(0));
         final Set<Template> templates = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
             .addTemplateName("testVM")
@@ -215,20 +201,20 @@ public class TemplatesDaoImplTest {
 
     @Test
     public void testDeleteDefaultTemplates() {
-        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+        new TemplatesDaoImpl(dsl, "testDefaultTemplates.json",
                 new IdentityInitializer(0));
         final TemplatesDao templatesDao =
-                new TemplatesDaoImpl(dbConfig.dsl(), "emptyDefaultTemplates.json",
+                new TemplatesDaoImpl(dsl, "emptyDefaultTemplates.json",
                         new IdentityInitializer(0));
         assertTrue(templatesDao.getFilteredTemplates(TemplatesFilter.getDefaultInstance()).isEmpty());
     }
 
     @Test
     public void testEditDefaultTemplates() {
-        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+        new TemplatesDaoImpl(dsl, "testDefaultTemplates.json",
                 new IdentityInitializer(0));
         final TemplatesDao templatesDao =
-                new TemplatesDaoImpl(dbConfig.dsl(), "testModifiedDefaultTemplates.json",
+                new TemplatesDaoImpl(dsl, "testModifiedDefaultTemplates.json",
                         new IdentityInitializer(0));
         final Set<Template> templates = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
             .addTemplateName("testVM")
@@ -248,7 +234,7 @@ public class TemplatesDaoImplTest {
 
     @Test
     public void testGetTemplateByName() throws Exception {
-        new TemplatesDaoImpl(dbConfig.dsl(), "testDefaultTemplates.json",
+        new TemplatesDaoImpl(dsl, "testDefaultTemplates.json",
                 new IdentityInitializer(0));
         Set<Template> result = templatesDao.getFilteredTemplates(TemplatesFilter.newBuilder()
             .addTemplateName("testVM")

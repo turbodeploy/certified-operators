@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.util;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,32 +20,26 @@ import java.util.stream.StreamSupport;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections4.CollectionUtils;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
-import com.vmturbo.api.component.external.api.mapper.aspect.IAspectMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
-import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
-import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -81,14 +74,13 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Pair;
-import com.vmturbo.components.common.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO;
 
@@ -96,41 +88,6 @@ import com.vmturbo.platform.common.dto.CommonDTO;
  * A factory class for various {@link SupplychainFetcher}s.
  */
 public class SupplyChainFetcherFactory {
-    /**
-     * Sometimes we need to expand aggregators to some of their aggregated
-     * entities. In the case of cloud, we need to be able to expand aggregators
-     * such as region, zone, and business account to aggregated entities whose
-     * type belongs in this set.
-     */
-    private static final Set<UIEntityType> SCOPE_EXPANSION_TYPES_FOR_CLOUD = ImmutableSet.of(
-        UIEntityType.APPLICATION,
-        UIEntityType.APPLICATION_SERVER,
-        UIEntityType.BUSINESS_APPLICATION,
-        UIEntityType.CONTAINER,
-        UIEntityType.CONTAINER_POD,
-        UIEntityType.DATABASE,
-        UIEntityType.DATABASE_SERVER,
-        UIEntityType.DATABASE_SERVER_TIER,
-        UIEntityType.DATABASE_TIER,
-        UIEntityType.LOAD_BALANCER,
-        UIEntityType.STORAGE,
-        UIEntityType.VIRTUAL_APPLICATION,
-        UIEntityType.VIRTUAL_MACHINE,
-        UIEntityType.VIRTUAL_VOLUME);
-    /**
-     * This maps aggregator entity types (such as region or datacenter), to
-     * the set of types of the entities that we will get after their expansion.
-     * For example, when we expand datacenters, we want to fetch all aggregated
-     * PMs. When we expand VDCs, we want to fetch all related VMs. When we
-     * expand cloud aggregators, we want to get entities of all the types in
-     * {@link #SCOPE_EXPANSION_TYPES_FOR_CLOUD}.
-     */
-    private static final Map<UIEntityType, Set<UIEntityType>> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
-        UIEntityType.DATACENTER, Collections.singleton(UIEntityType.PHYSICAL_MACHINE),
-        UIEntityType.REGION, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-        UIEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-        UIEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-        UIEntityType.VIRTUAL_DATACENTER, Collections.singleton(UIEntityType.VIRTUAL_MACHINE));
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -146,14 +103,19 @@ public class SupplyChainFetcherFactory {
 
     private final long realtimeTopologyContextId;
 
+    //Mapper for getting aspects for entity or group
+    private final EntityAspectMapper entityAspectMapper;
+
     public SupplyChainFetcherFactory(@Nonnull final SupplyChainServiceBlockingStub supplyChainService,
             @Nonnull final EntitySeverityServiceBlockingStub entitySeverityServiceBlockingStub,
             @Nonnull final RepositoryApi repositoryApi,
             @Nonnull final GroupExpander groupExpander,
+            @Nonnull final EntityAspectMapper entityAspectMapper,
             CostServiceBlockingStub costServiceBlockingStub, final long realtimeTopologyContextId) {
         this.supplyChainRpcService = supplyChainService;
         this.severityRpcService = entitySeverityServiceBlockingStub;
         this.repositoryApi = repositoryApi;
+        this.entityAspectMapper = entityAspectMapper;
         this.groupExpander = groupExpander;
         this.costServiceBlockingStub = costServiceBlockingStub;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -203,10 +165,10 @@ public class SupplyChainFetcherFactory {
     }
 
     /**
-     * Expand aggregator entities according to the map {@link #ENTITY_TYPES_TO_EXPAND}.
+     * Expand aggregator entities according to the map {@link ApiEntityType#ENTITY_TYPES_TO_EXPAND}.
      *
      * <p>The method takes a set of entity oids. It expands each entity whose type
-     * is in the key set of {@link #ENTITY_TYPES_TO_EXPAND} to the aggregated entities
+     * is in the key set of {@link ApiEntityType#ENTITY_TYPES_TO_EXPAND} to the aggregated entities
      * of the corresponding type. It will leave all other entities unchanged. For
      * example, if the input set of oids contains the oids of a datacenter and a VM,
      * the result will contain the oids of the VM and all the PMs aggregated by
@@ -223,8 +185,8 @@ public class SupplyChainFetcherFactory {
             return Collections.emptySet();
         }
 
-        final Set<String> entityTypeString = ENTITY_TYPES_TO_EXPAND.keySet().stream()
-            .map(UIEntityType::apiStr)
+        final Set<String> entityTypeString = ApiEntityType.ENTITY_TYPES_TO_EXPAND.keySet().stream()
+            .map(ApiEntityType::apiStr)
             .collect(Collectors.toSet());
         final Set<Long> expandedEntityOids = Sets.newHashSet();
         // get all service entities which need to expand.
@@ -244,9 +206,9 @@ public class SupplyChainFetcherFactory {
                 if (expandServiceEntities.containsKey(oidToExpand)) {
                     final MinimalEntity expandEntity = expandServiceEntities.get(oidToExpand);
                     final List<String> relatedEntityTypes =
-                        ENTITY_TYPES_TO_EXPAND.get(UIEntityType.fromType(expandEntity.getEntityType()))
+                        ApiEntityType.ENTITY_TYPES_TO_EXPAND.get(ApiEntityType.fromType(expandEntity.getEntityType()))
                             .stream()
-                            .map(UIEntityType::apiStr)
+                            .map(ApiEntityType::apiStr)
                             .collect(Collectors.toList());
                     // fetch the supply chain map:  entity type -> SupplyChainNode
                     Map<String, SupplyChainNode> supplyChainMap = newNodeFetcher()
@@ -558,8 +520,8 @@ public class SupplyChainFetcherFactory {
                             // The "Workload" type is UI-only, and represents a collection of
                             // entity types that count as a workload in our system. Expand the
                             // magic type into the real types it represents.
-                            return UIEntityType.WORKLOAD_ENTITY_TYPES.stream()
-                                .map(UIEntityType::apiStr);
+                            return ApiEntityType.WORKLOAD_ENTITY_TYPES.stream()
+                                .map(ApiEntityType::apiStr);
                         } else {
                             return Stream.of(type);
                         }
@@ -665,7 +627,7 @@ public class SupplyChainFetcherFactory {
          * Fetch the requested supply chain using {@link #fetch()} and then return the ids
          * of all the entities in the supply chain.
          *
-         * @return the set of ids of all the entities in the supply chain.
+         * @return the set of ids of all the entities in the supply chain.s
          * @throws InterruptedException
          * @throws ExecutionException
          * @throws TimeoutException
@@ -761,7 +723,7 @@ public class SupplyChainFetcherFactory {
                         final List<String> groupTypes = GroupProtoUtil
                             .getEntityTypes(group)
                             .stream()
-                            .map(UIEntityType::apiStr)
+                            .map(ApiEntityType::apiStr)
                             .collect(Collectors.toList());
 
                         if (groupTypes.containsAll(entityTypes)) {
@@ -769,13 +731,13 @@ public class SupplyChainFetcherFactory {
                                 return Collections.emptyList();
                             }
 
-                            final Map<UIEntityType, Set<Long>> typeToMembers =
+                            final Map<ApiEntityType, Set<Long>> typeToMembers =
                                 groupExpander.expandUuidToTypeToEntitiesMap(group.getId());
 
                             return entityTypes
                                 .stream()
                                 .map(type -> createSupplyChainNode(type,
-                                    typeToMembers.get(UIEntityType.fromString(type)),
+                                    typeToMembers.get(ApiEntityType.fromString(type)),
                                     group, null, null))
                                 .filter(Optional::isPresent)
                                 .map(Optional::get)
@@ -848,37 +810,37 @@ public class SupplyChainFetcherFactory {
         private List<SupplyChainNode> createSupplyChainForResourceGroup(
             GroupAndMembers groupAndMembers) {
             final Set<Long> entities = new HashSet<>(groupAndMembers.entities());
-            final Map<UIEntityType, Set<String>> connectionsProvider = new HashMap<>();
-            final Map<UIEntityType, Set<String>> connectionsConsumer = new HashMap<>();
-            final Map<UIEntityType, Set<Long>> entitiesMap = new HashMap<>();
+            final Map<ApiEntityType, Set<String>> connectionsProvider = new HashMap<>();
+            final Map<ApiEntityType, Set<String>> connectionsConsumer = new HashMap<>();
+            final Map<ApiEntityType, Set<Long>> entitiesMap = new HashMap<>();
             final boolean limitedTypes = CollectionUtils.isNotEmpty(entityTypes);
 
             repositoryApi.entitiesRequest(entities).getFullEntities()
                 .forEach(entity -> {
-                    final UIEntityType firstEntityType =
-                        UIEntityType.fromType(entity.getEntityType());
+                    final ApiEntityType firstEntityType =
+                        ApiEntityType.fromType(entity.getEntityType());
                     final boolean entityInScope =
                         !limitedTypes || entityTypes.contains(firstEntityType.apiStr());
 
                     if (entityInScope) {
-                        entitiesMap.computeIfAbsent(UIEntityType.fromType(entity.getEntityType()),
+                        entitiesMap.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),
                             t -> new HashSet<>()).add(entity.getOid());
                     }
 
                     // initialize providers with the set of provider of
                     // entity commodities
-                    Set<Pair<Long, UIEntityType>> providers =
+                    Set<Pair<Long, ApiEntityType>> providers =
                         entity.getCommoditiesBoughtFromProvidersList().stream()
                         .filter(c -> c.hasProviderEntityType() && c.hasProviderId())
                         .map(c -> new Pair<>(c.getProviderId(),
-                            UIEntityType.fromType(c.getProviderEntityType())))
+                            ApiEntityType.fromType(c.getProviderEntityType())))
                         .collect(Collectors.toSet());
 
                     // add those entities that are entities connected to
                     // to the list of providers.
                     entity.getConnectedEntityListList()
                         .forEach(ce -> providers.add(new Pair<>(ce.getConnectedEntityId(),
-                            UIEntityType.fromType(ce.getConnectedEntityType()))));
+                            ApiEntityType.fromType(ce.getConnectedEntityType()))));
 
                     // create a required relations for each provider
                     providers
@@ -888,10 +850,10 @@ public class SupplyChainFetcherFactory {
                                 return;
                             }
 
-                            final boolean isRegion = (UIEntityType.REGION == p.second);
+                            final boolean isRegion = (ApiEntityType.REGION == p.second);
                             // If it is region add it to supply chain
                             if (isRegion) {
-                                entitiesMap.computeIfAbsent(UIEntityType.REGION,
+                                entitiesMap.computeIfAbsent(ApiEntityType.REGION,
                                     t -> new HashSet<>()).add(p.first);
                             }
 
@@ -899,9 +861,9 @@ public class SupplyChainFetcherFactory {
                             // entities are part that are part of the resource group
                             // or those that are region
                             if ((entities.contains(p.first) || isRegion) && entityInScope) {
-                                final UIEntityType consumerType =
-                                    UIEntityType.fromType(entity.getEntityType());
-                                final UIEntityType providerType = p.second;
+                                final ApiEntityType consumerType =
+                                    ApiEntityType.fromType(entity.getEntityType());
+                                final ApiEntityType providerType = p.second;
                                 connectionsProvider
                                     .computeIfAbsent(consumerType, t -> new HashSet<>())
                                     .add(providerType.apiStr());
@@ -1036,7 +998,7 @@ public class SupplyChainFetcherFactory {
 
         private final EntityDetailType entityDetailType;
 
-        private final Set<AspectName> aspectsToInclude;
+        private final Collection<String> aspectsToInclude;
 
         private final EntitySeverityServiceBlockingStub severityRpcService;
 
@@ -1067,9 +1029,7 @@ public class SupplyChainFetcherFactory {
             super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
                     groupExpander, enforceUserScope, repositoryApi);
             this.entityDetailType = entityDetailType;
-            this.aspectsToInclude = aspectsToInclude == null ? null : aspectsToInclude.stream()
-                .map(AspectName::fromString)
-                .collect(Collectors.toSet());
+            this.aspectsToInclude = aspectsToInclude;
             this.includeHealthSummary = includeHealthSummary;
             this.severityRpcService = Objects.requireNonNull(severityRpcService);
             this.entityAspectMapper = entityAspectMapper;
@@ -1105,9 +1065,11 @@ public class SupplyChainFetcherFactory {
                 final Map<String, ServiceEntityApiDTO> serviceEntityApiDTOS = new HashMap<>();
                 // If we only have one member we need its name for the supplychain
                 if (entityDetailType != null || memberOidsList.size() == 1) {
-                    repositoryApi.entitiesRequest(memberOidsList)
-                        .getSEList()
-                        .forEach(e -> serviceEntityApiDTOS.put(e.getUuid(), e));
+                    RepositoryApi.MultiEntityRequest request = repositoryApi.entitiesRequest(memberOidsList);
+                    if (Objects.equals(entityDetailType, EntityDetailType.aspects)) {
+                        request.useAspectMapper(entityAspectMapper, aspectsToInclude);
+                    }
+                    request.getSEList().forEach(e -> serviceEntityApiDTOS.put(e.getUuid(), e));
                 }
 
                 final Map<Severity, Long> severities = new HashMap<>();
@@ -1152,77 +1114,6 @@ public class SupplyChainFetcherFactory {
             // set information about cost to supplyChain entities if it is required and possible
             populateCostPrice(resultApiDTO);
 
-            if (Objects.equals(entityDetailType, EntityDetailType.aspects)) {
-                Set<Entry<String, SupplychainEntryDTO>> seMapEntrySet = resultApiDTO.getSeMap().entrySet();
-
-                Map<String, List<ServiceEntityApiDTO>> entityTypeToSeList =  seMapEntrySet.stream().collect(Collectors.toMap(
-                        Entry::getKey,
-                    e -> new ArrayList<>(e.getValue().getInstances().values())
-                ));
-
-                Map<String, List<TopologyEntityDTO>> entityTypeToTeList = entityTypeToSeList.entrySet().stream()
-                    .collect(Collectors.toMap(
-                            Entry::getKey,
-                        entityTypeEntry -> repositoryApi.entitiesRequest(
-                            entityTypeEntry.getValue().stream()
-                                .map(se -> Long.valueOf(se.getUuid()))
-                                .collect(Collectors.toSet()))
-                            .getFullEntities()
-                            .collect(Collectors.toList())));
-
-                Map<String, Map<Boolean, List<IAspectMapper>>> entityTypeToGroupEnabledToMappers = entityTypeToTeList.entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey,
-                        d -> entityAspectMapper.getGroupMemberMappers(d.getValue()).stream()
-                            .collect(Collectors.groupingBy(IAspectMapper::supportsGroupAspectExpansion))));
-
-                boolean groupEnabled = true;
-                // Note: This is a performance optimization to enable processing of TopologyEntityDTO lists-
-                // by doing this, cluster network requests can be batched
-                final Map<String, Map<String, Map<AspectName, EntityAspect>>> entityTypeToGroupAspectToUuidMap = new HashMap<>();
-                for (Entry<String, List<TopologyEntityDTO>> entry : entityTypeToTeList.entrySet()) {
-                    entityTypeToGroupAspectToUuidMap.put(entry.getKey(),
-                            entityAspectMapper.getExpandedAspectsByGroupUsingMappers(
-                                    entry.getValue(),
-                                    entityTypeToGroupEnabledToMappers.get(entry.getKey())
-                                            .get(groupEnabled)));
-                }
-
-                for (Entry<String, Map<Boolean, List<IAspectMapper>>> entityTypeToGroupEnabledToMappersEntry : entityTypeToGroupEnabledToMappers
-                        .entrySet()) {
-                    if (!entityTypeToGroupEnabledToMappersEntry.getValue().isEmpty()) {
-                        String entityType = entityTypeToGroupEnabledToMappersEntry.getKey();
-                        Map<String, Map<AspectName, EntityAspect>> groupAspectToUuidMap = entityTypeToGroupAspectToUuidMap.get(entityType);
-                        List<IAspectMapper> groupDisabledMappers = entityTypeToGroupEnabledToMappersEntry.getValue().get(!groupEnabled);
-                        Map<Long, Map<AspectName, EntityAspect>> entityAspectMapRemaining = CollectionUtils.isEmpty(groupDisabledMappers)
-                            ? Maps.newHashMap()
-                            : entityAspectMapper.getAspectsByEntities(
-                                entityTypeToTeList.get(entityType), groupDisabledMappers);
-                        // Combine grouped and ungrouped aspect calculations
-                        List<ServiceEntityApiDTO> entityTypeSes = entityTypeToSeList.get(entityType);
-                        boolean groupAspectToUuidMapHasEntries = !groupAspectToUuidMap.isEmpty();
-                        boolean entityAspectMapRemainingHasEntries = !entityAspectMapRemaining.isEmpty();
-                        if (groupAspectToUuidMapHasEntries || entityAspectMapRemainingHasEntries) {
-                            entityTypeSes.forEach(se -> {
-                                String uuid = se.getUuid();
-                                Map<AspectName, EntityAspect> aspects = Maps.newHashMap();
-                                final Map<AspectName, EntityAspect> groupAspects = groupAspectToUuidMap.get(uuid);
-                                if (groupAspects != null) {
-                                    aspects.putAll(groupAspects);
-                                } else {
-                                    logger.error("Cannot get aspects for entity with uuid {}", uuid);
-                                }
-                                if (entityAspectMapRemainingHasEntries) {
-                                    Map<AspectName, EntityAspect> entityAspectMap = entityAspectMapRemaining.get(Long.valueOf(uuid));
-                                    if (entityAspectMap != null) {
-                                        entityAspectMap.forEach((key, value) -> aspects.merge(key, value, (v1, v2) -> v2));
-                                    }
-                                }
-                                se.setAspectsByName(aspects);
-                            });
-                        }
-                    }
-                }
-            }
             return resultApiDTO;
         }
 
@@ -1239,7 +1130,7 @@ public class SupplyChainFetcherFactory {
                 return;
             }
             for (Entry<String, SupplychainEntryDTO> entry : apiDTO.getSeMap().entrySet()) {
-                if (!UIEntityType.ENTITY_TYPES_WITH_COST.contains(entry.getKey())) {
+                if (!ApiEntityType.ENTITY_TYPES_WITH_COST.contains(entry.getKey())) {
                     continue;
                 }
                 final Set<Long> entitiesIds = entry.getValue()

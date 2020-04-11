@@ -11,27 +11,20 @@ import static org.junit.Assert.assertFalse;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
-import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Result;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.support.AnnotationConfigContextLoader;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
@@ -40,18 +33,27 @@ import com.vmturbo.identity.attributes.IdentityMatchingAttributes;
 import com.vmturbo.identity.attributes.SimpleMatchingAttributes;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.PersistentIdentityStore;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
+import com.vmturbo.topology.processor.db.TopologyProcessor;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        loader = AnnotationConfigContextLoader.class,
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=topology_processor"})
 public class PersistentTargetSpecIdentityStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(TopologyProcessor.TOPOLOGY_PROCESSOR);
+
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
     private static final long TARGET_OID_1 = 2333L;
     private static final long TARGET_OID_2 = 666L;
+    private static final long TARGET_OID_3 = 123L;
+
     private static final SimpleMatchingAttributes ATTR_1 = SimpleMatchingAttributes.newBuilder()
             .addAttribute("probeId", Long.toString(1))
             .addAttribute("address", "aaa.com")
@@ -63,27 +65,11 @@ public class PersistentTargetSpecIdentityStoreTest {
     private static final String TARGET_IDENTITY_ATTRS_1 = new Gson().toJson(ATTR_1);
     private static final String TARGET_IDENTITY_ATTRS_2 = new Gson().toJson(ATTR_2);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
-
-    private Flyway flyway;
-    private DSLContext dsl;
+    private DSLContext dsl = dbConfig.getDslContext();
 
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
-
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-
-        // Clean the database and bring it up to the production configuration before running test
-        flyway.clean();
-        flyway.migrate();
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     /**
@@ -102,6 +88,29 @@ public class PersistentTargetSpecIdentityStoreTest {
         assertThat(attrToOidMap.size(), equalTo(2));
         assertThat(attrToOidMap.keySet(), containsInAnyOrder(ATTR_1, ATTR_2));
         assertThat(attrToOidMap.values(), containsInAnyOrder(TARGET_OID_1, TARGET_OID_2));
+    }
+
+    /**
+     * Test that when there are two entries for the same attributes in the DB, we handle it
+     * gracefully and just keep the entry with the lower OID.
+     *
+     * @throws IdentityStoreException if PersistentTargetSpecIdentityStore throws it.
+     */
+    @Test
+    public void testFetchAllOidMappingsWithDuplicateTarget() throws IdentityStoreException {
+        // arrange
+        final PersistentIdentityStore testIdentityStore = new PersistentTargetSpecIdentityStore(dsl);
+        persistTargetSpecOids();
+        // add a new OID, TARGET_OID_3, whose attributes match TARGET_OID_1
+        persistDuplicateTargetSpecOid();
+        // act
+        Map<IdentityMatchingAttributes, Long> attrToOidMap = testIdentityStore.fetchAllOidMappings();
+        // assert
+        assertThat(attrToOidMap.size(), equalTo(2));
+        assertThat(attrToOidMap.keySet(), containsInAnyOrder(ATTR_1, ATTR_2));
+        // since TARGET_OID_3 < TARGET_OID_1, we keep that TARGET_OID_3 in favor of TARGET_OID_1
+        assertTrue( attrToOidMap.get(ATTR_1) == TARGET_OID_3);
+        assertTrue( attrToOidMap.get(ATTR_2) == TARGET_OID_2);
     }
 
     /**
@@ -217,5 +226,15 @@ public class PersistentTargetSpecIdentityStoreTest {
                 .set(TARGETSPEC_OID.ID, TARGET_OID_2)
                 .set(TARGETSPEC_OID.IDENTITY_MATCHING_ATTRIBUTES, TARGET_IDENTITY_ATTRS_2)
                 .execute();
+    }
+
+    /**
+     * Persist a record in the DB that conflicts with the record for TARGET_OID_1.
+     */
+    private void persistDuplicateTargetSpecOid() {
+        dsl.insertInto(TARGETSPEC_OID)
+            .set(TARGETSPEC_OID.ID, TARGET_OID_3)
+            .set(TARGETSPEC_OID.IDENTITY_MATCHING_ATTRIBUTES, TARGET_IDENTITY_ATTRS_1)
+            .execute();
     }
 }

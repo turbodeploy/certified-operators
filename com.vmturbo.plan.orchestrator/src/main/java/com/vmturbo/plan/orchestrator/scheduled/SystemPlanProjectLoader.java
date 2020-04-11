@@ -3,7 +3,11 @@ package com.vmturbo.plan.orchestrator.scheduled;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -99,8 +103,7 @@ public class SystemPlanProjectLoader {
                 try {
                     PlanProjectOuterClass.PlanProject planProject = planProjectDao.createPlanProject(planProjectInfo);
                     planProjectScheduler.setPlanProjectSchedule(planProject.getPlanProjectId());
-                    logger.info("Plan scheduler successfully scheduled plan: {}",
-                            planProjectInfo.getName());
+                    logger.info("Plan scheduler successfully scheduled plan: {}", planProjectInfo.getName());
                 } catch (DataAccessException e) {
                     logger.error("Failed to create system plan project {}: {}",
                             planProjectInfo.getName(), e.getMessage());
@@ -113,6 +116,18 @@ public class SystemPlanProjectLoader {
                             planProjectInfo.getName(),
                             e.getMessage());
                 }
+            }
+        }
+
+        for (PlanProjectOuterClass.PlanProject planProject: planProjectDao.getAllPlanProjects()) {
+            Optional<Long> delayMicros = planProjectScheduler.getPlanProjectSchedule(planProject.getPlanProjectId())
+                    .map(schedule -> schedule.getDelay(TimeUnit.MICROSECONDS));
+            if (delayMicros.isPresent()) {
+                logger.info("Plan Project {} next execution at {}",
+                        planProject.getPlanProjectInfo().getName(),
+                        Instant.now().plus(delayMicros.get(), ChronoUnit.MICROS));
+            } else {
+                logger.info("Plan Project {} not scheduled", planProject.getPlanProjectInfo().getName());
             }
         }
     }

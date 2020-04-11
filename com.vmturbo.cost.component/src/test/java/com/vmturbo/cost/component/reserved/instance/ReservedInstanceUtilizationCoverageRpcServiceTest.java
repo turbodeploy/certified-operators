@@ -3,7 +3,9 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -263,7 +265,7 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         final ReservedInstanceStatsRecord planProjectedRICoverageStats =
                         createRIStatsRecord(200, 100, projectedSnapshotTime);
 
-        when(planProjectedRICoverageAndUtilStore.getPlanReservedInstanceUtilizationStatsRecords(PLAN_ID))
+        when(planProjectedRICoverageAndUtilStore.getPlanReservedInstanceUtilizationStatsRecords(eq(PLAN_ID), anyList()))
                         .thenReturn(Lists.newArrayList(planProjectedRICoverageStats));
         GetReservedInstanceUtilizationStatsRequest request =
                         GetReservedInstanceUtilizationStatsRequest.newBuilder()
@@ -295,7 +297,7 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         final ReservedInstanceStatsRecord planProjectedRICoverageStats =
                         createRIStatsRecord(10, 6.5f, projectedSnapshotTime);
 
-        when(planProjectedRICoverageAndUtilStore.getPlanReservedInstanceCoverageStatsRecords(PLAN_ID))
+        when(planProjectedRICoverageAndUtilStore.getPlanReservedInstanceCoverageStatsRecords(eq(PLAN_ID), anyList()))
                         .thenReturn(Lists.newArrayList(planProjectedRICoverageStats));
         GetReservedInstanceCoverageStatsRequest request =
                         GetReservedInstanceCoverageStatsRequest.newBuilder()

@@ -137,8 +137,8 @@ message Explanation {
 
     // A resize explanation contains start and end utilization of the resize commodity.
     message ResizeExplanation {
-        required float start_utilization = 1;
-        required float end_utilization = 2;
+        required float _deprecated_start_utilization = 1 [deprecated=true];
+        required float _deprecated_end_utilization = 2 [deprecated=true];
         optional string scaling_group_id = 3;
     }
 
@@ -238,9 +238,12 @@ message Explanation {
         oneof reason_information {
             TimeSlotReasonInformation time_slot = 2;
         }
-        // When action is caused by a time-slot analysis, the slot within a day.
+        // Slot info when action is caused by a time-slot analysis
         message TimeSlotReasonInformation {
+            // the slot within a day
             required int32 slot = 1;
+            // total number of slots in a day
+            required int32 totalSlotNumber = 2;
         }
     }
 
@@ -946,6 +949,9 @@ message ActionSpec {
 
     // A list of prerequisite descriptions.
     repeated string prerequisite_description = 12;
+
+    // The severity of the action
+    optional Severity severity = 13 [default = NORMAL];
 }
 
 // A filter to be supplied with action queries.
@@ -977,7 +983,7 @@ message ActionQueryFilter {
         repeated int64 oids = 11;
     }
 
-    // date range for the request; dates are epoch longs, e.g. Unix Timestamp
+    // date range for the request; dates are epoch longs, e.g. Unix TimestampLiveAction
     // We currently require both start_date and end_date to be not null.
     // Todo: will work on provide default values.
     optional int64 start_date = 4;
@@ -995,6 +1001,9 @@ message ActionQueryFilter {
 
     // Include only actions in a particular environment.
     optional .common.EnvironmentType environment_type = 9;
+
+    // If non-empty, include only actions of the given severities
+    repeated Severity severities = 13;
 
 }
 
@@ -1360,6 +1369,9 @@ message CurrentActionStatsQuery {
 
         // Group by the cost type of the action to bucket SAVINGS/INVESTMENT actions.
         COST_TYPE = 11;
+
+        // Group by the risk severity of actions.
+        SEVERITY = 12;
     }
 }
 
@@ -1566,6 +1578,9 @@ message CurrentActionStat {
         // Cost Type of the action, only present if the "group_by" in the query contains
         // "COST_TYPE".
         optional ActionCostType cost_type = 10;
+
+        // Assigned Severity level of the Action used for the "group_by" "severity" query
+        optional Severity severity = 11;
     }
 
     // The stat group this action stat is in.

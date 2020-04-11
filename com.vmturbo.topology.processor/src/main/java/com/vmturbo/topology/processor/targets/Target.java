@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.targets;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -16,12 +15,6 @@ import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.TypeAdapter;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonWriter;
-import com.google.protobuf.util.JsonFormat;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.log4j.Logger;
@@ -41,6 +34,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.impl.TargetInfoProtobufWrapper;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 
 /**
  * The Topology Processor's representation of a registered target.
@@ -49,7 +43,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
  * is the base unit of operation for a probe. For example, if the
  * probe is a VCenter probe, the target will be a VCenter instance.
  */
-public class Target {
+public class Target implements ProbeStoreListener {
     private static Logger logger = Logger.getLogger(Target.class);
     private final long id;
     private final long probeId;
@@ -59,13 +53,13 @@ public class Target {
      */
     private final List<AccountValue> mediationAccountVals;
 
-    private final InternalTargetInfo info;
+    private InternalTargetInfo info;
 
-    private final TargetInfo noSecretDto;
+    private TargetInfo noSecretDto;
 
-    private final TargetInfo noSecretAnonymousDto;
+    private TargetInfo noSecretAnonymousDto;
 
-    private final ProbeInfo probeInfo;
+    private ProbeInfo probeInfo;
 
     private List<com.vmturbo.platform.common.dto.Discovery.AccountDefEntry> accountDefEntryList;
 
@@ -75,32 +69,28 @@ public class Target {
     private boolean hasGroupScope = false;
 
     /**
-     * Create a target from a string as returned by {@link Target#toJsonString()}.
+     * Create a target from an existing {@link InternalTargetInfo}.
      *
-     * @param serializedTarget The string representing the serialized target.
+     * @param internalTargetInfo The {@link InternalTargetInfo}.
      * @param probeStore The probe store instance.
-     * @throws TargetDeserializationException If failed to de-serialize the target.
      * @throws InvalidTargetException if probe not found in probe store
      */
-    public Target(@Nonnull final String serializedTarget, @Nonnull final ProbeStore probeStore) throws TargetDeserializationException, InvalidTargetException {
-        this.info = InternalTargetInfo.fromJsonString(serializedTarget);
-        this.id = info.targetInfo.getId();
-        this.probeId = info.targetInfo.getSpec().getProbeId();
-        this.probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
+    public Target(@Nonnull final InternalTargetInfo internalTargetInfo,
+                  @Nonnull final ProbeStore probeStore) throws InvalidTargetException {
+        this.id = internalTargetInfo.targetInfo.getId();
+        this.probeId = internalTargetInfo.targetInfo.getSpec().getProbeId();
+
+        ProbeInfo probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
             new InvalidTargetException("No probe found in store for probe ID " + probeId));
 
-        noSecretDto = removeSecretAccountVals(info.targetInfo, info.secretFields);
-        noSecretAnonymousDto = removeSecretAnonymousAccountVals(info.targetInfo, info.secretFields);
 
         final ImmutableList.Builder<AccountValue> accountValBuilder = new ImmutableList.Builder<>();
-        info.targetInfo.getSpec().getAccountValueList().stream()
-                .map(this::targetAccountValToMediationAccountVal)
-                .forEach(accountValBuilder::add);
+        internalTargetInfo.targetInfo.getSpec().getAccountValueList().stream()
+            .map(this::targetAccountValToMediationAccountVal)
+            .forEach(accountValBuilder::add);
         mediationAccountVals = accountValBuilder.build();
 
-        if (!info.targetInfo.hasDisplayName()) {
-            logger.error("Empty target display name for target id " + this.id);
-        }
+        refreshProbeInfo(probeInfo, true, internalTargetInfo.targetInfo.getSpec());
     }
 
     /**
@@ -143,41 +133,17 @@ public class Target {
 
         mediationAccountVals = accountValBuilder.build();
 
-        this.probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
-            new InvalidTargetException("No probe found in store for probe ID " + probeId));
-        accountDefEntryList = probeInfo.getAccountDefinitionList();
-
-        final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
-        hasGroupScope = checkForGroupScope(accountDefEntryList);
-        if (validateAccountValues) {
-            probeInfo.getAccountDefinitionList()
-                    .stream()
-                    .map(AccountValueAdaptor::wrap)
-                    .filter(AccountDefEntry::isSecret)
-                    .map(AccountDefEntry::getName)
-                    .forEach(secretFieldBuilder::add);
-        }
-        final Set<String> secretFields = secretFieldBuilder.build();
 
         final TargetSpec.Builder targetSpec = TargetSpec.newBuilder().setProbeId(probeId)
-                .addAllAccountValue(inputSpec.getAccountValueList())
-                .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
+            .addAllAccountValue(inputSpec.getAccountValueList())
+            .addAllDerivedTargetIds(inputSpec.getDerivedTargetIdsList());
         targetSpec.setIsHidden(inputSpec.getIsHidden());
         targetSpec.setReadOnly(inputSpec.getReadOnly());
 
-        final String targetDisplayName = computeDisplayName(this.probeInfo,
-                inputSpec.getAccountValueList(), secretFields);
+        final ProbeInfo probeInfo = probeStore.getProbe(probeId).orElseThrow(() ->
+            new InvalidTargetException("No probe found in store for probe ID " + probeId));
 
-        final TargetInfo targetInfo = TargetInfo.newBuilder()
-                .setId(id)
-                .setSpec(targetSpec)
-                .setDisplayName(targetDisplayName)
-                .build();
-
-        noSecretDto = removeSecretAccountVals(targetInfo, secretFields);
-        noSecretAnonymousDto = removeSecretAnonymousAccountVals(targetInfo, secretFields);
-
-        info = new InternalTargetInfo(targetInfo, secretFields);
+        refreshProbeInfo(probeInfo, validateAccountValues, targetSpec.build());
     }
 
     /**
@@ -522,12 +488,12 @@ public class Target {
     }
 
     /**
-     * Serializes the target to a JSON string that's compatible with {@link Target#Target(String, ProbeStore)}.
+     * Get the {@link InternalTargetInfo} containing information about secret fields.
      *
-     * @return The JSON string representing the target.
+     * @return The {@link InternalTargetInfo}.
      */
-    public String toJsonString() {
-        return info.toJsonString();
+    InternalTargetInfo getInternalTargetInfo() {
+        return info;
     }
 
     /**
@@ -535,12 +501,7 @@ public class Target {
      * of {@link AccountValue}s that are supposed to be secret.
      */
     @Immutable
-    private static class InternalTargetInfo {
-        private static final Gson GSON = new GsonBuilder()
-            // Need to be able to serialize AccountValue protos.
-            .registerTypeAdapter(InternalTargetInfo.class, new InternalTargetInfoAdapter())
-            .create();
-
+    static class InternalTargetInfo {
         final TargetInfo targetInfo;
 
         final Set<String> secretFields;
@@ -609,70 +570,62 @@ public class Target {
             }
             return targetInfoBuilder.build();
         }
-
-        @Nonnull
-        String toJsonString() {
-            return GSON.toJson(this);
-        }
-
-        @Nonnull
-        static InternalTargetInfo fromJsonString(@Nonnull final String serializedString) throws TargetDeserializationException {
-            try {
-                return GSON.fromJson(serializedString, InternalTargetInfo.class);
-            } catch (Exception e) {
-                throw new TargetDeserializationException(e);
-            }
-        }
     }
 
-    /**
-     * GSON adapter to serialize {@link InternalTargetInfo}.
-     */
-    private static class InternalTargetInfoAdapter extends TypeAdapter<InternalTargetInfo> {
-        @Override
-        public void write(JsonWriter out, InternalTargetInfo value) throws IOException {
-            out.beginObject();
-            out.name("secretFields");
-            out.beginArray();
-            for (final String field : value.secretFields) {
-                out.value(CryptoFacility.encrypt(field));
-            }
-            out.endArray();
-            out.endObject();
-
-            out.beginObject();
-            out.name("targetInfo");
-            out.value(JsonFormat.printer().print(value.encrypt()));
-            out.endObject();
-        }
-
-        @Override
-        public InternalTargetInfo read(JsonReader in) throws IOException {
-            final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
-            in.beginObject();
-            in.nextName();
-            in.beginArray();
-            while (in.hasNext()) {
-                secretFieldBuilder.add(CryptoFacility.decrypt(in.nextString()));
-            }
-            in.endArray();
-            in.endObject();
-
-            in.beginObject();
-            in.nextName();
-            final String serializedTarget = in.nextString();
-            final TargetInfo.Builder builder = TargetInfo.newBuilder();
-            JsonFormat.parser().merge(serializedTarget, builder);
-            in.endObject();
-            final Set<String> sf = secretFieldBuilder.build();
-            final InternalTargetInfo itf = new InternalTargetInfo(builder.build(), secretFieldBuilder.build());
-
-            return new InternalTargetInfo(itf.decrypt(sf), sf);
-        }
-    }
 
     @Override
     public String toString() {
         return Long.toString(id);
+    }
+
+    @Override
+    public void onProbeRegistered(final long probeId, final ProbeInfo newProbeInfo) {
+        if (probeId == this.probeId && !this.probeInfo.equals(newProbeInfo)) {
+            refreshProbeInfo(newProbeInfo, true, info.targetInfo.getSpec());
+        }
+    }
+
+    /**
+     * When a probe registers itself with a new {@link ProbeInfo} we need to update all fields
+     * in the target that are affected by fields in the {@link ProbeInfo}.
+     *
+     * @param probeInfo The {@link ProbeInfo}.
+     * @param validateAccountValues If true, validate account values.
+     * @param targetSpec The {@link TargetSpec}.
+     */
+    private void refreshProbeInfo(@Nonnull final ProbeInfo probeInfo,
+                                  final boolean validateAccountValues,
+                                  @Nonnull final TargetSpec targetSpec) {
+        this.probeInfo = probeInfo;
+        accountDefEntryList = probeInfo.getAccountDefinitionList();
+
+        final ImmutableSet.Builder<String> secretFieldBuilder = new ImmutableSet.Builder<>();
+        hasGroupScope = checkForGroupScope(accountDefEntryList);
+        if (validateAccountValues) {
+            probeInfo.getAccountDefinitionList()
+                .stream()
+                .map(AccountValueAdaptor::wrap)
+                .filter(AccountDefEntry::isSecret)
+                .map(AccountDefEntry::getName)
+                .forEach(secretFieldBuilder::add);
+        }
+        final Set<String> secretFields = secretFieldBuilder.build();
+
+        final String targetDisplayName = computeDisplayName(this.probeInfo,
+            targetSpec.getAccountValueList(), secretFields);
+
+        final TargetInfo targetInfo = TargetInfo.newBuilder()
+            .setId(id)
+            .setSpec(targetSpec)
+            .setDisplayName(targetDisplayName)
+            .build();
+
+        noSecretDto = removeSecretAccountVals(targetInfo, secretFields);
+        noSecretAnonymousDto = removeSecretAnonymousAccountVals(targetInfo, secretFields);
+
+        info = new InternalTargetInfo(targetInfo, secretFields);
+        if (!info.targetInfo.hasDisplayName()) {
+            logger.error("Empty target display name for target id " + this.id);
+        }
     }
 }

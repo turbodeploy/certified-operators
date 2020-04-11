@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
-        <version>7.21.200-SNAPSHOT</version>
+        <version>7.21.5-SNAPSHOT</version>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
@@ -138,6 +138,10 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>sql-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-test-utils</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.retry</groupId>
@@ -281,20 +285,20 @@
                             </schemata>
                             <customTypes>
                                 <customType>
-                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo</name>
-                                    <converter>com.vmturbo.group.setting.SettingPolicyInfoConverter</converter>
-                                </customType>
-                                <customType>
                                     <name>com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo</name>
                                     <converter>com.vmturbo.group.policy.PolicyInfoConverter</converter>
+                                </customType>
+                                <customType>
+                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase</name>
+                                    <converter>com.vmturbo.group.setting.SettingTypeConverter</converter>
                                 </customType>
                             </customTypes>
 
                             <!-- Then, associate custom types with database columns -->
                             <forcedTypes>
                                 <forcedType>
-                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo</name>
-                                    <expression>.*\.setting_policy\.setting_policy_data</expression>
+                                    <name>com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase</name>
+                                    <expression>.*\.setting_policy_setting\.setting_type</expression>
                                 </forcedType>
                                 <forcedType>
                                     <name>com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo</name>
@@ -308,15 +312,8 @@
                                     <userType>
                                         com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType
                                     </userType>
-                                    <enumConverter>true</enumConverter>
-                                    <expression>.*\.grouping\.group_type</expression>
-                                </forcedType>
-                                <forcedType>
-                                    <userType>
-                                        com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType
-                                    </userType>
-                                    <enumConverter>true</enumConverter>
-                                    <expression>.*\.group_expected_members_groups\.group_type</expression>
+                                    <includeExpression>.*\.group_type</includeExpression>
+                                    <converter>com.vmturbo.group.group.GroupTypeConverter</converter>
                                 </forcedType>
                                 <forcedType>
                                     <userType>

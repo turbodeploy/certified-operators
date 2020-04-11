@@ -312,6 +312,8 @@ public class TemplatesService implements ITemplatesService {
             return Optional.of(EntityType.VIRTUAL_MACHINE.getNumber());
         } else if (uuidOrType.equals(ParamStrings.PHYSICAL_MACHINE)) {
             return Optional.of(EntityType.PHYSICAL_MACHINE.getNumber());
+        } else if (uuidOrType.equals(ParamStrings.HCI_PHYSICAL_MACHINE)) {
+            return Optional.of(EntityType.HCI_PHYSICAL_MACHINE.getNumber());
         } else if (uuidOrType.equals(ParamStrings.STORAGE)) {
             return Optional.of(EntityType.STORAGE.getNumber());
         }
@@ -342,6 +344,8 @@ public class TemplatesService implements ITemplatesService {
                 return EntityType.VIRTUAL_MACHINE.getNumber();
             case ParamStrings.PHYSICAL_MACHINE:
                 return EntityType.PHYSICAL_MACHINE.getNumber();
+            case ParamStrings.HCI_PHYSICAL_MACHINE:
+                return EntityType.HCI_PHYSICAL_MACHINE.getNumber();
             case ParamStrings.STORAGE:
                 return EntityType.STORAGE.getNumber();
             default:

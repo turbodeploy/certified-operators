@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -159,6 +160,24 @@ public class ReservedInstanceSpecStore {
             allReservedInstanceSpecs.add(reservedInstancesToProto(record));
         }
         return allReservedInstanceSpecs;
+    }
+
+
+    /**
+     * Get all {@link ReservedInstanceSpec} within a specific region.
+     * @param regionOid The target region OID.
+     * @return The list of {@link ReservedInstanceSpec} instances associated with the target region.
+     * There is no defined order to the list.
+     */
+    public List<ReservedInstanceSpec> getAllRISpecsForRegion(long regionOid) {
+        try (Stream<ReservedInstanceSpecRecord> recordsStream = dsl
+                .selectFrom(RESERVED_INSTANCE_SPEC)
+                .where(RESERVED_INSTANCE_SPEC.REGION_ID.equal(regionOid))
+                .stream()) {
+
+            return recordsStream.map(this::reservedInstancesToProto)
+                    .collect(Collectors.toList());
+        }
     }
 
     /**

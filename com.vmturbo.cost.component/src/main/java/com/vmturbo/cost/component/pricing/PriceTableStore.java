@@ -49,10 +49,19 @@ public interface PriceTableStore {
      * Gets a list of price tables corresponding to the list of oids.
      *
      * @param oids The oids whose price tables to retrieve.
-     *
-     * @return The list of price tables.
+     * @return The map of price tables by price id.
      */
+    @Nonnull
     Map<Long, PriceTable> getPriceTables(Collection<Long> oids);
+
+    /**
+     * Get the reserved instance price tables.
+     *
+     * @param oids The oids whose price tables to retrieve.
+     * @return The map of price tables by price id.
+     */
+    @Nonnull
+    Map<Long, ReservedInstancePriceTable> getRiPriceTables(Collection<Long> oids);
 
     /**
      * Put a new collection of probe type -> price table associations into the store. This

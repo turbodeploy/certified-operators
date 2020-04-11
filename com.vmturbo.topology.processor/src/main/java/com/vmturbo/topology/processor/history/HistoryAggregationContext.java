@@ -2,6 +2,7 @@ package com.vmturbo.topology.processor.history;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -12,8 +13,11 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -26,18 +30,24 @@ import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 public class HistoryAggregationContext {
     private static final Logger logger = LogManager.getLogger();
 
+    private final TopologyInfo topologyInfo;
     private final TopologyGraph<TopologyEntity> graph;
     private final ICommodityFieldAccessor accessor;
     private final EntitySettingsCollection entitySettings;
     private final boolean isPlan;
+    private final Map<Pair<Long, EntitySettingSpecs>, Integer> oidSettingToValue =
+                    new ConcurrentHashMap<>();
 
     /**
      * Construct the context.
      *
+     * @param topologyInfo information about currently processing topology snapshot.
      * @param graphWithSettings topology graph
      * @param isPlan whether the pipeline is for plan
      */
-    public HistoryAggregationContext(@Nonnull GraphWithSettings graphWithSettings, boolean isPlan) {
+    public HistoryAggregationContext(@Nonnull TopologyInfo topologyInfo,
+                    @Nonnull GraphWithSettings graphWithSettings, boolean isPlan) {
+        this.topologyInfo = topologyInfo;
         this.graph = graphWithSettings.getTopologyGraph();
         this.accessor = new CommodityFieldAccessor(graph);
         this.isPlan = isPlan;
@@ -45,19 +55,29 @@ public class HistoryAggregationContext {
     }
 
     /**
-     * Get the setting for an entity.
+     * Returns setting value from cache in case it is present or from the entity settings
+     * collection. In case entity has no explicit setting value, then default setting value will be
+     * returned.
      *
-     * @param <T> setting value type
-     * @param oid topology entity identifier
-     * @param settingSpec setting specification
-     * @param cls setting value class
-     * @return setting value, null if not present
+     * @param relatedId entity identifier which setting value we want to get.
+     * @param settingSpecs setting specification which value we need to get.
+     * @param settingValueType raw type of the setting that we are going to get.
+     * @param converter converts raw setting value into integer.
+     * @param defaultValueProvider provider for default setting value.
+     * @param <V> type of raw setting value.
+     * @return integer value of the setting.
      */
-    @Nullable
-    public <T> T getEntitySetting(long oid,
-                                  @Nonnull EntitySettingSpecs settingSpec,
-                                  @Nonnull Class<T> cls) {
-        return entitySettings.getEntitySettingValue(oid, settingSpec, cls);
+    public <V> int getSettingValue(long relatedId, @Nonnull EntitySettingSpecs settingSpecs,
+                    @Nonnull Class<V> settingValueType, @Nonnull Function<V, Integer> converter,
+                    Function<SettingSpec, V> defaultValueProvider) {
+        return oidSettingToValue.computeIfAbsent(Pair.create(relatedId, settingSpecs), k -> {
+            final V rawValue = entitySettings.getEntitySettingValue(relatedId, settingSpecs,
+                            settingValueType);
+            if (rawValue == null) {
+                return converter.apply(defaultValueProvider.apply(settingSpecs.getSettingSpec()));
+            }
+            return converter.apply(rawValue);
+        });
     }
 
     /**
@@ -106,6 +126,15 @@ public class HistoryAggregationContext {
     @Nonnull
     public ICommodityFieldAccessor getAccessor() {
         return accessor;
+    }
+
+    /**
+     * Returns topology identifier for which history aggregation is running for.
+     *
+     * @return topology identifier.
+     */
+    public long getTopologyId() {
+        return topologyInfo.getTopologyId();
     }
 
     public boolean isPlan() {

@@ -22,6 +22,7 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
+import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
@@ -43,7 +44,7 @@ import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceSpecByIdsRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
@@ -58,8 +59,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 public class ReservedInstancesService implements IReservedInstancesService {
 
@@ -85,6 +85,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     private final UserSessionContext userSessionContext;
 
+    private final Long realtimeTopologyContextId;
+
     public ReservedInstancesService(
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
             @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
@@ -96,7 +98,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
             @Nonnull final PlanServiceBlockingStub planRpcService,
             @Nonnull final StatsQueryExecutor statsQueryExecutor,
             @Nonnull final UuidMapper uuidMapper,
-            @Nonnull final UserSessionContext userSessionContext) {
+            @Nonnull final UserSessionContext userSessionContext,
+            @Nonnull final Long realtimeTopologyContextId) {
         this.reservedInstanceService = Objects.requireNonNull(reservedInstanceService);
         this.planReservedInstanceService = Objects.requireNonNull(planReservedInstanceService);
         this.reservedInstanceSpecService = Objects.requireNonNull(reservedInstanceSpecService);
@@ -108,12 +111,19 @@ public class ReservedInstancesService implements IReservedInstancesService {
         this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.realtimeTopologyContextId = Objects.requireNonNull(realtimeTopologyContextId);
     }
 
     @Override
-    public List<ReservedInstanceApiDTO> getReservedInstances(@Nullable String scopeUuid) throws Exception {
+    public List<ReservedInstanceApiDTO> getReservedInstances(
+            @Nullable String scopeUuid, @Nullable Boolean includeAllUsable) throws Exception {
+        // default to the real time market as the scope
+        scopeUuid = Optional.ofNullable(scopeUuid)
+            .orElse(UuidMapper.UI_REAL_TIME_MARKET_STR);
+
         final ApiId scope = uuidMapper.fromUuid(scopeUuid);
-        final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(scope);
+        final Collection<ReservedInstanceBought> reservedInstancesBought = getReservedInstancesBought(
+                scope, Objects.isNull(includeAllUsable) ? false : includeAllUsable);
         final Set<Long> reservedInstanceSpecIds = reservedInstancesBought.stream()
                 .map(ReservedInstanceBought::getReservedInstanceBoughtInfo)
                 .map(ReservedInstanceBoughtInfo::getReservedInstanceSpec)
@@ -155,8 +165,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
         //TODO: support multiple scopes.
         final ApiId scope = uuidMapper.fromUuid(inputDto.getScopes().get(0));
         final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-        entityStatsApiDTO.setUuid(scope.uuid());
-        entityStatsApiDTO.setDisplayName(scope.getDisplayName());
+        // Populate basic entity data in the output dto based on the scope
+        StatsMapper.populateEntityDataEntityStatsApiDTO(scope, entityStatsApiDTO);
         entityStatsApiDTO.setStats(statsQueryExecutor.getAggregateStats(scope, inputDto.getPeriod()));
         return paginationRequest.allResultsResponse(Lists.newArrayList(entityStatsApiDTO));
     }
@@ -165,13 +175,15 @@ public class ReservedInstancesService implements IReservedInstancesService {
      * Get a list of {@link ReservedInstanceBought} which belong to the input scope.
      *
      * @param scope The scope could be global market, a group, a region, a availability zone or a account.
+     * @param includeAllUsable Whether to include all potentially usable RIs given {@param scope}
      * @return a list of {@link ReservedInstanceBought}.
      * @throws UnknownObjectException if the input scope type is not supported.
      */
-    private Collection<ReservedInstanceBought> getReservedInstancesBought(@Nonnull ApiId scope)
+    private Collection<ReservedInstanceBought> getReservedInstancesBought(
+            @Nonnull ApiId scope, @Nonnull Boolean includeAllUsable)
             throws UnknownObjectException {
         String scopeUuid = String.valueOf(scope.oid());
-        final Optional<Grouping> groupOptional = groupExpander.getGroup(String.valueOf(scopeUuid));
+        final Optional<Grouping> groupOptional = groupExpander.getGroup(scopeUuid);
 
         if (StatsUtils.isValidScopeForRIBoughtQuery(scope)) {
             final Optional<PlanInstance> optPlan = scope.getPlanInstance();
@@ -196,6 +208,14 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                 .build();
                 return planReservedInstanceService.getPlanReservedInstanceBought(request).getReservedInstanceBoughtsList();
             } else { // this is real-time or plans for which the call passes in the entity/group scope uuid rather than the plan id
+                // get all RIs that are usable within the given region/zone, and billing family
+                if (includeAllUsable) {
+                    return reservedInstanceService.getReservedInstanceBoughtForScope(
+                            GetReservedInstanceBoughtForScopeRequest.newBuilder()
+                                    .addAllScopeSeedOids(scope.getScopeOids())
+                                    .build()).getReservedInstanceBoughtList();
+                }
+
                 final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
                         GetReservedInstanceBoughtByFilterRequest.newBuilder();
 
@@ -256,14 +276,10 @@ public class ReservedInstancesService implements IReservedInstancesService {
                             break;
                     }
                 });
-                return reservedInstanceService
-                                .getReservedInstanceBoughtByTopology(
-                                         GetReservedInstanceBoughtByTopologyRequest
-                                             .newBuilder()
-                                             .setTopologyType(TopologyType.PLAN)
-                                                 .addAllScopeSeedOids(groupScopeMemberOids)
-                                                 .build())
-                    .getReservedInstanceBoughtList();
+                return reservedInstanceService.getReservedInstanceBoughtForScope(
+                        GetReservedInstanceBoughtForScopeRequest.newBuilder()
+                                .addAllScopeSeedOids(scope.getScopeOids())
+                                .build()).getReservedInstanceBoughtList();
             } else {
                 return Collections.emptySet();
             }

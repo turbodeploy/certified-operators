@@ -498,6 +498,8 @@ public class RIDataUploaderTest {
                 invocationOnMock -> Stream.empty());
         Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.DATABASE_SERVER_TIER)).thenAnswer(
                 invocationOnMock -> Stream.empty());
+        Mockito.when(mockStitchingContext.getEntitiesOfType(EntityType.SERVICE_PROVIDER)).thenAnswer(
+                invocationOnMock -> Stream.empty());
 
     }
 

@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
+import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
@@ -130,15 +131,15 @@ public class EntitySettingStore {
      * @param entitySettings A stream of settings applied to entities in this topology.
      * @throws org.jooq.exception.DataAccessException If there is an error connecting to the
      *        database (required to retrieve default setting policies).
+     * @throws StoreOperationException if failed to retrieve data from DB
      */
-    public void storeEntitySettings(final long topologyContextId,
-                                    final long topologyId,
-                                    @Nonnull final Stream<EntitySettings> entitySettings) {
+    public void storeEntitySettings(final long topologyContextId, final long topologyId,
+            @Nonnull final Stream<EntitySettings> entitySettings) throws StoreOperationException {
         try (final DataMetricTimer timer = ENTITY_SETTING_STORE_UPDATE_DURATION.startTimer()) {
             final Map<Long, SettingPolicy> defaultPolicies = settingStore.getSettingPolicies(
                     SettingPolicyFilter.newBuilder()
                             .withType(Type.DEFAULT)
-                            .build())
+                            .build()).stream()
                     .collect(Collectors.toMap(SettingPolicy::getId, Function.identity()));
             final EntitySettingSnapshot newSnapshot =
                     snapshotFactory.createSnapshot(entitySettings, defaultPolicies);
@@ -196,25 +197,28 @@ public class EntitySettingStore {
     }
 
     /**
-     * Return the Setting Policies associated with an entity.
-     * @param entityId ID of the entity
+     * Return the Setting Policies associated with an entity set.
+     * @param entityIds ID set of the entities
      * @return Stream of Setting Policies associated with the entity.
+     * @throws StoreOperationException on error operating with DB backend
      */
-    public Stream<SettingPolicy> getEntitySettingPolicies(@Nonnull final long entityId) {
+    public Collection<SettingPolicy> getEntitySettingPolicies(@Nonnull final Set<Long> entityIds)
+            throws StoreOperationException {
         final ContextSettingSnapshotCache contextCache =
                 entitySettingSnapshots.get(realtimeTopologyContextId);
         if (contextCache == null) {
-            return Stream.empty();
+            return Collections.emptySet();
         }
         final Optional<EntitySettingSnapshot> snapshot = contextCache.getLatestSnapshot();
         if (!snapshot.isPresent()) {
-            return Stream.empty();
+            return Collections.emptySet();
         }
 
-        Set<Long> settingPolicyIds =
-                snapshot.get().getEntitySettingPolicyIds(entityId);
+        Set<Long> settingPolicyIds = new HashSet<>();
+        entityIds.stream().forEach(entityId -> settingPolicyIds.addAll(snapshot.get()
+                .getEntitySettingPolicyIds(entityId)));
         if (settingPolicyIds.isEmpty()) {
-            return Stream.empty();
+            return Collections.emptySet();
         }
 
         SettingPolicyFilter.Builder settingPolicyFilter = SettingPolicyFilter.newBuilder()

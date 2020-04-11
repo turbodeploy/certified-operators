@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.store;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -9,6 +10,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -32,6 +34,14 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
@@ -39,12 +49,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection.Builder;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -68,6 +77,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     private final GroupServiceBlockingStub groupService;
 
+    private final SupplyChainServiceBlockingStub supplyChainService;
+
     private final long timeToWaitForTopology;
 
     private final TimeUnit timeToWaitUnit;
@@ -85,6 +96,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repoChannel);
         this.groupService = GroupServiceGrpc.newBlockingStub(groupChannel);
+        this.supplyChainService = SupplyChainServiceGrpc.newBlockingStub(repoChannel);
         this.timeToWaitForTopology = timeToWaitForTopology;
         this.timeToWaitUnit = timeToWaitUnit;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -180,6 +192,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      *
      * @param entities The new set of entities to get settings for. This set should contain
      *                 the IDs of all entities involved in all actions we expose to the user.
+     * @param nonProjectedEntities entities not in projected topology such as detached volume OIDs.
      * @param topologyContextId The topology context of the topology broadcast that
      *                          triggered the cache update.
      * @param topologyId The topology id of the topology, the broadcast of which triggered the
@@ -190,27 +203,39 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
+                                                   @Nonnull final Set<Long> nonProjectedEntities,
                                                    final long topologyContextId,
                                                    final long topologyId) {
-        return internalNewSnapshot(entities, topologyContextId, topologyId);
+        return internalNewSnapshot(entities, nonProjectedEntities, topologyContextId, topologyId);
     }
 
     /**
      * A version of {@link EntitiesAndSettingsSnapshotFactory#newSnapshot(Set, long, long)}
      * that waits for the latest topology in a particular context.
-     *
+     * @param nonProjectedEntities entities not in projected topology such as detached volume OIDs.
      * @param entities See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, long, long)} .
      * @param topologyContextId See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, long, long)}.
      * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings and entities.
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
+                                                   @Nonnull final Set<Long> nonProjectedEntities,
                                                    final long topologyContextId) {
-        return internalNewSnapshot(entities, topologyContextId, null);
+        return internalNewSnapshot(entities, nonProjectedEntities, topologyContextId, null);
     }
 
+    /**
+     * internalNewSnapshot.
+     *
+     * @param entities See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, long, long)} .
+     * @param nonProjectedEntities entities not in projected topology such as detached volume OIDs.
+     * @param topologyContextId topologyContextId See {@link EntitiesAndSettingsSnapshot#newSnapshot(Set, long, long)}.
+     * @param topologyId The topology Id.
+     * @return A {@link EntitiesAndSettingsSnapshot} containing the new action-related settings and entities.
+     */
     @Nonnull
     private EntitiesAndSettingsSnapshot internalNewSnapshot(@Nonnull final Set<Long> entities,
+                                                            @Nonnull final Set<Long> nonProjectedEntities,
                                                             final long topologyContextId,
                                                             @Nullable final Long topologyId) {
         final Map<Long, Map<String, Setting>> newSettings = retrieveEntityToSettingListMap(entities,
@@ -239,6 +264,14 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
                 topologyAvailabilityTracker.queueAnyTopologyRequest(topologyContextId, targetTopologyType)
                     .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
             }
+            // This will be the case for plans with detached volume actions only.
+            // We need to get the information for these entities from the real-time SOURCE topology,
+            // as they're not added to the plan projected topology.
+            if (!nonProjectedEntities.isEmpty()) {
+                topologyAvailabilityTracker.queueAnyTopologyRequest(topologyContextId, TopologyType.SOURCE)
+                .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
+            }
+
             entityMap = retrieveOidToEntityMap(entities,
                 topologyContextId, topologyId, targetTopologyType);
             ownershipGraph = retrieveOwnershipGraph(entities, topologyContextId, topologyId, targetTopologyType);
@@ -248,6 +281,25 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // Set the interrupt status on the thread.
             logger.error("Failed to wait for repository to return data due to exception : " + e);
+        }
+
+        if (!nonProjectedEntities.isEmpty()) {
+            Map<Long, ActionPartialEntity> entityMapNonProjected = Collections.emptyMap();
+            try {
+                topologyAvailabilityTracker
+                                .queueAnyTopologyRequest(topologyContextId, TopologyType.SOURCE)
+                                .waitForTopology(timeToWaitForTopology, timeToWaitUnit);
+
+                entityMapNonProjected = retrieveOidToEntityMap(nonProjectedEntities, realtimeTopologyContextId,
+                                                   topologyId, TopologyType.SOURCE);
+                entityMap.putAll(entityMapNonProjected);
+            } catch (TopologyUnavailableException e) {
+                logger.error("Topology not available. Entity snapshot won't have entity information." +
+                                " Error: {}", e.getMessage());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt(); // Set the interrupt status on the thread.
+                logger.error("Failed to wait for repository to return data due to exception : " + e);
+            }
         }
 
         return new EntitiesAndSettingsSnapshot(newSettings, entityMap, ownershipGraph,
@@ -283,32 +335,89 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         final OwnershipGraph.Builder<EntityWithConnections> graphBuilder =
             OwnershipGraph.newBuilder(EntityWithConnections::getOid);
 
-        final RetrieveTopologyEntitiesRequest.Builder entitiesReqBldr = RetrieveTopologyEntitiesRequest.newBuilder()
+        final RetrieveTopologyEntitiesRequest.Builder entitiesReqBuilder = RetrieveTopologyEntitiesRequest.newBuilder()
             .setReturnType(Type.WITH_CONNECTIONS)
             .setTopologyContextId(topologyContextId)
             .setTopologyType(topologyType)
-            .addEntityType(UIEntityType.BUSINESS_ACCOUNT.typeNumber());
+            .addEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber());
         // Set the topologyId if its non null. Else it defaults to real time.
         if (topologyId != null) {
-            entitiesReqBldr.setTopologyId(topologyId);
+            entitiesReqBuilder.setTopologyId(topologyId);
         }
 
+        final Map<Long, EntityWithConnections> businessAccounts =
+                RepositoryDTOUtil.topologyEntityStream(
+                        repositoryService.retrieveTopologyEntities(entitiesReqBuilder.build()))
+                        .map(PartialEntity::getWithConnections)
+                        .collect(Collectors.toMap(EntityWithConnections::getOid, ba -> ba));
 
-        // Get all the business accounts and add them to the ownership graph.
+        final GetMultiSupplyChainsRequest supplyChainRequest =
+                createMultiSupplyChainRequest(businessAccounts.keySet());
+
         try {
-            RepositoryDTOUtil.topologyEntityStream(
-                repositoryService.retrieveTopologyEntities(entitiesReqBldr.build()))
-                .map(PartialEntity::getWithConnections)
-                .forEach(ba -> ba.getConnectedEntitiesList().stream()
-                    .filter(connectedEntity -> connectedEntity.getConnectionType() == ConnectionType.OWNS_CONNECTION)
-                    .filter(connectedEntity -> entities.contains(connectedEntity.getConnectedEntityId()))
-                    .forEach(relevantEntity -> graphBuilder.addOwner(ba, relevantEntity.getConnectedEntityId())));
+            supplyChainService.getMultiSupplyChains(supplyChainRequest)
+                    .forEachRemaining(
+                            scResponse -> processSupplyChainResponse(entities, graphBuilder,
+                                    businessAccounts, scResponse));
             return graphBuilder.build();
         } catch (StatusRuntimeException e) {
             logger.error("Failed to retrieve ownership graph entities due to repository error: {}",
-                e.getMessage());
+                    e.getMessage());
             return OwnershipGraph.empty();
         }
+    }
+
+    /**
+     * Get entities from supplyChain (filter out entities not related to current actions)
+     * and add them to ownerShip graph as entities owned by certain business account.
+     *
+     * @param involvedEntities entities involved in current actions
+     * @param graphBuilder builder for ownerShip graph
+     * @param businessAccounts existed business accounts
+     * @param scResponse supplyChain response for business account
+     */
+    private static void processSupplyChainResponse(@Nonnull Set<Long> involvedEntities,
+            OwnershipGraph.Builder<EntityWithConnections> graphBuilder,
+            Map<Long, EntityWithConnections> businessAccounts,
+            GetMultiSupplyChainsResponse scResponse) {
+        final Stream<Long> entitiesOwnedByAccount = scResponse.getSupplyChain()
+                .getSupplyChainNodesList()
+                .stream()
+                .map(SupplyChainNode::getMembersByStateMap)
+                .map(Map::values)
+                .flatMap(memberList -> memberList.stream()
+                        .map(MemberList::getMemberOidsList)
+                        .flatMap(List::stream));
+        entitiesOwnedByAccount.filter(involvedEntities::contains)
+                .forEach(relevantEntity -> graphBuilder.addOwner(
+                        businessAccounts.get(scResponse.getSeedOid()), relevantEntity));
+    }
+
+    /**
+     * Request separate supplyChains for each business account.
+     *
+     * @param businessAccountIds business account oids
+     * @return prepared request for supplyChain service
+     */
+    private static GetMultiSupplyChainsRequest createMultiSupplyChainRequest(
+            Set<Long> businessAccountIds) {
+        final Set<String> expandedEntityTypesForBusinessAccounts =
+                ApiEntityType.ENTITY_TYPES_TO_EXPAND.get(ApiEntityType.BUSINESS_ACCOUNT)
+                        .stream()
+                        .map(ApiEntityType::apiStr)
+                        .collect(Collectors.toSet());
+        final GetMultiSupplyChainsRequest.Builder scRequestBuilder =
+                GetMultiSupplyChainsRequest.newBuilder();
+        for (Long accountId : businessAccountIds) {
+            final SupplyChainScope.Builder scScopeBuilder = SupplyChainScope.newBuilder()
+                    .addAllEntityTypesToInclude(expandedEntityTypesForBusinessAccounts)
+                    .addStartingEntityOid(accountId);
+            final SupplyChainSeed.Builder scSeedBuilder = SupplyChainSeed.newBuilder()
+                    .setSeedOid(accountId)
+                    .setScope(scScopeBuilder.build());
+            scRequestBuilder.addSeeds(scSeedBuilder.build());
+        }
+        return scRequestBuilder.build();
     }
 
     /**

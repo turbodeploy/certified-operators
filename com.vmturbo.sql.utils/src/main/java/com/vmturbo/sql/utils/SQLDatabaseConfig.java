@@ -248,7 +248,7 @@ public class SQLDatabaseConfig {
      * @return DataSource from which database connection can be obtained..
      */
     @Nonnull
-    protected DataSource dataSourceConfig(@Nonnull String schemaName, @Nonnull String dbUsername,
+    public DataSource dataSourceConfig(@Nonnull String schemaName, @Nonnull String dbUsername,
                                           @Nonnull String dbPassword) {
         DataSource dataSource = dataSource(getSQLConfigObject().getDbUrl(), dbUsername, dbPassword);
         try {
@@ -269,36 +269,9 @@ public class SQLDatabaseConfig {
         try (Connection rootConnection = rootDataSource.getConnection()) {
             // Run flyway migration under root credentials.
             flyway(schemaName, rootDataSource);
-            // Clean up existing db user, if it exists.
-            try (PreparedStatement stmt = rootConnection.prepareStatement(
-                "DROP USER ?@'%';")) {
-                stmt.setString(1, dbUsername);
-                stmt.execute();
-                logger.info("Cleaned up '{}@%' db user.", dbUsername);
-            } catch (SQLException e) {
-                // SQLException will be thrown when trying to drop not existed username% user in DB. It's valid case.
-                logger.info("'{}@%' user is not in the DB, clean up is not needed.", dbUsername);
-            }
-            // Create db user.
-            try (PreparedStatement stmt = rootConnection.prepareStatement(
-                "CREATE USER ?@'%' IDENTIFIED BY ?;")) {
-                stmt.setString(1, dbUsername);
-                stmt.setString(2, dbPassword);
-                stmt.execute();
-                logger.info("Created '{}@%' db user.", dbUsername);
-            }
-            // Grant db user privileges
-            try (PreparedStatement stmt = rootConnection.prepareStatement(
-                "GRANT ALL PRIVILEGES ON " + schemaName + ".* TO ?@'%';")) {
-                stmt.setString(1, dbUsername);
-                stmt.execute();
-                logger.info("Granted all privileges on schema '{}' to '{}@%' db user.", schemaName, dbUsername);
-            }
-            // Flush user privileges
-            try (PreparedStatement stmt = rootConnection.prepareStatement("FLUSH PRIVILEGES;")) {
-                stmt.execute();
-                logger.info("Flushed DB privileges on schema '{}' to user '{}'.", schemaName, dbUsername);
-            }
+            // Allow given user to access the database (= grants.sql):
+            final String requestUser = "'" + dbUsername + "'@'%'";
+            grantDbPrivileges(schemaName, dbPassword, rootConnection, requestUser);
         } catch (SQLException e) {
             logger.error("Database connection is not available with root credentials. Failed " +
                 "to create db user {} for schema {}.", dbUsername, schemaName);
@@ -307,9 +280,30 @@ public class SQLDatabaseConfig {
         return dataSource;
     }
 
+    protected void grantDbPrivileges(@Nonnull final String schemaName,
+            @Nonnull final String dbPassword, final Connection rootConnection, final String requestUser)
+            throws SQLException {
+        logger.info("Initialize permissions for {} on `{}`...", requestUser, schemaName);
+        logger.info("Removing {} db user if it exists.", requestUser);
+        try {
+            rootConnection.createStatement().execute(
+                    // DROP USER IF EXISTS does not appear until MySQL 5.7, and breaks Jenkins build
+                    String.format("DROP USER %s", requestUser));
+        } catch (SQLException e) {
+            // did not prevoiusly exist
+        }
+        logger.info("Creating {} db user.", requestUser);
+        rootConnection.createStatement().execute(
+                String.format("CREATE USER %s IDENTIFIED BY '%s'", requestUser, dbPassword));
+        logger.info("Granting ALL privileges for database {} to user {}.", schemaName, requestUser);
+        rootConnection.createStatement().execute(
+                String.format("GRANT ALL PRIVILEGES ON `%s`.* TO %s", schemaName, requestUser));
+        rootConnection.createStatement().execute("FLUSH PRIVILEGES");
+    }
+
     /**
      * Get DB root password. If DB password passed in from environment, use it; otherwise use the
-     * default root password from DBPasswordUtil.
+     * default root password from ktil.
      *
      * @return DB root password.
      */

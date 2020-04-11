@@ -13,21 +13,18 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
-import com.vmturbo.common.protobuf.cost.Cost;
-import org.flywaydb.core.Flyway;
+
 import org.jooq.DSLContext;
 import org.jooq.Result;
-import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
@@ -46,24 +43,26 @@ import com.vmturbo.platform.sdk.common.CloudCostDTOREST.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.ReservedInstanceType.PaymentOption;
 import com.vmturbo.platform.sdk.common.CloudCostDTOREST.Tenancy;
-import com.vmturbo.sql.utils.TestSQLDatabaseConfig;
-import org.springframework.util.CollectionUtils;
+import com.vmturbo.sql.utils.DbCleanupRule;
+import com.vmturbo.sql.utils.DbConfigurationRule;
 
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(
-        classes = {TestSQLDatabaseConfig.class}
-)
-@TestPropertySource(properties = {"originalSchemaName=cost"})
 public class BuyReservedInstanceStoreTest {
+    /**
+     * Rule to create the DB schema and migrate it.
+     */
+    @ClassRule
+    public static DbConfigurationRule dbConfig = new DbConfigurationRule(com.vmturbo.cost.component.db.Cost.COST);
 
-    @Autowired
-    protected TestSQLDatabaseConfig dbConfig;
+    /**
+     * Rule to automatically cleanup DB data before each test.
+     */
+    @Rule
+    public DbCleanupRule dbCleanup = dbConfig.cleanupRule();
 
-    private Flyway flyway;
 
-    private BuyReservedInstanceStore buyRiStore;
+    private DSLContext dsl = dbConfig.getDslContext();
 
-    private DSLContext dsl;
+    private BuyReservedInstanceStore buyRiStore = new BuyReservedInstanceStore(dsl, new IdentityProvider(0));
 
     private final ReservedInstanceBoughtInfo newRInfo = ReservedInstanceBoughtInfo.newBuilder()
             .setReservedInstanceSpec(99L)
@@ -77,17 +76,7 @@ public class BuyReservedInstanceStoreTest {
 
     @Before
     public void setup() throws Exception {
-        flyway = dbConfig.flyway();
-        dsl = dbConfig.dsl();
-        flyway.clean();
-        flyway.migrate();
-        buyRiStore = new BuyReservedInstanceStore(dsl, new IdentityProvider(0));
         insertDefaultReservedInstanceSpec();
-    }
-
-    @After
-    public void teardown() {
-        flyway.clean();
     }
 
     /**

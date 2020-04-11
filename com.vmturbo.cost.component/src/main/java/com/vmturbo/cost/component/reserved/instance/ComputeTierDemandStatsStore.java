@@ -1,23 +1,22 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.COMPUTE_TIER_TYPE_HOURLY_BY_WEEK;
+import static com.vmturbo.cost.component.db.Tables.LAST_UPDATED;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
-import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Query;
 import org.jooq.exception.DataAccessException;
@@ -26,17 +25,13 @@ import org.jooq.impl.DSL;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 
+import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.db.tables.records.ComputeTierTypeHourlyByWeekRecord;
-import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstanceZonalContext;
+import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.demand.RIBuyDemandCluster;
 
 public class ComputeTierDemandStatsStore {
 
     private final Logger logger = LogManager.getLogger();
-
-    private static final int RI_HOUR_ADDITION = 23;
-    private static final int HOURS_A_DAY = 24;
-    private static final int RI_MINIMUM_DATA_POINTS_LOWER_BOUND = 1;
-    private static final int RI_MINIMUM_DATA_POINTS_UPPER_BOUND = 168;
     /**
      * Number of records to commit in one batch.
      */
@@ -84,20 +79,26 @@ public class ComputeTierDemandStatsStore {
     }
 
     public void persistComputeTierDemandStats(
-            @Nonnull Collection<ComputeTierTypeHourlyByWeekRecord> demandStats)
+            @Nonnull Collection<ComputeTierTypeHourlyByWeekRecord> demandStats,
+            boolean isProjectedTopology)
             throws DataAccessException {
 
+        List<Query> batchQueries = new ArrayList<>();
         logger.debug("Storing stats. NumRecords = {} ", demandStats.size());
         // Each batch is run in a separate transaction. If some of the batch inserts fail,
         // it's ok as the stats are independent. Better to have some of the stats than no
         // stats at all.
+
+        batchQueries.add(updateLastUpdatedTime(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.getName(),
+                        isProjectedTopology ?
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COUNT_FROM_SOURCE_TOPOLOGY.getName() :
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COUNT_FROM_PROJECTED_TOPOLOGY.getName()));
+
         for (List<ComputeTierTypeHourlyByWeekRecord> statsBatch :
                 Iterables.partition(demandStats, statsRecordsCommitBatchSize)) {
-
             dslContext.transaction(configuration -> {
                 try {
                     DSLContext localDslContext = DSL.using(configuration);
-                    List<Query> batchQueries = new ArrayList<>();
                     // TODO : karthikt. Check the difference in speed between multiple
                     // insert statements(createStatement) vs single stateement with multiple
                     // bind values(prepareStatement). Using createStatement here for syntax simplicity.
@@ -117,31 +118,90 @@ public class ComputeTierDemandStatsStore {
     }
 
     /**
-     * @return All compute tier demand stats.
-     * @throws DataAccessException
+     * Updates/Inserts the Table.LAST_UPDATED with the current timestamp for the passed in table name
+     * and column name.
      *
-     *  NOTE: This returns a resourceful stream. Resource should be closed
-     *  by the caller.
+     * @param tableName The table name.
+     * @param columnName The column name in the table.
+     * @return a Query.
      */
-    public Stream<ComputeTierTypeHourlyByWeekRecord> getAllDemandStats()
-            throws DataAccessException {
-
-        return dslContext.selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
-                .fetchSize(statsRecordsQueryBatchSize)
-                .stream();
+    private Query updateLastUpdatedTime(String tableName, String columnName) {
+        java.sql.Timestamp date = new java.sql.Timestamp(new java.util.Date().getTime());
+        return dslContext.insertInto(Tables.LAST_UPDATED, LAST_UPDATED.TABLE_NAME,
+                    LAST_UPDATED.COLUMN_NAME,
+                    LAST_UPDATED.LAST_UPDATE)
+                    .values(tableName,
+                            columnName,
+                            date)
+                    .onDuplicateKeyUpdate()
+                    .set(LAST_UPDATED.LAST_UPDATE, date);
     }
 
-    public List<ComputeTierTypeHourlyByWeekRecord> fetchDemandStats(ReservedInstanceZonalContext context,
-                                                                    Set<Long> accountNumbers) {
+    /**
+     * Checks whether an update has been performed in the current hour for the tableName and columnName.
+     *
+     * @param tableName the table name.
+     * @param columnName the column name.
+     * @return whether an update has been performed in the current hour for the tableName and columnName.
+     */
+    public boolean isUpdatedInLastHour(String tableName, String columnName) {
+        java.sql.Timestamp date = new java.sql.Timestamp(new java.util.Date().getTime());
 
-        // TODO: karthikt - Ignore accountNumbers for now as we don't yet support account scopes
-        // introduced by OM-38894.
+        Calendar start = Calendar.getInstance();
+        start.setTime(date);
+        start.set(Calendar.MINUTE, 0);
+        start.set(Calendar.SECOND, 0);
+        start.set(Calendar.MILLISECOND, 0);
+        Timestamp startTimestamp = new Timestamp(start.getTimeInMillis());
+
+        Calendar end = Calendar.getInstance();
+        end.setTime(date);
+        end.set(Calendar.MINUTE, 59);
+        end.set(Calendar.SECOND, 59);
+        start.set(Calendar.MILLISECOND, 999);
+        Timestamp endTimestamp = new Timestamp(end.getTimeInMillis());
+
+        final List<Condition> conditions = new ArrayList<>(3);
+        conditions.add(LAST_UPDATED.TABLE_NAME.eq(tableName));
+        conditions.add(LAST_UPDATED.COLUMN_NAME.eq(columnName));
+        conditions.add(LAST_UPDATED.LAST_UPDATE.between(startTimestamp, endTimestamp));
+
+        return dslContext.fetchExists(dslContext.selectFrom(LAST_UPDATED).where(conditions));
+    }
+
+    /**
+     * Queries for the unique set of demand clusters (account, region, compute tier, platform, tenancy).
+     * @return A {@link Stream} of records representing the unique set of demand clusters.
+     */
+    public Stream<ComputeTierTypeHourlyByWeekRecord> getUniqueDemandClusters() {
+        return dslContext
+                .selectDistinct(
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.ACCOUNT_ID,
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.REGION_OR_ZONE_ID,
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COMPUTE_TIER_ID,
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.PLATFORM,
+                        COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.TENANCY)
+                .from(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
+                .fetchStreamInto(ComputeTierTypeHourlyByWeekRecord.class);
+
+    }
+
+    /**
+     * Fetch the demand stats for a target demand cluster.
+     *
+     * @param demandCluster The target demand cluster
+     * @return The list of records for the target demand cluster.
+     */
+    @Nonnull
+    public List<ComputeTierTypeHourlyByWeekRecord> fetchDemandStats(
+            @Nonnull RIBuyDemandCluster demandCluster) {
+
         return dslContext.selectFrom(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK)
-                .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.ACCOUNT_ID.eq(context.getMasterAccountId()))
-                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COMPUTE_TIER_ID.eq(context.getComputeTier().getOid()))
-                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.AVAILABILITY_ZONE.eq(context.getAvailabilityZoneId()))
-                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.PLATFORM.eq((byte)context.getPlatform().getNumber()))
-                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.TENANCY.eq((byte)context.getTenancy().getNumber()))
+                .where(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.ACCOUNT_ID.eq(demandCluster.accountOid()))
+                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COMPUTE_TIER_ID.eq(demandCluster.computeTierOid()))
+                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.REGION_OR_ZONE_ID.eq(demandCluster.regionOrZoneOid()))
+                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.PLATFORM.eq((byte)demandCluster.platform().getNumber()))
+                    .and(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.TENANCY.eq((byte)demandCluster.tenancy().getNumber()))
                 .orderBy(COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.DAY, COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.HOUR)
                 .fetch();
     }

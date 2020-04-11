@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -21,7 +22,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Optional;
 import com.google.common.net.HostAndPort;
 import com.orbitz.consul.CatalogClient;
 import com.orbitz.consul.Consul;
@@ -305,7 +305,7 @@ public class ConsulService {
     }
 
     public String getValueAsString(String key, String defaultValue) {
-        return getConsulKeyValueClient().getValueAsString(fullKey(key)).or(defaultValue);
+        return getConsulKeyValueClient().getValueAsString(fullKey(key)).orElse(defaultValue);
     }
 
     public boolean keyExist(String key) {

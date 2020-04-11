@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -47,13 +48,15 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.group.api.GroupMemberRetriever;
+import com.vmturbo.market.runner.MarketMode;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
@@ -63,6 +66,7 @@ import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.CompoundMoveTO;
+import com.vmturbo.platform.analysis.protobuf.ActionDTOs.Congestion;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.InitialPlacement;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.MoveExplanation;
@@ -329,6 +333,86 @@ public class InterpretActionTest {
         assertEquals(destId, changeProvider.getDestination().getId());
     }
 
+    /**
+     * Test congestion with time slots.
+     *
+     * @throws Exception Any unexpected exception
+     */
+    @Test
+    public void testInterpretMoveActionWithTimeSlots() throws Exception {
+        final TopologyDTO.TopologyEntityDTO businessUser =
+            TopologyConverterFromMarketTest.messageFromJsonFile("protobuf/messages/topology-with-timeslots.json");
+
+        final long shoppingListId = 5L;
+        final ShoppingListInfo slInfo = new ShoppingListInfo(shoppingListId, businessUser.getOid(), null,
+            null, null, Arrays.asList());
+        final Map<Long, ShoppingListInfo> slInfoMap = ImmutableMap.of(shoppingListId, slInfo);
+        final Map<Long, TopologyEntityDTO> originalTopology = ImmutableMap.of(businessUser.getOid(),
+            businessUser);
+        final int congestedCommodityMarketId = 50;
+        final int slot = 1;
+        // this comes from the imported topology file
+        final int totalSlotNumber = 3;
+        final CommodityType congestedCommodityType = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.POOL_CPU_VALUE)
+            .build();
+        final CommodityConverter mockCommodityConverter = mock(CommodityConverter.class);
+        when(mockCommodityConverter.commodityIdToCommodityTypeAndSlot(eq(congestedCommodityMarketId)))
+            .thenReturn((new Pair(congestedCommodityType, Optional.of(slot))));
+        CloudTopologyConverter mockCloudTc = mock(CloudTopologyConverter.class);
+        TopologyCostCalculator mockTopologyCostCalculator = mock(TopologyCostCalculator.class);
+        Map<Long, CostJournal<TopologyEntityDTO>> projectedCosts = new HashMap<>();
+
+        final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
+            slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
+            new CloudEntityResizeTracker(), Maps.newHashMap(), mock(TierExcluder.class),
+            CommodityIndex.newFactory().newIndex());
+
+        final long moveSrcId = businessUser.getCommoditiesBoughtFromProvidersList().get(0)
+            .getProviderId();
+
+        final Map<Long, ProjectedTopologyEntity> projectedTopology = ImmutableMap.of(
+            businessUser.getOid(), entity(businessUser),
+            moveSrcId, entity(businessUser));
+
+        final TopologyEntityCloudTopology originalCloudTopology =
+            new TopologyEntityCloudTopologyFactory
+                .DefaultTopologyEntityCloudTopologyFactory(mock(GroupMemberRetriever.class))
+                .newCloudTopology(originalTopology.values().stream());
+
+        final ActionTO actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)
+            .setMove(MoveTO.newBuilder()
+                .setShoppingListToMove(shoppingListId)
+                .setSource(moveSrcId)
+                .setDestination(businessUser.getOid())
+                .setMoveExplanation(MoveExplanation.newBuilder()
+                    .setCongestion(Congestion.newBuilder()
+                        .addCongestedCommodities(congestedCommodityMarketId))
+                    .build())
+                .build())
+            .build();
+
+        final Optional<Action> actionOptional = interpreter.interpretAction(actionTO, projectedTopology,
+            originalCloudTopology, projectedCosts,
+            mockTopologyCostCalculator);
+
+        assertTrue(actionOptional.isPresent());
+        final Action action = actionOptional.get();
+        assertTrue(action.hasExplanation());
+        assertTrue(action.getExplanation().hasMove());
+        assertEquals(1, action.getExplanation().getMove().getChangeProviderExplanationCount());
+        final ChangeProviderExplanation changeProviderExplanation =
+            action.getExplanation().getMove().getChangeProviderExplanationList().get(0);
+        assertTrue(changeProviderExplanation.hasCongestion());
+        assertEquals(1, changeProviderExplanation.getCongestion().getCongestedCommoditiesCount());
+        ReasonCommodity reasonCommodity = changeProviderExplanation.getCongestion()
+            .getCongestedCommoditiesList().get(0);
+        assertEquals(congestedCommodityType, reasonCommodity.getCommodityType());
+        assertTrue(reasonCommodity.hasTimeSlot());
+        assertEquals(slot, reasonCommodity.getTimeSlot().getSlot());
+        assertEquals(totalSlotNumber, reasonCommodity.getTimeSlot().getTotalSlotNumber());
+    }
+
     @Test
     public void testInterpretReconfigureAction() throws IOException {
         long reconfigureSourceId = 1234;
@@ -444,7 +528,7 @@ public class InterpretActionTest {
         final CommodityConverter commConverter = mock(CommodityConverter.class);
         final TopologyConverter converter = spy(
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory));
         Mockito.doReturn(Optional.of(topologyCommodity1))
@@ -483,7 +567,7 @@ public class InterpretActionTest {
 
         final TopologyConverter converter = spy(
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory));
         // Insert the commodity type into the converter's mapping
@@ -547,7 +631,7 @@ public class InterpretActionTest {
         final CommodityConverter commConverter = mock(CommodityConverter.class);
         final TopologyConverter converter = spy(
             new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
-                MarketAnalysisUtils.QUOTE_FACTOR, false, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketMode.M2Only, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
                 marketPriceTable, commConverter, CommodityIndex.newFactory(), tierExcluderFactory,
                 consistentScalingHelperFactory));
         Mockito.doReturn(Optional.of(topologyCommodity1))
@@ -656,7 +740,8 @@ public class InterpretActionTest {
         when(mockedCommodityConverter.commodityIdToCommodityType(15)).thenReturn(mockedCommType);
         ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
-                new CloudEntityResizeTracker(), Maps.newHashMap(), mock(TierExcluder.class));
+                new CloudEntityResizeTracker(), Maps.newHashMap(), mock(TierExcluder.class),
+                CommodityIndex.newFactory().newIndex());
         // Assuming that 1 is the oid of trader created for m1.large x region and 2 is the oid
         // created for m1.medium x region
         ActionTO actionTO = ActionTO.newBuilder().setImportance(0).setIsNotExecutable(false)

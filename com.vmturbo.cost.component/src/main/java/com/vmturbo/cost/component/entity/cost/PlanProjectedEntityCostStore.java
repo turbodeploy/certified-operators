@@ -1,9 +1,13 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -62,7 +66,7 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
                                                   Tables.PLAN_PROJECTED_ENTITY_COST.PLAN_ID,
                                                   Tables.PLAN_PROJECTED_ENTITY_COST.ASSOCIATED_ENTITY_ID,
                                                   Tables.PLAN_PROJECTED_ENTITY_COST.ENTITY_COST);
-                for (EntityCost cost : entityCosts) {
+                for (EntityCost cost : e) {
                     step = step.values(topoInfo.getTopologyContextId(),
                                        cost.getAssociatedEntityId(),
                                        cost);
@@ -73,16 +77,37 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
     }
 
     /**
-     * Delete records from PlanProjectedEntityCostsTable for the specified plan.
+     * Delete records from following plan cost related tables when a plan is deleted:
+     *      plan_projected_entity_cost
+     *      plan_projected_entity_to_reserved_instance_mapping
+     *      plan_projected_reserved_instance_coverage
+     *      plan_projected_reserved_instance_utilization
      *
-     * @param planId plan ID.
-     * @return count of deleted rows.
+     * @param planId Plan ID.
+     * @return Count of total deleted rows.
      */
-    public int deletePlanProjectedEntityCost(final long planId) {
-        getLogger().info("Deleting data from plan projected entity cost planId : " + planId);
-        final int rowsDeleted = dslContext.deleteFrom(Tables.PLAN_PROJECTED_ENTITY_COST)
-                        .where(Tables.PLAN_PROJECTED_ENTITY_COST.PLAN_ID.eq(planId)).execute();
-        return rowsDeleted;
+    public int deletePlanProjectedCosts(final long planId) {
+       int[] rowsDeleted = dslContext.batch(
+               dslContext.deleteFrom(
+                       Tables.PLAN_PROJECTED_ENTITY_COST)
+                       .where(Tables.PLAN_PROJECTED_ENTITY_COST.PLAN_ID.eq(planId)),
+               dslContext.deleteFrom(
+                       Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING)
+                       .where(Tables.PLAN_PROJECTED_ENTITY_TO_RESERVED_INSTANCE_MAPPING.PLAN_ID
+                               .eq(planId)),
+
+               dslContext.deleteFrom(
+                       Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE)
+                       .where(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_COVERAGE.PLAN_ID.eq(planId)),
+               dslContext.deleteFrom(
+                       Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION)
+                       .where(Tables.PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION.PLAN_ID.eq(planId))
+       ).execute();
+
+        int totalDeleted = Arrays.stream(rowsDeleted).sum();
+        getLogger().info("Deleted {} rows (total: {}) from plan {} projected cost tables.",
+                Arrays.toString(rowsDeleted), totalDeleted, planId);
+        return totalDeleted;
     }
 
     /**
@@ -102,6 +127,25 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .collect(Collectors.toSet())));
+    }
+
+    /**
+     * Get the projected entity costs for a set of entities.
+     *
+     * @param entityIds The entities to retrieve the costs for. An empty set will get no results.
+     * @param planId    Id of the Plan
+     * @return A map of (id) -> (projected entity cost). Entities in the input that do not have an
+     * associated projected costs will not have an entry in the map.
+     */
+    @Nonnull
+    public Map<Long, EntityCost> getPlanProjectedEntityCosts(@Nonnull final Set<Long> entityIds, final long planId) {
+        if (entityIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return getPlanProjectedEntityCosts(planId).stream()
+                .filter(ec -> entityIds.contains(ec.getAssociatedEntityId()))
+                .collect(Collectors.toMap(EntityCost::getAssociatedEntityId, Function.identity()));
     }
 
     /**

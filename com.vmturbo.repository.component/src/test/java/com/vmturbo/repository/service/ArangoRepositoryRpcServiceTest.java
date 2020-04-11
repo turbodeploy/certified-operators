@@ -24,6 +24,9 @@ import java.util.Set;
 
 import javax.annotation.Nullable;
 
+import io.grpc.Status.Code;
+import io.grpc.stub.StreamObserver;
+
 import org.assertj.core.util.Lists;
 import org.junit.Before;
 import org.junit.Rule;
@@ -34,8 +37,6 @@ import org.mockito.Mockito;
 import org.mockito.runners.MockitoJUnitRunner;
 import org.mockito.stubbing.Answer;
 
-import io.grpc.Status.Code;
-import io.grpc.stub.StreamObserver;
 import javaslang.control.Either;
 
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
@@ -344,7 +345,7 @@ public class ArangoRepositoryRpcServiceTest {
             return null;
         }).when(planStatsService)
             .getPlanTopologyStats(eq(protobufReader), any(), eq(statsFilter),
-                any(), eq(paginationParameters), eq(returnType), any());
+                any(), eq(paginationParameters), eq(returnType), any(), any());
 
         // act
         final Iterator<PlanTopologyStatsResponse> response =
@@ -364,7 +365,7 @@ public class ArangoRepositoryRpcServiceTest {
         verify(topologyProtobufsManager).createTopologyProtobufReader(topologyId, Optional.empty());
         verify(planStatsService)
             .getPlanTopologyStats(eq(protobufReader), any(), eq(statsFilter),
-                any(), eq(paginationParameters), eq(returnType), any());
+                any(), eq(paginationParameters), eq(returnType), any(), any());
 
         assertThat(returnedPaginationResponse, is(paginationResponse));
         assertThat(returnedPlanEntityStats, is(Collections.singletonList(planEntityStats)));
@@ -514,7 +515,7 @@ public class ArangoRepositoryRpcServiceTest {
             return null;
         }).when(planStatsService)
             .getPlanCombinedStats(eq(sourceProtobufReader), eq(projectedProtobufReader),
-                eq(statsFilter), any(), any(), eq(paginationParameters), eq(returnType), any());
+                eq(statsFilter), any(), any(), eq(paginationParameters), eq(returnType), any(), any());
 
         // act
         final Iterator<PlanCombinedStatsResponse> response =
@@ -540,7 +541,8 @@ public class ArangoRepositoryRpcServiceTest {
         // only one pagination should occur (on the combined entities/stats)
         verify(planStatsService)
             .getPlanCombinedStats(eq(sourceProtobufReader), eq(projectedProtobufReader),
-                eq(statsFilter), any(), any(), eq(paginationParameters), eq(returnType), any());
+                eq(statsFilter), any(), any(), eq(paginationParameters), eq(returnType), any(),
+                    any());
 
         // verify the returned data
         assertThat(returnedPaginationResponse, is(paginationResponse));

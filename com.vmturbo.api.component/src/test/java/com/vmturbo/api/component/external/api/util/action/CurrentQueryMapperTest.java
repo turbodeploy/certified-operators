@@ -61,9 +61,9 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.identity.ArrayOidSet;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class CurrentQueryMapperTest {
@@ -231,7 +231,7 @@ public class CurrentQueryMapperTest {
         final Set<Integer> relatedTypes = Sets.newHashSet(EntityType.VIRTUAL_MACHINE_VALUE);
 
         final SupplyChainNodeFetcherBuilder nodeFetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
-            ImmutableMap.of(UIEntityType.VIRTUAL_MACHINE.apiStr(), SupplyChainNode.newBuilder()
+            ImmutableMap.of(ApiEntityType.VIRTUAL_MACHINE.apiStr(), SupplyChainNode.newBuilder()
                 .putMembersByState(EntityState.POWERED_ON_VALUE, MemberList.newBuilder()
                     .addAllMemberOids(relatedVms)
                     .build())
@@ -246,7 +246,7 @@ public class CurrentQueryMapperTest {
             Collections.emptySet());
 
         verify(nodeFetcherBuilder).entityTypes(Collections.singletonList(
-            UIEntityType.VIRTUAL_MACHINE.apiStr()));
+            ApiEntityType.VIRTUAL_MACHINE.apiStr()));
         verify(nodeFetcherBuilder).addSeedUuid("1");
         verify(nodeFetcherBuilder).addSeedUuid("2");
         verify(nodeFetcherBuilder).environmentType(EnvironmentType.ON_PREM);
@@ -404,13 +404,8 @@ public class CurrentQueryMapperTest {
     @Test
     public void testActionGroupFilterExtractorMode() {
         final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
-        inputDTO.setActionModeList(Arrays.asList(ActionMode.AUTOMATIC, ActionMode.MANUAL, ActionMode.COLLECTION));
-        when(actionSpecMapper.mapApiModeToXl(ActionMode.AUTOMATIC))
-            .thenReturn(Optional.of(ActionDTO.ActionMode.AUTOMATIC));
-        when(actionSpecMapper.mapApiModeToXl(ActionMode.MANUAL))
-            .thenReturn(Optional.of(ActionDTO.ActionMode.MANUAL));
-        when(actionSpecMapper.mapApiModeToXl(ActionMode.COLLECTION))
-            .thenReturn(Optional.empty());
+        inputDTO.setActionModeList(
+            Arrays.asList(ActionMode.AUTOMATIC, ActionMode.MANUAL, ActionMode.COLLECTION));
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
@@ -426,14 +421,7 @@ public class CurrentQueryMapperTest {
     public void testActionGroupFilterExtractorState() {
         final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setActionStateList(Arrays.asList(ActionState.IN_PROGRESS,
-            ActionState.RECOMMENDED,
-            ActionState.ACCOUNTING));
-        when(actionSpecMapper.mapApiStateToXl(ActionState.IN_PROGRESS))
-            .thenReturn(Optional.of(ActionDTO.ActionState.IN_PROGRESS));
-        when(actionSpecMapper.mapApiStateToXl(ActionState.RECOMMENDED))
-            .thenReturn(Optional.of(ActionDTO.ActionState.READY));
-        when(actionSpecMapper.mapApiStateToXl(ActionState.ACCOUNTING))
-            .thenReturn(Optional.empty());
+                                                  ActionState.ACCEPTED));
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
@@ -442,7 +430,7 @@ public class CurrentQueryMapperTest {
             makeQuery(inputDTO),
             ApiTestUtils.mockEntityId("1"));
         assertThat(groupFilter.getActionStateList(),
-            containsInAnyOrder(ActionDTO.ActionState.IN_PROGRESS, ActionDTO.ActionState.READY));
+            containsInAnyOrder(ActionDTO.ActionState.IN_PROGRESS, ActionDTO.ActionState.QUEUED));
     }
 
     @Test
@@ -482,12 +470,6 @@ public class CurrentQueryMapperTest {
     public void testActionGroupFilterExtractorRiskSubCategory() {
         final ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setRiskSubCategoryList(Arrays.asList("Performance Assurance", "Compliance", "foo"));
-        when(actionSpecMapper.mapApiActionCategoryToXl("Performance Assurance"))
-            .thenReturn(Optional.of(ActionCategory.PERFORMANCE_ASSURANCE));
-        when(actionSpecMapper.mapApiActionCategoryToXl("Compliance"))
-            .thenReturn(Optional.of(ActionCategory.COMPLIANCE));
-        when(actionSpecMapper.mapApiActionCategoryToXl("foo"))
-            .thenReturn(Optional.empty());
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         final ActionGroupFilterExtractor groupFilterExtractor = new ActionGroupFilterExtractor(
@@ -549,7 +531,7 @@ public class CurrentQueryMapperTest {
         actionInput.setEnvironmentType(com.vmturbo.api.enums.EnvironmentType.CLOUD);
         ActionStatsQuery actionStatsQuery = ImmutableActionStatsQuery.builder()
             .addScopes(apiId)
-            .entityType(UIEntityType.VIRTUAL_MACHINE.typeNumber())
+            .entityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
             .actionInput(actionInput)
             .build();
 
@@ -564,7 +546,7 @@ public class CurrentQueryMapperTest {
         ScopeFilter actual = scopeFilters.get(apiId);
         Assert.assertTrue(actual.hasGlobal());
         Assert.assertEquals(EnvironmentType.CLOUD, actual.getGlobal().getEnvironmentType());
-        Assert.assertEquals(ImmutableSet.of(UIEntityType.VIRTUAL_MACHINE.typeNumber()),
+        Assert.assertEquals(ImmutableSet.of(ApiEntityType.VIRTUAL_MACHINE.typeNumber()),
                 new HashSet<>(actual.getGlobal().getEntityTypeList()));
     }
 

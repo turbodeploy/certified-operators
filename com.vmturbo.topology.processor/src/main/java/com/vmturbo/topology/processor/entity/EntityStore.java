@@ -40,6 +40,7 @@ import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
+import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -82,7 +83,7 @@ public class EntityStore {
      * The target store which contains target specific information for the entity.
      *
      *  TODO (OM-51214): Remove this dependency to eliminate the circular dependency between
-     * EntityStore and {@link com.vmturbo.topology.processor.targets.KVBackedTargetStore}.
+     * EntityStore and {@link CachingTargetStore}.
      * We should never acquire the TargetStore lock within this class. And since which methods
      * are guarded by a lock is implementation-dependent, we really shouldn't be making calls to the
      * TargetStore from this class at all. We should refactor to remove this dependency altogether.

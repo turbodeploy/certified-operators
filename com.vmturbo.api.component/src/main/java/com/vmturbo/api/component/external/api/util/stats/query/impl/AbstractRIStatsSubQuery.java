@@ -42,8 +42,8 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -230,29 +230,30 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
 
         final ApiId inputScope = context.getInputScope();
         if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()) {
-            final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
-            if (uiEntityTypes.size() != 1) {
+            final Set<ApiEntityType> apiEntityTypes = inputScope.getScopeTypes().get();
+            if (apiEntityTypes.size() != 1) {
                 //TODO (mahdi) Change the logic to support scopes with more than one type
                 throw new IllegalStateException("Scopes with more than one type is not supported.");
             }
-            final UIEntityType type = uiEntityTypes.iterator().next();
+            final ApiEntityType type = apiEntityTypes.iterator().next();
+            final Set<Long> scopeOids = context.getQueryScope().getScopeOids();
             switch (type) {
                 case REGION:
                     reqBuilder.setRegionFilter(
-                            RegionFilter.newBuilder().addAllRegionId(getScopeEntities(context)));
+                            RegionFilter.newBuilder().addAllRegionId(scopeOids));
                     break;
                 case AVAILABILITY_ZONE:
                     reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                            .addAllAvailabilityZoneId(getScopeEntities(context)));
+                            .addAllAvailabilityZoneId(scopeOids));
                     break;
                 case BUSINESS_ACCOUNT:
                     reqBuilder.setAccountFilter(
-                            AccountFilter.newBuilder().addAllAccountId(getScopeEntities(context)));
+                            AccountFilter.newBuilder().addAllAccountId(scopeOids));
                     break;
                 case SERVICE_PROVIDER:
                     reqBuilder.setRegionFilter(RegionFilter.newBuilder()
                             .addAllRegionId(
-                                    translateServiceProvidersToRegions(getScopeEntities(context))));
+                                    translateServiceProvidersToRegions(scopeOids)));
                     break;
                 default:
                     reqBuilder.setEntityFilter(EntityFilter.newBuilder()
@@ -278,28 +279,29 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
 
         final ApiId inputScope = context.getInputScope();
         if (inputScope.getScopeTypes().isPresent()) {
-            final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
-            if (CollectionUtils.isEmpty(uiEntityTypes)) {
+            final Set<ApiEntityType> apiEntityTypes = inputScope.getScopeTypes().get();
+            if (CollectionUtils.isEmpty(apiEntityTypes)) {
                 throw new OperationFailedException("Entity type not present");
             }
-            final UIEntityType type = uiEntityTypes.iterator().next();
+            final ApiEntityType type = apiEntityTypes.iterator().next();
+            final Set<Long> scopeOids = context.getQueryScope().getScopeOids();
             switch (type) {
                 case REGION:
                     reqBuilder.setRegionFilter(
-                            RegionFilter.newBuilder().addAllRegionId(getScopeEntities(context)));
+                            RegionFilter.newBuilder().addAllRegionId(scopeOids));
                     break;
                 case AVAILABILITY_ZONE:
                     reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                            .addAllAvailabilityZoneId(getScopeEntities(context)));
+                            .addAllAvailabilityZoneId(scopeOids));
                     break;
                 case BUSINESS_ACCOUNT:
                     reqBuilder.setAccountFilter(
-                            AccountFilter.newBuilder().addAllAccountId(getScopeEntities(context)));
+                            AccountFilter.newBuilder().addAllAccountId(scopeOids));
                     break;
                 case SERVICE_PROVIDER:
                     reqBuilder.setRegionFilter(RegionFilter.newBuilder()
                             .addAllRegionId(
-                                    translateServiceProvidersToRegions(getScopeEntities(context))));
+                                    translateServiceProvidersToRegions(scopeOids)));
                     break;
                 default:
                     throw new OperationFailedException(

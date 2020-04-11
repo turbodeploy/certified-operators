@@ -260,8 +260,8 @@ public class SMAUtilsTest {
                         (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
                         oldVM.getZoneId(),
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
-                                SMAUtils.NO_CURRENT_RI :
-                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid(),
+                                SMAUtils.BOGUS_RI :
+                                outputContext.getMatches().get(i).getReservedInstance(),
                         oldVM.getOsType());
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
@@ -440,7 +440,7 @@ public class SMAUtilsTest {
                     Arrays.asList(smaTemplate),
                     0,
                     SMATestConstants.ZONE_BASE,
-                    SMAUtils.NO_CURRENT_RI,
+                    SMAUtils.BOGUS_RI,
                     os);
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             virtualMachines.add(smaVirtualMachine);
@@ -516,8 +516,8 @@ public class SMAUtilsTest {
                         (float)outputContext.getMatches().get(i).getDiscountedCoupons(),
                         oldVM.getZoneId(),
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
-                                SMAUtils.NO_CURRENT_RI :
-                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid(),
+                                SMAUtils.BOGUS_RI :
+                                outputContext.getMatches().get(i).getReservedInstance(),
                         oldVM.getOsType());
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
@@ -661,7 +661,7 @@ public class SMAUtilsTest {
                     providers,
                     currentRICoverage,
                     SMATestConstants.ZONE_BASE + rand.nextInt(nzones),
-                    SMAUtils.NO_CURRENT_RI,
+                    SMAUtils.BOGUS_RI,
                     os);
             smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
             smaVirtualMachines.add(smaVirtualMachine);
@@ -800,8 +800,8 @@ public class SMAUtilsTest {
                         outputContext.getMatches().get(i).getDiscountedCoupons(),
                         oldVM.getZoneId(),
                         outputContext.getMatches().get(i).getReservedInstance() == null ?
-                                SMAUtils.NO_CURRENT_RI :
-                                outputContext.getMatches().get(i).getReservedInstance().getRiKeyOid(),
+                                SMAUtils.BOGUS_RI :
+                                outputContext.getMatches().get(i).getReservedInstance(),
                         os);
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 newVirtualMachines.add(smaVirtualMachine);
@@ -909,7 +909,7 @@ public class SMAUtilsTest {
                         providers.get(rand.nextInt(providerSize)),
                         memberProviders,
                         currentRICoverage,
-                        vmZone, SMAUtils.NO_CURRENT_RI,
+                        vmZone, SMAUtils.BOGUS_RI,
                         os);
                 smaVirtualMachine.updateNaturalTemplateAndMinCostProviderPerFamily();
                 smaVirtualMachines.add(smaVirtualMachine);

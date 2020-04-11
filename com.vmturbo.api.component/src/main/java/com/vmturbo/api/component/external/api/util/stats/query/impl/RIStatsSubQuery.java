@@ -4,13 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
 
+import com.google.common.collect.Sets;
 import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -18,6 +19,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -36,18 +38,19 @@ import com.vmturbo.common.protobuf.cost.Cost.StatsRequestTimeWindow;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceCostServiceGrpc.ReservedInstanceCostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
-import com.vmturbo.components.common.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  * Sub-query responsible for getting reserved instance stats from the cost component.
  */
 public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
 
-    private static final Set<UIEntityType> VALID_ENTITY_TYPES_FOR_RI_STATS =
-            Sets.immutableEnumSet(UIEntityType.AVAILABILITY_ZONE, UIEntityType.BUSINESS_ACCOUNT,
-                    UIEntityType.REGION, UIEntityType.SERVICE_PROVIDER,
-                    UIEntityType.VIRTUAL_MACHINE);
+    private static final Set<ApiEntityType> VALID_ENTITY_TYPES_FOR_RI_STATS =
+            Sets.immutableEnumSet(ApiEntityType.AVAILABILITY_ZONE, ApiEntityType.BUSINESS_ACCOUNT,
+                    ApiEntityType.REGION, ApiEntityType.SERVICE_PROVIDER,
+                    ApiEntityType.VIRTUAL_MACHINE);
 
     private final ReservedInstanceUtilizationCoverageServiceBlockingStub
             riUtilizationCoverageService;
@@ -100,6 +103,21 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
             @Nonnull final StatsQueryContext context)
             throws OperationFailedException, InterruptedException {
         final List<StatSnapshotApiDTO> snapshots = new ArrayList<>();
+        // Return an empty list when scoped to an account that does not support RIs
+        if (context.getQueryScope().getScopeOids().size() == 1 &&
+                StatsQueryExecutor.scopeHasBusinessAccounts(context.getInputScope())) {
+            final long accountId = context.getQueryScope().getScopeOids().iterator().next();
+            final Optional<TopologyEntityDTO> scopeAccount =
+                    getRepositoryApi().entityRequest(accountId).getFullEntity();
+            if (scopeAccount.isPresent()) {
+                final TopologyEntityDTO account = scopeAccount.get();
+                if (account.hasTypeSpecificInfo() &&
+                        account.getTypeSpecificInfo().hasBusinessAccount() &&
+                        !account.getTypeSpecificInfo().getBusinessAccount().getRiSupported()) {
+                    return snapshots;
+                }
+            }
+        }
 
         if (StatsUtils.isValidScopeForRIBoughtQuery(context.getInputScope())) {
             if (containsStat(StringConstants.NUM_RI, stats)) {
@@ -162,11 +180,11 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
                 GetReservedInstanceBoughtCountRequest.newBuilder();
         final ApiId inputScope = context.getInputScope();
         if (inputScope.getScopeTypes().isPresent()) {
-            final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
-            if (CollectionUtils.isEmpty(uiEntityTypes)) {
+            final Set<ApiEntityType> apiEntityTypes = inputScope.getScopeTypes().get();
+            if (CollectionUtils.isEmpty(apiEntityTypes)) {
                 throw new OperationFailedException("Entity type not present");
             }
-            final UIEntityType type = uiEntityTypes.iterator().next();
+            final ApiEntityType type = apiEntityTypes.iterator().next();
             switch (type) {
                 case REGION:
                     reqBuilder.setRegionFilter(
@@ -204,12 +222,12 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
 
         final ApiId inputScope = context.getInputScope();
         if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()) {
-            final Set<UIEntityType> uiEntityTypes = inputScope.getScopeTypes().get();
-            if (uiEntityTypes.size() != 1) {
+            final Set<ApiEntityType> apiEntityTypes = inputScope.getScopeTypes().get();
+            if (apiEntityTypes.size() != 1) {
                 //TODO (mahdi) Change the logic to support scopes with more than one type
                 throw new IllegalStateException("Scopes with more than one type is not supported.");
             }
-            final UIEntityType type = uiEntityTypes.iterator().next();
+            final ApiEntityType type = apiEntityTypes.iterator().next();
             switch (type) {
                 case REGION:
                     reqBuilder.setRegionFilter(
@@ -268,8 +286,8 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
      * @return {@code true} if scope is valid for coverage request
      */
     private boolean isValidScopeForCoverageRequest(@Nonnull final StatsQueryContext context) {
-        // Only allow non-observer users.
-        if (userSessionContext.isUserObserver()) {
+        // Only allow non-scoped-observer users.
+        if (userSessionContext.isUserObserver() && userSessionContext.isUserScoped()) {
             return false;
         }
         return context.getInputScope()

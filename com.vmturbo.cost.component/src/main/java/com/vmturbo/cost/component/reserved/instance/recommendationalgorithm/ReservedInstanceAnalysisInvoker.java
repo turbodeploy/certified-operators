@@ -10,21 +10,24 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.RIPurchaseProfile;
 import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetMultipleGlobalSettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
@@ -106,6 +109,10 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      * @param buyRiRequest StartBuyRIAnalysisRequest.
      */
     public synchronized void invokeBuyRIAnalysis(StartBuyRIAnalysisRequest buyRiRequest) {
+        logger.info("Started BuyRIAnalysis with accounts: {},  regions: {}, platforms: {}," +
+                "tenancies: {} and profile: {}", buyRiRequest.getAccountsList(),
+                buyRiRequest.getRegionsList(), buyRiRequest.getPlatformsList(),
+                buyRiRequest.getTenanciesList(), buyRiRequest.getPurchaseProfileByCloudtypeMap());
         ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
                 new ReservedInstanceAnalysisScope(buyRiRequest);
         try {
@@ -162,6 +169,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      */
     public void invokeRIBuyIfBusinessAccountsUpdated(Set<Long> allBusinessAccounts) {
         StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
+        logger.info("Business accounts received in topology broadcast: {}", allBusinessAccounts);
         if (buyRiRequest.getAccountsList().isEmpty()) {
             logger.warn("ReservedInstanceAnalysisInvoker::invokeRIBuyIfBusinessAccountsUpdated." +
                     "No BA's found in repository. Reattempt to trigger RI Buy Analysis will be " +
@@ -207,20 +215,33 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                 .collect(Collectors.toSet());
 
         RISetting riSetting = getRIBuySettings(settingsServiceClient);
+        Map<String, RIPurchaseProfile> riPurchaseProfileMap = Maps.newHashMap();
+        // Convert the RISettings to RIPurchaseProfile, if a Setting value is not present, use the default.
+        riSetting.getRiSettingByCloudtypeMap().entrySet().forEach(riSettingEntry -> {
+                    String cloudType = riSettingEntry.getKey();
+                    RIProviderSetting riProviderSetting = riSettingEntry.getValue();
+                    ReservedInstanceType.OfferingClass defaultOffering = cloudType.equals(CloudType.AZURE.name()) ?
+                            ReservedInstanceType.OfferingClass.CONVERTIBLE : ReservedInstanceType.OfferingClass.STANDARD;
+                    ReservedInstanceType.PaymentOption defaultPayment = ReservedInstanceType.PaymentOption.ALL_UPFRONT;
+                    int defaultTerm = 1;
+                    RIPurchaseProfile riPurchaseProfile = RIPurchaseProfile.newBuilder()
+                            .setRiType(ReservedInstanceType.newBuilder().setOfferingClass(
+                                    riProviderSetting.hasPreferredOfferingClass() ?
+                                            riProviderSetting.getPreferredOfferingClass() : defaultOffering)
+                                    .setPaymentOption(riProviderSetting.hasPreferredPaymentOption() ?
+                                            riProviderSetting.getPreferredPaymentOption() : defaultPayment)
+                                    .setTermYears(riProviderSetting.hasPreferredTerm() ?
+                                            riProviderSetting.getPreferredTerm() : defaultTerm)
+                            ).build();
+                    riPurchaseProfileMap.put(cloudType, riPurchaseProfile);
+                }
+        );
 
         final StartBuyRIAnalysisRequest.Builder buyRiRequest = StartBuyRIAnalysisRequest
                 .newBuilder()
                 .addAllPlatforms(ImmutableSet.copyOf(OSType.values()))
                 .addAllTenancies(ImmutableSet.copyOf(Tenancy.values()))
-                .setPurchaseProfile(RIPurchaseProfile.newBuilder()
-                        .setRiType(ReservedInstanceType.newBuilder()
-                                .setOfferingClass(riSetting.hasPreferredOfferingClass() ?
-                                        riSetting.getPreferredOfferingClass() : ReservedInstanceType
-                                        .OfferingClass.STANDARD)
-                                .setPaymentOption(riSetting.hasPreferredPaymentOption() ?
-                                        riSetting.getPreferredPaymentOption()
-                                        : ReservedInstanceType.PaymentOption.ALL_UPFRONT)
-                                .setTermYears(riSetting.hasPreferredTerm() ? riSetting.getPreferredTerm() : 1)));
+                .putAllPurchaseProfileByCloudtype(riPurchaseProfileMap);
 
         if (!regionIds.isEmpty()) {
             buyRiRequest.addAllRegions(regionIds);
@@ -247,7 +268,7 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                     settings.put(setting.getSettingSpecName(), setting);
                 });
 
-        final RISetting riSetting = RISetting.newBuilder()
+        final RIProviderSetting riAWSSetting = RIProviderSetting.newBuilder()
                 .setPreferredOfferingClass(OfferingClass.valueOf(settings
                         .get(GlobalSettingSpecs.AWSPreferredOfferingClass.getSettingName())
                         .getEnumSettingValue().getValue()))
@@ -257,6 +278,17 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
                 .setPreferredTerm(PreferredTerm.valueOf(settings
                         .get(GlobalSettingSpecs.AWSPreferredTerm.getSettingName())
                         .getEnumSettingValue().getValue()).getYears())
+                .build();
+
+        final RIProviderSetting riAzureSetting = RIProviderSetting.newBuilder()
+                .setPreferredTerm(PreferredTerm.valueOf(settings
+                        .get(GlobalSettingSpecs.AzurePreferredTerm.getSettingName())
+                        .getEnumSettingValue().getValue()).getYears())
+                .build();
+
+        final RISetting riSetting = RISetting.newBuilder()
+                .putRiSettingByCloudtype(CloudType.AWS.name(), riAWSSetting)
+                .putRiSettingByCloudtype(CloudType.AZURE.name(), riAzureSetting)
                 .build();
 
         return riSetting;
@@ -271,6 +303,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     protected boolean isNewBusinessAccountWithCostFound(Set<Long> allBusinessAccounts) {
         Set<Long> newBusinessAccountsWithCost = getNewBusinessAccountsWithCost(allBusinessAccounts);
         addToBusinessAccountsWithCost(newBusinessAccountsWithCost);
+        if (newBusinessAccountsWithCost.size() > 0) {
+            logger.info("Detected new businessAccounts: {}", newBusinessAccountsWithCost);
+        }
         return (newBusinessAccountsWithCost.size() > 0);
     }
 
@@ -284,6 +319,9 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         Set<Long> deletedBusinessAccounts = Sets.difference(businessAccountsWithCost, allBusinessAccounts)
                 .immutableCopy();
         removeFromBusinessAccountsWithCost(deletedBusinessAccounts);
+        if (deletedBusinessAccounts.size() > 0) {
+            logger.info("Detected deleted businessAccounts: {}", deletedBusinessAccounts);
+        }
         return (deletedBusinessAccounts.size() > 0);
     }
 

@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.mapper;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredOfferingClass;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredPaymentOption;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AWSPreferredTerm;
+import static com.vmturbo.components.common.setting.GlobalSettingSpecs.AzurePreferredTerm;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIDemandType;
 import static com.vmturbo.components.common.setting.GlobalSettingSpecs.RIPurchase;
 
@@ -47,6 +48,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.SettingsManagerMappingLoader.SettingsManagerMapping;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDTOPossibilities;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingValueEntityTypeKey;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -90,6 +92,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.DetailsCase;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.ConstraintGroup;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.GlobalIgnoreEntityType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.HistoricalBaseline;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IgnoreConstraint;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.IncludedCoupons;
@@ -97,6 +100,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanCh
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.MaxUtilizationLevel.Builder;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
@@ -104,12 +108,13 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Topolo
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
@@ -153,16 +158,11 @@ public class ScenarioMapper {
     static final String ALLEVIATE_PRESSURE_PLAN_TYPE = "ALLEVIATE_PRESSURE";
 
     /**
-     * Hardcoded group display name for current utilization changes.
-     */
-    private static final String VIRTUAL_MACHINES_DISPLAY_NAME = "Virtual Machines";
-
-    /**
      * Supported RI Purchase Profile Settings.
      */
     private static final EnumSet<GlobalSettingSpecs> SUPPORTED_RI_PROFILE_SETTINGS = EnumSet
                     .of(AWSPreferredOfferingClass, AWSPreferredPaymentOption, AWSPreferredTerm,
-                        RIDemandType);
+                            AzurePreferredTerm, RIDemandType);
 
     static {
         MARKET_PLAN_SCOPE = new BaseApiDTO();
@@ -237,10 +237,12 @@ public class ScenarioMapper {
      *          required to map the UUID to an {@link UuidMapper.ApiId} fails
      * @throws InvalidOperationException e.g in case if alleviate pressure plan, if we don't get
      *         cluster information.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
      */
     @Nonnull
     public ScenarioInfo toScenarioInfo(final String name,
-                                       @Nonnull final ScenarioApiDTO dto) throws OperationFailedException, InvalidOperationException {
+                                       @Nonnull final ScenarioApiDTO dto)
+            throws OperationFailedException, InvalidOperationException, IllegalArgumentException {
         final ScenarioInfo.Builder infoBuilder = ScenarioInfo.newBuilder();
         if (name != null) {
             infoBuilder.setName(name);
@@ -465,7 +467,7 @@ public class ScenarioMapper {
 
             if (maxUtilization.getSelectedEntityType() != null) {
                 settingBuilder.setEntityType(
-                    UIEntityType.fromStringToSdkType(maxUtilization.getSelectedEntityType()));
+                    ApiEntityType.fromStringToSdkType(maxUtilization.getSelectedEntityType()));
             }
             // We need to map from the UI general max utilization setting to the more specific
             // max utilization settings contained in MAX_UTILIZATION_SETTING_SPECS.
@@ -760,7 +762,7 @@ public class ScenarioMapper {
 
                     if (maxUtilizationLevel.hasSelectedEntityType()) {
                         maxUtilization.setSelectedEntityType(
-                                UIEntityType.fromSdkTypeToEntityTypeString(maxUtilizationLevel.getSelectedEntityType()));
+                                ApiEntityType.fromSdkTypeToEntityTypeString(maxUtilizationLevel.getSelectedEntityType()));
                     }
 
                     return maxUtilization;
@@ -824,7 +826,7 @@ public class ScenarioMapper {
                     .setSetting(protoSetting);
                 if (apiDto.getEntityType() != null) {
                     settingOverride.setEntityType(
-                            UIEntityType.fromStringToSdkType(apiDto.getEntityType()));
+                            ApiEntityType.fromStringToSdkType(apiDto.getEntityType()));
                 }
 
                 if (apiDto.getSourceGroupUuid() != null) {
@@ -840,8 +842,18 @@ public class ScenarioMapper {
         return retChanges.build();
     }
 
+    /**
+     * Maps list of {@link ConfigChangesApiDTO} to list of {@link ScenarioChange}.
+     *
+     * @param configChanges the changes to map to list of scenarioChange
+     * @return list of {@link ScenarioChange} built from configChanges
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
     @Nonnull
-    private List<ScenarioChange> getConfigChanges(@Nullable final ConfigChangesApiDTO configChanges) throws OperationFailedException {
+    private List<ScenarioChange> getConfigChanges(@Nullable final ConfigChangesApiDTO configChanges)
+            throws OperationFailedException, IllegalArgumentException {
         if (configChanges == null) {
             return Collections.emptyList();
         }
@@ -900,31 +912,58 @@ public class ScenarioMapper {
             return null;
         }
 
-        RISetting.Builder awsRISetting = RISetting.newBuilder();
+        RIProviderSetting.Builder awsRISetting = RIProviderSetting.newBuilder();
+        RIProviderSetting.Builder azureRISetting = RIProviderSetting.newBuilder();
+        RISetting.Builder riSetting = RISetting.newBuilder();
 
         SUPPORTED_RI_PROFILE_SETTINGS.forEach(setting -> {
             SettingsMapper.inputValueToString(settings.get(setting.getSettingName())).ifPresent(settingValue -> {
                 switch (setting) {
+                    case RIDemandType:
+                        riDemandTypeMapper.valueOf(settingValue)
+                                .ifPresent(riSetting::setDemandType);
+                        break;
                     case AWSPreferredOfferingClass:
-                        riOfferingClassMapper.valueOf(settingValue).ifPresent(awsRISetting::setPreferredOfferingClass);
+                        riOfferingClassMapper.valueOf(settingValue)
+                                .ifPresent(awsRISetting::setPreferredOfferingClass);
                         break;
                     case AWSPreferredPaymentOption:
-                        riPaymentOptionMapper.valueOf(settingValue).ifPresent(awsRISetting::setPreferredPaymentOption);
+                        riPaymentOptionMapper.valueOf(settingValue)
+                                .ifPresent(awsRISetting::setPreferredPaymentOption);
                         break;
                     case AWSPreferredTerm:
-                        riTermMapper.valueOf(settingValue).map(PreferredTerm::getYears).ifPresent(awsRISetting::setPreferredTerm);
+                        riTermMapper.valueOf(settingValue).map(PreferredTerm::getYears)
+                                .ifPresent(awsRISetting::setPreferredTerm);
                         break;
-                    case RIDemandType:
-                        riDemandTypeMapper.valueOf(settingValue).ifPresent(awsRISetting::setDemandType);
+                    case AzurePreferredTerm:
+                        riTermMapper.valueOf(settingValue).map(PreferredTerm::getYears)
+                                .ifPresent(azureRISetting::setPreferredTerm);
                         break;
                 }
             });
         });
-        return ScenarioChange.newBuilder().setRiSetting(awsRISetting).build();
+
+        if (StringUtils.isNotEmpty(awsRISetting.toString())) {
+            riSetting.putRiSettingByCloudtype(CloudType.AWS.name(), awsRISetting.build());
+        }
+        if (StringUtils.isNotEmpty(azureRISetting.toString())) {
+            riSetting.putRiSettingByCloudtype(CloudType.AZURE.name(), azureRISetting.build());
+        }
+        return ScenarioChange.newBuilder().setRiSetting(riSetting).build();
     }
 
+    /**
+     * Maps {@link ConfigChangesApiDTO} to {@link ScenarioChange}.
+     *
+     * @param configChanges the changes to map to scenarioChange
+     * @return the {@link ScenarioChange} built from configChanges
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
     @Nonnull
-    private ScenarioChange buildPlanChanges(@Nonnull ConfigChangesApiDTO configChanges) {
+    private ScenarioChange buildPlanChanges(@Nonnull ConfigChangesApiDTO configChanges)
+            throws OperationFailedException, IllegalArgumentException {
         final PlanChanges.Builder planChangesBuilder = PlanChanges.newBuilder();
         final List<RemoveConstraintApiDTO> constraintsToRemove = configChanges.getRemoveConstraintList();
         if (!CollectionUtils.isEmpty(constraintsToRemove)) {
@@ -934,31 +973,100 @@ public class ScenarioMapper {
         return ScenarioChange.newBuilder().setPlanChanges(planChangesBuilder.build()).build();
     }
 
+    /**
+     * Maps list of {@link RemoveConstraintApiDTO} to {@link IgnoreConstraint}.
+     *
+     * @param constraints list of constraints to map
+     * @return {@link IgnoreConstraint} mapped from constraints
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
     @Nonnull
     private List<IgnoreConstraint> getIgnoreConstraintsPlanSetting(
-            @Nonnull List<RemoveConstraintApiDTO> constraintsToIgnore) {
+            @Nonnull List<RemoveConstraintApiDTO> constraints)
+            throws OperationFailedException, IllegalArgumentException {
         final ImmutableList.Builder<IgnoreConstraint> ignoreConstraintsBuilder = ImmutableList.builder();
-        for (RemoveConstraintApiDTO constraint : constraintsToIgnore) {
+        for (RemoveConstraintApiDTO constraint : constraints) {
             final IgnoreConstraint ignoreConstraint = toIgnoreConstraint(constraint);
             ignoreConstraintsBuilder.add(ignoreConstraint);
         }
         return ignoreConstraintsBuilder.build();
     }
 
+    /**
+     * Checks if {@link RemoveConstraintApiDTO} should ignore constraints of all entities.
+     *
+     * @param constraint the constraint to check
+     * @return true if all entity constraints should be ignored
+     */
+    private static boolean isIgnoreAllEntities(RemoveConstraintApiDTO constraint) {
+        return ConstraintType.GlobalIgnoreConstraint == constraint.getConstraintType() &&
+                constraint.getTarget() == null &&
+                constraint.getTargetEntityType() == null;
+    }
+
+    /**
+     * Checks if {@link RemoveConstraintApiDTO} should ignore constraints of particular entity.
+     *
+     * @param constraint the constraint to check
+     * @return true if constraints should be ignored for specific entityType
+     */
+    private static boolean isIgnoreAllConstraintsForEntityType(RemoveConstraintApiDTO constraint) {
+        return ConstraintType.GlobalIgnoreConstraint == constraint.getConstraintType() &&
+                constraint.getTarget() == null &&
+                constraint.getTargetEntityType() != null;
+    }
+
+    /**
+     * Checks if {@link RemoveConstraintApiDTO} should ignore constraints on group of entities.
+     *
+     * @param constraint the constraint to check
+     * @return true if constraints should be ignored specific group
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     */
+    private boolean isIgnoreConstraintForGroup(@Nonnull final RemoveConstraintApiDTO constraint)
+            throws OperationFailedException {
+        return constraint.getTarget() != null &&
+                constraint.getTarget().getUuid() != null &&
+                uuidMapper.fromUuid(constraint.getTarget().getUuid()).isGroup();
+    }
+
+    /**
+     * Maps {@link RemoveConstraintApiDTO} to  {@link IgnoreConstraint}.
+     *
+     * @param constraint the dto to map
+     * @return IgnoreConstraint mapped from constraint
+     * @throws OperationFailedException If one of the underlying operations required to map the UUID
+     *                                  to an {@link ApiId} fails.
+     * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     */
     @Nonnull
-    private IgnoreConstraint toIgnoreConstraint(@Nonnull RemoveConstraintApiDTO constraint) {
-        ConstraintGroup.Builder constraintGroup = ConstraintGroup.newBuilder();
-        ConstraintType constraintType = constraint.getConstraintType();
-        if (constraintType == null || constraintType == ConstraintType.GlobalIgnoreConstraint) {
-            constraintGroup.setCommodityType(ConstraintType.GlobalIgnoreConstraint.name());
+    IgnoreConstraint toIgnoreConstraint(@Nonnull RemoveConstraintApiDTO constraint) throws OperationFailedException, IllegalArgumentException {
+        final IgnoreConstraint.Builder ignoreConstraint = IgnoreConstraint.newBuilder();
+        if (isIgnoreAllEntities(constraint)) {
+            ignoreConstraint.setIgnoreAllEntities(true);
+        } else if (isIgnoreAllConstraintsForEntityType(constraint)) {
+            final String uiEntityType = constraint.getTargetEntityType();
+            final EntityType targetEntityType = ApiEntityType.fromString(uiEntityType).sdkType();
+            final GlobalIgnoreEntityType globalIgnoreEntityType = GlobalIgnoreEntityType.newBuilder()
+                    .setEntityType(targetEntityType)
+                    .build();
+            ignoreConstraint.setGlobalIgnoreEntityType(globalIgnoreEntityType);
+        } else if (isIgnoreConstraintForGroup(constraint)) {
+            final ApiId apiId = uuidMapper.fromUuid(constraint.getTarget().getUuid());
+            final ConstraintType constraintType = constraint.getConstraintType() == null ? ConstraintType.GlobalIgnoreConstraint :
+                    constraint.getConstraintType();
+            ConstraintGroup constraintGroup = ConstraintGroup.newBuilder()
+                    .setGroupUuid(apiId.oid())
+                    .setCommodityType(constraintType.name())
+            .build();
+            ignoreConstraint.setIgnoreGroup(constraintGroup);
         } else {
-            constraintGroup.setCommodityType(constraintType.name());
-            // group uuid is only available if it's not global constraint
-            constraintGroup.setGroupUuid(Long.parseLong(constraint.getTarget().getUuid()));
+            throw new IllegalArgumentException("RemoveConstraintApiDTO configuration not supported");
         }
-        return IgnoreConstraint.newBuilder()
-                .setIgnoreGroup(constraintGroup)
-                .build();
+        return ignoreConstraint.build();
     }
 
     /**
@@ -978,7 +1086,7 @@ public class ScenarioMapper {
             List<SettingApiDTO<String>> automationSettingList = dto.getConfigChanges().getAutomationSettingList();
             for(SettingApiDTO setting : automationSettingList) {
                 if (setting.getEntityType() != null && setting.getUuid() != null
-                                && UIEntityType.fromString(setting.getEntityType()).typeNumber() == EntityType.PHYSICAL_MACHINE_VALUE
+                                && ApiEntityType.fromString(setting.getEntityType()).typeNumber() == EntityType.PHYSICAL_MACHINE_VALUE
                                 && setting.getUuid().equalsIgnoreCase(EntitySettingSpecs.Provision.getSettingName())) {
                     hasPMProvisionSetting = true;
                 }
@@ -1073,7 +1181,7 @@ public class ScenarioMapper {
 
         if (change.getTargetEntityType() != null) {
             additionBuilder.setTargetEntityType(
-                    UIEntityType.fromStringToSdkType(change.getTargetEntityType()));
+                    ApiEntityType.fromStringToSdkType(change.getTargetEntityType()));
         }
 
         if (templateIds.contains(uuid)) {
@@ -1108,7 +1216,7 @@ public class ScenarioMapper {
                     .setChangeApplicationDay(projectionDay(change.getProjectionDay()));
 
         if (change.getTargetEntityType() != null) {
-            removalBuilder.setTargetEntityType(UIEntityType.fromString(change.getTargetEntityType()).typeNumber());
+            removalBuilder.setTargetEntityType(ApiEntityType.fromString(change.getTargetEntityType()).typeNumber());
         }
 
         if (groupResponse.hasGroup()) {
@@ -1139,7 +1247,7 @@ public class ScenarioMapper {
 
         if (change.getTargetEntityType() != null) {
             replaceBuilder.setTargetEntityType(
-                    UIEntityType.fromStringToSdkType(change.getTargetEntityType()));
+                    ApiEntityType.fromStringToSdkType(change.getTargetEntityType()));
         }
 
         if (groupResponse.hasGroup()) {
@@ -1157,28 +1265,47 @@ public class ScenarioMapper {
      * represents the scope contents in XL DTO schema objects.
      * @param scopeDTOs the list of scope DTO objects, which can be empty or null.
      * @return the equivalent PlanScope, if any scope DTO's were found. Empty otherwise.
+     * @throws IllegalArgumentException if any of the scope DTOs in the list does not have a uuid,
+     *                                  or if the class name provided in a scopeDTO does not match
+     *                                  the class name internally associated with the DTO's uuid.
+     * @throws OperationFailedException if looking up the uuid from a scopeDTO fails.
      */
-    private Optional<PlanScope> getScope(@Nullable final List<BaseApiDTO> scopeDTOs) {
+    private Optional<PlanScope> getScope(@Nullable final List<BaseApiDTO> scopeDTOs)
+            throws IllegalArgumentException, OperationFailedException {
         // convert scope info from BaseApiDTO's to PlanScopeEntry objects
         if (scopeDTOs == null || scopeDTOs.size() == 0) {
             return Optional.empty(); // no scope to convert
         }
 
+        ApiId resolvedScope;
         PlanScope.Builder scopeBuilder = PlanScope.newBuilder();
         // add all of the scope entries to the builder
         for (BaseApiDTO scopeDTO : scopeDTOs) {
+            if (scopeDTO.getUuid() == null) {
+                throw new IllegalArgumentException("Found scopes with invalid uuid: "
+                        + scopeDTO.getDisplayName());
+            }
+            resolvedScope = uuidMapper.fromUuid(scopeDTO.getUuid());
+            // Validate class name only, no need for display name (we'll use what we get from the
+            // apiId)
+            // - If it is empty, then we'll just use apiId's class name.
+            // - If it is populated, check that it matches the apiId's class name.
+            if (scopeDTO.getClassName() != null
+                    && !scopeDTO.getClassName().equalsIgnoreCase(resolvedScope.getClassName())) {
+                throw new IllegalArgumentException("Incorrect class name for scope with uuid "
+                        + resolvedScope.uuid());
+            }
             // Since all scope entries are additive, if any scope is the Market scope, then this is
             // effectively the same as an unscoped plan, so return the empty scope. In the future,
             // if we support scope reduction entries, this may change.
-            if (scopeDTO.getClassName().equalsIgnoreCase(MARKET_PLAN_SCOPE_CLASSNAME)) {
+            if (resolvedScope.getClassName().equalsIgnoreCase(MARKET_PLAN_SCOPE_CLASSNAME)) {
                 return Optional.empty();
             }
 
-            long objectId = Long.parseLong(scopeDTO.getUuid());
             scopeBuilder.addScopeEntriesBuilder()
-                    .setScopeObjectOid(objectId)
-                    .setClassName(scopeDTO.getClassName())
-                    .setDisplayName(scopeDTO.getDisplayName());
+                    .setScopeObjectOid(resolvedScope.oid())
+                    .setClassName(resolvedScope.getClassName())
+                    .setDisplayName(resolvedScope.getDisplayName());
         }
         // we have a customized scope -- return it
         return Optional.of(scopeBuilder.build());
@@ -1220,41 +1347,72 @@ public class ScenarioMapper {
     }
 
     /**
-     * Convert {@link RISetting} to {@link SettingApiDTO}.
+     * Convert {@link RISetting} to a list of {@link SettingApiDTO}.
      *
      * @param ri the RISetting
-     * @return a list of SettingApiDTO
+     * @return a list of {@link SettingApiDTO}
      */
-    private List<SettingApiDTO> createRiSettingApiDTO(RISetting ri) {
-        List<SettingApiDTO> riSettings = new ArrayList<>();
+    private List<SettingApiDTO> createRiSettingApiDTOs(RISetting ri) {
+        List<SettingApiDTO> riSettingDTOs = new ArrayList<>();
 
-        SettingApiDTO<String> offeringClassDto = new SettingApiDTO<>();
-        offeringClassDto.setUuid(AWSPreferredOfferingClass.getSettingName());
-        offeringClassDto.setValue(ri.getPreferredOfferingClass().name());
-        offeringClassDto.setDisplayName(AWSPreferredOfferingClass.getDisplayName());
-        riSettings.add(offeringClassDto);
+        // AWS
+        if (ri.containsRiSettingByCloudtype(CloudType.AWS.name())) {
+            RIProviderSetting riSettingProvider = ri.getRiSettingByCloudtypeMap().get(CloudType.AWS.name());
 
-        SettingApiDTO<String> paymentDto = new SettingApiDTO<>();
-        paymentDto.setUuid(AWSPreferredPaymentOption.getSettingName());
-        paymentDto.setValue(ri.getPreferredPaymentOption().name());
-        paymentDto.setDisplayName(AWSPreferredPaymentOption.getDisplayName());
-        riSettings.add(paymentDto);
+            riSettingDTOs.add(createRiSettingApiDTO(AWSPreferredOfferingClass.getSettingName(),
+                    riSettingProvider.getPreferredOfferingClass().name(),
+                    AWSPreferredOfferingClass.getDisplayName()));
 
-        SettingApiDTO<String> termDto = new SettingApiDTO<>();
-        termDto.setUuid(AWSPreferredTerm.getSettingName());
-        Optional<PreferredTerm> term = riTermMapper.valueOf(PreferredTerm.getPrefferedTermEnum(ri.getPreferredTerm()).orElse(null));
-        termDto.setValue(term.map(PreferredTerm::name).orElse(null));
-        termDto.setDisplayName(AWSPreferredTerm.getDisplayName());
-        riSettings.add(termDto);
+            riSettingDTOs.add(createRiSettingApiDTO(AWSPreferredPaymentOption.getSettingName(),
+                    riSettingProvider.getPreferredPaymentOption().name(),
+                    AWSPreferredPaymentOption.getDisplayName()));
+
+            Optional<PreferredTerm> term = riTermMapper.valueOf(PreferredTerm
+                    .getPrefferedTermEnum(riSettingProvider.getPreferredTerm())
+                    .orElse(null));
+            riSettingDTOs.add(createRiSettingApiDTO(AWSPreferredTerm.getSettingName(),
+                    term.map(PreferredTerm::name).orElse(null),
+                    AWSPreferredTerm.getDisplayName()));
+        }
+
+        // Azure
+        if (ri.containsRiSettingByCloudtype(CloudType.AZURE.name())) {
+            RIProviderSetting riSettingProvider = ri.getRiSettingByCloudtypeMap().get(CloudType.AZURE.name());
+            Optional<PreferredTerm> term = riTermMapper.valueOf(PreferredTerm
+                    .getPrefferedTermEnum(riSettingProvider.getPreferredTerm())
+                    .orElse(null));
+            riSettingDTOs.add(createRiSettingApiDTO(AzurePreferredTerm.getSettingName(),
+                    term.map(PreferredTerm::name).orElse(null),
+                    AzurePreferredTerm.getDisplayName()));
+        }
 
         if (ri.hasDemandType()) {
             final SettingApiDTO<String> demandTypeDto = new SettingApiDTO<>();
             demandTypeDto.setUuid(RIDemandType.getSettingName());
             demandTypeDto.setValue(ri.getDemandType().name());
             demandTypeDto.setDisplayName(RIDemandType.getDisplayName());
-            riSettings.add(demandTypeDto);
+            riSettingDTOs.add(demandTypeDto);
         }
-        return riSettings;
+        return riSettingDTOs;
+    }
+
+    /**
+     * Create a {@link SettingApiDTO} given a uuid, value and displayName.
+     *
+     * @param uuid        uuid of the setting
+     * @param value       value of the setting
+     * @param displayName displayName of the setting
+     * @return {@link SettingApiDTO}
+     */
+    private SettingApiDTO createRiSettingApiDTO(@Nonnull final String uuid,
+                                                @Nonnull final String value,
+                                                @Nonnull final String displayName) {
+        SettingApiDTO<String> settingDTO = new SettingApiDTO<>();
+        settingDTO.setUuid(uuid);
+        settingDTO.setValue(value);
+        settingDTO.setDisplayName(displayName);
+
+        return settingDTO;
     }
 
     @Nonnull
@@ -1265,15 +1423,16 @@ public class ScenarioMapper {
                 .flatMap(override -> createApiSettingFromOverride(override, mappingContext).stream())
                 .collect(Collectors.toList());
 
+
         final List<PlanChanges> allPlanChanges = changes.stream()
                 .filter(ScenarioChange::hasPlanChanges).map(ScenarioChange::getPlanChanges)
                 .collect(Collectors.toList());
 
         final List<SettingApiDTO> riSetting = changes.stream()
-                        .filter(ScenarioChange::hasRiSetting)
-                        .map(ScenarioChange::getRiSetting)
-                        .flatMap(ri -> createRiSettingApiDTO(ri).stream())
-                        .collect(Collectors.toList());
+                .filter(ScenarioChange::hasRiSetting)
+                .map(ScenarioChange::getRiSetting)
+                .flatMap(ri -> createRiSettingApiDTOs(ri).stream())
+                .collect(Collectors.toList());
 
         final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges, mappingContext );
 
@@ -1281,23 +1440,23 @@ public class ScenarioMapper {
 
         outputChanges.setRemoveConstraintList(removeConstraintApiDTOS);
         outputChanges.setAutomationSettingList(settingsManagerMapping
-            .convertToPlanSetting(settingChanges));
+                .convertToPlanSetting(settingChanges));
         outputChanges.setAddPolicyList(Lists.newArrayList());
         outputChanges.setRemovePolicyList(Lists.newArrayList());
         Optional<IncludedCoupons> includedCoupons = allPlanChanges
-                        .stream().filter(PlanChanges::hasIncludedCoupons)
-                        .map(PlanChanges::getIncludedCoupons)
-                        .findFirst();
+                .stream().filter(PlanChanges::hasIncludedCoupons)
+                .map(PlanChanges::getIncludedCoupons)
+                .findFirst();
         if (includedCoupons.isPresent()) {
             final IncludedCouponsApiDTO includedCouponsDto = new IncludedCouponsApiDTO();
             IncludedCoupons includedCouponsMsg = includedCoupons.get();
             final List<Long> includedCouponOidsList =
-                                                    includedCouponsMsg.getIncludedCouponOidsList();
+                    includedCouponsMsg.getIncludedCouponOidsList();
             if (includedCouponOidsList != null) {
                 includedCouponsDto.setIncludedCouponOidsList(includedCouponOidsList);
                 includedCouponsDto.setIswhiteList(includedCouponsMsg.hasIsWhiteList()
-                                ? includedCouponsMsg.getIsWhiteList()
-                                : true);
+                        ? includedCouponsMsg.getIsWhiteList()
+                        : true);
             }
             outputChanges.setIncludedCoupons(includedCouponsDto);
         }
@@ -1328,14 +1487,24 @@ public class ScenarioMapper {
     @Nonnull
     RemoveConstraintApiDTO toRemoveConstraintApiDTO(@Nonnull IgnoreConstraint constraint, ScenarioChangeMappingContext mappingContext) {
         final RemoveConstraintApiDTO constraintApiDTO = new RemoveConstraintApiDTO();
-        // Currently as IgnoreConstraint for all entities is passed as a API parameter(OM-18012),
-        // the UI has no way to displayIgnoreConstraint setting for all entities. So we are only
-        // converting the IgnoreConstraint if it is set for groups.
-        if (constraint.hasIgnoreGroup()) {
+
+        if (constraint.hasIgnoreAllEntities() && constraint.getIgnoreAllEntities()) {
+            constraintApiDTO.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
+        } else if (constraint.hasGlobalIgnoreEntityType()) {
+            EntityType entityType = constraint.getGlobalIgnoreEntityType().getEntityType();
+            constraintApiDTO.setTargetEntityType(
+                    ApiEntityType.fromSdkTypeToEntityTypeString(entityType.getNumber()));
+            constraintApiDTO.setConstraintType(ConstraintType.GlobalIgnoreConstraint);
+        } else if (constraint.hasIgnoreGroup()) { // Per Group Settings
             ConstraintGroup constraintGroup = constraint.getIgnoreGroup();
             constraintApiDTO.setConstraintType(
                     ConstraintType.valueOf(constraintGroup.getCommodityType()));
-            constraintApiDTO.setTarget(mappingContext.dtoForId(constraintGroup.getGroupUuid()));
+            //ConstraintGroup configuration only supports groups, can derive dto mappingContext will return
+            final BaseApiDTO baseApiDTO = mappingContext.dtoForId(constraintGroup.getGroupUuid());
+            constraintApiDTO.setTarget(baseApiDTO);
+            if (mappingContext.groupIdExists(constraintGroup.getGroupUuid())) {
+                constraintApiDTO.setTargetEntityType(((GroupApiDTO)baseApiDTO).getGroupType());
+            }
         }
         return constraintApiDTO;
     }
@@ -1356,7 +1525,7 @@ public class ScenarioMapper {
             return possibilities.getAll();
         }
 
-        final String entityType = UIEntityType.fromType(settingOverride.getEntityType()).apiStr();
+        final String entityType = ApiEntityType.fromType(settingOverride.getEntityType()).apiStr();
 
         SettingApiDTO<String> settingSpec = possibilities.getSettingForEntityType(entityType)
                 .orElseThrow(() -> new IllegalStateException("Entity type " + entityType +
@@ -1416,7 +1585,7 @@ public class ScenarioMapper {
         changeApiDTO.setProjectionDays(addition.getChangeApplicationDaysList());
         if (addition.hasTargetEntityType()) {
             changeApiDTO.setTargetEntityType(
-                    UIEntityType.fromSdkTypeToEntityTypeString(addition.getTargetEntityType()));
+                    ApiEntityType.fromSdkTypeToEntityTypeString(addition.getTargetEntityType()));
         }
 
         final List<AddObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getAddList(),
@@ -1447,7 +1616,7 @@ public class ScenarioMapper {
         changeApiDTOs.add(changeApiDTO);
         if (removal.hasTargetEntityType()) {
             changeApiDTO.setTargetEntityType(
-                    UIEntityType.fromSdkTypeToEntityTypeString(removal.getTargetEntityType()));
+                    ApiEntityType.fromSdkTypeToEntityTypeString(removal.getTargetEntityType()));
         }
         outputChanges.setRemoveList(changeApiDTOs);
     }
@@ -1472,7 +1641,7 @@ public class ScenarioMapper {
 
         if (replace.hasTargetEntityType()) {
             changeApiDTO.setTargetEntityType(
-                    UIEntityType.fromSdkTypeToEntityTypeString(replace.getTargetEntityType()));
+                    ApiEntityType.fromSdkTypeToEntityTypeString(replace.getTargetEntityType()));
         }
 
         List<ReplaceObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(outputChanges.getReplaceList(),
@@ -1564,7 +1733,7 @@ public class ScenarioMapper {
                 return serviceEntityMap.get(id);
             } else if (templatesMap.containsKey(id)) {
                 return templatesMap.get(id);
-            } else if (groupMap.containsKey(id)) {
+            } else if (groupIdExists(id)) {
                 return groupMap.get(id);
             } else {
                 logger.error("Unable to find entity, template, or group with ID {} when mapping "
@@ -1572,9 +1741,19 @@ public class ScenarioMapper {
                     id);
                 final BaseApiDTO entity = new BaseApiDTO();
                 entity.setUuid(Long.toString(id));
-                entity.setDisplayName(UIEntityType.UNKNOWN.apiStr());
+                entity.setDisplayName(ApiEntityType.UNKNOWN.apiStr());
                 return entity;
             }
+        }
+
+        /**
+         * Return if a group with the given id exists.
+         *
+         * @param id The ID of the object.
+         * @return If a group with the given id exists.
+         */
+        boolean groupIdExists(final long id) {
+            return groupMap.containsKey(id);
         }
     }
 

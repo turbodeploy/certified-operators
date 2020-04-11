@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.cost;
 import java.text.MessageFormat;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -16,8 +17,10 @@ import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey;
 import com.vmturbo.common.protobuf.cost.Pricing.PriceTableKey.Builder;
 import com.vmturbo.common.protobuf.cost.Pricing.UploadAccountPriceTableKeyRequest;
 import com.vmturbo.common.protobuf.cost.PricingServiceGrpc.PricingServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -44,9 +47,11 @@ public class BusinessAccountPriceTableKeyUploader {
      * @param stitchingContext the current topology being broadcasted.
      * @param probeTypesForTargetId map of probeTypes associated to a target.
      *                              Used to determine ProbeType.
+     * @param cloudEntitiesMap The map containing mapping of cloud entities to oids.
      */
     public void uploadAccountPriceTableKeys(final StitchingContext stitchingContext,
-                                            final Map<Long, SDKProbeType> probeTypesForTargetId) {
+                                            final Map<Long, SDKProbeType> probeTypesForTargetId,
+                                            final CloudEntitiesMap cloudEntitiesMap) {
         if (stitchingContext.getEntitiesByEntityTypeAndTarget().isEmpty()) {
             logger.debug("No entities found in current stitching context");
             return;
@@ -69,21 +74,17 @@ public class BusinessAccountPriceTableKeyUploader {
                                         .putProbeKeyMaterial(priceTableKey.getIdentifierName().name(),
                                                 priceTableKey.getIdentifierValue()));
 
-                        // Add the pricing group to the key
-                        final long targetId = topologyStitchingEntity.getTargetId();
-                        final Optional<SDKProbeType> probeType =
-                                targetStore.getProbeTypeForTarget(targetId);
-                        final Optional<String> pricingGroup = probeType
-                                .map(PricingGroupMapper::getPricingGroupForProbeType)
-                                .orElseGet(() -> {
-                                    logger.error("TargetID {} was not found in the targetStore.",
-                                            targetId);
-                                    return Optional.empty();
-                                });
-
-                        if (pricingGroup.isPresent()) {
-                            priceTableKeyBuilder.setPricingGroup(pricingGroup.get());
-
+                        Set<StitchingEntity> setAggregatedBy = topologyStitchingEntity.getConnectedToByType()
+                                .get(ConnectionType.AGGREGATED_BY_CONNECTION);
+                        if (setAggregatedBy != null) {
+                            Optional<StitchingEntity> serviceProvider = setAggregatedBy.stream()
+                                    .filter(aggregator -> aggregator.getEntityType() == EntityType.SERVICE_PROVIDER).findAny();
+                            if (serviceProvider.isPresent()) {
+                                long oid = serviceProvider.get().getOid();
+                                logger.info("The oid of the service provider is  {}", oid);
+                                priceTableKeyBuilder.setServiceProviderId(oid);
+                            }
+                        }
                             try {
                                 final PriceTableKey priceTableKey;
                                 if (uploadingData.containsKey(accountId)) {
@@ -101,11 +102,6 @@ public class BusinessAccountPriceTableKeyUploader {
                                 //remove the older controversial account as well to avoid inconsistent data.
                                 uploadingData.remove(accountId);
                             }
-
-                        } else {
-                            logger.error("Unable to find pricing group for target (TargetID={}, AccountID={})",
-                                    targetId, accountId);
-                        }
                     });
 
             if (!uploadingData.isEmpty()) {
@@ -123,13 +119,21 @@ public class BusinessAccountPriceTableKeyUploader {
                                                         @Nonnull final PriceTableKey previousPriceTableKey)
             throws PriceTableKeyException {
         final Builder resultPriceTableKey = PriceTableKey.newBuilder();
-        if (!currentPriceTableKey.getPricingGroup().equals(previousPriceTableKey.getPricingGroup())) {
+        if (!currentPriceTableKey.hasServiceProviderId()) {
+            throw new PriceTableKeyException("Service Provider id not found on current price table key for " +
+                            currentPriceTableKey.getProbeKeyMaterialMap());
+        }
+        if (!previousPriceTableKey.hasServiceProviderId()) {
+            throw new PriceTableKeyException("Service Provider id not found on previous price table key for "
+                            + previousPriceTableKey.getProbeKeyMaterialMap());
+        }
+        if (currentPriceTableKey.getServiceProviderId() != previousPriceTableKey.getServiceProviderId()) {
             throw new PriceTableKeyException(MessageFormat
-                    .format("pricing_group did not match. current : {0} vs previous {1}",
-                            currentPriceTableKey.getPricingGroup(),
-                            previousPriceTableKey.getPricingGroup()));
+                    .format("Service Provider id did not match. current : {} vs previous {}",
+                            currentPriceTableKey.getServiceProviderId(),
+                            previousPriceTableKey.getServiceProviderId()));
         } else {
-            resultPriceTableKey.setPricingGroup(currentPriceTableKey.getPricingGroup());
+            resultPriceTableKey.setServiceProviderId(currentPriceTableKey.getServiceProviderId());
         }
         Map<String, String> currentPriceTableKeyMap = Maps.newHashMap(currentPriceTableKey
                 .getProbeKeyMaterialMap());

@@ -10,6 +10,10 @@ public enum AuditAction {
     CREATE_USER("Create User"),
     DELETE_USER("Delete User"),
     MODIFY_USER("Modify User"),
+    CREATE_WIDGETSET("Create Widget Set"),
+    UPDATE_WIDGETSET("Update Widget Set"),
+    DELETE_WIDGETSET("Delete Widget Set"),
+    TRANSFER_WIDGETSET("Transfer Widget Set"),
     CHANGE_SCOPE("Change Scope"),
     CHANGE_ROLE("Change Role"),
     CHANGE_PASSWORD("Change Password"),
@@ -43,7 +47,10 @@ public enum AuditAction {
     DELETE_LICENSE("Delete License"),
     SET_SAML_AUTH("Configure SAML authentication and authorization"),
     SET_DEFAULT_AUTH("Configure local and AD authentication and authorization"),
+    SET_AD_ONLY_AUTH("Configure AD only authentication and authorization"),
+    SET_LOCAL_ONLY_AUTH("Configure Local only authentication and authorization"),
     SET_HEADER_AUTH("Configure header authentication and authorization");
+
 
     private String displayName;
 

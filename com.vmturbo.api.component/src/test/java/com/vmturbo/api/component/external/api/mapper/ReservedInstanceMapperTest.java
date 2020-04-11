@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.mapper;
 
 import static org.junit.Assert.assertEquals;
 
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,6 +39,7 @@ public class ReservedInstanceMapperTest {
     private static final long ACCOUNT_1_ID = 111L;
     private static final long ACCOUNT_2_ID = 222L;
     private static final long NOT_EXISTING_ACCOUNT_ID = 333L;
+    private static final long REGION_1_ID = 44L;
 
     private ReservedInstanceMapper reservedInstanceMapper =
         new ReservedInstanceMapper(new CloudTypeMapper());
@@ -80,7 +82,7 @@ public class ReservedInstanceMapperTest {
                     .setTenancy(CloudCostDTO.Tenancy.DEFAULT)
                     .setOs(CloudCostDTO.OSType.LINUX)
                     .setTierId(33L)
-                    .setRegionId(44L))
+                    .setRegionId(REGION_1_ID))
             .build();
 
     @Test
@@ -101,6 +103,7 @@ public class ReservedInstanceMapperTest {
         ServiceEntityApiDTO regionEntity = new ServiceEntityApiDTO();
         regionEntity.setUuid("44");
         regionEntity.setDisplayName("us-east-1");
+        regionEntity.setDiscoveredBy(target);
         ServiceEntityApiDTO templateEntity = new ServiceEntityApiDTO();
         templateEntity.setUuid("33");
         templateEntity.setDisplayName("c3.xlarge");
@@ -153,16 +156,38 @@ public class ReservedInstanceMapperTest {
         testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType.AZURE_EA);
     }
 
+    @Test
+    public void testMapToReservedInstanceWithExplicitEndDate() throws Exception {
+        // Arrange
+        final ServiceEntityApiDTO region = new ServiceEntityApiDTO();
+        final TargetApiDTO target = new TargetApiDTO();
+        target.setType(SDKProbeType.AWS.getProbeType());
+        region.setDiscoveredBy(target);
+        region.setDisplayName("Main Account");
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = ImmutableMap
+                .of(REGION_1_ID, region);
+
+        Instant endTime = Instant.ofEpochMilli(1L);
+        ReservedInstanceBoughtInfo reservedInstanceBoughtInfo = riBought.getReservedInstanceBoughtInfo()
+                .toBuilder().setEndTime(endTime.toEpochMilli()).build();
+        ReservedInstanceBought reservedInstanceBought = riBought.toBuilder().setReservedInstanceBoughtInfo(reservedInstanceBoughtInfo)
+                .build();
+        // Act
+        final ReservedInstanceApiDTO reservedInstanceApiDTO = reservedInstanceMapper
+                .mapToReservedInstanceApiDTO(reservedInstanceBought, riSpec, serviceEntityApiDTOMap);
+        assertEquals(reservedInstanceApiDTO.getExpDateEpochTime(), new Long(1L));
+    }
+
     private void testMapToReservedInstanceApiDTOForAzureProbeType(SDKProbeType probeType)
             throws Exception {
         // Arrange
-        final ServiceEntityApiDTO businessAccount = new ServiceEntityApiDTO();
+        final ServiceEntityApiDTO region = new ServiceEntityApiDTO();
         final TargetApiDTO target = new TargetApiDTO();
         target.setType(probeType.getProbeType());
-        businessAccount.setDiscoveredBy(target);
-        businessAccount.setDisplayName("Main Account");
+        region.setDiscoveredBy(target);
+        region.setDisplayName("Main Account");
         final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = ImmutableMap
-            .of(ACCOUNT_1_ID, businessAccount);
+                .of(REGION_1_ID, region);
 
         // Act
         final ReservedInstanceApiDTO reservedInstanceApiDTO = reservedInstanceMapper

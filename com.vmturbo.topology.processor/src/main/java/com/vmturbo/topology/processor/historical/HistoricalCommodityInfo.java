@@ -23,8 +23,8 @@ public class HistoricalCommodityInfo {
     // A flag indicating if this commodity is matched to a commodity of the previous cycle
     private boolean matched;
 
-    // A flag indicating if this commodity is existing in the present cycle
-    private boolean existing;
+    // A flag indicating if this commodity is updated in the present cycle
+    private boolean updated;
 
     public HistoricalCommodityInfo() {
     }
@@ -49,8 +49,8 @@ public class HistoricalCommodityInfo {
         return matched;
     }
 
-    public boolean getExisting() {
-        return existing;
+    public boolean getUpdated() {
+        return updated;
     }
 
     public void setCommodityTypeAndKey(CommodityType commodityTypeAndKey) {
@@ -73,8 +73,8 @@ public class HistoricalCommodityInfo {
         this.matched = matched;
     }
 
-    public void setExisting(boolean existing) {
-        this.existing = existing;
+    public void setUpdated(boolean updated) {
+        this.updated = updated;
     }
 }
 

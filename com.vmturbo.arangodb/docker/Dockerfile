@@ -12,6 +12,8 @@ RUN userdel systemd-coredump
 # Install rsyslog and other packages
 RUN dnf install -y https://download.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm && \
     dnf install -y rsyslog procps-ng python2 jemalloc pwgen && \
+# Install flask, for use by arango_dump_restore script
+    python2.7 -m pip install flask && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
@@ -49,8 +51,8 @@ ADD rsyslog.conf /etc
 VOLUME ["/var/lib/arangodb3", "/var/lib/arangodb3-apps", "/home/arangodb/arangodb-dump"]
 
 # Copy scripts to dump/restore data during upgrades
-COPY mmfiles-dump.sh mmfiles-restore.sh /
-RUN chmod +x /mmfiles-dump.sh /mmfiles-restore.sh
+COPY mmfiles-dump.sh mmfiles-restore.sh wait-during-start.sh /
+RUN chmod +x /mmfiles-dump.sh /mmfiles-restore.sh /wait-during-start.sh
 
 COPY docker-entrypoint.sh /entrypoint.sh
 COPY arango_dump_restore.py /

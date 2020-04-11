@@ -31,7 +31,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.UIEntityType;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -218,10 +218,10 @@ public class GlobalSupplyChain implements DiagsRestorable {
         logger.info("Sealing global supply chain for {}", topologyId);
         isSealed = true;
         providerRels.asMap().forEach((seType, provTypes) -> {
-            Set<String> repoProvTypes = provTypes.stream().map(UIEntityType::fromType)
-                .map(UIEntityType::apiStr)
+            Set<String> repoProvTypes = provTypes.stream().map(ApiEntityType::fromType)
+                .map(ApiEntityType::apiStr)
                 .collect(Collectors.toSet());
-            globalSupplyChainProviderRels.putAll(UIEntityType.fromType(seType).apiStr(),
+            globalSupplyChainProviderRels.putAll(ApiEntityType.fromType(seType).apiStr(),
                     repoProvTypes);
         });
 
@@ -357,10 +357,10 @@ public class GlobalSupplyChain implements DiagsRestorable {
                 .stream()
                 .filter(entityType -> !filter.getIgnoredEntityTypes().contains(entityType))
                 .collect(Collectors.toMap(
-                    entry -> UIEntityType.fromType(entry.getKey()).apiStr(),
+                    entry -> ApiEntityType.fromType(entry.getKey()).apiStr(),
                     entry -> {
                         SupplyChainNode.Builder nodeBuilder = SupplyChainNode.newBuilder();
-                        nodeBuilder.setEntityType(UIEntityType.fromType(entry.getKey()).apiStr());
+                        nodeBuilder.setEntityType(ApiEntityType.fromType(entry.getKey()).apiStr());
                         // create a mapping from EntityState to Oids
                         nodeBuilder.putAllMembersByState(
                             entityStateToOidsMap.entrySet().stream()
