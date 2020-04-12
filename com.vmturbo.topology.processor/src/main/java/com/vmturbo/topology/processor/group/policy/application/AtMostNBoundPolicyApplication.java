@@ -11,7 +11,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -49,13 +48,11 @@ public class AtMostNBoundPolicyApplication extends PlacementPolicyApplication {
                     final Grouping consumerGroup = policy.getConsumerPolicyEntities().getGroup();
                     GroupProtoUtil.checkEntityTypeForPolicy(providerGroup);
                     //Above check makes sure that the group only has only one entity type here
-                    final ApiEntityType providerEntityType = GroupProtoUtil.getEntityTypes(providerGroup)
-                        .iterator().next();
-                    final ApiEntityType consumerEntityType = GroupProtoUtil.getEntityTypes(consumerGroup)
-                        .iterator().next();
-                    final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph).getEntitiesOfType(providerEntityType),
+                    final int providerEntityType = GroupProtoUtil.getEntityTypes(providerGroup)
+                        .iterator().next().typeNumber();
+                    final Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph),
                         policy.getProviderPolicyEntities().getAdditionalEntities());
-                    final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType),
+                    final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph),
                         policy.getConsumerPolicyEntities().getAdditionalEntities());
 
                     // Add the commodity to the appropriate entities.
@@ -63,7 +60,7 @@ public class AtMostNBoundPolicyApplication extends PlacementPolicyApplication {
                     // reduce the atMostNBound capacity below the intended integer equivalent value.
                     addCommoditySold(providers, consumers,
                         policy.getDetails().getCapacity() + SMALL_DELTA_VALUE, policy);
-                    addCommodityBought(consumers, providerEntityType.typeNumber(), commodityBought(policy));
+                    addCommodityBought(consumers, providerEntityType, commodityBought(policy));
                 } catch (GroupResolutionException e) {
                     errors.put(policy, new PolicyApplicationException(e));
                 } catch (PolicyApplicationException e2) {

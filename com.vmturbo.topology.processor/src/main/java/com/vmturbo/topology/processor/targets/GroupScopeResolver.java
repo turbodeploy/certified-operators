@@ -9,7 +9,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
@@ -17,10 +16,8 @@ import com.google.common.base.Functions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import io.grpc.Channel;
 import io.grpc.StatusRuntimeException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -35,18 +32,17 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.StoppingCondition;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityProperty;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -179,14 +175,13 @@ public class GroupScopeResolver {
                 .setExpectPresent(true)
                 .build())
                     .next();
-            final Set<Long> groupMembers = Sets.newHashSet(membersResponse.getMemberIdList());
-            if (groupMembers.isEmpty()) {
+            if (membersResponse.getMemberIdCount() == 0) {
                 logger.warn("Group {} has no members.  "
                     + "No property values will be returned for group scope.", groupId);
                 return Collections.emptySet();
             }
             logger.debug("Group {} has members {} in group scope processing.",
-                groupId, groupMembers);
+                groupId, membersResponse.getMemberIdList());
             // need to check if entityType of group is same as entityType of accountDef
             GetGroupResponse groupResponse =
                 groupService.getGroup(
@@ -202,7 +197,7 @@ public class GroupScopeResolver {
                 return Collections.emptySet();
             }
             logger.trace("Group type matches group scope type.");
-            return groupMembers;
+            return Sets.newHashSet(membersResponse.getMemberIdList());
         } else if (customAcctDef.hasEntityScope() && probeType != null) {
             final String entityProperty = accountVal.getStringValue();
             logger.debug("Getting entity scope OID for property value {}", entityProperty);
@@ -349,15 +344,14 @@ public class GroupScopeResolver {
         }
         final SearchEntitiesRequest.Builder searchTopologyRequest = SearchEntitiesRequest.newBuilder()
             .setReturnType(Type.FULL)
-            .setSearch(SearchQuery.newBuilder()
-                .addSearchParameters(SearchParameters.newBuilder()
-                    .setStartingFilter(SearchProtoUtil.idFilter(groupScopedEntitiesOids))
-                    .addSearchFilter(SearchFilter.newBuilder()
-                        .setTraversalFilter(TraversalFilter.newBuilder()
-                            .setTraversalDirection(TraversalDirection.PRODUCES)
-                            .setStoppingCondition(StoppingCondition.newBuilder()
-                                .setStoppingPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.APPLICATION_COMPONENT.getNumber())))
-                        ))));
+            .addSearchParameters(SearchParameters.newBuilder()
+                .setStartingFilter(SearchProtoUtil.idFilter(groupScopedEntitiesOids))
+                .addSearchFilter(SearchFilter.newBuilder()
+                    .setTraversalFilter(TraversalFilter.newBuilder()
+                        .setTraversalDirection(TraversalDirection.PRODUCES)
+                        .setStoppingCondition(StoppingCondition.newBuilder()
+                            .setStoppingPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.APPLICATION_COMPONENT.getNumber())))
+                    )));
         try {
             return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
                 searchTopologyRequest.build()))

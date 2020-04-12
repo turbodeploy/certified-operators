@@ -73,92 +73,20 @@ public class TargetDiscoverySchedule extends Schedule {
 
     @Immutable
     public static class TargetDiscoveryScheduleData extends ScheduleData {
-        // this only applies to full discovery, since incremental discovery is designed to happen
-        // much more frequently than broadcast
         private final boolean synchedToBroadcast;
 
-        // incremental discovery interval, may be null if target does not support incremental
-        // discovery, or -1 if incremental discovery is disabled by user
-        private final Long incrementalIntervalMillis;
+        public TargetDiscoveryScheduleData() {
+            super();
+            synchedToBroadcast = false;
+        }
 
         public TargetDiscoveryScheduleData(long scheduleIntervalMillis, boolean synchedToBroadcast) {
             super(scheduleIntervalMillis);
-            this.incrementalIntervalMillis = null;
             this.synchedToBroadcast = synchedToBroadcast;
-        }
-
-        public TargetDiscoveryScheduleData(long scheduleIntervalMillis,
-                long incrementalIntervalMillis, boolean synchedToBroadcast) {
-            super(scheduleIntervalMillis);
-            this.incrementalIntervalMillis = incrementalIntervalMillis;
-            this.synchedToBroadcast = synchedToBroadcast;
-        }
-
-        public long getFullIntervalMillis() {
-            return super.getScheduleIntervalMillis();
         }
 
         public boolean isSynchedToBroadcast() {
             return synchedToBroadcast;
-        }
-
-        public boolean hasIncrementalIntervalMillis() {
-            return incrementalIntervalMillis != null && incrementalIntervalMillis != -1;
-        }
-
-        public boolean isIncrementalDiscoveryDisabled() {
-            return incrementalIntervalMillis != null && incrementalIntervalMillis == -1;
-        }
-
-        public Long getIncrementalIntervalMillis() {
-            return incrementalIntervalMillis;
-        }
-
-        public static class Builder {
-            private boolean synchedToBroadcast;
-            private long fullIntervalMillis;
-            // may be null if target does not support incremental discovery
-            private Long incrementalIntervalMillis;
-
-            public Builder setFullIntervalMillis(long fullIntervalMillis) {
-                this.fullIntervalMillis = fullIntervalMillis;
-                return this;
-            }
-
-            public Builder setIncrementalIntervalMillis(Long incrementalIntervalMillis) {
-                this.incrementalIntervalMillis = incrementalIntervalMillis;
-                return this;
-            }
-
-            public Builder clearIncrementalIntervalMillis() {
-                this.incrementalIntervalMillis = null;
-                return this;
-            }
-
-            public Builder setSynchedToBroadcast(boolean synchedToBroadcast) {
-                this.synchedToBroadcast = synchedToBroadcast;
-                return this;
-            }
-
-            public TargetDiscoveryScheduleData build() {
-                if (incrementalIntervalMillis == null) {
-                    return new TargetDiscoveryScheduleData(fullIntervalMillis, synchedToBroadcast);
-                } else {
-                    return new TargetDiscoveryScheduleData(fullIntervalMillis,
-                        incrementalIntervalMillis, synchedToBroadcast);
-                }
-            }
-        }
-
-        public static Builder newBuilder() {
-            return new Builder();
-        }
-
-        public static Builder newBuilder(TargetDiscoveryScheduleData targetDiscoveryScheduleData) {
-            return new Builder()
-                .setFullIntervalMillis(targetDiscoveryScheduleData.getFullIntervalMillis())
-                .setIncrementalIntervalMillis(targetDiscoveryScheduleData.getIncrementalIntervalMillis())
-                .setSynchedToBroadcast(targetDiscoveryScheduleData.isSynchedToBroadcast());
         }
     }
 }

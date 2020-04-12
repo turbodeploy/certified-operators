@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
@@ -23,10 +24,11 @@ import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
-import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.communication.RemoteMediation;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
+import com.vmturbo.topology.processor.operation.Operation;
+import com.vmturbo.topology.processor.operation.OperationMessageHandler;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -61,11 +63,13 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public void sendDiscoveryRequest(long probeId, final long targetId,
-                                     DiscoveryRequest discoveryRequest,
+    public void sendDiscoveryRequest(long probeId, DiscoveryRequest discoveryRequest,
             IOperationMessageHandler<Discovery> responseHandler)
             throws ProbeException, CommunicationException, InterruptedException {
-        final DiscoveryResponse response = discoveryResponses.get(String.valueOf(targetId));
+        final String targetId = discoveryRequest.getAccountValueList().stream()
+                        .filter(av -> av.getKey().equals(TGT_ID)).findFirst().get()
+                        .getStringValue();
+        final DiscoveryResponse response = discoveryResponses.get(targetId);
         Assert.assertNotNull(response);
         responseHandler.onReceive(
                         MediationClientMessage.newBuilder().setDiscoveryResponse(response).build());
@@ -101,8 +105,11 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public void handleTargetRemoval(long probeId, long targetId, TargetUpdateRequest request)
-                    throws CommunicationException, InterruptedException, ProbeException {
+    public void removeMessageHandlers(@Nonnull final Predicate<Operation> shouldRemoveFilter) {
+        // Only the actionMessageHandler is kept beyond the request.
+        if (actionMessageHandler != null && shouldRemoveFilter.test(actionMessageHandler.getOperation())) {
+            this.actionMessageHandler = null;
+        }
     }
 
     @Override
@@ -116,7 +123,7 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     public void addDiscoveryResponse(long targetId, DiscoveryResponse response) {
-        discoveryResponses.put(String.valueOf(targetId), response);
+        discoveryResponses.put(getAvId(targetId), response);
     }
 
     public void addValidationResponse(long targetId, ValidationResponse response) {

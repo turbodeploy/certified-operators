@@ -815,8 +815,8 @@ public class SearchServiceTest {
         verify(searchServiceSpy).searchEntities(captor.capture());
 
         final SearchEntitiesRequest params = captor.getValue();
-        assertEquals(1, params.getSearch().getSearchParametersCount());
-        SearchParameters searchParameters = params.getSearch().getSearchParameters(0);
+        assertEquals(1, params.getSearchParametersCount());
+        SearchParameters searchParameters = params.getSearchParameters(0);
         assertEquals(1, searchParameters.getSearchFilterCount());
         SearchFilter nameFilter = searchParameters.getSearchFilter(0);
         String value = nameFilter.getPropertyFilter().getStringFilter().getStringPropertyRegex();

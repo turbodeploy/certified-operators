@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.rest;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -12,15 +11,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.ws.rs.ForbiddenException;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,9 +23,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.vmturbo.identity.exceptions.IdentifierConflictException;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+
 import com.vmturbo.identity.exceptions.IdentityStoreException;
-import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
@@ -251,22 +249,16 @@ public class TargetController {
                 operationManager.getInProgressValidationForTarget(target.getId());
         final Optional<Validation> lastValidation =
                 operationManager.getLastValidationForTarget(target.getId());
-        final Optional<Discovery> currentFullDiscovery =
-                operationManager.getInProgressDiscoveryForTarget(target.getId(), DiscoveryType.FULL);
+        final Optional<Discovery> currentDiscovery =
+                operationManager.getInProgressDiscoveryForTarget(target.getId());
         final Optional<Discovery> lastDiscovery =
-                operationManager.getLastDiscoveryForTarget(target.getId(), DiscoveryType.FULL);
-        final Optional<Discovery> currentIncrementalDiscovery =
-            operationManager.getInProgressDiscoveryForTarget(target.getId(), DiscoveryType.INCREMENTAL);
-        final Optional<Discovery> lastIncrementalDiscovery =
-            operationManager.getLastDiscoveryForTarget(target.getId(), DiscoveryType.INCREMENTAL);
-        // todo: vc always return empty response for incremental discovery if network connection is
-        // not available, which acts like a successful discovery, this is wrong. we should add
-        // lastIncrementalDiscovery to getLatestOperationDate once it's fixed
-        final Optional<? extends Operation> latestFinished = getLatestOperationDate(lastValidation, lastDiscovery);
-        final LocalDateTime lastValidated = latestFinished.map(Operation::getCompletionTime).orElse(null);
+                operationManager.getLastDiscoveryForTarget(target.getId());
+        final Optional<? extends Operation> latestFinished =
+                getLatestOperationDate(lastValidation, lastDiscovery);
+        final LocalDateTime lastValidated =
+                latestFinished.isPresent() ? latestFinished.get().getCompletionTime() : null;
         boolean isProbeConnected = probeStore.isProbeConnected(target.getProbeId());
-        final String status = getStatus(latestFinished, currentValidation, currentFullDiscovery,
-            currentIncrementalDiscovery, isProbeConnected);
+        final String status = getStatus(latestFinished, currentValidation, currentDiscovery, isProbeConnected);
         return success(target, isProbeConnected, status, lastValidated);
     }
 
@@ -276,24 +268,20 @@ public class TargetController {
      *
      * @param latestFinished latest finished operation on the target (if present)
      * @param inProgressValidation current validationt task
-     * @param inProgressFullDiscovery current full discovery task
-     * @param inProgressIncrementalDiscovery current incremental discovery task
+     * @param inProgressDiscovery current discovery task
      * @param isProbeConnected Status of the connection to the probe.
      * @return string, representing the target status.
      */
     @Nonnull
     private String getStatus(@Nonnull Optional<? extends Operation> latestFinished,
                              @Nonnull Optional<Validation> inProgressValidation,
-                             @Nonnull Optional<Discovery> inProgressFullDiscovery,
-                             @Nonnull Optional<Discovery> inProgressIncrementalDiscovery,
+                             @Nonnull Optional<Discovery> inProgressDiscovery,
                              boolean isProbeConnected) {
         final String status;
         if (inProgressValidation.isPresent() && inProgressValidation.get().getUserInitiated()) {
             status = "Validation in progress";
-        } else if (inProgressFullDiscovery.isPresent() && inProgressFullDiscovery.get().getUserInitiated()) {
-            status = "Full discovery in progress";
-        } else if (inProgressIncrementalDiscovery.isPresent() && inProgressIncrementalDiscovery.get().getUserInitiated()) {
-            status = "Incremental discovery in progress";
+        } else if (inProgressDiscovery.isPresent() && inProgressDiscovery.get().getUserInitiated()) {
+            status = "Discovery in progress";
         } else if (latestFinished.isPresent()) {
             // If there is no on-going operation which was initiated by the user - show the
             // status of the last operation.
@@ -315,18 +303,17 @@ public class TargetController {
      * Returns the latest finished operation, chosen from the ones specified.
      *
      * @param validation validation operation
-     * @param fullDiscovery full discovery operation
+     * @param discovery discovery operation
      * @return latest finished operation
      */
     @Nonnull
     private Optional<? extends Operation> getLatestOperationDate(
-            @Nonnull Optional<Validation> validation, @Nonnull Optional<Discovery> fullDiscovery) {
-        final Optional<? extends Operation> latestOperation =
-            Stream.of(validation, fullDiscovery)
+            @Nonnull Optional<Validation> validation, @Nonnull Optional<Discovery> discovery) {
+        final Optional<? extends Operation> latestOperation = Stream.of(validation, discovery)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .filter(op -> op.getCompletionTime() != null)
-                .max(Comparator.comparing(Operation::getCompletionTime));
+                .max((op1, op2) -> (op1.getCompletionTime().compareTo(op2.getCompletionTime())));
         return latestOperation;
     }
 

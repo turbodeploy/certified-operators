@@ -81,7 +81,6 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
@@ -240,70 +239,13 @@ public class PaginatedStatsExecutor {
          * Kicks off reading and processing historical or projected stats request.
          */
         void processRequest() throws OperationFailedException {
-            sanitizeStartDateOrEndDate();
             if (isHistoricalStatsRequest()) {
                 runHistoricalStatsRequest();
             } else if (isProjectedStatsRequest()) {
                 runProjectedStatsRequest();
             } else {
-                throw new IllegalArgumentException("Invalid start and end date combination.");
+                throw new OperationFailedException("Invalid start and end date combination.");
             }
-        }
-
-        /**
-         * If ONLY one of startDate/endDate is provided, adjust their values so that are
-         * consistent in what they represent. (If both of them are provided or none of them is,
-         * there is no need to modify anything so the function does nothing.)
-         * Adjustment goes as follows:
-         * - If only endDate is provided:
-         * --- if end date is in the past, throw an exception since no assumption can be made for
-         *      the start date; it is considered invalid input.
-         * --- if end date is now* , set it to null. (When both dates are null, the most recent
-         *      timestamp is returned.)
-         * --- if end date is in the future, set the start date to current time
-         * - If only startDate is provided:
-         * --- if start date is in the past, set the end date to current time.
-         * --- if start date is now* , set it to null. (When both dates are null, the most recent
-         *      timestamp is returned.)
-         * --- if start date is in the future, set the end date equal to start date.
-         *
-         * <p>*'now' is considered a small time frame of current time up to a minute ago
-         */
-        protected void sanitizeStartDateOrEndDate() {
-            if (period == null || (period.getStartDate() == null && period.getEndDate() == null)) {
-                return;
-            }
-            // Use a small tolerance time window: [clockTimeNowTolerance, clockTimeNow]
-            // Timestamps up to 1 min before 'now' are considered 'now'
-            long clockTimeNowTolerance =
-                    clockTimeNow - TimeInMillisConstants.MINUTE_LENGTH_IN_MILLIS;
-            if (period.getStartDate() == null) {        // in this case we have just endDate
-                long inputEndTime = DateTimeUtil.parseTime(period.getEndDate());
-                if (inputEndTime < clockTimeNowTolerance) {
-                    // end date in the past
-                    throw new IllegalArgumentException(
-                            "Incorrect combination of start and end date: Start date missing & end date in the past.");
-                } else if (inputEndTime <= clockTimeNow) {
-                    // end date now (belongs to [clockTimeNowTolerance, clockTimeNow])
-                    period.setEndDate(null);
-                } else {
-                    // end date in the future
-                    period.setStartDate(Long.toString(clockTimeNow));
-                }
-            } else if (period.getEndDate() == null) {   // in this case we have just startDate
-                long inputStartTime = DateTimeUtil.parseTime(period.getStartDate());
-                if (inputStartTime < clockTimeNowTolerance) {
-                    // start date in the past
-                    period.setEndDate(Long.toString(clockTimeNow));
-                } else if (inputStartTime <= clockTimeNow) {
-                    // start date now (belongs to [clockTimeNowTolerance, clockTimeNow])
-                    period.setStartDate(null);
-                } else {
-                    // start date in the future
-                    period.setEndDate(Long.toString(inputStartTime));
-                }
-            }
-            // if none of startDate, endDate is null, there is no need to modify anything
         }
 
         /**
@@ -366,8 +308,8 @@ public class PaginatedStatsExecutor {
             //Process
             //  1. Call History component
             //      a. If no history results there will be no cost results
-            //  2. Get Additional Entity Data.
-            //  3. Call Cost component use entity list response from history results
+            //  2. Call Cost component use entity list response from history results
+            //  3. Get Additional Entity Data list from 3.
             //  4. Map all gathered results to apiDtos
             //  5. Create the pagination response
             //  6. Set the response for access outside of class
@@ -376,20 +318,15 @@ public class PaginatedStatsExecutor {
             final GetEntityStatsResponse historyEntityStatResponse =
                     requestHistoricalStats(entityStatsScope, this.period, paginationRequest);
 
+            //2. Cost Stats -  uses entities from historyStatsResponse to scope query for cost
             final List<Long> sortedList =  getSortedListFromHistoryResponse(historyEntityStatResponse);
             final Set<Long> entitiesSet = new HashSet<>(sortedList);
+            final GetCloudCostStatsResponse costStatsResponse =
+                    getCloudCostStatsForEntities(entitiesSet);
 
-            //2. Entity Info call
+            //3. Entity Info call
             final Map<Long, MinimalEntity> minimalEntityMap =
                     getMinimalEntitiesForEntityList(entitiesSet);
-
-            //3. Cost Stats -  uses entities from historyStatsResponse to scope query for cost
-            final GetCloudCostStatsResponse costStatsResponse = minimalEntityMap.entrySet()
-                .stream().map(entry -> entry.getValue())
-                .anyMatch(minEntity -> minEntity.getEnvironmentType() == EnvironmentType.CLOUD
-                    || minEntity.getEnvironmentType() == EnvironmentType.HYBRID)
-                        ? getCloudCostStatsForEntities(entitiesSet)
-                        : GetCloudCostStatsResponse.getDefaultInstance();
 
             //4. Combine Stats
             final List<EntityStatsApiDTO> combinedResultsInOrder =
@@ -532,7 +469,9 @@ public class PaginatedStatsExecutor {
         private EntityStatsApiDTO constructEntityStatsDto(MinimalEntity serviceEntity, final boolean projectedStatsRequest,
                 final EntityStats entityStats, @Nonnull final StatScopesApiInputDTO inputDto) {
             final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
-            StatsMapper.populateEntityDataEntityStatsApiDTO(serviceEntity, entityStatsApiDTO);
+            entityStatsApiDTO.setUuid(Long.toString(serviceEntity.getOid()));
+            entityStatsApiDTO.setClassName(ApiEntityType.fromType(serviceEntity.getEntityType()).apiStr());
+            entityStatsApiDTO.setDisplayName(serviceEntity.getDisplayName());
             entityStatsApiDTO.setStats(new ArrayList<>());
             if (projectedStatsRequest && entityStats.getStatSnapshotsCount() > 0) {
                 // we expect either zero or one snapshot for each entity
@@ -815,19 +754,12 @@ public class PaginatedStatsExecutor {
                 // Note that supply chain traversal will not happen if the list of related entity
                 // types is empty
 
-                final Set<Long> uuids;
-                // TODO OM-57104 - move special resource group logic related to supplyChain in one place
-                // don't expand resource group scope otherwise we miss special resource group
-                // logic for supplyChain
-                if (!isResourceGroupRelatedScope(seedUuids)) {
-                    uuids = groupExpander.expandUuids(seedUuids);
-                } else {
-                    uuids = Collections.singleton(Long.parseLong(seedUuids.iterator().next()));
-                }
-                if (uuids.isEmpty()) {
+                if (seedUuids.isEmpty()) {
                     return Collections.emptySet();
                 }
-                expandedUuids = performSupplyChainTraversal(uuids, relatedEntityTypes);
+                expandedUuids = performSupplyChainTraversal(
+                        seedUuids.stream().map(Long::valueOf).collect(Collectors.toSet()),
+                        relatedEntityTypes);
 
                 // if the user is scoped, we will filter the entities according to their scope
                 if (userSessionContext.isUserScoped()) {
@@ -835,12 +767,6 @@ public class PaginatedStatsExecutor {
                 }
             }
             return expandedUuids;
-        }
-
-        private boolean isResourceGroupRelatedScope(@Nonnull Set<String> seedUuids) {
-            return seedUuids.size() == 1 &&
-                    uuidMapper.fromOid(Long.parseLong(seedUuids.iterator().next()))
-                            .isResourceGroupOrGroupOfResourceGroups();
         }
 
         /**
@@ -1212,11 +1138,8 @@ public class PaginatedStatsExecutor {
                     mapAndCombineCloudAndHistoryStats(cloudCostStatsResponse, historyStatsResponse, new HashSet<>(sortedNextPageEntityIds));
 
             for (long entityUuid: sortedNextPageEntityIds) {
-                final Optional<EntityStatsApiDTO> entityStatsApiDTO =
+                final EntityStatsApiDTO entityStatsApiDTO =
                         constructEntityStatsApiDTOFromMinimalEntity(entityUuid, minimalEntityMap);
-                if (!entityStatsApiDTO.isPresent()) {
-                    continue;
-                }
 
                 Map<Long, List<StatApiDTO>> snapShotToStats =
                         combinedCloudAndHistoryStats.getOrDefault(entityUuid, Collections.emptyMap());
@@ -1225,14 +1148,14 @@ public class PaginatedStatsExecutor {
                         .stream()
                         .map(snapShotDate -> {
                             final StatSnapshotApiDTO statSnapshotApiDTO =
-                                    constructStatSnapshotApiDtO(snapShotDate);
+                                    constructEntityStatsApiDtO(snapShotDate);
                             statSnapshotApiDTO.setStatistics(snapShotToStats.get(snapShotDate));
                             return statSnapshotApiDTO;
                         }).collect(Collectors.toList());
 
-                entityStatsApiDTO.get().setStats(Lists.newArrayList(statSnapshotApiDTOS));
+                entityStatsApiDTO.setStats(Lists.newArrayList(statSnapshotApiDTOS));
 
-                entityStatsApiDTOS.add(entityStatsApiDTO.get());
+                entityStatsApiDTOS.add(entityStatsApiDTO);
             }
 
             return entityStatsApiDTOS;
@@ -1244,7 +1167,7 @@ public class PaginatedStatsExecutor {
          * @param date the date to set dto date value to
          * @return StatSnapshotApiDTO configured with date
          */
-        StatSnapshotApiDTO constructStatSnapshotApiDtO(long date) {
+        StatSnapshotApiDTO constructEntityStatsApiDtO(long date) {
             final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
             statSnapshotApiDTO.setDate(DateTimeUtil.toString(date));
             statSnapshotApiDTO.setEpoch( date <= clockTimeNow ? Epoch.HISTORICAL : Epoch.PROJECTED);
@@ -1256,14 +1179,16 @@ public class PaginatedStatsExecutor {
          *
          * @param entityUuid The entityUuid of interest
          * @param minimalEntityMap Map of entityUuids to their {@link MinimalEntity}
-         * @return An Optional of the {@link EntityStatsApiDTO} created by the MinimalEntity
-         * retrieved from the map, or Optional.empty() if the given uuid does not exist in the map.
+         * @return {@link EntityStatsApiDTO}
          */
-        Optional<EntityStatsApiDTO> constructEntityStatsApiDTOFromMinimalEntity(Long entityUuid,
+        EntityStatsApiDTO constructEntityStatsApiDTOFromMinimalEntity(Long entityUuid,
                 @Nonnull final Map<Long, MinimalEntity> minimalEntityMap) {
-            return Optional.ofNullable(minimalEntityMap.get(entityUuid))
-                    .map(minimalEntity -> StatsMapper.populateEntityDataEntityStatsApiDTO(
-                            minimalEntity, new EntityStatsApiDTO()));
+            final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+            MinimalEntity minimalEntity = minimalEntityMap.get(entityUuid);
+            entityStatsApiDTO.setUuid(Long.toString(minimalEntity.getOid()));
+            entityStatsApiDTO.setClassName(ApiEntityType.fromType(minimalEntity.getEntityType()).apiStr());
+            entityStatsApiDTO.setDisplayName(minimalEntity.getDisplayName());
+            return entityStatsApiDTO;
         }
 
         /**

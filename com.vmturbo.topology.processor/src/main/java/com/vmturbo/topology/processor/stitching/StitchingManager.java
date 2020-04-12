@@ -1,7 +1,6 @@
 package com.vmturbo.topology.processor.stitching;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -13,12 +12,12 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.StatusRuntimeException;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -280,8 +279,7 @@ public class StitchingManager {
                 .forEach(probeOperation ->
                         targetStore.getProbeTargets(probeOperation.probeId).forEach(
                                 target -> applyOperationForTarget(probeOperation.stitchingOperation,
-                                        scopeFactory, stitchingJournal, target.getId(),
-                                        probeOperation.probeId)));
+                                        scopeFactory, stitchingJournal, target.getId())));
         cleanupUnstitchedProxyEntities(scopeFactory, stitchingJournal);
         executionTimer.observe();
     }
@@ -371,15 +369,14 @@ public class StitchingManager {
      *                     of entities that the stitching operation should operate on.
      * @param stitchingJournal The stitching journal used to track changes.
      * @param targetId The id of the target that is being stitched via the operation.
-     * @param probeId The id of the probe associated with the target that is being stitched via the operation.
      */
     private void applyOperationForTarget(@Nonnull final StitchingOperation<?, ?> operation,
                                          @Nonnull final StitchingOperationScopeFactory scopeFactory,
                                          @Nonnull final IStitchingJournal<StitchingEntity> stitchingJournal,
-                                         final long targetId, final long probeId) {
+                                         final long targetId) {
         try {
             Optional<EntityType> externalType = operation.getExternalEntityType();
-            stitchingJournal.recordOperationBeginning(operation, operationDetailsForTarget(probeId, targetId));
+            stitchingJournal.recordOperationBeginning(operation);
             final TopologicalChangelog<StitchingEntity> results = externalType.map(extType ->
                     applyStitchWithExternalEntitiesOperation(operation, scopeFactory, targetId, extType))
                     .orElseGet(() -> applyStitchAloneOperation(operation, scopeFactory, targetId));
@@ -392,25 +389,6 @@ public class StitchingManager {
         } finally {
             stitchingJournal.recordOperationEnding();
         }
-    }
-
-    /**
-     * Get a collection of details this probe and target to record in the stitching journal when
-     * beginning a new stitching operation.
-     *
-     * @param probeId The ID of the probe associated with the target.
-     * @param targetId The target for which the stitching operation is being run.
-     * @return String messages detailing the probe and target associated with the stitching operation.
-     */
-    private Collection<String> operationDetailsForTarget(long probeId, long targetId) {
-        final String probeDetails = probeStore.getProbe(probeId)
-            .map(info -> info.getProbeCategory() + "/" + info.getProbeType() + "/" + probeId)
-            .orElse(Long.toString(probeId));
-        final String targetDetails = targetStore.getTarget(targetId)
-            .map(info -> info.getDisplayName() + "/" + targetId)
-            .orElse(Long.toString(targetId));
-
-        return Arrays.asList(probeDetails, targetDetails);
     }
 
     /**

@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -28,7 +29,6 @@ import com.vmturbo.common.protobuf.stats.Stats.SetPercentileCountsResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.AbstractStatsLoadingTask;
 import com.vmturbo.topology.processor.history.CommodityField;
@@ -50,30 +50,36 @@ public class PercentilePersistenceTask extends
     private static final long waitForChannelReadinessIntervalMs = 1;
     private static final long TOTAL_START_TIMESTAMP = 0L;
     private final StatsHistoryServiceStub statsHistoryClient;
-    private final long startTimestamp;
+    private long startTimestamp;
     private long lastCheckpointMs;
 
     /**
      * Construct the task to load percentile data for the 'full window' from the persistent store.
      *
      * @param statsHistoryClient persistent store grpc interface
-     * @param range range from start timestamp till end timestamp for which we need
-     *                 to request data from DB.
      */
-    public PercentilePersistenceTask(@Nonnull StatsHistoryServiceStub statsHistoryClient,
-                    @Nonnull Pair<Long, Long> range) {
-        this.statsHistoryClient = statsHistoryClient;
-        final Long startMs = range.getFirst();
-        this.startTimestamp = startMs == null ? TOTAL_START_TIMESTAMP : startMs;
+    public PercentilePersistenceTask(StatsHistoryServiceStub statsHistoryClient) {
+        this(statsHistoryClient, TOTAL_START_TIMESTAMP);
     }
 
     /**
-     * Returns start timestamp for which task has been configured.
+     * Construct the task to load percentile data from the persistent store.
      *
-     * @return start timestamp from which we are going to get data from DB.
+     * @param statsHistoryClient persistent store grpc interface
+     * @param startTimestamp starting timestamp for the page to load, 0 for 'full window'
      */
-    protected long getStartTimestamp() {
+    public PercentilePersistenceTask(@Nonnull StatsHistoryServiceStub statsHistoryClient,
+                                     long startTimestamp) {
+        this.statsHistoryClient = statsHistoryClient;
+        this.startTimestamp = startTimestamp;
+    }
+
+    public long getStartTimestamp() {
         return startTimestamp;
+    }
+
+    public void setStartTimestamp(long startTimestamp) {
+        this.startTimestamp = startTimestamp;
     }
 
     /**

@@ -3,36 +3,24 @@ package com.vmturbo.topology.processor.group.settings;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
-import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
-import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 /**
  * Tests for class VsanStorageApplicator.
@@ -41,8 +29,6 @@ public class VsanStorageApplicatorTest {
 
     private static final String RAID0 = "/VsanStorageApplicatorTest_RAID0.json";
     private static final String RAID1 = "/VsanStorageApplicatorTest_RAID1_FTT1.json";
-
-    private static final int HCI_HOST_IOPS_CAPACITY_DEFAULT = 50000;
 
     /**
      * Test the applicator for different settings.
@@ -132,18 +118,8 @@ public class VsanStorageApplicatorTest {
                 getNumericSettingValue(hciSlackSpacePercentage));
         settings.put(EntitySettingSpecs.HciHostCapacityReservation,
                 getNumericSettingValue(hciHostCapacityReservation));
-        settings.put(EntitySettingSpecs.HciHostIopsCapacity,
-                getNumericSettingValue(HCI_HOST_IOPS_CAPACITY_DEFAULT));
 
-        Pair<GraphWithSettings, Integer> graphNHostsCnt = makeGraphWithSettings(storage, settings);
-        new VsanStorageApplicator(graphNHostsCnt.getFirst()).apply(storage, settings);
-
-        CommoditySoldDTO.Builder storageAccess = SettingApplicator
-                        .getCommoditySoldBuilders(storage, CommodityType.STORAGE_ACCESS).iterator().next();
-        int referenceIOPSCapacity = (int)((graphNHostsCnt.getSecond() -
-                        hciHostCapacityReservation) * HCI_HOST_IOPS_CAPACITY_DEFAULT);
-        Assert.assertEquals(referenceIOPSCapacity, (int)storageAccess.getCapacity());
-
+        new VsanStorageApplicator().apply(storage, settings);
 
         CommoditySoldDTO.Builder storageAmount = SettingApplicator
                 .getCommoditySoldBuilders(storage, CommodityType.STORAGE_AMOUNT).iterator().next();
@@ -161,58 +137,5 @@ public class VsanStorageApplicatorTest {
         return Setting.newBuilder()
                 .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value).build())
                 .build();
-    }
-
-    private static Pair<GraphWithSettings, Integer> makeGraphWithSettings(TopologyEntityDTO.Builder storage,
-                    Map<EntitySettingSpecs, Setting> storageSettings)    {
-        int cntHosts = 0;
-        Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-        for (CommoditiesBoughtFromProvider commoditiesFromProvider :
-                storage.getCommoditiesBoughtFromProvidersList())   {
-            if (commoditiesFromProvider.getProviderEntityType() !=
-                            EntityType.PHYSICAL_MACHINE_VALUE)    {
-                continue;
-            }
-            long providerId = commoditiesFromProvider.getProviderId();
-            TopologyEntityDTO.Builder provider = TopologyEntityDTO.newBuilder()
-                            .setOid(providerId)
-                            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
-            for (CommodityBoughtDTO boughtCommodityDTO : commoditiesFromProvider
-                            .getCommodityBoughtList())  {
-                if (boughtCommodityDTO.getCommodityType().getType() !=
-                                CommodityType.STORAGE_ACCESS_VALUE) {
-                    continue;
-                }
-                provider.addCommoditySoldList(CommoditySoldDTO.newBuilder()
-                                .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                                .setType(CommodityType.STORAGE_ACCESS_VALUE)));
-            }
-
-            if (provider.getCommoditySoldListCount() != 0)  {
-                cntHosts++;
-                topology.put(providerId, TopologyEntity.newBuilder(provider));
-            }
-        }
-        TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator
-                        .newGraph(topology);
-
-        long storageId = storage.getOid();
-        EntitySettings.Builder settingsBuilder = EntitySettings.newBuilder()
-                        .setEntityOid(storageId);
-        for (Map.Entry<EntitySettingSpecs, Setting> aStorageSetting : storageSettings.entrySet())   {
-            Setting setting = Setting.newBuilder(aStorageSetting.getValue())
-                            .setSettingSpecName(aStorageSetting.getKey().getSettingName())
-                            .build();
-            settingsBuilder.addUserSettings(SettingToPolicyId.newBuilder()
-                            .setSetting(setting).addSettingPolicyId(1L));
-        }
-        Map<Long, EntitySettings> entitySettings = ImmutableMap.of(
-                        storageId, settingsBuilder.build());
-
-        final SettingPolicy policy = SettingPolicy.newBuilder().setId(storageId).build();
-        //Policy ID doesn't really matter for our purposes.
-        GraphWithSettings result = new GraphWithSettings(graph, entitySettings,
-                        Collections.singletonMap(storageId, policy));
-        return new Pair<>(result, cntHosts);
     }
 }

@@ -12,7 +12,6 @@ import java.util.stream.Stream;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.ArrayUtils;
-import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -46,7 +45,7 @@ public class QueryTestBase {
         SQLConfigObject sqlConfigObject = new SQLConfigObject(
                 "localhost", 0, "vmtdb",
                 Optional.empty(), SQLDialect.MARIADB.name(), false, ImmutableMap.of(SQLDialect.MARIADB, ""));
-        HistorydbIO historydbIO = new HistorydbIO(null, sqlConfigObject, new PoolProperties());
+        HistorydbIO historydbIO = new HistorydbIO(null, sqlConfigObject);
         HistorydbIO.setSharedInstance(historydbIO);
         // we customize some rendering settings to make our tests easier and more robust
         Settings settings = HistorydbIO.getJooqBuilder().settings();

@@ -6,16 +6,17 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-
-import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -28,7 +29,6 @@ import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -37,6 +37,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -44,7 +45,6 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.ResolvedGroup;
 
 public class DemandOverriddenCommodityEditorTest {
     TopologyEntity.Builder pm1 = TopologyEntity.newBuilder(TopologyEntityDTO.newBuilder()
@@ -129,11 +129,9 @@ public class DemandOverriddenCommodityEditorTest {
 
     /**
      * Test the utilization level at a global level
-     *
-     * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testApplyDemandUsageChangeGlobally() throws Exception {
+    public void testApplyDemandUsageChangeGlobally() {
         TopologyInfo topologyInfo = TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()).build();
         List<ScenarioChange> globalChange = new ArrayList<ScenarioChange>();
         globalChange.add(ScenarioChange.newBuilder().setPlanChanges(PlanChanges.newBuilder()
@@ -174,11 +172,9 @@ public class DemandOverriddenCommodityEditorTest {
 
     /**
      * Test the utilization level at a group level.
-     *
-     * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testApplyDemandUsageChangeForGroup() throws Exception {
+    public void testApplyDemandUsageChangeForGroup() {
         long groupOid = 999L;
         final List<Grouping> groups = new ArrayList<>();
         Grouping g = Grouping.newBuilder()
@@ -197,8 +193,7 @@ public class DemandOverriddenCommodityEditorTest {
             .setGroupFilter(GroupFilter.newBuilder().addId(groupOid))
             .setReplaceGroupPropertyWithGroupMembershipFilter(true)
             .build())).thenReturn(groups);
-        ResolvedGroup rGroup = new ResolvedGroup(g, Collections.singletonMap(ApiEntityType.VIRTUAL_MACHINE, Collections.singleton(vm1.getOid())));
-        when(groupResolver.resolve(eq(g), eq(topologyGraph))).thenReturn(rGroup);
+        when(groupResolver.resolve(eq(g), eq(topologyGraph))).thenReturn(new HashSet<>(Arrays.asList(vm1.getOid())));
         TopologyInfo topologyInfo = TopologyInfo.newBuilder().setPlanInfo(PlanTopologyInfo.newBuilder()).build();
         List<ScenarioChange> groupChange = new ArrayList<ScenarioChange>();
         groupChange.add(ScenarioChange.newBuilder().setPlanChanges(PlanChanges.newBuilder()

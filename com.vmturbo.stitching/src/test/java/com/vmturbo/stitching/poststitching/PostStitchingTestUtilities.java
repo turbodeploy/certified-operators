@@ -13,7 +13,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -447,13 +446,6 @@ public class PostStitchingTestUtilities {
         return Setting.newBuilder()
             .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(value).build())
             .build();
-    }
-
-    static Setting makeBooleanSetting(final boolean value) {
-        return Setting.newBuilder()
-                .setBooleanSettingValue(
-                        BooleanSettingValue.newBuilder().setValue(value).build())
-                .build();
     }
 
 

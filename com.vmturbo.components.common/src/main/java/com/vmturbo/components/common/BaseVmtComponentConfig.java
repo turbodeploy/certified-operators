@@ -127,13 +127,18 @@ public class BaseVmtComponentConfig {
     }
 
     @Bean
+    public TracingManager tracingManager() {
+        return new TracingManager();
+    }
+
+    @Bean
     public LogConfigurationService logConfigurationService() {
         return new LogConfigurationService();
     }
 
     @Bean
     public TracingConfigurationRpcService tracingConfigurationRpcService() {
-        return new TracingConfigurationRpcService(TracingManager.get());
+        return new TracingConfigurationRpcService(tracingManager());
     }
 
     @Bean

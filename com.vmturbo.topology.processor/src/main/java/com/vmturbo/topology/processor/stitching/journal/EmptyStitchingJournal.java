@@ -79,12 +79,6 @@ public class EmptyStitchingJournal<T extends JournalableEntity<T>> implements IS
     }
 
     @Override
-    public void recordOperationBeginning(@Nonnull JournalableOperation operation,
-                                         @Nonnull final Collection<String> details) {
-        // Do nothing
-    }
-
-    @Override
     public void recordOperationEnding() {
         // Do nothing
     }

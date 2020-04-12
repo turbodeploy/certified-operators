@@ -61,11 +61,9 @@ public class TargetConfig {
 
     @Bean
     public TargetStore targetStore() {
-        CachingTargetStore store = new CachingTargetStore(targetDao(),
+        return new CachingTargetStore(targetDao(),
                 probeConfig.probeStore(),
                 identityStore());
-        probeConfig.probeStore().addListener(store);
-        return store;
     }
 
     /**

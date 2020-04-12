@@ -312,8 +312,15 @@
                                     <userType>
                                         com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType
                                     </userType>
-                                    <includeExpression>.*\.group_type</includeExpression>
-                                    <converter>com.vmturbo.group.group.GroupTypeConverter</converter>
+                                    <enumConverter>true</enumConverter>
+                                    <expression>.*\.grouping\.group_type</expression>
+                                </forcedType>
+                                <forcedType>
+                                    <userType>
+                                        com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType
+                                    </userType>
+                                    <enumConverter>true</enumConverter>
+                                    <expression>.*\.group_expected_members_groups\.group_type</expression>
                                 </forcedType>
                                 <forcedType>
                                     <userType>

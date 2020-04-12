@@ -27,7 +27,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.stitching.EntitySettingsCollection;
 import com.vmturbo.stitching.PostStitchingOperation;
 import com.vmturbo.stitching.StitchingScope;
@@ -239,14 +238,8 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
          */
         public AccessAndLatencyTreeInnerNode(@Nonnull final TopologyEntity consumer,
                                              @Nonnull final Optional<TopologyEntity> provider) {
-            Optional<TopologyEntity> actualProvider = provider;
-            if (isVSANEntity(consumer)) {
-                //VSAN storage buys from hosts and not from DiskArray
-                actualProvider = consumer.getProviders().stream().filter(cProvider ->
-                    cProvider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE).findFirst();
-            }
             sold = new AccessAndLatencySold(consumer);
-            bought = actualProvider.map(storageCommoditiesProvider ->
+            bought = provider.map(storageCommoditiesProvider ->
                 new AccessAndLatencyBought(consumer, storageCommoditiesProvider));
 
             // Collect all children from consumers of the consumer.
@@ -274,13 +267,6 @@ public class PropagateStorageAccessAndLatencyPostStitchingOperation implements P
                 physicalMachine.getConsumers().stream()
                     .filter(pmConsumer -> pmConsumer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE))
                 .forEach(children::remove);
-        }
-
-        private static boolean isVSANEntity(@Nonnull final TopologyEntity entity)  {
-            return entity.getEntityType() == EntityType.STORAGE_VALUE  &&
-                            entity.getTypeSpecificInfo().hasStorage()  &&
-                            entity.getTypeSpecificInfo().getStorage().getStorageType() ==
-                                StorageType.VSAN;
         }
 
         @Override

@@ -27,9 +27,7 @@ import com.vmturbo.topology.processor.KVConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorApiConfig;
 import com.vmturbo.topology.processor.history.percentile.PercentileEditor;
 import com.vmturbo.topology.processor.history.percentile.PercentileHistoricalEditorConfig;
-import com.vmturbo.topology.processor.history.percentile.PercentilePersistenceTask;
 import com.vmturbo.topology.processor.history.timeslot.TimeSlotEditor;
-import com.vmturbo.topology.processor.history.timeslot.TimeSlotLoadingTask;
 import com.vmturbo.topology.processor.history.timeslot.TimeslotHistoricalEditorConfig;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 
@@ -139,7 +137,7 @@ public class HistoryAggregationConfig {
                                                   backgroundLoadingRetries,
                                                   backgroundLoadingTimeoutMin,
                                                   timeslotMaintenanceWindowHours,
-                                                  clockConfig.clock(), kvConfig);
+                                                  clockConfig.clock());
     }
 
     /**
@@ -169,7 +167,7 @@ public class HistoryAggregationConfig {
     @Bean
     public IHistoricalEditor<?> percentileHistoryEditor() {
         return new PercentileEditor(percentileEditorConfig(), nonBlockingHistoryClient(),
-                clockConfig.clock(), PercentilePersistenceTask::new);
+                clockConfig.clock());
     }
 
     /**
@@ -189,8 +187,7 @@ public class HistoryAggregationConfig {
      */
     @Bean
     public IHistoricalEditor<?> timeslotHistoryEditor() {
-        return new TimeSlotEditor(timeslotEditorConfig(), historyClient(),
-                        backgroundHistoryLoadingPool(), TimeSlotLoadingTask::new);
+        return new TimeSlotEditor(timeslotEditorConfig(), historyClient(), backgroundHistoryLoadingPool());
     }
 
     /**

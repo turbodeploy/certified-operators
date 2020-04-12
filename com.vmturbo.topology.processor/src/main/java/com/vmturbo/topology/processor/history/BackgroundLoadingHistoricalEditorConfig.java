@@ -4,8 +4,6 @@ import java.time.Clock;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.topology.processor.KVConfig;
-
 /**
  * Configuration settings for historical editor with background loading.
  */
@@ -23,12 +21,12 @@ public class BackgroundLoadingHistoricalEditorConfig extends CachingHistoricalEd
      * @param backgroundLoadRetries how many load failures to tolerate before giving up
      * @param backgroundLoadTimeoutMin how much time to give to a single loading attempt
      * @param clock provides information about current time
-     * @param kvConfig the config to access the topology processor key value store.
      */
     public BackgroundLoadingHistoricalEditorConfig(int loadingChunkSize, int calculationChunkSize,
-                    int backgroundLoadThreshold, int backgroundLoadRetries, int backgroundLoadTimeoutMin,
-                    @Nonnull Clock clock, @Nonnull KVConfig kvConfig) {
-        super(loadingChunkSize, calculationChunkSize, clock, kvConfig);
+                                                   int backgroundLoadThreshold, int backgroundLoadRetries,
+                                                   int backgroundLoadTimeoutMin,
+                                                   @Nonnull Clock clock) {
+        super(loadingChunkSize, calculationChunkSize, clock);
         this.backgroundLoadThreshold = backgroundLoadThreshold;
         this.backgroundLoadRetries = backgroundLoadRetries;
         this.backgroundLoadTimeoutMin = backgroundLoadTimeoutMin;

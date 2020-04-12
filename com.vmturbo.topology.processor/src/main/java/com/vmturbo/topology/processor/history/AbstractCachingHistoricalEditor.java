@@ -2,18 +2,14 @@ package com.vmturbo.topology.processor.history;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -26,7 +22,6 @@ import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 
 /**
@@ -57,7 +52,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     /**
      * Creator for the task that fetches persisted data.
      */
-    private final BiFunction<Stub, Pair<Long, Long>, HistoryLoadingTask> historyLoadingTaskCreator;
+    protected final Function<Stub, HistoryLoadingTask> historyLoadingTaskCreator;
     /**
      * Creator for the cached per-commodity-field data entry.
      */
@@ -73,7 +68,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
      */
     protected AbstractCachingHistoricalEditor(@Nullable Config config,
                                               @Nonnull Stub statsHistoryClient,
-                                              @Nonnull BiFunction<Stub, Pair<Long, Long>, HistoryLoadingTask> historyLoadingTaskCreator,
+                                              @Nonnull Function<Stub, HistoryLoadingTask> historyLoadingTaskCreator,
                                               @Nonnull Supplier<HistoryData> historyDataCreator) {
         super(config, statsHistoryClient);
         this.historyLoadingTaskCreator = historyLoadingTaskCreator;
@@ -91,59 +86,11 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
         List<List<EntityCommodityReference>> partitions = Lists
                         .partition(uninitializedCommodities, getConfig().getLoadingChunkSize());
         return partitions.stream()
-                        .map(chunk -> new HistoryLoadingCallable(context, createLoadingTask(null),
-                                        chunk)).collect(Collectors.toList());
+                        .map(chunk -> new HistoryLoadingCallable(context,
+                                                                 historyLoadingTaskCreator.apply(getStatsHistoryClient()),
+                                                                 chunk))
+                        .collect(Collectors.toList());
     }
-
-    /**
-     * Collects references to entity commodities which settings have been changed.
-     *
-     * @param references all references related to historical processing.
-     * @param context invocation context i.e current graph
-     * @return collection of references which settings have been changed.
-     */
-    @Nonnull
-    protected Set<EntityCommodityReference> gatherSettingsChangedCommodities(
-                    @Nonnull Collection<EntityCommodityReference> references,
-                    @Nonnull HistoryAggregationContext context) {
-        return getCache().entrySet().stream().filter(entry -> {
-            final EntityCommodityFieldReference ref = entry.getKey();
-            final HistoryData data = entry.getValue();
-            return data.needsReinitialization(ref, context, getConfig());
-        }).map(Entry::getKey).collect(Collectors.toSet());
-    }
-
-    /**
-     * Prints debug messages using specified logger and debug string provider used to extract
-     * required information from history data instance.
-     *
-     * @param logger which should be used to print message
-     * @param dataToDebugString history data to debug string transformer.
-     */
-    protected void debugLogDataValues(@Nonnull Logger logger,
-                    @Nonnull Function<HistoryData, String> dataToDebugString) {
-        if (logger.isDebugEnabled()) {
-            final Optional<Long> oidToBeTraced = getConfig().getOidToBeTracedInLog().map(Long::valueOf);
-            oidToBeTraced.ifPresent(oid -> getCache().entrySet().stream()
-                            .filter(e -> e.getKey().getEntityOid() == oid)
-                            .forEach(e -> logger.debug(dataToDebugString.apply(e.getValue()))));
-        }
-    }
-
-    /**
-     * Creates a new history loading task instance for the specified time range.
-     *
-     * @param rawRange pair of start and end timestamps between which we want to get
-     *                 data.
-     * @return instance of history loading task which will load data in requested time
-     *                 range.
-     */
-    @Nonnull
-    protected HistoryLoadingTask createLoadingTask(@Nullable Pair<Long, Long> rawRange) {
-        final Pair<Long, Long> range = rawRange == null ? Pair.create(null, null) : rawRange;
-        return historyLoadingTaskCreator.apply(getStatsHistoryClient(), range);
-    }
-
 
     @Override
     @Nonnull

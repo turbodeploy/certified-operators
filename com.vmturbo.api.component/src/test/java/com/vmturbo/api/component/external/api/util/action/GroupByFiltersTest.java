@@ -104,6 +104,9 @@ public class GroupByFiltersTest {
         when(query.actionInput()).thenReturn(inputDTO);
         when(query.getCostType()).thenReturn(Optional.empty());
 
+        when(actionSpecMapper.mapXlActionStateToApi(ActionState.READY))
+            .thenReturn(com.vmturbo.api.enums.ActionState.RECOMMENDED);
+
         final GroupByFilters groupByFilters = groupByFiltersFactory.filtersForQuery(query);
         groupByFilters.setState(ActionState.READY);
 
@@ -111,7 +114,7 @@ public class GroupByFiltersTest {
         assertThat(filters.size(), is(1));
         final StatFilterApiDTO filter = filters.get(0);
         assertThat(filter.getType(), is(StringConstants.ACTION_STATES));
-        assertThat(filter.getValue(), is("READY"));
+        assertThat(filter.getValue(), is("RECOMMENDED"));
     }
 
     @Test

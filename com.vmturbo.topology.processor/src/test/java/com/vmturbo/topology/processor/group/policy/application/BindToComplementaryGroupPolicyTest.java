@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.resolvedGroup;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.connectedTopologyEntity;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
@@ -17,19 +16,19 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Sets;
-
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -121,9 +120,9 @@ public class BindToComplementaryGroupPolicyTest {
     @Test
     public void testApplyEmpty() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(consumerGroup));
+                .thenReturn(Collections.emptySet());
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(providerGroup));
+                .thenReturn(Collections.emptySet());
 
         applyPolicy(new BindToComplementaryGroupPolicy(policy,
             new PolicyEntities(consumerGroup, Collections.emptySet()),
@@ -139,9 +138,9 @@ public class BindToComplementaryGroupPolicyTest {
     @Test
     public void testApplyEmptyConsumers() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(consumerGroup));
+                .thenReturn(Collections.emptySet());
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(providerGroup, 1L));
+                .thenReturn(Collections.singleton(1L));
 
         applyPolicy(new BindToComplementaryGroupPolicy(policy,
             new PolicyEntities(consumerGroup, Collections.emptySet()),
@@ -159,9 +158,9 @@ public class BindToComplementaryGroupPolicyTest {
     @Test
     public void testApplyEmptyProviders() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(consumerGroup, 5L));
+                .thenReturn(Collections.singleton(5L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(providerGroup));
+                .thenReturn(Collections.<Long>emptySet());
 
         applyPolicy(new BindToComplementaryGroupPolicy(policy,
             new PolicyEntities(consumerGroup, Sets.newHashSet(7L)),
@@ -177,9 +176,9 @@ public class BindToComplementaryGroupPolicyTest {
     @Test
     public void testApplyVmToAllHostAffinity() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(consumerGroup, 5L, 6L));
+                .thenReturn(Sets.newHashSet(5L, 6L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(providerGroup, 1L, 2L));
+                .thenReturn(Sets.newHashSet(1L, 2L));
 
         applyPolicy(new BindToComplementaryGroupPolicy(policy,
             new PolicyEntities(consumerGroup, Sets.newHashSet(7L)),
@@ -197,9 +196,9 @@ public class BindToComplementaryGroupPolicyTest {
     @Test
     public void testApplyVmToSomeHostAffinity() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(consumerGroup, 5L, 6L));
+                .thenReturn(Sets.newHashSet(5L, 6L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(providerGroup, 2L));
+                .thenReturn(Sets.newHashSet(2L));
 
         applyPolicy(new BindToComplementaryGroupPolicy(policy,
             new PolicyEntities(consumerGroup, Sets.newHashSet(7L)),
@@ -232,9 +231,9 @@ public class BindToComplementaryGroupPolicyTest {
                 .build();
 
         when(groupResolver.resolve(eq(consumerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(consumerGroup, 6L));
+                .thenReturn(Sets.newHashSet(6L));
         when(groupResolver.resolve(eq(providerGroup), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(providerGroup, 3L));
+                .thenReturn(Collections.singleton(3L));
 
         applyPolicy(new BindToComplementaryGroupPolicy(policy,
             new PolicyEntities(consumerGroup, Collections.emptySet()),
@@ -258,9 +257,9 @@ public class BindToComplementaryGroupPolicyTest {
         // VM12 --> VV10 --> StorageTier8
         // VM12 --> VV11 --> StorageTier9
         when(groupResolver.resolve(eq(virtualVolumeGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(virtualVolumeGroup, 10L));
+            .thenReturn(Sets.newHashSet(10L));
         when(groupResolver.resolve(eq(storageTierGroup), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(storageTierGroup, 8L));
+            .thenReturn(Sets.newHashSet(8L));
 
         final PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy bindToComplementaryGroup =
             PolicyDTO.PolicyInfo.BindToComplementaryGroupPolicy.newBuilder()

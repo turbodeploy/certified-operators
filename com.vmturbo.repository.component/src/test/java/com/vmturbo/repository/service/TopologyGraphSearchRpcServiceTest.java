@@ -21,9 +21,6 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -31,6 +28,9 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.MockitoAnnotations;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
@@ -47,7 +47,6 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchTagsResponse;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -56,12 +55,12 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockin
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
@@ -99,7 +98,7 @@ public class TopologyGraphSearchRpcServiceTest {
     public GrpcTestServer server2 = GrpcTestServer.newServer(topologyGraphSearchRpcService2);
 
     @Captor
-    public ArgumentCaptor<SearchQuery> paramsCaptor;
+    public ArgumentCaptor<List<SearchParameters>> paramsCaptor;
 
     private SearchServiceBlockingStub client1;
     private SearchServiceBlockingStub client2;
@@ -126,10 +125,9 @@ public class TopologyGraphSearchRpcServiceTest {
     public void testSearchWithScopedUser() {
         RepoGraphEntity e1 = createEntity(1);
         RepoGraphEntity e2 = createEntity(2);
-        when(mockSearchResolver.search(any(SearchQuery.class), any())).thenAnswer(invocation -> Stream.of(e1, e2));
+        when(mockSearchResolver.search(any(List.class), any())).thenAnswer(invocation -> Stream.of(e1, e2));
         SearchEntitiesRequest req = SearchEntitiesRequest.newBuilder()
-            .setSearch(SearchQuery.newBuilder()
-                .addSearchParameters(SEARCH_PARAMS))
+            .addSearchParameters(SEARCH_PARAMS)
             .setReturnType(Type.MINIMAL)
             .build();
 
@@ -214,13 +212,12 @@ public class TopologyGraphSearchRpcServiceTest {
         List<Long> entityOids = Arrays.asList(1L, 2L);
 
         RepoGraphEntity e1 = createEntity(1);
-        when(mockSearchResolver.search(any(SearchQuery.class), any())).thenReturn(Stream.of(e1));
+        when(mockSearchResolver.search(any(List.class), any())).thenReturn(Stream.of(e1));
 
         List<MinimalEntity> entities = RepositoryDTOUtil.topologyEntityStream(client1.searchEntitiesStream(SearchEntitiesRequest.newBuilder()
                 .addAllEntityOid(entityOids)
                 .setReturnType(Type.MINIMAL)
-                .setSearch(SearchQuery.newBuilder()
-                    .addSearchParameters(SEARCH_PARAMS))
+                .addSearchParameters(SEARCH_PARAMS)
                 .build()))
             .map(PartialEntity::getMinimal)
             .collect(Collectors.toList());
@@ -228,8 +225,8 @@ public class TopologyGraphSearchRpcServiceTest {
         assertThat(entities.size(), is(1));
 
         verify(mockSearchResolver).search(paramsCaptor.capture(), any());
-        SearchQuery params = paramsCaptor.getValue();
-        assertThat(params.getSearchParametersList(), containsInAnyOrder(
+        List<SearchParameters> params = paramsCaptor.getValue();
+        assertThat(params, containsInAnyOrder(
             SearchProtoUtil.makeSearchParameters(SEARCH_PARAMS.getStartingFilter())
             .addSearchFilter(SearchProtoUtil.searchFilterProperty(SearchProtoUtil.idFilter(entityOids))).build()));
     }
@@ -379,10 +376,9 @@ public class TopologyGraphSearchRpcServiceTest {
                                         .addOptions(EnvironmentTypeUtil.toApiString(environmentType)))))
                 .build();
         final SearchEntitiesRequest request = SearchEntitiesRequest.newBuilder()
-            .setReturnType(Type.FULL)
-            .setSearch(SearchQuery.newBuilder()
-                .addSearchParameters(searchParameters))
-            .build();
+                                                    .setReturnType(Type.FULL)
+                                                    .addSearchParameters(searchParameters)
+                                                    .build();
         final SearchEntitiesResponse response = client2.searchEntities(request);
 
         return response.getEntitiesList().stream()
@@ -410,9 +406,8 @@ public class TopologyGraphSearchRpcServiceTest {
                                         .addOptions(EnvironmentTypeUtil.toApiString(environmentType)))))
                 .build();
         final SearchEntityOidsRequest request = SearchEntityOidsRequest.newBuilder()
-            .setSearch(SearchQuery.newBuilder()
-                .addSearchParameters(searchParameters))
-            .build();
+                                                    .addSearchParameters(searchParameters)
+                                                    .build();
         final SearchEntityOidsResponse response = client2.searchEntityOids(request);
 
         return response.getEntitiesList().stream()

@@ -187,8 +187,9 @@ public class PlanEntityStatsFetcher {
                             final ApiPartialEntity planEntity = entityStats.getPlanEntity().getApi();
                             final ServiceEntityApiDTO serviceEntityApiDTO =
                                 serviceEntityMapper.toServiceEntityApiDTO(planEntity);
-                            StatsMapper.populateEntityDataEntityStatsApiDTO(
-                                    planEntity, entityStatsApiDTO);
+                            entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
+                            entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
+                            entityStatsApiDTO.setClassName(ApiEntityType.fromType(planEntity.getEntityType()).apiStr());
                             entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
                             final List<StatSnapshotApiDTO> statSnapshotsList = entityStats.getPlanEntityStats()
                                 .getStatSnapshotsList()
@@ -264,8 +265,10 @@ public class PlanEntityStatsFetcher {
                                 : entityAndCombinedStats.getPlanSourceEntity().getApi();
                             final ServiceEntityApiDTO serviceEntityApiDTO =
                                 serviceEntityMapper.toServiceEntityApiDTO(planEntity);
-                            StatsMapper.populateEntityDataEntityStatsApiDTO(
-                                    planEntity, entityStatsApiDTO);
+                            entityStatsApiDTO.setUuid(Long.toString(planEntity.getOid()));
+                            entityStatsApiDTO.setDisplayName(planEntity.getDisplayName());
+                            entityStatsApiDTO.setClassName(
+                                ApiEntityType.fromType(planEntity.getEntityType()).apiStr());
                             entityStatsApiDTO.setRealtimeMarketReference(serviceEntityApiDTO);
                             final List<StatSnapshotApiDTO> statSnapshotsList = entityAndCombinedStats
                                 .getPlanCombinedStats()

@@ -56,7 +56,6 @@ import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.repository.api.RepositoryListener;
-import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -525,96 +524,6 @@ public class UuidMapper implements RepositoryListener {
             return uuid();
         }
 
-        /**
-         * Get the class name of the api id.
-         * This deals with the cases of entities, groups, plans or market.
-         * In case of target, and by default, it returns an empty string.
-         *
-         * @return The class name, or empty string.
-         */
-        @Nonnull
-        public String getClassName() {
-            if (isRealtimeMarket() || isPlan()) {
-                // If this is the real time market or a plan, return Market as the class
-                return UI_REAL_TIME_MARKET_STR;
-            }
-
-            // Right now we are saving the display name of every entity/group in the cached info,
-            // only to be used by this method. If this ends up consuming too much memory we can get
-            // the display name on demand (the way we do for plan instance).
-
-            final Optional<ApiEntityType> entityType = getCachedEntityInfo()
-                    .map(CachedEntityInfo::getEntityType);
-            if (entityType.isPresent()) {
-                return entityType.get().apiStr();
-            }
-
-            final Optional<GroupType> groupType = getCachedGroupInfo()
-                    .map(CachedGroupInfo::getGroupType);
-            if (groupType.isPresent()) {
-                // Convert the group type to an api group type
-                if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.inverse()
-                        .containsKey(groupType.get())) {
-                    return GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.inverse().get(groupType.get());
-                }
-            }
-
-            return "";
-        }
-
-        /**
-         * Return the environment type related to the entity associated with this api id.
-         * Default is UNKNOWN_ENV.
-         *
-         * @return the environment type or UNKNOWN_ENV.
-         */
-        @Nonnull
-        public EnvironmentType getEnvironmentType() {
-            // Assuming Hybrid for a market and plan
-            if (isRealtimeMarket() || isPlan()) {
-                return EnvironmentType.HYBRID;
-            }
-
-            // Right now we are saving the display name of every entity/group in the cached info,
-            // only to be used by this method. If this ends up consuming too much memory we can get
-            // the display name on demand (the way we do for plan instance).
-
-            final Optional<EnvironmentType> envType = getCachedEntityInfo()
-                    .map(CachedEntityInfo::getEnvironmentType);
-            if (envType.isPresent()) {
-                return envType.get();
-            }
-
-            final Optional<CachedGroupInfo> groupInfo = getCachedGroupInfo();
-            if (groupInfo.isPresent()) {
-                Optional<EnvironmentType> groupEnvType = groupInfo.get().getGlobalEnvType();
-                if (groupEnvType.isPresent()) {
-                    return groupEnvType.get();
-                }
-            }
-
-            if (isTarget()) {
-                try {
-                    final TargetInfo target = topologyProcessor.getTarget(oid);
-                    final long probeId = target.getProbeId();
-                    final ProbeInfo probeInfo = topologyProcessor.getProbe(probeId);
-                    CloudTypeMapper cloudTypeMapper = new CloudTypeMapper();
-                    if (cloudTypeMapper.fromTargetType(probeInfo.getType()).isPresent()) {
-                        return EnvironmentType.CLOUD;
-                    } else {
-                        return EnvironmentType.ON_PREM;
-                    }
-                } catch (TopologyProcessorException | CommunicationException e) {
-                    // TopologyProcessorException will never happen, since isTarget() would have
-                    // already failed if we can't find the target
-                    return EnvironmentType.UNKNOWN_ENV;
-                }
-            }
-
-            // Default
-            return EnvironmentType.UNKNOWN_ENV;
-        }
-
         public String uuid() {
             return isRealtimeMarket() ? UI_REAL_TIME_MARKET_STR : Long.toString(oid);
         }
@@ -760,25 +669,9 @@ public class UuidMapper implements RepositoryListener {
                                         Collectors.mapping(MinimalEntity::getOid,
                                                 Collectors.toSet())));
 
-                        // Get the set of environment types for the members
-                        Set<EnvironmentType> envTypes = minimalMembers.stream()
-                                .map(MinimalEntity::getEnvironmentType)
-                                .collect(Collectors.toSet());
-
-                        // If all members have the same type, this is the type
-                        // if there is no type for any members, then the type is unknown
-                        // otherwise the type will be hybrid.
-                        final EnvironmentType envTypeFromMember;
-                        switch (envTypes.size()) {
-                            case 0:
-                                envTypeFromMember = EnvironmentType.UNKNOWN_ENV;
-                                break;
-                            case 1:
-                                envTypeFromMember = envTypes.iterator().next();
-                                break;
-                            default:
-                                envTypeFromMember = EnvironmentType.HYBRID;
-                        }
+                        final EnvironmentType envTypeFromMember = minimalMembers.isEmpty() ?
+                            EnvironmentType.UNKNOWN_ENV :
+                            minimalMembers.iterator().next().getEnvironmentType();
 
                         final Set<Long> discoveringTargetIds =
                             minimalMembers.stream()

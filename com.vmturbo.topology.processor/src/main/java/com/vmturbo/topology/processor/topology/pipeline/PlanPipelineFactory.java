@@ -56,7 +56,6 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationStage;
-import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationTrimStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
@@ -118,6 +117,7 @@ public class PlanPipelineFactory {
     private final HistoryAggregator historyAggregator;
 
     private final DemandOverriddenCommodityEditor demandOverriddenCommodityEditor;
+
 
     public PlanPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                @Nonnull final PolicyManager policyManager,
@@ -232,56 +232,6 @@ public class PlanPipelineFactory {
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
                 .build();
-    }
-
-    /**
-     * Create a trimmed-down plan pipeline to use for reservations. We want reservations to be
-     * as fast as possible, so we eliminate all stages that don't affect reservation results.
-     *
-     * @param topologyInfo Information about the topology under construction.
-     * @param changes Scenario changes (note - should be empty).
-     * @param scope Scope for the reservation plan.
-     * @param journalFactory The journal factory to be used to create a journal to track changes made
-     *                       during stitching.
-     * @return The {@link TopologyPipeline}. This pipeline will accept an {@link EntityStore}
-     *         and return the {@link TopologyBroadcastInfo} of the successful broadcast.
-     */
-    @Nonnull
-    TopologyPipeline<EntityStore, TopologyBroadcastInfo> reservationPipeline(
-            @Nonnull final TopologyInfo topologyInfo,
-            @Nonnull final List<ScenarioChange> changes,
-            @Nullable final PlanScope scope,
-            @Nonnull final StitchingJournalFactory journalFactory) {
-        final TopologyPipelineContext context =
-            new TopologyPipelineContext(new GroupResolver(searchResolver, groupServiceClient), topologyInfo, consistentScalingManager);
-        final TopologyPipeline.Builder topoPipelineBuilder =
-            TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context);
-        // if the constructed topology is already in the cache from the realtime topology, just
-        // add the stage that will read it from the cache, otherwise add the stitching stage
-        // and the construct topology stage so we can build the topology
-        if (constructTopologyStageCache.isEmpty()) {
-            topoPipelineBuilder.addStage(new StitchingStage(stitchingManager, journalFactory))
-                .addStage(new ConstructTopologyFromStitchingContextStage());
-        } else {
-            topoPipelineBuilder.addStage(
-                new CachingConstructTopologyFromStitchingContextStage(constructTopologyStageCache));
-        }
-        return topoPipelineBuilder
-            .addStage(new ReservationStage(reservationManager))
-            .addStage(new GraphCreationStage())
-            // We need cluster commodities
-            .addStage(new ApplyClusterCommodityStage(discoveredClusterConstraintCache))
-            // We need to resolve scopes to reduce the size of the topology.
-            .addStage(new ScopeResolutionStage(groupServiceClient, scope))
-            .addStage(new PlanScopingStage(planTopologyScopeEditor, scope, searchResolver, changes, groupServiceClient))
-            .addStage(new PolicyStage(policyManager, changes))
-            .addStage(new ReservationTrimStage())
-            .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes, consistentScalingManager))
-            .addStage(new SettingsApplicationStage(settingsApplicator))
-            .addStage(new PostStitchingStage(stitchingManager))
-            .addStage(new ExtractTopologyGraphStage())
-            .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
-            .build();
     }
 
     /**

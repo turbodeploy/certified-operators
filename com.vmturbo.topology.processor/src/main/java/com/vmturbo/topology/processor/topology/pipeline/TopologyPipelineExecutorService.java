@@ -23,7 +23,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastFailure;
@@ -65,7 +64,6 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
 
     private final TopologyPipelineQueue planPipelineQueue;
 
-    private final boolean useReservationPipeline;
 
     /**
      * This is the "real" constructor. Intended to be invoked from a Spring configuration.
@@ -80,16 +78,13 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
      * @param entityStore The {@link EntityStore} used as input to construct "live" topologies.
      * @param notificationSender The {@link TopologyProcessorNotificationSender} used to broadcast
      *                           notifications about successful/failed topology broadcasts.
-     * @param useReservationPipeline Dynamically control whether we use the custom,
-     *                               slimmed down pipeline for reservations.
      */
     public TopologyPipelineExecutorService(final int concurrentPlansAllowed,
                                            final int maxQueuedPlansAllowed,
                                            @Nonnull final LivePipelineFactory topologyPipelineFactory,
                                            @Nonnull final PlanPipelineFactory planPipelineFactory,
                                            @Nonnull final EntityStore entityStore,
-                                           @Nonnull final TopologyProcessorNotificationSender notificationSender,
-                                           final boolean useReservationPipeline) {
+                                           @Nonnull final TopologyProcessorNotificationSender notificationSender) {
         this(concurrentPlansAllowed, createPlanExecutorService(concurrentPlansAllowed), createRealtimeExecutorService(),
             new PlanPipelineQueue(maxQueuedPlansAllowed),
             // We only expect one queued live pipeline, because we collapse all the other ones.
@@ -97,8 +92,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             topologyPipelineFactory,
             planPipelineFactory,
             entityStore,
-            notificationSender,
-            useReservationPipeline);
+            notificationSender);
     }
 
     @VisibleForTesting
@@ -110,8 +104,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
                                     @Nonnull final LivePipelineFactory topologyPipelineFactory,
                                     @Nonnull final PlanPipelineFactory planPipelineFactory,
                                     @Nonnull final EntityStore entityStore,
-                                    @Nonnull final TopologyProcessorNotificationSender notificationSender,
-                                    final boolean useReservationPipeline) {
+                                    @Nonnull final TopologyProcessorNotificationSender notificationSender) {
         this.planExecutorService = planExecutorService;
         this.realtimeExecutorService = realtimeExecutorService;
         this.livePipelineFactory = topologyPipelineFactory;
@@ -119,7 +112,6 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         this.entityStore = entityStore;
         this.realtimePipelineQueue = realtimePipelineQueue;
         this.planPipelineQueue = planPipelineQueue;
-        this.useReservationPipeline = useReservationPipeline;
         for (int i = 0; i < concurrentPipelinesAllowed; ++i) {
             planExecutorService.submit(new TopologyPipelineWorker(planPipelineQueue, notificationSender));
         }
@@ -189,12 +181,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final List<ScenarioChange> changes,
             @Nullable final PlanScope scope,
             @Nonnull final StitchingJournalFactory journalFactory) throws QueueCapacityExceededException {
-        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline;
-        if (useReservationPipeline && pendingTopologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
-            pipeline = planPipelineFactory.reservationPipeline(pendingTopologyInfo, changes, scope, journalFactory);
-        } else {
-            pipeline = planPipelineFactory.planOverLiveTopology(pendingTopologyInfo, changes, scope, journalFactory);
-        }
+        final TopologyPipeline<EntityStore, TopologyBroadcastInfo> pipeline =
+            planPipelineFactory.planOverLiveTopology(pendingTopologyInfo, changes, scope, journalFactory);
         return planPipelineQueue.queuePipeline(pipeline::getTopologyInfo,
             () -> pipeline.run(entityStore));
     }

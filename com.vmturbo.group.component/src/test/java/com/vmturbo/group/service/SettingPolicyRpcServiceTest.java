@@ -16,7 +16,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -53,8 +52,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesUsingScheduleRequest;
@@ -831,30 +828,6 @@ public class SettingPolicyRpcServiceTest {
 
         requestObserver.onCompleted();
         verify(responseObserver).onError(any());
-    }
-
-    /**
-     * Test GetEntitySettingPolicies Grpc call.
-     */
-    @Test
-    public void testGetEntitySettingPolicies() throws StoreOperationException {
-        final StreamObserver<GetEntitySettingPoliciesResponse> responseObserver =
-            (StreamObserver<GetEntitySettingPoliciesResponse>)mock(StreamObserver.class);
-        long entityOid = 12345L;
-        final SettingPolicy policy = SettingPolicy.newBuilder()
-            .setInfo(SettingPolicyInfo.getDefaultInstance())
-            .build();
-        when(entitySettingStore.getEntitySettingPolicies(eq(Sets.newHashSet(entityOid))))
-            .thenReturn(Arrays.asList(policy));
-        settingPolicyService.getEntitySettingPolicies(GetEntitySettingPoliciesRequest.newBuilder()
-            .addEntityOidList(entityOid)
-            .build(), responseObserver);
-        final ArgumentCaptor<GetEntitySettingPoliciesResponse> respCaptor =
-            ArgumentCaptor.forClass(GetEntitySettingPoliciesResponse.class);
-        verify(responseObserver).onNext(respCaptor.capture());
-        verify(responseObserver).onCompleted();
-        assertTrue(respCaptor.getValue().getSettingPoliciesList().size() == 1);
-        assertTrue(respCaptor.getValue().getSettingPoliciesList().get(0).equals(policy));
     }
 
     @Test

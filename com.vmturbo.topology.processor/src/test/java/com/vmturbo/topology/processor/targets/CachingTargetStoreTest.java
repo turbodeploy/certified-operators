@@ -1,7 +1,5 @@
 package com.vmturbo.topology.processor.targets;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -113,13 +111,13 @@ public class CachingTargetStoreTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     @Before
-    public void setup() throws Exception {
+    public void setup() throws Exception{
         probeInfo = Probes.emptyProbe;
         targetDao = mock(TargetDao.class);
         probeStore = mock(ProbeStore.class);
         groupScopeResolver = mock(GroupScopeResolver.class);
         when(groupScopeResolver.processGroupScope(any(), any(), any()))
-            .then(AdditionalAnswers.returnsSecondArg());
+                .then(AdditionalAnswers.returnsSecondArg());
         targetIdentityStore = new TestIdentityStore<>(new TargetSpecAttributeExtractor(probeStore));
         targetStore = new CachingTargetStore(targetDao, probeStore, targetIdentityStore);
     }
@@ -139,6 +137,7 @@ public class CachingTargetStoreTest {
 
         verify(targetDao).store(target);
 
+        targetStore.getTarget(target.getId()).get();
     }
 
     /**
@@ -159,34 +158,6 @@ public class CachingTargetStoreTest {
 
         targetStore.createTarget(spec.toDto());
     }
-
-    /**
-     * Test that re-registering a probe with a different probe info affects the targets associated
-     * with that probe.
-     *
-     * @throws Exception If anything goes wrong.
-     */
-    @Test
-    public void testProbeUpdateUpdatesTarget() throws Exception {
-        when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
-
-        final long probeId = 717;
-        final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(probeId, Collections.emptyList());
-
-        final Target target = targetStore.createTarget(spec.toDto());
-        assertThat(target.getProbeId(), is(probeId));
-        assertThat(target.getProbeInfo(), is(probeInfo));
-
-        final ProbeInfo newProbeInfo = ProbeInfo.newBuilder(probeInfo)
-            // Something to differentiate this probe info from the original.
-            .addTargetIdentifierField("foo")
-            .build();
-        targetStore.onProbeRegistered(probeId, newProbeInfo);
-
-        // Internally we should update the probe info associated with the target.
-        assertThat(target.getProbeInfo(), is(newProbeInfo));
-    }
-
 
     /**
      * Test that creating a target with the same identifying values as a previously existing target
@@ -232,9 +203,9 @@ public class CachingTargetStoreTest {
     }
 
     private static ProbeInfo createProbeInfo(@Nonnull String category,
-                                             @Nonnull String type,
-                                             @Nonnull String targetIdentifyingFieldName,
-                                             @Nonnull List<AccountDefEntry> accountDefs) {
+                                      @Nonnull String type,
+                                      @Nonnull String targetIdentifyingFieldName,
+                                      @Nonnull List<AccountDefEntry> accountDefs) {
         return ProbeInfo.newBuilder()
             .setProbeCategory(category)
             .setProbeType(type)
@@ -267,8 +238,8 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(pi));
 
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(0L, Arrays.asList(
-            new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty()),
-            new InputField(NAME_ACCT_DEF.getCustomDefinition().getName(), "my name", Optional.empty())));
+                new InputField(PredefinedAccountDefinition.Address.name().toLowerCase(), "foo", Optional.empty()),
+                new InputField(NAME_ACCT_DEF.getCustomDefinition().getName(), "my name", Optional.empty())));
         final Target target = targetStore.createTarget(spec.toDto());
 
         Assert.assertEquals("my name", target.getDisplayName());
@@ -297,14 +268,14 @@ public class CachingTargetStoreTest {
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
         final long targetId = 0L;
         final TargetRESTApi.TargetSpec spec = new TargetRESTApi.TargetSpec(targetId, Arrays.asList(
-            new InputField("name", "foo", Optional.empty())));
+                new InputField("name", "foo", Optional.empty())));
 
         final Target target = new Target(targetId, probeStore, spec.toDto(), false);
 
         final TargetDao targetDao = mock(TargetDao.class);
         when(targetDao.getAll()).thenReturn(Collections.singletonList(target));
         final CachingTargetStore newTargetStore = new CachingTargetStore(targetDao, probeStore,
-            targetIdentityStore);
+                targetIdentityStore);
         newTargetStore.getTarget(0L).get();
     }
 
@@ -323,13 +294,13 @@ public class CachingTargetStoreTest {
 
     private void prepareInitialProbe() {
         final ProbeInfo probeInfo = ProbeInfo.newBuilder(this.probeInfo)
-            .addAccountDefinition(AccountDefEntry.newBuilder()
-                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                    .setName(FIELD_NAME)
-                    .setDisplayName("displayName")
-                    .setDescription("desc"))
-                .setMandatory(true))
-            .build();
+                        .addAccountDefinition(AccountDefEntry.newBuilder()
+                                        .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                                                        .setName(FIELD_NAME)
+                                                        .setDisplayName("displayName")
+                                                        .setDescription("desc"))
+                                        .setMandatory(true))
+                        .build();
         when(probeStore.getProbe(Mockito.anyLong())).thenReturn(Optional.of(probeInfo));
     }
 
@@ -350,7 +321,7 @@ public class CachingTargetStoreTest {
 
     private Collection<TopologyProcessorDTO.AccountValue> createAccountValue(int fieldValue) {
         return Collections.singleton(TopologyProcessorDTO.AccountValue.newBuilder().setKey(FIELD_NAME)
-            .setStringValue(Integer.toString(fieldValue)).build());
+                        .setStringValue(Integer.toString(fieldValue)).build());
     }
 
     private TopologyProcessorDTO.AccountValue createAccountValue(String name, String value) {
@@ -373,18 +344,18 @@ public class CachingTargetStoreTest {
         TargetStoreListener listener = mock(TargetStoreListener.class);
         targetStore.addListener(listener);
         Assert.assertEquals("1",
-            target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
+                        target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
         target = targetStore.updateTarget(target.getId(), targetSpec.getAccountValueList());
         // No update message sent since account values did not change
         verify(listener, never()).onTargetUpdated(target);
         Assert.assertEquals("1",
-            target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
+                        target.getMediationAccountVals(groupScopeResolver).iterator().next().getStringValue());
 
         final Collection<TopologyProcessorDTO.AccountValue> targetFieldsNew = createAccountValue(2);
         target = targetStore.updateTarget(target.getId(), targetFieldsNew);
         Assert.assertEquals("2",
-            target.getMediationAccountVals(groupScopeResolver)
-                .iterator().next().getStringValue());
+                        target.getMediationAccountVals(groupScopeResolver)
+                                .iterator().next().getStringValue());
         // Update message was sent since account values changed
         verify(listener).onTargetUpdated(target);
     }
@@ -400,16 +371,16 @@ public class CachingTargetStoreTest {
         prepareInitialProbe();
         final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
         final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
-            .setProbeId(DERIVED_PROBE_ID)
-            .setIsHidden(true)
-            .addAllAccountValue(createAccountValue(100))
-            .build();
+                .setProbeId(DERIVED_PROBE_ID)
+                .setIsHidden(true)
+                .addAllAccountValue(createAccountValue(100))
+                .build();
         final Target derived1 = targetStore.createTarget(derivedTargetSpec1);
         final TargetSpec derivedTargetSpec2 = TargetSpec.newBuilder()
-            .setProbeId(DERIVED_PROBE_ID)
-            .addAllAccountValue(createAccountValue(200))
-            .setIsHidden(true)
-            .build();
+                .setProbeId(DERIVED_PROBE_ID)
+                .addAllAccountValue(createAccountValue(200))
+                .setIsHidden(true)
+                .build();
         final Target derived2 = targetStore.createTarget(derivedTargetSpec2);
 
         targetStore.createOrUpdateDerivedTargets(
@@ -417,14 +388,14 @@ public class CachingTargetStoreTest {
 
         // "derived1" and "derived2" are derived targets of "parent".
         verifyDerivedTargetIdsList(
-            Lists.newArrayList(derived1.getId(), derived2.getId()),
-            getDerivedTargetIds(parent));
+                Lists.newArrayList(derived1.getId(), derived2.getId()),
+                getDerivedTargetIds(parent));
 
         final TargetSpec derivedTargetSpec3 = TargetSpec.newBuilder()
-            .setProbeId(DERIVED_PROBE_ID)
-            .addAllAccountValue(createAccountValue(300))
-            .setIsHidden(true)
-            .build();
+                .setProbeId(DERIVED_PROBE_ID)
+                .addAllAccountValue(createAccountValue(300))
+                .setIsHidden(true)
+                .build();
         final Target derived3 = targetStore.createTarget(derivedTargetSpec3);
 
         targetStore.createOrUpdateDerivedTargets(Lists.newArrayList(derivedTargetSpec3),
@@ -432,20 +403,20 @@ public class CachingTargetStoreTest {
 
         // "derived3" is a derived target of "derived1" (similar to cost targets in Azure).
         verifyDerivedTargetIdsList(
-            Lists.newArrayList(derived3.getId()),
-            getDerivedTargetIds(derived1));
+                Lists.newArrayList(derived3.getId()),
+                getDerivedTargetIds(derived1));
     }
 
     /**
      * Verifies that all derivedTargetIds got populated as expected.
-     *
      * @param expectedDerivedTargetIds List of expected derivedTargetIds.
-     * @param derivedTargetIds         List of derivedTargetIds of a {@link Target} from the target store.
+     * @param derivedTargetIds List of derivedTargetIds of a {@link Target} from the target store.
+     *
      */
     private void verifyDerivedTargetIdsList(final List<Long> expectedDerivedTargetIds,
                                             final List<Long> derivedTargetIds) {
         Assert.assertTrue(
-            derivedTargetIds.size() == expectedDerivedTargetIds.size() &&
+                derivedTargetIds.size() == expectedDerivedTargetIds.size() &&
                 expectedDerivedTargetIds.containsAll(derivedTargetIds));
     }
 
@@ -483,7 +454,7 @@ public class CachingTargetStoreTest {
             parent.getId());
     }
 
-    @Test
+        @Test
     public void testPartialUpdateTarget() throws Exception {
         final String fooName = "foo";
         final String barName = "bar";
@@ -598,11 +569,11 @@ public class CachingTargetStoreTest {
                                           @Nonnull final String keyName,
                                           @Nonnull final String expectedValueName) {
         Assert.assertEquals(expectedValueName, target.getMediationAccountVals(groupScopeResolver)
-            .stream()
-            .filter(val -> val.getKey().equals(keyName))
-            .findFirst()
-            .get()
-            .getStringValue());
+                .stream()
+                .filter(val -> val.getKey().equals(keyName))
+                .findFirst()
+                .get()
+                .getStringValue());
     }
 
     /**
@@ -634,8 +605,8 @@ public class CachingTargetStoreTest {
         final Target target = targetStore.createTarget(targetSpec);
         targetStore.addListener(targetListener);
         Assert.assertEquals("1",
-            target.getMediationAccountVals(groupScopeResolver).iterator().next()
-                .getStringValue());
+                target.getMediationAccountVals(groupScopeResolver).iterator().next()
+                        .getStringValue());
         Assert.assertEquals(1, targetStore.getAll().size());
 
         targetStore.removeTargetAndBroadcastTopology(target.getId(), topologyHandler, scheduler);
@@ -667,14 +638,14 @@ public class CachingTargetStoreTest {
         prepareInitialProbe();
         final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
         final TargetSpec derivedTargetSpec1 = TargetSpec.newBuilder()
-            .setProbeId(DERIVED_PROBE_ID)
-            .addAllAccountValue(createAccountValue(555))
-            .build();
+                .setProbeId(DERIVED_PROBE_ID)
+                .addAllAccountValue(createAccountValue(555))
+                .build();
         final TargetSpec derivedTargetSpec2 = TargetSpec.newBuilder()
-            .setProbeId(DERIVED_PROBE_ID)
-            .addAllAccountValue(createAccountValue(2333))
-            .setIsHidden(true)
-            .build();
+                .setProbeId(DERIVED_PROBE_ID)
+                .addAllAccountValue(createAccountValue(2333))
+                .setIsHidden(true)
+                .build();
 
         // Derived target 1 is not dependent on parent target.
         final Target derived1 = targetStore.createTarget(derivedTargetSpec1);
@@ -719,9 +690,9 @@ public class CachingTargetStoreTest {
         final Target parent = targetStore.createTarget(createTargetSpec(0L, 666));
         final long derivedProbeId = 1L;
         final TargetSpec derivedTargetSpec = TargetSpec.newBuilder()
-            .setProbeId(derivedProbeId)
-            .addAllAccountValue(createAccountValue(555))
-            .build();
+                .setProbeId(derivedProbeId)
+                .addAllAccountValue(createAccountValue(555))
+                .build();
         targetStore.createOrUpdateDerivedTargets(Collections.singletonList(derivedTargetSpec),
             parent.getId());
         final Long derivedTargetId = verifyDerivedTargetCreation(derivedTargetSpec);
@@ -753,7 +724,7 @@ public class CachingTargetStoreTest {
      * @param derivedTargetSpec spec for the derived target.
      * @return targetId of the derived target.
      * @throws IdentityStoreException if the identity store throws an exception while processing
-     *                                the target spec.
+     * the target spec.
      */
     private Long verifyDerivedTargetCreation(TargetSpec derivedTargetSpec)
         throws IdentityStoreException {
@@ -769,7 +740,7 @@ public class CachingTargetStoreTest {
      * Verify that the address passed in matches the address account value of the target.
      *
      * @param targetAddress String giving the expected account value for the address field.
-     * @param target        the target pulled from the target store.
+     * @param target the target pulled from the target store.
      */
     private void verifyAddressAccountValue(String targetAddress, Target target) {
         assertEquals(targetAddress,
@@ -837,10 +808,10 @@ public class CachingTargetStoreTest {
         assertEquals(1, parentTarget2Updated.getSpec().getDerivedTargetIdsCount());
         // test that derived target shows up under both parents
         assertEquals(
-            (Long) parentTarget1Updated.getSpec().getDerivedTargetIdsList().iterator().next(),
+            (Long)parentTarget1Updated.getSpec().getDerivedTargetIdsList().iterator().next(),
             derivedTargetId1);
         assertEquals(
-            (Long) parentTarget2Updated.getSpec().getDerivedTargetIdsList().iterator().next(),
+            (Long)parentTarget2Updated.getSpec().getDerivedTargetIdsList().iterator().next(),
             derivedTargetId1);
         // Reprocess the derived target from Parent1 to force it to use the account values from
         // Parent1's target spec and check that the derived target is using the address specified
@@ -858,7 +829,7 @@ public class CachingTargetStoreTest {
         final Target parentTarget2Update2 = targetStore.getTarget(parentTarget2.getId()).get();
         assertEquals(0, parentTarget1Update2.getSpec().getDerivedTargetIdsCount());
         assertEquals(1, parentTarget2Update2.getSpec().getDerivedTargetIdsCount());
-        assertEquals((Long) derivedTargetId1,
+        assertEquals((Long)derivedTargetId1,
             parentTarget2Update2.getSpec().getDerivedTargetIdsList().iterator().next());
         // confirm that we are now using the account values from the derived target spec that came
         // from parentTarget2
@@ -881,7 +852,7 @@ public class CachingTargetStoreTest {
         final Long derivedTargetId3 = verifyDerivedTargetCreation(derivedTargetSpec2);
         final Target parentTarget2Update3 = targetStore.getTarget(parentTarget2.getId()).get();
         assertEquals(1, parentTarget2Update3.getSpec().getDerivedTargetIdsCount());
-        assertEquals((Long) derivedTargetId3,
+        assertEquals((Long)derivedTargetId3,
             parentTarget2Update3.getSpec().getDerivedTargetIdsList().iterator().next());
         assertTrue(targetStore.getTarget(derivedTargetId3).isPresent());
         // Delete only remaining parent of derived target
@@ -895,9 +866,9 @@ public class CachingTargetStoreTest {
      * Tests that when we update a parent target with a new derived target that differs from the old
      * one in a target identifying field, we get a new derived target and the old one is removed.
      *
-     * @throws IdentityStoreException   if the targetStore throws one.
+     * @throws IdentityStoreException if the targetStore throws one.
      * @throws DuplicateTargetException if the targetStore throws one.
-     * @throws InvalidTargetException   if the targetStore throws one.
+     * @throws InvalidTargetException if the targetStore throws one.
      */
     @Test
     public void testDerivedTargetChangesIdentifyingFieldValue()

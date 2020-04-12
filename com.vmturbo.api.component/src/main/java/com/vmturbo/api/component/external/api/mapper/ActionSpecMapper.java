@@ -97,7 +97,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
-import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
@@ -120,13 +119,13 @@ import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.stats.Stats;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -398,7 +397,7 @@ public class ActionSpecMapper {
     }
 
     @Nonnull
-    public static ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
+    public ActionState mapXlActionStateToApi(@Nonnull final ActionDTO.ActionState actionState) {
         switch (actionState) {
             case PRE_IN_PROGRESS:
             case POST_IN_PROGRESS:
@@ -416,7 +415,7 @@ public class ActionSpecMapper {
      * @return an {@link ActionState} enum, null if it's not an execution state
      */
     @Nullable
-    private static ActionState mapXlActionStateToExecutionApi(@Nonnull final ActionDTO.ActionState actionState) {
+    public ActionState mapXlActionStateToExecutionApi(@Nonnull final ActionDTO.ActionState actionState) {
         switch (actionState) {
             case PRE_IN_PROGRESS:
                 return ActionState.PRE_IN_PROGRESS;
@@ -443,8 +442,7 @@ public class ActionSpecMapper {
      *         no equivalent category exists in XL.
      */
     @Nonnull
-    public static Optional<ActionDTO.ActionCategory> mapApiActionCategoryToXl(
-            @Nonnull final String category) {
+    public Optional<ActionDTO.ActionCategory> mapApiActionCategoryToXl(@Nonnull final String category) {
         switch (category) {
             case API_CATEGORY_PERFORMANCE_ASSURANCE:
                 return Optional.of(ActionCategory.PERFORMANCE_ASSURANCE);
@@ -465,8 +463,7 @@ public class ActionSpecMapper {
             @Nonnull final ActionSpecMappingContext context,
             final long topologyContextId,
             @Nullable final ActionDetailLevel detailLevel)
-                    throws UnsupportedActionException, UnknownObjectException,
-                           ExecutionException, InterruptedException {
+                    throws UnsupportedActionException, UnknownObjectException, ExecutionException, InterruptedException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
         // actionID and uuid are the same
@@ -505,7 +502,8 @@ public class ActionSpecMapper {
 
         risk.setDescription(createRiskDescription(actionSpec, context));
         risk.setSubCategory(mapXlActionCategoryToApi(actionSpec.getCategory()));
-        risk.setSeverity(mapSeverityToApi(actionSpec.getSeverity()));
+        risk.setSeverity(ActionDTOUtil.getSeverityName(
+            ActionDTOUtil.mapActionCategoryToSeverity(actionSpec.getCategory())));
         risk.setReasonCommodity("");
         actionApiDTO.setRisk(risk);
 
@@ -1160,15 +1158,6 @@ public class ActionSpecMapper {
         serviceEntityApiDTO.setClassName(ApiEntityType.COMPUTE_TIER.apiStr());
         actionApiDTO.setCurrentEntity(serviceEntityApiDTO);
 
-        // Set the template for the current entity
-        final long workloadTierId = actionInfo.getAllocate().getWorkloadTier().getId();
-        final ServiceEntityApiDTO workloadTier = context.getEntity(workloadTierId);
-        TemplateApiDTO templateApiDTO = new TemplateApiDTO();
-        templateApiDTO.setUuid(workloadTier.getUuid());
-        templateApiDTO.setDisplayName(workloadTier.getDisplayName());
-        templateApiDTO.setClassName(workloadTier.getClassName());
-        actionApiDTO.setTemplate(templateApiDTO);
-
         // Set action current and new locations (should be the same for Allocate)
         setCurrentAndNewLocation(targetId, context, actionApiDTO);
 
@@ -1503,11 +1492,13 @@ public class ActionSpecMapper {
             .setVisible(true);
 
         if (inputDto != null) {
-            populateDateInput(inputDto, queryBuilder);
-
+            // TODO (roman, Dec 28 2016): This is only implementing a small subset of
+            // query options. Need to do another pass, including handling
+            // action states that don't map to ActionDTO.ActionState neatly,
+            // dealing with decisions/ActionModes, etc.
             if (inputDto.getActionStateList() != null) {
                 inputDto.getActionStateList().stream()
-                    .map(ActionSpecMapper::mapApiStateToXl)
+                    .map(this::mapApiStateToXl)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(queryBuilder::addStates);
@@ -1518,18 +1509,10 @@ public class ActionSpecMapper {
                 Stream.of(OPERATIONAL_ACTION_STATES).forEach(queryBuilder::addStates);
             }
 
-            if (inputDto.getRiskSeverityList() != null) {
-                inputDto.getRiskSeverityList().stream()
-                    .map(ActionSpecMapper::mapApiSeverityToXl)
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .forEach(queryBuilder::addSeverities);
-            }
-
             // Map UI's ActionMode to ActionDTO.ActionMode and add them to filter
             if (inputDto.getActionModeList() != null) {
                 inputDto.getActionModeList().stream()
-                    .map(ActionSpecMapper::mapApiModeToXl)
+                    .map(this::mapApiModeToXl)
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .forEach(queryBuilder::addModes);
@@ -1546,6 +1529,15 @@ public class ActionSpecMapper {
                         logger.warn("Unable to map action category {} to XL category.", apiCategory);
                     }
                 });
+            }
+
+            // pass in start and end time
+            if (inputDto.getStartTime() != null && !inputDto.getStartTime().isEmpty()) {
+                queryBuilder.setStartDate(DateTimeUtil.parseTime(inputDto.getStartTime()));
+            }
+
+            if (inputDto.getEndTime() != null && !inputDto.getEndTime().isEmpty()) {
+                queryBuilder.setEndDate(DateTimeUtil.parseTime(inputDto.getEndTime()));
             }
 
             if (inputDto.getEnvironmentType() != null) {
@@ -1576,84 +1568,8 @@ public class ActionSpecMapper {
         return queryBuilder.build();
     }
 
-    /**
-     * Handles time in the translation of an {@link ActionApiInputDTO}
-     * object to an {@link ActionQueryFilter} object.
-     * If the start time is not empty and the end time is empty,
-     * the end time is set to "now".
-     *
-     * <p>Some cases should not appear:
-     * <ul>
-     *     <li>If startTime is in the future.</li>
-     *     <li>If endTime precedes startTime.</li>
-     *     <li>If endTime only was passed.</li>
-     * </ul>
-     * In these cases an {@link IllegalArgumentException} is thrown.
-     * </p>
-     *
-     * @param input the {@link ActionApiDTO} object.
-     * @param queryBuilder the {@link ActionQueryFilter.Builder} object
-     *                     whose time entries must be populated
-     */
-    private static void populateDateInput(@Nonnull ActionApiInputDTO input,
-                                          @Nonnull final ActionQueryFilter.Builder queryBuilder) {
-        final String startTimeString = input.getStartTime();
-        final String endTimeString = input.getEndTime();
-        final String nowString = DateTimeUtil.getNow();
-
-        if (!StringUtils.isEmpty(startTimeString)) {
-            final long startTime = DateTimeUtil.parseTime(startTimeString);
-            final long now = DateTimeUtil.parseTime(nowString);
-
-            if (startTime > now) {
-                // start time is in the future.
-                throw new IllegalArgumentException("startTime " + startTimeString +
-                        " can't be in the future");
-            }
-            queryBuilder.setStartDate(startTime);
-
-            if (!StringUtils.isEmpty(endTimeString)) {
-                final long endTime = DateTimeUtil.parseTime(endTimeString);
-                if (endTime < startTime) {
-                    // end time is before start time
-                    throw new IllegalArgumentException("startTime " + startTimeString +
-                            " must precede endTime " + endTimeString);
-                }
-                queryBuilder.setEndDate(endTime);
-            } else {
-                // start time is set, but end time is null
-                // end time should be set to now
-                queryBuilder.setEndDate(now);
-            }
-        } else if (!StringUtils.isEmpty(endTimeString)) {
-            // start time is set, but end time is not
-            throw new IllegalArgumentException("startTime is required along with endTime");
-        }
-    }
-
     @Nonnull
-    private static Optional<Severity> mapApiSeverityToXl(@Nonnull String apiSeverity) {
-        try {
-            return Optional.of(Severity.valueOf(apiSeverity.toUpperCase()));
-        } catch (IllegalArgumentException e) {
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * Translates a {@link Severity} into a human-readable string
-     * to be returned by the API.
-     *
-     * @param severity the severity in internal XL format
-     * @return the API corresponding string
-     */
-    @Nonnull
-    public static String mapSeverityToApi(@Nonnull Severity severity) {
-        return severity.name();
-    }
-
-    @Nonnull
-    public static Optional<ActionDTO.ActionState> mapApiStateToXl(final ActionState stateStr) {
+    public Optional<ActionDTO.ActionState> mapApiStateToXl(final ActionState stateStr) {
         switch (stateStr) {
             case READY:
                 return Optional.of(ActionDTO.ActionState.READY);
@@ -1677,12 +1593,10 @@ public class ActionSpecMapper {
     /**
      * Given an actionSpec fetches the corresponding action details.
      * @param action - ActionOrchestratorAction for the user sent action
-     * @param topologyContextId - the topology context that the action corresponds to
      * @return actionDetailsApiDTO which contains extra information about a given action
      */
     @Nullable
-    public ActionDetailsApiDTO createActionDetailsApiDTO(
-            final ActionDTO.ActionOrchestratorAction action, Long topologyContextId) {
+    public ActionDetailsApiDTO createActionDetailsApiDTO(final ActionDTO.ActionOrchestratorAction action) {
         final ActionSpec actionSpec = action.getActionSpec();
         if (actionSpec != null && actionSpec.hasRecommendation()) {
             ActionDTO.ActionType actionType = ActionDTOUtil.getActionInfoActionType(actionSpec.getRecommendation());
@@ -1710,7 +1624,7 @@ public class ActionSpecMapper {
                 long entityUuid;
                 ActionEntity entity;
                 try {
-                    entity = ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
+                    entity = ActionDTOUtil.getPrimaryEntity(action.getActionSpec().getRecommendation());
                     entityUuid = entity.getId();
                 } catch (UnsupportedActionException e) {
                     logger.warn("Cannot create action details due to unsupported action type", e);
@@ -1720,7 +1634,7 @@ public class ActionSpecMapper {
                     logger.warn("Cannot create action details for on-prem actions");
                     return null;
                 }
-                return createCloudResizeActionDetailsDTO(entityUuid, topologyContextId);
+                return createCloudResizeActionDetailsDTO(entityUuid);
             }
             return null;
         }
@@ -1730,32 +1644,30 @@ public class ActionSpecMapper {
     /**
      * Create Cloud Resize Action Details DTO.
      * @param entityUuid - uuid of the action target entity
-     * @param topologyContextId - the topology context that the action corresponds to
      * @return cloudResizeActionDetailsDTO - this contains additional details about the action
      * like on-demand rates, costs and RI coverage before/after the resize
      */
     @Nonnull
-    public CloudResizeActionDetailsApiDTO createCloudResizeActionDetailsDTO(long entityUuid, Long topologyContextId) {
+    public CloudResizeActionDetailsApiDTO createCloudResizeActionDetailsDTO(long entityUuid) {
         CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO = new CloudResizeActionDetailsApiDTO();
         // get on-demand costs
-        setOnDemandCosts(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
+        setOnDemandCosts(entityUuid, cloudResizeActionDetailsApiDTO);
         // get on-demand rates
-        setOnDemandRates(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
+        setOnDemandRates(entityUuid, cloudResizeActionDetailsApiDTO);
         // get RI coverage before/after
-        setRiCoverage(entityUuid, topologyContextId, cloudResizeActionDetailsApiDTO);
+        setRiCoverage(entityUuid, cloudResizeActionDetailsApiDTO);
         return cloudResizeActionDetailsApiDTO;
     }
 
     /**
      * Set on-demand costs for target entity which factors in RI usage.
-     *
      * @param entityUuid - uuid of target entity
-     * @param topologyContextId - context Id
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setOnDemandCosts(long entityUuid, Long topologyContextId, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+    private void setOnDemandCosts(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
         EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
-        CloudCostStatsQuery.Builder cloudCostStatsQueryBuilder = CloudCostStatsQuery.newBuilder()
+        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest
+                .newBuilder().addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
                 .setRequestProjected(true)
                 .setEntityFilter(entityFilter)
                 // For cloud scale actions, the action savings will reflect only the savings from
@@ -1771,13 +1683,7 @@ public class ActionSpecMapper {
                         .setExclusionFilter(false)
                         .addCostCategory(CostCategory.ON_DEMAND_COMPUTE)
                         .addCostCategory(CostCategory.ON_DEMAND_LICENSE)
-                        .addCostCategory(CostCategory.RESERVED_LICENSE)
-                        .build());
-        if (Objects.nonNull(topologyContextId)) {
-            cloudCostStatsQueryBuilder.setTopologyContextId(topologyContextId);
-        }
-        GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
-                .addCloudCostStatsQuery(cloudCostStatsQueryBuilder.build())
+                        .addCostCategory(CostCategory.RESERVED_LICENSE)))
                 .build();
         GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
         int statRecordListSize = response.getCloudStatRecordList().size();
@@ -1801,37 +1707,28 @@ public class ActionSpecMapper {
 
     /**
      * Set on-demand template rates for the target entity.
-     *
      * @param entityUuid - uuid of target entity
-     * @param topologyContextId - topology context ID
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setOnDemandRates(long entityUuid, @Nullable Long topologyContextId,
-                                  CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+    private void setOnDemandRates(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
 
         // Get the On Demand compute costs
-        GetTierPriceForEntitiesRequest.Builder onDemandComputeCostsRequest = GetTierPriceForEntitiesRequest.newBuilder()
-                .setOid(entityUuid)
-                .setCostCategory(CostCategory.ON_DEMAND_COMPUTE);
-        if (Objects.nonNull(topologyContextId)) {
-            onDemandComputeCostsRequest.setTopologyContextId(topologyContextId);
-        }
+        GetTierPriceForEntitiesRequest onDemandComputeCostsRequest = GetTierPriceForEntitiesRequest
+                .newBuilder().setOid(entityUuid)
+                .setCostCategory(CostCategory.ON_DEMAND_COMPUTE).build();
         GetTierPriceForEntitiesResponse onDemandComputeCostsResponse = costServiceBlockingStub
-                .getTierPriceForEntities(onDemandComputeCostsRequest.build());
+                .getTierPriceForEntities(onDemandComputeCostsRequest);
         Map<Long, CurrencyAmount> beforeOnDemandComputeCostByEntityOidMap = onDemandComputeCostsResponse
                 .getBeforeTierPriceByEntityOidMap();
         Map<Long, CurrencyAmount> afterComputeCostByEntityOidMap = onDemandComputeCostsResponse
                 .getAfterTierPriceByEntityOidMap();
 
         // Get the On Demand License costs
-        GetTierPriceForEntitiesRequest.Builder onDemandLicenseCostsRequest = GetTierPriceForEntitiesRequest.newBuilder()
-                .setOid(entityUuid)
-                .setCostCategory(CostCategory.ON_DEMAND_LICENSE);
-        if (Objects.nonNull(topologyContextId)) {
-            onDemandLicenseCostsRequest.setTopologyContextId(topologyContextId);
-        }
+        GetTierPriceForEntitiesRequest onDemandLicenseCostsRequest = GetTierPriceForEntitiesRequest
+                .newBuilder().setOid(entityUuid)
+                .setCostCategory(CostCategory.ON_DEMAND_LICENSE).build();
         GetTierPriceForEntitiesResponse onDemandLicenseCostsResponse = costServiceBlockingStub
-                .getTierPriceForEntities(onDemandLicenseCostsRequest.build());
+                .getTierPriceForEntities(onDemandLicenseCostsRequest);
         Map<Long, CurrencyAmount> beforeLicenseComputeCosts = onDemandLicenseCostsResponse
                 .getBeforeTierPriceByEntityOidMap();
         Map<Long, CurrencyAmount> afterLicenseComputeCosts = onDemandLicenseCostsResponse
@@ -1871,10 +1768,9 @@ public class ActionSpecMapper {
     /**
      * Set RI Coverage before/after for the target entity.
      * @param entityUuid - uuid of target entity
-     * @param topologyContextId - the topology context for which RI coverage is being set
      * @param cloudResizeActionDetailsApiDTO - cloud resize action details DTO
      */
-    private void setRiCoverage(long entityUuid, Long topologyContextId, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
+    private void setRiCoverage(long entityUuid, CloudResizeActionDetailsApiDTO cloudResizeActionDetailsApiDTO) {
         final EntityFilter entityFilter = EntityFilter.newBuilder().addEntityId(entityUuid).build();
 
         // get latest RI coverage for target entity
@@ -1905,15 +1801,12 @@ public class ActionSpecMapper {
         }
 
         // get projected RI coverage for target entity
-        Cost.GetProjectedEntityReservedInstanceCoverageRequest.Builder builder =
+        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest =
                 Cost.GetProjectedEntityReservedInstanceCoverageRequest
-                        .newBuilder()
-                        .setEntityFilter(entityFilter);
-        if (!Objects.isNull(topologyContextId)) {
-            builder.setTopologyContextId(topologyContextId);
-        }
+                .newBuilder()
+                .setEntityFilter(entityFilter)
+                .build();
 
-        Cost.GetProjectedEntityReservedInstanceCoverageRequest projectedEntityReservedInstanceCoverageRequest = builder.build();
         Cost.GetProjectedEntityReservedInstanceCoverageResponse projectedEntityReservedInstanceCoverageResponse =
                 reservedInstanceUtilizationCoverageServiceBlockingStub
                     .getProjectedEntityReservedInstanceCoverageStats(projectedEntityReservedInstanceCoverageRequest);
@@ -2015,7 +1908,7 @@ public class ActionSpecMapper {
      * @return ActionDTO.ActionMode
      */
     @Nonnull
-    public static Optional<ActionDTO.ActionMode> mapApiModeToXl(final ActionMode actionMode) {
+    public Optional<ActionDTO.ActionMode> mapApiModeToXl(final ActionMode actionMode) {
         switch (actionMode) {
             case DISABLED:
                 return Optional.of(ActionDTO.ActionMode.DISABLED);

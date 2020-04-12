@@ -110,6 +110,9 @@ else
         if [ "${PIPESTATUS[0]}" -eq 0 ]; then
           logmsg '+++ MariaDB databases are up-to-date.'
           break
+        else
+          logmsg '--- MariaDB database upgrade failed; exiting container'
+          exit 1
         fi
       fi
       # If the db server is not running, reset to the default config if the server does not start, exit and retry

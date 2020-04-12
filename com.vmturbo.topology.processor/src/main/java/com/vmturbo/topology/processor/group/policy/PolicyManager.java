@@ -18,8 +18,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
-import io.grpc.StatusRuntimeException;
-
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -272,23 +270,11 @@ public class PolicyManager {
 
         final Set<ReservationStatus> activeReservationTypes = activeReservationTypes(topologyInfo);
 
-        try {
-            reservationService.getAllReservations(allReservationsRequest).forEachRemaining(reservation -> {
-                if (activeReservationTypes.contains(reservation.getStatus())) {
-                    activeReservations.add(reservation);
-                }
-            });
-        } catch (StatusRuntimeException e) {
-            if (topologyInfo.getPlanInfo().getPlanProjectType() != PlanProjectType.RESERVATION_PLAN) {
-                // In the live pipeline not having reservations is bad, but we shouldn't stop the
-                // broadcast completely if there is a plan orchestrator error or if the plan orchestrator is down.
-                logger.error("Failed to fetch reservations." +
-                    " Will continue to run broadcast without reservation constraints in topology. Error: {}", e.getMessage());
-            } else {
-                // In a reservation plan, failure to respect reservation constraints is fatal.
-                throw e;
+        reservationService.getAllReservations(allReservationsRequest).forEachRemaining(reservation -> {
+            if (activeReservationTypes.contains(reservation.getStatus())) {
+                activeReservations.add(reservation);
             }
-        }
+        });
 
         final ReservationResults results = new ReservationResults();
 

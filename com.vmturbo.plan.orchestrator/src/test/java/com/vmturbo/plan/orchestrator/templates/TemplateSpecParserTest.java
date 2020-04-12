@@ -43,7 +43,7 @@ public class TemplateSpecParserTest {
         Map<String, TemplateSpec> templateSpecParserMap = templateSpecParser.getTemplateSpecMap();
 
         assertNotNull(templateSpecParserMap);
-        assertEquals(4, templateSpecParserMap.keySet().size());
+        assertEquals(3, templateSpecParserMap.keySet().size());
         assertTrue(templateSpecParserMap.keySet().contains(EntityType.VIRTUAL_MACHINE.toString()));
         assertTrue(templateSpecParserMap.keySet().contains(EntityType.PHYSICAL_MACHINE.toString()));
         assertFalse(templateSpecParserMap.get(EntityType.VIRTUAL_MACHINE.toString())
@@ -60,7 +60,7 @@ public class TemplateSpecParserTest {
     @Test
     public void testHciHostTemplate() {
         TemplateSpec template = templateSpecParser.getTemplateSpecMap()
-                .get(EntityType.HCI_PHYSICAL_MACHINE.toString());
+                .get(EntityType.PHYSICAL_MACHINE.toString());
 
         TemplateSpecResource resource = template.getResourcesList().stream()
                 .filter(r -> r.getCategory().getName() == ResourcesCategoryName.Storage).findFirst()

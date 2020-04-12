@@ -126,7 +126,7 @@ class CurrentQueryMapper {
                     .setVisible(true);
 
             CollectionUtils.emptyIfNull(query.actionInput().getActionModeList()).stream()
-                .map(ActionSpecMapper::mapApiModeToXl)
+                .map(actionSpecMapper::mapApiModeToXl)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .forEach(agFilterBldr::addActionMode);
@@ -136,14 +136,14 @@ class CurrentQueryMapper {
                 Stream.of(ActionSpecMapper.OPERATIONAL_ACTION_STATES).forEach(agFilterBldr::addActionState);
             } else {
                 query.actionInput().getActionStateList().stream()
-                        .map(ActionSpecMapper::mapApiStateToXl)
+                        .map(actionSpecMapper::mapApiStateToXl)
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .forEach(agFilterBldr::addActionState);
             }
 
             CollectionUtils.emptyIfNull(query.actionInput().getRiskSubCategoryList()).stream()
-                .map(ActionSpecMapper::mapApiActionCategoryToXl)
+                .map(actionSpecMapper::mapApiActionCategoryToXl)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .forEach(agFilterBldr::addActionCategory);

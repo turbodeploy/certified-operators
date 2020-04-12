@@ -1,14 +1,11 @@
 package com.vmturbo.common.protobuf.topology;
 
-import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.StringUtil;
@@ -82,8 +79,6 @@ public enum ApiEntityType {
     NETWORK(StringConstants.NETWORK, EntityType.NETWORK),
     /** PhysicalMachine entity type. */
     PHYSICAL_MACHINE(StringConstants.PHYSICAL_MACHINE, EntityType.PHYSICAL_MACHINE),
-    /** HCI PhysicalMachine entity type. */
-    HCI_PHYSICAL_MACHINE(StringConstants.HCI_PHYSICAL_MACHINE, EntityType.HCI_PHYSICAL_MACHINE),
     /** ProcessorPool entity type. */
     PROCESSOR_POOL(StringConstants.PROCESSOR_POOL, EntityType.PROCESSOR_POOL),
     /** Region entity type. */
@@ -113,14 +108,7 @@ public enum ApiEntityType {
     /** VirtualVolume entity type. */
     VIRTUAL_VOLUME(StringConstants.VIRTUAL_VOLUME, EntityType.VIRTUAL_VOLUME),
     /** VPod entity type. */
-    VPOD(StringConstants.VPOD, EntityType.VPOD),
-    /** Namespace entity type. */
-    NAMESPACE(StringConstants.NAMESPACE, EntityType.NAMESPACE),
-    /** WorkloadController entity type. Represents e.g. a Controller in kubernetes */
-    WORKLOAD_CONTROLLER(StringConstants.WORKLOAD_CONTROLLER, EntityType.WORKLOAD_CONTROLLER),
-    /** ContainerSpec entity type.
-     * Represents shard definition for container instances managed by a Cloud Native Controller. */
-    CONTAINER_SPEC(StringConstants.CONTAINER_SPEC, EntityType.CONTAINER_SPEC);
+    VPOD(StringConstants.VPOD, EntityType.VPOD);
 
     /**
      * These are the entity types that count as "Workloads" in our system.
@@ -141,43 +129,6 @@ public enum ApiEntityType {
             ApiEntityType.VIRTUAL_VOLUME.apiStr()
     );
 
-    /**
-     * Sometimes we need to expand aggregators to some of their aggregated
-     * entities. In the case of cloud, we need to be able to expand aggregators
-     * such as region, zone, and business account to aggregated entities whose
-     * type belongs in this set.
-     */
-    public static final Set<ApiEntityType> SCOPE_EXPANSION_TYPES_FOR_CLOUD = ImmutableSet.of(
-            ApiEntityType.APPLICATION,
-            ApiEntityType.APPLICATION_SERVER,
-            ApiEntityType.BUSINESS_APPLICATION,
-            ApiEntityType.CONTAINER,
-            ApiEntityType.CONTAINER_POD,
-            ApiEntityType.DATABASE,
-            ApiEntityType.DATABASE_SERVER,
-            ApiEntityType.DATABASE_SERVER_TIER,
-            ApiEntityType.DATABASE_TIER,
-            ApiEntityType.LOAD_BALANCER,
-            ApiEntityType.STORAGE,
-            ApiEntityType.VIRTUAL_APPLICATION,
-            ApiEntityType.VIRTUAL_MACHINE,
-            ApiEntityType.VIRTUAL_VOLUME);
-
-    /**
-     * This maps aggregator entity types (such as region or datacenter), to
-     * the set of types of the entities that we will get after their expansion.
-     * For example, when we expand datacenters, we want to fetch all aggregated
-     * PMs. When we expand VDCs, we want to fetch all related VMs. When we
-     * expand cloud aggregators, we want to get entities of all the types in
-     * {@link #SCOPE_EXPANSION_TYPES_FOR_CLOUD}.
-     */
-    public static final Map<ApiEntityType, Set<ApiEntityType>> ENTITY_TYPES_TO_EXPAND =
-            ImmutableMap.of(
-                    ApiEntityType.DATACENTER, Collections.singleton(ApiEntityType.PHYSICAL_MACHINE),
-                    ApiEntityType.REGION, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-                    ApiEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-                    ApiEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
-                    ApiEntityType.VIRTUAL_DATACENTER, Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
 
     private final String apiStr;
 

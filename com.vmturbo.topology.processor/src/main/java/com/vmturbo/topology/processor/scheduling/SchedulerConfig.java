@@ -59,10 +59,7 @@ public class SchedulerConfig {
             kvConfig.keyValueStore(),
             stitchingConfig.stitchingJournalFactory(),
             Executors.newSingleThreadScheduledExecutor(
-                    new ThreadFactoryBuilder().setNameFormat("target-full-discovery-scheduler")
-                            .build()),
-            Executors.newSingleThreadScheduledExecutor( //todo:delete
-                    new ThreadFactoryBuilder().setNameFormat("target-incremental-discovery-scheduler")
+                    new ThreadFactoryBuilder().setNameFormat("target-discovery-scheduler")
                             .build()),
             Executors.newSingleThreadScheduledExecutor(
                     new ThreadFactoryBuilder().setNameFormat("realtime-broadcast-scheduler")

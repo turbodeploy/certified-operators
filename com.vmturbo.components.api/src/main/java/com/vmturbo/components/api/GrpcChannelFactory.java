@@ -4,14 +4,14 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.google.common.base.Preconditions;
 
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.internal.GrpcUtil;
 import io.grpc.netty.NettyChannelBuilder;
-import io.opentracing.contrib.grpc.TracingClientInterceptor;
-
-import org.apache.commons.lang3.StringUtils;
+import io.opentracing.contrib.grpc.ClientTracingInterceptor;
 
 import com.vmturbo.components.api.tracing.Tracing;
 
@@ -55,10 +55,7 @@ public class GrpcChannelFactory {
     public static ManagedChannelBuilder newChannelBuilder(@Nonnull final String host,
                                                           final int port,
                                                           int maxMessageSize) {
-        final TracingClientInterceptor clientTracingInterceptor = TracingClientInterceptor.newBuilder()
-            .withTracer(Tracing.tracer())
-            .withStreaming()
-            .build();
+        final ClientTracingInterceptor clientTracingInterceptor = new ClientTracingInterceptor(Tracing.tracer());
         Preconditions.checkArgument(!StringUtils.isEmpty(host), "Host must be provided.");
         Preconditions.checkArgument(port > 0, "Port must be a positive integer!");
         return NettyChannelBuilder.forAddress(host, port)

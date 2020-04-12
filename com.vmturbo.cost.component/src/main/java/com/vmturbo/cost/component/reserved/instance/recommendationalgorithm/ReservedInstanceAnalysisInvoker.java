@@ -109,10 +109,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      * @param buyRiRequest StartBuyRIAnalysisRequest.
      */
     public synchronized void invokeBuyRIAnalysis(StartBuyRIAnalysisRequest buyRiRequest) {
-        logger.info("Started BuyRIAnalysis with accounts: {},  regions: {}, platforms: {}," +
-                "tenancies: {} and profile: {}", buyRiRequest.getAccountsList(),
-                buyRiRequest.getRegionsList(), buyRiRequest.getPlatformsList(),
-                buyRiRequest.getTenanciesList(), buyRiRequest.getPurchaseProfileByCloudtypeMap());
         ReservedInstanceAnalysisScope reservedInstanceAnalysisScope =
                 new ReservedInstanceAnalysisScope(buyRiRequest);
         try {
@@ -169,7 +165,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
      */
     public void invokeRIBuyIfBusinessAccountsUpdated(Set<Long> allBusinessAccounts) {
         StartBuyRIAnalysisRequest buyRiRequest = getStartBuyRIAnalysisRequest();
-        logger.info("Business accounts received in topology broadcast: {}", allBusinessAccounts);
         if (buyRiRequest.getAccountsList().isEmpty()) {
             logger.warn("ReservedInstanceAnalysisInvoker::invokeRIBuyIfBusinessAccountsUpdated." +
                     "No BA's found in repository. Reattempt to trigger RI Buy Analysis will be " +
@@ -303,9 +298,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
     protected boolean isNewBusinessAccountWithCostFound(Set<Long> allBusinessAccounts) {
         Set<Long> newBusinessAccountsWithCost = getNewBusinessAccountsWithCost(allBusinessAccounts);
         addToBusinessAccountsWithCost(newBusinessAccountsWithCost);
-        if (newBusinessAccountsWithCost.size() > 0) {
-            logger.info("Detected new businessAccounts: {}", newBusinessAccountsWithCost);
-        }
         return (newBusinessAccountsWithCost.size() > 0);
     }
 
@@ -319,9 +311,6 @@ public class ReservedInstanceAnalysisInvoker implements SettingsListener {
         Set<Long> deletedBusinessAccounts = Sets.difference(businessAccountsWithCost, allBusinessAccounts)
                 .immutableCopy();
         removeFromBusinessAccountsWithCost(deletedBusinessAccounts);
-        if (deletedBusinessAccounts.size() > 0) {
-            logger.info("Detected deleted businessAccounts: {}", deletedBusinessAccounts);
-        }
         return (deletedBusinessAccounts.size() > 0);
     }
 

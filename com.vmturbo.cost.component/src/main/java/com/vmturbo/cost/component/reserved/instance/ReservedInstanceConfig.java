@@ -8,7 +8,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceBoughtServiceController;
 import com.vmturbo.common.protobuf.cost.CostREST.ReservedInstanceUtilizationCoverageServiceController;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
@@ -172,8 +171,7 @@ public class ReservedInstanceConfig {
                 supplyChainRpcServiceConfig.supplyChainRpcService(),
                 PlanReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
                 realtimeTopologyContextId, pricingConfig.priceTableStore(),
-                reservedInstanceSpecConfig.reservedInstanceSpecStore(),
-                BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()));
+                reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
     /**

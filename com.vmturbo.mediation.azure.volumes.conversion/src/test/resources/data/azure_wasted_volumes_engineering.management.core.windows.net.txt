@@ -1,0 +1,1011 @@
+entityDTO {
+  entityType: REGION
+  id: "azure::northcentralus::DC::northcentralus"
+  displayName: "northcentralus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::westcentralus::DC::westcentralus"
+  displayName: "westcentralus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::japanwest::DC::japanwest"
+  displayName: "japanwest"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::westus2::DC::westus2"
+  displayName: "westus2"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::westus::DC::westus"
+  displayName: "westus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::eastus2::DC::eastus2"
+  displayName: "eastus2"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::eastus::DC::eastus"
+  displayName: "eastus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::southcentralus::DC::southcentralus"
+  displayName: "southcentralus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::canadacentral::DC::canadacentral"
+  displayName: "canadacentral"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::centralus::DC::centralus"
+  displayName: "centralus"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::westeurope::DC::westeurope"
+  displayName: "westeurope"
+}
+entityDTO {
+  entityType: REGION
+  id: "azure::northeurope::DC::northeurope"
+  displayName: "northeurope"
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::nort6B78C980192D2B6F695"
+  displayName: "azure-northeurope-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::northeurope-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::west5AD68C15C14259936EA"
+  displayName: "azure-westcentralus-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::westcentralus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::westcentralus-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::cent5311C89CED8DE9E5BDC"
+  displayName: "azure-centralus-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::centralus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::centralus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::centralus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::centralus-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::japa3CEEE8510CF25585BF2"
+  displayName: "azure-japanwest-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::japanwest-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::west539FB8475CCB46A8946"
+  displayName: "azure-westus2-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::westus2-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::westus2-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::eastFAFA1E80D9836C401AC"
+  displayName: "azure-eastus2-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus2-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus2-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus2-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+    file {
+      path: "https://boshaco3cksorymxu.blob.core.windows.net/opsmanager/ops-manager-2.1-build.214.vhd"
+      sizeKb: 6291456
+      modificationTimeMs: 1525783458000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "pcfeastus2"
+    }
+    file {
+      path: "https://boshaco3cksorymxu.blob.core.windows.net/opsmanager/pcf-ops-man-osdisk.vhd"
+      sizeKb: 134217728
+      modificationTimeMs: 1547739561000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "pcfeastus2"
+    }
+    file {
+      path: "https://boshaco3cksorymxu.blob.core.windows.net/vhds/pcf-ops-man-osdisk.vhd"
+      sizeKb: 125829120
+      modificationTimeMs: 1525784074000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "pcfeastus2"
+    }
+    file {
+      path: "https://boshaco3cksorymxu.blob.core.windows.net/opsman/rgt612-20180926-134523.vhd"
+      sizeKb: 16777216
+      modificationTimeMs: 1537959276000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "pcfeastus2"
+    }
+    file {
+      path: "https://boshaco3cksorymxu.blob.core.windows.net/stemcell/bosh-stemcell-82793c75-b4ad-4567-870f-2f3e90424cf2.vhd"
+      sizeKb: 3145728
+      modificationTimeMs: 1525757532000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "pcfeastus2"
+    }
+    file {
+      path: "https://boshaco3cksorymxu.blob.core.windows.net/stemcell/bosh-stemcell-9866cd80-e97a-4612-92de-066ac410d5a7.vhd"
+      sizeKb: 3145728
+      modificationTimeMs: 1525786540000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "pcfeastus2"
+    }
+    file {
+      path: "https://boshaco3cksorymxu.blob.core.windows.net/stemcell/bosh-stemcell-bb075292-d458-4c4f-962c-55a674bc8230.vhd"
+      sizeKb: 3145728
+      modificationTimeMs: 1526398567000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "pcfeastus2"
+    }
+    file {
+      path: "https://boshaco3cksorymxu.blob.core.windows.net/stemcell/bosh-stemcell-bb880250-f11d-49f3-8fcc-939c5e50446a.vhd"
+      sizeKb: 3145728
+      modificationTimeMs: 1525760697000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "pcfeastus2"
+    }
+    file {
+      path: "https://boshaco3cksorymxu.blob.core.windows.net/stemcell/bosh-stemcell-c8184ba6-dca0-41cf-9bd4-81924f3000e8.vhd"
+      sizeKb: 3145728
+      modificationTimeMs: 1525969830000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "pcfeastus2"
+    }
+    file {
+      path: "https://boshaco3cksorymxu.blob.core.windows.net/stemcell/bosh-stemcell-f2f7aeb2-beb4-4f7e-8eea-78bef57cff88.vhd"
+      sizeKb: 3145728
+      modificationTimeMs: 1525827337000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "pcfeastus2"
+    }
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::nort05C7F82D182FEB09AA5"
+  displayName: "azure-northcentralus-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::northcentralus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::northcentralus-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::canaA5A9C0693BD254F355B"
+  displayName: "azure-canadacentral-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::canadacentral-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::canadacentral-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::east79F022A2CB016D8E135"
+  displayName: "azure-eastus-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+    file {
+      path: "https://vmturbo.blob.core.windows.net/opsmgr/turbonomic-opsmgr-sda-6.0.0.vhd"
+      sizeKb: 33554432
+      modificationTimeMs: 1507066149000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/opsmgr/turbonomic-opsmgr-sda-6.0.2.vhd"
+      sizeKb: 33554432
+      modificationTimeMs: 1512935060000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/opsmgr/turbonomic-opsmgr-sda-6.0.4.vhd"
+      sizeKb: 32505856
+      modificationTimeMs: 1514842016000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/opsmgr/turbonomic-opsmgr-sda-6.0.6.vhd"
+      sizeKb: 33554432
+      modificationTimeMs: 1518134474000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/opsmgr/turbonomic-opsmgr-sda-6.1.0.vhd"
+      sizeKb: 32505856
+      modificationTimeMs: 1525756523000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/opsmgr/turbonomic-opsmgr-sdb-6.0.0.vhd"
+      sizeKb: 117440512
+      modificationTimeMs: 1507071021000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/opsmgr/turbonomic-opsmgr-sdb-6.0.2.vhd"
+      sizeKb: 117440512
+      modificationTimeMs: 1512939065000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/opsmgr/turbonomic-opsmgr-sdb-6.0.4.vhd"
+      sizeKb: 116391936
+      modificationTimeMs: 1514845545000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/opsmgr/turbonomic-opsmgr-sdb-6.0.6.vhd"
+      sizeKb: 117440512
+      modificationTimeMs: 1518139357000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/opsmgr/turbonomic-opsmgr-sdb-6.1.0.vhd"
+      sizeKb: 117440512
+      modificationTimeMs: 1525761208000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/vhds/WindowsVM201661905740.vhd"
+      sizeKb: 133169152
+      modificationTimeMs: 1503697588000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://vmturbo.blob.core.windows.net/vhds/stackato20165237160.vhd"
+      sizeKb: 30720000
+      modificationTimeMs: 1503697672000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "vmturbo"
+    }
+    file {
+      path: "https://turbonomicdiag.blob.core.windows.net/vhds/rgt61120181029145007.vhd"
+      sizeKb: 31457280
+      modificationTimeMs: 1540975127000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "turbonomic"
+    }
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::east06CAFCB13236600878B"
+  displayName: "azure-eastus2-Unmanaged Premium"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_PREMIUM"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus2-unmanaged_premium"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_PREMIUM"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus2-unmanaged_premium"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_PREMIUM"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus2-unmanaged_premium"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_PREMIUM"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus2-unmanaged_premium"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::west459F11D37701CBF059A"
+  displayName: "azure-westeurope-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::westeurope-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::westeurope-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::westeurope-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+    file {
+      path: "https://turboasrstorage.blob.core.windows.net/wahv2containerc596ddd886564dbb9efdbf5a4cff0584/osdisk-52b86170c62c40c881d28992139be07e.vhd"
+      sizeKb: 31459328
+      modificationTimeMs: 1538834047000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "turbonomic"
+    }
+    file {
+      path: "https://turboasrstorage.blob.core.windows.net/wahv2containerc946637ffefd40b8b915228168942296/osdisk-a9be3cd44cd74010aeb0734c3baf7c4b.vhd"
+      sizeKb: 31459328
+      modificationTimeMs: 1538834047000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "turbonomic"
+    }
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::eastC7A7CDF426A4BBB4A49"
+  displayName: "azure-eastus-Unmanaged Premium"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_PREMIUM"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::eastus-unmanaged_premium"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+    file {
+      path: "https://turbonomicdisks419.blob.core.windows.net/vhds/Enlin-Demo-VM-disk-1-20180829142926.vhd"
+      sizeKb: 117440512
+      modificationTimeMs: 1547739546000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "turbonomic"
+    }
+    file {
+      path: "https://turbonomicdisks419.blob.core.windows.net/vhds/Enlin-Demo-VM20180829142926.vhd"
+      sizeKb: 32505856
+      modificationTimeMs: 1547739557000
+      type: DISK
+      iopsProvisioned: 0
+      redundancyType: "LRS"
+      resourceGroup: "turbonomic"
+    }
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::west5A7929CC993315EB54C"
+  displayName: "azure-westus-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::westus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::westus-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+  }
+}
+entityDTO {
+  entityType: STORAGE
+  id: "engineering.management.core.windows.net[ASB]-azure::ST::sout9C1BFEE4A46DE541F22"
+  displayName: "azure-southcentralus-Unmanaged Standard"
+  commoditiesSold {
+    commodityType: STORAGE_AMOUNT
+    capacity: 1.0E9
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::southcentralus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::southcentralus-unmanaged_standard"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "storageType"
+    value: "UNMANAGED_STANDARD"
+  }
+  entityProperties {
+    namespace: "DEFAULT"
+    name: "lunuuid"
+    value: "azure::ST::southcentralus-unmanaged_standard"
+  }
+  origin: PROXY
+  replacementEntityData {
+    identifyingProp: "lunuuid"
+    extEntityPropDef {
+      entity: STORAGE
+      attribute: "Uuid"
+    }
+  }
+  powerState: POWERED_ON
+  keepStandalone: true
+  storage_data {
+    storageType: OTHER
+  }
+}

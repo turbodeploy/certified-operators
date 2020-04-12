@@ -271,8 +271,10 @@ public class RemoteProbeStoreTest {
         ProbeStitchingOperation fabricOp = new ProbeStitchingOperation(fabricProbeId,
                 new StorageStitchingOperation());
         assertEquals(fabricProbe, store.getProbe(fabricProbeId).get());
-        assertEquals(-1, store.getProbeOrdering().compare(hyperVisorOp, storageOp));
+        assertEquals(-1, store.getProbeOrdering().compare(hyperVisorOp,
+                storageOp));
         assertEquals(1, store.getProbeOrdering().compare(storageOp, hyperVisorOp));
+        assertEquals(0, store.getProbeOrdering().compare(storageOp, fabricOp));
         Set<ProbeCategory> storageStitchWith =
                 store.getProbeOrdering().getCategoriesForProbeToStitchWith(storageProbe);
         assertEquals(2, storageStitchWith.size());

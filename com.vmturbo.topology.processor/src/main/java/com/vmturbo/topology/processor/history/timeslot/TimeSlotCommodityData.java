@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.platform.sdk.common.util.Pair;
-import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
@@ -36,71 +35,28 @@ public class TimeSlotCommodityData
     private SlotStatistics currentSlot = new SlotStatistics();
     // oldest moment of time recorded in current slot
     private long timestamp;
-    private long lastMaintenanceTimestamp;
-    private int currentObservationPeriod;
-    private EntityCommodityFieldReference reference;
-
-    /**
-     * Returns last successful maintenance timestamp or 0L in case maintenance did not happen yet.
-     *
-     * @return last successful maintenance timestamp.
-     */
-    public long getLastMaintenanceTimestamp() {
-        return lastMaintenanceTimestamp;
-    }
 
     @Override
     public synchronized void init(@Nonnull EntityCommodityFieldReference field,
                      @Nullable List<Pair<Long, StatRecord>> dbValue, @Nonnull TimeslotHistoricalEditorConfig config,
                      @Nonnull HistoryAggregationContext context) {
-        reference = field;
-        currentObservationPeriod = config.getObservationPeriod(context, field);
-        final int slotCount = config.getSlots(context, field);
+        int slotCount = config.getSlots(context, field.getEntityOid());
         if (logger.isTraceEnabled()) {
             logger.trace("{}initializing timeslot cache for {} and {} slots", LOG_PREFIX, field, slotCount);
         }
         if (slotCount > 1) {
-            previousSlots = createSlots(slotCount);
+            previousSlots = new SlotStatistics[slotCount];
+            for (int i = 0; i < slotCount; ++i) {
+                previousSlots[i] = new SlotStatistics();
+            }
             if (CollectionUtils.isNotEmpty(dbValue)) {
                 // expect to be ordered and rounded to hourly points as sent from persistence
                 recordsToSlots(dbValue, previousSlots);
-                lastMaintenanceTimestamp = dbValue.stream().mapToLong(Pair::getFirst).min()
-                                .orElseGet(() -> config.getClock().millis());
             }
         } else {
-            lastMaintenanceTimestamp = config.getClock().millis();
             previousSlots = null;
             currentSlot.clear();
         }
-    }
-
-    private static SlotStatistics[] createSlots(int slotCount) {
-        final SlotStatistics[] result = new SlotStatistics[slotCount];
-        for (int i = 0; i < slotCount; ++i) {
-            result[i] = new SlotStatistics();
-        }
-        return result;
-    }
-
-    /**
-     * Checks whether currently existing settings have changed.
-     *
-     * @param ref reference to entity commodity for which we want to check whether
-     *                 settings have been changed or not.
-     * @param context history context which contains information about entities from
-     *                 the current broadcast.
-     * @param config config which knows how to extract setting values from the
-     *                 current broadcast snapshot.
-     * @return {@code true} in case settings changed, otherwise {@code false}.
-     */
-    @Override
-    public boolean needsReinitialization(@Nonnull EntityCommodityReference ref,
-                    @Nonnull HistoryAggregationContext context,
-                    @Nonnull TimeslotHistoricalEditorConfig config) {
-        final int slotCount = config.getSlots(context, ref);
-        final int observationPeriod = config.getObservationPeriod(context, ref);
-        return (previousSlots != null && slotCount != previousSlots.length)
-                        || currentObservationPeriod != observationPeriod;
     }
 
     @Override
@@ -121,9 +77,6 @@ public class TimeSlotCommodityData
 
         if (!context.isPlan()) {
             long now = config.getClock().millis();
-            if (lastMaintenanceTimestamp <= 0) {
-                lastMaintenanceTimestamp = now;
-            }
             if (currentSlot.count == 0) {
                 timestamp = now;
             } else if (timestamp > 0
@@ -165,14 +118,13 @@ public class TimeSlotCommodityData
             return null;
         }
         // subtract outdated from previous slots
-        final SlotStatistics[] outdatedSlots = createSlots(previousSlots.length);
+        SlotStatistics[] outdatedSlots = new SlotStatistics[previousSlots.length];
         for (List<Pair<Long, StatRecord>> outdatedPage : outdated) {
             recordsToSlots(outdatedPage, outdatedSlots);
         }
         for (int i = 0; i < previousSlots.length; ++i) {
             previousSlots[i].subtract(outdatedSlots[i]);
         }
-        lastMaintenanceTimestamp = 0;
         // do not save anything
         return null;
     }
@@ -200,21 +152,6 @@ public class TimeSlotCommodityData
             float used = stat.getUsed().getAvg();
             slots[slot].total += used / cap;
         }
-    }
-
-    /**
-     * Creates a string which is describing current instance in details. Useful for debugging
-     * purposes.
-     *
-     * @return string to represent current data instance for debugging purposes.
-     */
-    @Nonnull
-    public String toDebugString() {
-        return String.format(
-                        "%s [previousSlots=%s, currentSlot=%s, timestamp=%s, lastMaintenanceTimestamp=%s, currentObservationPeriod=%s, reference=%s]",
-                        getClass().getSimpleName(), Arrays.toString(this.previousSlots),
-                        this.currentSlot, this.timestamp, this.lastMaintenanceTimestamp,
-                        this.currentObservationPeriod, this.reference);
     }
 
     /**
@@ -264,12 +201,6 @@ public class TimeSlotCommodityData
 
         public float getTotal() {
             return total;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("%s [count=%s, total=%s]", getClass().getSimpleName(), this.count,
-                            this.total);
         }
     }
 }

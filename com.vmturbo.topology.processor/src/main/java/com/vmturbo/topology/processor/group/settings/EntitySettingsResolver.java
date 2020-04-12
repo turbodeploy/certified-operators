@@ -26,15 +26,17 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
-
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
+import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.GetSchedulesRequest;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
@@ -54,7 +56,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequ
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.SettingsChunk;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -64,7 +65,6 @@ import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.ResolvedGroup;
 
 /**
  * Responsible for resolving the Entities -> Settings mapping as well as
@@ -161,16 +161,18 @@ public class EntitySettingsResolver {
         final List<SettingPolicy> userAndDiscoveredSettingPolicies =
             SettingDTOUtil.extractUserAndDiscoveredSettingPolicies(policyById.values());
 
-        final Set<Long> referencedGroups = userAndDiscoveredSettingPolicies.stream()
-            .flatMap(sp -> sp.getInfo().getScope().getGroupsList().stream())
-            .collect(Collectors.toSet());
-        referencedGroups.addAll(settingOverrides.getInvolvedGroups());
+        // groupId -> SettingPolicies mapping
+        final Map<Long, List<SettingPolicy>> groupSettingPoliciesMap =
+            getGroupSettingPolicyMapping(userAndDiscoveredSettingPolicies);
 
-        // Get and resolve groups.
-        final Map<Long, ResolvedGroup> groups = getAndResolveGroups(referencedGroups, groupResolver, topologyGraph);
+        // groups used for applying entity/group-specific settings
+        final Set<Long> overrideGroups = settingOverrides.getInvolvedGroups();
+
+        final Map<Long, Grouping> groups =
+            getGroupInfo(groupServiceClient, Sets.union(groupSettingPoliciesMap.keySet(), overrideGroups));
 
         // let the setting overrides handle any max utilization settings
-        settingOverrides.resolveGroupOverrides(groups);
+        settingOverrides.resolveGroupOverrides(groups, groupResolver, topologyGraph);
 
         // EntityId(OID) -> Map<<Settings.name, SettingAndPolicyIdRecord> mapping
         final Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName = new HashMap<>();
@@ -185,19 +187,39 @@ public class EntitySettingsResolver {
         // the SettingAndPolicyIdRecord maps such that all members of a scaling group point
         // to the same map.  This way, all policies applied to any scaling group member will
         // be applied to all other entities in the scaling group as well.
-        consistentScalingManager.addEntities(groups, topologyGraph, userAndDiscoveredSettingPolicies);
-
+        groupSettingPoliciesMap.forEach((groupId, settingPolicies) -> {
+                final Grouping group = groups.get(groupId);
+                if (group != null ) {
+                    final Set<Long> allEntitiesInGroup = groupResolver.resolve(group, topologyGraph);
+                    consistentScalingManager.addEntities(group,
+                        topologyGraph.getEntities(allEntitiesInGroup), settingPolicies);
+                }
+        });
         // Now that all scaling group members have been identified, call the CSM to build the
         // scaling groups.  This will also populate userSettingsByEntityAndName with pre-merged
         // empty settings entries for all scaling group members.
         consistentScalingManager.buildScalingGroups(topologyGraph, groupResolver,
             userSettingsByEntityAndName);
 
-        // For each group, apply the settings from the SettingPolicies associated with the group
-        // to the resolved entities
-        userAndDiscoveredSettingPolicies.forEach(settingPolicy -> {
-            resolveAllEntitySettings(settingPolicy, groups,
-                userSettingsByEntityAndName, settingSpecNameToSettingSpecs, schedules);
+        // For each group, resolve it to get its entities. Then apply the settings
+        // from the SettingPolicies associated with the group to the resolved entities
+        groupSettingPoliciesMap.forEach((groupId, settingPolicies) -> {
+            // This may be inefficient as we are walking the graph every time to resolve a group.
+            // Resolving a bunch of groups at once(ORing of the group search parameters)
+            // would probably be more efficient.
+            try {
+                final Grouping group = groups.get(groupId);
+                if (group != null ) {
+                    final Set<Long> allEntitiesInGroup = groupResolver.resolve(group, topologyGraph);
+                    resolveAllEntitySettings(allEntitiesInGroup, settingPolicies,
+                        userSettingsByEntityAndName, settingSpecNameToSettingSpecs, schedules);
+                } else {
+                    logger.error("Group {} does not exist.", groupId);
+                }
+            } catch (GroupResolutionException gre) {
+                // should we throw an exception ?
+                logger.error("Failed to resolve group with id: {}", groupId, gre);
+            }
         });
 
         final List<SettingPolicy> defaultSettingPolicies =
@@ -230,14 +252,14 @@ public class EntitySettingsResolver {
     }
 
     /**
-     * Resolve settings for entities in a group. If the settings use the same spec and have
+     * Resolve settings for a set of entities. If the settings use the same spec and have
      * different values, select a winner. If one setting is discovered and one is user-defined,
      * user-defined takes priority. If one setting has a scheduled period of
      * activity and another does not, the one with a schedule takes priority.
      * Otherwise use the spec's tie-breaker to resolve.
      *
-     * @param settingPolicy The setting policy to apply.
-     * @param resolvedGroups Resolved groups by ID.
+     * @param entities List of entity OIDs
+     * @param settingPolicies List of settings policies to be applied to the entities
      * @param userSettingsByEntityAndName The return parameter which
      *             maps an entityId with its associated settings indexed by the
      *             settingsSpecName
@@ -245,52 +267,41 @@ public class EntitySettingsResolver {
      * @param schedules Schedules used by settings policies
      */
     @VisibleForTesting
-    void resolveAllEntitySettings(@Nonnull final SettingPolicy settingPolicy,
-                                  @Nonnull final Map<Long, ResolvedGroup> resolvedGroups,
+    void resolveAllEntitySettings(@Nonnull final Set<Long> entities,
+                                  @Nonnull final List<SettingPolicy> settingPolicies,
                                   @Nonnull Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName,
                                   @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecs,
                                   @Nonnull final Map<Long, Schedule> schedules) {
         checkNotNull(userSettingsByEntityAndName);
 
-        if (inEffectNow(settingPolicy, schedules)) {
-            final SettingPolicy.Type spType = settingPolicy.getSettingPolicyType();
-            final Set<Long> entities = new HashSet<>();
-            settingPolicy.getInfo().getScope().getGroupsList()
-                .forEach(groupId -> {
-                    final ResolvedGroup resolvedGroup = resolvedGroups.get(groupId);
-                    if (resolvedGroup == null) {
-                        logger.error("Group {} referenced by policy {} ({}) is unresolved. Skipping.",
-                            groupId, settingPolicy.getId(), settingPolicy.getInfo().getName());
-                    } else {
-                        // Collecting into a set to de-dupe across groups in scope.
-                        entities.addAll(resolvedGroup.getEntitiesOfType(ApiEntityType.fromType(settingPolicy.getInfo().getEntityType())));
-                    }
-                });
+        for (Long oid: entities) {
+            // settingSpecName-> Setting mapping. userSettingsByEntityAndName has already been
+            // populated by the consistent scaling manager with shared settings maps for all
+            // scaling group members.  By using a shared map, adding setting for a scaling group
+            // member automatically adds it for the rest of them.
+            Map<String, SettingAndPolicyIdRecord> settingsByName =
+                userSettingsByEntityAndName.computeIfAbsent(oid, key -> new HashMap<>());
 
-            for (Long oid : entities) {
-                // settingSpecName-> Setting mapping. userSettingsByEntityAndName has already been
-                // populated by the consistent scaling manager with shared settings maps for all
-                // scaling group members.  By using a shared map, adding setting for a scaling group
-                // member automatically adds it for the rest of them.
-                Map<String, SettingAndPolicyIdRecord> settingsByName =
-                    userSettingsByEntityAndName.computeIfAbsent(oid, key -> new HashMap<>());
-
-                settingPolicy.getInfo().getSettingsList().forEach(nextSetting -> {
-                    final String specName = nextSetting.getSettingSpecName();
-                    final long nextSettingPolicyId = settingPolicy.getId();
-                    final boolean hasSchedule = settingPolicy.getInfo().hasScheduleId();
-                    if (!settingsByName.containsKey(specName)) {
-                        settingsByName.put(specName, new SettingAndPolicyIdRecord(
-                            nextSetting, nextSettingPolicyId, spType, hasSchedule));
-                    } else {
-                        // Use the corresponding resolver to resolve settings.
-                        // If no resolver is associated with the specName, use the default resolver.
-                        settingSpecNameToSettingResolver
-                            .getOrDefault(specName, SettingResolver.defaultSettingResolver)
-                            .resolve(settingsByName.get(specName), nextSetting, nextSettingPolicyId,
-                                hasSchedule, spType, settingSpecNameToSettingSpecs);
-                    }
-                });
+            for (SettingPolicy sp : settingPolicies) {
+                if (inEffectNow(sp, schedules)) {
+                    SettingPolicy.Type nextType = sp.getSettingPolicyType();
+                    sp.getInfo().getSettingsList().forEach(nextSetting -> {
+                        final String specName = nextSetting.getSettingSpecName();
+                        final long nextSettingPolicyId = sp.getId();
+                        final boolean hasSchedule = sp.getInfo().hasScheduleId();
+                        if (!settingsByName.containsKey(specName)) {
+                            settingsByName.put(specName, new SettingAndPolicyIdRecord(
+                                nextSetting, nextSettingPolicyId, nextType, hasSchedule));
+                        } else {
+                            // Use the corresponding resolver to resolve settings.
+                            // If no resolver is associated with the specName, use the default resolver.
+                            settingSpecNameToSettingResolver
+                                .getOrDefault(specName, SettingResolver.defaultSettingResolver)
+                                .resolve(settingsByName.get(specName), nextSetting, nextSettingPolicyId,
+                                    hasSchedule, nextType, settingSpecNameToSettingSpecs);
+                        }
+                    });
+                }
             }
         }
     }
@@ -487,11 +498,40 @@ public class EntitySettingsResolver {
         return settingNameToSettingSpecs;
     }
 
-    private Map<Long, ResolvedGroup> getAndResolveGroups(
-            @Nonnull final Set<Long> groupIds,
-            @Nonnull final GroupResolver groupResolver,
-            @Nonnull final TopologyGraph<TopologyEntity> graph) {
-        final Map<Long, ResolvedGroup> groups = new HashMap<>();
+    /**
+     * Extract the groups which are part of the SettingPolicies and return a mapping
+     * from the GroupId to the list of setting policies associated with the
+     * group.
+     *
+     * @param settingPolicies List of SettingPolicy
+     * @return Mapping of the groupId to SettingPolicy
+     *
+     */
+    private Map<Long, List<SettingPolicy>> getGroupSettingPolicyMapping(
+        List<SettingPolicy> settingPolicies) {
+
+        Map<Long, List<SettingPolicy>> groupSettingPoliciesMap = new HashMap<>();
+        settingPolicies.forEach((settingPolicy) -> {
+            settingPolicy.getInfo().getScope().getGroupsList()
+                .forEach((groupId) -> {
+                    groupSettingPoliciesMap.computeIfAbsent(
+                    groupId, k -> new LinkedList<>()).add(settingPolicy);
+                });
+        });
+        return groupSettingPoliciesMap;
+    }
+
+    /**
+     * Query the GroupInfo from GroupComponent for the provided GroupIds.
+     *
+     * @param groupServiceClient Client for communicating with Group Service
+     * @param groupIds List of groupIds whose Group definitions has to be fetched
+     * @return Map of groupId and its Group object
+     */
+    private Map<Long, Grouping> getGroupInfo(GroupServiceBlockingStub groupServiceClient,
+                                          Collection<Long> groupIds) {
+
+        final Map<Long, Grouping> groups = new HashMap<>();
 
         if (groupIds.isEmpty()) {
             return groups;
@@ -504,12 +544,7 @@ public class EntitySettingsResolver {
             .build())
             .forEachRemaining(group -> {
                 if (group.hasId()) {
-                    try {
-                        groups.put(group.getId(), groupResolver.resolve(group, graph));
-                    } catch (GroupResolutionException e) {
-                        // Continue trying to resolve other groups.
-                        logger.error("Failed to resolve group " + group.getId(), e);
-                    }
+                    groups.put(group.getId(), group);
                 } else {
                     logger.warn("Group has no id. Skipping. {}", group);
                 }

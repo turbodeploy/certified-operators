@@ -123,14 +123,13 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.GetHeadroomTemplateResponse;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc.TemplateServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupRequest;
+import com.vmturbo.common.protobuf.setting.SettingProto.GetSettingPoliciesForGroupResponse;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -401,7 +400,7 @@ public class GroupsService implements IGroupsService {
     public ActionPaginationResponse getActionsByGroupUuid(String uuid,
                                       ActionApiInputDTO inputDto,
                                       ActionPaginationRequest paginationRequest) throws Exception {
-        return actionSearchUtil.getActionsByScope(uuidMapper.fromUuid(uuid), inputDto,
+        return actionSearchUtil.getActionsByEntity(uuidMapper.fromUuid(uuid), inputDto,
                 paginationRequest);
     }
 
@@ -827,18 +826,21 @@ public class GroupsService implements IGroupsService {
         if (!StringUtils.isNumeric(uuid)) {
             throw new IllegalArgumentException("Group uuid should be numeric: " + uuid);
         }
+        final long groupId = Long.valueOf(uuid);
+        GetSettingPoliciesForGroupResponse response =
+                settingPolicyServiceBlockingStub.getSettingPoliciesForGroup(
+                        GetSettingPoliciesForGroupRequest.newBuilder()
+                                .addGroupIds(groupId)
+                                .build());
 
-        // find all the members in the group and get policies associated with each member
-        List<Long> members = getGroupMembers(uuid).stream()
-                .map(TopologyEntityDTO::getOid).collect(Collectors.toList());
-        GetEntitySettingPoliciesRequest request =
-            GetEntitySettingPoliciesRequest.newBuilder()
-                .addAllEntityOidList(members)
-                .build();
-        GetEntitySettingPoliciesResponse response =
-            settingPolicyServiceBlockingStub.getEntitySettingPolicies(request);
+        List<SettingsPolicyApiDTO> settingsPolicyApiDtos = new ArrayList<>();
+        if (response.getSettingPoliciesByGroupIdMap().containsKey(groupId)) {
+            response.getSettingPoliciesByGroupIdMap().get(groupId).getSettingPoliciesList()
+                    .forEach(settingPolicy ->
+                            settingsPolicyApiDtos.add(settingsMapper.convertSettingPolicy(settingPolicy)));
+        }
 
-        return settingsMapper.convertSettingPolicies(response.getSettingPoliciesList());
+        return settingsPolicyApiDtos;
     }
 
     @Override
@@ -1217,7 +1219,7 @@ public class GroupsService implements IGroupsService {
             @Nullable List<String> scopes,
             boolean includeAllGroupClasses) throws OperationFailedException, ConversionException {
         GetGroupsRequest.Builder request = GetGroupsRequest.newBuilder();
-        GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType, LogicalOperator.AND, filterList);
+        GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(groupType, filterList);
         if (includeAllGroupClasses && groupType != GroupType.REGULAR) {
             String errorMessage =
                 String.format("includeAllGroupClasses flag cannot be set to true for group type %s.",

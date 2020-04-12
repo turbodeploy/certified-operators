@@ -40,22 +40,18 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplana
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionBySupplyExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
-import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity.TimeSlotReasonInformation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReconfigureExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ResizeExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
 import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
@@ -488,7 +484,8 @@ public class ActionInterpreter {
             if (!CollectionUtils.isEmpty(changeProviderList)) {
                 ActionDTO.Move.Builder builder = ActionDTO.Move.newBuilder()
                         .setTarget(createActionEntity(shoppingList.buyerId, projectedTopology))
-                        .addAllChanges(changeProviderList);
+                        .addAllChanges(createChangeProviders(moveTO,
+                                projectedTopology, originalCloudTopology, shoppingList.buyerId));
                 if (moveTO.hasScalingGroupId()) {
                     builder.setScalingGroupId(moveTO.getScalingGroupId());
                 }
@@ -1026,10 +1023,8 @@ public class ActionInterpreter {
                         ChangeProviderExplanation.Congestion.newBuilder()
                         .addAllCongestedCommodities(
                                 moveExplanation.getCongestion().getCongestedCommoditiesList().stream()
-                                        .map(commodityConverter::commodityIdToCommodityTypeAndSlot)
-                                        .map(commTypeAndSlot2ReasonCommodity(
-                                            shoppingListOidToInfos.get(moveTO.getShoppingListToMove())
-                                                .getBuyerId(), moveTO.getSource()))
+                                        .map(commodityConverter::commodityIdToCommodityType)
+                                        .map(commType2ReasonCommodity())
                                         .collect(Collectors.toList()))
                         .build()));
                 break;
@@ -1159,62 +1154,9 @@ public class ActionInterpreter {
         return ct -> ReasonCommodity.newBuilder().setCommodityType(ct).build();
     }
 
-    private Function<Pair<CommodityType, Optional<Integer>>, ReasonCommodity>
-        commTypeAndSlot2ReasonCommodity(final long buyer, final long source) {
-        return ct -> {
-            final CommodityType commType = ct.first;
-            final Optional<Integer> slot = ct.second;
-            final ReasonCommodity.Builder builder = ReasonCommodity.newBuilder().setCommodityType(commType);
-            slot.ifPresent(sl -> builder.setTimeSlot(TimeSlotReasonInformation.newBuilder()
-                .setSlot(sl)
-                .setTotalSlotNumber(getTotalTimeSlotNumber(commType, buyer, source))
-                .build()));
-            return builder.build();
-        };
-    }
-
     private static Collection<ReasonCommodity>
             commTypes2ReasonCommodities(Collection<CommodityType> types) {
         return types.stream().map(commType2ReasonCommodity()).collect(Collectors.toList());
-    }
-
-    /**
-     * Get total number of time slots for time slot commodity.
-     *
-     * @param commodityType Time slot {@link CommodityType}
-     * @param buyer Buyer Id
-     * @param moveSource Move source ID
-     * @return Total number of time slots, or 0 if cannot be determined
-     */
-    private int getTotalTimeSlotNumber(@Nonnull final CommodityType commodityType,
-            final long buyer, final long moveSource) {
-        final TopologyEntityDTO origTopology = originalTopology.get(buyer);
-        if (null == origTopology) {
-            logger.error("No originalTopology value found for key {}", () -> moveSource);
-            return 0;
-        }
-        final CommoditiesBoughtFromProvider commoditiesBoughtFromProvider =
-            origTopology.getCommoditiesBoughtFromProvidersList().stream()
-                .filter(e -> moveSource == e.getProviderId()).findFirst().orElse(null);
-        if (commoditiesBoughtFromProvider == null) {
-            logger.error("No commodities bought found for provider {}", () -> moveSource);
-            return 0;
-        }
-        final CommodityBoughtDTO commodityBought = commoditiesBoughtFromProvider.getCommodityBoughtList()
-            .stream().filter(e -> commodityType.getType() == (e.getCommodityType().getType()))
-            .findFirst().orElse(null);
-        if (commodityBought == null) {
-            logger.error("No CommodityBoughtDTO found for commodity type {}, entity id {}",
-                () -> commodityType, () -> moveSource);
-            return 0;
-        }
-        if (commodityBought.hasHistoricalUsed() && commodityBought.getHistoricalUsed().getTimeSlotCount() > 0) {
-            return commodityBought.getHistoricalUsed().getTimeSlotCount();
-        } else {
-            logger.error("No timeslots found for commodity type {}, entity id {}",
-                () -> commodityType, () -> moveSource);
-            return 0;
-        }
     }
 
     /**

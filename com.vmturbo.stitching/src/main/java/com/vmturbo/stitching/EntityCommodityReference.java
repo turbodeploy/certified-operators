@@ -67,10 +67,10 @@ public class EntityCommodityReference {
     @Override
     public String toString() {
         return getClass().getSimpleName() + " [entityOid=" + entityOid
-               + ", providerOid="
-               + providerOid
                + ", commodityType="
                + commodityType
+               + ", providerOid="
+               + providerOid
                + "]";
     }
 

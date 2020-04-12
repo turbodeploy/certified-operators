@@ -14,7 +14,6 @@ import io.grpc.StatusRuntimeException;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
@@ -40,8 +39,7 @@ public class SpecSearchUtil {
             return RepositoryDTOUtil.topologyEntityStream(searchServiceRpc.searchEntitiesStream(
                 SearchEntitiesRequest.newBuilder()
                     .setReturnType(Type.FULL)
-                    .setSearch(SearchQuery.newBuilder()
-                        .addSearchParameters(params))
+                    .addSearchParameters(params)
                     .build()))
                 .map(PartialEntity::getFullEntity)
                 .collect(Collectors.toList());

@@ -11,9 +11,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
@@ -38,7 +39,6 @@ import com.vmturbo.commons.utils.ThrowingFunction;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.EntityCommodityReference;
@@ -116,11 +116,23 @@ public class PercentileEditor extends
      * @param config configuration values
      * @param statsHistoryClient persistence component access handler
      * @param clock the {@link Clock}
+     */
+    public PercentileEditor(@Nonnull PercentileHistoricalEditorConfig config,
+                    @Nonnull StatsHistoryServiceStub statsHistoryClient, @Nonnull Clock clock) {
+        this(config, statsHistoryClient, clock, PercentilePersistenceTask::new);
+    }
+
+    /**
+     * Construct the instance of percentile editor.
+     *
+     * @param config configuration values
+     * @param statsHistoryClient persistence component access handler
+     * @param clock the {@link Clock}
      * @param historyLoadingTaskCreator creator of task to load or save data
      */
     public PercentileEditor(@Nonnull PercentileHistoricalEditorConfig config,
                     @Nonnull StatsHistoryServiceStub statsHistoryClient, @Nonnull Clock clock,
-                    @Nonnull BiFunction<StatsHistoryServiceStub, Pair<Long, Long>, PercentilePersistenceTask> historyLoadingTaskCreator) {
+                    @Nonnull Function<StatsHistoryServiceStub, PercentilePersistenceTask> historyLoadingTaskCreator) {
         super(config, statsHistoryClient, historyLoadingTaskCreator, PercentileCommodityData::new);
         this.clock = clock;
     }
@@ -214,9 +226,7 @@ public class PercentileEditor extends
                             UtilizationCountStore::getLatestCountsRecord);
             // print the utilization counts from cache for the configured OID in logs
             // if debug is enabled.
-            debugLogDataValues(logger,
-                            (data) -> String.format("Percentile utilization counts: %s",
-                                            data.getUtilizationCountStore().toDebugString()));
+            debugLogPercentileValues();
         }
     }
 
@@ -231,8 +241,22 @@ public class PercentileEditor extends
         writeBlob(builder, periodMs, taskTimestamp);
     }
 
+    private void debugLogPercentileValues() {
+        if (logger.isDebugEnabled()) {
+            Optional<Long> oid = getConfig().getOidToBeTracedInLog().map(Long::valueOf);
+            if (oid.isPresent()) {
+                getCache().entrySet().stream()
+                        .filter(e -> e.getKey().getEntityOid() == oid.get())
+                        .forEach(data -> logger.debug("Percentile utilization counts: {}",
+                                data.getValue().getUtilizationCountStore().toDebugString()));
+            }
+        }
+    }
+
     private PercentilePersistenceTask createTask(long startTimestamp) {
-        return createLoadingTask(Pair.create(startTimestamp, null));
+        PercentilePersistenceTask task = historyLoadingTaskCreator.apply(getStatsHistoryClient());
+        task.setStartTimestamp(startTimestamp);
+        return task;
     }
 
     private void loadPersistedData(@Nonnull HistoryAggregationContext context) throws HistoryCalculationException, InterruptedException {

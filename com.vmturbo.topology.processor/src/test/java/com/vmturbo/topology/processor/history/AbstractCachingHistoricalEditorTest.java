@@ -31,7 +31,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
@@ -44,9 +43,9 @@ public class AbstractCachingHistoricalEditorTest {
     private static final float ABOVE_DB_VALUE = 15f;
     private static double DELTA = 0.00001;
     private static final CachingHistoricalEditorConfig CONFIG1 =
-                    new CachingHistoricalEditorConfig(2, 3, Clock.systemUTC(), Mockito.any());
+                    new CachingHistoricalEditorConfig(2, 3, Clock.systemUTC());
     private static final CachingHistoricalEditorConfig CONFIG2 =
-                    new CachingHistoricalEditorConfig(10, 10, Clock.systemUTC(), Mockito.any());
+                    new CachingHistoricalEditorConfig(10, 10, Clock.systemUTC());
     private static final HistoryAggregationContext CONTEXT = new HistoryAggregationContext(
                     TopologyInfo.newBuilder().setTopologyId(77777L).build(),
                     Mockito.mock(GraphWithSettings.class), false);
@@ -276,13 +275,6 @@ public class AbstractCachingHistoricalEditorTest {
                          @Nonnull HistoryAggregationContext context) {
             value = dbValue;
         }
-
-        @Override
-        public boolean needsReinitialization(@Nonnull EntityCommodityReference ref,
-                        @Nonnull HistoryAggregationContext context,
-                        @Nonnull CachingHistoricalEditorConfig cachingHistoricalEditorConfig) {
-            return false;
-        }
     }
 
     /**
@@ -291,12 +283,12 @@ public class AbstractCachingHistoricalEditorTest {
      */
     private class TestLoadingTask implements IHistoryLoadingTask<CachingHistoricalEditorConfig, Float> {
 
-        private TestLoadingTask(@Nonnull StatsHistoryServiceBlockingStub statsHistoryClient,
-                        @Nonnull Pair<Long, Long> range) {}
+        public TestLoadingTask(StatsHistoryServiceBlockingStub statsHistoryClient) {}
 
         @Override
         public Map<EntityCommodityFieldReference, Float>
-               load(Collection<EntityCommodityReference> commodities, CachingHistoricalEditorConfig config) {
+               load(Collection<EntityCommodityReference> commodities, CachingHistoricalEditorConfig config)
+                               throws HistoryCalculationException {
             seenCommRefs.addAll(commodities);
             return commodities.stream()
                             .map(comm -> new EntityCommodityFieldReference(comm,

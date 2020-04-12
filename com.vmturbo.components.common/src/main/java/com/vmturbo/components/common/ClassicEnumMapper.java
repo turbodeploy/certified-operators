@@ -67,6 +67,7 @@ public class ClassicEnumMapper {
             .put("CPU",                         CommodityType.CPU)
             .put("CPUAllocation",               CommodityType.CPU_ALLOCATION)
             .put("CPUProvisioned",              CommodityType.CPU_PROVISIONED)
+            .put("CPURequestAllocation",        CommodityType.CPU_REQUEST_ALLOCATION)
             .put("CrossCloudMoveSvc",           CommodityType.CROSS_CLOUD_MOVE_SVC)
             .put("CrossClusterMoveSvc",         CommodityType.CROSS_CLUSTER_MOVE_SVC)
             .put("DataCenterCommodity",         CommodityType.DATACENTER)
@@ -86,6 +87,7 @@ public class ClassicEnumMapper {
             .put("Mem",                         CommodityType.MEM)
             .put("MemAllocation",               CommodityType.MEM_ALLOCATION)
             .put("MemProvisioned",              CommodityType.MEM_PROVISIONED)
+            .put("MemRequestAllocation",        CommodityType.MEM_REQUEST_ALLOCATION)
             .put("NetThroughput",               CommodityType.NET_THROUGHPUT)
             .put("NetworkCommodity",            CommodityType.NETWORK)
             .put("NumberConsumers",             CommodityType.NUMBER_CONSUMERS)
@@ -116,14 +118,10 @@ public class ClassicEnumMapper {
             .put("Transaction",                 CommodityType.TRANSACTION)
             .put("TransactionLog",              CommodityType.TRANSACTION_LOG)
             .put("VCPU",                        CommodityType.VCPU)
-            .put("VCPULimitQuota",              CommodityType.VCPU_LIMIT_QUOTA)
             .put("VCPURequest",                 CommodityType.VCPU_REQUEST)
-            .put("VCPURequestQuota",            CommodityType.VCPU_REQUEST_QUOTA)
             .put("VDCCommodity",                CommodityType.VDC)
             .put("VMem",                        CommodityType.VMEM)
-            .put("VMemLimitQuota",              CommodityType.VMEM_LIMIT_QUOTA)
             .put("VMemRequest",                 CommodityType.VMEM_REQUEST)
-            .put("VMemRequestQuota",            CommodityType.VMEM_REQUEST_QUOTA)
             .put("VMPMAccessCommodity",         CommodityType.VMPM_ACCESS)
             .put("VStorage",                    CommodityType.VSTORAGE)
             .put("Unknown",                     CommodityType.UNKNOWN)
@@ -165,6 +163,7 @@ public class ClassicEnumMapper {
         COOLING("Cooling", "C"),
         CPU("CPU", "MHz"),
         CPU_ALLOCATION("CPUAllocation", "MHz"),
+        CPU_REQUEST_ALLOCATION("CPURequestAllocation", "MHz"),
         CPU_HEADROOM("CPUHeadroom", "VM"),
         CPU_EXHAUSTION("CPUExhaustion", "Day"),
         CPU_PROVISIONED("CPUProvisioned", "MHz"),
@@ -180,6 +179,7 @@ public class ClassicEnumMapper {
         IO_THROUGHPUT("IOThroughput", "KByte/sec"),
         MEM("Mem", "KB"),
         MEM_ALLOCATION("MemAllocation", "KB"),
+        MEM_REQUEST_ALLOCATION("MemRequestAllocation", "KB"),
         MEM_HEADROOM("MemHeadroom", "VM"),
         MEM_EXHAUSTION("MemExhaustion", "Day"),
         MEM_PROVISIONED("MemProvisioned", "KB"),
@@ -218,14 +218,10 @@ public class ClassicEnumMapper {
         TRANSACTION_LOG("TransactionLog", "GB"),
         VCPU("VCPU", "MHz"),
         VCPU_ALLOCATION("VCPUAllocation", "MHz"),
-        VCPU_LIMIT_QUOTA("VCPULimitQuota", "MHz"),
         VCPU_REQUEST("VCPURequest", "MHz"),
-        VCPU_REQUEST_QUOTA("VCPURequestQuota", "MHz"),
         VMEM("VMem", "KB"),
         VMEM_ALLOCATION("VMemAllocation", "MB"),
-        VMEM_LIMIT_QUOTA("VMemLimitQuota", "KB"),
         VMEM_REQUEST("VMemRequest", "KB"),
-        VMEM_REQUEST_QUOTA("VMemRequestQuota", "KB"),
         VSTORAGE("VStorage", "MB"),
         // Access Commodities
         CLUSTER("ClusterCommodity", ""),

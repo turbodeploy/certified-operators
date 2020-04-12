@@ -197,12 +197,12 @@ public class EntitySettingStore {
     }
 
     /**
-     * Return the Setting Policies associated with an entity set.
-     * @param entityIds ID set of the entities
+     * Return the Setting Policies associated with an entity.
+     * @param entityId ID of the entity
      * @return Stream of Setting Policies associated with the entity.
      * @throws StoreOperationException on error operating with DB backend
      */
-    public Collection<SettingPolicy> getEntitySettingPolicies(@Nonnull final Set<Long> entityIds)
+    public Collection<SettingPolicy> getEntitySettingPolicies(final long entityId)
             throws StoreOperationException {
         final ContextSettingSnapshotCache contextCache =
                 entitySettingSnapshots.get(realtimeTopologyContextId);
@@ -214,9 +214,8 @@ public class EntitySettingStore {
             return Collections.emptySet();
         }
 
-        Set<Long> settingPolicyIds = new HashSet<>();
-        entityIds.stream().forEach(entityId -> settingPolicyIds.addAll(snapshot.get()
-                .getEntitySettingPolicyIds(entityId)));
+        Set<Long> settingPolicyIds =
+                snapshot.get().getEntitySettingPolicyIds(entityId);
         if (settingPolicyIds.isEmpty()) {
             return Collections.emptySet();
         }

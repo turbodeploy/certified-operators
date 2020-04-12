@@ -156,15 +156,8 @@ public class StitchingJournal<T extends JournalableEntity<T>> implements IStitch
 
     @Override
     public void recordOperationBeginning(@Nonnull final JournalableOperation operation) {
-        recordOperationBeginning(operation, Collections.emptyList());
-    }
-
-    @Override
-    public void recordOperationBeginning(@Nonnull final JournalableOperation operation,
-                                         @Nonnull final Collection<String> details) {
         Preconditions.checkState(!ongoingOperation.isPresent());
-        final OngoingOperation oOperation = new OngoingOperation(operation, clock.millis(), details);
-        ongoingOperation = Optional.of(oOperation);
+        ongoingOperation = Optional.of(new OngoingOperation(operation, clock.millis()));
         semanticDiffer.setVerbosity(currentOperationVerbosity());
 
         // Only record the operation start if the operation makes any changes. This prevents
@@ -172,9 +165,8 @@ public class StitchingJournal<T extends JournalableEntity<T>> implements IStitch
         if (journalOptions.getRecordEmptyOperations()) {
             // If recordEmptyOperations is set, no need to wait for the operation to make
             // a change before recording it.
-            recorders.forEach(recorder -> recorder.recordOperationStart(
-                oOperation.getOperation(), oOperation.getOperationDetails()));
-            oOperation.markRecorded();
+            recordToAll(operation, JournalRecorder::recordOperationStart);
+            ongoingOperation.get().markRecorded();
         }
     }
 
@@ -192,7 +184,6 @@ public class StitchingJournal<T extends JournalableEntity<T>> implements IStitch
             // Only add the message about the operation ending if the operation start message was recorded
             // (ie the operation made at least one change).
             recorders.forEach(recorder -> recorder.recordOperationEnd(oOperation.getOperation(),
-                oOperation.getOperationDetails(),
                 oOperation.getChangesetsGenerated(),
                 oOperation.getChangesetsIncluded(),
                 oOperation.getEmptyChangests(),
@@ -406,8 +397,7 @@ public class StitchingJournal<T extends JournalableEntity<T>> implements IStitch
             // If the operation start was not yet recorded to the journal, record it when we first
             // observe a changeset for that operation.
             if (!operation.isRecorded()) {
-                recorders.forEach(recorder -> recorder.recordOperationStart(
-                    operation.getOperation(), operation.getOperationDetails()));
+                recordToAll(operation.getOperation(), JournalRecorder::recordOperationStart);
                 operation.markRecorded();
             }
         });
@@ -483,17 +473,14 @@ public class StitchingJournal<T extends JournalableEntity<T>> implements IStitch
     private static class OngoingOperation {
         private final JournalableOperation operation;
         private final long startTimeMillis;
-        private final Collection<String> operationDetails;
         private int changesetsGenerated;
         private int changesetsIncluded;
         private int emptyChangests;
         private boolean recorded;
 
         public OngoingOperation(@Nonnull final JournalableOperation operation,
-                                @Nonnull final long startTimeMillis,
-                                @Nonnull final Collection<String> details) {
+                                @Nonnull final long startTimeMillis) {
             this.operation = Objects.requireNonNull(operation);
-            this.operationDetails = Objects.requireNonNull(details);
             this.startTimeMillis = startTimeMillis;
             this.changesetsGenerated = 0;
             this.changesetsIncluded = 0;
@@ -509,10 +496,6 @@ public class StitchingJournal<T extends JournalableEntity<T>> implements IStitch
         public void addChangesetsIncluded(int additionalChangesetsIncluded) {
             Preconditions.checkArgument(additionalChangesetsIncluded >= 0);
             this.changesetsIncluded += additionalChangesetsIncluded;
-        }
-
-        public Collection<String> getOperationDetails() {
-            return operationDetails;
         }
 
         /**

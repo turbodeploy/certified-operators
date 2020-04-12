@@ -31,10 +31,6 @@ public class StatsUtils {
 
     private static final String KBIT_SEC = "Kbit/sec";
     private static final String BIT_SEC = "bit/sec";
-    /**
-     * Prefix used for commodity key.
-     */
-    public static final String COMMODITY_KEY_PREFIX = "KEY: ";
 
     // map of commodity number to units-multiplier pair
     private static final Map<Integer, Pair<String, Integer>> UNITS_CONVERTER = ImmutableMap.of(
