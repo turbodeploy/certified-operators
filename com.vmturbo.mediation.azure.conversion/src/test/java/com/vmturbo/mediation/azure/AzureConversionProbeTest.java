@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -31,6 +32,7 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         .getPath();
 
     @Test
+    @Ignore
     public void testEngineering() throws Exception {
         DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(AZURE_ENGINEERING_FILE_PATH);
         AzureConversionProbe probe = Mockito.spy(new AzureConversionProbe());
@@ -56,6 +58,7 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
     }
 
     @Test
+    @Ignore
     public void testProductmgmt() throws Exception {
         DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(AZURE_PRODUCTMGMT_FILE_PATH);
         AzureConversionProbe probe = Mockito.spy(new AzureConversionProbe());

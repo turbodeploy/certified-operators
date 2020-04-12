@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Lists;
 
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
@@ -57,6 +58,7 @@ public class AwsCloudDiscoveryConverterTest {
     }
 
     @Test
+    @Ignore
     public void testVirtualMachineConverter() {
         VirtualMachineConverter vmConverter = new VirtualMachineConverter(SDKProbeType.AWS);
         EntityDTO.Builder ba = awsConverter.getNewEntityBuilder(masterAccountId);

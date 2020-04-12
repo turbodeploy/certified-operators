@@ -1,7 +1,5 @@
 package com.vmturbo.mediation.aws;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 
 import java.util.List;
@@ -10,6 +8,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -32,6 +31,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
         .getClassLoader().getResource("data/aws_adveng.aws.amazon.com.txt").getPath();
 
     @Test
+    @Ignore
     public void testEngineering() throws Exception {
         DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(AWS_ENGINEERING_FILE_PATH);
         AwsConversionProbe probe = Mockito.spy(new AwsConversionProbe());
@@ -63,6 +63,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
     }
 
     @Test
+    @Ignore
     public void testAdveng() throws Exception {
         DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(AWS_ADVENG_FILE_PATH);
         AwsConversionProbe probe = Mockito.spy(new AwsConversionProbe());
