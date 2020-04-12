@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store.query;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -60,25 +61,6 @@ public class QueryFilter {
             return false;
         }
 
-        // Using List.contains is ok, because the number of acceptable
-        // states should be small (less than the total states).
-        if (!filter.getStatesList().isEmpty() &&
-            !filter.getStatesList().contains(actionView.getState())) {
-            return false;
-        }
-
-        // Same as states check, we also check the mode too.
-        if (!filter.getModesList().isEmpty() &&
-                !filter.getModesList().contains(actionView.getMode())) {
-            return false;
-        }
-
-        if (!filter.getTypesList().isEmpty() &&
-                !filter.getTypesList().contains(ActionDTOUtil.getActionInfoActionType(
-                        actionView.getTranslationResultOrOriginal()))) {
-            return false;
-        }
-
         if (filter.hasEnvironmentType()) {
             try {
                 final ActionEnvironmentType envType =
@@ -91,7 +73,6 @@ public class QueryFilter {
                 return false;
             }
         }
-
 
         // Return false if the action is not related to the specified entities.
         if (filter.hasInvolvedEntities() || filter.getEntityTypeCount() > 0) {
@@ -137,11 +118,31 @@ public class QueryFilter {
             }
         }
 
-        if (!filter.getCategoriesList().isEmpty() &&
-                !filter.getCategoriesList().contains(actionView.getActionCategory())) {
+        if (!filterByCollection(filter.getSeveritiesList(), actionView.getActionSeverity())) {
+            return false;
+        }
+
+        if (!filterByCollection(filter.getTypesList(), ActionDTOUtil.getActionInfoActionType(
+                                                            actionView.getTranslationResultOrOriginal()))) {
+            return false;
+        }
+
+        if (!filterByCollection(filter.getModesList(), actionView.getMode())) {
+            return false;
+        }
+
+        if (!filterByCollection(filter.getStatesList(), actionView.getState())) {
+            return false;
+        }
+
+        if (!filterByCollection(filter.getCategoriesList(), actionView.getActionCategory())) {
             return false;
         }
 
         return true;
+    }
+
+    private static <T> boolean filterByCollection(@Nonnull Collection<T> collection, @Nonnull T element) {
+        return collection.isEmpty() || collection.contains(element);
     }
 }

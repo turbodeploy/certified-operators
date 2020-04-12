@@ -2293,14 +2293,15 @@ public class GroupRpcServiceTest {
         Mockito.verify(searchServiceMole).searchEntityOids(searchRequestCaptor.capture());
         Assert.assertEquals(Sets.newHashSet(345L, 456L, 567L, 789L), new HashSet<>(
                 searchRequestCaptor.getValue()
-                        .getSearchParameters(0)
-                        .getSearchFilter(0)
-                        .getPropertyFilter()
-                        .getStringFilter()
-                        .getOptionsList()
-                        .stream()
-                        .map(Long::parseLong)
-                        .collect(Collectors.toSet())));
+                    .getSearch()
+                    .getSearchParameters(0)
+                    .getSearchFilter(0)
+                    .getPropertyFilter()
+                    .getStringFilter()
+                    .getOptionsList()
+                    .stream()
+                    .map(Long::parseLong)
+                    .collect(Collectors.toSet())));
 
         final ArgumentCaptor<GroupFilter> getGroupsCaptor =
                 ArgumentCaptor.forClass(GroupFilter.class);

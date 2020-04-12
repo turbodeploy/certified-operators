@@ -30,6 +30,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.TopologyConversionConstants;
@@ -592,10 +593,28 @@ public class CommodityConverter {
         return specs.iterator().next();
     }
 
+    /**
+     * Retrieve commodity type for the specified market commodity ID.
+     * @param marketCommodityId Market commodity ID
+     * @return {@link CommodityType}
+     */
     @VisibleForTesting
     @Nonnull
     CommodityType commodityIdToCommodityType(final int marketCommodityId) {
         return commodityTypeAllocator.marketCommIdToCommodityType(marketCommodityId);
+    }
+
+    /**
+     * Retrieve commodity type and slot number for the specified market commodity ID.
+     *
+     * @param marketCommodityId Market commodity ID
+     * @return Pair containing {@link CommodityType} and slot number for time slot commodities
+     *              or empty Optional for non-time slot commodities
+     */
+    @Nonnull
+    Pair<CommodityType, Optional<Integer>> commodityIdToCommodityTypeAndSlot(
+        final int marketCommodityId) {
+        return commodityTypeAllocator.marketCommIdToCommodityTypeAndSlot(marketCommodityId);
     }
 
     /**

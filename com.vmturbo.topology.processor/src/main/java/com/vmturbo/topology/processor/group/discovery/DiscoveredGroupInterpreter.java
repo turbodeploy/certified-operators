@@ -320,7 +320,7 @@ class DiscoveredGroupInterpreter {
         return Optional.of(EntityFilters.newBuilder().addEntityFilter(EntityFilter.newBuilder()
                 .setEntityType(sdkDTO.getEntityType().getNumber())
                 .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                        .addSearchParameters(searchParametersBuilder))));
+                    .addSearchParameters(searchParametersBuilder))));
     }
 
     /**

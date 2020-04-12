@@ -21,7 +21,6 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.jooq.Table;
 
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.EntityType.UseCase;
 import com.vmturbo.history.schema.abstraction.Vmtdb;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -35,28 +34,29 @@ public class EntityTypeDefinitions {
 
     // names for entity types that do not have corresponding ApiEntityType instances.
     /** APPLICATION_SPEND entity type name. */
-    public static final String APPLICATION_SPEND = "ApplicationSpend";
+    private static final String APPLICATION_SPEND = "ApplicationSpend";
     /** VIRTUAL_MACHINE_SPEND entity type name. */
-    public static final String VIRTUAL_MACHINE_SPEND = "VirtualMachineSpend";
+    private static final String VIRTUAL_MACHINE_SPEND = "VirtualMachineSpend";
 
     // following constants are used as aliases and/or in construction of data structures used in
     // this class and/or in tests, so they're defined here with variables and then incorporated by
     // reference in the ENTITY_TYPE_DEFINITIONS list below
-    static final EntityType APPLICATION_ENTITY_TYPE = create(ApiEntityType.APPLICATION, "app_stats", STANDARD_STATS);
-    static final EntityType APPLICATION_SPEND_ENITTY_TYPE = create(APPLICATION_SPEND, "app_spend", Spend);
-    static final EntityType CONTAINER_POD_ENTITY_TYPE = create(ApiEntityType.CONTAINER_POD, "cpod_stats", STANDARD_STATS);
+    private static final EntityType APPLICATION_ENTITY_TYPE = create(ApiEntityType.APPLICATION, "app_stats", STANDARD_STATS);
+    static final EntityType
+            APPLICATION_SPEND_ENTITY_TYPE = create(APPLICATION_SPEND, "app_spend", Spend);
+    private static final EntityType CONTAINER_POD_ENTITY_TYPE = create(ApiEntityType.CONTAINER_POD, "cpod_stats", STANDARD_STATS);
     // PM must precede DATACENTER for aliasing
-    static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = create(ApiEntityType.PHYSICAL_MACHINE, "pm_stats", STANDARD_STATS);
-    static final EntityType DATA_CENTER_ENTITY_TYPE = create(ApiEntityType.DATACENTER, PHYSICAL_MACHINE_ENTITY_TYPE, NON_ROLLUP_STATS);
-    static final EntityType VIRTUAL_DATACENTER_ENTITY_TYPE = create(ApiEntityType.VIRTUAL_DATACENTER, "vdc_stats", STANDARD_STATS);
-    static final EntityType VIRTUAL_MACHINE_SPEND_ENTITY_TYPE = create(VIRTUAL_MACHINE_SPEND, "vm_spend", Spend);
+    private static final EntityType PHYSICAL_MACHINE_ENTITY_TYPE = create(ApiEntityType.PHYSICAL_MACHINE, "pm_stats", STANDARD_STATS);
+    private static final EntityType DATA_CENTER_ENTITY_TYPE = create(ApiEntityType.DATACENTER, PHYSICAL_MACHINE_ENTITY_TYPE, NON_ROLLUP_STATS);
+    private static final EntityType VIRTUAL_DATACENTER_ENTITY_TYPE = create(ApiEntityType.VIRTUAL_DATACENTER, "vdc_stats", STANDARD_STATS);
+    private static final EntityType VIRTUAL_MACHINE_SPEND_ENTITY_TYPE = create(VIRTUAL_MACHINE_SPEND, "vm_spend", Spend);
 
     // this is where all the rest of the entity types are defined
     static final List<EntityType> ENTITY_TYPE_DEFINITIONS = ImmutableList.of(
             APPLICATION_ENTITY_TYPE,
             create(ApiEntityType.APPLICATION_COMPONENT, "app_component_stats", STANDARD_STATS),
             create(ApiEntityType.APPLICATION_SERVER, "app_server_stats", STANDARD_STATS),
-            APPLICATION_SPEND_ENITTY_TYPE,
+            APPLICATION_SPEND_ENTITY_TYPE,
             create(ApiEntityType.AVAILABILITY_ZONE),
             create(ApiEntityType.BUSINESS_ACCOUNT),
             create(ApiEntityType.BUSINESS_APPLICATION, "business_app_stats", NON_ROLLUP_STATS),
@@ -67,6 +67,7 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.COMPUTE_TIER, PersistEntity),
             create(ApiEntityType.CONTAINER, "cnt_stats", STANDARD_STATS),
             CONTAINER_POD_ENTITY_TYPE,
+            create(ApiEntityType.CONTAINER_SPEC, "cnt_spec_stats", STANDARD_STATS),
             create(ApiEntityType.DATABASE, "db_stats", STANDARD_STATS),
             create(ApiEntityType.DATABASE_SERVER, "db_server_stats", STANDARD_STATS),
             create(ApiEntityType.DATABASE_SERVER_TIER, PersistEntity),
@@ -80,6 +81,7 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.IOMODULE, "iom_stats", STANDARD_STATS),
             create(ApiEntityType.LOAD_BALANCER, "load_balancer_stats", NON_PRICE_STATS),
             create(ApiEntityType.LOGICALPOOL, "lp_stats", STANDARD_STATS),
+            create(ApiEntityType.NAMESPACE, "nspace_stats", STANDARD_STATS),
             create(ApiEntityType.NETWORK),
             PHYSICAL_MACHINE_ENTITY_TYPE,
             create(ApiEntityType.REGION),
@@ -95,7 +97,9 @@ public class EntityTypeDefinitions {
             create(ApiEntityType.VIRTUAL_MACHINE, "vm_stats", STANDARD_STATS),
             VIRTUAL_MACHINE_SPEND_ENTITY_TYPE,
             create(ApiEntityType.VIRTUAL_VOLUME),
-            create(ApiEntityType.VPOD, "vpod_stats", STANDARD_STATS)
+            create(ApiEntityType.VPOD, "vpod_stats", STANDARD_STATS),
+            create(ApiEntityType.WORKLOAD_CONTROLLER, "wkld_ctl_stats", STANDARD_STATS),
+            create(ApiEntityType.SERVICE_PROVIDER)
     );
 
     // convenience methods for invoking the constructor for different scenarios

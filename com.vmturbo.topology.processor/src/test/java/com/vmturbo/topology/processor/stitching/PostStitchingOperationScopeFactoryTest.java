@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -68,6 +69,7 @@ public class PostStitchingOperationScopeFactoryTest {
     private final Target target2 = mock(Target.class);
     private final Target target3 = mock(Target.class);
     private final Target target4 = mock(Target.class);
+    private final Target target5 = mock(Target.class);
 
     private TopologyGraph<TopologyEntity> topologyGraph = topologyGraphOf(vm1, vm2, vm3, vm4, pm);
 
@@ -89,15 +91,19 @@ public class PostStitchingOperationScopeFactoryTest {
         when(probeStore.getProbeIdsForCategory(ProbeCategory.STORAGE)).thenReturn(Collections.emptyList());
         when(probeStore.getProbeIdsForCategory(ProbeCategory.HYPERCONVERGED)).thenReturn(
             Collections.singletonList(444L));
+        when(probeStore.getProbeIdsForCategory(ProbeCategory.GUEST_OS_PROCESSES)).thenReturn(
+                Collections.singletonList(555L));
 
         when(target1.getId()).thenReturn(1L);
         when(target2.getId()).thenReturn(2L);
         when(target3.getId()).thenReturn(3L);
         when(target4.getId()).thenReturn(4L);
+        when(target5.getId()).thenReturn(5L);
 
         when(targetStore.getProbeTargets(eq(111L))).thenReturn(Arrays.asList(target1, target3));
         when(targetStore.getProbeTargets(eq(222L))).thenReturn(Collections.singletonList(target2));
         when(targetStore.getProbeTargets(eq(444L))).thenReturn(Collections.singletonList(target4));
+        when(targetStore.getProbeTargets(eq(555L))).thenReturn(Collections.singletonList(target5));
     }
 
     @Test
@@ -188,6 +194,26 @@ public class PostStitchingOperationScopeFactoryTest {
             ProbeCategory.HYPERVISOR, EntityType.PHYSICAL_MACHINE).entities()
             .map(TopologyEntity::getOid)
             .collect(Collectors.toList()), contains(4L));
+    }
+
+    @Test
+    public void testHasAndMissProbeCategoryEntityTypeScope() throws Exception {
+        StitchingMergeInformation vm5Stitching = new StitchingMergeInformation(5L, 5L, StitchingErrors.none());
+        final TopologyEntity.Builder vm5 = topologyEntityBuilder(6L, EntityType.VIRTUAL_MACHINE,
+                discoveredBy(1L).withMerge(vm5Stitching).lastUpdatedAt(11L),
+                Collections.emptyList());
+        final TopologyEntity.Builder vm6 = topologyEntityBuilder(7L, EntityType.VIRTUAL_MACHINE,
+                discoveredBy(5L).lastUpdatedAt(66L),
+                Collections.emptyList());
+        final TopologyGraph<TopologyEntity> topologyGraph =
+                topologyGraphOf(vm1, vm2, vm3, vm5, vm6, vm4);
+        scopeFactory = new PostStitchingOperationScopeFactory(topologyGraph,
+                probeStore, targetStore, cpuCapacityStore);
+        Set<Long> vmsHaveHyperviosrMissGuestOs = scopeFactory.hasAndLacksProbeCategoryEntityTypeStitchingScope(
+                Collections.singleton(ProbeCategory.HYPERVISOR), Collections.singleton(ProbeCategory.GUEST_OS_PROCESSES), EntityType.VIRTUAL_MACHINE).entities()
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toSet());
+        Assert.assertEquals(vmsHaveHyperviosrMissGuestOs, Sets.newHashSet(1L, 2L, 3L));
     }
 
     @Test

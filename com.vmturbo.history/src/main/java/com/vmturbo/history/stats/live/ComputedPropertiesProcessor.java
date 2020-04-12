@@ -83,7 +83,7 @@ public class ComputedPropertiesProcessor {
      * These are the filters we expect on the ratio properties.
      */
     private static final Set<String> EXPECTED_FILTER_TYPES =
-            ImmutableSet.of(StringConstants.ENVIRONMENT_TYPE);
+            ImmutableSet.of(StringConstants.ENVIRONMENT_TYPE, StringConstants.STATE);
 
     // all original commodity requests
     private final Set<CommodityRequest> originalRequests;
@@ -150,8 +150,8 @@ public class ComputedPropertiesProcessor {
                 .collect(Collectors.toSet());
 
         if (!unexpectedFilters.isEmpty()) {
-            logger.error("Unexpected ratio stat filters: {} in stats filter: {}." +
-                    "Returned ratios/counts may be inaccurate.", unexpectedFilters, statsFilter);
+            logger.error("Unexpected stat filters with computed properties: {} in stats filter: {}." +
+                    "Computed values/counts may be inaccurate.", unexpectedFilters, statsFilter);
         }
 
         final StatsFilter.Builder filterBuilder = StatsFilter.newBuilder(statsFilter)

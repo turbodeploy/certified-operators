@@ -7,6 +7,7 @@ import org.junit.Test;
 
 import com.vmturbo.api.dto.group.FilterApiDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
@@ -40,9 +41,11 @@ public class GroupFilterMapperTest {
         tagsFilter.setExpVal("key=value1|key=value2");
 
         GroupFilter groupFilter = groupFilterMapper.apiFilterToGroupFilter(
-                        GroupType.COMPUTE_HOST_CLUSTER, ImmutableList.of(nameFilter, tagsFilter));
+                        GroupType.COMPUTE_HOST_CLUSTER, LogicalOperator.OR, ImmutableList.of(nameFilter, tagsFilter));
         final PropertyFilter namePropertyFilter = groupFilter.getPropertyFiltersList().get(0);
         final PropertyFilter tagsPropertyFilter = groupFilter.getPropertyFiltersList().get(1);
+
+        Assert.assertEquals(groupFilter.getLogicalOperator(), LogicalOperator.OR);
 
         Assert.assertEquals(PropertyFilter.newBuilder()
                         .setPropertyName(StringConstants.DISPLAY_NAME_ATTR)

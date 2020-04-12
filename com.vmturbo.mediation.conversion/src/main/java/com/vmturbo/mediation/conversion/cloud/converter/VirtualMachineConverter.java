@@ -173,44 +173,14 @@ public class VirtualMachineConverter implements IEntityConverter {
                 // change commodity provider from AZ to CT
                 cbBuilder.setProviderId(entity.getProfileId());
                 cbBuilder.setProviderType(EntityType.COMPUTE_TIER);
-            } else if (providerEntityType == EntityType.STORAGE) {
-                String storageTier = provider.getStorageData().getStorageTier();
-                String storageTierId = converter.getStorageTierId(storageTier);
-
-                // change commodity provider from Storage to StorageTier
-                cbBuilder.setProviderId(storageTierId);
-                cbBuilder.setProviderType(EntityType.STORAGE_TIER);
-
-                //  add connected relationship between vm, volume, storage tier and zone
+            } else if (providerEntityType == EntityType.STORAGE_TIER) {
+                //  add connected relationship between vm and volume.
                 if (commodityBought.hasSubDivision()) {
                     // connect vm to volume
                     String svId = commodityBought.getSubDivision().getSubDivisionId();
                     if (!entity.getLayeredOverList().contains(svId)) {
                         entity.addLayeredOver(svId);
                     }
-
-                    // connect volume to storage tier
-                    Builder volume = converter.getNewEntityBuilder(svId);
-                    if (!volume.getLayeredOverList().contains(storageTierId)) {
-                        volume.addLayeredOver(storageTierId);
-                    }
-
-                    // connect volume to az for aws or gcp / to region for azure
-                    azId.ifPresent(az -> {
-                        if (probeType == SDKProbeType.AWS || probeType == SDKProbeType.GCP) {
-                            if (!volume.getLayeredOverList().contains(az)) {
-                                volume.addLayeredOver(az);
-                            }
-                        } else if (probeType == SDKProbeType.AZURE) {
-                            String regionId = converter.getRegionIdFromAzId(az);
-                            if (!volume.getLayeredOverList().contains(regionId)) {
-                                volume.addLayeredOver(regionId);
-                            }
-                        }
-                    });
-
-                    // volume owned by business account
-                    converter.ownedByBusinessAccount(svId);
                 }
             }
             newCommodityBoughtList.add(cbBuilder.build());
@@ -239,9 +209,6 @@ public class VirtualMachineConverter implements IEntityConverter {
         entity.clearCommoditiesBought();
         entity.addAllCommoditiesBought(newCommodityBoughtList);
 
-        // VM owned by business account
-        converter.ownedByBusinessAccount(entity.getId());
-
         return true;
     }
 
@@ -268,7 +235,6 @@ public class VirtualMachineConverter implements IEntityConverter {
                 addLayeredOver(entity, vId);
                 addLayeredOver(volume, zone);
                 addLayeredOver(volume, storageTierId);
-                converter.ownedByBusinessAccount(vId);
             }
         }
     }

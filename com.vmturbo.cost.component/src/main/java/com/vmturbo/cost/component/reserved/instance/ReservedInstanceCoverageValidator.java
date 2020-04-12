@@ -26,12 +26,14 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest.EntityRICoverageUpload.Coverage;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -70,8 +72,6 @@ public class ReservedInstanceCoverageValidator {
     @Nonnull
     private final Map<Long, ReservedInstanceSpec> reservedInstanceSpecById;
 
-    private final Map<Long, Long> billingIdByAccount;
-
     public ReservedInstanceCoverageValidator(
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
             @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
@@ -98,14 +98,6 @@ public class ReservedInstanceCoverageValidator {
                     .stream()
                     .collect(ImmutableMap.toImmutableMap(
                             ReservedInstanceSpec::getId, Function.identity()));
-        this.billingIdByAccount = cloudTopology.getAllEntitiesOfType(EntityType.BUSINESS_ACCOUNT_VALUE)
-                .stream()
-                .collect(ImmutableMap.toImmutableMap(
-                        TopologyEntityDTO::getOid,
-                        entityDTO ->
-                                cloudTopology.getOwner(entityDTO.getOid())
-                                        .map(TopologyEntityDTO::getOid)
-                                        .orElse(entityDTO.getOid())));
 
     }
 
@@ -298,25 +290,47 @@ public class ReservedInstanceCoverageValidator {
 
         final ReservedInstanceBoughtInfo riInfo = reservedInstance.getReservedInstanceBoughtInfo();
         final boolean isReservedInstanceShared = riInfo.getReservedInstanceScopeInfo().getShared();
-        final long riAccount = riInfo.getBusinessAccountId();
+        final long reservedInstancePurchasingAccount = riInfo.getBusinessAccountId();
 
-        return cloudTopology.getOwner(entityDTO.getOid())
-                .map(entityAccount -> {
-                    if (isReservedInstanceShared) {
-                        final long entityBillingAccountId = billingIdByAccount
-                                .get(entityAccount.getOid());
-                        final long riBillingAccount = billingIdByAccount
-                                .get(riAccount);
-
-                        return entityBillingAccountId == riBillingAccount;
-                    } else {
-                        final ReservedInstanceScopeInfo riScopeInfo =
-                                riInfo.getReservedInstanceScopeInfo();
-
-                        return riScopeInfo.getApplicableBusinessAccountIdList()
-                                .contains(entityAccount.getOid());
-                    }
-                }).orElse(false);
+        if (isReservedInstanceShared) {
+            final Optional<GroupAndMembers> entityBillingAccountIdForVM = cloudTopology
+                    .getBillingFamilyForEntity(entityDTO.getOid());
+            final Optional<GroupAndMembers> entityBillingAccountIdForRi = cloudTopology
+                    .getBillingFamilyForEntity(reservedInstancePurchasingAccount);
+            if (entityBillingAccountIdForRi.isPresent() && entityBillingAccountIdForVM.isPresent()) {
+                    Grouping entityBillingAccountForRIGroup = entityBillingAccountIdForRi.get().group();
+                    Grouping entityBillingAccountForVMGroup = entityBillingAccountIdForVM.get().group();
+                    if (entityBillingAccountForRIGroup != null && entityBillingAccountForVMGroup != null) {
+                        long entityBillingAccountIdVM = entityBillingAccountForVMGroup.getId();
+                        long entityBillingAccountIdRI = entityBillingAccountForRIGroup.getId();
+                        if (entityBillingAccountIdRI == entityBillingAccountIdVM) {
+                            return true;
+                        } else {
+                            logger.debug("The billing account id for the entity {} and the RI {} is not the same",
+                                    entityDTO.getOid(), reservedInstance.getId());
+                            return false;
+                        }
+                } else {
+                    logger.warn("The billing account grouping is not present for id: {}",
+                            entityBillingAccountForRIGroup == null ? reservedInstance.getId() : entityDTO.getOid());
+                    return false;
+                }
+            } else {
+                logger.warn("Billing family not found for entity {}", entityBillingAccountIdForRi.isPresent()
+                        ? entityDTO.getOid() : reservedInstance.getId());
+                return false;
+            }
+        } else {
+            return cloudTopology.getOwner(entityDTO.getOid())
+                    .map(entityAccount -> {
+                        {
+                            final ReservedInstanceScopeInfo riScopeInfo =
+                                    riInfo.getReservedInstanceScopeInfo();
+                            return riScopeInfo.getApplicableBusinessAccountIdList()
+                                    .contains(entityAccount.getOid());
+                        }
+                    }).orElse(false);
+        }
     }
 
     /**

@@ -118,19 +118,19 @@ class HistoricalQueryMapper {
         final ActionGroupFilter.Builder agFilterBldr = ActionGroupFilter.newBuilder();
 
         CollectionUtils.emptyIfNull(query.actionInput().getActionModeList()).stream()
-            .map(actionSpecMapper::mapApiModeToXl)
+            .map(ActionSpecMapper::mapApiModeToXl)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .forEach(agFilterBldr::addActionMode);
 
         CollectionUtils.emptyIfNull(query.actionInput().getActionStateList()).stream()
-            .map(actionSpecMapper::mapApiStateToXl)
+            .map(ActionSpecMapper::mapApiStateToXl)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .forEach(agFilterBldr::addActionState);
 
         CollectionUtils.emptyIfNull(query.actionInput().getRiskSubCategoryList()).stream()
-            .map(actionSpecMapper::mapApiActionCategoryToXl)
+            .map(ActionSpecMapper::mapApiActionCategoryToXl)
             .filter(Optional::isPresent)
             .map(Optional::get)
             .forEach(agFilterBldr::addActionCategory);

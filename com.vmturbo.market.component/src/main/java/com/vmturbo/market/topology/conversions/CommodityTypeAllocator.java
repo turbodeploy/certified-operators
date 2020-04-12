@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.analysis.NumericIDAllocator;
 import com.vmturbo.market.topology.TopologyConversionConstants;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
@@ -146,10 +147,33 @@ public class CommodityTypeAllocator {
         return marketToTopologyCommodity(marketCommodity, Optional.empty());
     }
 
+    /**
+     * Retrieve commodity type for the specified market commodity ID.
+     * @param marketCommodityId Market commodity ID
+     * @return {@link CommodityType}
+     */
     @VisibleForTesting
     @Nonnull
     CommodityType marketCommIdToCommodityType(final int marketCommodityId) {
         return defaultKeyGenerator.stringToCommodityType(getMarketCommodityName(marketCommodityId));
+    }
+
+    /**
+     * Retrieve commodity type and slot number for the specified market commodity ID.
+     *
+     * @param marketCommodityId Market commodity ID
+     * @return Pair containing {@link CommodityType} and slot number for time slot commodities
+     *              or empty Optional for non-time slot commodities
+     */
+    @VisibleForTesting
+    @Nonnull
+    Pair<CommodityType, Optional<Integer>> marketCommIdToCommodityTypeAndSlot(final int marketCommodityId) {
+        final String commodityTypeString = getMarketCommodityName(marketCommodityId);
+        final CommodityType commodityType = defaultKeyGenerator.stringToCommodityType(
+            commodityTypeString);
+        final CommodityIDKeyGenerator keyGenerator = retrieveIdKeyGenerator(commodityType.getType());
+        final Optional<Integer> slotNumber = keyGenerator.getCommoditySlotNumber(commodityTypeString);
+        return new Pair<>(commodityType, slotNumber);
     }
 
     /**
@@ -252,6 +276,17 @@ public class CommodityTypeAllocator {
         @Nullable
         String commodityTypeToString(@Nonnull CommodityType commType, int slotIndex);
 
+
+        /**
+         * Get slot number for the specified commodity name.
+         *
+         *<p></p>
+         * @param commodityTypeString Commodity type name, of the form baseType|key|slotnumber
+         *              where key and slotnumebr are optional
+         * @return Slot number ot empty Optional for non-time slot commodities
+         */
+        @Nonnull
+        Optional<Integer> getCommoditySlotNumber(@Nonnull String commodityTypeString);
     }
 
     /**
@@ -313,6 +348,15 @@ public class CommodityTypeAllocator {
                 TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR + commType.getKey()
                 : "");
         }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Nonnull
+        @Override
+        public Optional<Integer> getCommoditySlotNumber(@Nonnull String commodityTypeString) {
+            return Optional.empty();
+        }
     }
 
     /**
@@ -347,6 +391,31 @@ public class CommodityTypeAllocator {
             final String key = (commType.hasKey() ? commType.getKey() : "");
             return String.join(TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR,
                 ImmutableList.of(String.valueOf(type), key, String.valueOf(slotIndex)));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Nonnull
+        @Override
+        public Optional<Integer> getCommoditySlotNumber(@Nonnull final String commodityTypeString) {
+            // The expected commodity type is of the pattern: baseType|key|slotNumber
+            // key is optional
+            String[] parts = commodityTypeString.split(Pattern.quote(
+                TopologyConversionConstants.COMMODITY_TYPE_KEY_SEPARATOR));
+            if (3 > parts.length) {
+                logger.error("Unexpectedly no slot number is present in commodity type {}",
+                    () -> commodityTypeString);
+                return Optional.empty();
+            }
+            final String slotNumber = parts[2];
+            try {
+                return Optional.of(Integer.valueOf(slotNumber));
+            } catch (NumberFormatException e) {
+                logger.error("Invalid slot number {} in commodity {}", () -> slotNumber,
+                    () -> commodityTypeString);
+                return Optional.empty();
+            }
         }
     }
 

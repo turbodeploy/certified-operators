@@ -230,8 +230,7 @@ public class PriceTableUploader implements DiagsRestorable {
                     Long previousHashCode = previousPriceTableKeyToChecksumMap.get(probePriceData.priceTableKey);
                     if (previousHashCode != null && previousHashCode == hashcode) {
                         logger.info("Last processed upload hash is the same as this one [{}], skipping upload" +
-                                        " for this price table.",
-                                Long.toUnsignedString(hashcode));
+                                        " for this price table.", hashcode);
                     } else {
                         logger.info("Price table upload hash check: new upload {} not found in database." +
                                 " We will upload.", hashcode);
@@ -692,55 +691,59 @@ public class PriceTableUploader implements DiagsRestorable {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public void restoreDiags(@Nonnull final List<String> collectedDiags) throws DiagnosticsException {
+    public void restoreDiags(@Nonnull final List<String> collectedDiags)
+            throws DiagnosticsException {
         if (collectedDiags.size() % 2 != 1) {
             //odd length because of one extra line for END_OF_TARGET_ID_MAPPINGS.
             throw new DiagnosticsException("Unexpected diags - should be odd length.");
         }
-
         final Gson gson = ComponentGsonFactory.createGsonNoPrettyPrint();
         synchronized (sourcePriceTableByTargetId) {
             final JsonFormat.Parser parser = JsonFormat.parser().ignoringUnknownFields();
-            Map<Long, Collection<String>> targetIdToPriceTableKey = Maps.newHashMap();
-            Map<Collection<String>, PricingDTO.PriceTable.Builder> priceTableKeyToData = Maps.newHashMap();
+            final Map<Long, Set<PricingIdentifier>> targetIdToPriceTableKey = Maps.newHashMap();
+            final Map<Set<PricingIdentifier>, PricingDTO.PriceTable.Builder> priceTableKeyToData =
+                    Maps.newHashMap();
 
-            final Type typeRef = new TypeToken<Collection<String>>() {}.getType();
+            final Type typeRef = new TypeToken<Set<PricingIdentifier>>() {}.getType();
             boolean endOfTargetMappingSeen = false;
             for (int i = 0; i + 2 <= collectedDiags.size(); i += 2) {
                 if (collectedDiags.get(i).equals(END_OF_TARGET_ID_MAPPINGS)) {
-                    i--; // to align the offset of the counter which reads the list.
+                    // To align the offset of the counter which reads the list.
+                    i--;
                     endOfTargetMappingSeen = true;
                     continue;
                 }
                 try {
                     if (endOfTargetMappingSeen) {
-                        String priceTableKeys = collectedDiags.get(i);
-                        Collection<String> pricingIdentifier = gson.fromJson(priceTableKeys, typeRef);
-                        String priceTable = collectedDiags.get(i + 1);
-                        PricingDTO.PriceTable.Builder priceTableBldr = PricingDTO.PriceTable.newBuilder();
+                        final String priceTableKeys = collectedDiags.get(i);
+                        final Set<PricingIdentifier> pricingIdentifier =
+                                gson.fromJson(priceTableKeys, typeRef);
+                        final String priceTable = collectedDiags.get(i + 1);
+                        final PricingDTO.PriceTable.Builder priceTableBldr =
+                                PricingDTO.PriceTable.newBuilder();
                         parser.merge(priceTable, priceTableBldr);
                         priceTableKeyToData.put(pricingIdentifier, priceTableBldr);
                     } else {
-                        Long targetId = Long.valueOf(collectedDiags.get(i));
-                        String priceTableKeys = collectedDiags.get(i + 1);
-                        Collection<String> pricingIdentifier = gson.fromJson(priceTableKeys, typeRef);
+                        final Long targetId = Long.valueOf(collectedDiags.get(i));
+                        final String priceTableKeys = collectedDiags.get(i + 1);
+                        final Set<PricingIdentifier> pricingIdentifier =
+                                gson.fromJson(priceTableKeys, typeRef);
                         targetIdToPriceTableKey.put(targetId, pricingIdentifier);
                     }
-                } catch (NumberFormatException e) {
+                } catch (final NumberFormatException e) {
                     logger.error("Failed to find targetId for : {}", collectedDiags.get(i));
-                } catch (InvalidProtocolBufferException e) {
-                    logger.error("Failed to deserialize price table. Error: {}", e.getMessage());
-                } catch (JsonSyntaxException e) {
-                    throw new DiagnosticsException("Failed to deserialize JSON: " + priceTableKeyToData);
+                } catch (final InvalidProtocolBufferException e) {
+                    logger.error("Failed to deserialize price table", e);
+                } catch (final JsonSyntaxException e) {
+                    throw new DiagnosticsException(
+                            "Failed to deserialize JSON: " + priceTableKeyToData, e);
                 }
             }
-            targetIdToPriceTableKey.forEach((key, priceTableKey) -> sourcePriceTableByTargetId.put(key,
-                    priceTableKeyToData.getOrDefault(priceTableKey,
-                            PricingDTO.PriceTable.newBuilder()).build()));
+            targetIdToPriceTableKey.forEach(
+                    (key, priceTableKey) -> sourcePriceTableByTargetId.put(key,
+                            priceTableKeyToData.getOrDefault(priceTableKey,
+                                    PricingDTO.PriceTable.newBuilder()).build()));
         }
     }
 

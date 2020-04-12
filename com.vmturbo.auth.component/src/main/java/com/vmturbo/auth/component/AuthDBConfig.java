@@ -9,17 +9,9 @@ import javax.sql.DataSource;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Strings;
-import org.jooq.DSLContext;
-import org.jooq.conf.RenderNameStyle;
-import org.jooq.conf.Settings;
-import org.jooq.impl.DefaultConfiguration;
-import org.jooq.impl.DefaultDSLContext;
-import org.jooq.impl.DefaultExecuteListenerProvider;
-import org.mariadb.jdbc.MariaDbDataSource;
-import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -231,7 +223,7 @@ public class AuthDBConfig extends SQLDatabaseConfig {
     public @Nonnull DataSource dataSource() {
         Optional<String> credentials = authKVConfig.authKeyValueStore().get(CONSUL_KEY);
         String dbPassword;
-        if (authDbPassword != null) {
+        if (StringUtils.isNotEmpty(authDbPassword)) {
             // Use authDbPassword if specified as environment variable.
             dbPassword = authDbPassword;
         } else if (!credentials.isPresent()) {

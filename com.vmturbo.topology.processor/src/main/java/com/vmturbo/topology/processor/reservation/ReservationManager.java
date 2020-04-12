@@ -1,13 +1,14 @@
 package com.vmturbo.topology.processor.reservation;
 
+import static com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil.CLOUD_PROBE_TYPES;
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -40,6 +41,7 @@ import com.vmturbo.common.protobuf.plan.ReservationDTO.UpdateReservationsRequest
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -48,10 +50,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Reserv
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.reservation.ReservationValidator.ValidationErrors;
+import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 import com.vmturbo.topology.processor.template.TemplatesNotFoundException;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
@@ -69,6 +73,10 @@ import com.vmturbo.topology.processor.topology.TopologyEditorException;
 public class ReservationManager {
     private static final Logger logger = LogManager.getLogger();
 
+    private static final double MAX_CAPACITY_VALUE = 1e9d;
+
+    static final String RESERVATION_KEY = "ReservationKey";
+
     // TODO: After OM-30576 is resolved, we can remove this epsilon check.
     // Because right now, in XL commodityDTO, it used double as data type, but in Market commodityDTO,
     // it use float as data type, it will cause commodity value precision loss between real time
@@ -82,12 +90,16 @@ public class ReservationManager {
 
     private final ReservationValidator reservationValidator;
 
-    public ReservationManager(@Nonnull final ReservationServiceBlockingStub reservationService,
+    private final TargetStore targetStore;
+
+    ReservationManager(@Nonnull final ReservationServiceBlockingStub reservationService,
                               @Nonnull final TemplateConverterFactory templateConverterFactory,
-                              @Nonnull final ReservationValidator reservationValidator) {
+                              @Nonnull final ReservationValidator reservationValidator,
+                              @Nonnull final TargetStore targetStore) {
         this.reservationService = Objects.requireNonNull(reservationService);
         this.templateConverterFactory = Objects.requireNonNull(templateConverterFactory);
         this.reservationValidator = Objects.requireNonNull(reservationValidator);
+        this.targetStore = Objects.requireNonNull(targetStore);
     }
 
     /**
@@ -102,31 +114,6 @@ public class ReservationManager {
                                 TopologyInfo topologyInfo) {
         TopologyType topologyType = topologyInfo.getTopologyType();
         PlanProjectType planType  = topologyInfo.getPlanInfo().getPlanProjectType();
-        // all entities above vm in supply chain should be removed for reservation plan.
-        if (planType == PlanProjectType.RESERVATION_PLAN) {
-            Set<Long> entiesToRemove = new HashSet<>();
-            for (Entry<Long, Builder> entry : topology.entrySet()) {
-                TopologyEntity.Builder entity = entry.getValue();
-                Long oid = entry.getKey();
-                if (entity.getEntityType() == EntityType.APPLICATION_SERVER.getValue() ||
-                        entity.getEntityType() == EntityType.DATABASE_SERVER.getValue() ||
-                        entity.getEntityType() == EntityType.BUSINESS_APPLICATION.getValue() ||
-                        entity.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue() ||
-                        entity.getEntityType() == EntityType.APPLICATION.getValue() ||
-                        entity.getEntityType() == EntityType.CONTAINER.getValue() ||
-                        entity.getEntityType() == EntityType.CONTAINER_POD.getValue()) {
-                    entiesToRemove.add(oid);
-                }
-            }
-            for (Long oid : entiesToRemove) {
-                topology.remove(oid);
-            }
-        }
-        final GetAllReservationsRequest allReservationsRequest = GetAllReservationsRequest.newBuilder()
-                .build();
-        final Iterable<Reservation> allReservations = () ->
-                reservationService.getAllReservations(allReservationsRequest);
-
         // Retrieve all active reservations. The ones which has already been
         // taken care of by a previous reservation plan.
         final Map<Long, Reservation> reservedReservations = new HashMap<>();
@@ -235,6 +222,9 @@ public class ReservationManager {
                     numAdded++;
                 }
             }
+            if (numAdded != 0) {
+                addVMPMAccessCommodity(topology, reservedReservationTopologyEntities);
+            }
         } else if (planType == PlanProjectType.RESERVATION_PLAN) {
             // inProgressReservationTopologyEntities will be populated only for reservation plan.
             for (TopologyEntity.Builder reservedEntity : inProgressReservationTopologyEntities) {
@@ -246,6 +236,55 @@ public class ReservationManager {
             }
         }
         return numAdded;
+    }
+
+    /**
+     * Add VMPMAccess commodity to the sold list of every PM and
+     * add VMPMAccess commodity to the PM bought list of every reserved entity,
+     * so that reserved entities only buy from on-prem entities.
+     * Since a reserved entity always performs shop together, there's no need to add
+     * VMPMAccess commodity to the Storage bought list because biclique will handle it.
+     *
+     * <p>Note that there's no need to do this for reservation plan because plan scoping algorithm
+     * will filter out all cloud entities.
+     * Also, there's no need to add VMPMAccess commodity when no cloud target exists.
+     *
+     * @param topology a Map contains live discovered topologyEntity
+     * @param reservedEntities reserved entities
+     */
+    private void addVMPMAccessCommodity(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
+                                        @Nonnull final List<TopologyEntity.Builder> reservedEntities) {
+        // Get cloud target ids.
+        final Set<Long> cloudTargetIds = targetStore.getAll().stream()
+            .map(Target::getId)
+            .filter(targetId -> targetStore.getProbeTypeForTarget(targetId)
+                .map(CLOUD_PROBE_TYPES::contains)
+                .orElse(false))
+            .collect(Collectors.toSet());
+
+        // No need to add VMPMAccess commodity when no cloud target exists.
+        if (cloudTargetIds.isEmpty()) {
+            return;
+        }
+
+        // Add VMPMAccess commodity to the sold list of every PM.
+        topology.values().stream()
+            .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE)
+            .map(Builder::getEntityBuilder)
+            .forEach(entity -> entity.addCommoditySoldList(
+                CommoditySoldDTO.newBuilder().setCapacity(MAX_CAPACITY_VALUE)
+                    .setCommodityType(CommodityType.newBuilder().setType(VMPM_ACCESS_VALUE)
+                        .setKey(RESERVATION_KEY)).build()));
+
+        // Add VMPMAccess commodity to the PM bought list of every reserved entity.
+        reservedEntities.stream().flatMap(a -> a.getEntityBuilder()
+            .getCommoditiesBoughtFromProvidersBuilderList().stream())
+            .filter(commBought -> commBought.getProviderEntityType() ==
+                EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE)
+            .forEach(commBought -> commBought.addCommodityBought(
+                CommodityBoughtDTO.newBuilder().setUsed(1)
+                    .setCommodityType(CommodityType.newBuilder().setType(VMPM_ACCESS_VALUE)
+                        .setKey(RESERVATION_KEY)).build()));
     }
 
     /**
