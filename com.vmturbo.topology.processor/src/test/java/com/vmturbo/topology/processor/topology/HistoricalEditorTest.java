@@ -148,6 +148,26 @@ public class HistoricalEditorTest {
     }
 
     /**
+     * Apply historical editor with 0 initial values for real time.
+     */
+    @Test
+    public void testApplyCommodityEditsWith0InitialValuesForRealTime() {
+        testApplyCommodityEditsWith0InitialValues(TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.REALTIME)
+            .build());
+    }
+
+    /**
+     * Apply historical editor with 0 initial values for plan.
+     */
+    @Test
+    public void testApplyCommodityEditsWith0InitialValuesForPlan() {
+        testApplyCommodityEditsWith0InitialValues(TopologyInfo.newBuilder()
+            .setTopologyType(TopologyType.PLAN)
+            .build());
+    }
+
+    /**
      * Apply historical editor. historicalUsed and historicalPeak are updated.
      */
     @Test
@@ -510,6 +530,58 @@ public class HistoricalEditorTest {
         Assert.assertEquals(0, pm.getTopologyEntityDtoBuilder()
             .getCommoditySoldList(0).getHistoricalUsed().getHistUtilization(), FLOATING_POINT_DELTA);
         Assert.assertEquals(0, pm.getTopologyEntityDtoBuilder()
+            .getCommoditySoldList(0).getHistoricalPeak().getHistUtilization(), FLOATING_POINT_DELTA);
+    }
+
+    private void testApplyCommodityEditsWith0InitialValues(TopologyInfo topologyInfo) {
+        // 0 used/peak values during first broadcast
+        TopologyGraph<TopologyEntity> graph = createGraph(CommodityDTO.CommodityType.MEM, 0, 0, 0, 0);
+        // First time apply historicalEditor.
+        historicalEditor.applyCommodityEdits(graph, Collections.emptyList(), topologyInfo);
+
+        TopologyEntity pm = graph.getEntity(1L).get();
+        TopologyEntity vm = graph.getEntity(2L).get();
+
+        // Check VM values
+        Assert.assertEquals(0,
+            vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().get(0)
+                .getCommodityBoughtList().get(0).getHistoricalUsed().getHistUtilization(),
+            FLOATING_POINT_DELTA);
+        // historicalPeak = peak
+        Assert.assertEquals(0,
+            vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().get(0)
+                .getCommodityBoughtList().get(0).getHistoricalPeak().getHistUtilization(),
+            FLOATING_POINT_DELTA);
+
+        // Check PM values
+        Assert.assertEquals(0, pm.getTopologyEntityDtoBuilder()
+            .getCommoditySoldList(0).getHistoricalUsed().getHistUtilization(), FLOATING_POINT_DELTA);
+        Assert.assertEquals(0, pm.getTopologyEntityDtoBuilder()
+            .getCommoditySoldList(0).getHistoricalPeak().getHistUtilization(), FLOATING_POINT_DELTA);
+
+        // correct used/peak values during second broadcast
+        graph = createGraph(CommodityDTO.CommodityType.MEM, 20, 200, 20, 200);
+        // Second time apply historicalEditor. Match the new commodity with the previous one.
+        historicalEditor.applyCommodityEdits(graph, Collections.emptyList(), topologyInfo);
+
+        pm = graph.getEntity(1L).get();
+        vm = graph.getEntity(2L).get();
+
+        // Check VM values
+        Assert.assertEquals(20,
+            vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().get(0)
+                .getCommodityBoughtList().get(0).getHistoricalUsed().getHistUtilization(),
+            FLOATING_POINT_DELTA);
+        // historicalPeak = peak
+        Assert.assertEquals(200,
+            vm.getTopologyEntityDtoBuilder().getCommoditiesBoughtFromProvidersList().get(0)
+                .getCommodityBoughtList().get(0).getHistoricalPeak().getHistUtilization(),
+            FLOATING_POINT_DELTA);
+
+        // Check PM values
+        Assert.assertEquals(20, pm.getTopologyEntityDtoBuilder()
+            .getCommoditySoldList(0).getHistoricalUsed().getHistUtilization(), FLOATING_POINT_DELTA);
+        Assert.assertEquals(200, pm.getTopologyEntityDtoBuilder()
             .getCommoditySoldList(0).getHistoricalPeak().getHistUtilization(), FLOATING_POINT_DELTA);
     }
 }
