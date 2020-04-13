@@ -9,18 +9,18 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.mockito.Mockito;
-
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesRequest;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.GetTemplatesResponse;
@@ -99,7 +99,7 @@ public class TemplateConverterFactoryTest {
                                         EntityType.STORAGE_VALUE)
                         .count());
         Assert.assertTrue(topologyEntityDTOList.stream()
-                .anyMatch(entity -> entity.getDisplayName().contains("Clone")));
+                .anyMatch(entity -> entity.getDisplayName().contains("Cloning")));
         Assert.assertTrue(topologyEntityDTOList.stream()
                 .allMatch(entity -> entity.getAnalysisSettings().getShopTogether()));
     }
@@ -151,7 +151,7 @@ public class TemplateConverterFactoryTest {
     }
 
     @Test
-    public void testTemplateAdditionForReservation() {
+    public void testTemplateAdditionForReservation() throws Exception {
         final Map<Long, Long> templateAdditions = ImmutableMap.of(TEMPLATE_ID, 3L);
         when(templateServiceMole.getTemplates(GetTemplatesRequest.newBuilder()
                 .setFilter(TemplatesFilter.newBuilder()
