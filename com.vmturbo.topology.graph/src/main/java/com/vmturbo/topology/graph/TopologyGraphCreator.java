@@ -48,6 +48,15 @@ public class TopologyGraphCreator<BUILDER extends TopologyGraphEntity.Builder<BU
     }
 
     /**
+     * Create a new graph creator, with a provided expected size.
+     *
+     * @param expectedSize The expected size for the graph.
+     */
+    public TopologyGraphCreator(int expectedSize) {
+        topoEntities = new HashMap<>(expectedSize);
+    }
+
+    /**
      * Add an entity to the graph.
      *
      * @param entity The builder for the entity to add.
