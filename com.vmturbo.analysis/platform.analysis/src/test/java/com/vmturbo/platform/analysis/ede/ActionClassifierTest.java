@@ -33,7 +33,6 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 public class ActionClassifierTest {
@@ -194,7 +193,7 @@ public class ActionClassifierTest {
             Deactivate thirdDeactivate = new Deactivate(first, pm1, buying.get(pmShoppingList));
             thirdActions.add(thirdDeactivate);
             third.populateMarketsWithSellersAndMergeConsumerCoverage();
-            thirdReplayActions.replayActions(third, new Ledger(third), SuspensionsThrottlingConfig.DEFAULT);
+            thirdReplayActions.replayActions(third, new Ledger(third));
             assertEquals(1, thirdReplayActions.getActions().size());
         } catch (ClassNotFoundException | IOException e) {
             assertTrue(false);

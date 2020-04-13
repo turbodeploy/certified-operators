@@ -6,7 +6,6 @@ import static org.junit.Assert.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.junit.Assert;
@@ -24,7 +23,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
 /**
@@ -67,7 +65,7 @@ public class SuspensionTest {
         Ledger ledger = new Ledger(economy);
         Ede ede = new Ede();
 
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         List<Action> suspAxns = suspension.suspensionDecisions(economy, ledger);
 
         assertTrue(suspAxns.isEmpty());
@@ -83,7 +81,7 @@ public class SuspensionTest {
         // adding 1 non-suspendable traders
         economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
 
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         // check if returned action list is empty
         assertTrue(suspension.suspensionDecisions(economy, new Ledger(economy)).isEmpty());
     }
@@ -121,7 +119,7 @@ public class SuspensionTest {
         Ledger ledger = new Ledger(economy);
         Ede ede = new Ede();
 
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         List<Action> suspAxns = suspension.suspensionDecisions(economy, ledger);
 
         // verify that the we suspend extra seller
@@ -144,7 +142,7 @@ public class SuspensionTest {
         Ledger ledger = new Ledger(economy);
         Ede ede = new Ede();
 
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         List<Action> suspAxns = suspension.suspensionDecisions(economy, ledger);
 
         assertTrue(suspAxns.isEmpty());
@@ -163,7 +161,7 @@ public class SuspensionTest {
 
         seller.getSettings().setMaxDesiredUtil(0.5);
 
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.adjustUtilThreshold(economy, true);
 
         // verify that the utilUpperBound has changed to maxDesiredUtil
@@ -195,65 +193,13 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         List<Action> actions = new ArrayList<>();
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.suspendTrader(economy, economy.getMarketsAsSeller(seller).iterator().next(),
             seller, actions);
 
         // verify that we have 1 deactivate action when suspendTrader is called
         assertTrue(actions.size() == 1);
         assertTrue(actions.get(0) instanceof Deactivate);
-    }
-
-    /**
-     * Verify that we suspend as many traders as needed with Suspension Throttling as DEFAULT.
-     */
-    @Test
-    public void suspendTraderDefaultThrottling() {
-        Economy economy = new Economy();
-        Trader vm = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
-        Trader seller1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
-        Trader seller2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
-        Trader seller3 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
-        vm.setDebugInfoNeverUseInCode("vm");
-        seller1.setDebugInfoNeverUseInCode("pm1").getSettings().setCanAcceptNewCustomers(true).setSuspendable(true);
-        seller2.setDebugInfoNeverUseInCode("pm2").getSettings().setCanAcceptNewCustomers(true).setSuspendable(true);
-        seller3.setDebugInfoNeverUseInCode("pm3").getSettings().setCanAcceptNewCustomers(true).setSuspendable(true);
-        ShoppingList sl = economy.getMarketsAsBuyer(vm).keySet().iterator().next();
-        sl.move(seller1);
-        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
-        Ledger ledger = new Ledger(economy);
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
-        List<Action> actions = suspension.suspensionDecisions(economy, ledger);
-
-        // verify that we have 2 deactivate actions when DEFAULT suspension throttling is set.
-        assertTrue(actions.stream().filter(action -> action instanceof Deactivate)
-                        .collect(Collectors.toList()).size() == 2);
-    }
-
-    /**
-     * Verify that we suspend only 1 trader with Suspension Throttling as Cluster.
-     */
-    @Test
-    public void suspendTraderClusterThrottling() {
-        Economy economy = new Economy();
-        Trader vm = economy.addTrader(VM_TYPE, TraderState.ACTIVE, EMPTY, new Basket(CPU));
-        Trader seller1 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
-        Trader seller2 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
-        Trader seller3 = economy.addTrader(PM_TYPE, TraderState.ACTIVE, PM_SMALL);
-        vm.setDebugInfoNeverUseInCode("vm");
-        seller1.setDebugInfoNeverUseInCode("pm1").getSettings().setCanAcceptNewCustomers(true).setSuspendable(true);
-        seller2.setDebugInfoNeverUseInCode("pm2").getSettings().setCanAcceptNewCustomers(true).setSuspendable(true);
-        seller3.setDebugInfoNeverUseInCode("pm3").getSettings().setCanAcceptNewCustomers(true).setSuspendable(true);
-        ShoppingList sl = economy.getMarketsAsBuyer(vm).keySet().iterator().next();
-        sl.move(seller1);
-        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
-        Ledger ledger = new Ledger(economy);
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.CLUSTER);
-        List<Action> actions = suspension.suspensionDecisions(economy, ledger);
-
-        // verify that we have 1 deactivate action when CLUSTER suspension throttling is set.
-        assertTrue(actions.stream().filter(action -> action instanceof Deactivate)
-                        .collect(Collectors.toList()).size() == 1);
     }
 
     /**
@@ -266,7 +212,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -283,7 +229,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -300,7 +246,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -318,7 +264,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -336,7 +282,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -353,7 +299,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -372,7 +318,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -391,7 +337,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -410,7 +356,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -429,7 +375,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -447,7 +393,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -480,7 +426,7 @@ public class SuspensionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         //Act
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         suspension.findSoleProviders(economy);
 
         //Assert
@@ -519,7 +465,7 @@ public class SuspensionTest {
         Assert.assertNotNull(economy);
         Ledger ledger = new Ledger(economy);
         Ede ede = new Ede();
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         List<Action> actions = suspension.suspensionDecisions(economy, ledger);
 
         assertEquals(7, actions.size());  // 1 VM, 2 pods, 2 containers, and 2 apps should suspend
@@ -541,7 +487,7 @@ public class SuspensionTest {
         Assert.assertNotNull(economy);
         Ledger ledger = new Ledger(economy);
         Ede ede = new Ede();
-        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
+        Suspension suspension = new Suspension();
         List<Action> actions = suspension.suspensionDecisions(economy, ledger);
 
         // 1 VM, 1 GB, 2 pods, 2 containers, and 2 apps should suspend

@@ -27,7 +27,6 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
-import com.vmturbo.platform.analysis.economy.ScalingGroupPeerInfo;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
@@ -155,8 +154,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     @Override
     public @NonNull Move take() {
         Economy economy = getEconomy();
-        ScalingGroupPeerInfo info = economy.getScalingGroupPeerInfo(getTarget());
-        List<ShoppingList> peers = info.getPeers(getTarget());
+        List<ShoppingList> peers = economy.getPeerShoppingLists(getTarget().getShoppingListId());
         internalTake();
         for (ShoppingList shoppingList : peers) {
             logger.trace("Synthesizing Move for {} in scaling group {}",
@@ -178,8 +176,6 @@ public class Move extends MoveBase implements Action { // inheritance for code r
                 getSubsequentActions().add(move.internalTake().setImportance(savings));
             }
         }
-        // All moves have been taken, so the scaling group is now matched (i.e., all the same size).
-        info.setConsistentlySized(true);
         return this;
     }
 

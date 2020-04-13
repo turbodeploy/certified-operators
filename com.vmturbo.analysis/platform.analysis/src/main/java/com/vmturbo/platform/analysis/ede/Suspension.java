@@ -63,18 +63,8 @@ public class Suspension {
         return c1 > c2 ? 1 : c1 == c2 ? 0 : -1;
     });
 
-    private final @NonNull SuspensionsThrottlingConfig suspensionsThrottlingConfig;
-
-    /**
-     * Construct a Suspension with specified throttling level.
-     *
-     * @param suspensionsThrottlingConfig level of Suspension throttling.
-     *         CLUSTER: Make co sellers of suspended seller suspendable false.
-     *         DEFAULT: Unlimited suspensions.
-     */
-    public Suspension(@NonNull SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
-        this.suspensionsThrottlingConfig = suspensionsThrottlingConfig;
-    }
+    private static SuspensionsThrottlingConfig suspensionsThrottlingConfig =
+                                                                                 SuspensionsThrottlingConfig.DEFAULT;
 
     /**
      * Return a list of recommendations to optimize the suspension of all eligible traders in the
@@ -141,16 +131,14 @@ public class Suspension {
                                         t -> t.getSettings().isSuspendable())) {
                     continue;
                 }
-                List<Trader> suspensionCandidates = Lists.newArrayList(market.getActiveSellersAvailableForPlacement());
+                List<Trader> suspensionCandidates = new ArrayList<>();
+                // suspensionCandidates can be only activeSellers that canAcceptNewCustomers that are suspendable
+                suspensionCandidates.addAll(market.getActiveSellersAvailableForPlacement().stream()
+                                            .filter(t -> t.getSettings().isSuspendable())
+                                                .collect(Collectors.toList()));
                 for (Trader seller : suspensionCandidates) {
-                    // suspension candidates can be only activeSellers that canAcceptNewCustomers
-                    // that are suspendable
-                    if (!seller.getSettings().isSuspendable()) {
-                        continue;
-                    }
                     boolean isDebugTrader = seller.isDebugEnabled();
                     String sellerDebugInfo = seller.getDebugInfoNeverUseInCode();
-                    // Check for suspendable here because we might set co-sellers to be non suspendable.
                     if (!sellerHasNonDaemonCustomers(seller)) {
                         if (logger.isTraceEnabled() || isDebugTrader) {
                             logger.info("Suspending " + sellerDebugInfo
@@ -537,8 +525,12 @@ public class Suspension {
         }
     }
 
-    public SuspensionsThrottlingConfig getSuspensionsthrottlingconfig() {
+    public static SuspensionsThrottlingConfig getSuspensionsthrottlingconfig() {
         return suspensionsThrottlingConfig;
+    }
+
+    public static void setSuspensionsThrottlingConfig(SuspensionsThrottlingConfig suspensionsThrottligConfig) {
+        suspensionsThrottlingConfig = suspensionsThrottligConfig;
     }
 
     private static Stream<ShoppingList> makeNonDaemonCustomerStream(Trader seller) {

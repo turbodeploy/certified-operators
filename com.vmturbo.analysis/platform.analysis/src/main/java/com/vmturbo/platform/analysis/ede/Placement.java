@@ -199,17 +199,16 @@ public class Placement {
 
         if (logger.isTraceEnabled()) {
             logger.trace("PSL Sellers for shoppingList: " + shoppingList.toString());
-            for (Trader trader : sellers) {
-                if (AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader) != null) {
+            for(Trader trader : sellers){
+                if(AnalysisToProtobuf.replaceNewSupplier(shoppingList, economy, trader) != null) {
                     logger.trace("PSL Seller: " +
                             trader.toString());
                 }
             }
         }
         // sl can be immovable when the underlying provider is not availableForPlacement
-        if (!shoppingList.isMovable()) {
+        if (!shoppingList.isMovable())
             return PlacementResults.empty();
-        }
         if (economy.getMarket(shoppingList).getActiveSellers().isEmpty()) {
             final PlacementResults results = PlacementResults.forSingleAction(
                 new Reconfigure(economy, shoppingList).take().setImportance(Double.POSITIVE_INFINITY));
@@ -266,10 +265,7 @@ public class Placement {
                 (cheapestSeller == shoppingList.getSupplier()
                         && minimizer.getBestQuote().getContext().isPresent()
                         && !shoppingList.getBuyer().getSettings().getContext()
-                            .isEqualCoverages(minimizer.getBestQuote().getContext())) ||
-                // isScalingGroupConsistentlySized() is only meaningful for cloud providers.
-                // Anything else will return consistently sized.
-                !economy.isScalingGroupConsistentlySized(shoppingList)) {
+                            .isEqualCoverages(minimizer.getBestQuote().getContext()))) {
             double savings = currentQuote - cheapestQuote;
             if (Double.isInfinite(savings)) {
                 savings = Double.MAX_VALUE;
@@ -589,8 +585,8 @@ public class Placement {
             String buyerDebugInfo = shoppingLists.get(0).getBuyer().getDebugInfoNeverUseInCode();
             IntStream.range(numOfOriginalActions, numOfOriginalActions + numOfMoveActions).forEach(i ->
                 logger.info("A new Move from {} to {} is generated.",
-                    printTraderDetail(((Move)actions.get(i)).getSource()),
-                    printTraderDetail(((Move)actions.get(i)).getDestination())));
+                    printTraderDetail(((Move) actions.get(i)).getSource()),
+                    printTraderDetail(((Move) actions.get(i)).getDestination())));
             IntStream.range(numOfOriginalActions + numOfMoveActions, actions.size()).forEach(i ->
                 logger.info("A new CompoundMove from {} to {} is generated.",
                     ((CompoundMove)actions.get(i)).getConstituentMoves().stream().map(move ->
@@ -702,7 +698,6 @@ public class Placement {
         return  supplier == null || !supplier.getState().isActive()
                 || !slByMkt.getValue().getBasket().isSatisfiedBy(supplier.getBasketSold());
     }
-
     /**
      * Run placement algorithm until the convergence criteria are satisfied.
      * If the placement has been running for more than the maximum number of placements

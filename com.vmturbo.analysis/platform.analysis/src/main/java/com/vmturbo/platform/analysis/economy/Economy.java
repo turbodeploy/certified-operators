@@ -22,9 +22,12 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Longs;
 
+import com.vmturbo.commons.analysis.InvertedIndex;
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -32,7 +35,6 @@ import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 
-import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.platform.analysis.actions.Move;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Context.CoverageEntry;
@@ -47,7 +49,8 @@ import com.vmturbo.platform.analysis.utilities.PlacementStats;
 /**
  * A set of related markets and the traders participating in them.
  *
- * <p>It is responsible for creating and removing traders while simultaneously creating, updating and
+ * <p>
+ *  It is responsible for creating and removing traders while simultaneously creating, updating and
  *  destroying markets while that happens.
  * </p>
  */
@@ -58,7 +61,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     // Fields
 
     // The map that associates Baskets with Markets.
-    private final @NonNull Map<@NonNull @ReadOnly Basket, @NonNull Market> markets_ = new TreeMap<>();
+    private final @NonNull Map<@NonNull @ReadOnly Basket,@NonNull Market> markets_ = new TreeMap<>();
     // The list of all Traders participating in the Economy.
     private final @NonNull List<@NonNull TraderWithSettings> traders_ = new ArrayList<>();
     // An aggregate of all the parameters configuring this economy's behavior.
@@ -89,13 +92,13 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private Map<Long, BalanceAccount> balanceAccountMap = new HashMap<>();
     // Map from shopping list ID to associated scaling group
     private Map<UUID, String> shoppingListToScalingGroup = new HashMap<UUID, String>();
-    // Map from shopping list ID to peer information in scaling group
-    private Map<String, ScalingGroupPeerInfo> scalingGroupToPeerInfo = new HashMap<>();
+    // Map from shopping list ID to peer shopping lists in scaling group
+    private Multimap<String, ShoppingList> scalingGroupToPeers = ArrayListMultimap.create();
 
     // Cached data
 
     // Cached unmodifiable view of the markets_.values() collection.
-    private final transient @NonNull Collection<@NonNull Market> unmodifiableMarkets_ = Collections.unmodifiableCollection(markets_.values());
+    private transient final @NonNull Collection<@NonNull Market> unmodifiableMarkets_ = Collections.unmodifiableCollection(markets_.values());
     // Cached unmodifiable view of the traders_ list.
     private final @NonNull List<@NonNull Trader> unmodifiableTraders_ = Collections.unmodifiableList(traders_);
     // Cached unmodifiable view of the preferentialShoppingLists_.
@@ -130,7 +133,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                 @Override
                 public int compare(Entry<ShoppingList, Double> entryA,
                                    Entry<ShoppingList, Double> entryB) {
-                    if (Math.abs(entryB.getValue() - entryA.getValue()) < EPSILON) {
+                    if(Math.abs(entryB.getValue() - entryA.getValue()) < EPSILON){
                         return entryB.getKey().getShoppingListId()
                                 .compareTo(entryA.getKey().getShoppingListId());
                     }
@@ -144,7 +147,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     /**
      * Constructs an empty Economy.
      *
-     * <p>It will initially contain no Markets nor Traders.
+     * <p>
+     *  It will initially contain no Markets nor Traders.
      * </p>
      */
     public Economy() {}
@@ -251,7 +255,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * For all markets in the economy, scan each individual market and add all satisfying
      * sellers to that market.
      *
-     * <p>For an economy with M markets with T traders where the average number
+     * <p>
+     * For an economy with M markets with T traders where the average number
      * of commodities sold by a given trader is k, the algorithm runs in O(M*T) time (the
      * bound may be lower but I cannot prove it so I chose the conservative number).
      * In practice on real topologies the algorithm runs in O(M*k) time. A survey of all
@@ -259,11 +264,13 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * across all service entities is k=6.1.
      * </p>
      *
-     * <p>For an explanation of why this optimization performs well in practice, see
+     * <p>
+     * For an explanation of why this optimization performs well in practice, see
      * https://vmturbo.atlassian.net/wiki/pages/viewpage.action?pageId=170271654
      * </p>
      *
-     * <p>This method should only be run once and only after all traders have been added to the
+     * <p>
+     * This method should only be run once and only after all traders have been added to the
      * economy.
      * </p>
      */
@@ -284,7 +291,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      */
     public void populateMarketWithSellers(Market market) {
         sellersInvertedIndex_.getSatisfyingSellers(market.getBasket()).forEach(
-                seller -> market.addSeller((TraderWithSettings)seller)
+                seller -> market.addSeller((TraderWithSettings) seller)
         );
     }
 
@@ -369,13 +376,16 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * Creates a new {@link Trader trader} with the given characteristics and adds it to
      * {@code this} economy.
      *
-     * <p>Ignoring cliques, it is an approximately constant time operation.
+     * <p>
+     *  Ignoring cliques, it is an approximately constant time operation.
      * </p>
      *
-     * <p>New traders are always added to the end of the {@link #getTraders() traders list}.
+     * <p>
+     *  New traders are always added to the end of the {@link #getTraders() traders list}.
      * </p>
      *
-     * <p>Note well that adding a trader does NOT add that trader as a seller in the markets that
+     * <p>
+     * Note well that adding a trader does NOT add that trader as a seller in the markets that
      * trader satisfies. Instead, call {@link #populateMarketsWithSellersAndMergeConsumerCoverage()} after adding all
      * traders to the economy and this will match all traders with the markets in which they
      * should sell.
@@ -405,21 +415,19 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * Creates a new {@link Trader trader} with the given characteristics and adds it to
      * {@code this} economy.
      *
-     * <p>Same as {@link #addTrader(int, TraderState, Basket, Collection)}, but doesn't include the
+     * <p>
+     *  Same as {@link #addTrader(int, TraderState, Basket, Collection)}, but doesn't include the
      *  new trader in any k-partite cliques and makes it initially buy a number of baskets instead.
      * </p>
      *
-     * <p>The complexity is as for {@link #addTrader(int, TraderState, Basket, Collection)} plus an
+     * <p>
+     *  The complexity is as for {@link #addTrader(int, TraderState, Basket, Collection)} plus an
      *  O(B) term, where B is the number of baskets bought.
      * </p>
      *
-     * @param type Trader type
-     * @param state Trader state
-     * @param basketSold The baskets that the Trader is selling
      * @param basketsBought The baskets the new trader should buy. {@link ShoppingList}s will be
      *                      created for each one and will appear in the {@link #getMarketsAsBuyer(Trader)}
      *                      map in the same order.
-     * @return the newly created Trader
      */
     public @NonNull Trader addTrader(int type, @NonNull TraderState state, @NonNull Basket basketSold,
                                      @NonNull Basket... basketsBought) {
@@ -438,10 +446,10 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * but also adds the trader to the markets associated with the basketSold. The modelSeller
      * must already be a member of the economy.
      *
-     * <p>If the model seller belongs to m markets and there are M markets in the overall economy,
+     * If the model seller belongs to m markets and there are M markets in the overall economy,
      * this method has complexity O(m) when the modelSeller's basket is equal to the new
      * trader's basket sold and complexity O(M) when the modelSeller's basket is different from
-     * the new trader's basket sold.</p>
+     * the new trader's basket sold.
      *
      * @param modelSeller The seller whose properties match the trader to be added.
      * @param state state of the new seller
@@ -457,15 +465,15 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
         // necessary in order to add the new seller to the list of active sellers
         // available for placement
-        newTrader.getSettings().setCanAcceptNewCustomers(modelSeller.getSettings()
-                                                                         .canAcceptNewCustomers());
+        newTrader.getSettings().setCanAcceptNewCustomers(modelSeller.getSettings().
+                        canAcceptNewCustomers());
 
         Collection<Market> marketsToScan = basketSold.equals(modelSeller.getBasketSold()) ?
             getMarketsAsSeller(modelSeller) : markets_.values();
 
         for (Market market : marketsToScan) {
             if (market.getBasket().isSatisfiedBy(basketSold)) {
-                market.addSeller((TraderWithSettings)newTrader);
+                market.addSeller((TraderWithSettings) newTrader);
             }
         }
 
@@ -475,16 +483,19 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     /**
      * Removes an existing {@link Trader trader} from the economy.
      *
-     * <p>All buyers buying from traderToRemove will afterwards buy from no-one and all sellers
+     * <p>
+     *  All buyers buying from traderToRemove will afterwards buy from no-one and all sellers
      *  selling to traderToRemove will remove him from their lists of customers.
      * </p>
      *
-     * <p>It is an O(T) operation, where T is the number of traders in the economy.
+     * <p>
+     *  It is an O(T) operation, where T is the number of traders in the economy.
      *  Shopping lists of the trader are invalidated, as are the commodities bought by these
      *  shopping lists.
      * </p>
      *
-     * <p>Any shopping lists of traderToRemove and corresponding commodities bought, will become
+     * <p>
+     *  Any shopping lists of traderToRemove and corresponding commodities bought, will become
      *  invalid.
      * </p>
      *
@@ -544,21 +555,22 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     @Pure
     public @NonNull @ReadOnly Map<@NonNull ShoppingList, @NonNull Market>
             getMarketsAsBuyer(@ReadOnly Economy this, @NonNull @ReadOnly Trader trader) {
-        return Collections.unmodifiableMap(((TraderWithSettings)trader).getMarketsAsBuyer());
+        return Collections.unmodifiableMap(((TraderWithSettings) trader).getMarketsAsBuyer());
     }
 
     @Override
     @Pure
     public @NonNull @ReadOnly List<@NonNull @ReadOnly Market> getMarketsAsSeller(@ReadOnly Economy this,
                                                                                  @NonNull @ReadOnly Trader trader) {
-        return Collections.unmodifiableList(((TraderWithSettings)trader).getMarketsAsSeller());
+        return Collections.unmodifiableList(((TraderWithSettings) trader).getMarketsAsSeller());
     }
 
     /**
      * Makes a {@link Trader buyer} start buying a new {@link Basket basket}, or an old one one more
      * time.
      *
-     * <p>The buyer's {@link #getMarketsAsBuyer(Trader) market-to-buyer-participation map} and the
+     * <p>
+     *  The buyer's {@link #getMarketsAsBuyer(Trader) market-to-buyer-participation map} and the
      *  economy's markets are updated accordingly.
      * </p>
      *
@@ -582,7 +594,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
         // add the buyer to the correct market.
         if (shoppingList != null) {
-            return market.addBuyer((@NonNull TraderWithSettings)buyer, shoppingList);
+            return market.addBuyer((@NonNull TraderWithSettings) buyer, shoppingList);
         } else {
             return market.addBuyer((@NonNull TraderWithSettings)buyer);
         }
@@ -592,7 +604,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * Makes a {@link Trader buyer} start buying a new {@link Basket basket}, or an old one one more
      * time.
      *
-     * <p>The buyer's {@link #getMarketsAsBuyer(Trader) market-to-buyer-participation map} and the
+     * <p>
+     *  The buyer's {@link #getMarketsAsBuyer(Trader) market-to-buyer-participation map} and the
      *  economy's markets are updated accordingly.
      * </p>
      *
@@ -610,7 +623,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * Makes a {@link Trader buyer} stop buying a specific instance of a {@link Basket basket},
      * designated by a {@link ShoppingList shopping list}.
      *
-     * <p>Normally you would supply the basket to be removed. But when a buyer buys the same basket
+     * <p>
+     *  Normally you would supply the basket to be removed. But when a buyer buys the same basket
      *  multiple times, the question arises: which instance of the basket should be removed? The
      *  solution is to distinguish the baskets using the shopping lists that are unique. Then
      *  only one of the multiple instances will be removed.
@@ -634,7 +648,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * Adds a new commodity specification and corresponding commodity bought to a given buyer
      * shopping list, updating markets and baskets as needed.
      *
-     * <p>Normally a commodity specification is added to a basket. But when a buyer buys the same
+     * <p>
+     *  Normally a commodity specification is added to a basket. But when a buyer buys the same
      *  basket multiple times, the question arises: which instance of the basket should the
      *  specification be added to? The solution is to distinguish the baskets using the buyer
      *  shopping lists that are unique. Then only one of the multiple instances will be updated.
@@ -658,13 +673,13 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
         // copy quantity and peak quantity values from old shopping list.
         int specificationIndex = newBasketBought.indexOf(commoditySpecificationToAdd);
-        for (int i = 0; i < specificationIndex; ++i) {
+        for (int i = 0 ; i < specificationIndex ; ++i) {
             newShoppingList.setQuantity(i, shoppingList.getQuantity(i));
             newShoppingList.setPeakQuantity(i, shoppingList.getPeakQuantity(i));
         }
-        for (int i = specificationIndex + 1; i < newBasketBought.size(); ++i) {
-            newShoppingList.setQuantity(i, shoppingList.getQuantity(i - 1));
-            newShoppingList.setPeakQuantity(i, shoppingList.getPeakQuantity(i - 1));
+        for (int i = specificationIndex + 1 ; i < newBasketBought.size() ; ++i) {
+            newShoppingList.setQuantity(i, shoppingList.getQuantity(i-1));
+            newShoppingList.setPeakQuantity(i, shoppingList.getPeakQuantity(i-1));
         }
 
         return newShoppingList;
@@ -674,8 +689,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * Removes an existing commodity specification and corresponding commodity bought from a given
      * shopping list, updating markets and baskets as needed.
      *
-     * <p>Normally a commodity specification is removed from a basket. But when a buyer buys the
-     *  same basket multiple times, the question arises: which instance of the basket should the
+     * <p>
+     *  Normally a commodity specification is removed from a basket. But when a buyer buys the same
+     *  basket multiple times, the question arises: which instance of the basket should the
      *  specification be removed from? The solution is to distinguish the baskets using the buyer
      *  shopping lists that are unique. Then only one of the multiple instances will be updated.
      * </p>
@@ -704,13 +720,13 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         if (specificationIndex == -1) {
             specificationIndex = newBasketBought.size();
         }
-        for (int i = 0; i < specificationIndex; ++i) {
+        for (int i = 0 ; i < specificationIndex ; ++i) {
             newShoppingList.setQuantity(i, shoppingList.getQuantity(i));
             newShoppingList.setPeakQuantity(i, shoppingList.getPeakQuantity(i));
         }
-        for (int i = specificationIndex; i < newBasketBought.size(); ++i) {
-            newShoppingList.setQuantity(i, shoppingList.getQuantity(i + 1));
-            newShoppingList.setPeakQuantity(i, shoppingList.getPeakQuantity(i + 1));
+        for (int i = specificationIndex ; i < newBasketBought.size() ; ++i) {
+            newShoppingList.setQuantity(i, shoppingList.getQuantity(i+1));
+            newShoppingList.setPeakQuantity(i, shoppingList.getPeakQuantity(i+1));
         }
         return newShoppingList;
     }
@@ -718,7 +734,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     /**
      * Resets {@code this} {@link Economy} to the state it was in just after construction.
      *
-     * <p>It has no other observable side-effects.
+     * <p>
+     *  It has no other observable side-effects.
      * </p>
      */
     public void clear() {
@@ -743,7 +760,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
-     * Get the flag which indicates if plan should stop immediately.
+     * Get the flag which indicates if plan should stop immediately
      */
     @Override
     public boolean getForceStop() {
@@ -751,12 +768,12 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
-     * Retrieve the {@link Trader} (that was part of the plan scope) that "trader" is a clone of
+     * retrieve the {@link Trader} (that was part of the plan scope) that "trader" is a clone of
      * if a clone is of an existing clone (that is cloned from an entity in the scope), we return
-     * the entity in the scope.
+     * the entity in the scope
      */
     @Override
-    public Trader getCloneOfTrader(Trader trader) {
+    public Trader getCloneOfTrader (Trader trader) {
         while (trader.isClone()) {
             trader = this.getTraders().get(trader.getCloneOf());
         }
@@ -773,7 +790,6 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             market.sortBuyers(this);
         }
     }
-
     /**
      * sort the PreferentialShoppingLists based on the template cost
      * sorted high to low. The list preferentialSls_ is updated.
@@ -797,23 +813,23 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         for (@NonNull ShoppingList shoppingList : shoppingLists) {
             Trader currentSupplier = shoppingList.getSupplier();
             // the shopping list with no supplier should be given the first preference.
-            if (currentSupplier == null) {
+            if(currentSupplier == null) {
                 currentQuote.add(new SimpleEntry<>(shoppingList, Double.POSITIVE_INFINITY));
             } else {
                 // replaceNewSupplier will skip the normal traders/suppliers and only work for CBTP.
                 Trader tp = AnalysisToProtobuf.replaceNewSupplier(shoppingList, this, currentSupplier);
                 // if  currentSupplier is a cbtp convert it to tp
-                if (tp != null) {
+                if(tp != null) {
                     currentSupplier = tp;
                 }
                 // get quote from on-prem suppliers and cost from cloud suppliers.
-                if (currentSupplier.getSettings().getCostFunction() == null) {
+                if(currentSupplier.getSettings().getCostFunction() == null){
                     List<Entry<ShoppingList, Market>> movableSlByMarket = new ArrayList<>();
                     Market market = getMarket(shoppingList);
                     movableSlByMarket.add(new SimpleEntry<>(shoppingList, market));
                     currentQuote.add(new SimpleEntry<>(shoppingList,
                             Placement.computeCurrentQuote(this, movableSlByMarket)));
-                } else {
+                } else{
                     currentQuote.add(new SimpleEntry<>(shoppingList,
                             QuoteFunctionFactory.computeCost(shoppingList, currentSupplier, false, this)
                                     .getQuoteValue()));
@@ -822,7 +838,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             }
         }
         Collections.sort(currentQuote, compareShoppingList);
-        for (Entry<ShoppingList, Double> slToQuote : currentQuote) {
+        for(Entry<ShoppingList, Double> slToQuote : currentQuote) {
             sortedSLs.add(slToQuote.getKey());
         }
         return sortedSLs;
@@ -830,7 +846,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
 
     /**
-     * Create a list containing a subset of Markets that have at least one trader that is movable.
+     * Create a list containing a subset of Markets that have at least one trader that is movable
      */
     public void composeMarketSubsetForPlacement() {
         marketsForPlacement_.clear();
@@ -844,8 +860,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * and figuring whether the action is executable or not. It is "minimal" in the sense that
      * it only has the properties necessary for that simulation, namely traders, shopping lists,
      * and commodities sold, and nothing else.
-     * @return a minimal clone of {@code this} economy
      * @see ActionClassifier
+     * @return a minimal clone of {@code this} economy
      */
     public @NonNull Economy simulationClone() {
         Economy clone = new Economy();
@@ -891,8 +907,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         for (int commIndex = 0; commIndex < commoditiesSold.size(); commIndex++) {
             CommoditySold commSold = commoditiesSold.get(commIndex);
             CommoditySold cloneCommSold = cloneCommoditiesSold.get(commIndex);
-            final CommoditySoldSettings commSoldSettings = commSold.getSettings();
-            final CommoditySoldSettings cloneCommSoldSettings = cloneCommSold.getSettings();
+            CommoditySoldSettings commSoldSettings = commSold.getSettings();
+            CommoditySoldSettings cloneCommSoldSettings = cloneCommSold.getSettings();
             cloneCommSold.setCapacity(commSold.getCapacity());
             cloneCommSold.setQuantity(commSold.getQuantity());
             cloneCommSold.setPeakQuantity(commSold.getPeakQuantity());
@@ -954,7 +970,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
-     * list of traderTOs.
+     * list of traderTOs
      * @return list of {@link TraderTO}s
      */
     @Override
@@ -963,7 +979,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
-     * save the {@link Topology} associated with this {@link Economy}.
+     * save the {@link Topology} associated with this {@link Economy}
      */
     @Override
     public void setTopology(Topology topology) {
@@ -971,8 +987,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
-     * Return the {@link Topology} associated with this {@link Economy}.
-     * @return the {@link Topology} associated with this {@link Economy}
+     * @return return the {@link Topology} associated with this {@link Economy}
      */
     @Override
     @Nullable
@@ -981,8 +996,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     /**
-     * Return the balance account map associated with this {@link Economy}.
-     * @return the balance account map associated with this {@link Economy}
+     * @return return the balance account map associates with this {@link Economy}
      */
     @Override
     public Map<Long, BalanceAccount> getBalanceAccountMap() {
@@ -1126,87 +1140,49 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         }
         // Map from shopping list ID to associated scaling group
         shoppingListToScalingGroup.put(shoppingList.getShoppingListId(), scalingGroupId);
-        // Map from scaling group to peer information
-        ScalingGroupPeerInfo info = scalingGroupToPeerInfo.get(scalingGroupId);
-        if (info == null) {
-            info = new ScalingGroupPeerInfo(shoppingList);
-            scalingGroupToPeerInfo.put(scalingGroupId, info);
-        } else {
-            info.addPeer(shoppingList);
-        }
+        // Map from scaling group to peer shopping lists
+        scalingGroupToPeers.put(scalingGroupId, shoppingList);
     }
 
     /**
-     * Return the scaling group peer information for a given shopping list.
-     * @param shoppingList shopping list to check
-     * @return if the shopping list belongs to a scaling group, return the peer informatio for
-     * the scaling group, which includes whether the group is already consistently sized and the
-     * list of peer shopping lists.  If the shopping list is null or does not belong to a scaling
-     * group, dummy empty peer information will be returned instead.
-     */
-    public @NonNull ScalingGroupPeerInfo getScalingGroupPeerInfo(ShoppingList shoppingList) {
-        if (shoppingList == null) {
-            return ScalingGroupPeerInfo.EMPTY;
-        }
-        UUID shoppingListId = shoppingList.getShoppingListId();
-        if (shoppingListId == null) {
-            return ScalingGroupPeerInfo.EMPTY;
-        }
-        String scalingGroupId = shoppingListToScalingGroup.get(shoppingListId);
-        if (scalingGroupId == null) {
-            return ScalingGroupPeerInfo.EMPTY;
-        }
-        return scalingGroupToPeerInfo.getOrDefault(scalingGroupId, ScalingGroupPeerInfo.EMPTY);
-    }
-
-    /**
-     * Return the peer shopping lists in a scaling group.
-     *
-     * @param shoppingList A shopping list in scaling group.
-     * @return an empty list if the shopping list is not in a scaling group or the shopping list
-     * UUID is invalid.  This returns only the peers of the group leader, which means the group
-     * leader's ShoppingList itself will not be in the returned collection.
+     * Return the peer shopping lists in a scaling group
+     * @param shoppingList A shopping list in scaling group.  This must always be the group leader.
+     * @return List of all peer ShoppingLists in the scaling group.  Return an empty list if the
+     * shopping list is not in a scaling group or the shopping list UUID is invalid.  This returns
+     * only the peers of the group leader, which means the group leader's ShoppingList itself
+     * will not be in the returned collection.
      */
     public List<ShoppingList> getPeerShoppingLists(ShoppingList shoppingList) {
-        // Returns all peer shopping lists except for the one with UUID = shoppingListId
-        return getScalingGroupPeerInfo(shoppingList).getPeers(shoppingList);
+        if (shoppingList == null) {
+            return Collections.emptyList();
+        }
+        return getPeerShoppingLists(shoppingList.getShoppingListId());
     }
 
-    /**
-     * Return whether the shopping list's scaling group is currently consistently sized.
-     * @param shoppingList shopping list to check
-     * @return true if the scaling group is currently consistently sized, or false if it is not.
-     */
-    public boolean isScalingGroupConsistentlySized(final ShoppingList shoppingList) {
-        return getScalingGroupPeerInfo(shoppingList).isConsistentlySized();
+    @Override
+    public List<ShoppingList> getPeerShoppingLists(UUID shoppingListId) {
+        if (shoppingListId == null) {
+            return Collections.emptyList();
+        }
+        Collection<ShoppingList> allPeers = scalingGroupToPeers
+            .get(shoppingListToScalingGroup.getOrDefault(shoppingListId, ""));
+        // Return all peers other than the one passed in.
+        return allPeers.stream()
+            .filter(sl -> sl.getShoppingListId() != shoppingListId)
+            .collect(Collectors.toList());
     }
 
-    /**
-     * Merge the Contexts of all scaling group members in each group. This also marks scaling
-     * groups that are not currently consistently sized. This is used by Placement to determine
-     * whether to force the group leader to generate a Move action.
-     */
     public void mergeScalingGroupContexts() {
-        for (ScalingGroupPeerInfo info : scalingGroupToPeerInfo.values())  {
+        scalingGroupToPeers.asMap().values().forEach(sls -> {
             Map<Long, CoverageEntry> coverageMap = new HashMap<>();
-            Long groupSupplierId = null;
-            boolean matched = true;
-            boolean first = true;
             // Build a merged coverage entry map for all members of the scaling group and attach
             // it to each member's Context.
-            for (ShoppingList sl : info.getPeers()) {
-                Long oid = sl.getSupplier() != null
-                                ? getTopology().getTraderOid(sl.getSupplier())
-                                : null;
-                if (matched && oid != groupSupplierId) {
-                    matched = first;
-                    groupSupplierId = oid;
-                }
-                first = false;
+            for (ShoppingList sl : sls) {
                 Context context = sl.getBuyer().getSettings().getContext();
                 if (context == null) {
                     continue;
                 }
+                Long oid = sl.getSupplier() != null ? getTopology().getTraderOid(sl.getSupplier()) : null;
                 if (oid != null) {
                     // create coverageEntries in the map only for non-zero coverages
                     if (context.getTotalAllocatedCoupons(oid).isPresent()) {
@@ -1215,14 +1191,12 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
                             coverageEntry = new CoverageEntry(0.0f, 0.0f);
                             coverageMap.put(oid, coverageEntry);
                         }
-                        coverageEntry
-                            .addTotalAllocatedCoupons(context.getTotalAllocatedCoupons(oid).get())
-                            .addTotalRequestedCoupons(context.getTotalRequestedCoupons(oid).get());
+                        coverageEntry.addTotalAllocatedCoupons(context.getTotalAllocatedCoupons(oid).get())
+                                     .addTotalRequestedCoupons(context.getTotalRequestedCoupons(oid).get());
                     }
                 }
                 context.setCoverageEntryMap(coverageMap);
             }
-            info.setConsistentlySized(matched);
-        }
+        });
     }
 } // end class Economy

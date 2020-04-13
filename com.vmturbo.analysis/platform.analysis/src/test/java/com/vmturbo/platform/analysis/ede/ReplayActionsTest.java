@@ -30,7 +30,6 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
-import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
@@ -189,7 +188,7 @@ public class ReplayActionsTest {
         pmShoppingList.setMovable(true);
         Move move = new Move(first, pmShoppingList, pm2);
         actions.add(move);
-        replayActions.replayActions(second, new Ledger(second), SuspensionsThrottlingConfig.DEFAULT);
+        replayActions.replayActions(second, new Ledger(second));
         assertEquals(1, replayActions.getActions().size());
     }
 
@@ -208,7 +207,7 @@ public class ReplayActionsTest {
         }
         Move move = new Move(first, pmShoppingList, pm2);
         actions.add(move);
-        replayActions.replayActions(second, new Ledger(second), SuspensionsThrottlingConfig.DEFAULT);
+        replayActions.replayActions(second, new Ledger(second));
         assertEquals(1, replayActions.getActions().size());
 
         // replay action which has already taken place
@@ -217,7 +216,7 @@ public class ReplayActionsTest {
             ReplayActions replayActionsSecond = new ReplayActions();
             replayActionsSecond.setTraderOids(second.getTopology().getTraderOids());
             replayActionsSecond.setActions(actions);
-            replayActionsSecond.replayActions(third, new Ledger(third), SuspensionsThrottlingConfig.DEFAULT);
+            replayActionsSecond.replayActions(third, new Ledger(third));
             assertEquals(0, replayActionsSecond.getActions().size());
         } catch (ClassNotFoundException | IOException e) {
             assertTrue(false);
