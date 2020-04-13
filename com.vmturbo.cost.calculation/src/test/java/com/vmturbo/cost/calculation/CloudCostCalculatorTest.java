@@ -46,6 +46,7 @@ import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
@@ -79,7 +80,7 @@ public class CloudCostCalculatorTest {
             (EntityInfoExtractor<TestEntityClass>)mock(EntityInfoExtractor.class);
 
     private static final CloudCostCalculatorFactory<TestEntityClass> calculatorFactory =
-            CloudCostCalculator.<TestEntityClass>newFactory();
+            CloudCostCalculator.newFactory();
 
     private static final DiscountApplicatorFactory<TestEntityClass> discountApplicatorFactory =
             (DiscountApplicatorFactory<TestEntityClass>)mock(DiscountApplicatorFactory.class);
@@ -113,6 +114,8 @@ public class CloudCostCalculatorTest {
     private static final int GB_RANGE = 11;
     private static final double GB_PRICE_RANGE_1 = 13.0; // price per GB within GB_RANGE
     private static final double GB_PRICE = 9.0; // price per GB above the range
+    private static final double GB_PRICE_RAGRS = 10.0;
+    private static final double GB_PRICE_GRS = 11.0;
     private static final int IOPS_RANGE = 11;
     private static final double IOPS_PRICE_RANGE_1 = 16.0; // price per GB within GB_RANGE
     private static final double IOPS_PRICE = 4.5; // price per GB above the range
@@ -125,6 +128,7 @@ public class CloudCostCalculatorTest {
     private static final long AVAILABILITY_ZONE_ID = 3;
     private static final long BUSINESS_ACCOUNT_ID = 2;
     private static final long STORAGE_TIER_ID = 10;
+    private static final long STORAGE_TIER_ID_2 = 13;
     private static final long COMPUTE_TIER_ID = 11;
     private static final long DB_TIER_ID = 4;
     private static final long DB_SERVER_TIER_ID = 5;
@@ -369,7 +373,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostIOPS() {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0, false))
+                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0, false, null))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
@@ -390,11 +394,39 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostGBMonth() {
         final int vVolSizeMb = 19; // should be >= GB_RANGE
         final CostJournal<TestEntityClass> journal =
-                createCostJournalForVolumeCostCalculation(vVolSizeMb, false);
+                createCostJournalForVolumeCostCalculation(vVolSizeMb, false, null, STORAGE_TIER_ID);
 
         assertThat(journal.getTotalHourlyCost().getValue(),
             closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
                 + GB_MONTH_PRICE_20, DELTA));
+    }
+
+    /**
+     * Test that cost of volume with GRS redundancy type.
+     */
+    @Test
+    public void testCalculateVolumeCostWithGRSRedundancyType() {
+        final int vVolSizeMb = 19;
+        final CostJournal<TestEntityClass> journal =
+            createCostJournalForVolumeCostCalculation(vVolSizeMb, false, RedundancyType.GRS,
+                STORAGE_TIER_ID_2);
+
+        assertThat(journal.getTotalHourlyCost().getValue(),
+            closeTo(vVolSizeMb * GB_PRICE_GRS, DELTA));
+    }
+
+    /**
+     * Test that cost of volume with RAGRS redundancy type.
+     */
+    @Test
+    public void testCalculateVolumeCostWithRAGRSRedundancyType() {
+        final int vVolSizeMb = 19;
+        final CostJournal<TestEntityClass> journal =
+            createCostJournalForVolumeCostCalculation(vVolSizeMb, false, RedundancyType.RAGRS,
+                STORAGE_TIER_ID_2);
+
+        assertThat(journal.getTotalHourlyCost().getValue(),
+            closeTo(vVolSizeMb * GB_PRICE_RAGRS, DELTA));
     }
 
     /**
@@ -404,7 +436,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostSizeEqualToEndRange() {
         final int vVolSizeMb = 32;
         final CostJournal<TestEntityClass> journal =
-                createCostJournalForVolumeCostCalculation(vVolSizeMb, false);
+                createCostJournalForVolumeCostCalculation(vVolSizeMb, false, null, STORAGE_TIER_ID);
         assertThat(journal.getTotalHourlyCost().getValue(),
                 closeTo(GB_RANGE * GB_PRICE_RANGE_1 + (vVolSizeMb - GB_RANGE) * GB_PRICE
                         + GB_MONTH_PRICE_32, DELTA));
@@ -414,18 +446,26 @@ public class CloudCostCalculatorTest {
      * Creates cloudCost data for a given virtual volume size.
      *
      * @param vVolSizeMb virtual volume size.
+     * @param isEphemeral true if volume is ephemeral.
+     * @param redundancyType of the volume, null if not applicable.
+     * @param storageTierId of the tier to which the volume belongs.
      * @return {@link CostJournal} for volume of a given virtual volume size.
      */
     private CostJournal<TestEntityClass> createCostJournalForVolumeCostCalculation(
             final int vVolSizeMb,
-            final boolean isEphemeral) {
+            final boolean isEphemeral,
+            final RedundancyType redundancyType,
+            final long storageTierId) {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024, isEphemeral))
+                .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024, isEphemeral,
+                    redundancyType))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
-        when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
+        final TestEntityClass storageTier = createStorageTier(storageTierId);
+        when(topology.getStorageTier(VOLUME_ID))
+            .thenReturn(Optional.of(storageTier));
         AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
@@ -615,7 +655,7 @@ public class CloudCostCalculatorTest {
     public void testEphemeralVolumeEmptyCost() {
         final int vVolSizeMb = 19;
         final CostJournal<TestEntityClass> journal =
-                createCostJournalForVolumeCostCalculation(vVolSizeMb, true);
+                createCostJournalForVolumeCostCalculation(vVolSizeMb, true, null, STORAGE_TIER_ID);
         assertThat(journal.getTotalHourlyCost().getValue(), is(0.0));
         assertThat(journal.getCategories(), is(Collections.emptySet()));
     }
@@ -668,6 +708,18 @@ public class CloudCostCalculatorTest {
                         // 32GB disk - $16/hr
                         .addPrices(price(Unit.MONTH, 32, GB_MONTH_PRICE_32
                             * CostProtoUtil.HOURS_IN_MONTH))
+                        .build())
+                    .build())
+                .putCloudStoragePricesByTierId(STORAGE_TIER_ID_2, StorageTierPriceList.newBuilder()
+                    .addCloudStoragePrice(StorageTierPrice.newBuilder()
+                        .addPrices(price(Unit.GB_MONTH, GB_PRICE_RAGRS
+                            * CostProtoUtil.HOURS_IN_MONTH))
+                        .setRedundancyType(RedundancyType.RAGRS)
+                        .build())
+                    .addCloudStoragePrice(StorageTierPrice.newBuilder()
+                        .addPrices(price(Unit.GB_MONTH, GB_PRICE_GRS
+                            * CostProtoUtil.HOURS_IN_MONTH))
+                        .setRedundancyType(RedundancyType.GRS)
                         .build())
                     .build())
                 .putDbPricesByInstanceId(DB_TIER_ID,
@@ -760,5 +812,10 @@ public class CloudCostCalculatorTest {
         accountPricingDataByBusinessAccount.put(baOid, accountPricingData);
         return new CloudCostData(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), accountPricingDataByBusinessAccount);
+    }
+
+    private static TestEntityClass createStorageTier(final long storageTierId) {
+        return TestEntityClass.newBuilder(storageTierId)
+            .build(infoExtractor);
     }
 }

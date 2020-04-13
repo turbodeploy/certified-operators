@@ -13,6 +13,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
@@ -299,13 +300,16 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
         private final float accesCapacityMillionIops;
         private final float amountCapacityMb;
         private final boolean isEphemeral;
+        private final RedundancyType redundancyType;
 
         public VirtualVolumeConfig(final float accesCapacityMillionIops,
                                    final float amountCapacityMb,
-                                   final boolean isEphemeral) {
+                                   final boolean isEphemeral,
+                                   @Nullable final RedundancyType redundancyType) {
             this.accesCapacityMillionIops = accesCapacityMillionIops;
             this.amountCapacityMb = amountCapacityMb;
             this.isEphemeral = isEphemeral;
+            this.redundancyType = redundancyType;
         }
 
         public float getAccessCapacityMillionIops() {
@@ -318,6 +322,11 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
 
         public boolean isEphemeral() {
             return isEphemeral;
+        }
+
+        @Nullable
+        public RedundancyType getRedundancyType() {
+            return redundancyType;
         }
     }
 }
