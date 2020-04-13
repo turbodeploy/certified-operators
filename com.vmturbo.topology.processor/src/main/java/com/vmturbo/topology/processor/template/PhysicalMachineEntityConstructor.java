@@ -9,15 +9,15 @@ import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.ge
 import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getCommoditySoldConstraint;
 import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.updateRelatedEntityAccesses;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -29,20 +29,20 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
  * Create a topologyEntityDTO from Physical Machine template. The new Topology Entity contains such as OID,
  * displayName, commodity sold, commodity bought, entity state, provider policy and consumer policy.
  * And also it will try to keep all commodity constrains from the original topology entity.
  */
-public class PhysicalMachineEntityConstructor implements TopologyEntityConstructor {
+public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor {
 
     private static final String ZERO = "0";
     private static final Logger logger = LogManager.getLogger();
@@ -55,28 +55,19 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
     public static final double BALLOONING_DEFAULT_CAPACITY = 1.0E9;
     public static final double SWAPPING_DEFAULT_CAPACITY = 5000.0;
 
-    /**
-     * Create a topologyEntityDTO from Physical Machine template. It mainly created Commodity bought
-     * and Commodity sold from template fields.
-     *
-     * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
-     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
-     *                 entities related to the entity being replaced may be updated to fix up relationships
-     *                 to point to the new entity along with the old entity.
-     * @param originalTopologyEntity the original topology entity which this template want to keep its
-     *                               commodity constrains. It could be null, if it is new adding template.
-     * @return {@link TopologyEntityDTO.Builder}
-     */
     @Override
-    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull final Template template,
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
+    public Collection<Builder> createTopologyEntityFromTemplate(@Nonnull final Template template,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity) {
+            @Nonnull Optional<TopologyEntity.Builder> originalTopologyEntity, boolean isReplaced,
+            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
+        TopologyEntityDTO.Builder topologyEntityBuilder = super.createTopologyEntityFromTemplate(
+                template, topology, originalTopologyEntity, isReplaced, identityProvider).iterator()
+                        .next();
+
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
-            originalTopologyEntity);
+                originalTopologyEntity);
         final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
-            originalTopologyEntity);
+                originalTopologyEntity);
         final Map<String, String> computeTemplateResources = TemplatesConverterUtils
                 .createFieldNameValueMap(TemplatesConverterUtils.getTemplateResources(template, Compute));
         addComputeCommodities(topologyEntityBuilder, computeTemplateResources);
@@ -89,8 +80,9 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             TemplatesConverterUtils.getTemplateResources(template, Infrastructure);
         addInfraCommodities(topologyEntityBuilder, infraTemplateResources);
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
-        if (originalTopologyEntity != null) {
-            updateRelatedEntityAccesses(originalTopologyEntity.getOid(), topologyEntityBuilder.getOid(),
+        if (originalTopologyEntity.isPresent()) {
+            updateRelatedEntityAccesses(originalTopologyEntity.get().getOid(),
+                    topologyEntityBuilder.getOid(),
                 commoditySoldConstraints, topology);
         }
 
@@ -125,7 +117,7 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
         topologyEntityBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setPhysicalMachine(pmInfoBuilder));
 
-        return topologyEntityBuilder;
+        return Collections.singletonList(topologyEntityBuilder);
     }
 
     /**

@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.ListMultimap;
@@ -23,17 +22,13 @@ import com.google.common.collect.ListMultimap;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateField;
-import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 
 /**
@@ -44,23 +39,6 @@ public class TemplatesConverterUtils {
     private TemplatesConverterUtils() {}
 
     /**
-     * Generate a {@link TopologyEntityDTO} builder contains common fields between different templates.
-     *
-     * @param template {@link Template}
-     * @return {@link TopologyEntityDTO} builder
-     */
-    public static TopologyEntityDTO.Builder generateTopologyEntityBuilder(@Nonnull final Template template) {
-        final TemplateInfo templateInfo = template.getTemplateInfo();
-        final TopologyEntityDTO.Builder topologyEntityBuilder = TopologyEntityDTO.newBuilder()
-            .setEntityType(templateInfo.getEntityType())
-            .setEntityState(EntityState.POWERED_ON)
-            .setAnalysisSettings(AnalysisSettings.newBuilder()
-                .setIsAvailableAsProvider(true)
-                .setShopTogether(true));
-        return topologyEntityBuilder;
-    }
-
-    /**
      * Get all {@link CommoditiesBoughtFromProvider} which list of commodity bought are active and have keys.
      * And in new CommoditiesBoughtFromProvider, it will only keep commodity constraints.
      *
@@ -68,12 +46,13 @@ public class TemplatesConverterUtils {
      * @return a list of {@link CommoditiesBoughtFromProvider}, if input entityDTO is null, it will
      *         return a empty list.
      */
+    @Nonnull
     public static List<CommoditiesBoughtFromProvider> getActiveCommoditiesWithKeysGroups(
-        @Nullable final TopologyEntityDTOOrBuilder entityDTO) {
-        if (entityDTO == null) {
+            @Nonnull Optional<TopologyEntity.Builder> entityDTO) {
+        if (!entityDTO.isPresent()) {
             return Collections.emptyList();
         }
-        return entityDTO.getCommoditiesBoughtFromProvidersList().stream()
+        return entityDTO.get().getEntityBuilder().getCommoditiesBoughtFromProvidersList().stream()
             .map(TemplatesConverterUtils::keepActiveCommoditiesWithKey)
             .flatMap(commoditiesBoughtFromProvider ->
                     commoditiesBoughtFromProvider.map(Stream::of).orElseGet(Stream::empty))
@@ -87,6 +66,7 @@ public class TemplatesConverterUtils {
      * @param commoditiesBoughtFromProvider origianl {@link CommoditiesBoughtFromProvider}
      * @return Optional of {@link CommoditiesBoughtFromProvider}
      */
+    @Nonnull
     private static Optional<CommoditiesBoughtFromProvider> keepActiveCommoditiesWithKey(
             @Nonnull final CommoditiesBoughtFromProvider commoditiesBoughtFromProvider) {
         final List<CommodityBoughtDTO> commodityBoughtDTOS =
@@ -108,12 +88,13 @@ public class TemplatesConverterUtils {
      * @param entityDTO {@link TopologyEntityDTO}
      * @return set of {@link CommoditySoldDTO}
      */
+    @Nonnull
     public static Set<CommoditySoldDTO> getCommoditySoldConstraint(
-        @Nullable final TopologyEntityDTOOrBuilder entityDTO) {
-        if (entityDTO == null) {
+            @Nonnull Optional<TopologyEntity.Builder> entityDTO) {
+        if (!entityDTO.isPresent()) {
             return Collections.emptySet();
         }
-        return entityDTO.getCommoditySoldListList().stream()
+        return entityDTO.get().getEntityBuilder().getCommoditySoldListList().stream()
             .filter(CommoditySoldDTO::getActive)
             .filter(commoditySoldDTO -> !commoditySoldDTO.getCommodityType().getKey().isEmpty())
             .collect(Collectors.toSet());

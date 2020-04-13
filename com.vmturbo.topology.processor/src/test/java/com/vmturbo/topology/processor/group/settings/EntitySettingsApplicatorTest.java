@@ -67,6 +67,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.InstanceDiskType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournal;
 import com.vmturbo.topology.processor.template.TemplateConverterTestUtil;
 import com.vmturbo.topology.processor.template.VirtualMachineEntityConstructor;
@@ -548,16 +549,19 @@ public class EntitySettingsApplicatorTest {
 
     /**
      * Tests applying of VCPU min/Max applicators for a VM from Template.
+     *
+     * @throws Exception any test exception
      */
     @Test
-    public void testThresholdApplicatorForTemplateVM() {
-        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .setOid(888)
-                .setEnvironmentType(EnvironmentType.ON_PREM);
-        final TopologyEntityDTO.Builder entity =
-            new VirtualMachineEntityConstructor().createTopologyEntityFromTemplate(VM_TEMPLATE, builder,
-                Collections.emptyMap(), null);
+    public void testThresholdApplicatorForTemplateVM() throws Exception {
+        IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+        Mockito.when(identityProvider.generateTopologyId()).thenReturn(888L);
+
+        final TopologyEntityDTO.Builder entity = new VirtualMachineEntityConstructor()
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, Collections.emptyMap(),
+                        Optional.empty(), false, identityProvider)
+                .iterator().next();
+        entity.setEnvironmentType(EnvironmentType.ON_PREM);
         final long entityId = entity.getOid();
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator
             .newGraph(ImmutableMap.of(entityId, topologyEntityBuilder(entity)));

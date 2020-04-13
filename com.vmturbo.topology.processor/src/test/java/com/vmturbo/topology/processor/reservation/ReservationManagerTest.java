@@ -210,10 +210,12 @@ public class ReservationManagerTest {
     }
 
     /**
-     * Test {@link ReservationManager#applyReservation(Map, TopologyInfo)} with one reservation.
+     * Test {@link ReservationManager#applyReservation(Map, TopologyInfo)} with
+     * one reservation.
+     * @throws Exception any test error
      */
     @Test
-    public void testApplyReservationReserved() {
+    public void testApplyReservationReserved() throws Exception {
         doReturn(Collections.singletonList(reservation))
             .when(reservationService).getAllReservations(any());
         when(templateConverterFactory.generateReservationEntityFromTemplates(
@@ -246,10 +248,13 @@ public class ReservationManagerTest {
     }
 
     /**
-     * Test {@link ReservationManager#applyReservation(Map, TopologyInfo)} with one reservation with cloud target.
+     * Test {@link ReservationManager#applyReservation(Map, TopologyInfo)} with
+     * one reservation with cloud target.
+     *
+     * @throws Exception any test exception
      */
     @Test
-    public void testApplyReservationReservedWithCloudTarget() {
+    public void testApplyReservationReservedWithCloudTarget() throws Exception {
         doReturn(Collections.singletonList(reservation))
             .when(reservationService).getAllReservations(any());
         when(templateConverterFactory.generateReservationEntityFromTemplates(
@@ -293,7 +298,7 @@ public class ReservationManagerTest {
 
     @Ignore
     @Test
-    public void testApplyReservationReservedAndFuture() {
+    public void testApplyReservationReservedAndFuture() throws Exception {
         when(templateConverterFactory.generateReservationEntityFromTemplates(
                 (Map<Long, Long>) argThat(hasEntry(456L, 1L)), anyMap()))
                 .thenReturn(Lists.newArrayList(topologyEntityBuildReserved).stream());
