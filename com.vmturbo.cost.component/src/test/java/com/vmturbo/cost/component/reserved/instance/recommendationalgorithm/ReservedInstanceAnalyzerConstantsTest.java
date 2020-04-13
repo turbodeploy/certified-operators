@@ -169,7 +169,7 @@ public class ReservedInstanceAnalyzerConstantsTest {
         .setTypeSpecificInfo(m5TypeSpecificInfo)
         .build();
 
-    public static final TopologyEntityDTO COMPUTE_TIER_T2_NANO = TopologyEntityDTO.newBuilder()
+    static final TopologyEntityDTO COMPUTE_TIER_T2_NANO = TopologyEntityDTO.newBuilder()
         .setOid(COMPUTE_TIER_T2_NANO_OID)
         .setDisplayName("t2.nano")
         .setEntityType(EntityType.COMPUTE_TIER_VALUE)

@@ -93,10 +93,9 @@ public class BuyRiScopeHandler {
             return Collections.emptySet();
         }
 
-        // Entity scope (single Region / Service Providers)
+        // Entity scope (single Region)
         if (scopeId.isEntity() && scopeId.getScopeTypes().isPresent()) {
-            if (GROUP_OF_REGIONS.equals(scopeId.getScopeTypes().orElse(null)) ||
-                            GROUP_OF_SERVICE_PROVIDERS.equals(scopeId.getScopeTypes().orElse(null))) {
+            if (GROUP_OF_REGIONS.equals(scopeId.getScopeTypes().orElse(null))) {
                 return ImmutableSet.of(scopeId.oid());
             }
             return Collections.emptySet();
@@ -106,9 +105,8 @@ public class BuyRiScopeHandler {
         if (scopeId.isGroup() && scopeId.getCachedGroupInfo().isPresent()) {
             final UuidMapper.CachedGroupInfo groupInfo = scopeId.getCachedGroupInfo().get();
 
-            // Group of regions or Service Providers
+            // Group of regions
             if (GROUP_OF_REGIONS.equals(groupInfo.getEntityTypes())
-                    || GROUP_OF_SERVICE_PROVIDERS.equals(groupInfo.getEntityTypes())
                     // Billing Family
                     || groupInfo.getGroupType() == GroupType.BILLING_FAMILY
                     // Group of Billing Family
@@ -142,9 +140,8 @@ public class BuyRiScopeHandler {
         } else if (inputScope.isGroup() && inputScope.getCachedGroupInfo().isPresent()) {
             final UuidMapper.CachedGroupInfo groupInfo = inputScope.getCachedGroupInfo().get();
 
-            // If it is a group of region or Service Providers we should not exclude the buy RI discount
-            if (GROUP_OF_REGIONS.equals(groupInfo.getEntityTypes()) ||
-                            GROUP_OF_SERVICE_PROVIDERS.equals(groupInfo.getEntityTypes())) {
+            // If it is a group of region we should not exclude the buy RI discount
+            if (GROUP_OF_REGIONS.equals(groupInfo.getEntityTypes())) {
                 return true;
             }
             // Otherwise only return true if this is a billing family or group of billing family

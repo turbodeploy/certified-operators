@@ -36,8 +36,6 @@ public class BuyRiScopeHandlerTest {
     private static final long OID_ACCOUNT_2 = 2L;
     private static final long OID_REGION_1 = 12L;
     private static final long OID_REGION_2 = 22L;
-    private static final long OID_SERVICE_PROVIDER_1 = 10L;
-    private static final long OID_SERVICE_PROVIDER_2 = 20L;
 
     private final BuyRiScopeHandler buyRiScopeHandler = new BuyRiScopeHandler();
 
@@ -79,22 +77,6 @@ public class BuyRiScopeHandlerTest {
     @Test
     public void testExtractActionTypesForRegionGroup() {
         testExtractActionTypesIncludingBuyRi(apiIdForRegionGroup());
-    }
-
-    /**
-     * Test {@link BuyRiScopeHandler#extractActionTypes} method for Service provider scope.
-     */
-    @Test
-    public void testExtractActionTypesForServiceProviders() {
-        testExtractActionTypesIncludingBuyRi(apiIdForServiceProviderScope());
-    }
-
-    /**
-     * Test {@link BuyRiScopeHandler#extractActionTypes} method for Service Provider group scope.
-     */
-    @Test
-    public void testExtractActionTypesForServiceProvidersGroup() {
-        testExtractActionTypesIncludingBuyRi(apiIdForServiceProviderScopeGroup());
     }
 
     private void testExtractActionTypesIncludingBuyRi(@Nonnull final ApiId inputScope) {
@@ -254,30 +236,6 @@ public class BuyRiScopeHandlerTest {
     }
 
     /**
-     * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId)} method for Service Provider.
-     */
-    @Test
-    public void testExtractBuyRiEntitiesForServiceProvider() {
-        // Act
-        final Set<Long> result = buyRiScopeHandler.extractBuyRiEntities(apiIdForServiceProviderScope());
-
-        // Assert
-        assertThat(result, is(ImmutableSet.of(OID_SERVICE_PROVIDER_1)));
-    }
-
-    /**
-     * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId)} method for Service Provider group.
-     */
-    @Test
-    public void testExtractBuyRiEntitiesForServiceProviderGroup() {
-        // Act
-        final Set<Long> result = buyRiScopeHandler.extractBuyRiEntities(apiIdForServiceProviderScopeGroup());
-
-        // Assert
-        assertThat(result, is(ImmutableSet.of(OID_SERVICE_PROVIDER_1, OID_SERVICE_PROVIDER_2)));
-    }
-
-    /**
      * Test {@link BuyRiScopeHandler#extractBuyRiEntities(ApiId)} method for Account.
      */
     @Test
@@ -368,30 +326,4 @@ public class BuyRiScopeHandlerTest {
         when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
         return apiId;
     }
-
-    private static ApiId apiIdForServiceProviderScope() {
-        final ApiId apiId = mock(ApiId.class);
-        when(apiId.oid()).thenReturn(OID_SERVICE_PROVIDER_1);
-        when(apiId.isRealtimeMarket()).thenReturn(false);
-        when(apiId.isEntity()).thenReturn(true);
-        final Set<ApiEntityType> scopeTypes = ImmutableSet.of(ApiEntityType.SERVICE_PROVIDER);
-        when(apiId.getScopeTypes()).thenReturn(Optional.of(scopeTypes));
-        when(apiId.isGroup()).thenReturn(false);
-        return apiId;
-    }
-
-    private static ApiId apiIdForServiceProviderScopeGroup() {
-        final ApiId apiId = mock(ApiId.class);
-        when(apiId.isRealtimeMarket()).thenReturn(false);
-        when(apiId.isEntity()).thenReturn(false);
-        when(apiId.isGroup()).thenReturn(true);
-        final CachedGroupInfo groupInfo = mock(CachedGroupInfo.class);
-        when(groupInfo.getEntityTypes()).thenReturn(ImmutableSet.of(ApiEntityType.SERVICE_PROVIDER));
-        when(groupInfo.getGroupType()).thenReturn(GroupType.REGULAR);
-        when(groupInfo.getEntityIds()).thenReturn(ImmutableSet.of(OID_SERVICE_PROVIDER_1,
-                        OID_SERVICE_PROVIDER_2));
-        when(apiId.getCachedGroupInfo()).thenReturn(Optional.of(groupInfo));
-        return apiId;
-    }
-
 }
