@@ -32,38 +32,16 @@
                             <artifactItems>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <!--change this to "com.vmturbo.mediation.aws" once probe is
-                                    changed to support new cloud model, and ${project.version}
-                                    should be changed to ${vmturbo.mt.branch.version}-->
-                                    <artifactId>com.vmturbo.mediation.aws.conversion</artifactId>
-                                    <version>${project.version}</version>
-                                    <type>zip</type>
-                                    <overWrite>false</overWrite>
-                                    <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
-                                </artifactItem>
-                                <artifactItem>
-                                    <!-- AWS mediation atrifact (.zip) contains a resource folder that must be
-                                    placed into 'probe-jars/probe' folder as well. -->
-                                    <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.mediation.aws</artifactId>
-                                    <version>${project.version}</version>
+                                    <version>${vmturbo.mt.branch.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
-                                    <excludes>**/*.jar,**/*.xml</excludes>
                                 </artifactItem>
                             </artifactItems>
                         </configuration>
                     </execution>
                 </executions>
-                <dependencies>
-                    <dependency>
-                        <!-- This dependency is added to enforce build order -->
-                        <groupId>com.vmturbo</groupId>
-                        <artifactId>com.vmturbo.mediation.aws.conversion</artifactId>
-                        <version>${project.version}</version>
-                    </dependency>
-                </dependencies>
             </plugin>
         </plugins>
     </build>
