@@ -20,19 +20,15 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 import org.mockito.Mockito;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.common.protobuf.action.ActionDTOREST.ActionMode;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -76,7 +72,6 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
 /**
  * Unit test for {@link EntitySettingsApplicator}.
  */
-@RunWith(JUnitParamsRunner.class)
 public class EntitySettingsApplicatorTest {
 
     private static final long PARENT_ID = 23345;
@@ -186,19 +181,9 @@ public class EntitySettingsApplicatorTest {
 
 
     private static final Setting MOVE_MANUAL_SETTING = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
-            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
-            .build();
-
-    private static final Setting SHOP_TOGETHER_ENABLED = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ShopTogether.getSettingName())
-            .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true).build())
-            .build();
-
-    private static final Setting SHOP_TOGETHER_DISABLED = Setting.newBuilder()
-            .setSettingSpecName(EntitySettingSpecs.ShopTogether.getSettingName())
-            .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
-            .build();
+                    .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
+                    .build();
 
     private static final Setting STORAGE_MOVE_MANUAL_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
@@ -771,70 +756,8 @@ public class EntitySettingsApplicatorTest {
         assertThat(vvEntity.getAnalysisSettings().getDeletable(), is(false));
     }
 
-    private Object parametersForShopTogether() {
-        TopologyInfo realtimeTopologyInfo = TopologyInfo.newBuilder()
-                .setTopologyType(TopologyType.REALTIME)
-                .build();
-
-        TopologyInfo planTopologyInfo = TopologyInfo.newBuilder()
-                .setPlanInfo(PlanTopologyInfo.getDefaultInstance())
-                .build();
-
-        return new Object[]{
-                // ShopTogether : ENABLED, REALTIME, PROBE VALUE : FALSE
-                // Probe value should supersede setting set in the UI
-                new Object[]{SHOP_TOGETHER_ENABLED, realtimeTopologyInfo, false, false},
-                // ShopTogether : ENABLED, REALTIME, PROBE VALUE : TRUE
-                // Probe value should supersede setting set in the UI
-                new Object[]{SHOP_TOGETHER_ENABLED, realtimeTopologyInfo, true, true},
-                // ShopTogether : DISABLED, REALTIME, PROBE VALUE : FALSE
-                // Override Probe value : Set false
-                new Object[]{SHOP_TOGETHER_DISABLED, realtimeTopologyInfo, false, false},
-                // ShopTogether : DISABLED, REALTIME, PROBE VALUE : TRUE
-                // Override Probe value : Set false
-                new Object[]{SHOP_TOGETHER_DISABLED, realtimeTopologyInfo, true, false},
-                // ShopTogether : DISABLED, PLAN, Probe/PreviousStage VALUE : TRUE
-                // Probe/PreviousStage value supersedes value in UI
-                new Object[]{SHOP_TOGETHER_DISABLED, planTopologyInfo, true, true},
-                // ShopTogether : DISABLED, PLAN, Probe/PreviousStage VALUE : FALSE
-                // Probe/PreviousStage value supersedes value in UI
-                new Object[]{SHOP_TOGETHER_DISABLED, planTopologyInfo, false, false},
-                // ShopTogether : ENABLED, PLAN, Probe/PreviousStage VALUE : TRUE
-                // Probe/PreviousStage value supersedes value in UI
-                new Object[]{SHOP_TOGETHER_ENABLED, planTopologyInfo, true, true},
-                // ShopTogether : ENABLED, PLAN, Probe/PreviousStage VALUE : False
-                // Probe/PreviousStage value supersedes value in UI
-                new Object[]{SHOP_TOGETHER_ENABLED, planTopologyInfo, false, false}
-        };
-    }
-
-    /**
-     * Test setting of shop together flag for VM (All cases explained in parameter method).
-     * @param shopTogetherSetting :  can be ENABLED/DISABLED
-     * @param topologyInfo : can be REALTIME/PLAN
-     * @param probeOrEarlierStageValue : can be T/F
-     * @param expectedFinalValue : final value will be T/F
-     */
     @Test
-    @Parameters(method = "parametersForShopTogether")
-    public void testShopTogetherApplicatorForVMs(Setting shopTogetherSetting,
-            TopologyInfo topologyInfo,
-            boolean probeOrEarlierStageValue,
-            boolean expectedFinalValue) {
-
-        TopologyEntityDTO.Builder vm = TopologyEntityDTO.newBuilder()
-                .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(probeOrEarlierStageValue))
-                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
-                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                        .setProviderId(PARENT_ID)
-                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-                        .setMovable(true));
-        applySettings(topologyInfo, vm, shopTogetherSetting);
-        assertThat(vm.getAnalysisSettings().getShopTogether(), is(expectedFinalValue));
-    }
-
-    @Test
-    public void testShopTogetherApplicatorForPMs() {
+    public void testShopTogetherApplicator() {
         final TopologyEntityDTO.Builder pmSNMNotSupport = TopologyEntityDTO.newBuilder()
                         .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(false))
                         .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
@@ -842,7 +765,7 @@ public class EntitySettingsApplicatorTest {
                                 .setProviderId(PARENT_ID)
                                 .setProviderEntityType(EntityType.DATACENTER_VALUE)
                                 .setMovable(true));
-        applySettings(TOPOLOGY_INFO, pmSNMNotSupport, MOVE_AUTOMATIC_SETTING);
+        applySettings(TOPOLOGY_INFO, pmSNMNotSupport, MOVE_MANUAL_SETTING);
         assertThat(pmSNMNotSupport.getAnalysisSettings().getShopTogether(), is(false));
 
         final TopologyEntityDTO.Builder pmSNMSupport = TopologyEntityDTO.newBuilder()
@@ -854,6 +777,46 @@ public class EntitySettingsApplicatorTest {
                                 .setMovable(true));
         applySettings(TOPOLOGY_INFO, pmSNMSupport, MOVE_MANUAL_SETTING);
         assertThat(pmSNMSupport.getAnalysisSettings().getShopTogether(), is(true));
+
+        final TopologyEntityDTO.Builder vmSNMNotSupported = TopologyEntityDTO.newBuilder()
+                .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(false))
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(PARENT_ID)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .setMovable(true));
+        applySettings(TOPOLOGY_INFO, vmSNMNotSupported, MOVE_MANUAL_SETTING, STORAGE_MOVE_MANUAL_SETTING);
+        assertThat(vmSNMNotSupported.getAnalysisSettings().getShopTogether(), is(false));
+
+        final TopologyEntityDTO.Builder vmSNMSupported = TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(PARENT_ID)
+                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                .setMovable(true));
+        applySettings(TOPOLOGY_INFO, vmSNMSupported, MOVE_AUTOMATIC_SETTING, STORAGE_MOVE_AUTOMATIC_SETTING);
+        assertThat(vmSNMSupported.getAnalysisSettings().getShopTogether(), is(true));
+
+        final TopologyEntityDTO.Builder vmSNMSupported2 = TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(PARENT_ID)
+                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                .setMovable(true));
+        applySettings(TOPOLOGY_INFO, vmSNMSupported2, MOVE_MANUAL_SETTING, STORAGE_MOVE_AUTOMATIC_SETTING);
+        assertThat(vmSNMSupported2.getAnalysisSettings().getShopTogether(), is(false));
+
+        final TopologyEntityDTO.Builder vmSNMSupported3 = TopologyEntityDTO.newBuilder()
+                        .setAnalysisSettings(AnalysisSettings.newBuilder().setShopTogether(true))
+                        .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                        .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                                .setProviderId(PARENT_ID)
+                                .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                .setMovable(true));
+                applySettings(TOPOLOGY_INFO, vmSNMSupported3, MOVE_MANUAL_SETTING, STORAGE_MOVE_MANUAL_SETTING);
+                assertThat(vmSNMSupported3.getAnalysisSettings().getShopTogether(), is(true));
     }
 
     /**

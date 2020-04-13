@@ -895,7 +895,6 @@ com.vmturbo.market.component/src/test/resources/protobuf/messages/vdc-1.dto.json
 com.vmturbo.market.component/src/test/resources/protobuf/messages/vdc-2.dto.json -text
 com.vmturbo.market.component/src/test/resources/protobuf/messages/vm-1.dto.json -text
 com.vmturbo.market.component/src/test/resources/protobuf/messages/vm-2.dto.json -text
-com.vmturbo.mediation.aws.conversion/src/test/resources/data/* -text
 com.vmturbo.mediation.aix.component/pom.xml -text
 com.vmturbo.mediation.client/pom.xml -text
 com.vmturbo.mediation.client/src/main/java/com/vmturbo/mediation/client/MediationComponentConfig.java svneol=native#text/x-java

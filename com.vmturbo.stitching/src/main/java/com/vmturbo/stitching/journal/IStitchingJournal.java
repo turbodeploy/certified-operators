@@ -169,19 +169,6 @@ public interface IStitchingJournal<T extends JournalableEntity<T>> {
     void recordOperationBeginning(@Nonnull final JournalableOperation operation);
 
     /**
-     * Mark the beginning of a new stitching operation. This records a relevant entry to all
-     * recorders in the journal. Mark an operation to indicate which piece of code is
-     * responsible for a following set of changes.
-     * <p/>
-     * Sets the ongoing operation. It is illegal to call when there is already an ongoing operation.
-     *
-     * @param operation The {@link JournalableOperation} that is beginning.
-     * @param details A collection of strings containing further details describing hte operation.
-     */
-    void recordOperationBeginning(@Nonnull final JournalableOperation operation,
-                                  @Nonnull final Collection<String> details);
-
-    /**
      * Mark the end of the current stitching operation. This records a relevant entry to all
      * recorders in the journal. Mark an operation to indicate which piece of code is
      * responsible for the preceding set of changes.

@@ -35,7 +35,7 @@ public class MergePolicyDesktopPoolTest extends MergePolicyTestBase {
                 .setMergeType(MergeType.DESKTOP_POOL)
                 .build();
         group1 = PolicyGroupingHelper.policyGrouping(PolicyMatcher.searchParametersCollection(),
-                EntityType.DESKTOP_POOL_VALUE, CONSUMER_ID);
+                EntityType.BUSINESS_USER_VALUE, CONSUMER_ID);
         group2 = PolicyGroupingHelper.policyGrouping(PolicyMatcher.searchParametersCollection(),
                 EntityType.DESKTOP_POOL_VALUE, PROVIDER_ID);
         mergePolicyEntities = Arrays.asList(new PolicyEntities(group2), new PolicyEntities(group1));

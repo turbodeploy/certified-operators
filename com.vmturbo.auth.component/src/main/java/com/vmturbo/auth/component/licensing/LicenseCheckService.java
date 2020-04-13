@@ -14,14 +14,14 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.util.StringUtils;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.protobuf.Empty;
 
 import io.grpc.stub.StreamObserver;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.util.StringUtils;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -36,7 +36,6 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.server.ComponentNotificationSender;
@@ -49,6 +48,7 @@ import com.vmturbo.licensing.License;
 import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category;
+import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryListener;
 import com.vmturbo.repository.api.impl.RepositoryNotificationReceiver;
 
@@ -382,40 +382,40 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         switch (license.getCountedEntity()) {
             case VM:
                 logger.debug("Counting active VMs");
-                entityCountRequestBuilder.setSearch(SearchQuery.newBuilder()
-                    .addSearchParameters(SearchParameters.newBuilder()
-                        .setStartingFilter(PropertyFilter.newBuilder()
-                                .setPropertyName("entityType")
-                                .setStringFilter(StringFilter.newBuilder()
-                                        .setStringPropertyRegex("VirtualMachine")
-                                        .build())
-                                .build())
-                        .addSearchFilter(SearchFilter.newBuilder()
-                                .setPropertyFilter(PropertyFilter.newBuilder()
-                                        .setPropertyName("state")
+                entityCountRequestBuilder.addSearchParameters(
+                        SearchParameters.newBuilder()
+                                .setStartingFilter(PropertyFilter.newBuilder()
+                                        .setPropertyName("entityType")
                                         .setStringFilter(StringFilter.newBuilder()
-                                                .setStringPropertyRegex("ACTIVE"))))
-                        .build()));
-            break;
-        case SOCKET:
-            // SOCKET count type is not supported in XL!
-            // just log a warning here, since this should have been picked up in the validation
-            // process.
-            logger.warn("Socket-based licenses are not supported in XL.");
-            break;
-        default:
-            // ditto for any other counted entity type
-            logger.warn("Counted Entity type {} not understood -- will not count workloads",
-                    license.getCountedEntity());
-            break;
-    }
+                                                .setStringPropertyRegex("VirtualMachine")
+                                                .build())
+                                        .build())
+                                .addSearchFilter(SearchFilter.newBuilder()
+                                        .setPropertyFilter(PropertyFilter.newBuilder()
+                                                .setPropertyName("state")
+                                                .setStringFilter(StringFilter.newBuilder()
+                                                        .setStringPropertyRegex("ACTIVE"))))
+                                .build());
+                break;
+            case SOCKET:
+                // SOCKET count type is not supported in XL!
+                // just log a warning here, since this should have been picked up in the validation
+                // process.
+                logger.warn("Socket-based licenses are not supported in XL.");
+                break;
+            default:
+                // ditto for any other counted entity type
+                logger.warn("Counted Entity type {} not understood -- will not count workloads",
+                        license.getCountedEntity());
+                break;
+        }
 
         // get the appropriate workload count.
         // we're going to check the workload limit here and set a boolean, since it's not
         // flagged in the license objects directly.
         boolean isOverLimit = false;
         CountEntitiesRequest request = entityCountRequestBuilder.build();
-        if (request.getSearch().getSearchParametersCount() == 0) {
+        if (request.getSearchParametersCount() == 0) {
             logger.info("Empty entity count request -- will not request workload count.");
         } else {
             // call using waitForReady -- this is on a worker thread, and we are willing to block

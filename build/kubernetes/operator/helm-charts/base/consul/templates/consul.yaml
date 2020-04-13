@@ -60,14 +60,8 @@ spec:
     spec:
       containers:
       - name: {{ .Chart.Name }}
-{{- if .Values.global }}
-  {{- if .Values.global.customImageNames }}
         image: {{ template "consul_image" . }}
-  {{- else }}
-        image: {{ template "image" . }}
-  {{- end }}
         imagePullPolicy: {{ template "pullPolicy" . }}
-{{- end }}
         args:
         - vmt-server
         - -client=0.0.0.0

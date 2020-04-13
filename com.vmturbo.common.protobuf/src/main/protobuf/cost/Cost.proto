@@ -679,26 +679,22 @@ message GetReservedInstanceBoughtByFilterResponse {
     repeated ReservedInstanceBought reserved_instance_boughts = 1;
 }
 
-message GetReservedInstanceBoughtForAnalysisRequest {
-    // Basic information about topology.
+message GetReservedInstanceBoughtByTopologyRequest {
+
     // If a topology context ID is not specified, the realtime context ID will be used to
     // resolve RIs in scope
-    required .topology.TopologyInfo topology_info = 1;
-}
-
-message GetReservedInstanceBoughtForScopeRequest {
-    // If the topology is to be scoped, the OIDs specified here seed the scoping expansion.
-    repeated int64 scope_seed_oids = 5;
-}
-
-// This response contains a list reserved instance bought by topology.
-message GetReservedInstanceBoughtForAnalysisResponse {
-    // A list of reserved instance bought.
-    repeated ReservedInstanceBought reserved_instance_bought = 1;
+    optional int64 topology_context_id = 1;
+    optional .topology.TopologyType topology_type = 2;
+    optional int32 scope_entity_type = 3;
+    repeated int64 scope_seed_oids = 4;
+    // Specifies whether to get the plan saved RIs from db.  Initially, when plan is still
+    // being configured, for instance, the data store won't have plan saved RIs, hence we would
+    // retrieve them from the real-time topology information.
+    optional bool get_saved = 5 [default = true];
 }
 
 // This response contains a list reserved instance bought by topology.
-message GetReservedInstanceBoughtForScopeResponse {
+message GetReservedInstanceBoughtByTopologyResponse {
     // A list of reserved instance bought.
     repeated ReservedInstanceBought reserved_instance_bought = 1;
 }
@@ -1070,8 +1066,6 @@ message GetEntityReservedInstanceCoverageResponse {
 message GetProjectedEntityReservedInstanceCoverageRequest {
     // Filter by a list of Entities.
     optional EntityFilter entity_filter = 1;
-    // The topology from which to retrieve RI coverage
-    optional int64 topologyContextId = 2;
 }
 
 message GetProjectedEntityReservedInstanceCoverageResponse {
@@ -1108,7 +1102,6 @@ message StartBuyRIAnalysisRequest {
 message GetTierPriceForEntitiesRequest{
     optional int64 oid = 1;
     optional CostCategory costCategory = 2;
-    optional int64 topologyContextId = 3;
 }
 
 message GetTierPriceForEntitiesResponse{
@@ -1155,14 +1148,8 @@ service ReservedInstanceBoughtService {
     rpc GetReservedInstanceBoughtByFilter(GetReservedInstanceBoughtByFilterRequest) returns
     (GetReservedInstanceBoughtByFilterResponse);
 
-    // Get RIs for Analysis, if RI analysis is done in Market - we should include bought RIs too
-    rpc GetReservedInstanceBoughtForAnalysis(GetReservedInstanceBoughtForAnalysisRequest) returns
-        (GetReservedInstanceBoughtForAnalysisResponse);
-
-    // Get reserved instance by specified scope for plans to determine possible RIs within a
-    // configured scope for a RT
-    rpc GetReservedInstanceBoughtForScope(GetReservedInstanceBoughtForScopeRequest) returns
-        (GetReservedInstanceBoughtForScopeResponse);
+    rpc GetReservedInstanceBoughtByTopology(GetReservedInstanceBoughtByTopologyRequest) returns
+        (GetReservedInstanceBoughtByTopologyResponse);
 
     // Get reserved instance count in the users inventory by template type
     rpc GetReservedInstanceBoughtCountByTemplateType(GetReservedInstanceBoughtCountRequest) returns

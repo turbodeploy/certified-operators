@@ -149,9 +149,9 @@ public class MarketTopologyListener implements
             return;
         }
 
-        TopologyCreator<ProjectedTopologyEntity> topologyCreator = null;
+        final TopologyCreator<ProjectedTopologyEntity> topologyCreator =
+                topologyManager.newProjectedTopologyCreator(tid, originalTopologyInfo);
         try {
-            topologyCreator = topologyManager.newProjectedTopologyCreator(tid, originalTopologyInfo);
             topologyCreator.initialize();
             logger.info("Start updating topology {}", tid);
             int numberOfEntities = 0;
@@ -176,9 +176,7 @@ public class MarketTopologyListener implements
             notificationSender.onProjectedTopologyFailure(projectedTopologyId, topologyContextId,
                     "Thread interrupted when receiving projected topology " + projectedTopologyId +
                             " + for context " + topologyContextId + ": " + e.getMessage());
-            if (topologyCreator != null) {
-                topologyCreator.rollback();
-            }
+            topologyCreator.rollback();
             throw e;
         } catch (CommunicationException | TimeoutException | TopologyEntitiesException
             | GraphDatabaseException | ArangoDBException e) {
@@ -188,9 +186,7 @@ public class MarketTopologyListener implements
             notificationSender.onProjectedTopologyFailure(projectedTopologyId, topologyContextId,
                 "Error receiving projected topology " + projectedTopologyId +
                         " + for context " + topologyContextId + ": " + e.getMessage());
-            if (topologyCreator != null) {
-                topologyCreator.rollback();
-            }
+            topologyCreator.rollback();
             return;
         } catch (Exception e) {
             logger.error("Exception while receiving projected topology " + projectedTopologyId, e);
@@ -198,9 +194,7 @@ public class MarketTopologyListener implements
             notificationSender.onProjectedTopologyFailure(projectedTopologyId, topologyContextId,
                     "Error receiving projected topology " + projectedTopologyId +
                             " + for context " + topologyContextId + ": " + e.getMessage());
-            if (topologyCreator != null) {
                 topologyCreator.rollback();
-            }
             throw e;
         } finally {
             // Make sure we try to drain the iterator by the end of processing.

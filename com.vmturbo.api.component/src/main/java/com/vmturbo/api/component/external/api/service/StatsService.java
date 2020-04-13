@@ -455,13 +455,15 @@ public class StatsService implements IStatsService {
                             GroupProtoUtil.getAllStaticMembers(group.getDefinition()));
                 }
                 final EntityStatsApiDTO statsDTO = new EntityStatsApiDTO();
-                final ApiId apiId = uuidMapper.fromOid(group.getId());
-                StatsMapper.populateEntityDataEntityStatsApiDTO(apiId, statsDTO);
+                final String uuid = String.valueOf(group.getId());
+                statsDTO.setUuid(uuid);
+                statsDTO.setClassName(StringConstants.CLUSTER);
+                statsDTO.setDisplayName(group.getDefinition().getDisplayName());
                 statsDTO.setStats(new ArrayList<>());
 
                 // Call Stats service to retrieve cluster related stats.
                 final ClusterStatsRequest clusterStatsRequest =
-                        statsMapper.toClusterStatsRequest(apiId.uuid(), inputDto.getPeriod(), true);
+                        statsMapper.toClusterStatsRequest(uuid, inputDto.getPeriod(), true);
                 final Iterator<StatSnapshot> statSnapshotIterator =
                         statsServiceRpc.getClusterStats(clusterStatsRequest);
                 while (statSnapshotIterator.hasNext()) {

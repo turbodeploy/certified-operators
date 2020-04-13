@@ -37,7 +37,7 @@ public class MergePolicyDataecenterTest extends MergePolicyTestBase {
                 .setMergeType(PolicyInfo.MergePolicy.MergeType.DATACENTER)
                 .build();
         super.group1 = PolicyGroupingHelper.policyGrouping(
-                searchParametersCollection(), EntityType.PHYSICAL_MACHINE_VALUE, 1234L);
+                searchParametersCollection(), EntityType.VIRTUAL_MACHINE_VALUE, 1234L);
 
         super.group2 = PolicyGroupingHelper.policyGrouping(
                 searchParametersCollection(), EntityType.PHYSICAL_MACHINE_VALUE, 5678L);

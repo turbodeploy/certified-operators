@@ -28,7 +28,6 @@ import com.vmturbo.common.protobuf.stats.Stats.PercentileChunk;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.commons.Units;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
@@ -42,7 +41,6 @@ import com.vmturbo.topology.processor.history.percentile.PercentilePersistenceTa
 @RunWith(PowerMockRunner.class)
 @PrepareForTest({StatsHistoryServiceStub.class})
 public class PercentilePersistenceTaskTest {
-    private static final Pair<Long, Long> DEFAULT_RANGE = Pair.create(null, null);
     /**
      * Expected test exception.
      */
@@ -104,7 +102,7 @@ public class PercentilePersistenceTaskTest {
         Mockito.doAnswer(answerGetCounts).when(history).getPercentileCounts(Mockito.any(),
                                                                             Mockito.any());
 
-        PercentilePersistenceTask task = new PercentilePersistenceTask(history, DEFAULT_RANGE);
+        PercentilePersistenceTask task = new PercentilePersistenceTask(history);
         Map<EntityCommodityFieldReference, PercentileRecord> comms = task
                         .load(Collections.emptyList(), config);
         Assert.assertNotNull(comms);
@@ -142,7 +140,7 @@ public class PercentilePersistenceTaskTest {
         Mockito.doAnswer(answerGetCounts).when(history).getPercentileCounts(Mockito.any(),
                                                                             Mockito.any());
 
-        PercentilePersistenceTask task = new PercentilePersistenceTask(history, DEFAULT_RANGE);
+        PercentilePersistenceTask task = new PercentilePersistenceTask(history);
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to load");
         task.load(Collections.emptyList(), config);
@@ -173,7 +171,7 @@ public class PercentilePersistenceTaskTest {
         Mockito.doAnswer(answerGetCounts).when(history).getPercentileCounts(Mockito.any(),
                                                                             Mockito.any());
 
-        PercentilePersistenceTask task = new PercentilePersistenceTask(history, DEFAULT_RANGE);
+        PercentilePersistenceTask task = new PercentilePersistenceTask(history);
         expectedException.expect(HistoryCalculationException.class);
         expectedException.expectMessage("Failed to deserialize");
         task.load(Collections.emptyList(), config);
@@ -200,7 +198,7 @@ public class PercentilePersistenceTaskTest {
         StatsHistoryServiceStub history = PowerMockito.mock(StatsHistoryServiceStub.class);
         Mockito.doReturn(writer).when(history).setPercentileCounts(Mockito.any());
 
-        PercentilePersistenceTask task = new PercentilePersistenceTask(history, DEFAULT_RANGE);
+        PercentilePersistenceTask task = new PercentilePersistenceTask(history);
         task.save(counts, periodMs, config);
         Assert.assertArrayEquals(counts.toByteArray(), writer.getResult());
     }
@@ -220,7 +218,7 @@ public class PercentilePersistenceTaskTest {
         StatsHistoryServiceStub history = PowerMockito.mock(StatsHistoryServiceStub.class);
         Mockito.doReturn(writer).when(history).setPercentileCounts(Mockito.any());
 
-        PercentilePersistenceTask task = new PercentilePersistenceTask(history, DEFAULT_RANGE);
+        PercentilePersistenceTask task = new PercentilePersistenceTask(history);
         task.save(PercentileCounts.newBuilder().build(), 0, config);
         Mockito.verify(writer, Mockito.never()).onNext(Mockito.any());
 
@@ -233,9 +231,7 @@ public class PercentilePersistenceTaskTest {
      */
     @Test
     public void testDefaultConstructor() {
-        final PercentilePersistenceTask task =
-                        new PercentilePersistenceTask(Mockito.mock(StatsHistoryServiceStub.class),
-                                        DEFAULT_RANGE);
+        PercentilePersistenceTask task = new PercentilePersistenceTask(Mockito.mock(StatsHistoryServiceStub.class));
         Assert.assertEquals(PercentilePersistenceTask.TOTAL_TIMESTAMP, task.getStartTimestamp());
     }
 

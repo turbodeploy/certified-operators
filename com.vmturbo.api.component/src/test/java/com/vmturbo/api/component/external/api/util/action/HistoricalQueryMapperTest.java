@@ -29,6 +29,7 @@ import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.GroupBy;
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery.MgmtUnitSubgroupFilter;
@@ -65,6 +66,19 @@ public class HistoricalQueryMapperTest {
         inputDto.setRiskSubCategoryList(Arrays.asList("effImpr", "compliance"));
 
         final ActionSpecMapper actionSpecMapper = mock(ActionSpecMapper.class);
+        when(actionSpecMapper.mapApiModeToXl(ActionMode.AUTOMATIC))
+            .thenReturn(Optional.of(ActionDTO.ActionMode.AUTOMATIC));
+        when(actionSpecMapper.mapApiModeToXl(ActionMode.MANUAL))
+            .thenReturn(Optional.of(ActionDTO.ActionMode.MANUAL));
+        when(actionSpecMapper.mapApiStateToXl(ActionState.ACCEPTED))
+            .thenReturn(Optional.of(ActionDTO.ActionState.QUEUED));
+        when(actionSpecMapper.mapApiStateToXl(ActionState.IN_PROGRESS))
+            .thenReturn(Optional.of(ActionDTO.ActionState.IN_PROGRESS));
+
+        when(actionSpecMapper.mapApiActionCategoryToXl("effImpr"))
+            .thenReturn(Optional.of(ActionCategory.EFFICIENCY_IMPROVEMENT));
+        when(actionSpecMapper.mapApiActionCategoryToXl("compliance"))
+            .thenReturn(Optional.of(ActionCategory.COMPLIANCE));
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(any(), any()))
@@ -91,6 +105,9 @@ public class HistoricalQueryMapperTest {
         final HistoricalActionStatsQuery grpcQuery = grpcQueries.get(apiId);
         assertThat(grpcQuery.getTimeRange().getStartTime(), is(startTime));
         assertThat(grpcQuery.getTimeRange().getEndTime(), is(endTime));
+
+        assertThat(grpcQuery.getActionGroupFilter().getActionCategoryList(),
+            containsInAnyOrder(ActionCategory.EFFICIENCY_IMPROVEMENT, ActionCategory.COMPLIANCE));
         assertThat(grpcQuery.getActionGroupFilter().getActionModeList(),
             containsInAnyOrder(ActionDTO.ActionMode.AUTOMATIC, ActionDTO.ActionMode.MANUAL));
         assertThat(grpcQuery.getActionGroupFilter().getActionStateList(),

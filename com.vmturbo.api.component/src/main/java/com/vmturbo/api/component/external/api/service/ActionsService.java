@@ -30,7 +30,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -251,8 +250,8 @@ public class ActionsService implements IActionsService {
                     .getMinimalEntities()
                     .forEach(minEntity -> {
                         final EntityStatsApiDTO entityStatsApiDTO = entityStatsByUuid.get(Long.toString(minEntity.getOid()));
-                        StatsMapper.populateEntityDataEntityStatsApiDTO(
-                                minEntity, entityStatsApiDTO);
+                        entityStatsApiDTO.setDisplayName(minEntity.getDisplayName());
+                        entityStatsApiDTO.setClassName(ApiEntityType.fromType(minEntity.getEntityType()).apiStr());
                     });
             }
 
@@ -288,24 +287,22 @@ public class ActionsService implements IActionsService {
     @Override
     public ActionDetailsApiDTO getActionsDetailsByUuid(String uuid) {
         ActionOrchestratorAction action = actionOrchestratorRpc.getAction(actionRequest(uuid));
-        return getActionDetails(action, realtimeTopologyContextId);
+        return getActionDetails(action);
     }
 
     /**
      * Gets details for an action.
      *
      * @param action action
-     * @param topologyContextId the topology in which the action resides
      * @return details of the action
      */
     @Nonnull
-    private ActionDetailsApiDTO getActionDetails(@Nonnull ActionOrchestratorAction action, final Long topologyContextId) {
+    private ActionDetailsApiDTO getActionDetails(@Nonnull ActionOrchestratorAction action) {
         if (action.hasActionSpec()) {
             // create action details dto based on action api dto which contains "explanation" with
             // coverage information.
             ActionDetailsApiDTO actionDetailsApiDTO = actionSpecMapper.createActionDetailsApiDTO(
-                    action,
-                    Objects.isNull(topologyContextId) ? realtimeTopologyContextId : topologyContextId);
+                    action);
             if (actionDetailsApiDTO != null) {
                 return actionDetailsApiDTO;
             }
@@ -329,13 +326,8 @@ public class ActionsService implements IActionsService {
                 .collect(Collectors.toList());
         Iterator<ActionOrchestratorAction> actionsIterator = actionOrchestratorRpc.getActions(
                 multiActionRequest(actionIds, inputDto.getTopologyContextId()));
-        String inputDtoTopologyContextId = inputDto.getTopologyContextId();
-        Long topologyContextId = !Strings.isNullOrEmpty(inputDtoTopologyContextId)
-                ? Long.parseLong(inputDtoTopologyContextId) : null;
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(actionsIterator, 0), false)
-                .collect(Collectors.toMap(
-                        action -> Long.toString(action.getActionId()),
-                        action -> getActionDetails(action, topologyContextId)));
+                .collect(Collectors.toMap(action -> Long.toString(action.getActionId()), this::getActionDetails));
     }
 
     private MultiActionRequest multiActionRequest(@Nonnull final List<Long> uuids,

@@ -5,7 +5,6 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -229,7 +228,7 @@ public class ActionsServiceTest {
 
         ArgumentCaptor<ActionOrchestratorAction> orchestratorActionCaptor =
                 ArgumentCaptor.forClass(ActionOrchestratorAction.class);
-        when(actionSpecMapper.createActionDetailsApiDTO(orchestratorActionCaptor.capture(), anyLong()))
+        when(actionSpecMapper.createActionDetailsApiDTO(orchestratorActionCaptor.capture()))
                 .thenReturn(new CloudResizeActionDetailsApiDTO());
 
         Map<String, ActionDetailsApiDTO> actionDetails = actionsServiceUnderTest.getActionDetailsByUuids(inputDTO);
@@ -267,7 +266,7 @@ public class ActionsServiceTest {
             ArgumentCaptor.forClass(MultiActionRequest.class);
         when(actionsServiceBackend.getActions(requestCaptor.capture())).thenReturn(mockActions);
 
-        when(actionSpecMapper.createActionDetailsApiDTO(any(), anyLong()))
+        when(actionSpecMapper.createActionDetailsApiDTO(any()))
             .thenReturn(mock(ActionDetailsApiDTO.class));
 
         final Map<String, ActionDetailsApiDTO> resultDetailMap =

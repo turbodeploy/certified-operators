@@ -5,6 +5,9 @@ import static com.vmturbo.components.common.BaseVmtComponent.PROP_INSTANCE_ID;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import io.jaegertracing.Configuration;
 import io.jaegertracing.Configuration.ReporterConfiguration;
 import io.jaegertracing.Configuration.SamplerConfiguration;
@@ -12,22 +15,19 @@ import io.jaegertracing.Configuration.SenderConfiguration;
 import io.opentracing.Tracer;
 import io.opentracing.util.GlobalTracer;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.logging.Logging.TracingConfiguration;
 import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * Responsible for initializing and refreshing the static tracing configuration.
- *
- * <p/>A key requirement for the initial pass of the tracing framework was that we should be able
+ * <p>
+ * A key requirement for the initial pass of the tracing framework was that we should be able
  * to control the tracing - turn it on or off for specific components and, in the future,
  * for specific subsets of each component. OpenTracing doesn't have an easy interface to let
  * us do this. The typical pattern is to initialize a {@link Tracer} once, and use it for
  * the lifetime of the application.
- *
- * <p/>* To get around the singleton limitation we use a {@link DelegatingTracer}. When a new
+ * <p>
+ * To get around the singleton limitation we use a {@link DelegatingTracer}. When a new
  * tracing configuration is requested (via
  * {@link TracingManager#refreshTracingConfiguration(TracingConfiguration)}), the
  * {@link TracingManager} is responsible for creating the appropriate
@@ -55,9 +55,7 @@ public class TracingManager {
     @GuardedBy("this")
     private TracingConfiguration lastTracingConfig = TracingConfiguration.getDefaultInstance();
 
-    private static final TracingManager INSTANCE = new TracingManager();
-
-    private TracingManager() {
+    public TracingManager() {
         this.delegatingTracer = new DelegatingTracer();
         // The GlobalTracer can only be set once, so we set it to the delegating tracer.
         GlobalTracer.registerIfAbsent(this.delegatingTracer);
@@ -67,16 +65,6 @@ public class TracingManager {
             .orElse("foo");
 
         refreshTracingConfiguration(DEFAULT_CONFIG);
-    }
-
-    /**
-     * Get the instance of {@link TracingManager} shared in this component.
-     *
-     * @return The {@link TracingManager}.
-     */
-    @Nonnull
-    public static TracingManager get() {
-        return INSTANCE;
     }
 
     @Nonnull

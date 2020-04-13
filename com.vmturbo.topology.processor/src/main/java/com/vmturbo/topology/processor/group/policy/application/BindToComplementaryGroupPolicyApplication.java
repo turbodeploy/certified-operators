@@ -1,8 +1,8 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
+import java.util.List;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -12,7 +12,6 @@ import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
@@ -43,12 +42,12 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
                     final Grouping providerGroup = policy.getProviderPolicyEntities().getGroup();
                     final Grouping consumerGroup = policy.getConsumerPolicyEntities().getGroup();
                     GroupProtoUtil.checkEntityTypeForPolicy(providerGroup);
-                    GroupProtoUtil.checkEntityTypeForPolicy(consumerGroup);
-                    final ApiEntityType providerEntityType = GroupProtoUtil.getEntityTypes(providerGroup).iterator().next();
-                    final ApiEntityType consumerEntityType = GroupProtoUtil.getEntityTypes(consumerGroup).iterator().next();
-                    Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup, topologyGraph).getEntitiesOfType(providerEntityType), policy.getProviderPolicyEntities().getAdditionalEntities());
-                    final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup, topologyGraph).getEntitiesOfType(consumerEntityType), policy.getConsumerPolicyEntities().getAdditionalEntities());
+                    Set<Long> providers = Sets.union(groupResolver.resolve(providerGroup,
+                        topologyGraph), policy.getProviderPolicyEntities().getAdditionalEntities());
+                    final Set<Long> consumers = Sets.union(groupResolver.resolve(consumerGroup,
+                        topologyGraph), policy.getConsumerPolicyEntities().getAdditionalEntities());
                     //checkEntityType logic makes sure that the group only has only one entity type here
+                    final int providerType = GroupProtoUtil.getEntityTypes(providerGroup).iterator().next().typeNumber();
                     // if providers have been replaced, add them to the list of providers so as to skip them
                     Set<Long> replacedProviders = new HashSet<>();
                     providers.forEach(providerId -> topologyGraph.getEntity(providerId)
@@ -61,8 +60,8 @@ public class BindToComplementaryGroupPolicyApplication extends PlacementPolicyAp
 
                     // Add the commodity to the appropriate entities
                     addCommoditySoldToComplementaryProviders(Sets.union(providers, replacedProviders),
-                            providerEntityType.typeNumber(), commoditySold(policy));
-                    addCommodityBought(consumers, providerEntityType.typeNumber(), commodityBought(policy));
+                            providerType, commoditySold(policy));
+                    addCommodityBought(consumers, providerType, commodityBought(policy));
                 } catch (GroupResolutionException e) {
                     errors.put(policy, new PolicyApplicationException(e));
                 } catch (PolicyApplicationException e2) {

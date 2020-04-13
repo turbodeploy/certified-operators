@@ -101,7 +101,6 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter;
-import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
@@ -367,7 +366,6 @@ public class GroupMapperTest {
         groupDto.setDisplayName(displayName);
         groupDto.setGroupType(groupType);
         groupDto.setIsStatic(isStatic);
-        groupDto.setLogicalOperator("OR");
         groupDto.setCriteriaList(criteriaList);
 
         final GroupDefinition groupDefinition = groupMapper.toGroupDefinition(groupDto);
@@ -379,7 +377,6 @@ public class GroupMapperTest {
         assertEquals(EntityType.VIRTUAL_MACHINE.getNumber(), entityFilter.getEntityType());
         assertEquals(GroupDefinition.SelectionCriteriaCase.ENTITY_FILTERS,
                         groupDefinition.getSelectionCriteriaCase());
-        assertEquals(LogicalOperator.OR, entityFilter.getLogicalOperator());
         assertEquals(2, entityFilter.getSearchParametersCollection().getSearchParametersCount());
         SearchParameters firstSearchParameters =
                         entityFilter.getSearchParametersCollection().getSearchParameters(0);
@@ -496,7 +493,6 @@ public class GroupMapperTest {
                         .setEntityFilters(EntityFilters.newBuilder().addEntityFilter(EntityFilter
                                         .newBuilder()
                                         .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                                        .setLogicalOperator(LogicalOperator.OR)
                                         .setSearchParametersCollection(SearchParametersCollection
                                                         .newBuilder()
                                                         .addSearchParameters(vmParameters)
@@ -518,7 +514,6 @@ public class GroupMapperTest {
 
         assertEquals(Long.toString(oid), dto.getUuid());
         assertEquals(displayName, dto.getDisplayName());
-        assertEquals("OR", dto.getLogicalOperator());
         assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), dto.getGroupType());
         assertEquals(isStatic, dto.getIsStatic());
         assertEquals(StringConstants.GROUP, dto.getClassName());

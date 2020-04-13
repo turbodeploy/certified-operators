@@ -8,7 +8,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -32,7 +31,6 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         .getPath();
 
     @Test
-    @Ignore
     public void testEngineering() throws Exception {
         DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(AZURE_ENGINEERING_FILE_PATH);
         AzureConversionProbe probe = Mockito.spy(new AzureConversionProbe());
@@ -42,12 +40,19 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         // check entityDTO field (new EntityDTOs created, etc.)
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
-        assertEquals(8, entitiesByType.size());
+
+        // verify there are 10 different entity types in new topology
+        assertEquals(10, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(3, entitiesByType.get(EntityType.DATABASE).size());
-        assertEquals(52, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
+        assertEquals(2, entitiesByType.get(EntityType.DATABASE).size());
+        assertEquals(44, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
+        assertEquals(91, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
+        assertEquals(119, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
+        assertEquals(216, entitiesByType.get(EntityType.COMPUTE_TIER).size());
+        assertEquals(19, entitiesByType.get(EntityType.DATABASE_TIER).size());
+        assertEquals(4, entitiesByType.get(EntityType.STORAGE_TIER).size());
         assertEquals(30, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
@@ -58,7 +63,6 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
     }
 
     @Test
-    @Ignore
     public void testProductmgmt() throws Exception {
         DiscoveryResponse oldResponse = TestUtils.readResponseFromFile(AZURE_PRODUCTMGMT_FILE_PATH);
         AzureConversionProbe probe = Mockito.spy(new AzureConversionProbe());
@@ -69,12 +73,18 @@ public class AzureConversionProbeTest extends AzureConversionProbe {
         Map<EntityType, List<EntityDTO>> entitiesByType = newResponse.getEntityDTOList().stream()
                 .collect(Collectors.groupingBy(EntityDTO::getEntityType));
 
-        assertEquals(7, entitiesByType.size());
+        // verify there are 9 different entity types in new topology
+        assertEquals(9, entitiesByType.size());
 
         // check each changed entity
-        assertEquals(44, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
+        assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
+        assertEquals(6, entitiesByType.get(EntityType.VIRTUAL_VOLUME).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
-        assertEquals(31, entitiesByType.get(EntityType.REGION).size());
+        assertEquals(119, entitiesByType.get(EntityType.CLOUD_SERVICE).size());
+        assertEquals(210, entitiesByType.get(EntityType.COMPUTE_TIER).size());
+        assertEquals(19, entitiesByType.get(EntityType.DATABASE_TIER).size());
+        assertEquals(4, entitiesByType.get(EntityType.STORAGE_TIER).size());
+        assertEquals(30, entitiesByType.get(EntityType.REGION).size());
 
         // unmodified
         assertEquals(6, entitiesByType.get(EntityType.APPLICATION_COMPONENT).size());

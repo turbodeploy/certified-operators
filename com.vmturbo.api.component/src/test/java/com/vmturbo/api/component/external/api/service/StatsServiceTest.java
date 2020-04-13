@@ -214,7 +214,6 @@ public class StatsServiceTest {
         when(apiId1.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
                         ApiEntityType.PHYSICAL_MACHINE)));
         when(apiId1.isGroup()).thenReturn(false);
-        when(apiId1.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
 
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId2.uuid()).thenReturn(oid2);
@@ -222,12 +221,10 @@ public class StatsServiceTest {
         when(apiId2.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
                         ApiEntityType.PHYSICAL_MACHINE)));
         when(apiId2.isGroup()).thenReturn(false);
-        when(apiId2.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
 
         when(uuidMapper.fromUuid(marketUuid)).thenReturn(marketApiId);
         when(marketApiId.getScopeTypes()).thenReturn(Optional.empty());
         when(marketApiId.isGroup()).thenReturn(false);
-        when(marketApiId.getEnvironmentType()).thenReturn(EnvironmentType.HYBRID);
 
         se1.setUuid(apiId1.uuid());
         se1.setClassName("ClassName-1");
@@ -249,16 +246,6 @@ public class StatsServiceTest {
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
         inputDto.setScopes(Collections.singletonList("7"));
         inputDto.setPeriod(periodApiInputDTO);
-        ApiId apiId = mock(ApiId.class);
-        when(apiId.uuid()).thenReturn("7");
-        when(apiId.oid()).thenReturn(7L);
-        when(apiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
-                ApiEntityType.COMPUTE_TIER)));
-        when(apiId.isGroup()).thenReturn(true);
-        when(apiId.getDisplayName()).thenReturn("Winter woede");
-        when(apiId.getClassName()).thenReturn("Cluster");
-        when(apiId.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
-        when(uuidMapper.fromOid(7)).thenReturn(apiId);
 
         final GroupDefinition clusterInfo = GroupDefinition.newBuilder()
                 .setType(GroupType.COMPUTE_HOST_CLUSTER)
@@ -397,7 +384,6 @@ public class StatsServiceTest {
         when(apiId1.oid()).thenReturn(1L);
         when(apiId1.isGroup()).thenReturn(true);
         when(apiId1.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
-        when(apiId1.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
 
         final ApiId apiId2 = mock(ApiId.class);
         when(uuidMapper.fromUuid("2")).thenReturn(apiId2);
@@ -406,7 +392,6 @@ public class StatsServiceTest {
         when(apiId2.oid()).thenReturn(2L);
         when(apiId2.isGroup()).thenReturn(true);
         when(apiId2.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
-        when(apiId2.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
 
         final ApiId apiId3 = mock(ApiId.class);
         when(uuidMapper.fromUuid("3")).thenReturn(apiId3);
@@ -415,7 +400,6 @@ public class StatsServiceTest {
         when(apiId3.oid()).thenReturn(3L);
         when(apiId3.isGroup()).thenReturn(true);
         when(apiId3.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
-        when(apiId3.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
 
         final ClusterStatsRequest clusterStatsRequest1 = ClusterStatsRequest.newBuilder()
                                                                 .setClusterId(1L)

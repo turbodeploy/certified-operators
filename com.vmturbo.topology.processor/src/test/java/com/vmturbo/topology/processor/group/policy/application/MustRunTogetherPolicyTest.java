@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.resolvedGroup;
 import static com.vmturbo.topology.processor.group.policy.PolicyMatcher.searchParametersCollection;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.topologyEntity;
 import static org.hamcrest.CoreMatchers.not;
@@ -15,15 +14,17 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.google.common.collect.Sets;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
@@ -106,7 +107,7 @@ public class MustRunTogetherPolicyTest {
     @Test
     public void testApplyEmpty() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
-            .thenReturn(resolvedGroup(group));
+            .thenReturn(Collections.emptySet());
 
         applyPolicy(new MustRunTogetherPolicy(policy,
             new PolicyEntities(group, Collections.emptySet())));
@@ -129,7 +130,7 @@ public class MustRunTogetherPolicyTest {
     @Test
     public void testApplyVmTogetherOnHost() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(group, 5L, 6L, 7L));
+                .thenReturn(Sets.newHashSet(5L, 6L, 7L));
 
         applyPolicy(new MustRunTogetherPolicy(policy,
             new PolicyEntities(group, Collections.emptySet())));
@@ -162,7 +163,7 @@ public class MustRunTogetherPolicyTest {
     @Test
     public void testApplyVmTogetherOnStorage() throws GroupResolutionException, PolicyApplicationException {
         when(groupResolver.resolve(eq(group), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(group, 6L, 7L));
+                .thenReturn(Sets.newHashSet(6L, 7L));
 
         applyPolicy(new MustRunTogetherPolicy(policyStorage,
             new PolicyEntities(group, Collections.emptySet())));

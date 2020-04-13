@@ -22,7 +22,7 @@ public class PropertiesLoaderTest {
     private static final String GOOD_AUTH_TEST_YAML_FILE_PATH = "configmap/sample_auth_properties.yaml";
     private static final String BAD_TEST_YAML_FILE_PATH = "other-properties/doesnt-exist.yaml";
     private static final String GOOD_OTHER_PROPERTIES_RESOURCE = "other-properties";
-    private static final String GOOD_TEST_SECRET_FILE_PATH = "secretMap/sample_file_username_password_secret";
+    private static final String GOOD_TEST_SECRET_FILE_PATH = "secretMap/sample_secrets";
 
     /**
      * Test reading properties.yaml and secret file, and merging the different sections to return

@@ -103,7 +103,6 @@ import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
-import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
@@ -604,18 +603,16 @@ public class SearchService implements ISearchService {
         try {
             if (paginationRequest.getOrderBy().equals(SearchOrderBy.SEVERITY)) {
                 final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
-                        .setSearch(SearchQuery.newBuilder()
-                            .addAllSearchParameters(searchParameters))
+                        .addAllSearchParameters(searchParameters)
                         .addAllEntityOid(allEntityOids)
                         .build();
                 return getServiceEntityPaginatedWithSeverity(inputDTO, updatedQuery, paginationRequest,
                         allEntityOids, searchOidsRequest, aspectNames);
             } else if (paginationRequest.getOrderBy().equals(SearchOrderBy.UTILIZATION)) {
                 final SearchEntityOidsRequest searchOidsRequest = SearchEntityOidsRequest.newBuilder()
-                    .setSearch(SearchQuery.newBuilder()
-                        .addAllSearchParameters(searchParameters))
-                    .addAllEntityOid(allEntityOids)
-                    .build();
+                        .addAllSearchParameters(searchParameters)
+                        .addAllEntityOid(allEntityOids)
+                        .build();
                 return getServiceEntityPaginatedWithUtilization(inputDTO, updatedQuery, paginationRequest,
                         allEntityOids, searchOidsRequest, isGlobalScope);
             }
@@ -633,8 +630,7 @@ public class SearchService implements ISearchService {
         // We don't use the RepositoryAPI utility because we do pagination,
         // and want to handle the pagination parameters.
         final SearchEntitiesRequest searchEntitiesRequest = SearchEntitiesRequest.newBuilder()
-            .setSearch(SearchQuery.newBuilder()
-                .addAllSearchParameters(searchParameters))
+            .addAllSearchParameters(searchParameters)
             .addAllEntityOid(allEntityOids)
             .setReturnType(PartialEntity.Type.API)
             .setPaginationParams(paginationMapper.toProtoParams(paginationRequest))

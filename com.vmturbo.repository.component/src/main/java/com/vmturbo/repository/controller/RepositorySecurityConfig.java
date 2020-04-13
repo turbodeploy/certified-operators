@@ -2,10 +2,8 @@ package com.vmturbo.repository.controller;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.web.firewall.DefaultHttpFirewall;
 
 import com.vmturbo.repository.RepositoryComponent;
 
@@ -22,12 +20,5 @@ public class RepositorySecurityConfig extends WebSecurityConfigurerAdapter {
         http.csrf().disable();
         http.authorizeRequests()
             .antMatchers("/**").permitAll();
-    }
-
-    @Override
-    public void configure(WebSecurity web) throws Exception {
-        super.configure(web);
-        // avoid using default StrictHttpFirewall from Spring
-        web.httpFirewall(new DefaultHttpFirewall());
     }
 }

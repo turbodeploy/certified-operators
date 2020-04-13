@@ -50,7 +50,6 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.matrix.component.TheMatrix;
-import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -254,7 +253,7 @@ public class OperationControllerTest {
                                         targetDumpingSettings(),
                                         systemNotificationProducer(),
                                         10, 10, 10,
-                                        5, 10, 1, 1,
+                                        5, 1, 1,
                                         TheMatrix.instance());
         }
 
@@ -324,10 +323,9 @@ public class OperationControllerTest {
         final OperationResponse response = postDiscovery(targetId, HttpStatus.OK);
 
         Mockito.verify(mockRemoteMediation).sendDiscoveryRequest(
-            Mockito.eq(probeId),
-            Mockito.eq(targetId),
-            Matchers.any(DiscoveryRequest.class),
-            Matchers.any(OperationMessageHandler.class));
+                Mockito.eq(probeId),
+                Matchers.any(DiscoveryRequest.class),
+                Matchers.any(OperationMessageHandler.class));
 
         final Discovery discovery = operationManager.getInProgressDiscovery(response.operation.getId()).get();
 
@@ -379,8 +377,7 @@ public class OperationControllerTest {
         assertOperationsEq(firstResponse.operation, byTargetResponse.operation);
 
         // Simulate the validation completing on the server.
-        final Discovery actualDiscovery =
-            operationManager.getInProgressDiscoveryForTarget(targetId, DiscoveryType.FULL).get();
+        final Discovery actualDiscovery = operationManager.getInProgressDiscoveryForTarget(targetId).get();
         operationManager.notifyDiscoveryResult(actualDiscovery,
                 com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse.getDefaultInstance());
         OperationTestUtilities.waitForDiscovery(operationManager, firstResponse.operation);
@@ -399,7 +396,6 @@ public class OperationControllerTest {
         Mockito.doThrow(TargetNotFoundException.class)
                 .when(mockRemoteMediation)
                 .sendDiscoveryRequest(
-                        Matchers.anyLong(),
                         Matchers.anyLong(),
                         Matchers.any(DiscoveryRequest.class),
                         Matchers.any(OperationMessageHandler.class)
@@ -426,16 +422,16 @@ public class OperationControllerTest {
     @Test
     public void testDiscoveryResetsSchedule() throws Exception {
         postDiscovery(targetId, HttpStatus.OK);
-        Mockito.verify(mockScheduler).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
+        Mockito.verify(mockScheduler).resetDiscoverySchedule(targetId);
     }
 
     @Test
     public void testDiscoveryScheduleNotResetWhenAlreadyInProgress() throws Exception {
         postDiscovery(targetId, HttpStatus.OK);
-        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
+        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(targetId);
 
         postDiscovery(targetId, HttpStatus.OK);
-        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
+        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(targetId);
     }
 
     /**
@@ -463,9 +459,9 @@ public class OperationControllerTest {
 
         postDiscoverAll();
 
-        Mockito.verify(mockScheduler).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
-        Mockito.verify(mockScheduler).resetDiscoverySchedule(secondTargetId, DiscoveryType.FULL);
-        Mockito.verify(mockScheduler).resetDiscoverySchedule(thirdTargetId, DiscoveryType.FULL);
+        Mockito.verify(mockScheduler).resetDiscoverySchedule(targetId);
+        Mockito.verify(mockScheduler).resetDiscoverySchedule(secondTargetId);
+        Mockito.verify(mockScheduler).resetDiscoverySchedule(thirdTargetId);
     }
 
     /**
@@ -496,10 +492,9 @@ public class OperationControllerTest {
         Mockito.doThrow(TargetNotFoundException.class)
                 .when(mockRemoteMediation)
                 .sendDiscoveryRequest(
-                    Matchers.eq(probeId),
-                    Matchers.anyLong(),
-                    Matchers.any(DiscoveryRequest.class),
-                    Matchers.any(OperationMessageHandler.class)
+                        Matchers.eq(probeId),
+                        Matchers.any(DiscoveryRequest.class),
+                        Matchers.any(OperationMessageHandler.class)
                 );
 
         final long secondProbeId = addProbe("second-category", "second-type");
@@ -507,7 +502,6 @@ public class OperationControllerTest {
         Mockito.doNothing().when(mockRemoteMediation)
                 .sendDiscoveryRequest(
                         Matchers.eq(secondProbeId),
-                        Matchers.anyLong(),
                         Matchers.any(DiscoveryRequest.class),
                         Matchers.any(OperationMessageHandler.class)
                 );

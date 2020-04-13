@@ -37,7 +37,6 @@ public class BuyRiScopeHandler {
 
     private static final Set<ApiEntityType> GROUP_OF_REGIONS = Collections.singleton(ApiEntityType.REGION);
     private static final Set<GroupType> GROUP_OF_BILLING_FAMILY = Collections.singleton(GroupType.BILLING_FAMILY);
-    private static final Set<ApiEntityType> GROUP_OF_SERVICE_PROVIDERS = Collections.singleton(ApiEntityType.SERVICE_PROVIDER);
 
     /**
      * Extract action types from user input and selected scope. Selected scope affects whether
@@ -134,9 +133,8 @@ public class BuyRiScopeHandler {
         if (inputScope.isRealtimeMarket() || inputScope.isPlan()) {
             return true;
         } else if (inputScope.isEntity() && inputScope.getScopeTypes().isPresent()) {
-            // The buy RI discount should be shown in scope of a region and a scoped based on service providers
-            return GROUP_OF_REGIONS.equals(inputScope.getScopeTypes().orElse(null)) ||
-                            GROUP_OF_SERVICE_PROVIDERS.equals(inputScope.getScopeTypes().orElse(null));
+            // The buy RI discount should be shown in scope of a region
+            return GROUP_OF_REGIONS.equals(inputScope.getScopeTypes().orElse(null));
         } else if (inputScope.isGroup() && inputScope.getCachedGroupInfo().isPresent()) {
             final UuidMapper.CachedGroupInfo groupInfo = inputScope.getCachedGroupInfo().get();
 

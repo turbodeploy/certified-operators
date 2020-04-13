@@ -2,7 +2,6 @@ package com.vmturbo.clustermgr;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -129,25 +128,6 @@ public class DiagEnvironmentSummaryTest {
         assertThat(diagFileName, containsString(SHORT_COMMIT));
         assertThat(diagFileName, containsString("turbonomic.com"));
         assertThat(diagFileName, containsString("_" + clock.millis()));
-    }
-
-    /**
-     * Test with the email in the license having a trailing white space.
-     * This might trigger the filename to have a white space, and might fail the upload to the
-     * server, because right now it's not supporting it.
-     */
-    @Test
-    public void testLicenseEmailTrailingSpace() {
-        doReturn(GetLicensesResponse.newBuilder()
-            .addLicenseDTO(LicenseDTO.newBuilder()
-                .setEmail("myemail@turbonomic.io ")
-                .setEdition("foo"))
-            .build()).when(licenseBackend).getLicenses(Empty.getDefaultInstance());
-
-        final String diagFileName = diagEnvironmentSummary.getDiagFileName();
-        // check that the filename should not containg any whitespaces, otherwise the upload to the
-        // server will fail
-        assertThat(diagFileName.indexOf(" "), is(-1));
     }
 
     /**

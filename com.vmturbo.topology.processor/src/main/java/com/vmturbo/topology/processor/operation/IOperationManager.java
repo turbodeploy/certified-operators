@@ -11,7 +11,6 @@ import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.common.dto.ActionExecution;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
-import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -104,8 +103,6 @@ public interface IOperationManager {
      *       block for an extended period while waiting for a probe operation permit.
      *
      * @param targetId The id of the target to discover.
-     * @param discoveryType type of the discovery to trigger. Currently we only support FULL and
-     *                      INCREMENTAL discovery
      * @return The {@link Discovery} requested for the given target. If there was no ongoing
      * discovery
      * for the target with the same type, a new one will be created. If there was an ongoing
@@ -117,7 +114,7 @@ public interface IOperationManager {
      * @throws InterruptedException when the attempt to send a request to the probe is interrupted.
      */
     @Nonnull
-    Discovery startDiscovery(long targetId, DiscoveryType discoveryType)
+    Discovery startDiscovery(long targetId)
             throws TargetNotFoundException, ProbeException, CommunicationException,
             InterruptedException;
 
@@ -143,24 +140,22 @@ public interface IOperationManager {
      * Returns current running discovery for the given target.
      *
      * @param targetId target id
-     * @param discoveryType type of the discovery to get current running discovery for
      * @return last discovery, or empty result, if no discoveries has happen
      */
     @Nonnull
-    Optional<Discovery> getInProgressDiscoveryForTarget(long targetId, DiscoveryType discoveryType);
+    Optional<Discovery> getInProgressDiscoveryForTarget(long targetId);
 
     /**
      * Returns last completed discovery for the specified target.
      *
      * @param targetId target id
-     * @param discoveryType type of the discovery to get last completed discovery for
      * @return Last discovery or empty result if there were no discoveries.
      */
     @Nonnull
-    Optional<Discovery> getLastDiscoveryForTarget(long targetId, DiscoveryType discoveryType);
+    Optional<Discovery> getLastDiscoveryForTarget(long targetId);
 
     /**
-     * Discover a target with the same contract as {@link #startDiscovery(long, DiscoveryType)},
+     * Discover a target with the same contract as {@link #startDiscovery(long)},
      * with the following exceptions:
      * 1. If a discovery is already in progress, instead of returning the existing discovery,
      * a pending discovery will be added for the target.
@@ -170,8 +165,6 @@ public interface IOperationManager {
      * be removed and a new discovery will be initiated for the associated target.
      *
      * @param targetId The id of the target to discover.
-     * @param discoveryType type of the discovery to add. Currently we only support FULL and
-     *                      INCREMENTAL discovery
      * @return An {@link Optional<Discovery>}. If there was no in progress discovery
      * for the target and the target's probe is connected, a new discovery will be initiated.
      * If there was an in progress discovery for the target or the target's probe is disconnected,
@@ -181,7 +174,7 @@ public interface IOperationManager {
      * @throws InterruptedException when the attempt to send a request to the probe is interrupted.
      */
     @Nonnull
-    Optional<Discovery> addPendingDiscovery(long targetId, DiscoveryType discoveryType)
+    Optional<Discovery> addPendingDiscovery(long targetId)
             throws TargetNotFoundException, CommunicationException, InterruptedException;
 
     /**

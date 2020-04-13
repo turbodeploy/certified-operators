@@ -2,12 +2,9 @@ package com.vmturbo.cost.component.entity.cost;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -127,25 +124,6 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
                         .filter(Optional::isPresent)
                         .map(Optional::get)
                         .collect(Collectors.toSet())));
-    }
-
-    /**
-     * Get the projected entity costs for a set of entities.
-     *
-     * @param entityIds The entities to retrieve the costs for. An empty set will get no results.
-     * @param planId    Id of the Plan
-     * @return A map of (id) -> (projected entity cost). Entities in the input that do not have an
-     * associated projected costs will not have an entry in the map.
-     */
-    @Nonnull
-    public Map<Long, EntityCost> getPlanProjectedEntityCosts(@Nonnull final Set<Long> entityIds, final long planId) {
-        if (entityIds.isEmpty()) {
-            return Collections.emptyMap();
-        }
-
-        return getPlanProjectedEntityCosts(planId).stream()
-                .filter(ec -> entityIds.contains(ec.getAssociatedEntityId()))
-                .collect(Collectors.toMap(EntityCost::getAssociatedEntityId, Function.identity()));
     }
 
     /**

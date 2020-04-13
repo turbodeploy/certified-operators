@@ -42,6 +42,13 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - ""
+  resources:
+  - configmaps
+  - secrets
+  verbs:
+  - '*'
+- apiGroups:
   - charts.helm.k8s.io
   resources:
   - '*'

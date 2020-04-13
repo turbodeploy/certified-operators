@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.group.policy.application;
 
-import static com.vmturbo.topology.processor.group.policy.PolicyGroupingHelper.resolvedGroup;
 import static junit.framework.TestCase.fail;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.not;
@@ -13,13 +12,14 @@ import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Lists;
-
 import org.apache.commons.collections4.map.HashedMap;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
@@ -67,9 +67,9 @@ public class MergePolicyTestBase {
 
         // setup mocks
         when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(group1, 4L, 5L));
+                .thenReturn(Sets.newHashSet(4L, 5L));
         when(groupResolver.resolve(eq(group2), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(group2, 1L, 2L));
+                .thenReturn(Sets.newHashSet(1L, 2L));
 
         // invoke Merge Policy
         final MergePolicy mergePolicy = new MergePolicy(policy, mergePolicyEntities);
@@ -293,9 +293,9 @@ public class MergePolicyTestBase {
                 .build();
 
         when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(group1));
+                .thenReturn(Collections.<Long>emptySet());
         when(groupResolver.resolve(eq(group2), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(group2));
+                .thenReturn(Collections.<Long>emptySet());
 
         // invoke Merge Policy
         MergePolicy mergePolicy = new MergePolicy(policy, mergePolicyEntities);
@@ -322,9 +322,9 @@ public class MergePolicyTestBase {
                     .setMerge(mergePolicy))
                 .build();
         when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(group1));
+                .thenReturn(Collections.<Long>emptySet());
         when(groupResolver.resolve(eq(group2), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(group2, 4L, 5L));
+                .thenReturn(Sets.newHashSet(4L, 5L));
 
         MergePolicy mergePolicy = new MergePolicy(policy, mergePolicyEntities);
         applyPolicy(mergePolicy);
@@ -351,9 +351,9 @@ public class MergePolicyTestBase {
                     .setMerge(mergePolicy))
                 .build();
         when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(group1, 1L, 2L));
+                .thenReturn(Sets.newHashSet(1L, 2L));
         when(groupResolver.resolve(eq(group2), eq(topologyGraph)))
-                .thenReturn(resolvedGroup(group2));
+                .thenReturn(Collections.<Long>emptySet());
 
         MergePolicy mergePolicy = new MergePolicy(policy, mergePolicyEntities);
         applyPolicy(mergePolicy);
@@ -385,9 +385,9 @@ public class MergePolicyTestBase {
 
             // setup mocks
             when(groupResolver.resolve(eq(group1), eq(topologyGraph)))
-                    .thenReturn(resolvedGroup(group1, 4L, 5L));
+                    .thenReturn(Sets.newHashSet(4L, 5L));
             when(groupResolver.resolve(eq(group2), eq(topologyGraph)))
-                    .thenReturn(resolvedGroup(group2, 1L, 2L));
+                    .thenReturn(Sets.newHashSet(1L, 2L));
 
             // invoke Merge Policy
             applyPolicy(new MergePolicy(policy, mergePolicyEntities));

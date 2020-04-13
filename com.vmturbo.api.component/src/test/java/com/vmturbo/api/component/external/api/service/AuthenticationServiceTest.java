@@ -34,7 +34,6 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.kvstore.ComponentJwtStore;
 import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
-import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 
 /**
  * Unit tests for when {@link AuthenticationService}. It now only for
@@ -75,9 +74,14 @@ public class AuthenticationServiceTest {
 
     @Test
     public void testAuthorizeSAMLUser() throws Exception {
-        final String authRequest = builder.build().toUriString();
+        final String authRequest = builder
+                .pathSegment(
+                        encodeValue(username),
+                        ipAddress)
+                .build()
+                .toUriString();
 
-        AuthUserDTO dto = getAuthUserDTO(username, authRequest, Optional.empty());
+        AuthUserDTO dto = getAuthUserDTO(username, authRequest);
         Optional<AuthUserDTO> authUserDTO = testAuthenticationService.authorize(username,
                 Optional.empty(), ipAddress);
         Assert.assertEquals(dto.getUser(), authUserDTO.get().getUser());
@@ -95,15 +99,21 @@ public class AuthenticationServiceTest {
 
     @Test
     public void testAuthorizeSAMLUserWithGroup() throws Exception {
-        final String authRequest = builder.build().toUriString();
-        AuthUserDTO dto = getAuthUserDTO(username, authRequest, Optional.of(group));
+        final String authRequest = builder
+                .pathSegment(
+                        encodeValue(username),
+                        encodeValue(group),
+                        ipAddress)
+                .build()
+                .toUriString();
+        AuthUserDTO dto = getAuthUserDTO(username, authRequest);
         Optional<AuthUserDTO> authUserDTO = testAuthenticationService.
                 authorize(username, Optional.of(group), ipAddress);
         Assert.assertEquals(dto.getUser(), authUserDTO.get().getUser());
         Assert.assertEquals(dto.getRoles(), authUserDTO.get().getRoles());
     }
 
-    private AuthUserDTO getAuthUserDTO(final String username, final String authRequest, final Optional<String> group)
+    private AuthUserDTO getAuthUserDTO(final String username, final String authRequest)
             throws AuthorizationException {
         Mockito.when(componentJwtStore.generateToken())
                 .thenReturn(new JWTAuthorizationToken(""));
@@ -114,15 +124,12 @@ public class AuthenticationServiceTest {
         headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
                 componentJwtStore.generateToken().getCompactRepresentation());
         headers.set(SecurityConstant.COMPONENT_ATTRIBUTE, componentJwtStore.getNamespace());
-
+        HttpEntity<List> entity = new HttpEntity<>(headers);
 
         ResponseEntity<String> responseEntity =
                 new ResponseEntity<String>("mockToken", HttpStatus.OK);
 
-        final HttpEntity<AuthorizeUserInputDTO> entity
-                = new HttpEntity<>(new AuthorizeUserInputDTO(username, group.orElse(null), ipAddress), headers);
-
-        Mockito.when(mockRestTemplate.exchange(authRequest, HttpMethod.POST, entity, String.class))
+        Mockito.when(mockRestTemplate.exchange(authRequest, HttpMethod.GET, entity, String.class))
                 .thenReturn(responseEntity);
 
         AuthUserDTO dto = new AuthUserDTO(username,

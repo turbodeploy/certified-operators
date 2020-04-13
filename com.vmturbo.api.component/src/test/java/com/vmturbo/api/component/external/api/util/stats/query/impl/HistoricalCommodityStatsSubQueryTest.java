@@ -1,53 +1,36 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 
-import static com.vmturbo.api.component.external.api.util.stats.query.impl.HistoricalCommodityStatsSubQuery.storageCommodities;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import javax.annotation.Nonnull;
 
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import com.google.common.collect.Sets;
-
-import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableGlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.ImmutableTimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
-import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -66,9 +49,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 public class HistoricalCommodityStatsSubQueryTest {
     private static final long MILLIS = 1_000_000;
@@ -112,9 +93,6 @@ public class HistoricalCommodityStatsSubQueryTest {
 
     private final StatsQueryContext context = mock(StatsQueryContext.class);
 
-    @Mock
-    private RepositoryApi repositoryApi;
-
     private static final StatPeriodApiInputDTO NEW_PERIOD_INPUT_DTO = new StatPeriodApiInputDTO();
 
     @Before
@@ -122,8 +100,7 @@ public class HistoricalCommodityStatsSubQueryTest {
         MockitoAnnotations.initMocks(this);
         query = new HistoricalCommodityStatsSubQuery(statsMapper,
             StatsHistoryServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
-            userSessionContext,
-            repositoryApi);
+            userSessionContext);
 
         when(context.getInputScope()).thenReturn(vmGroupScope);
 
@@ -336,264 +313,5 @@ public class HistoricalCommodityStatsSubQueryTest {
         final StatSnapshotApiDTO currentTimeSnapshot = resultsAtCurrentTime.get(0);
         assertEquals(MAPPED_STAT_SNAPSHOT.getStatistics(), currentTimeSnapshot.getStatistics());
         assertEquals(Epoch.CURRENT, currentTimeSnapshot.getEpoch());
-    }
-
-    @Test
-    public void testlGroupStatsRequestWithNoOid() throws OperationFailedException {
-        // These entities in the scope.
-        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
-        when(queryScope.getGlobalScope()).thenReturn(Optional.empty());
-        //setting expandedOids to empty.
-        when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
-        when(context.getQueryScope()).thenReturn(queryScope);
-
-        // ACT
-        final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);
-
-        verify(backend, never()).getAveragedEntityStats(any());
-        assertThat(results.size(), is(0));
-    }
-
-    @Test
-    public void testlGroupStatsRequestWithNoOidGlobal() throws OperationFailedException {
-        // These entities in the scope.
-        final StatsQueryScope queryScope = mock(StatsQueryScope.class);
-        //Setting to global scope.
-        GlobalScope globalScope =  ImmutableGlobalScope.builder().build();
-        when(queryScope.getGlobalScope()).thenReturn(Optional.of(globalScope));
-        //setting expandedOids to empty.
-        when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
-        when(context.getQueryScope()).thenReturn(queryScope);
-
-        // ACT
-        final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);
-
-        verify(backend, atLeastOnce()).getAveragedEntityStats(any());
-        assertThat(results.size(), greaterThan(0));
-    }
-
-    /**
-     * Test updateStorageCommodityName() when VM has no VVs, scope is VM.
-     */
-    @Test
-    public void testUpdateStorageCommodityNameWhenNoVVOid() {
-        // Given
-        final Long vmOid = 1L;
-        final List<StatSnapshotApiDTO> statsList = createVMStatSnapshotApiDto();
-        final Set<Long> scopedOid = Collections.singleton(vmOid);
-        final Set<Long> commodityOids = Collections.emptySet();
-
-        // When
-        query.updateStorageCommodityName(statsList, scopedOid, commodityOids);
-
-        assertNotNull(statsList);
-        assertEquals(1, statsList.size());
-        final StatSnapshotApiDTO statSnapshotApiDTO = statsList.get(0);
-        assertNotNull(statSnapshotApiDTO.getStatistics());
-        assertEquals(4, statSnapshotApiDTO.getStatistics().size());
-    }
-
-    /**
-     * Test updateStorageCommodityName() when VM has two connected VVs, scope is VM.
-     */
-    @Test
-    public void testUpdateStorageCommodityNameWhenVMHasTwoVV() {
-        // Given
-        final Long vmOid = 1L;
-        final Long vvOid1 = 21L;
-        final String vv1DisplayName = "VV-21";
-        final Long vvOid2 = 22L;
-        final String vv2DisplayName = "VV-22";
-        final String stDispalyName = "GP2";
-        final List<StatSnapshotApiDTO> statsList = createVMStatSnapshotApiDto(vvOid1, vvOid2, stDispalyName);
-        final Set<Long> scopedOid = Collections.singleton(vmOid);
-        final Set<Long> commodityOids = Sets.newHashSet(vvOid1, vvOid2);
-
-        SearchRequest searchRequest = mock(SearchRequest.class);
-        when(repositoryApi.newSearchRequest(any())).thenReturn(searchRequest);
-
-        final List<TopologyEntityDTO> vvTopologyEntityDtos = Arrays.asList(
-            TopologyEntityDTO.newBuilder()
-                .setOid(vvOid1)
-                .setDisplayName(vv1DisplayName)
-                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .build(),
-            TopologyEntityDTO.newBuilder()
-                .setOid(vvOid2)
-                .setDisplayName(vv2DisplayName)
-                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .build()
-        );
-        when(searchRequest.getFullEntities()).thenReturn(vvTopologyEntityDtos.stream());
-
-        // When
-        query.updateStorageCommodityName(statsList, scopedOid, commodityOids);
-
-        assertNotNull(statsList);
-        assertEquals(1, statsList.size());
-        final StatSnapshotApiDTO statSnapshotApiDTO = statsList.get(0);
-        List<StatApiDTO> statApiDtos = statSnapshotApiDTO.getStatistics();
-        assertNotNull(statApiDtos);
-        assertEquals(8, statApiDtos.size());
-
-        // check displayName has been replaced
-        final List<StatApiDTO> storageStatApiDTOs = statApiDtos.stream().filter(statApiDTO -> storageCommodities.contains(statApiDTO.getName()))
-            .collect(Collectors.toList());
-
-        assertNotNull(storageStatApiDTOs);
-        assertEquals(4, storageStatApiDTOs.size());
-        storageStatApiDTOs.forEach(storageStatApiDto -> {
-            final String displayName = storageStatApiDto.getDisplayName();
-            final String fakeUnit = storageStatApiDto.getUnits();
-
-            if (fakeUnit.equals(vvOid1 + "")) {
-                assertTrue(displayName.endsWith(vv1DisplayName));
-            } else if (fakeUnit.equals(vvOid2 + "")) {
-                assertTrue(displayName.endsWith(vv2DisplayName));
-            } else {
-                fail("unknown storage commodity");
-            }
-        });
-    }
-
-    /**
-     * Test updateStorageCommodityName() when VM has two connected VVs, scope is VV.
-     */
-    @Test
-    public void testUpdateStorageCommodityNameWhenVMHasTwoVVAndScopeIsVV() {
-        // Given
-        final Long vmOid = 1L;
-        final Long vvOid1 = 21L;
-        final String vv1DisplayName = "VV-21";
-        final Long vvOid2 = 22L;
-        final String vv2DisplayName = "VV-22";
-        final String stDispalyName = "GP2";
-        final List<StatSnapshotApiDTO> statsList = createVMStatSnapshotApiDto(vvOid1, vvOid2, stDispalyName);
-        final Set<Long> scopedOid = Collections.singleton(vvOid1);
-        final Set<Long> commodityOids = Sets.newHashSet(vvOid1, vvOid2);
-
-        SearchRequest searchRequest = mock(SearchRequest.class);
-        when(repositoryApi.newSearchRequest(any())).thenReturn(searchRequest);
-
-        final List<TopologyEntityDTO> vvTopologyEntityDtos = Arrays.asList(
-            TopologyEntityDTO.newBuilder()
-                .setOid(vvOid1)
-                .setDisplayName(vv1DisplayName)
-                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .build(),
-            TopologyEntityDTO.newBuilder()
-                .setOid(vvOid2)
-                .setDisplayName(vv2DisplayName)
-                .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .build()
-        );
-        when(searchRequest.getFullEntities()).thenReturn(vvTopologyEntityDtos.stream());
-
-        // When
-        query.updateStorageCommodityName(statsList, scopedOid, commodityOids);
-
-        assertNotNull(statsList);
-        assertEquals(1, statsList.size());
-        final StatSnapshotApiDTO statSnapshotApiDTO = statsList.get(0);
-        List<StatApiDTO> statApiDtos = statSnapshotApiDTO.getStatistics();
-        assertNotNull(statApiDtos);
-        assertEquals(2, statApiDtos.size());
-
-        // check displayName has been replaced
-        final List<StatApiDTO> storageStatApiDTOs = statApiDtos.stream().filter(statApiDTO -> storageCommodities.contains(statApiDTO.getName()))
-            .collect(Collectors.toList());
-
-        assertNotNull(storageStatApiDTOs);
-        assertEquals(2, storageStatApiDTOs.size());
-        storageStatApiDTOs.forEach(storageStatApiDto -> {
-            final String displayName = storageStatApiDto.getDisplayName();
-            final String fakeUnit = storageStatApiDto.getUnits();
-
-            assertTrue(fakeUnit.equals(vvOid1 + ""));
-            assertTrue(displayName.endsWith(vv1DisplayName));
-        });
-    }
-
-    /**
-     * Helper to create {@link StatSnapshotApiDTO} for VM.
-     *
-     * @return List of {@link StatSnapshotApiDTO}
-     */
-    @Nonnull
-    public List<StatSnapshotApiDTO> createVMStatSnapshotApiDto() {
-        final StatSnapshotApiDTO vmStatSnapshotApiDTO = new StatSnapshotApiDTO();
-
-        final List<StatApiDTO> statApiDtos = new ArrayList<>();
-        statApiDtos.add(createStatApiDto("VMem"));
-        statApiDtos.add(createStatApiDto("VCPU"));
-        statApiDtos.add(createStatApiDto("IOThroughput"));
-        statApiDtos.add(createStatApiDto("NetThroughput"));
-
-        vmStatSnapshotApiDTO.setStatistics(statApiDtos);
-
-        return Collections.singletonList(vmStatSnapshotApiDTO);
-    }
-
-    /**
-     *  Helper to create {@link StatSnapshotApiDTO} for VM with two VVs' commodities.
-     *
-     * @param vvOid1 first VV oid
-     * @param vvOid2 second VV oid
-     * @param stDisplayName storage tier name
-     * @return List of {@link StatSnapshotApiDTO}
-     */
-    @Nonnull
-    public List<StatSnapshotApiDTO> createVMStatSnapshotApiDto(final long vvOid1,
-                                                               final long vvOid2,
-                                                               @Nonnull final String stDisplayName) {
-        final StatSnapshotApiDTO vmStatSnapshotApiDTO = new StatSnapshotApiDTO();
-
-        final List<StatApiDTO> statApiDtos = new ArrayList<>();
-        statApiDtos.add(createStatApiDto("VMem"));
-        statApiDtos.add(createStatApiDto("VCPU"));
-        statApiDtos.add(createStatApiDto("IOThroughput"));
-        statApiDtos.add(createStatApiDto("NetThroughput"));
-
-        statApiDtos.add(createStorageStatApiDto("StorageAccess", vvOid1, stDisplayName));
-        statApiDtos.add(createStorageStatApiDto("StorageAccess", vvOid2, stDisplayName));
-        statApiDtos.add(createStorageStatApiDto("StorageAmount", vvOid1, stDisplayName));
-        statApiDtos.add(createStorageStatApiDto("StorageAmount", vvOid2, stDisplayName));
-
-        vmStatSnapshotApiDTO.setStatistics(statApiDtos);
-
-        return Collections.singletonList(vmStatSnapshotApiDTO);
-    }
-
-    /**
-     * Create {@link StatApiDTO} for Virtual Volume.
-     * Display Name is in form of "FROM: "Storage Tier Name." KEY: "VV Oid".
-     * Unit field stored the oid in String type for verification later.
-     *
-     * @param name name of commodity
-     * @param vvOid vv's Oid
-     * @param stDisplayName storage Tier Display name
-     * @return {@link StatApiDTO}
-     */
-    @Nonnull
-    private StatApiDTO createStorageStatApiDto(@Nonnull final String name,
-                                               final long vvOid,
-                                               @Nonnull final String stDisplayName) {
-        StatApiDTO stat = createStatApiDto(name);
-        stat.setDisplayName("FROM: " + stDisplayName + " " + StatsUtils.COMMODITY_KEY_PREFIX + vvOid);
-        stat.setUnits(vvOid + ""); // Use to check the corresponding stat after name conversion
-        return stat;
-    }
-
-    /**
-     * Create {@link StatApiDTO}.
-     *
-     * @param name name of commodity
-     * @return {@link StatApiDTO}
-     */
-    @Nonnull
-    private StatApiDTO createStatApiDto(@Nonnull final String name) {
-        StatApiDTO stat = new StatApiDTO();
-        stat.setName(name);
-        return stat;
     }
 }

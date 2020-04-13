@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,7 +21,6 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -56,7 +56,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.group.ResolvedGroup;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 
 /**
  * Unit tests for {@link PlanTopologyScopeEditor}.
@@ -578,10 +578,10 @@ public class PlanTopologyScopeEditorTest {
      * Scenario: scope on pm1 and pm2 which consumes on dc1.
      * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, app1, as1, ba
      *
-     * @throws Exception An exception thrown when a stage of the pipeline fails.
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnCluster() throws Exception {
+    public void testScopeOnpremTopologyOnCluster() throws PipelineStageException {
         Grouping g = Grouping.newBuilder()
                         .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
                         .setDefinition(GroupDefinition.newBuilder()
@@ -599,9 +599,7 @@ public class PlanTopologyScopeEditorTest {
             .setGroupFilter(GroupFilter.newBuilder().addId(25001L))
             .setReplaceGroupPropertyWithGroupMembershipFilter(true)
             .build())).thenReturn(groups);
-        when(groupResolver.resolve(eq(g), eq(graph))).thenReturn(
-            new ResolvedGroup(g, Collections.singletonMap(ApiEntityType.PHYSICAL_MACHINE,
-                Sets.newHashSet(pm1InDc1.getOid(), pm2InDc1.getOid()))));
+        when(groupResolver.resolve(eq(g), eq(graph))).thenReturn(new HashSet<>(Arrays.asList(pm1InDc1.getOid(), pm2InDc1.getOid())));
 
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Cluster")
@@ -621,10 +619,10 @@ public class PlanTopologyScopeEditorTest {
      * Expected: the entities in scope should be ba, as1, vm1, vm2, pm1, pm2, dc1, vv, st1,
      * da1, as2, vm3, pm3, dc2, st2
      *
-     * @throws Exception An exception thrown when a stage of the pipeline fails.
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnBA() throws Exception {
+    public void testScopeOnpremTopologyOnBA() throws PipelineStageException {
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("BusinessApplication")
                                 .setScopeObjectOid(80001L).setDisplayName("BusinessApplication1").build()).build();
@@ -645,10 +643,10 @@ public class PlanTopologyScopeEditorTest {
      * Scenario: scope on st2 which hosts vm on dc2.
      * Expected: the entities in scope should be ba, as2, vm3, pm3, st2, dc2, da1
      *
-     * @throws Exception An exception thrown when a stage of the pipeline fails.
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnStorage() throws Exception {
+    public void testScopeOnpremTopologyOnStorage() throws PipelineStageException {
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Storage")
                                 .setScopeObjectOid(40002L).setDisplayName("Storage2").build()).build();
@@ -667,10 +665,10 @@ public class PlanTopologyScopeEditorTest {
      * Scenario: scope on vm2 which consumes pm2 on dc1, st1 on da1. The vm2 hosts no application at all.
      * Expected: the entities in scope should be dc1, da1, pm1, pm2, st1, vm2
      *
-     * @throws Exception An exception thrown when a stage of the pipeline fails.
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnVM() throws Exception {
+    public void testScopeOnpremTopologyOnVM() throws PipelineStageException {
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
                                 .setScopeObjectOid(30002L).setDisplayName("VM2").build()).build();
@@ -689,10 +687,10 @@ public class PlanTopologyScopeEditorTest {
      * Scenario: scope on vm2 and a clone added of this VM via plan scenario.
      * Expected: the entities in scope should be vm2 and its clone.
      *
-     * @throws Exception An exception thrown when a stage of the pipeline fails.
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnVMWithCloneInScope() throws Exception {
+    public void testScopeOnpremTopologyOnVMWithCloneInScope() throws PipelineStageException {
         long originalVMOid = 30002L;
         final PlanScope planScope = PlanScope.newBuilder()
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
@@ -727,10 +725,10 @@ public class PlanTopologyScopeEditorTest {
      * Scenario: scope on VM2 and a clone added of out of scope VM1_clone (VM1 is out of scope) via plan scenario.
      * Expected: the entities in scope should be the clone and VM2.
      *
-     * @throws Exception An exception thrown when a stage of the pipeline fails.
+     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnClonedVMFromOutOfScope() throws Exception {
+    public void testScopeOnpremTopologyOnClonedVMFromOutOfScope() throws PipelineStageException {
         long originalVMOid = 30002L;
         final PlanScope planScope = PlanScope.newBuilder()
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")

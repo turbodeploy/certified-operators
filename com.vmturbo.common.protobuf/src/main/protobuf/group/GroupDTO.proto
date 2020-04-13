@@ -81,11 +81,8 @@ message GroupDefinition {
 
     // Represent a list of group-specific search parameters, for groups that contain other groups.
     message GroupFilters {
-        // a group is a member of this group if it satisfies any of the filters specified here.
+        // a group is a member of this group if it satisfies any of the filters specified here (OR)
         repeated GroupFilter group_filter = 1;
-
-        // Specifies how to combine the search parameters.
-        optional .search.LogicalOperator logical_operator = 3 [default = AND];
     }
 
     // Represent a list of entity-specific search parameters, for groups that contain other entities.
@@ -98,14 +95,7 @@ message GroupDefinition {
             // the entity types that this filter apply to which means this filter can only be true for
             // entities with the type specified here.
             optional int32 entity_type = 1;
-
-            // A dynamic group's members are defined by a set of search criteria, and its members may
-            // change as the entities in the topology change so that members enter and leave the group
-            // based on their properties and relationships.
             optional SearchParametersCollection search_parameters_collection = 2;
-
-            // Specifies how to combine the search parameters.
-            optional .search.LogicalOperator logical_operator = 3 [default = AND];
         }
     }
 
@@ -181,11 +171,7 @@ message StaticMembers {
     repeated StaticMembersByType members_by_type = 1;
 }
 
-// The filter for a group. A group matches this filter if it has all set conditions (AND)
-// (i.e. if you provide a list of ids, and a group_type, a group will only match if it
-// has one of the provided IDS AND the provided group type).
-//
-// Note - the property_filters are combined using the logical_operator.
+// The filter for a group. A group matches this filter if it has all properties (AND)
 message GroupFilter {
     // Return only groups with these IDs.
     repeated int64 id = 1;
@@ -197,9 +183,6 @@ message GroupFilter {
     // (a) display name (property of type string) regex matching and
     // (b) tags (property of type multimap).
     repeated .search.PropertyFilter property_filters = 3;
-
-    // The logical operator to use when combining the property filters.
-    optional .search.LogicalOperator logical_operator = 10 [default = AND];
 
     // The groups with following direct member type
     repeated MemberType direct_member_types = 4;

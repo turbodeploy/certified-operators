@@ -56,16 +56,6 @@ public enum EntitySettingSpecs {
             actionExecutionModeSetToRecommend(), true),
 
     /**
-     * Shop together setting for VMs.
-     */
-    ShopTogether("shopTogether", "Shared-Nothing Migration",
-            Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE),
-            new BooleanSettingDataType(false),
-            true),
-
-    /**
      * Resize action automation mode.
      *
      * For VM, this setting is only being used for commodities other than cpu, vcpu, mem and vmem.
@@ -189,14 +179,6 @@ public enum EntitySettingSpecs {
     ScalingPolicy("scalingPolicy", "Scaling Policy",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.APPLICATION_COMPONENT), scalingPolicy(), true),
-
-    /**
-     * Whether allow resizing VMEM commodity when it is collected from hypervisors only (not from ACM, APM, etc)
-     * If this setting is false, VMEMs collected from only hypervisors will not have RESIZE action.
-     */
-    UseHypervisorMetricsForResizing("useHypervisorMetricsForResizing", "Use hypervisor VMEM for resize",
-            Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), new BooleanSettingDataType(false), true),
 
     /**
      * Suspend action automation mode.
@@ -885,6 +867,15 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.SMALLER, EnumSet.of(EntityType.DATABASE_SERVER),
             numeric(20f, 100f, 80f), true),
 
+    /**
+     * Collection time utilization threshold.
+     */
+    CollectionTimeUtilization("collectionTimeUtilization", "Collection Time Utilization",
+            Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS),
+            SettingTiebreaker.SMALLER,
+            EnumSet.of(EntityType.APPLICATION_COMPONENT),
+            numeric(1f, 100f, 10f), true),
+
     IgnoreDirectories("ignoreDirectories", "Directories to ignore",
         Collections.emptyList(),
         SettingTiebreaker.SMALLER,
@@ -1152,8 +1143,6 @@ public enum EntitySettingSpecs {
             EntitySettingSpecs.ResizeVmemBelowMinThreshold.name,
             EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
             EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name,
-            EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
-            EntitySettingSpecs.ShopTogether.name,
             EntitySettingSpecs.EnforceNonDisruptive.name,
             EntitySettingSpecs.ResizeUpHeap.name,
             EntitySettingSpecs.ResizeDownHeap.name,

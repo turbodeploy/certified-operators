@@ -262,8 +262,8 @@ public class TopologyEntitiesHandler {
             // actions on the newly provisioned entities, excluding the provisioned entities will cause those
             // actions to reference entities not actually in the projected topology.
             secondRoundActions.addAll(ede.generateActions(economy, true, true,
-                true, false, true, false, marketId, analysisConfig.getSuspensionsThrottlingConfig())
-                .stream().filter(action -> (action instanceof ProvisionByDemand
+                true, false, true, false, marketId).stream()
+                    .filter(action -> (action instanceof ProvisionByDemand
                             || action instanceof ProvisionBySupply || action instanceof Activate)
                             // Extract resizes that explicitly set extractAction
                             // to true as part of resizeThroughSupplier

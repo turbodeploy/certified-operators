@@ -20,18 +20,17 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Maps;
-
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.InOrder;
 
+import com.google.common.collect.Maps;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
-import com.vmturbo.topology.processor.topology.pipeline.CachedTopology.CachedTopologyResult;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CacheWritingConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.CachingConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PassthroughStage;
@@ -171,8 +170,7 @@ public class TopologyPipelineTest {
         TopologyEntity.Builder builder = mock(TopologyEntity.Builder.class);
         final Map<Long, TopologyEntity.Builder> cachedMap = Maps.newHashMap();
         cachedMap.put(1L, builder);
-        final CachedTopologyResult cachedResult = new CachedTopologyResult(null, cachedMap);
-        when(cachedTopo.getTopology(any())).thenReturn(cachedResult);
+        when(cachedTopo.getTopology()).thenReturn(cachedMap);
         when(builder.snapshot()).thenReturn(builder);
         final EntityStore entityStore = mock(EntityStore.class);
         final TopologyPipeline<EntityStore, Map<Long, TopologyEntity.Builder>> pipeline =

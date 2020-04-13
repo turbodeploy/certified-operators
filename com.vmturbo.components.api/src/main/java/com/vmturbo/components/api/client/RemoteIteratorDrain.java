@@ -33,7 +33,7 @@ public class RemoteIteratorDrain {
                                      final boolean expectEmpty) {
         String caller = null;
         if (iterator.hasNext()) {
-            if (expectEmpty) {
+            if (!expectEmpty) {
                 caller = StackTrace.getCaller();
                 logger.warn("Draining non-empty iterator for {} (caller: {})", label, caller);
             }

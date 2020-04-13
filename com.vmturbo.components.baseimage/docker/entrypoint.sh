@@ -83,8 +83,8 @@ if [[ -z ${JAVA_OPTS} ]]; then
      # http://stackoverflow.com/questions/25660899/spring-boot-actuator-application-wont-start-on-ubuntu-vps)
      JAVA_BASE_OPTS="-verbose:sizes -Xtune:virtualized -XX:+UseContainerSupport -Xms16m
               -Xaggressive -XX:+ClassRelationshipVerifier -Xcompressedrefs -XX:+CompactStrings
-              -Xdump:tool:events=systhrow,filter=java/lang/OutOfMemoryError,exec=/terminate.sh
-              -XX:-HeapDumpOnOutOfMemoryError -Xdump:what -Xdump:heap:none  -Xdump:java:file=/STDOUT/
+              -XX:-HeapDumpOnOutOfMemoryError -Xdump:exit:events=systhrow,filter=java/lang/OutOfMemoryError
+              -Xdump:what -Xdump:heap:none  -Xdump:java:file=/STDOUT/
               -XshowSettings -Djavax.xml.bind.JAXBContextFactory=com.sun.xml.bind.v2.ContextFactory
               -Djavax.xml.ws.spi.Provider=com.sun.xml.ws.spi.ProviderImpl
               -Djavax.xml.soap.SAAJMetaFactory=com.sun.xml.messaging.saaj.soap.SAAJMetaFactoryImpl

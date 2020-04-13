@@ -150,9 +150,6 @@ public class TopologyConfig {
     @Value("${maxQueuedPipelinesAllowed:1000}")
     private int maxQueuedPlanPipelinesAllowed;
 
-    @Value("${useReservationPipeline:false}")
-    private boolean useReservationPipeline;
-
     @Bean
     public TopologyHandler topologyHandler() {
         return new TopologyHandler(realtimeTopologyContextId(),
@@ -288,8 +285,7 @@ public class TopologyConfig {
     public TopologyPipelineExecutorService pipelineExecutorService() {
         return new TopologyPipelineExecutorService(concurrentPlanPipelinesAllowed, maxQueuedPlanPipelinesAllowed, livePipelineFactory(),
             planPipelineFactory(), entityConfig.entityStore(),
-            apiConfig.topologyProcessorNotificationSender(),
-            useReservationPipeline);
+            apiConfig.topologyProcessorNotificationSender());
     }
 
     /**

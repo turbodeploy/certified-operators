@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.reserved.instance;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -25,22 +24,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
 
-import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost;
-import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByFilterResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByIdRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByIdResponse;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyRequest;
+import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByTopologyResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtCountResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForAnalysisRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForAnalysisResponse;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtForScopeResponse;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
@@ -50,9 +44,7 @@ import com.vmturbo.common.protobuf.cost.Pricing.OnDemandPriceTable;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceImplBase;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.cost.component.pricing.PriceTableStore;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
@@ -79,11 +71,9 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
 
     private final Long realtimeTopologyContextId;
 
-    private final PriceTableStore priceTableStore;
+    private PriceTableStore priceTableStore;
 
-    private final ReservedInstanceSpecStore reservedInstanceSpecStore;
-
-    private final BuyReservedInstanceServiceBlockingStub buyRIServiceClient;
+    private ReservedInstanceSpecStore reservedInstanceSpecStore;
 
     public ReservedInstanceBoughtRpcService(
             @Nonnull final ReservedInstanceBoughtStore reservedInstanceBoughtStore,
@@ -93,8 +83,7 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
             @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
             final long realTimeTopologyContextId,
             @Nonnull final PriceTableStore priceTableStore,
-            @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore,
-            @Nonnull final BuyReservedInstanceServiceBlockingStub buyRIServiceClient) {
+            @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore) {
         this.reservedInstanceBoughtStore =
                 Objects.requireNonNull(reservedInstanceBoughtStore);
         this.entityReservedInstanceMappingStore =
@@ -105,103 +94,64 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
         this.realtimeTopologyContextId = realTimeTopologyContextId;
         this.priceTableStore = Objects.requireNonNull(priceTableStore);
         this.reservedInstanceSpecStore = Objects.requireNonNull(reservedInstanceSpecStore);
-        this.buyRIServiceClient = Objects.requireNonNull(buyRIServiceClient);
     }
 
-
     @Override
-    public void getReservedInstanceBoughtForAnalysis(
-            GetReservedInstanceBoughtForAnalysisRequest request,
-            final StreamObserver<GetReservedInstanceBoughtForAnalysisResponse> responseObserver) {
+    public void getReservedInstanceBoughtByTopology(
+            final GetReservedInstanceBoughtByTopologyRequest request,
+            final StreamObserver<GetReservedInstanceBoughtByTopologyResponse> responseObserver) {
 
-        final TopologyInfo topoInfo = request.getTopologyInfo();
+        final List<ReservedInstanceBought> unstitchedReservedInstances;
+        if (request.getTopologyType() == TopologyType.REALTIME) {
 
-        List<ReservedInstanceBought> unstitchedReservedInstances;
-        if (topoInfo.hasTopologyContextId() && topoInfo.getTopologyContextId() != realtimeTopologyContextId) {
-            final GetPlanReservedInstanceBoughtRequest planSavedRiRequest =
-                    GetPlanReservedInstanceBoughtRequest
-                            .newBuilder()
-                            .setPlanId(topoInfo.getTopologyContextId())
-                            .build();
-            unstitchedReservedInstances = planReservedInstanceService
-                    .getPlanReservedInstanceBought(planSavedRiRequest)
-                    .getReservedInstanceBoughtsList();
-        } else {
             unstitchedReservedInstances = reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(
                     ReservedInstanceBoughtFilter.SELECT_ALL_FILTER);
+
+        } else {
+            final long topologyContextId = request.hasTopologyContextId() ?
+                                        request.getTopologyContextId() : realtimeTopologyContextId;
+            // If getSaved is true, get the saved plan RIs, else get them from real-time.
+            // When plan is still being configured, for instance, there will be no saved RIs.
+            boolean getSaved = request.getGetSaved();
+            // Retrieve the RIs selected by user to include in the plan.
+            if (getSaved && topologyContextId != realtimeTopologyContextId) {
+                final GetPlanReservedInstanceBoughtRequest planSavedRiRequest =
+                                                      GetPlanReservedInstanceBoughtRequest
+                                                                      .newBuilder()
+                                                                      .setPlanId(topologyContextId)
+                                                                      .build();
+                unstitchedReservedInstances = planReservedInstanceService
+                            .getPlanReservedInstanceBought(planSavedRiRequest)
+                            .getReservedInstanceBoughtsList();
+            } else {
+                unstitchedReservedInstances = getBoughtReservedInstancesInScope(request, topologyContextId);
+            }
+            logger.info("Retrieved # of RIs: " + unstitchedReservedInstances.size() + " for planId: "
+                                                    + topologyContextId);
         }
 
-        // if we are doing RI analysis in Market - add recommended RIs to already bought
-        final boolean isBoughtRiInAnalysis = topoInfo.hasPlanInfo() && topoInfo.getPlanInfo()
-                .getPlanType()
-                .equals(StringConstants.OPTIMIZE_CLOUD_PLAN) &&
-                !topoInfo.getAnalysisTypeList().contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
 
-        if (isBoughtRiInAnalysis) {
-            List<ReservedInstanceBought> buyRIs = getBuyRIs(topoInfo);
-            unstitchedReservedInstances = Collections.unmodifiableList(
-                    Stream.concat(buyRIs.stream(), unstitchedReservedInstances.stream())
-                            .collect(Collectors.toList()));
-        }
-
-        final GetReservedInstanceBoughtForAnalysisResponse response =
-                GetReservedInstanceBoughtForAnalysisResponse.newBuilder()
+        final GetReservedInstanceBoughtByTopologyResponse response =
+                GetReservedInstanceBoughtByTopologyResponse.newBuilder()
                         .addAllReservedInstanceBought(
                                 createStitchedRIBoughtInstances(unstitchedReservedInstances))
                         .build();
         responseObserver.onNext(response);
         responseObserver.onCompleted();
-    }
-
-    @Override
-    public void getReservedInstanceBoughtForScope(GetReservedInstanceBoughtForScopeRequest request,
-            final StreamObserver<GetReservedInstanceBoughtForScopeResponse> responseObserver) {
-
-        // Retrieve the RIs selected by user to include in the plan.
-
-        // If contextId is not real time, get the saved plan RIs, else get them from real-time.
-        // When plan is still being configured, for instance, there will be no saved RIs.
-        List<ReservedInstanceBought> unstitchedReservedInstances =
-                    getBoughtReservedInstancesInScope(request.getScopeSeedOidsList(), realtimeTopologyContextId);
-
-        logger.info("Retrieved # of RIs: {} for topologyContextId: {}", unstitchedReservedInstances.size(),
-                realtimeTopologyContextId);
-
-        final GetReservedInstanceBoughtForScopeResponse response =
-                GetReservedInstanceBoughtForScopeResponse.newBuilder()
-                        .addAllReservedInstanceBought(
-                                createStitchedRIBoughtInstances(unstitchedReservedInstances))
-                        .build();
-        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-    }
-
-    /**
-     * Get Buy RIs (recommended RIs) for provided topology info.
-     *
-     * @param topoInfo topolgy info
-     * @return list of Buy RIs (recommended RIs)
-     */
-    private List<ReservedInstanceBought> getBuyRIs(TopologyInfo topoInfo) {
-        final GetBuyReservedInstancesByFilterResponse buyRIBoughtResponse =
-                buyRIServiceClient.getBuyReservedInstancesByFilter(
-                        GetBuyReservedInstancesByFilterRequest
-                                .newBuilder().setTopologyContextId(topoInfo.getTopologyContextId())
-                                .build());
-       return buyRIBoughtResponse.getReservedInstanceBoughtsList();
     }
 
     /**
      * Gets all usable RIs in the specified scope- scopes available RIs by region, zone, and business account if
      * applicable, then filters out subscription-scope RIs if they cannot be applied to any workloads in the scope.
      *
-     * @param scopeIds OIDs specified here seed the scoping expansion
+     * @param request specifying scope oids
      * @param topologyContextId the topology context Id from which RIs should be retrieved
      * @return a list of {@link ReservedInstanceBought} that are usable by workloads in the current scope
      */
     public List<ReservedInstanceBought> getBoughtReservedInstancesInScope(
-            @Nonnull List<Long> scopeIds,
+            @Nonnull final GetReservedInstanceBoughtByTopologyRequest request,
             @Nonnull final long topologyContextId) {
+        List<Long> scopeIds = request.getScopeSeedOidsList();
         Set<Long> scopeIdSet = Sets.newHashSet(scopeIds);
         List<TopologyDTO.TopologyEntityDTO> allBusinessAccounts =
             repositoryClient.getAllBusinessAccounts(realtimeTopologyContextId);

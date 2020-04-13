@@ -2,9 +2,6 @@ package com.vmturbo.topology.processor.rest;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -63,7 +60,6 @@ import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
-import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -115,7 +111,7 @@ public class TargetControllerTest {
     static class ContextConfiguration extends WebMvcConfigurerAdapter {
         @Bean
         public KeyValueStore keyValueStore() {
-            return mock(KeyValueStore.class);
+            return Mockito.mock(KeyValueStore.class);
         }
 
         @Bean
@@ -128,7 +124,7 @@ public class TargetControllerTest {
             return new IdentityProviderImpl(
                     new IdentityService(
                             new IdentityServiceInMemoryUnderlyingStore(
-                                    mock(IdentityDatabaseStore.class)),
+                                    Mockito.mock(IdentityDatabaseStore.class)),
                             new HeuristicsMatcher()),
                     new MapKeyValueStore(), new ProbeInfoCompatibilityChecker(), 0L);
         }
@@ -145,18 +141,18 @@ public class TargetControllerTest {
 
         @Bean
         Scheduler schedulerMock() {
-            return mock(Scheduler.class);
+            return Mockito.mock(Scheduler.class);
         }
 
         @Bean
         StitchingOperationStore stitchingOperationStore() {
-            return mock(StitchingOperationStore.class);
+            return Mockito.mock(StitchingOperationStore.class);
         }
 
         @Bean
         public TargetStore targetStore() {
-            GroupScopeResolver groupScopeResolver = mock(GroupScopeResolver.class);
-            when(groupScopeResolver.processGroupScope(any(), any(), any()))
+            GroupScopeResolver groupScopeResolver = Mockito.mock(GroupScopeResolver.class);
+            Mockito.when(groupScopeResolver.processGroupScope(any(), any(), any()))
                     .then(AdditionalAnswers.returnsSecondArg());
             return new CachingTargetStore(targetDao(), probeStore(),
                     targetIdentityStore());
@@ -171,21 +167,21 @@ public class TargetControllerTest {
 
         @Bean
         public IOperationManager operationManager() {
-            final IOperationManager result = mock(IOperationManager.class);
-            when(result.getLastDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
+            final IOperationManager result = Mockito.mock(IOperationManager.class);
+            Mockito.when(result.getLastDiscoveryForTarget(Mockito.anyLong()))
                     .thenReturn(Optional.empty());
-            when(result.getInProgressDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
+            Mockito.when(result.getInProgressDiscoveryForTarget(Mockito.anyLong()))
                     .thenReturn(Optional.empty());
-            when(result.getLastValidationForTarget(anyLong()))
+            Mockito.when(result.getLastValidationForTarget(Mockito.anyLong()))
                     .thenReturn(Optional.empty());
-            when(result.getInProgressValidationForTarget(anyLong()))
+            Mockito.when(result.getInProgressValidationForTarget(Mockito.anyLong()))
                     .thenReturn(Optional.empty());
             return result;
         }
 
         @Bean
         TopologyHandler topologyHandler() {
-            return mock(TopologyHandler.class);
+            return Mockito.mock(TopologyHandler.class);
         }
 
         @Bean
@@ -250,7 +246,7 @@ public class TargetControllerTest {
                 .build();
         @SuppressWarnings("unchecked")
         final ITransport<MediationServerMessage, MediationClientMessage> mock =
-                        mock(ITransport.class);
+                        Mockito.mock(ITransport.class);
         transport = mock;
     }
 
@@ -543,9 +539,9 @@ public class TargetControllerTest {
         final long probeId = identityProvider.getProbeId(info);
         final Discovery discovery = new Discovery(probeId, 0, identityProvider);
         final Validation validation = new Validation(probeId,  0, identityProvider);
-        when(operationManager.getLastDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
+        Mockito.when(operationManager.getLastDiscoveryForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.empty());
-        when(operationManager.getLastValidationForTarget(anyLong()))
+        Mockito.when(operationManager.getLastValidationForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.empty());
 
         final TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
@@ -555,13 +551,13 @@ public class TargetControllerTest {
         Assert.assertEquals(TargetController.VALIDATING, result.getStatus());
         Assert.assertNull(result.getLastValidationTime());
 
-        when(operationManager.getLastDiscoveryForTarget(anyLong(), any(DiscoveryType.class)))
+        Mockito.when(operationManager.getLastDiscoveryForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(discovery));
-        when(operationManager.getLastValidationForTarget(anyLong()))
+        Mockito.when(operationManager.getLastValidationForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(validation));
-        when(operationManager.getInProgressValidationForTarget(anyLong()))
+        Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(validation));
-        when(operationManager.getInProgressValidationForTarget(anyLong()))
+        Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
                 .thenReturn(Optional.of(validation));
         {
             final TargetInfo target2 = getTarget(result.getId());
@@ -574,9 +570,9 @@ public class TargetControllerTest {
             Assert.assertThat(target2_user.getStatus(), CoreMatchers.containsString("in progress"));
         }
         {
-            when(operationManager.getInProgressValidationForTarget(anyLong()))
+            Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
                     .thenReturn(Optional.empty());
-            when(operationManager.getInProgressValidationForTarget(anyLong()))
+            Mockito.when(operationManager.getInProgressValidationForTarget(Mockito.anyLong()))
                     .thenReturn(Optional.empty());
             validation.success();
             final TargetInfo target3 = getTarget(result.getId());
@@ -644,7 +640,8 @@ public class TargetControllerTest {
         ProbeInfo goneProbe = ProbeInfo.newBuilder(probeInfo).setProbeType("type1").build();
         @SuppressWarnings("unchecked")
         final ITransport<MediationServerMessage, MediationClientMessage> goneTransport =
-                        mock(ITransport.class);
+                        Mockito
+                        .mock(ITransport.class);
         probeStore.registerNewProbe(goneProbe, goneTransport);
 
         ProbeInfo registeredProbe = ProbeInfo.newBuilder(probeInfo).setProbeType("type2").build();

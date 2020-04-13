@@ -143,8 +143,6 @@ public class DiagEnvironmentSummary {
                 .getLicenseDTOList().stream()
                 .filter(LicenseDTO::hasEmail)
                 .map(LicenseDTO::getEmail)
-                // remove any trailing white spaces that can be there
-                .map(String::trim)
                 .map(email -> {
                     String[] components = email.split("@");
                     if (components.length > 1) {

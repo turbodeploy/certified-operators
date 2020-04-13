@@ -318,7 +318,7 @@ public class EntitiesService implements IEntitiesService {
     public ActionPaginationResponse getActionsByEntityUuid(String uuid,
                                        ActionApiInputDTO inputDto,
                                        ActionPaginationRequest paginationRequest) throws Exception {
-        return actionSearchUtil.getActionsByScope(uuidMapper.fromUuid(uuid), inputDto,
+        return actionSearchUtil.getActionsByEntity(uuidMapper.fromUuid(uuid), inputDto,
                 paginationRequest);
     }
 
@@ -743,7 +743,7 @@ public class EntitiesService implements IEntitiesService {
         long oid = uuidMapper.fromUuid(uuid).oid();
         GetEntitySettingPoliciesRequest request =
                 GetEntitySettingPoliciesRequest.newBuilder()
-                        .addEntityOidList(Long.valueOf(uuid))
+                        .setEntityOid(oid)
                         .build();
 
         GetEntitySettingPoliciesResponse response =

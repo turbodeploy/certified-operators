@@ -38,7 +38,6 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.probes.ProbeStore;
-import com.vmturbo.topology.processor.probes.ProbeStoreListener;
 import com.vmturbo.topology.processor.scheduling.Scheduler;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
@@ -49,7 +48,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Topolog
  * related to registering and deregistering derived targets.
  */
 @ThreadSafe
-public class CachingTargetStore implements TargetStore, ProbeStoreListener {
+public class CachingTargetStore implements TargetStore {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -646,12 +645,4 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             .flatMap(probeInfo -> Optional.ofNullable(ProbeCategory.create(probeInfo.getProbeCategory())));
     }
 
-    @Override
-    public void onProbeRegistered(final long probeId, final ProbeInfo probe) {
-        targetsById.forEach((id, target) -> {
-            if (target.getProbeId() == probeId) {
-                target.onProbeRegistered(probeId, probe);
-            }
-        });
-    }
 }

@@ -70,12 +70,12 @@ import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -535,30 +535,6 @@ public class BusinessUnitsServiceTest {
 
         verify(entitiesService).getActionCountStatsByUuid(UUID_STRING, actionDTO);
         assertThat(statsByUuid, is(listStatDTO));
-    }
-
-    /**
-     * Test that if certain related entity types were not set, then we use default values which
-     * expand business account scope.
-     *
-     * @throws Exception if any mandatory RPC call fails.
-     */
-    @Test
-    public void testDefaultRelatedEntityTypesToBusinessUnits() throws Exception {
-        final ActionApiInputDTO initialActionDTO = new ActionApiInputDTO();
-        initialActionDTO.setEndTime(DateTimeUtil.getNow());
-        initialActionDTO.setEnvironmentType(EnvironmentType.CLOUD);
-
-        final ActionApiInputDTO expandedActionDTO = initialActionDTO;
-        expandedActionDTO.setRelatedEntityTypes(
-                ApiEntityType.ENTITY_TYPES_TO_EXPAND.get(ApiEntityType.BUSINESS_ACCOUNT)
-                        .stream()
-                        .map(ApiEntityType::apiStr)
-                        .collect(Collectors.toList()));
-
-        businessUnitsService.getActionCountStatsByUuid(UUID_STRING, initialActionDTO);
-
-        verify(entitiesService).getActionCountStatsByUuid(UUID_STRING, expandedActionDTO);
     }
 
     /**

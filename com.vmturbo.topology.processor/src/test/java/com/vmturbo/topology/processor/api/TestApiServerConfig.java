@@ -312,7 +312,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
             targetDumpingSettings(),
             systemNotificationProducer(),
             1L, 1L, 1L,
-            5, 10, 1, 1,
+            5, 1, 1,
             TheMatrix.instance());
     }
 

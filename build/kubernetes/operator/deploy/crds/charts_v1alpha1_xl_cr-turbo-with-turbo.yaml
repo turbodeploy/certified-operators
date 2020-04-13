@@ -4,29 +4,20 @@ metadata:
   name: xl-release
 spec:
   # This configuration file is used as an example on how to enable monitoring Turbonomic with Turbonomic.
-  #
-  # Monitor Turbonomic with Turbonomic is achieved by enabling the following components:
-  # - kubeturbo probe
-  # - dif probe and prometurbo appmetric
-  # - prometheus
-  # - prometheus-mysql-exporter
-  #
-  # Please make sure to:
-  # - Apply the cluster-role.yaml and the cluster-role-binding.yaml. This is needed for the
-  #   t8c-operator to create clusterroles and clusterrolebindings required by prometheus and kubeturbo.
-  # - Specify the prometheus-mysql-exporter.mysql.user and prometheus-mysql-exporter.mysql.pass
-  #   in order for prometheus-mysql-exporter to login to the database in order to collect metrics.
+  # Default values copied from <project_dir>/helm-charts/xl/values.yaml
+
+  # Default values for xl.
+  # This is a YAML-formatted file.
+  # Declare variables to be passed into your templates.
+
+  # Any changes run: kubectl apply -f deploy/crds/charts_v1alpha1_xl_cr-turbo-with-turbo.yaml -n turbonomic
 
   # Global settings
   global:
     repository: turbonomic
-    tag: 7.21.5-SNAPSHOT
+    tag: 7.21.200-SNAPSHOT
     externalIP: 10.10.2.15
     externalDbIP: 10.10.2.15
-
-  # Kubeturbo probe
-  kubeturbo:
-    enabled: true
 
   # Monitoring
   # Enable prometheus mysql exporter
@@ -36,7 +27,6 @@ spec:
     mysql:
       user: turbodbuser
       pass: turbodbpassword
-
   # Enable prometheus, and configure a job to scrape metrics from mysql-exporter
   prometheus:
     enabled: true

@@ -395,8 +395,6 @@ data:
         actionTimeoutSeconds: 30
         # Max number of concurrent target discoveries per probe.
         maxConcurrentTargetDiscoveriesPerProbeCount: 5
-        # Max number of concurrent target incremental discoveries per probe.
-        maxConcurrentTargetIncrementalDiscoveriesPerProbeCount: 10
         # Urgent metrics are collected every 10 minutes, the offline every 3 days
         collectionIntervalUrgentSec: 600
         collectionIntervalOfflineSec: 259200

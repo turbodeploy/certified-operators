@@ -47,7 +47,6 @@ import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
@@ -124,21 +123,17 @@ import com.vmturbo.common.protobuf.plan.TemplateDTOMoles.TemplateServiceMole;
 import com.vmturbo.common.protobuf.plan.TemplateServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
-import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
-import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -204,9 +199,6 @@ public class GroupsServiceTest {
     @Mock
     private SupplyChainFetcherFactory supplyChainFetcherFactory;
 
-    @Mock
-    private SettingsMapper settingsMapper;
-
     @Captor
     private ArgumentCaptor<GetGroupsRequest> getGroupsRequestCaptor;
 
@@ -216,15 +208,13 @@ public class GroupsServiceTest {
 
     private ActionsServiceMole actionServiceSpy = spy(new ActionsServiceMole());
 
-    private SettingPolicyServiceMole settingPolicyServiceSpy = spy(new SettingPolicyServiceMole());
     private FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
     private FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
     private BusinessAccountRetriever businessAccountRetriever;
 
     @Rule
     public GrpcTestServer grpcServer =
-        GrpcTestServer.newServer(groupServiceSpy, templateServiceSpy, actionServiceSpy,
-                settingPolicyServiceSpy);
+        GrpcTestServer.newServer(groupServiceSpy, templateServiceSpy, actionServiceSpy);
 
     private static final long CONTEXT_ID = 7777777;
     private Map<Long, GroupApiDTO> mappedGroups;
@@ -236,7 +226,7 @@ public class GroupsServiceTest {
         // create inputs for the service
         final ActionsServiceBlockingStub actionOrchestratorRpcService =
                 ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
-        final SettingPolicyServiceBlockingStub settingPolicyStub =
+        final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub =
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         final ActionSearchUtil actionSearchUtil =
                 new ActionSearchUtil(
@@ -262,7 +252,7 @@ public class GroupsServiceTest {
                 priceIndexPopulator,
                 supplyChainFetcherFactory,
                 actionSearchUtil,
-                settingPolicyStub,
+                settingPolicyServiceBlockingStub,
                 settingsMapper,
                 targetCache, entitySettingQueryExecutor,
                 groupFilterMapper,
@@ -302,7 +292,6 @@ public class GroupsServiceTest {
         // Arrange
         groupFilterApiDTO.setExpType(EQ_MATCH_TYPE);
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
-                        eq(LogicalOperator.AND),
                         eq(Collections.singletonList(groupFilterApiDTO))))
                 .thenReturn(
                         GroupFilter.newBuilder().addPropertyFilters(
@@ -341,7 +330,6 @@ public class GroupsServiceTest {
         groupFilterApiDTO.setExpType(NE_MATCH_TYPE);
 
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
-                        eq(LogicalOperator.AND),
                         eq(Collections.singletonList(groupFilterApiDTO))))
                 .thenReturn(
                         GroupFilter.newBuilder().addPropertyFilters(
@@ -422,7 +410,6 @@ public class GroupsServiceTest {
         when(groupMapper.toGroupApiDto(Collections.singletonList(clusterAndMembers), true, null,
                 null)).thenReturn(new ObjectsPage<>(Collections.singletonList(clusterApiDto), 1, 1));
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
-            eq(LogicalOperator.AND),
             eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
                 .setGroupType(GroupType.COMPUTE_HOST_CLUSTER)
                 .build());
@@ -461,7 +448,6 @@ public class GroupsServiceTest {
                 null)).thenReturn(
                 new ObjectsPage<>(Collections.singletonList(clusterApiDto), 1, 1));
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.STORAGE_CLUSTER),
-            eq(LogicalOperator.AND),
             eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
             .setGroupType(GroupType.STORAGE_CLUSTER)
             .build());
@@ -849,7 +835,6 @@ public class GroupsServiceTest {
 
         mappedGroups.put(2L, groupApiDtoMock);
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.COMPUTE_HOST_CLUSTER),
-                eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
                 .setGroupType(GroupType.COMPUTE_HOST_CLUSTER).build());
 
@@ -960,7 +945,6 @@ public class GroupsServiceTest {
             .build();
 
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.RESOURCE),
-            eq(LogicalOperator.AND),
             eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
                 .setGroupType(GroupType.RESOURCE).build());
 
@@ -1055,7 +1039,6 @@ public class GroupsServiceTest {
                 .build();
 
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.RESOURCE),
-                eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
                 .setGroupType(GroupType.RESOURCE).build());
 
@@ -1185,29 +1168,6 @@ public class GroupsServiceTest {
     }
 
     /**
-     * Test get setting policies for a group with 2 members.
-     * @throws Exception when getSettingPoliciesByGroupUuid() throws an exception
-     */
-    @Test
-    public void testGetSettingPoliciesByGroupUuid() throws Exception {
-        TopologyEntityDTO entity1 = TopologyEntityDTO.newBuilder().setOid(1111L).setEntityType(1).build();
-        TopologyEntityDTO entity2 = TopologyEntityDTO.newBuilder().setOid(2222L).setEntityType(1).build();
-        List<Long> members = Arrays.asList(entity1.getOid(), entity2.getOid());
-        List<TopologyEntityDTO> entities = Arrays.asList(entity1, entity2);
-        String groupUuid = "123456";
-        MultiEntityRequest multiEntityRequest = mock(MultiEntityRequest.class);
-        ImmutableGroupAndMembers groupAndMembers = ImmutableGroupAndMembers.builder()
-                .group(Grouping.getDefaultInstance()).members(members).entities(members).build();
-        when(groupExpander.getGroupWithMembers(groupUuid)).thenReturn(Optional.of(groupAndMembers));
-        when(repositoryApi.entitiesRequest(Sets.newHashSet(groupAndMembers.members())))
-              .thenReturn(multiEntityRequest);
-        when(multiEntityRequest.getFullEntities()).thenReturn(entities.stream());
-        groupsService.getSettingPoliciesByGroupUuid(groupUuid);
-        verify(settingPolicyServiceSpy).getEntitySettingPolicies(GetEntitySettingPoliciesRequest
-                .newBuilder().addAllEntityOidList(members).build());
-    }
-
-    /**
      * Test get Resource groups when scope is group of accounts. Get groups owned by Account.
      *
      * @throws Exception if cannot convert the requested filter criteria.
@@ -1265,7 +1225,7 @@ public class GroupsServiceTest {
         when(groupExpander.getGroupsWithMembers(GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder().addPropertyFilters(propertyFilter).build())
                 .build())).thenReturn(Collections.singletonList(rgGroupAndMembers));
-        when(groupFilterMapper.apiFilterToGroupFilter(any(), any(), any())).thenReturn(
+        when(groupFilterMapper.apiFilterToGroupFilter(any(), any())).thenReturn(
                 GroupFilter.newBuilder().build());
         final List<GroupApiDTO> groupsByType = groupsService.getGroupsByType(GroupType.RESOURCE,
                 Collections.singletonList(groupOfAccountsId.toString()), Collections.emptyList(),
@@ -1325,7 +1285,6 @@ public class GroupsServiceTest {
     @Test
     public void testGetPaginatedGroupApiDTOsWithScopes() throws Exception {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
-                eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
                 .setGroupType(GroupType.REGULAR).build());
         GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
@@ -1354,7 +1313,6 @@ public class GroupsServiceTest {
     @Test
     public void testGetPaginatedGroupApiDTOsUserGroupsOfEntitiesOrGroups() throws Exception {
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
-                eq(LogicalOperator.AND),
                 eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
                 .setGroupType(GroupType.REGULAR).build());
         GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
@@ -1377,7 +1335,6 @@ public class GroupsServiceTest {
             .setGroupFilter(groupFilterWithNameFilter)
             .build();
         when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
-            eq(LogicalOperator.AND),
             eq(Collections.singletonList(nameFilter)))).thenReturn(groupFilterWithNameFilter);
 
         final Grouping groupOfClusters = Grouping.newBuilder()

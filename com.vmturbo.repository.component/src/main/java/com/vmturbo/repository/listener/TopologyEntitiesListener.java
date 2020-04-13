@@ -5,8 +5,6 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 
-import com.arangodb.ArangoDBException;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,8 +85,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
      * @return true, if the topology should be processed.
      */
     private boolean shouldProcessTopology(@Nonnull final TopologyInfo incomingTopologyInfo) {
-        // always process non-realtime topologies.
-        // TODO: Does a plan topology ever come in here?
+        // always process non-realtime topologies
         if (incomingTopologyInfo.getTopologyType() != TopologyType.REALTIME) {
             return true;
         }
@@ -110,7 +107,7 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
                                        @Nonnull RemoteIterator<DataSegment> entityIterator) {
         try {
             onTopologyNotificationInternal(topologyInfo, entityIterator);
-        } catch (CommunicationException | InterruptedException | ArangoDBException e) {
+        } catch (CommunicationException | InterruptedException e) {
             logger.error("Error processing realtime topology."
                 + " Topology Id: " + topologyInfo.getTopologyId()
                 + " Context Id: " + topologyInfo.getTopologyContextId(), e);
@@ -137,31 +134,10 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
             .labels(SharedMetrics.SOURCE_LABEL)
             .startTimer();
         final TopologyID tid = new TopologyID(topologyContextId, topologyId, TopologyID.TopologyType.SOURCE);
-        TopologyCreator<TopologyEntityDTO> topologyCreator = null;
-        try {
-            topologyCreator = topologyManager.newSourceTopologyCreator(tid, topologyInfo);
-            TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
+        final TopologyCreator<TopologyEntityDTO> topologyCreator =
+            topologyManager.newSourceTopologyCreator(tid, topologyInfo);
+        TopologyEntitiesUtil.createTopology(entityIterator, topologyId, topologyContextId, timer,
                 tid, topologyCreator, notificationSender);
-        }  catch (InterruptedException e) {
-            logger.error("Thread interrupted receiving source topology " + topologyId, e);
-            SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.SOURCE_LABEL, SharedMetrics.FAILED_LABEL).increment();
-            notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
-                "Thread interrupted when receiving source topology " + topologyId +
-                    " + for context " + topologyContextId + ": " + e.getMessage());
-            if (topologyCreator != null) {
-                topologyCreator.rollback();
-            }
-            throw e;
-        } catch (Exception e) {
-            logger.error("Error occurred during retrieving source topology " + topologyId, e);
-            SharedMetrics.TOPOLOGY_COUNTER.labels(SharedMetrics.SOURCE_LABEL, SharedMetrics.FAILED_LABEL).increment();
-            notificationSender.onSourceTopologyFailure(topologyId, topologyContextId,
-                "Error receiving source topology " + topologyId +
-                    " + for context " + topologyContextId + ": " + e.getMessage());
-            if (topologyCreator != null) {
-                topologyCreator.rollback();
-            }
-            throw e;
-        }
     }
+
 }

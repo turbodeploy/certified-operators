@@ -41,9 +41,9 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PlanTopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.matrix.component.TheMatrix;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.StitchingEntity;
@@ -193,7 +193,7 @@ public class StagesTest {
     }
 
     @Test
-    public void testOnpremPlanScopingStage() throws Exception {
+    public void testOnpremPlanScopingStage() throws PipelineStageException, InterruptedException {
         final TopologyInfo onpremTopologyInfo = TopologyInfo.newBuilder()
                         .setTopologyContextId(2)
                         .setTopologyId(2)

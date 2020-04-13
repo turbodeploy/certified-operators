@@ -238,12 +238,9 @@ message Explanation {
         oneof reason_information {
             TimeSlotReasonInformation time_slot = 2;
         }
-        // Slot info when action is caused by a time-slot analysis
+        // When action is caused by a time-slot analysis, the slot within a day.
         message TimeSlotReasonInformation {
-            // the slot within a day
             required int32 slot = 1;
-            // total number of slots in a day
-            required int32 totalSlotNumber = 2;
         }
     }
 
@@ -949,9 +946,6 @@ message ActionSpec {
 
     // A list of prerequisite descriptions.
     repeated string prerequisite_description = 12;
-
-    // The severity of the action
-    optional Severity severity = 13 [default = NORMAL];
 }
 
 // A filter to be supplied with action queries.
@@ -983,7 +977,7 @@ message ActionQueryFilter {
         repeated int64 oids = 11;
     }
 
-    // date range for the request; dates are epoch longs, e.g. Unix TimestampLiveAction
+    // date range for the request; dates are epoch longs, e.g. Unix Timestamp
     // We currently require both start_date and end_date to be not null.
     // Todo: will work on provide default values.
     optional int64 start_date = 4;
@@ -1001,9 +995,6 @@ message ActionQueryFilter {
 
     // Include only actions in a particular environment.
     optional .common.EnvironmentType environment_type = 9;
-
-    // If non-empty, include only actions of the given severities
-    repeated Severity severities = 13;
 
 }
 

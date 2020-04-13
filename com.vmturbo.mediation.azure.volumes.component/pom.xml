@@ -32,8 +32,8 @@
                             <artifactItems>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.azure.volumes</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <artifactId>com.vmturbo.mediation.azure.volumes.conversion</artifactId>
+                                    <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>

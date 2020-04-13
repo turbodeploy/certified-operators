@@ -522,16 +522,12 @@ public class TopologyEntitiesHandlerTest {
         TopologyEntityDTO.Builder vm = topologyEntityDTOBuilders.stream().filter(
                         builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                         .collect(Collectors.toList()).get(0);
-        TopologyEntityDTO.Builder vmNonScalable = topologyEntityDTOBuilders.stream().filter(
-                builder -> builder.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                .collect(Collectors.toList()).get(0);
         final Set<Integer> entityTypesToSkip = new HashSet<>();
         entityTypesToSkip.add(EntityType.DATABASE_SERVER_VALUE);
         entityTypesToSkip.add(EntityType.DATABASE_TIER_VALUE);
         entityTypesToSkip.add(EntityType.DATABASE_VALUE);
         // Set the shopTogether flag
         vm.getAnalysisSettingsBuilder().setShopTogether(isVMShopTogether);
-        vmNonScalable.getAnalysisSettingsBuilder().setShopTogether(isVMShopTogether);
         Set<TopologyEntityDTO> topologyEntityDTOs = topologyEntityDTOBuilders.stream()
                         .map(TopologyEntityDTO.Builder::build).collect(Collectors.toSet());
 
@@ -584,7 +580,6 @@ public class TopologyEntitiesHandlerTest {
         TraderTO m1MediumTrader = null;
         TraderTO m1LargeTrader = null;
         TraderTO testVMTrader = null;
-        TraderTO nonScalableVMTrader = null;
         ShoppingListTO slToMove = null;
         for (TraderTO traderTO : traderTOs) {
             if (traderTO.getType() == EntityType.COMPUTE_TIER_VALUE
@@ -594,21 +589,13 @@ public class TopologyEntitiesHandlerTest {
                             && traderTO.getDebugInfoNeverUseInCode().contains("m1.large")) {
                 m1LargeTrader = traderTO;
             } else if (traderTO.getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                if (traderTO.getDebugInfoNeverUseInCode().contains("TestVM1")) {
-                    testVMTrader = traderTO;
-                } else {
-                    nonScalableVMTrader = traderTO;
-                }
+                testVMTrader = traderTO;
             }
         }
         long m1LargeOid = m1LargeTrader.getOid();
         slToMove = testVMTrader.getShoppingListsList().stream()
                         .filter(sl -> sl.getSupplier() == m1LargeOid).collect(Collectors.toList())
                         .get(0);
-        // assert that the computeSl of nonScalableVM is immovable
-        assertFalse(nonScalableVMTrader.getShoppingListsList().stream()
-                .filter(sl -> sl.getSupplier() == m1LargeOid).collect(Collectors.toList())
-                .get(0).getMovable());
         // mark VM as movable
         Analysis analysis = mock(Analysis.class);
         mockCommsToAdjustForOverhead(analysis, converter);

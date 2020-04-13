@@ -4,7 +4,6 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
@@ -19,7 +18,6 @@ import static org.mockito.internal.verification.VerificationModeFactory.times;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +59,6 @@ import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
@@ -79,13 +76,13 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator;
 import com.vmturbo.components.common.pagination.EntityStatsPaginator.PaginatedStats;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 
 /**
  *  Test get paginated historical and projected stats.
@@ -194,18 +191,6 @@ public class PaginatedStatsExecutorTest {
         return inputDto;
     }
 
-    private StatScopesApiInputDTO getInputDtoWithCustomPeriod(
-            long currentDate,
-            String startDate,
-            String endDate,
-            String statName) {
-        StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
-        StatPeriodApiInputDTO historicPeriod  = buildStatPeriodApiInputDTO(currentDate, startDate,
-                endDate, statName);
-        inputDto.setPeriod(historicPeriod);
-        return inputDto;
-    }
-
     /**
      * Tests is historical returns true when startDate in the past.
      */
@@ -297,131 +282,6 @@ public class PaginatedStatsExecutorTest {
     }
 
     /**
-     * Test that if only the start date is provided and it is in the past, then the end date is set
-     * to current time.
-     */
-    @Test
-    public void testSanitizeStartDateOrEndDateWithOnlyStartDateInThePast() {
-        long currentTime = new Date().getTime();
-        long startTime = currentTime - 1000L * 60L * 60L * 24L;      // set start date to 1 day ago
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, Long.toString(startTime), null);
-
-        // Assert that end date exists and is set to current time
-        assertNotNull(inputDto.getPeriod().getEndDate());
-        assertEquals(currentTime, Long.parseLong(inputDto.getPeriod().getEndDate()));
-    }
-
-    /**
-     * Test that if only the start date is provided and it is set to now, then both are set
-     * to null.
-     */
-    @Test
-    public void testSanitizeStartDateOrEndDateWithOnlyStartDateNow() {
-        long currentTime = new Date().getTime();
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, Long.toString(currentTime), null);
-
-        // Assert that both dates are null
-        assertNull(inputDto.getPeriod().getEndDate());
-        assertNull(inputDto.getPeriod().getStartDate());
-    }
-
-    /**
-     * Test that if only the start date is provided and it is in the future, the end date is set to
-     * start date.
-     */
-    @Test
-    public void testSanitizeStartDateOrEndDateWithOnlyStartDateInTheFuture() {
-        long currentTime = new Date().getTime();
-        // set start date to 1 day in the future
-        long startTime = currentTime + 1000L * 60L * 60L * 24L;
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, Long.toString(startTime), null);
-
-        // Assert that end date exists and is set to current time
-        assertNotNull(inputDto.getPeriod().getEndDate());
-        assertEquals(startTime, Long.parseLong(inputDto.getPeriod().getEndDate()));
-    }
-
-    /**
-     * Test that if only the end date is provided and it is in the past, then an exception is thrown
-     * since it is not a valid input.
-     *
-     * @throws IllegalArgumentException as expected.
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testSanitizeStartDateOrEndDateWithOnlyEndDateInThePast() {
-        long currentTime = new Date().getTime();
-        long endDate = currentTime - 1000L * 60L * 60L * 24L;      // set end date to 1 day ago
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, null, Long.toString(endDate));
-    }
-
-    /**
-     * Test that if only the end date is provided and it is set to now, then both are set
-     * to null.
-     */
-    @Test
-    public void testSanitizeStartDateOrEndDateWithOnlyEndDateNow() {
-        long currentTime = new Date().getTime();
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, null, Long.toString(currentTime));
-
-        // Assert that both dates are null
-        assertNull(inputDto.getPeriod().getEndDate());
-        assertNull(inputDto.getPeriod().getStartDate());
-    }
-
-    /**
-     * Test that if only the end date is provided and it is in the future, then the start date is
-     * set to now.
-     */
-    @Test
-    public void testSanitizeStartDateOrEndDateWithOnlyEndDateInTheFuture() {
-        long currentTime = new Date().getTime();
-        // set end date to 1 day in the future
-        long endTime = currentTime + 1000L * 60L * 60L * 24L;
-        StatScopesApiInputDTO inputDto =
-                getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-                        currentTime, null, Long.toString(endTime));
-        // Assert that end date exists and is set to current time
-        assertNotNull(inputDto.getPeriod().getStartDate());
-        assertEquals(currentTime, Long.parseLong(inputDto.getPeriod().getStartDate()));
-    }
-
-    /**
-     * Creates a StatScopesApiInputDTO with the times provided, executes processRequest() verifying
-     * how many times runHistoricalStatsRequest() and runProjectedStatsRequest() were invoked, and
-     * returns the dto in order to provide a way to the caller function to check if the dates
-     * were altered correctly.
-     *
-     * @param currentTime a unix timestamp (milliseconds) to be considered 'now' for the execution.
-     * @param startTime a String to initialize the dto's start date with. Can be null.
-     * @param endTime a String to initialize the dto's end date with. Can be null.
-     * @return the StatScopesApiInputDTO (with the dates possibly altered by processRequest()).
-     */
-    private StatScopesApiInputDTO getInputDtoAfterSanitizeStartDateOrEndDateWithCustomDates(
-            long currentTime,
-            String startTime,
-            String endTime) {
-        EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
-        StatScopesApiInputDTO inputDto =
-                getInputDtoWithCustomPeriod(currentTime, startTime, endTime, "a");
-        PaginatedStatsGather paginatedStatsGatherSpy =
-                getPaginatedStatsGatherSpy(inputDto, paginationRequest);
-
-        paginatedStatsGatherSpy.sanitizeStartDateOrEndDate();
-
-        return inputDto;
-    }
-
-    /**
      * Tests statsRequest kicks of runProjectedStatsRequest.
      *
      * @throws OperationFailedException exception thrown if the scope can not be recognized
@@ -477,15 +337,10 @@ public class PaginatedStatsExecutorTest {
     public void testRunProjectedStatsWithoutContainsEntityGroupScope()
             throws OperationFailedException {
         //GIVEN
-        final String entityId = "1";
         StatScopesApiInputDTO inputDto = getInputDtoWithProjectionPeriod();
-        inputDto.setScopes(Lists.newArrayList(entityId));
+        inputDto.setScopes(Lists.newArrayList("1"));
         EntityStatsPaginationRequest paginationRequest = mock(EntityStatsPaginationRequest.class);
         PaginatedStatsGather paginatedStatsGatherSpy = getPaginatedStatsGatherSpy(inputDto, paginationRequest);
-
-        final ApiId mockApiId = mock(ApiId.class);
-        when(mockApiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
-        when(mockUuidMapper.fromOid(Long.parseLong(entityId))).thenReturn(mockApiId);
 
         doReturn(false).when(paginatedStatsGatherSpy).containsEntityGroupScope();
         doReturn(ProjectedEntityStatsResponse.getDefaultInstance()).when(statsHistoryServiceSpy).getProjectedEntityStats(any());
@@ -1074,82 +929,6 @@ public class PaginatedStatsExecutorTest {
     }
 
     /**
-     * If the entityUuid passed in constructEntityStatsApiDTOFromMinimalEntity does not exist in
-     * minimalEntityMap passed, Optional.empty() is expected to be returned.
-     */
-    @Test
-    public void testConstructEntityStatsApiDTOFromNullMinimalEntity() {
-        final Map<Long, MinimalEntity> minimalEntityMap = new HashMap<>();
-        final PaginatedStatsGather paginatedStatsGatherSpy = getPaginatedStatsGatherSpy(
-                getInputDtoWithHistoricPeriod(), mock(EntityStatsPaginationRequest.class));
-        Optional<EntityStatsApiDTO> entityStatsApiDTO =
-                paginatedStatsGatherSpy.constructEntityStatsApiDTOFromMinimalEntity(
-                        7L, minimalEntityMap);
-        assertEquals(Optional.empty(), entityStatsApiDTO);
-    }
-
-    /**
-     * Test that we expand scope (in our case group of VMs) before supplyChain traverse. Because
-     * if we don't request certain related entity types we return previously expanded scope
-     * entities without supplyChain traverse.
-     *
-     * @throws OperationFailedException exception thrown if the scope can not be recognized
-     */
-    @Test
-    public void testGetExpandedScopeForGroupOfVMs() throws OperationFailedException {
-        final String groupVmsId = "123";
-        final List<String> scopeSeedIds = Collections.singletonList(groupVmsId);
-        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
-        inputDto.setScopes(scopeSeedIds);
-        final EntityStatsPaginationRequest paginationRequest =
-                new EntityStatsPaginationRequest(null, 1, true, historyCommodity);
-        final PaginatedStatsGather paginatedStatsGatherSpy =
-                getPaginatedStatsGatherSpy(inputDto, paginationRequest);
-
-        final ApiId mockApiId = mock(ApiId.class);
-        when(mockApiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
-        when(mockUuidMapper.fromOid(Long.parseLong(groupVmsId))).thenReturn(mockApiId);
-
-        paginatedStatsGatherSpy.getExpandedScope(inputDto);
-        Mockito.verify(mockGroupExpander, Mockito.times(1))
-                .expandUuids(Collections.singleton(groupVmsId));
-    }
-
-    /**
-     * Test that we shouldn't expand resource group or group of resource groups scope before
-     * supplyChain traverse otherwise we miss special resource group logic.
-     *
-     * @throws OperationFailedException exception thrown if the scope can not be recognized
-     */
-    @Test
-    public void testGetExpandedScopeForResourceGroup() throws OperationFailedException {
-        final String resourceGroupId = "123";
-        final List<String> scopeSeedIds = Collections.singletonList(resourceGroupId);
-        final StatScopesApiInputDTO inputDto =
-                createStatsScopeApiInputDTOForResourceGroupScope(scopeSeedIds);
-        final EntityStatsPaginationRequest paginationRequest =
-                new EntityStatsPaginationRequest(null, 1, true, historyCommodity);
-        final PaginatedStatsGather paginatedStatsGatherSpy =
-                getPaginatedStatsGatherSpy(inputDto, paginationRequest);
-
-        final ApiId mockApiId = mock(ApiId.class);
-        when(mockApiId.isResourceGroupOrGroupOfResourceGroups()).thenReturn(true);
-        when(mockUuidMapper.fromOid(Long.parseLong(resourceGroupId))).thenReturn(mockApiId);
-
-        paginatedStatsGatherSpy.getExpandedScope(inputDto);
-        Mockito.verify(mockGroupExpander, Mockito.never())
-                .expandUuids(Collections.singleton(resourceGroupId));
-    }
-
-    private StatScopesApiInputDTO createStatsScopeApiInputDTOForResourceGroupScope(
-            List<String> resourceGroupId) {
-        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
-        inputDto.setScopes(resourceGroupId);
-        inputDto.setRelatedType(ApiEntityType.VIRTUAL_MACHINE.apiStr());
-        return inputDto;
-    }
-
-    /**
      * Creates a {@link StatScopesApiInputDTO} requesting costCommodity and historyCommodity.
      *
      * @param costCommodity the costCommodity to add to request
@@ -1268,7 +1047,6 @@ public class PaginatedStatsExecutorTest {
         MinimalEntity minimalEntity = MinimalEntity.newBuilder().setOid(entityUuid)
                 .setDisplayName("minimalEntity")
                 .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
-                .setEnvironmentType(EnvironmentType.CLOUD)
                 .build();
         Map<Long, MinimalEntity> map = new HashMap<>();
         map.put(entityUuid, minimalEntity);

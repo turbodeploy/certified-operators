@@ -74,10 +74,10 @@ import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UpdateDiscountResponse;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.discount.DiscountNotFoundException;
 import com.vmturbo.cost.component.discount.DiscountStore;
@@ -946,33 +946,7 @@ public class CostRpcServiceTest {
         afterEntityCostbyOid.put(2L, entityCost);
         given(projectedEntityCostStore.getProjectedEntityCosts(anySet())).willReturn(afterEntityCostbyOid);
         given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
-                beforeEntityCostbyOid));
-
-        final GetTierPriceForEntitiesResponse.Builder builder = GetTierPriceForEntitiesResponse.newBuilder();
-        builder.putAfterTierPriceByEntityOid(2L, CurrencyAmount.newBuilder().setAmount(10.0).setCurrency(1).build());
-        builder.putBeforeTierPriceByEntityOid(2L, CurrencyAmount.newBuilder().setAmount(10.0).setCurrency(1).build());
-        costRpcService.getTierPriceForEntities(request, mockObserver);
-        verify(mockObserver).onNext(builder.build());
-        verify(mockObserver).onCompleted();
-    }
-
-    @Test
-    public void testGetTierPriceForPlanEntities() throws DbException {
-        final GetTierPriceForEntitiesRequest request = GetTierPriceForEntitiesRequest.newBuilder()
-                .setOid(2L)
-                .setCostCategory(CostCategory.ON_DEMAND_COMPUTE)
-                .setTopologyContextId(1234L)
-                .build();
-        final StreamObserver<GetTierPriceForEntitiesResponse> mockObserver =
-                mock(StreamObserver.class);
-        final Map<Long, EntityCost> beforeEntityCostbyOid = new HashMap<>();
-        beforeEntityCostbyOid.put(2L, entityCost);
-        final Map<Long, EntityCost> afterEntityCostbyOid = new HashMap<>();
-        afterEntityCostbyOid.put(2L, entityCost);
-        given(planProjectedEntityCostStore.getPlanProjectedEntityCosts(anySet(), anyLong()))
-                .willReturn(afterEntityCostbyOid);
-        given(entityCostStore.getEntityCosts(any())).willReturn(Collections.singletonMap(0L,
-                beforeEntityCostbyOid));
+            beforeEntityCostbyOid));
 
         final GetTierPriceForEntitiesResponse.Builder builder = GetTierPriceForEntitiesResponse.newBuilder();
         builder.putAfterTierPriceByEntityOid(2L, CurrencyAmount.newBuilder().setAmount(10.0).setCurrency(1).build());

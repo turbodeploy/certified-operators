@@ -431,6 +431,27 @@ public class ActionDTOUtil {
     }
 
     /**
+     * Map the action category to a severity category.
+     *
+     * @param category The {@link ActionDTO.ActionCategory}.
+     * @return The name of the severity category.
+     */
+    @Nonnull
+    public static Severity mapActionCategoryToSeverity(@Nonnull final ActionCategory category) {
+        switch (category) {
+            case PERFORMANCE_ASSURANCE:
+            case COMPLIANCE:
+                return Severity.CRITICAL;
+            case PREVENTION:
+                return Severity.MAJOR;
+            case EFFICIENCY_IMPROVEMENT:
+                return Severity.MINOR;
+            default:
+                return Severity.NORMAL;
+        }
+    }
+
+    /**
      * Set the severity using the naming scheme expected by the UI.
      *
      * @param severity The severity whose name should be retrieved
