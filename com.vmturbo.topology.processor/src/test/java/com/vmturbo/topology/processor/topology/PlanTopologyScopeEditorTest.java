@@ -1,6 +1,9 @@
 package com.vmturbo.topology.processor.topology;
 
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -57,6 +60,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
+import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor.FastLookupQueue;
 
 /**
  * Unit tests for {@link PlanTopologyScopeEditor}.
@@ -758,6 +762,38 @@ public class PlanTopologyScopeEditorTest {
         assertTrue(result.getEntity(cloneOid).isPresent());
         assertTrue(result.getEntity(cloneOid).get().getClonedFromEntity().isPresent());
         assertEquals(vm1InDc1.getOid(), result.getEntity(cloneOid).get().getClonedFromEntity().get().getOid());
+    }
+
+    /**
+     * Test operations on the {@link FastLookupQueue} used internally in the editor.
+     */
+    @Test
+    public void testLookupQueue() {
+        FastLookupQueue lookupQueue = new FastLookupQueue();
+        assertTrue(lookupQueue.isEmpty());
+
+        lookupQueue.tryAdd(1L);
+        assertFalse(lookupQueue.isEmpty());
+        lookupQueue.tryAdd(2L);
+        assertThat(lookupQueue.size(), is(2));
+
+        // Second addition shouldn't increase the size of the queue.
+        lookupQueue.tryAdd(1L);
+        assertThat(lookupQueue.size(), is(2));
+
+        // Check contains.
+        assertTrue(lookupQueue.contains(1L));
+        assertTrue(lookupQueue.contains(2L));
+        assertFalse(lookupQueue.contains(3L));
+
+        // Start removing stuff, and verify that it gets removed in the right order.
+        assertThat(lookupQueue.remove(), is(1L));
+        assertFalse(lookupQueue.contains(1L));
+        lookupQueue.tryAdd(3L);
+        assertThat(lookupQueue.remove(), is(2L));
+        assertFalse(lookupQueue.contains(2L));
+        assertThat(lookupQueue.remove(), is(3L));
+        assertTrue(lookupQueue.isEmpty());
     }
 
     private static TopologyEntity.Builder createHypervisorTopologyEntity(long oid,
