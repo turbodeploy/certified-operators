@@ -358,8 +358,9 @@ public class HistoricalEditor {
                                                     final @Nonnull HistoricalCommodityInfo oldCommInfo,
                                                     final @Nonnull HistoricalServiceEntityInfo histSeInfo,
                                                     final float used, final float peak, final long oid) {
-        float newUsed = 0;
-        float newPeak = 0;
+        // Initialize newUsed and newPeak to the current values.
+        float newUsed = used;
+        float newPeak = peak;
         if (oldCommInfo.getHistoricalUsed() > 0) {
             newUsed = calculateSmoothedValue(true, used, oldCommInfo);
         }
