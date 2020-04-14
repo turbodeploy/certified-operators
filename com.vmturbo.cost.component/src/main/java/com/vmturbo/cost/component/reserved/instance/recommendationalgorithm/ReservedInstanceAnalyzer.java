@@ -543,33 +543,20 @@ public class ReservedInstanceAnalyzer {
     }
 
     @VisibleForTesting
-    Map<String, ReservedInstancePurchaseConstraints> getPurchaseConstraints(
+    private ReservedInstancePurchaseConstraints getPurchaseConstraints(
             ReservedInstanceAnalysisScope scope) throws IllegalArgumentException {
-        if (scope.getRiPurchaseProfiles() == null) {
-            final Map<String, ReservedInstancePurchaseConstraints> constraints = getPurchaseConstraints();
-            logger.info("Using the global purchase constraint settings: {}", constraints);
-            return constraints;
+        if (scope.getRiPurchaseProfile() == null) {
+            return getPurchaseConstraints();
         } else {
-            Map<String, RIPurchaseProfile> profiles = scope.getRiPurchaseProfiles();
-            final Builder<String, ReservedInstancePurchaseConstraints> constraintBuilder =
-                    ImmutableMap.builder();
-            profiles.forEach((key, profile) -> {
-                if (!profile.hasRiType()) {
-                    throw new IllegalArgumentException("No ReservedInstanceType is defined" +
-                            " for profile " + key + " in ReservedInstanceAnalysisScope");
-                }
-                ReservedInstanceType type = profile.getRiType();
-                final ReservedInstancePurchaseConstraints constraints =
-                        new ReservedInstancePurchaseConstraints(type.getOfferingClass(),
-                                type.getTermYears(), type.getPaymentOption());
+            RIPurchaseProfile profile = scope.getRiPurchaseProfile();
+            if (!profile.hasRiType()) {
+                throw new IllegalArgumentException(
+                        "No ReservedInstanceType is defined in ReservedInstanceAnalysisScope");
+            }
+            ReservedInstanceType type = profile.getRiType();
+            return new ReservedInstancePurchaseConstraints(type.getOfferingClass(),
+                    type.getTermYears(), type.getPaymentOption());
 
-                constraintBuilder.put(key.toUpperCase(), constraints);
-
-            });
-            Map<String, ReservedInstancePurchaseConstraints> constraints = constraintBuilder.build();
-            logger.info("Using the purchase profiles in analysis scope: {}",
-                    constraints);
-            return constraints;
         }
     }
 

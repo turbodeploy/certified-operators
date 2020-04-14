@@ -206,7 +206,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
                 Sets.newHashSet(Arrays.asList(appServerId, appServerIdNotRelatedToBA)),
-                Collections.emptySet(), REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+                REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         assertEquals(snapshot.getOwnerAccountOfEntity(appServerId).get(), businessAccountEntity);
         assertFalse(snapshot.getOwnerAccountOfEntity(appServerIdNotRelatedToBA).isPresent());

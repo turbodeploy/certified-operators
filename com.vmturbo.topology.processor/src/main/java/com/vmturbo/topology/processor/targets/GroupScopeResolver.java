@@ -348,15 +348,16 @@ public class GroupScopeResolver {
             return Collections.emptyList();
         }
         final SearchEntitiesRequest.Builder searchTopologyRequest = SearchEntitiesRequest.newBuilder()
-            .setReturnType(Type.FULL)
-            .addSearchParameters(SearchParameters.newBuilder()
-                .setStartingFilter(SearchProtoUtil.idFilter(groupScopedEntitiesOids))
-                .addSearchFilter(SearchFilter.newBuilder()
-                    .setTraversalFilter(TraversalFilter.newBuilder()
-                        .setTraversalDirection(TraversalDirection.PRODUCES)
-                        .setStoppingCondition(StoppingCondition.newBuilder()
-                            .setStoppingPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.APPLICATION_COMPONENT.getNumber())))
-                    )));
+                .setReturnType(Type.FULL)
+                .setSearch(SearchQuery.newBuilder()
+                    .addSearchParameters(SearchParameters.newBuilder()
+                        .setStartingFilter(SearchProtoUtil.idFilter(groupScopedEntitiesOids))
+                        .addSearchFilter(SearchFilter.newBuilder()
+                            .setTraversalFilter(TraversalFilter.newBuilder()
+                                .setTraversalDirection(TraversalDirection.PRODUCES)
+                                .setStoppingCondition(StoppingCondition.newBuilder()
+                                    .setStoppingPropertyFilter(SearchProtoUtil.entityTypeFilter(EntityType.APPLICATION.getNumber())))
+                                        ))));
         try {
             return RepositoryDTOUtil.topologyEntityStream(searchService.searchEntitiesStream(
                 searchTopologyRequest.build()))
