@@ -318,7 +318,7 @@ public class MarketStatsAccumulatorTest {
                     HistoryUtilizationType.forNumber(record.getValueType());
             final boolean isTimeslot = historyUtilizationType == HistoryUtilizationType.Timeslot;
             final int newPropertySlot = isTimeslot ? propertySlot++ : 0;
-            final double value = isTimeslot ? historicalUsed.getTimeSlot(newPropertySlot) :
+            final double value = isTimeslot ? historicalUsed.getTimeSlot(newPropertySlot) / capacity :
                     historicalUsed.getPercentile();
             checkParametersRecord(oid, checkProviderId, record, commodityType, capacity,
                     historyUtilizationType, newPropertySlot, value);
