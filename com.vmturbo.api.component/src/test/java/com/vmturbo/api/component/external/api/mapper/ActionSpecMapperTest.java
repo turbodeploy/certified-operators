@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.api.component.external.api.mapper.ActionSpecMapper.mapXlActionStateToApi;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -120,12 +121,12 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
@@ -292,6 +293,48 @@ public class ActionSpecMapperTest {
 
         // Validate that the importance value is 0
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
+    }
+
+    /**
+     * Test that if entity involved in action missed in our topology we get minimal information
+     * (id, entityType and environmentType is exist) about it from ActionEntity.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testMapMoveWhenInvolvedTargetsAbsentInTopology() throws Exception {
+        final int sourceEntityType = EntityType.PHYSICAL_MACHINE.getNumber();
+        final int targetEntityType = EntityType.VIRTUAL_MACHINE.getNumber();
+        final int targetEntityId = 3;
+        final EnvironmentTypeEnum.EnvironmentType targetEntityEnvType =
+                EnvironmentTypeEnum.EnvironmentType.ON_PREM;
+        final ActionInfo moveInfo =
+                getMoveActionInfoForEntitiesAbsentInTopology(sourceEntityType, targetEntityType,
+                        targetEntityId, targetEntityEnvType);
+        final Explanation compliance = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setCompliance(Compliance.newBuilder()
+                                        .addMissingCommodities(MEM)
+                                        .addMissingCommodities(CPU)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
+        ActionApiDTO actionApiDTO =
+                mapper.mapActionSpecToActionApiDTO(buildActionSpec(moveInfo, compliance),
+                        REAL_TIME_TOPOLOGY_CONTEXT_ID);
+        final ServiceEntityApiDTO targetEntity = actionApiDTO.getTarget();
+        // targetEntity is null because when we populate it we use only information from
+        // ActionEntity (uuid, entityType and environmentType)
+        assertNull(targetEntity.getDisplayName());
+        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(), targetEntity.getClassName());
+        assertEquals(String.valueOf(targetEntityId), targetEntity.getUuid());
+        assertEquals(EnvironmentTypeMapper.fromXLToApi(targetEntityEnvType),
+                targetEntity.getEnvironmentType());
+
+        assertEquals(ActionType.MOVE, actionApiDTO.getActionType());
+        assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
     }
 
     /**
@@ -1129,47 +1172,7 @@ public class ActionSpecMapperTest {
         assertThat(actionApiDTO.getUpdateTime(), is(expectedUpdateTime));
     }
 
-    @Test
-    public void testMappingContinuesAfterError() throws Exception {
-        final long badTarget = 3L;
-        final long badSource = 1L;
-        final long badDestination = 2L;
-        final long goodTarget = 10L;
 
-        final ActionInfo moveInfo = ActionInfo.newBuilder().setMove(Move.newBuilder()
-                .setTarget(ApiUtilsTest.createActionEntity(badTarget))
-                .addChanges(ChangeProvider.newBuilder()
-                    .setSource(ApiUtilsTest.createActionEntity(badSource))
-                    .setDestination(ApiUtilsTest.createActionEntity(badDestination))
-                    .build())
-                .build())
-        .build();
-
-        final ActionInfo resizeInfo = ActionInfo.newBuilder()
-            .setResize(Resize.newBuilder()
-                .setTarget(ApiUtilsTest.createActionEntity(goodTarget))
-                .setOldCapacity(11)
-                .setNewCapacity(12)
-                .setCommodityType(CPU.getCommodityType()))
-            .build();
-
-        final ActionSpec moveSpec = buildActionSpec(moveInfo, Explanation.getDefaultInstance());
-        final ActionSpec resizeSpec = buildActionSpec(resizeInfo, Explanation.getDefaultInstance());
-
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO("EntityToResize", goodTarget, EntityType.VIRTUAL_MACHINE_VALUE)));
-        when(repositoryApi.entitiesRequest(ActionDTOUtil.getInvolvedEntityIds(Arrays.asList(
-                moveSpec.getRecommendation(), resizeSpec.getRecommendation()))))
-            .thenReturn(req);
-
-        final List<ActionApiDTO> dtos = mapper.mapActionSpecsToActionApiDTOs(
-                Arrays.asList(moveSpec, resizeSpec), CONTEXT_ID);
-        // Verify that we set the context ID on the request.
-        verify(req).contextId(CONTEXT_ID);
-
-        assertEquals(1, dtos.size());
-        assertEquals(ActionType.RESIZE, dtos.get(0).getActionType());
-    }
 
     @Test
     public void testPlacementPolicyMove() throws Exception {
@@ -1541,7 +1544,7 @@ public class ActionSpecMapperTest {
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), serviceEntityMapper, false);
-        context.getOptionalEntity(1L).get().setCostPrice(1.0f);
+        context.getEntity(1L).get().setCostPrice(1.0f);
 
         String noTranslationNeeded = "Simple string";
         Assert.assertEquals("Simple string", ActionSpecMapper.translateExplanation(noTranslationNeeded, context));
@@ -1617,7 +1620,7 @@ public class ActionSpecMapperTest {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
                 .setActionState(ActionDTO.ActionState.POST_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
-        com.vmturbo.api.enums.ActionState actionState = ActionSpecMapper.mapXlActionStateToApi(actionSpec.getActionState());
+        com.vmturbo.api.enums.ActionState actionState = mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
     }
 
@@ -1626,7 +1629,7 @@ public class ActionSpecMapperTest {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
                 .setActionState(ActionDTO.ActionState.PRE_IN_PROGRESS);
         ActionSpec actionSpec = builder.build();
-        com.vmturbo.api.enums.ActionState actionState = ActionSpecMapper.mapXlActionStateToApi(actionSpec.getActionState());
+        com.vmturbo.api.enums.ActionState actionState = mapXlActionStateToApi(actionSpec.getActionState());
         assertThat(actionState, is(com.vmturbo.api.enums.ActionState.IN_PROGRESS));
     }
 
@@ -1839,6 +1842,44 @@ public class ActionSpecMapperTest {
             topologyEntityDTO(DESTINATION, 2L, ApiEntityType.fromString(srcAndDestType).typeNumber())));
         when(repositoryApi.entitiesRequest(any()))
             .thenReturn(req);
+
+        return moveInfo;
+    }
+
+    /**
+     * Create information about action and involved entities. In this test case repository
+     * contains information only about source and destination entities and target entity is
+     * missed (simulates a situation when target entity is absent in topology).
+     *
+     * @param sourceEntityType entityType of source entity
+     * @param targetEntityType entityType of target entity
+     * @param targetEntityId id of target entity
+     * @param targetEntityEnvType environment type of target entity
+     * @return {@link ActionInfo} information about move action
+     */
+    private ActionInfo getMoveActionInfoForEntitiesAbsentInTopology(int sourceEntityType,
+            int targetEntityType, int targetEntityId,
+            EnvironmentTypeEnum.EnvironmentType targetEntityEnvType) {
+        final ChangeProvider changeProvider = ChangeProvider.newBuilder()
+                .setSource(ApiUtilsTest.createActionEntity(1))
+                .setDestination(ApiUtilsTest.createActionEntity(2))
+                .build();
+
+        final Move move = Move.newBuilder()
+                .setTarget(ActionEntity.newBuilder()
+                        .setId(targetEntityId)
+                        .setType(targetEntityType)
+                        .setEnvironmentType(targetEntityEnvType)
+                        .build())
+                .addChanges(changeProvider)
+                .build();
+
+        final ActionInfo moveInfo = ActionInfo.newBuilder().setMove(move).build();
+
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(
+                Lists.newArrayList(topologyEntityDTO(SOURCE, 1L, sourceEntityType),
+                        topologyEntityDTO(DESTINATION, 2L, sourceEntityType)));
+        when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         return moveInfo;
     }

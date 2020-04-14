@@ -35,7 +35,6 @@ import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -173,7 +172,7 @@ public class ActionSpecMappingContextFactory {
      * @param actions list of actions
      * @param topologyContextId the context id of the topology
      * @return ActionSpecMappingContext
-     * @throws ExecutionException on failure getting policies
+     * @throws ExecutionException on failure getting entities
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
      */
@@ -597,12 +596,7 @@ public class ActionSpecMappingContextFactory {
         }
 
         @Nonnull
-        ServiceEntityApiDTO getEntity(final long oid) throws UnknownObjectException {
-            return getOptionalEntity(oid).orElseThrow(
-                () -> new UnknownObjectException("Entity: " + oid + " not found."));
-        }
-
-        Optional<ServiceEntityApiDTO> getOptionalEntity(final long oid) {
+        Optional<ServiceEntityApiDTO> getEntity(final long oid) {
             final ServiceEntityApiDTO entity = serviceEntityApiDTOs.get(oid);
             return entity == null ? Optional.empty() : Optional.of(entity);
         }
@@ -612,7 +606,7 @@ public class ActionSpecMappingContextFactory {
         }
 
         @Nullable
-        ApiPartialEntity getRegion(@Nonnull Long entityOid) throws UnknownObjectException {
+        ApiPartialEntity getRegion(@Nonnull Long entityOid) {
             return entityIdToRegion.get(entityOid);
         }
 
