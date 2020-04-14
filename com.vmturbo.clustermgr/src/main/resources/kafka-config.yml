@@ -72,9 +72,6 @@ topics:
   - topic: system-notifications
     properties:
       retention.ms: 86400000 # 86400k ms = 24 hr
-  - topic: component-status
-    properties:
-      retention.ms: 7200000 # 2 hr
   - topic: license-summary
     properties:
       cleanup.policy: compact # use compacted log to preserve the latest license summary

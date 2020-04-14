@@ -9,23 +9,18 @@ import com.ecwid.consul.v1.ConsulRawClient;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
-import com.vmturbo.components.common.health.ComponentStatusNotifier;
 import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
-import com.vmturbo.components.common.notification.ComponentStatusNotificationSenderConfig;
 import com.vmturbo.kvstore.ConsulKeyValueStore;
 
 /**
  * This configuration holds all the dependency configuration, required to run Consul client.
  */
 @Configuration
-@Import({ComponentStatusNotificationSenderConfig.class})
 public class ConsulRegistrationConfig {
 
     private static final Logger logger = LogManager.getLogger(DiagnosticService.class);
@@ -36,9 +31,6 @@ public class ConsulRegistrationConfig {
      * the component should **not** register with Consul as a service.
      */
     public static final String ENABLE_CONSUL_REGISTRATION = "enableConsulRegistration";
-
-    @Autowired
-    private ComponentStatusNotificationSenderConfig notificationSenderConfig;
 
     @Value("${consul_host}")
     private String consulHost;
@@ -84,23 +76,9 @@ public class ConsulRegistrationConfig {
     public ConsulHealthcheckRegistration consulHealthcheckRegistration() {
         final ConsulRawClient rawClient = new ConsulRawClient(consulHost, consulPort);
         final ConsulClient consulClient = new ConsulClient(rawClient);
-        return new ConsulHealthcheckRegistration(consulClient,
-            enableConsulRegistration,
+        return new ConsulHealthcheckRegistration(consulClient, enableConsulRegistration,
             componentType, instanceId, instanceIp, instanceRoute, serverPort, consulMaxRetrySecs, consulMaxRetryDelaySecs,
             ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace),
-            Clock.systemUTC());
-    }
-
-    /**
-     * Used to send notification about component status changes.
-     *
-     * @return The {@link ComponentStatusNotifier}.
-     */
-    @Bean
-    public ComponentStatusNotifier componentStatusNotifier() {
-        return new ComponentStatusNotifier(notificationSenderConfig.componentStatusNotificationSender(),
-            enableConsulRegistration,
-            componentType, instanceId, instanceIp, instanceRoute, serverPort,
             Clock.systemUTC());
     }
 

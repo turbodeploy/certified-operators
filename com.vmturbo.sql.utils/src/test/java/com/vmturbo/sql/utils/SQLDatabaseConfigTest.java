@@ -58,10 +58,5 @@ public class SQLDatabaseConfigTest {
                     "localhost", 3306, "vmtdb", Optional.empty(), SQLDialect.MARIADB.name(),
                 secure, ImmutableMap.of(SQLDialect.MARIADB, "useServerPrepStmts=true"));
         }
-
-        @Override
-        protected String getDbSchemaName() {
-            return "vmtdb";
-        }
     }
 }

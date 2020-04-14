@@ -52,7 +52,7 @@ import com.vmturbo.components.common.utils.EnvironmentUtils;
  */
 @Configuration
 @EnableTransactionManagement
-public abstract class SQLDatabaseConfig {
+public class SQLDatabaseConfig {
 
     @Value("${enableSecureDBConnection:false}")
     private boolean isSecureDBConnectionRequested;
@@ -74,6 +74,9 @@ public abstract class SQLDatabaseConfig {
      */
     @Value("${dbRootPassword:}")
     private String dbRootPassword;
+
+    @Value("${dbSchemaName}")
+    private String dbSchemaName;
 
     @Value("${sqlDialect}")
     private String sqlDialectName;
@@ -100,9 +103,6 @@ public abstract class SQLDatabaseConfig {
     private String mysqlDriverProperties;
 
     private static final Logger logger = LogManager.getLogger();
-
-
-    protected abstract String getDbSchemaName();
 
     @Bean
     @Primary
@@ -231,7 +231,7 @@ public abstract class SQLDatabaseConfig {
         final Map<SQLDialect, String> driverPropertiesMap = ImmutableMap.of(
                 SQLDialect.MARIADB, mariadbDriverProperties,
                 SQLDialect.MYSQL, mysqlDriverProperties);
-        return new SQLConfigObject(dbHost, dbPort, getDbSchemaName(), rootCredentials, sqlDialectName,
+        return new SQLConfigObject(dbHost, dbPort, dbSchemaName, rootCredentials, sqlDialectName,
             isSecureDBConnectionRequested, driverPropertiesMap);
     }
 

@@ -34,11 +34,6 @@ public class ActionOrchestratorDBConfig extends SQLDatabaseConfig {
     @Value("${dbSchemaName:action}")
     private String dbSchemaName;
 
-    @Override
-    protected String getDbSchemaName() {
-        return dbSchemaName;
-    }
-
     @Bean
     @Override
     public DataSource dataSource() {

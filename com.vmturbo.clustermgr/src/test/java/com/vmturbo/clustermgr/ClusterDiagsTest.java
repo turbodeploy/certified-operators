@@ -25,8 +25,6 @@ import org.springframework.test.context.support.AnnotationConfigContextLoader;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.web.client.HttpClientErrorException;
 
-import com.vmturbo.clustermgr.management.ComponentRegistry;
-
 /**
  * Test the exclusion for the ClusterMgrService - calls to either /cluster/diagnostics or
  * /admin/diagnostics must not overlap. A second call made while the first call is still
@@ -40,7 +38,7 @@ import com.vmturbo.clustermgr.management.ComponentRegistry;
 public class ClusterDiagsTest {
     private Logger log = LogManager.getLogger();
     @Autowired
-    ComponentRegistry componentRegistry;
+    ConsulService consulServiceMock;
     @Autowired
     private ClusterMgrService clusterMgrService;
 
@@ -70,7 +68,7 @@ public class ClusterDiagsTest {
 
         // collectComponentDiagnostics will make a  "getValues()" call to fetch the component types.
         // Set this call to block until thread 2 has finished.
-        when(componentRegistry.getRegisteredComponents()).thenAnswer((Answer)invocation -> {
+        when(consulServiceMock.getAllServiceInstances()).thenAnswer((Answer)invocation -> {
             // signal that we've entered the first operation, under thread 1
             log.info("releasing thread1Started");
             thread1Started.release();

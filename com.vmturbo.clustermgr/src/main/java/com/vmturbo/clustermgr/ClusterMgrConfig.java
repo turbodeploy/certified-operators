@@ -1,13 +1,11 @@
 package com.vmturbo.clustermgr;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.util.Base64;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -16,16 +14,12 @@ import javax.annotation.Nonnull;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableList;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.converter.ByteArrayHttpMessageConverter;
 import org.springframework.http.converter.FormHttpMessageConverter;
-import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.StringHttpMessageConverter;
-import org.springframework.http.converter.json.GsonHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.http.converter.xml.SourceHttpMessageConverter;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
@@ -35,17 +29,12 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 
 import com.vmturbo.clustermgr.aggregator.DataAggregator;
 import com.vmturbo.clustermgr.collectors.DataMetricLogs;
-import com.vmturbo.clustermgr.management.ComponentRegistrationConfig;
 import com.vmturbo.clustermgr.transfer.DataTransfer;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
-import com.vmturbo.common.protobuf.logging.LoggingREST.TracingConfigurationServiceController;
-import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 import com.vmturbo.components.common.OsProcessFactory;
 import com.vmturbo.components.common.logging.LogConfigurationService;
-import com.vmturbo.components.common.logging.TracingConfigurationRpcService;
-import com.vmturbo.components.common.tracing.TracingManager;
 import com.vmturbo.components.common.utils.BuildProperties;
 import com.vmturbo.kvstore.ConsulKeyValueStore;
 import com.vmturbo.proactivesupport.DataCollectorFramework;
@@ -55,7 +44,6 @@ import com.vmturbo.proactivesupport.DataCollectorFramework;
  */
 @Configuration
 @EnableWebMvc
-@Import({ComponentRegistrationConfig.class})
 public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
 
     @Value("${consul_host}")
@@ -138,9 +126,6 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
             "//UmRakTbyByhkwwB3NbRUsxFWgeHAc8YxI9msdhliBa2R3b0rh4+fqrFI9DJc48u05L2bdD22mvr1StAl" +
             "+5l6GDQUrX09s3rU8JgZnOTY0ruj+GABnXfW7GT4L64llX64xbylJDGSjH1pAgMBAAE=";
 
-    @Autowired
-    private ComponentRegistrationConfig componentRegistrationConfig;
-
     /**
      * The {@link RequestMappingHandlerAdapter} bean.
      *
@@ -198,7 +183,7 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Bean
     public ClusterMgrService clusterMgrService() {
         return new ClusterMgrService(consulService(), osCommandProcessRunner(),
-            diagFileNameFormatter(), componentRegistrationConfig.componentRegistry());
+            diagFileNameFormatter());
     }
 
     /**
@@ -219,26 +204,6 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Bean
     public LogConfigurationServiceController logConfigurationServiceController() {
         return new LogConfigurationServiceController(logConfigurationService());
-    }
-
-    /**
-     * The {@link TracingConfigurationRpcService} in the cluster manager.
-     *
-     * @return The service.
-     */
-    @Bean
-    public TracingConfigurationRpcService tracingConfigurationRpcService() {
-        return new TracingConfigurationRpcService(TracingManager.get());
-    }
-
-    /**
-     * A {@link TracingConfigurationServiceController}.
-     *
-     * @return Controller for the tracing RPC service.
-     */
-    @Bean
-    public TracingConfigurationServiceController tracingConfigurationServiceController() {
-        return new TracingConfigurationServiceController(tracingConfigurationRpcService());
     }
 
     /**
@@ -394,24 +359,5 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Override
     public void configurePathMatch(PathMatchConfigurer matcher) {
         matcher.setUseRegisteredSuffixPatternMatch(true);
-    }
-
-    /**
-     * Add a new instance of the {@link GsonHttpMessageConverter} to the list of available {@link HttpMessageConverter}s in use.
-     *
-     * @param converters is the list of {@link HttpMessageConverter}s to which the new converter instance is added.
-     */
-    @Override
-    public void extendMessageConverters(List<HttpMessageConverter<?>> converters) {
-        // Handle text-plain.
-        final StringHttpMessageConverter stringMessageConverter =
-            new StringHttpMessageConverter(Charset.forName("UTF-8"));
-        converters.add(stringMessageConverter);
-
-        // GSON for application-json serialization.
-        final GsonHttpMessageConverter msgConverter = new GsonHttpMessageConverter();
-        msgConverter.setGson(ComponentGsonFactory.createGson());
-
-        converters.add(msgConverter);
     }
 }

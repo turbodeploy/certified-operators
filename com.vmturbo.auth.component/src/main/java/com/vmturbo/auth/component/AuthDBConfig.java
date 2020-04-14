@@ -129,11 +129,6 @@ public class AuthDBConfig extends SQLDatabaseConfig {
         }
     }
 
-    @Override
-    protected String getDbSchemaName() {
-        return dbSchemaName;
-    }
-
     /**
      * Returns the root SQL DB username.
      * 1. if db username passed in from environment, use it, also store it to Consul.
