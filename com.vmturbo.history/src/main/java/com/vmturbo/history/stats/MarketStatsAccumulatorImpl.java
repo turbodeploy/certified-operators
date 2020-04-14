@@ -68,6 +68,8 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
     private static final Logger logger = LogManager.getLogger();
     private static final long DEFAULT_VALUE_PROVIDER_ID = 0L;
     private static final String DEFAULT_VALUE_COMMODITY_KEY = "";
+    private static final String NUMBER_FORMAT_EXCEPTION_LOG_MESSAGE =
+                    "Value calculation for oid {} failed (provider id is {}). Skipping it. capacity = {}, commodity type ID = {}, commodity key = {}. {}";
 
     private final TopologyInfo topologyInfo;
 
@@ -408,18 +410,54 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
     private void createPercentileAndTimeslotsQueries(int commodityTypeId, long entityId,
             Long providerId, String commodityKey, Double capacity,
             HistoricalValues historicalUsed) throws InterruptedException {
-        final ImmutableTable.Builder<HistoryUtilizationType, Integer, BigDecimal> tableBuilder =
-                ImmutableTable.builder();
-        for (int i = 0; i < historicalUsed.getTimeSlotCount(); i++) {
-            tableBuilder.put(HistoryUtilizationType.Timeslot, i,
-                    BigDecimal.valueOf(historicalUsed.getTimeSlot(i)));
+        ImmutableTable.Builder<HistoryUtilizationType, Integer, BigDecimal> tableBuilder =
+                        ImmutableTable.builder();
+        if (capacity != null) {
+            try {
+                for (int i = 0; i < historicalUsed.getTimeSlotCount(); i++) {
+                    final double timeSlot = historicalUsed.getTimeSlot(i);
+                    tableBuilder.put(HistoryUtilizationType.Timeslot, i, BigDecimal.valueOf(timeSlot / capacity));
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Value calculation for oid {} failed (provider id is {}). Skipping it. capacity = {}, commodity type ID = {}, commodity key = {}. {}",
+                            entityId,
+                            providerId,
+                            capacity,
+                            commodityTypeId,
+                            commodityKey,
+                            e);
+                // Discard any written timeslots in case if one of them is invalid
+                tableBuilder = ImmutableTable.builder();
+            }
+        } else {
+            logger.warn("Capacity {} is null for oid {} (provider id is {}). Commodity type ID = {}, commodity key = {}",
+                        capacity,
+                        entityId,
+                        providerId,
+                        commodityTypeId,
+                        commodityKey);
         }
+
         if (historicalUsed.hasPercentile()) {
-            tableBuilder.put(HistoryUtilizationType.Percentile, 0,
-                    BigDecimal.valueOf(historicalUsed.getPercentile()));
+            try {
+                final double percentile = historicalUsed.getPercentile();
+                tableBuilder.put(HistoryUtilizationType.Percentile, 0, BigDecimal.valueOf(percentile));
+            } catch (NumberFormatException e) {
+                logger.warn(NUMBER_FORMAT_EXCEPTION_LOG_MESSAGE,
+                            entityId,
+                            providerId,
+                            capacity,
+                            commodityTypeId,
+                            commodityKey,
+                            e);
+            }
         }
-        formInsertOrUpdateQueries(entityId, providerId, commodityKey, capacity, commodityTypeId,
-                tableBuilder.build().cellSet());
+        formInsertOrUpdateQueries(entityId,
+                                  providerId,
+                                  commodityKey,
+                                  capacity,
+                                  commodityTypeId,
+                                  tableBuilder.build().cellSet());
     }
 
     private void formInsertOrUpdateQueries(@Nonnull long entityId, @Nullable Long providerId,
