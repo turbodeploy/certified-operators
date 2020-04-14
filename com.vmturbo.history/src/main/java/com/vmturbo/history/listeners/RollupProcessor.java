@@ -310,7 +310,7 @@ public class RollupProcessor {
 
     private List<Future<Void>> scheduleRollupTasks(@Nonnull Table table,
                                                    @Nonnull RollupType rollupType, @Nonnull Timestamp snapshotTime) {
-        if (EntityType.fromTable(table) != null) {
+        if (EntityType.fromTable(table).isPresent()) {
             return scheduleEntityStatsRollupTasks(
                 table, rollupType, snapshotTime, TASKS_PER_ENTITY_STATS_ROLLUP);
         } else if (table == MARKET_STATS_LATEST) {
