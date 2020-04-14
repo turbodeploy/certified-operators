@@ -194,6 +194,9 @@ public class RangeAwareResizeParameterizedTests {
                         EntityType.VIRTUAL_MACHINE_VALUE, 7, 8, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
                         EntityType.VIRTUAL_MACHINE_VALUE, 9, 10, ActionMode.DISABLED},
+                // Resize up VCPU from max (8) to above max
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 8, 10, ActionMode.DISABLED},
                 // Test case resize CPU from below max to above max (max=8 cores)
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
                         EntityType.VIRTUAL_MACHINE_VALUE, 1, 10, ActionMode.RECOMMEND},
@@ -210,6 +213,9 @@ public class RangeAwareResizeParameterizedTests {
                         EntityType.VIRTUAL_MACHINE_VALUE, 9, 3, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
                         EntityType.VIRTUAL_MACHINE_VALUE, 2, 1, ActionMode.AUTOMATIC},
+                // Resize down VCPU from min (3) to below min
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 3, 1, ActionMode.AUTOMATIC},
                 // Test case resize CPU from above min to below min (min=3)
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
                         EntityType.VIRTUAL_MACHINE_VALUE, 5, 1, ActionMode.RECOMMEND},
@@ -231,9 +237,13 @@ public class RangeAwareResizeParameterizedTests {
                         EntityType.VIRTUAL_MACHINE_VALUE, 12_000 * MB, 16_000 * MB, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
                         EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 25_000 * MB, ActionMode.DISABLED},
+                // Resize up VMem from max (16 GB) to above max
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 16_384 * MB, 25_000 * MB, ActionMode.DISABLED},
                 // Test case resize Mem from below max to above max (max=16GB)
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 1_000 * MB, 1_000_000 * MB, ActionMode.RECOMMEND},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 1_000 * MB, 1_000_000 * MB,
+                        ActionMode.RECOMMEND},
                 // Resize Down
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
                         EntityType.VIRTUAL_MACHINE_VALUE, 25_000 * MB, 19_000 * MB, ActionMode.RECOMMEND},
@@ -247,9 +257,13 @@ public class RangeAwareResizeParameterizedTests {
                         EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 512 * MB, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
                         EntityType.VIRTUAL_MACHINE_VALUE, 200 * MB, 100 * MB, ActionMode.AUTOMATIC},
+                // Resize down VMem from 512 MB to below min
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 512 * MB, 100 * MB, ActionMode.AUTOMATIC},
                 // Test case resize Mem from above min to below min (min=512MB)
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 100_000 * MB, 100 * MB, ActionMode.RECOMMEND},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 100_000 * MB, 100 * MB,
+                        ActionMode.RECOMMEND},
                 // Other commodity resize
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VSTORAGE_VALUE,
                         EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.RECOMMEND},
