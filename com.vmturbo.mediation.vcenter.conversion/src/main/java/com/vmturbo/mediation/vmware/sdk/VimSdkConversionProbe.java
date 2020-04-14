@@ -18,6 +18,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
  * Add an EnabledStorageBrowsing flag to the list of account values for VCenter and if storage
  * browsing is disabled, strip out derived storage browsing target from discovery response.
  */
+// todo: change this to extend VimSdkProbe once all host maintenance tasks are done
 public class VimSdkConversionProbe extends VimFullDiscoveryProbe {
     private final Logger logger = LogManager.getLogger();
 

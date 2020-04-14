@@ -1,0 +1,70 @@
+{
+  "id": "214148401224864",
+  "templateInfo": {
+    "name": "HCI Template",
+    "entityType": 67,
+    "templateSpecId": "4",
+    "resources": [{
+      "category": {
+        "name": "Compute"
+      },
+      "fields": [{
+        "name": "numOfCores",
+        "value": "24.0"
+      }, {
+        "name": "cpuSpeed",
+        "value": "2200.0"
+      }, {
+        "name": "ioThroughputSize",
+        "value": "1.024E7"
+      }, {
+        "name": "memorySize",
+        "value": "1.07374182E9"
+      }, {
+        "name": "networkThroughputSize",
+        "value": "1.024E7"
+      }]
+    }, {
+      "category": {
+        "name": "Infrastructure"
+      },
+      "fields": [{
+        "name": "powerSize",
+        "value": "1.0"
+      }, {
+        "name": "spaceSize",
+        "value": "1.0"
+      }, {
+        "name": "coolingSize",
+        "value": "1.0"
+      }]
+    }, {
+      "category": {
+        "name": "Storage"
+      },
+      "fields": [{
+        "name": "storageAmount",
+        "value": "51200.0"
+      }, {
+        "name": "diskIops",
+        "value": "50.0"
+      }, {
+        "name": "redundancyMethod",
+        "value": "0.0"
+      }, {
+        "name": "failuresToTolerate",
+        "value": "0.0"
+      }, {
+        "name": "spaceReservationPct",
+        "value": "0.0"
+      }, {
+        "name": "isCompressionEnabled",
+        "value": "0.0"
+      }, {
+        "name": "compressionRatio",
+        "value": "1.0"
+      }]
+    }]
+  },
+  "type": "USER"
+}

@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 
+import org.apache.tomcat.jdbc.pool.PoolProperties;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -75,7 +76,7 @@ public class PlanStatsAggregatorTest {
             .setTopologyContextId(CONTEXT_ID)
             .setTopologyId(200)
             .build();
-        HistorydbIO historydbIO = new HistorydbIO(Mockito.mock(DBPasswordUtil.class), null);
+        HistorydbIO historydbIO = new HistorydbIO(Mockito.mock(DBPasswordUtil.class), null, new PoolProperties());
         aggregator = new PlanStatsAggregator(null, historydbIO, topologyOrganizer, true);
         aggregator.handleChunk(Lists.newArrayList(vm1, pm1, unplacedVm));
         aggregator.handleChunk(Lists.newArrayList(vm2, pm2, suspendedVm));

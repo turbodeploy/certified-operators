@@ -1,0 +1,524 @@
+{
+  "entityType": 14,
+  "oid": "73415060210158",
+  "displayName": "hp-esx21.eng.vmturbo.com",
+  "commoditySoldList": [{
+    "commodityType": {
+      "type": 41
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.6776624E7,
+    "isResizeable": true,
+    "isThin": true,
+    "active": false,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 36,
+      "key": "Storage::5d1ba7e7-50e5b7aa-f076-005056b8004b"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73415060210154",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 33
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 5000000.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": false,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 2,
+      "key": "PhysicalMachine::Virtual_ESX_42381da5-12fa-1e82-2f1c-887419380d43"
+    },
+    "used": 1739.9,
+    "peak": 3159.0,
+    "capacity": 10400.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 36,
+      "key": "Storage::525d5005cda275d5-e901b76e1a09c2a6"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73415060210151",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 81
+    },
+    "used": 7.0,
+    "peak": 0.0,
+    "capacity": 1024.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 57,
+      "key": "DistributedVirtualPortgroup::VM Network"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 47
+    },
+    "used": 7095.433333333333,
+    "peak": 40175.0,
+    "capacity": 384000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 40
+    },
+    "used": 1739.9,
+    "peak": 3159.0,
+    "capacity": 10400.0,
+    "effectiveCapacityPercentage": 100.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 45
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 21
+    },
+    "used": 9900126.0,
+    "peak": 9907652.0,
+    "capacity": 1.6776624E7,
+    "effectiveCapacityPercentage": 100.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 57,
+      "key": "DistributedVirtualPortgroup::storagedvSwitch-DVUplinks-102"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 5
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 20000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 50,
+      "key": "PhysicalMachine::Virtual_ESX_42381da5-12fa-1e82-2f1c-887419380d43"
+    },
+    "used": 9900126.0,
+    "peak": 9907652.0,
+    "capacity": 1.6776624E7,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 6
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 58
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 20000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 36,
+      "key": "Storage::9bd4ee88-99c64661"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73415060210152",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 64
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 36,
+      "key": "Storage::5d1ba8c1-2f0140fc-09c0-005056b8004b"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73415060210155",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 8
+    },
+    "used": 10240.0,
+    "peak": 0.0,
+    "capacity": 10240.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 31
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 20000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 55,
+      "key": "DataCenter::8810bcaeb92b7ea3b48177f4251a34153915370a"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 57,
+      "key": "DistributedVirtualPortgroup::userdvSwitch-DVUplinks-105"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 36,
+      "key": "Storage::5d933c47-252e8d58-4df6-005056b8004b"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "accesses": "73415060210156",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 28
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 0.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 39
+    },
+    "used": 149.73333333333332,
+    "peak": 966.0,
+    "capacity": 1408000.0,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 57,
+      "key": "Network::VMS Network"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 57,
+      "key": "DistributedVirtualPortgroup::ST Network"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 0,
+      "key": "Cluster::72677ed456195294951ba40cce39dcfc4d2da2e2"
+    },
+    "used": 1.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }],
+  "commoditiesBoughtFromProviders": [{
+    "providerId": "73415060210155",
+    "providerEntityType": 2,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 0.0,
+      "peak": 0.0,
+      "active": false,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73415060210154",
+    "providerEntityType": 2,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.06666666666666667,
+      "peak": 1.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 1.4000000000000001,
+      "peak": 10.0,
+      "active": false,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73415060210156",
+    "providerEntityType": 2,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.2,
+      "peak": 6.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 0.3333333333333333,
+      "peak": 10.0,
+      "active": false,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73415060210144",
+    "providerEntityType": 12,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 18
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 55,
+        "key": "DataCenter::DataCenter::8810bcaeb92b7ea3b48177f4251a34153915370a"
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 20
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 24
+      },
+      "used": 1.0,
+      "peak": 0.0,
+      "active": true,
+      "displayName": ""
+    }]
+  }, {
+    "providerId": "73415060210152",
+    "providerEntityType": 2,
+    "commodityBought": [{
+      "commodityType": {
+        "type": 64
+      },
+      "used": 0.23333333333333334,
+      "peak": 5.0,
+      "active": false,
+      "displayName": ""
+    }, {
+      "commodityType": {
+        "type": 22
+      },
+      "used": 1.8333333333333335,
+      "peak": 6.0,
+      "active": false,
+      "displayName": ""
+    }]
+  }],
+  "entityState": "POWERED_ON",
+  "entityPropertyMap": {
+    "Availability": "DEDICATED_CLUSTER",
+    "AssetTag": "No Asset Tag",
+    "VcTgtIdAndInternalName": "fc573f36d7582f07e584eb1fbef69d163a2a9009",
+    "ServiceTag": "None",
+    "timezone": "UTC",
+    "vendor": "VMware, Inc.",
+    "cpuModel": "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz",
+    "model": "VMware Virtual Platform"
+  },
+  "analysisSettings": {
+    "isAvailableAsProvider": true,
+    "shopTogether": false,
+    "controllable": true,
+    "providerMustClone": false,
+    "deletable": true
+  },
+  "origin": {
+    "discoveryOrigin": {
+      "lastUpdatedTime": "1586416478453",
+      "discoveredTargetData": {
+        "73415059620624": {
+          "vendorId": "host-172"
+        }
+      }
+    }
+  },
+  "edit": {
+    "replaced": {
+      "planId": "214152572605376"
+    }
+  },
+  "tags": {
+    "tags": {
+      "Availability": {
+        "values": ["DEDICATED_CLUSTER"]
+      }
+    }
+  },
+  "typeSpecificInfo": {
+    "physicalMachine": {
+      "cpuModel": "Intel(R) Xeon(R) CPU E5-2670 0 @ 2.60GHz",
+      "vendor": "VMware, Inc.",
+      "model": "VMware Virtual Platform",
+      "numCpus": 4,
+      "timezone": "UTC",
+      "numCpuSockets": 1,
+      "cpuCoreMhz": 2600,
+      "diskGroup": [{
+        "disk": [{
+          "role": "ROLE_CACHE",
+          "capacity": "4096"
+        }, {
+          "role": "ROLE_CAPACITY",
+          "capacity": "10240"
+        }]
+      }]
+    }
+  }
+}

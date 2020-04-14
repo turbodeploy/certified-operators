@@ -87,6 +87,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.SearchParametersCollection;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -115,9 +116,9 @@ public class GroupMapper {
      * DiscoveryConfigService#cloudTargetTypes.
      */
     public static final Set<String> CLOUD_ENVIRONMENT_PROBE_TYPES = ImmutableSet.of(
-            SDKProbeType.AWS.getProbeType(), SDKProbeType.AZURE.getProbeType(), SDKProbeType.AZURE_EA.getProbeType(),
+            SDKProbeType.AWS.getProbeType(), SDKProbeType.GCP.getProbeType(),
+            SDKProbeType.AZURE.getProbeType(), SDKProbeType.AZURE_EA.getProbeType(),
             SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType());
-
 
     /**
      * This bimap maps from the class name that use in API level for groups to the
@@ -156,6 +157,17 @@ public class GroupMapper {
             .put(StringConstants.BUSINESS_APPLICATION, EntityType.BUSINESS_APPLICATION)
             .put(StringConstants.APPLICATION_COMPONENT, EntityType.APPLICATION_COMPONENT)
             .build();
+
+    /**
+     * This maps the protobuf logical operators to the API strings used to represent them.
+     */
+    private static final BiMap<LogicalOperator, String> LOGICAL_OPERATOR_MAPPING =
+        ImmutableBiMap.<LogicalOperator, String>builder()
+            .put(LogicalOperator.AND, "AND")
+            .put(LogicalOperator.OR, "OR")
+            .put(LogicalOperator.XOR, "XOR")
+            .build();
+
 
     /**
      * The API "class types" (as returned by {@link BaseApiDTO#getClassName()}
@@ -280,13 +292,15 @@ public class GroupMapper {
                 .addEntityFilter(EntityFilter.newBuilder()
                     .setEntityType(ApiEntityType.fromString(groupDto.getGroupType()).typeNumber())
                     .setSearchParametersCollection(SearchParametersCollection.newBuilder()
-                        .addAllSearchParameters(searchParameters)))
+                        .addAllSearchParameters(searchParameters))
+                    .setLogicalOperator(mapLogicalOperator(groupDto.getLogicalOperator())))
             );
         } else {
             // this means this a dynamic group of groups
             final GroupFilter groupFilter;
             try {
                 groupFilter = groupFilterMapper.apiFilterToGroupFilter(nestedMemberGroupType,
+                        mapLogicalOperator(groupDto.getLogicalOperator()),
                         groupDto.getCriteriaList());
             } catch (OperationFailedException e) {
                 throw new ConversionException(
@@ -296,6 +310,30 @@ public class GroupMapper {
         }
 
         return groupBuilder.build();
+    }
+
+    private LogicalOperator mapLogicalOperator(@Nullable final String logicalOperatorStr) {
+        if (logicalOperatorStr == null) {
+            return LogicalOperator.AND;
+        }
+        LogicalOperator ret = LOGICAL_OPERATOR_MAPPING.inverse().get(logicalOperatorStr);
+        if (ret == null) {
+            ret = LogicalOperator.AND;
+            logger.warn("Invalid logical operator {}. Returning default: {}",
+                logicalOperatorStr, ret);
+        }
+        return ret;
+    }
+
+    private String logicalOperatorToApiStr(@Nonnull final LogicalOperator logicalOperator) {
+        String ret = LOGICAL_OPERATOR_MAPPING.get(logicalOperator);
+        if (ret == null) {
+            ret = "AND";
+            // This most likely indicates a programming error, or we removed a previously-valid
+            // enum from the map (which shouldn't happen).
+            logger.error("Unhandled logical operator: {}. Returning default: {}", logicalOperator, ret);
+        }
+        return ret;
     }
 
     @Nullable
@@ -709,9 +747,9 @@ public class GroupMapper {
                                      group);
                  }
 
-                 outputDTO.setCriteriaList(entityFilterMapper.convertToFilterApis(groupDefinition
-                                .getEntityFilters()
-                                .getEntityFilter(0)));
+                 final EntityFilter entityFilter = groupDefinition.getEntityFilters().getEntityFilter(0);
+                 outputDTO.setLogicalOperator(logicalOperatorToApiStr(entityFilter.getLogicalOperator()));
+                 outputDTO.setCriteriaList(entityFilterMapper.convertToFilterApis(entityFilter));
                  break;
 
              case GROUP_FILTERS:
@@ -727,9 +765,9 @@ public class GroupMapper {
                                     group);
                  }
 
-                 outputDTO.setCriteriaList(groupFilterMapper.groupFilterToApiFilters(groupDefinition
-                                .getGroupFilters()
-                                .getGroupFilter(0)));
+                 final GroupFilter groupFilter = groupDefinition.getGroupFilters().getGroupFilter(0);
+                 outputDTO.setLogicalOperator(logicalOperatorToApiStr(groupFilter.getLogicalOperator()));
+                 outputDTO.setCriteriaList(groupFilterMapper.groupFilterToApiFilters(groupFilter));
                  break;
              default:
                  break;

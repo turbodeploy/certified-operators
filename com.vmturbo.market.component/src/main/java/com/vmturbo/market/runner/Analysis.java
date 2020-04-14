@@ -30,6 +30,7 @@ import com.google.common.collect.Table;
 
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -47,6 +48,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.plan.PlanProgressStatusEnum.Status;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -483,7 +485,10 @@ public class Analysis {
                 final Collection<Action> wastedFileActions = getWastedFilesActions(wastedFilesAnalysis);
 
                 List<TraderTO> projectedTraderDTO = new ArrayList<>();
-
+                List<ActionTO> actionsList = new ArrayList<>();
+                if (results != null) {
+                    actionsList.addAll(results.getActionsList());
+                }
                 try (DataMetricTimer convertFromTimer = TOPOLOGY_CONVERT_FROM_TRADER_SUMMARY.startTimer()) {
                     if (isM2AnalysisEnabled) { // Includes the case of both Market and BuyRiImpactAnalysis running in real-time
                         if (enableThrottling) {
@@ -508,6 +513,28 @@ public class Analysis {
                             // update projectedTraderTO and generate actions.
                             smaConverter.updateWithSMAOutput(projectedTraderDTO);
                             projectedTraderDTO = smaConverter.getProjectedTraderDTOsWithSMA();
+                        }
+
+                        if (topologyInfo.getPlanInfo().getPlanProjectType() == PlanProjectType.RESERVATION_PLAN) {
+                            // For reservation plans we only care about the reservation entities
+                            // in the projected topology.
+                            final MutableInt removedCnt = new MutableInt(0);
+                            projectedTraderDTO = projectedTraderDTO.stream()
+                                .filter(trader -> {
+                                    TopologyEntityDTO originalEntity = topologyDTOs.get(trader.getOid());
+                                    if (originalEntity != null && originalEntity.getOrigin().hasReservationOrigin()) {
+                                        return true;
+                                    } else {
+                                        removedCnt.increment();
+                                        return false;
+                                    }
+                                })
+                                .collect(Collectors.toList());
+                            logger.info("Removed {} entities from projected topology. Projected topology now has {} entities.",
+                                removedCnt.getValue(), projectedTraderDTO.size());
+                            // The hosts and storages are deleted from the projected topology
+                            // reservation plan. Don't generate actions for reservation plan.
+                            actionsList.clear();
                         }
 
                         // results can be null if M2Analysis is not run
@@ -562,9 +589,8 @@ public class Analysis {
                                 .setMarket(MarketActionPlanInfo.newBuilder()
                                         .setSourceTopologyInfo(topologyInfo)))
                         .setAnalysisStartTimestamp(startTime.toEpochMilli());
-                final List<ActionTO> actionsList = results != null ? results.getActionsList() : Collections.emptyList();
                 List<Action> actions = converter.interpretAllActions(actionsList, projectedEntities,
-                    originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
+                     originalCloudTopology, projectedEntityCosts, topologyCostCalculator);
                 actions.forEach(actionPlanBuilder::addAction);
                 if (config.isSMAOnly()) {
                     actions = converter.interpretAllActions(smaConverter.getSmaActions(), projectedEntities,

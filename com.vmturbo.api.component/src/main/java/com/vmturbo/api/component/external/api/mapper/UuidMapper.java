@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import static com.vmturbo.common.protobuf.utils.StringConstants.GROUP_TYPES;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -22,6 +24,7 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.collections4.SetUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -47,15 +50,18 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.repository.api.RepositoryListener;
+import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorException;
@@ -434,6 +440,62 @@ public class UuidMapper implements RepositoryListener {
         }
 
         /**
+         * Given a set of group OIDs, returns the expanded set of members.
+         *
+         * @param uuidsToExpand a set of group OIDs to get the members of
+         * @return a set of OIDs corresponding to the members of the input group OIDs
+         */
+        @Nonnull
+        public Set<Long> getGroupMembers(@Nullable Set<Long> uuidsToExpand) {
+            if (CollectionUtils.isEmpty(uuidsToExpand)) {
+                return Sets.newHashSet();
+            }
+            final GroupDTO.GetGroupsRequest groupsRequest = GroupDTO.GetGroupsRequest.newBuilder()
+                    .setGroupFilter(GroupDTO.GroupFilter.newBuilder()
+                            .addAllId(uuidsToExpand).build())
+                    .build();
+            final List<GroupAndMembers> groupsAndMembers = groupExpander.getGroupsWithMembers(groupsRequest);
+            return CollectionUtils.isEmpty(groupsAndMembers)
+                    ? Sets.newHashSet()
+                    : groupsAndMembers.stream()
+                            .map(GroupAndMembers::members)
+                            .flatMap(Collection::stream)
+                            .collect(Collectors.toSet());
+        }
+
+        /**
+         * Gathers all plan-scope entity OIDs, and expands plan-scope groups to expose group members.
+         * Combines all entity OIDs in a single collection filtered by CSP.
+         *
+         * @param statApiInputDTOList list of DTOs that potentially contain CSP filters
+         * @return a set of OIDs that the plan scope encompasses
+         */
+        public Set<Long> getPlanEntities(@Nullable List<StatApiInputDTO> statApiInputDTOList) {
+            final Optional<PlanInstance> planInstance = getPlanInstance();
+            if (!planInstance.isPresent()) {
+                return Sets.newHashSet();
+            }
+            final List<ScenarioOuterClass.PlanScopeEntry> planScopeEntries = planInstance.get()
+                    .getScenario()
+                    .getScenarioInfo()
+                    .getScope()
+                    .getScopeEntriesList();
+            final Map<Boolean, Set<Long>> isGroupToOids = planScopeEntries.stream()
+                    .collect(Collectors.groupingBy(
+                            planScopeEntry -> GROUP_TYPES.contains(planScopeEntry.getClassName()),
+                            Collectors.mapping(ScenarioOuterClass.PlanScopeEntry::getScopeObjectOid, Collectors.toSet())
+                    ));
+            final Set<Long> groupMemberOids = getGroupMembers(isGroupToOids.get(true));
+            final Set<Long> entityOids = isGroupToOids.get(false);
+            return filterEntitiesByCsp(
+                    SetUtils.union(
+                            CollectionUtils.isEmpty(entityOids) ? Sets.newHashSet() : entityOids,
+                            groupMemberOids),
+                    statApiInputDTOList
+            );
+        }
+
+        /**
          * Get the entity oids in this scope.
          *
          * @param userSessionContext if not null makes sure user has access to the scope.
@@ -457,10 +519,7 @@ public class UuidMapper implements RepositoryListener {
             } else if (isGroup()) {
                 result = getCachedGroupInfo().get().getEntityIds();
             } else if (isPlan()) {
-                final Set<Long> entitiesInPlanScope = getPlanInstance()
-                    .map(MarketMapper::getPlanScopeIds)
-                    .orElse(Collections.emptySet());
-                result = filterEntitiesByCsp(entitiesInPlanScope, statApiInputDTOList);
+                result = getPlanEntities(statApiInputDTOList);
             } else if (isTarget()) {
                 synchronized (targetOidsLock) {
                     if (targetOids == null) {
@@ -522,6 +581,96 @@ public class UuidMapper implements RepositoryListener {
 
             // TODO (roman, Jul 9 2019): Handle target.
             return uuid();
+        }
+
+        /**
+         * Get the class name of the api id.
+         * This deals with the cases of entities, groups, plans or market.
+         * In case of target, and by default, it returns an empty string.
+         *
+         * @return The class name, or empty string.
+         */
+        @Nonnull
+        public String getClassName() {
+            if (isRealtimeMarket() || isPlan()) {
+                // If this is the real time market or a plan, return Market as the class
+                return UI_REAL_TIME_MARKET_STR;
+            }
+
+            // Right now we are saving the display name of every entity/group in the cached info,
+            // only to be used by this method. If this ends up consuming too much memory we can get
+            // the display name on demand (the way we do for plan instance).
+
+            final Optional<ApiEntityType> entityType = getCachedEntityInfo()
+                    .map(CachedEntityInfo::getEntityType);
+            if (entityType.isPresent()) {
+                return entityType.get().apiStr();
+            }
+
+            final Optional<GroupType> groupType = getCachedGroupInfo()
+                    .map(CachedGroupInfo::getGroupType);
+            if (groupType.isPresent()) {
+                // Convert the group type to an api group type
+                if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.inverse()
+                        .containsKey(groupType.get())) {
+                    return GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.inverse().get(groupType.get());
+                }
+            }
+
+            return "";
+        }
+
+        /**
+         * Return the environment type related to the entity associated with this api id.
+         * Default is UNKNOWN_ENV.
+         *
+         * @return the environment type or UNKNOWN_ENV.
+         */
+        @Nonnull
+        public EnvironmentType getEnvironmentType() {
+            // Assuming Hybrid for a market and plan
+            if (isRealtimeMarket() || isPlan()) {
+                return EnvironmentType.HYBRID;
+            }
+
+            // Right now we are saving the display name of every entity/group in the cached info,
+            // only to be used by this method. If this ends up consuming too much memory we can get
+            // the display name on demand (the way we do for plan instance).
+
+            final Optional<EnvironmentType> envType = getCachedEntityInfo()
+                    .map(CachedEntityInfo::getEnvironmentType);
+            if (envType.isPresent()) {
+                return envType.get();
+            }
+
+            final Optional<CachedGroupInfo> groupInfo = getCachedGroupInfo();
+            if (groupInfo.isPresent()) {
+                Optional<EnvironmentType> groupEnvType = groupInfo.get().getGlobalEnvType();
+                if (groupEnvType.isPresent()) {
+                    return groupEnvType.get();
+                }
+            }
+
+            if (isTarget()) {
+                try {
+                    final TargetInfo target = topologyProcessor.getTarget(oid);
+                    final long probeId = target.getProbeId();
+                    final ProbeInfo probeInfo = topologyProcessor.getProbe(probeId);
+                    CloudTypeMapper cloudTypeMapper = new CloudTypeMapper();
+                    if (cloudTypeMapper.fromTargetType(probeInfo.getType()).isPresent()) {
+                        return EnvironmentType.CLOUD;
+                    } else {
+                        return EnvironmentType.ON_PREM;
+                    }
+                } catch (TopologyProcessorException | CommunicationException e) {
+                    // TopologyProcessorException will never happen, since isTarget() would have
+                    // already failed if we can't find the target
+                    return EnvironmentType.UNKNOWN_ENV;
+                }
+            }
+
+            // Default
+            return EnvironmentType.UNKNOWN_ENV;
         }
 
         public String uuid() {
@@ -669,9 +818,25 @@ public class UuidMapper implements RepositoryListener {
                                         Collectors.mapping(MinimalEntity::getOid,
                                                 Collectors.toSet())));
 
-                        final EnvironmentType envTypeFromMember = minimalMembers.isEmpty() ?
-                            EnvironmentType.UNKNOWN_ENV :
-                            minimalMembers.iterator().next().getEnvironmentType();
+                        // Get the set of environment types for the members
+                        Set<EnvironmentType> envTypes = minimalMembers.stream()
+                                .map(MinimalEntity::getEnvironmentType)
+                                .collect(Collectors.toSet());
+
+                        // If all members have the same type, this is the type
+                        // if there is no type for any members, then the type is unknown
+                        // otherwise the type will be hybrid.
+                        final EnvironmentType envTypeFromMember;
+                        switch (envTypes.size()) {
+                            case 0:
+                                envTypeFromMember = EnvironmentType.UNKNOWN_ENV;
+                                break;
+                            case 1:
+                                envTypeFromMember = envTypes.iterator().next();
+                                break;
+                            default:
+                                envTypeFromMember = EnvironmentType.HYBRID;
+                        }
 
                         final Set<Long> discoveringTargetIds =
                             minimalMembers.stream()
@@ -831,15 +996,16 @@ public class UuidMapper implements RepositoryListener {
                 scopeOids = repositoryApi.entitiesRequest(scopeOids).getMinimalEntities()
                         .filter(e -> {
                             if (!e.getDiscoveringTargetIdsList().isEmpty()) {
-                                long targetId = e.getDiscoveringTargetIdsList().get(0);
-                                Optional<ThinTargetCache.ThinTargetInfo> thinInfo =
-                                        thinTargetCache.getTargetInfo(targetId);
-                                if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
-                                    ThinTargetCache.ThinTargetInfo probeInfo = thinInfo.get();
-                                    Optional<CloudType> cloudType =
+                                for (long targetId : e.getDiscoveringTargetIdsList()) {
+                                    Optional<ThinTargetCache.ThinTargetInfo> thinInfo =
+                                            thinTargetCache.getTargetInfo(targetId);
+                                    if (thinInfo.isPresent() && (!thinInfo.get().isHidden())) {
+                                        ThinTargetCache.ThinTargetInfo probeInfo = thinInfo.get();
+                                        Optional<CloudType> cloudType =
                                                 cloudTypeMapper.fromTargetType(probeInfo.probeInfo().type());
-                                    if (cloudType.isPresent() && cspFilter.contains(cloudType.get().name())) {
-                                        return true;
+                                        if (cloudType.isPresent() && cspFilter.contains(cloudType.get().name())) {
+                                            return true;
+                                        }
                                     }
                                 }
                             }

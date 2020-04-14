@@ -134,27 +134,34 @@ public class RIBuyAnalysisContextProvider {
         final RegionalRIMatcherCache regionalRIMatcherCache =
             regionalRIMatcherCacheFactory.createNewCache(cloudTopology, purchaseConstraints);
 
+        final List<ComputeTierTypeHourlyByWeekRecord> demandClusters = computeTierDemandStatsStore
+                .getUniqueDemandClusters().collect(Collectors.toList());
 
-        Map<AnnotatedRegionalScopeKey, List<ScopedDemandCluster>> demandClustersByScopeKey =
-            // First, query the unique set of demand saved within the DB.
-            computeTierDemandStatsStore.getUniqueDemandClusters()
+        final List<ScopedDemandCluster> translatedClusters = demandClusters.stream()
                 // convert the DB records to a scoped demand cluster instance, checking that the
                 // referenced topology entities in the demand cluster still exist in the latest topology.
                 .map(demandRecord -> translateRecordToScopedDemandCluster(cloudTopology, demandRecord))
                 // If any of the associated topology entities are missing or if the platform or
                 // tenancy are invalid, filter out the record.
-                .filter(Objects::nonNull)
-                // Verify the cluster matches the requested analysis scope (e.g. the account associated
-                // with the cluster is within the requested account list).
-                .filter(scopedCluster -> filterDemandContextByAnalysisScope(scope, scopedCluster))
-                .map(scopedCluster -> matchDemandClusterToRISpec(regionalRIMatcherCache, scopedCluster))
-                // filter out contexts which cannot be mapped to an RISpec
-                .filter(Objects::nonNull)
-                .collect(Collectors.groupingBy(
-                    this::mapDemandContextToScopeKey,
-                    Collectors.mapping(
-                        DemandContextRISpecMatch::scopedDemandCluster,
-                        Collectors.toList())));
+                .filter(Objects::nonNull).collect(Collectors.toList());
+
+        logger.info("Read {} demandClusters, Translated {} clusters.", demandClusters.size(), translatedClusters.size());
+
+        Map<AnnotatedRegionalScopeKey, List<ScopedDemandCluster>> demandClustersByScopeKey =
+                translatedClusters.stream()
+                        // Verify the cluster matches the requested analysis scope (e.g. the account associated
+                        // with the cluster is within the requested account list).
+                        .filter(scopedCluster -> filterDemandContextByAnalysisScope(scope, scopedCluster))
+                        .map(scopedCluster -> matchDemandClusterToRISpec(regionalRIMatcherCache, scopedCluster))
+                        // filter out contexts which cannot be mapped to an RISpec
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.groupingBy(
+                                this::mapDemandContextToScopeKey,
+                                Collectors.mapping(
+                                        DemandContextRISpecMatch::scopedDemandCluster,
+                                        Collectors.toList())));
+
+        logger.info("Found {} demandClustersByScopeKey", demandClustersByScopeKey.size());
 
         // Convert the demand clusters, grouped by a regional scope key (which groups by region,
         // account grouping ID, and target Spec ID) to a regional context representing a single
@@ -204,14 +211,14 @@ public class RIBuyAnalysisContextProvider {
             !locationEntity.isPresent() || !connectedRegion.isPresent() ||
             platform == null || tenancy == null || !isBillingGroupAllowed) {
 
-            logger.debug("Unable to find topology entities for RI demand record " +
-                    "(Account OID={} (isPresent={}), Compute Tier OID={} (isPresent={}), " +
-                    "Location OID={} (isPresent={}), isConnectedRegionPresent={}, " +
-                    "Platform={}, Tenancy={}, isBillingFamilyPresent={} (standaloneAccountAllowed={}))",
-                accountOid, account.isPresent(),
-                demandRecord.getComputeTierId(), computeTier.isPresent(),
-                regionOrZoneId, locationEntity.isPresent(), connectedRegion.isPresent(),
-                platform, tenancy, billingFamily.isPresent(), allowStandaloneAccountAnalysisClusters);
+            logger.warn("Unable to find topology entities for RI demand record " +
+                            "(Account OID={} (isPresent={}), Compute Tier OID={} (isPresent={}), " +
+                            "Location OID={} (isPresent={}), isConnectedRegionPresent={}, " +
+                            "Platform={}, Tenancy={}, isBillingFamilyPresent={} (standaloneAccountAllowed={}))",
+                    accountOid, account.isPresent(),
+                    demandRecord.getComputeTierId(), computeTier.isPresent(),
+                    regionOrZoneId, locationEntity.isPresent(), connectedRegion.isPresent(),
+                    platform, tenancy, billingFamily.isPresent(), allowStandaloneAccountAnalysisClusters);
 
             return null;
         } else {

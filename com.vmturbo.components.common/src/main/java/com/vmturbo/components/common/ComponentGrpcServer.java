@@ -21,7 +21,7 @@ import io.grpc.ServerInterceptor;
 import io.grpc.ServerInterceptors;
 import io.grpc.ServerServiceDefinition;
 import io.grpc.netty.NettyServerBuilder;
-import io.opentracing.contrib.grpc.ServerTracingInterceptor;
+import io.opentracing.contrib.grpc.TracingServerInterceptor;
 
 import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
@@ -112,7 +112,10 @@ public class ComponentGrpcServer {
             MonitoringServerInterceptor.create(me.dinowernli.grpc.prometheus.Configuration.allMetrics()),
             // Add tracing interceptor at the end, so that it gets called first (Matthew 20:16 :P),
             // and the other interceptors get traced too.
-            new ServerTracingInterceptor(Tracing.tracer()),
+            TracingServerInterceptor.newBuilder()
+                .withTracer(Tracing.tracer())
+                .withStreaming()
+                .build(),
             // Log all the requests timings
             new RequestLoggingInterceptor(),
             // Last, so that it gets called first, and catches any unhandled exceptions from the

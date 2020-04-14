@@ -21,6 +21,7 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingScope;
 import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
+import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
@@ -137,6 +138,13 @@ public class StitchingOperationScopeFactory implements StitchingScopeFactory<Sti
         // implemented at a later date in the unlikely event we have a use for it.
         throw new UnsupportedOperationException(
             "missingDerivedTargetEntityTypeScope is not supported for stitching or pre-stitching");
+    }
+
+    @Override
+    public StitchingScope<TopologyEntity> hasAndLacksProbeCategoryEntityTypeStitchingScope(
+            @Nonnull Set<ProbeCategory> owningProbeCategories, @Nonnull Set<ProbeCategory> missingProbeCategories, @Nonnull EntityType entityType) {
+        throw new UnsupportedOperationException(
+                "missingSingleProbeCategoryEntityTypeStitchingScope is not needed for stitching");
     }
 
     public StitchingContext getStitchingContext() {

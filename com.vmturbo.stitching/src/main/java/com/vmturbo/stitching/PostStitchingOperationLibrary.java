@@ -42,6 +42,7 @@ import com.vmturbo.stitching.poststitching.StorageLatencyPostStitchingOperation.
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.DiskArrayStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.LogicalPoolStorageProvisionedPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.StorageProvisionedPostStitchingOperation.StorageEntityStorageProvisionedPostStitchingOperation;
+import com.vmturbo.stitching.poststitching.UseHypervisorVmemForResizingPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.VirtualDatacenterCpuAllocationPostStitchingOperation;
 import com.vmturbo.stitching.poststitching.WastedFilesPostStitchingOperation;
 
@@ -104,8 +105,13 @@ public class PostStitchingOperationLibrary {
             new StorageAccessCapacityPostStitchingOperation(EntityType.LOGICAL_POOL, diskCapacityCalculator),
             new StorageAccessCapacityPostStitchingOperation(EntityType.STORAGE_CONTROLLER, diskCapacityCalculator),
             new StorageEntityAccessCapacityPostStitchingOperation(),
+            new ComputedUsedValuePostStitchingOperation(
+                EntityType.STORAGE, CommodityType.STORAGE_LATENCY),
+            new ComputedUsedValuePostStitchingOperation(
+                EntityType.STORAGE, CommodityType.STORAGE_ACCESS),
             new SetCommodityMaxQuantityPostStitchingOperation(setMaxValuesConfig),
             new SetMovableFalseForHyperVAndVMMNotClusteredVmsOperation(),
+            new UseHypervisorVmemForResizingPostStitchingOperation(),
             new SetResizeDownAnalysisSettingPostStitchingOperation(resizeDownWarmUpIntervalHours, clock),
             new ComputedQxVcpuUsedValuePostStitchingOperation(),
             new CpuScalingFactorPostStitchingOperation(cpuCapacityStore),

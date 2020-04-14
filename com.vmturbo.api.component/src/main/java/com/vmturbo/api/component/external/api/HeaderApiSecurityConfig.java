@@ -37,6 +37,11 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
 
     private static final Logger logger = LogManager.getLogger();
 
+    /**
+     * If environment variable "vendor_url_context" is set, use it's value as URL context.
+     */
+    static final String VENDOR_URL_CONTEXT_TAG = "vendor_url_context";
+
     @Value("${vendor_supported_admin_role:Server Administrator,Account Administrator,Device Administrator,System Administrator}")
     private String externalAdminRoles;
 

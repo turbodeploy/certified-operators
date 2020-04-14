@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
+import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
@@ -61,6 +62,18 @@ public class PercentileCommodityData
         } catch (HistoryCalculationException e) {
             logger.error("Failed to initialize percentile utilization storage for " + field, e);
         }
+    }
+
+    /*
+     * TODO method needs to be reused in PercentileEditor#maintenance to
+     *  simplify period changes check
+     */
+    @Override
+    public boolean needsReinitialization(@Nonnull EntityCommodityReference ref,
+                    @Nonnull HistoryAggregationContext context,
+                    @Nonnull PercentileHistoricalEditorConfig config) {
+        return utilizationCounts.getPeriodDays() != config
+                        .getObservationPeriod(context, ref.getEntityOid());
     }
 
     @Override

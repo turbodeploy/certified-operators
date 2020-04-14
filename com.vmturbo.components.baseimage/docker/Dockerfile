@@ -11,8 +11,8 @@ RUN dnf install -y rsyslog procps-ng python2 net-tools xz && \
     rm OpenJDK*.tar.gz
 ENV PATH="/usr/lib/jvm/jdk-11.0.6+10-jre/bin:${PATH}"
 
-COPY entrypoint.sh collect_diags.sh diags.py dump_histogram.sh wait_for_full_gc.sh /
-RUN chmod 755 /entrypoint.sh && chmod 755 /collect_diags.sh && \
+COPY entrypoint.sh collect_diags.sh diags.py dump_histogram.sh wait_for_full_gc.sh terminate.sh /
+RUN chmod 755 /entrypoint.sh && chmod 755 /collect_diags.sh && chmod 755 /terminate.sh && \
     chmod 755 /diags.py && chmod 755 /dump_histogram.sh && chmod 755 /wait_for_full_gc.sh
 
 # add the swagger UI

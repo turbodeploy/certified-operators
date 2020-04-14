@@ -10,6 +10,7 @@ import com.vmturbo.common.protobuf.group.PolicyServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
+import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 
 @Configuration
@@ -26,6 +27,9 @@ public class ReservationConfig {
 
     @Autowired
     private GroupClientConfig groupClientConfig;
+
+    @Autowired
+    private TargetConfig targetConfig;
 
     /**
      * Validates reservations before creating entities in the topology.
@@ -47,6 +51,7 @@ public class ReservationConfig {
     public ReservationManager reservationManager() {
         return new ReservationManager(ReservationServiceGrpc.newBlockingStub(planClientConfig.planOrchestratorChannel()),
             templateConfig.templateConverterFactory(),
-            reservationValidator());
+            reservationValidator(),
+            targetConfig.targetStore());
     }
 }

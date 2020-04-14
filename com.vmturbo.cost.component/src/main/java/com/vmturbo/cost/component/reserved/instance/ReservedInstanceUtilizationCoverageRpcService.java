@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServi
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.utils.TimeFrameCalculator;
 import com.vmturbo.cost.component.reserved.instance.filter.EntityReservedInstanceMappingFilter;
+import com.vmturbo.cost.component.reserved.instance.filter.PlanProjectedEntityReservedInstanceMappingFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 
@@ -130,10 +131,9 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                 }
             } else {
                 // Add projected RI Utilization point
-                statRecords.add(
                         projectedRICoverageStore.getReservedInstanceUtilizationStats(
-                            filter, request.getIncludeBuyRiUtilization(),
-                                request.getEndDate()));
+                                filter, request.getIncludeBuyRiUtilization(), request.getEndDate())
+                                .ifPresent(statRecords::add);
 
             }
             final GetReservedInstanceUtilizationStatsResponse response =
@@ -186,9 +186,9 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                 }
             } else {
                 // Add projected RI Coverage point
-                statRecords.add(
-                    projectedRICoverageStore.getReservedInstanceCoverageStats(
-                            filter, request.getIncludeBuyRiCoverage(), request.getEndDate()));
+                projectedRICoverageStore.getReservedInstanceCoverageStats(
+                        filter, request.getIncludeBuyRiCoverage(), request.getEndDate())
+                        .ifPresent(statRecords::add);
             }
 
             final GetReservedInstanceCoverageStatsResponse response =
@@ -329,9 +329,22 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                     StreamObserver<Cost.GetProjectedEntityReservedInstanceCoverageResponse> responseObserver) {
         final ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter.newBuilder()
                 .entityFilter(request.getEntityFilter())
+                .topologyContextId(request.getTopologyContextId())
                 .build();
-        final Map<Long, EntityReservedInstanceCoverage> retCoverage = projectedRICoverageStore
-                .getScopedProjectedEntitiesRICoverages(filter);
+        Long topologyContextId = request.getTopologyContextId();
+        final Map<Long, EntityReservedInstanceCoverage> retCoverage;
+        if (!Objects.equals(realtimeTopologyContextId, topologyContextId)) {
+            PlanProjectedEntityReservedInstanceMappingFilter planProjectedRICoverageByEntityFilter = PlanProjectedEntityReservedInstanceMappingFilter
+                .newBuilder()
+                .entityFilter(request.getEntityFilter())
+                .topologyContextId(topologyContextId)
+                .build();
+            retCoverage = planProjectedRICoverageAndUtilStore.getPlanProjectedRiCoverage(
+                topologyContextId,
+                planProjectedRICoverageByEntityFilter);
+        } else {
+            retCoverage = projectedRICoverageStore.getScopedProjectedEntitiesRICoverages(filter);
+        }
         final Cost.GetProjectedEntityReservedInstanceCoverageResponse response =
                         Cost.GetProjectedEntityReservedInstanceCoverageResponse.newBuilder()
                                         .putAllCoverageByEntityId(retCoverage).build();

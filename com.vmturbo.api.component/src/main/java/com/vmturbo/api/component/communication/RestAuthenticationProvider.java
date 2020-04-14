@@ -40,6 +40,7 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 
 public class RestAuthenticationProvider implements AuthenticationProvider {
     /**
@@ -47,7 +48,7 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      */
     public static final String AUTH_HEADER_NAME = "x-auth-token";
     public static final String USERS_AUTHORIZE = "/users/authorize/";
-    public static final String SAML_DUMMY_PASS = "SAML_DUMMY_PASS";
+    private static final String DUMMY_PASS = "DUMMY_PASS";
 
     /**
      * The logger.
@@ -228,42 +229,27 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
                                     @Nonnull final String remoteIpAddress,
                                     @Nonnull final IComponentJwtStore componentJwtStore)
             throws AuthenticationException {
-        UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
+        final UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
                 .scheme("http")
                 .host(authHost_)
                 .port(authPort_)
                 .path(USERS_AUTHORIZE);
 
-        final String authRequest = groupName.map(
-                group ->
-                        builder
-                                .pathSegment(
-                                        encodeValue(username),
-                                        encodeValue(group),
-                                        remoteIpAddress)
-                                .build()
-                                .toUriString())
-                .orElse(
-                        builder
-                                .pathSegment(
-                                        encodeValue(username),
-                                        remoteIpAddress)
-                                .build()
-                                .toUriString()
-                );
-
-        ResponseEntity<String> result;
-        HttpHeaders headers = new HttpHeaders();
+        final HttpHeaders headers = new HttpHeaders();
         headers.setAccept(HTTP_ACCEPT);
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
                 componentJwtStore.generateToken().getCompactRepresentation());
         headers.set(SecurityConstant.COMPONENT_ATTRIBUTE, componentJwtStore.getNamespace());
-        HttpEntity<List> entity = new HttpEntity<>(headers);
-        result = restTemplate_.exchange(authRequest, HttpMethod.GET, entity, String.class);
-        JWTAuthorizationToken token = new JWTAuthorizationToken(result.getBody());
+
+        final HttpEntity<AuthorizeUserInputDTO> entity
+         = new HttpEntity<>(new AuthorizeUserInputDTO(username, groupName.orElse(null), remoteIpAddress), headers);
+
+        final ResponseEntity<String> result = restTemplate_.exchange(builder.toUriString(),
+                HttpMethod.POST, entity, String.class);
+        final JWTAuthorizationToken token = new JWTAuthorizationToken(result.getBody());
         // add a dummy password.
-        return getAuthentication(SAML_DUMMY_PASS, username, token, remoteIpAddress);
+        return getAuthentication(DUMMY_PASS, username, token, remoteIpAddress);
     }
 
     @Override

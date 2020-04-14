@@ -50,10 +50,10 @@
         <!-- START Versions for the various opentracing libraries.
              Do not change them independently without verifying that they are compatible with
              each other! Check the projects' github repositories and nested dependencies. -->
-        <opentracing.version>0.32.0</opentracing.version>
-        <jaeger.version>0.35.0</jaeger.version>
-        <opentracing.concurrent.version>0.3.0</opentracing.concurrent.version>
-        <opentracing.grpc.version>0.1.0</opentracing.grpc.version>
+        <opentracing.version>0.33.0</opentracing.version>
+        <jaeger.version>1.2.0</jaeger.version>
+        <opentracing.concurrent.version>0.4.0</opentracing.concurrent.version>
+        <opentracing.grpc.version>0.2.1</opentracing.grpc.version>
         <!-- END Versions for the various opentracing libraries -->
 
         <slf4j.version>1.7.25</slf4j.version>
@@ -134,6 +134,8 @@
         <surefire.version>2.20</surefire.version>
         <jetty.version>9.4.19.v20190610</jetty.version>
         <bouncycastle.version>1.60</bouncycastle.version>
+        <JUnitParams.version>1.0.4</JUnitParams.version>
+
         <!-- FlexLM, for use with Cisco licenses -->
         <flex.lm.version>11.14.1.1</flex.lm.version>
 
@@ -330,14 +332,12 @@
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.conversion</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
                 <module>../com.vmturbo.mediation.azure.conversion</module>
-                <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
@@ -451,7 +451,6 @@
             <id>mediation-aws-billing</id>
             <modules>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.conversion</module>
             </modules>
         </profile>
 
@@ -465,6 +464,7 @@
         <profile>
         <id>mediation-intersight</id>
             <modules>
+                <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.intersight.server.component</module>
                 <module>../com.vmturbo.mediation.intersight.ucs.component</module>
@@ -627,8 +627,6 @@
         <profile>
             <id>mediation-azure-volumes</id>
             <modules>
-                <module>../com.vmturbo.mediation.conversion</module>
-                <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
             </modules>
         </profile>
@@ -863,6 +861,7 @@
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
@@ -945,6 +944,7 @@
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
@@ -1040,6 +1040,7 @@
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.topology.processor.api</module>
@@ -1067,7 +1068,6 @@
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.azure.conversion</module>
-                <module>../com.vmturbo.mediation.azure.volumes.conversion</module>
                 <module>../com.vmturbo.mediation.gcp.conversion</module>
                 <module>../com.vmturbo.mediation.conversion</module>
 
@@ -1082,7 +1082,6 @@
                 <module>../com.vmturbo.mediation.apm.wmi.component</module>
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
-                <module>../com.vmturbo.mediation.aws.billing.conversion</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
@@ -1961,7 +1960,7 @@
                 <artifactId>cost-calculation</artifactId>
                 <version>${project.version}</version>
             </dependency>
-	    <dependency>
+	        <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>reserved-instance-coverage-allocator</artifactId>
                 <version>${project.version}</version>
@@ -2133,23 +2132,6 @@
                 <groupId>com.turbonomic</groupId>
                 <artifactId>com.turbonomic.cpucapacity</artifactId>
                 <version>${cpu.capacity.version}</version>
-            </dependency>
-
-            <!-- Embedded Tomcat -->
-            <dependency>
-                <groupId>org.apache.tomcat.embed</groupId>
-                <artifactId>tomcat-embed-core</artifactId>
-                <version>${tomcat.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.tomcat.embed</groupId>
-                <artifactId>tomcat-embed-websocket</artifactId>
-                <version>${tomcat.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.apache.tomcat.embed</groupId>
-                <artifactId>tomcat-embed-el</artifactId>
-                <version>${tomcat.version}</version>
             </dependency>
 
             <!-- Override the version of jooq being pulled in by Spring Boot.
@@ -2832,6 +2814,12 @@
                 <groupId>org.eclipse.jgit</groupId>
                 <artifactId>org.eclipse.jgit</artifactId>
                 <version>5.6.0.201912101111-r</version>
+            </dependency>
+            <dependency>
+                <groupId>pl.pragmatists</groupId>
+                <artifactId>JUnitParams</artifactId>
+                <version>${JUnitParams.version}</version>
+                <scope>test</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>

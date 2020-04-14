@@ -79,10 +79,10 @@ public class EntityCommodityFieldReference extends EntityCommodityReference {
         return getClass().getSimpleName() + " [field=" + field
                + ", oid="
                + getEntityOid()
-               + ", commodityType="
-               + getCommodityType()
                + ", providerOid="
                + getProviderOid()
+               + ", commodityType="
+               + getCommodityType()
                + "]";
     }
 

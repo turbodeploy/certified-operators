@@ -30,10 +30,12 @@ import com.vmturbo.cost.component.reserved.instance.ReservedInstanceUtil;
 public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter {
 
     private final EntityFilter entityFilter;
+    private Long topologyContextId;
 
     private ReservedInstanceCoverageFilter(@Nonnull Builder builder) {
         super(builder);
         this.entityFilter = builder.entityFilter;
+        this.topologyContextId = builder.topologyContextId;
     }
 
     /**
@@ -119,6 +121,7 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
             ReservedInstanceStatsFilter.Builder<ReservedInstanceCoverageFilter, Builder> {
 
         private EntityFilter entityFilter = EntityFilter.getDefaultInstance();
+        private Long topologyContextId;
 
         /**
          * Set an entity filter, filtering the queried entity coverage by entity OID.
@@ -129,6 +132,17 @@ public class ReservedInstanceCoverageFilter extends ReservedInstanceStatsFilter 
         public Builder entityFilter(@Nullable EntityFilter entityFilter) {
             this.entityFilter = Optional.ofNullable(entityFilter)
                     .orElseGet(EntityFilter::getDefaultInstance);
+            return this;
+        }
+
+        /**
+         * The topology context for which RI coverage is requested
+         *
+         * @param topologyContextId the numeric ID of the topology for which RI coverage is requested
+         * @return the Builder object
+         */
+        public Builder topologyContextId(Long topologyContextId) {
+            this.topologyContextId = topologyContextId;
             return this;
         }
 

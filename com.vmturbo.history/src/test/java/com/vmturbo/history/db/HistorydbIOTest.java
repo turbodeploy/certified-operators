@@ -43,9 +43,10 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO.NextPageInfo;
 import com.vmturbo.history.db.HistorydbIO.SeekPaginationCursor;
 import com.vmturbo.history.db.jooq.JooqUtils;
@@ -318,7 +319,7 @@ public class HistorydbIOTest {
 
             //WHEN
             NextPageInfo nextPageInfo = historydbIOSpy.getNextPage(entityStatsScope,
-                    new Timestamp(1L), TimeFrame.LATEST, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE);
+                    new Timestamp(1L), TimeFrame.LATEST, paginationParams, VIRTUAL_MACHINE_ENTITY_TYPE, StatsFilter.newBuilder().build());
 
             //THEN
             verify(historydbIOSpy, times(1)).getTotalRecordsCount(any(), any());

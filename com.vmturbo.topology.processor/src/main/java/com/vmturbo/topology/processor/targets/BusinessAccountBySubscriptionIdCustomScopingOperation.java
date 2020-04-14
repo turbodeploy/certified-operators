@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchableProperties;
@@ -35,16 +36,17 @@ public class BusinessAccountBySubscriptionIdCustomScopingOperation
                                             final SearchServiceBlockingStub searchService) {
         logger.debug("Executing convertScopeValueToOid for Subscription ID {}", subscriptionId);
         final SearchEntityOidsRequest.Builder searchTopologyRequest = SearchEntityOidsRequest.newBuilder()
-            .addSearchParameters(SearchParameters.newBuilder()
-                .setStartingFilter(SearchProtoUtil.entityTypeFilter(EntityType.BUSINESS_ACCOUNT_VALUE))
-                .addSearchFilter(SearchFilter.newBuilder()
-                    .setPropertyFilter(PropertyFilter.newBuilder()
-                        .setPropertyName(SearchableProperties.BUSINESS_ACCOUNT_INFO_REPO_DTO_PROPERTY_NAME)
-                        .setObjectFilter(ObjectFilter.newBuilder()
-                            .addFilters(PropertyFilter.newBuilder()
-                                .setPropertyName(SearchableProperties.BUSINESS_ACCOUNT_INFO_ACCOUNT_ID)
-                                .setStringFilter(StringFilter.newBuilder()
-                                    .addOptions(subscriptionId))))))
+            .setSearch(SearchQuery.newBuilder()
+                .addSearchParameters(SearchParameters.newBuilder()
+                    .setStartingFilter(SearchProtoUtil.entityTypeFilter(EntityType.BUSINESS_ACCOUNT_VALUE))
+                    .addSearchFilter(SearchFilter.newBuilder()
+                        .setPropertyFilter(PropertyFilter.newBuilder()
+                            .setPropertyName(SearchableProperties.BUSINESS_ACCOUNT_INFO_REPO_DTO_PROPERTY_NAME)
+                            .setObjectFilter(ObjectFilter.newBuilder()
+                                .addFilters(PropertyFilter.newBuilder()
+                                    .setPropertyName(SearchableProperties.BUSINESS_ACCOUNT_INFO_ACCOUNT_ID)
+                                    .setStringFilter(StringFilter.newBuilder()
+                                        .addOptions(subscriptionId)))))))
             .build());
         try {
             return Sets.newHashSet(searchService.searchEntityOids(

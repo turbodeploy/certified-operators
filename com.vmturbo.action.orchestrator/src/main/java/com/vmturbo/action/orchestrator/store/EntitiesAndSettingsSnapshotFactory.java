@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.store;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
@@ -9,6 +10,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -32,6 +34,14 @@ import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEnti
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
+import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
@@ -39,12 +49,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection.Builder;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -68,6 +77,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     private final GroupServiceBlockingStub groupService;
 
+    private final SupplyChainServiceBlockingStub supplyChainService;
+
     private final long timeToWaitForTopology;
 
     private final TimeUnit timeToWaitUnit;
@@ -85,6 +96,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repoChannel);
         this.groupService = GroupServiceGrpc.newBlockingStub(groupChannel);
+        this.supplyChainService = SupplyChainServiceGrpc.newBlockingStub(repoChannel);
         this.timeToWaitForTopology = timeToWaitForTopology;
         this.timeToWaitUnit = timeToWaitUnit;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -283,32 +295,89 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         final OwnershipGraph.Builder<EntityWithConnections> graphBuilder =
             OwnershipGraph.newBuilder(EntityWithConnections::getOid);
 
-        final RetrieveTopologyEntitiesRequest.Builder entitiesReqBldr = RetrieveTopologyEntitiesRequest.newBuilder()
+        final RetrieveTopologyEntitiesRequest.Builder entitiesReqBuilder = RetrieveTopologyEntitiesRequest.newBuilder()
             .setReturnType(Type.WITH_CONNECTIONS)
             .setTopologyContextId(topologyContextId)
             .setTopologyType(topologyType)
             .addEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber());
         // Set the topologyId if its non null. Else it defaults to real time.
         if (topologyId != null) {
-            entitiesReqBldr.setTopologyId(topologyId);
+            entitiesReqBuilder.setTopologyId(topologyId);
         }
 
+        final Map<Long, EntityWithConnections> businessAccounts =
+                RepositoryDTOUtil.topologyEntityStream(
+                        repositoryService.retrieveTopologyEntities(entitiesReqBuilder.build()))
+                        .map(PartialEntity::getWithConnections)
+                        .collect(Collectors.toMap(EntityWithConnections::getOid, ba -> ba));
 
-        // Get all the business accounts and add them to the ownership graph.
+        final GetMultiSupplyChainsRequest supplyChainRequest =
+                createMultiSupplyChainRequest(businessAccounts.keySet());
+
         try {
-            RepositoryDTOUtil.topologyEntityStream(
-                repositoryService.retrieveTopologyEntities(entitiesReqBldr.build()))
-                .map(PartialEntity::getWithConnections)
-                .forEach(ba -> ba.getConnectedEntitiesList().stream()
-                    .filter(connectedEntity -> connectedEntity.getConnectionType() == ConnectionType.OWNS_CONNECTION)
-                    .filter(connectedEntity -> entities.contains(connectedEntity.getConnectedEntityId()))
-                    .forEach(relevantEntity -> graphBuilder.addOwner(ba, relevantEntity.getConnectedEntityId())));
+            supplyChainService.getMultiSupplyChains(supplyChainRequest)
+                    .forEachRemaining(
+                            scResponse -> processSupplyChainResponse(entities, graphBuilder,
+                                    businessAccounts, scResponse));
             return graphBuilder.build();
         } catch (StatusRuntimeException e) {
             logger.error("Failed to retrieve ownership graph entities due to repository error: {}",
-                e.getMessage());
+                    e.getMessage());
             return OwnershipGraph.empty();
         }
+    }
+
+    /**
+     * Get entities from supplyChain (filter out entities not related to current actions)
+     * and add them to ownerShip graph as entities owned by certain business account.
+     *
+     * @param involvedEntities entities involved in current actions
+     * @param graphBuilder builder for ownerShip graph
+     * @param businessAccounts existed business accounts
+     * @param scResponse supplyChain response for business account
+     */
+    private static void processSupplyChainResponse(@Nonnull Set<Long> involvedEntities,
+            OwnershipGraph.Builder<EntityWithConnections> graphBuilder,
+            Map<Long, EntityWithConnections> businessAccounts,
+            GetMultiSupplyChainsResponse scResponse) {
+        final Stream<Long> entitiesOwnedByAccount = scResponse.getSupplyChain()
+                .getSupplyChainNodesList()
+                .stream()
+                .map(SupplyChainNode::getMembersByStateMap)
+                .map(Map::values)
+                .flatMap(memberList -> memberList.stream()
+                        .map(MemberList::getMemberOidsList)
+                        .flatMap(List::stream));
+        entitiesOwnedByAccount.filter(involvedEntities::contains)
+                .forEach(relevantEntity -> graphBuilder.addOwner(
+                        businessAccounts.get(scResponse.getSeedOid()), relevantEntity));
+    }
+
+    /**
+     * Request separate supplyChains for each business account.
+     *
+     * @param businessAccountIds business account oids
+     * @return prepared request for supplyChain service
+     */
+    private static GetMultiSupplyChainsRequest createMultiSupplyChainRequest(
+            Set<Long> businessAccountIds) {
+        final Set<String> expandedEntityTypesForBusinessAccounts =
+                ApiEntityType.ENTITY_TYPES_TO_EXPAND.get(ApiEntityType.BUSINESS_ACCOUNT)
+                        .stream()
+                        .map(ApiEntityType::apiStr)
+                        .collect(Collectors.toSet());
+        final GetMultiSupplyChainsRequest.Builder scRequestBuilder =
+                GetMultiSupplyChainsRequest.newBuilder();
+        for (Long accountId : businessAccountIds) {
+            final SupplyChainScope.Builder scScopeBuilder = SupplyChainScope.newBuilder()
+                    .addAllEntityTypesToInclude(expandedEntityTypesForBusinessAccounts)
+                    .addStartingEntityOid(accountId);
+            final SupplyChainSeed.Builder scSeedBuilder = SupplyChainSeed.newBuilder()
+                    .setSeedOid(accountId)
+                    .setScope(scScopeBuilder.build());
+            scRequestBuilder.addSeeds(scSeedBuilder.build());
+        }
+        return scRequestBuilder.build();
     }
 
     /**
