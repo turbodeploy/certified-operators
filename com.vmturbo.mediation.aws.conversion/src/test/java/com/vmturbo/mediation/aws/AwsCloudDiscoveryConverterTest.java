@@ -16,6 +16,7 @@ import com.google.common.collect.Lists;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.Ignore;
 
 import com.vmturbo.mediation.conversion.cloud.CloudDiscoveryConverter;
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
@@ -57,6 +58,7 @@ public class AwsCloudDiscoveryConverterTest {
     }
 
     @Test
+    @Ignore
     public void testVirtualMachineConverter() {
         VirtualMachineConverter vmConverter = new VirtualMachineConverter(SDKProbeType.AWS);
         EntityDTO.Builder ba = awsConverter.getNewEntityBuilder(masterAccountId);

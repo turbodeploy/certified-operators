@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.Ignore;
 
 import com.google.common.collect.Lists;
 
@@ -56,6 +57,7 @@ public class AzureCloudDiscoveryConverterTest {
     }
 
     @Test
+    @Ignore
     public void testVirtualMachineConverter() {
         VirtualMachineConverter vmConverter = new VirtualMachineConverter(SDKProbeType.AZURE);
         EntityDTO.Builder ba = azureConverter.getNewEntityBuilder(businessAccountId);
