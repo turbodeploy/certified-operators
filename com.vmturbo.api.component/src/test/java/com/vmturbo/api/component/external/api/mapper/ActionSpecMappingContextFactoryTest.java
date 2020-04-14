@@ -33,7 +33,6 @@ import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
@@ -275,11 +274,7 @@ public class ActionSpecMappingContextFactoryTest {
                 73367279135571L, 73367357167052L, 73367284550368L, 73367280089256L, 73367357166981L,
                 73367279846050L, 73367279135833L, 73367284550442L};
         for (Long oid : regionOids) {
-            try {
-                assertNotNull(result.getRegion(oid));
-            } catch (UnknownObjectException e) {
-                System.out.println("Missing OID in expected region list");
-            }
+            assertNotNull(result.getRegion(oid));
         }
     }
 }
