@@ -59,6 +59,7 @@ import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.health.ComponentStatusNotifier;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
 import com.vmturbo.components.common.health.HealthStatus;
@@ -237,6 +238,9 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Autowired
     private ConsulHealthcheckRegistration consulHealthcheckRegistration;
 
+    @Autowired
+    private ComponentStatusNotifier componentStatusNotifier;
+
     /**
      * Embed a component for monitoring dependency/subcomponent health.
      */
@@ -377,6 +381,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             try {
                 this.onStartComponent();
                 publishVersionInformation();
+                componentStatusNotifier.notifyComponentStartup();
                 setStatus(ExecutionStatus.RUNNING);
             } catch (Exception e) {
                 logger.error("Error while trying to finish startup routine. Will shut down.", e);
@@ -394,6 +399,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         setStatus(ExecutionStatus.STOPPING);
         logger.info("Deregistering service: {}", instanceId);
         consulHealthcheckRegistration.deregisterService();
+        componentStatusNotifier.notifyComponentShutdown();
         onStopComponent();
         ComponentGrpcServer.get().stop();
         JETTY_SERVER.getValue().ifPresent(server -> {

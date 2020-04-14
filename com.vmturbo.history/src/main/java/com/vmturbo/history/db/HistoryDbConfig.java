@@ -188,4 +188,9 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
             logger.warn("Failed to grant PROCESS privilege; DbMonitor will only see history threads", e);
         }
     }
+
+    @Override
+    protected String getDbSchemaName() {
+        return dbSchemaName;
+    }
 }

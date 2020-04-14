@@ -342,7 +342,12 @@ public class RetriableOperation<T> {
      */
     public static class RetriableOperationFailedException extends Exception {
 
-        RetriableOperationFailedException(@Nonnull final Exception cause) {
+        /**
+         * Create a new instance of the exception.
+         *
+         * @param cause The underlying cause.
+         */
+        public RetriableOperationFailedException(@Nonnull final Exception cause) {
             super(cause);
         }
 

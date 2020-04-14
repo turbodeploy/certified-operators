@@ -42,6 +42,7 @@ import javax.ws.rs.NotFoundException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Table;
 import com.orbitz.consul.model.health.HealthCheck;
 import com.orbitz.consul.model.kv.Value;
 
@@ -63,11 +64,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.HttpClientErrorException;
 
-import com.vmturbo.clustermgr.ConsulService.ComponentInstance;
 import com.vmturbo.clustermgr.api.ClusterConfiguration;
 import com.vmturbo.clustermgr.api.ComponentInstanceInfo;
 import com.vmturbo.clustermgr.api.ComponentProperties;
 import com.vmturbo.clustermgr.api.HttpProxyConfig;
+import com.vmturbo.clustermgr.management.ComponentHealth;
+import com.vmturbo.clustermgr.management.ComponentRegistry;
+import com.vmturbo.clustermgr.management.RegisteredComponent;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 import com.vmturbo.components.common.utils.Strings;
 
@@ -211,6 +214,8 @@ public class ClusterMgrService {
 
     private final DiagEnvironmentSummary diagEnvironmentSummary;
 
+    private final ComponentRegistry componentRegistry;
+
     private final AtomicBoolean kvInitialized = new AtomicBoolean(false);
 
     /**
@@ -232,13 +237,16 @@ public class ClusterMgrService {
      * @param consulService the client API for calls to Consul
      * @param osCommandProcessRunner a utility object for running operating system commands
      * @param diagEnvironmentSummary Utility to get summary information for diag collection.
+     * @param componentRegistry Component registry to get information about registered components.
      */
     public ClusterMgrService(@Nonnull final ConsulService consulService,
                              @Nonnull final OsCommandProcessRunner osCommandProcessRunner,
-                             @Nonnull final DiagEnvironmentSummary diagEnvironmentSummary) {
+                             @Nonnull final DiagEnvironmentSummary diagEnvironmentSummary,
+                             @Nonnull final ComponentRegistry componentRegistry) {
         this.consulService = Objects.requireNonNull(consulService);
         this.osCommandProcessRunner = osCommandProcessRunner;
         this.diagEnvironmentSummary = Objects.requireNonNull(diagEnvironmentSummary);
+        this.componentRegistry = componentRegistry;
     }
 
     public boolean isClusterKvStoreInitialized() {
@@ -571,10 +579,6 @@ public class ClusterMgrService {
                 DIAGNOSTIC_OPERATION_BUSY);
         }
         try {
-            String consulNamespace = getConsulNamespace();
-            if (!StringUtils.isEmpty(consulNamespace)) {
-                log.info("Collecting diagnostics for namespace '{}'.", consulNamespace);
-            }
             ZipOutputStream diagnosticZip = new ZipOutputStream(responseOutput);
             String acceptTypes = MediaType.toString(Arrays.asList(
                 MediaType.parseMediaType("application/zip"),
@@ -850,20 +854,28 @@ public class ClusterMgrService {
                                        String acceptResponseTypes,
                                        ResponseEntityProcessor responseEntityProcessor,
                                        @Nonnull final StringBuilder errorMessageBuilder) {
-        final Map<String, List<ComponentInstance>> instancesByService = consulService.getAllServiceInstances();
-        final MutableInt curCounter = new MutableInt(1);
-        instancesByService.forEach((componentType, instances) -> {
+        Table<String, String, RegisteredComponent> instancesByTypeAndId = componentRegistry.getRegisteredComponents();
+        final MutableInt curComponentCounter = new MutableInt(1);
+        instancesByTypeAndId.rowMap().forEach((componentType, instances) -> {
             log.info("applying REST REQUEST {} to component type: {} [{} of {}]", requestPath,
-                componentType, curCounter.getAndIncrement(), instancesByService.size());
-            for (int j = 0; j < instances.size(); j++) {
-                final ComponentInstance instance = instances.get(j);
-                log.info("- instance {} [{} of {}]", instance, j + 1, instances.size());
-                URI requestUri = instance.getUri(requestPath);
-                HttpGet request = new HttpGet(requestUri);
-                request.addHeader("Accept", acceptResponseTypes);
-                sendRequestToComponent(instance.getId(), request, responseEntityProcessor,
-                    Optional.of(errorMessageBuilder));
-            }
+                componentType, curComponentCounter.getAndIncrement(), instancesByTypeAndId.size());
+            final MutableInt curInstanceCounter = new MutableInt(1);
+            instances.forEach((instanceId, instanceInfo) -> {
+                log.info("- instance {} [{} of {}]", instanceId, curInstanceCounter.getAndIncrement(), instances.size());
+                if (instanceInfo.getComponentHealth() == ComponentHealth.CRITICAL) {
+                    log.warn("Skipping instance {} because component status is critical.", instanceId);
+                } else {
+                    try {
+                        URI requestUri = instanceInfo.getUri(requestPath);
+                        HttpGet request = new HttpGet(requestUri);
+                        request.addHeader("Accept", acceptResponseTypes);
+                        sendRequestToComponent(instanceId, request, responseEntityProcessor,
+                            Optional.of(errorMessageBuilder));
+                    } catch (URISyntaxException e) {
+                        log.error("Failed to construct URI for instance {}. Error: {}", instanceId, e.getMessage());
+                    }
+                }
+            });
         });
     }
 
