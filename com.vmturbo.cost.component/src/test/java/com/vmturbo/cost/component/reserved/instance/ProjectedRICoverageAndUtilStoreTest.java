@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
@@ -16,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -26,6 +28,7 @@ import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
@@ -44,6 +47,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.cost.component.db.Tables;
+import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -172,12 +177,36 @@ public class ProjectedRICoverageAndUtilStoreTest {
         // Get the stats record for coverage
         final ReservedInstanceStatsRecord statsRecord =
                 store.getReservedInstanceCoverageStats(filter, false,
-                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()).get();
 
         // Assertions
         assertThat(statsRecord.getCapacity().getTotal(), equalTo(100.0F));
         assertThat(statsRecord.getValues().getTotal(), equalTo(50.0F));
         assertThat(statsRecord.getSnapshotDate(), greaterThan(Instant.now().toEpochMilli()));
+    }
+
+    /**
+     * Test that if there are no RIs in the scope, we don't return any data.
+     */
+    @Test
+    public void testGetReservedInstanceCoverageStatsNoData() {
+        // Create a filter, the when below means we ignore the contents
+        ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter.newBuilder()
+                .regionFilter(RegionFilter.newBuilder()
+                        .addRegionId(REGION_1_ID)
+                        .build())
+                .build();
+        // Scope to VM_2_ID only
+        when(repositoryClient.getEntitiesByTypePerScope(any(), any()))
+                .thenReturn(Stream.of(scopedOids));
+
+        // Get the stats record for coverage
+        final Optional<ReservedInstanceStatsRecord> statsRecordOpt =
+                store.getReservedInstanceCoverageStats(filter, false,
+                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+
+        // Assertions
+        assertThat(statsRecordOpt, equalTo(Optional.empty()));
     }
 
     /**
@@ -324,7 +353,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
         // Get the stats record for coverage
         final ReservedInstanceStatsRecord statsRecord =
                 store.getReservedInstanceCoverageStats(filter, true,
-                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()).get();
 
         // Assertions
         assertThat(statsRecord.getCapacity().getTotal(), equalTo(300.0F));
@@ -360,7 +389,7 @@ public class ProjectedRICoverageAndUtilStoreTest {
                 Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
         final ReservedInstanceStatsRecord statsRecord =
                 store.getReservedInstanceUtilizationStats(riUtilizationFilter, false,
-                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()).get();
 
 
         // Assertions
@@ -369,6 +398,32 @@ public class ProjectedRICoverageAndUtilStoreTest {
         assertThat(statsRecord.getSnapshotDate(), greaterThan(Instant.now().toEpochMilli()));
     }
 
+    /**
+     * Test that if there are no RIs in the scope, we don't return any data.
+     */
+    @Test
+    public void testGetReservedInstanceUtilizationStatsNoData() {
+        // setup input RI utilization filter
+        final List<Long> scopeOids = Lists.newArrayList(3L, 11L);
+        final ReservedInstanceUtilizationFilter riUtilizationFilter = ReservedInstanceUtilizationFilter.newBuilder()
+                .regionFilter(RegionFilter.newBuilder()
+                        .addAllRegionId(scopeOids)
+                        .build())
+                .build();
+
+        // setup RI bought store
+        when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
+                .thenReturn(Lists.newArrayList());
+
+        // invoke
+        final Optional<ReservedInstanceStatsRecord> statsRecordOpt =
+                store.getReservedInstanceUtilizationStats(riUtilizationFilter, false,
+                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+
+
+        // Assertions
+        assertThat(statsRecordOpt, equalTo(Optional.empty()));
+    }
 
     @Test
     public void testGetReservedInstanceUtilizationStatsWithBuyRI() {
@@ -412,12 +467,32 @@ public class ProjectedRICoverageAndUtilStoreTest {
                 Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
         final ReservedInstanceStatsRecord statsRecord =
                 store.getReservedInstanceUtilizationStats(riUtilizationFilter, true,
-                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli());
+                        Instant.now().plus(1, ChronoUnit.HOURS).toEpochMilli()).get();
 
 
         // Assertions
         assertThat(statsRecord.getCapacity().getTotal(), equalTo(175.0F));
         assertThat(statsRecord.getValues().getTotal(), equalTo(75.0F));
         assertThat(statsRecord.getSnapshotDate(), greaterThan(Instant.now().toEpochMilli()));
+    }
+
+    /**
+     * Tests ProjectedRICoverageAndUtilStore::resolveBuyRIsInScope to ensure the database
+     * is queried with the proper condition.
+     */
+    @Test
+    public void testResolveBuyRIsInScope() {
+        final long topologyContextId = 123L;
+
+        store.resolveBuyRIsInScope(topologyContextId);
+
+        ArgumentCaptor<BuyReservedInstanceFilter> buyReservedInstanceFilterArgumentCaptor =
+                ArgumentCaptor.forClass(BuyReservedInstanceFilter.class);
+        verify(buyReservedInstanceStore).getBuyReservedInstances(buyReservedInstanceFilterArgumentCaptor.capture());
+
+        final org.jooq.Condition[] conditions = buyReservedInstanceFilterArgumentCaptor.getValue().getConditions();
+
+        assertThat(conditions.length, equalTo(1));
+        assertThat(conditions[0], equalTo(Tables.BUY_RESERVED_INSTANCE.TOPOLOGY_CONTEXT_ID.eq(topologyContextId)));
     }
 }

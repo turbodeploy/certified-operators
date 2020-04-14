@@ -1,5 +1,8 @@
 package com.vmturbo.cost.calculation.journal;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+
 import java.util.Optional;
 
 import org.hamcrest.MatcherAssert;
@@ -22,6 +25,7 @@ import com.vmturbo.cost.calculation.journal.CostJournal.CostSourceFilter;
 import com.vmturbo.cost.calculation.journal.CostJournal.RateExtractor;
 import com.vmturbo.cost.calculation.journal.entry.OnDemandJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.QualifiedJournalEntry;
+import com.vmturbo.cost.calculation.journal.entry.RIDiscountJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.RIJournalEntry;
 import com.vmturbo.cost.calculation.journal.entry.ReservedLicenseJournalEntry;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -230,7 +234,7 @@ public class CostJournalTest {
         final DiscountApplicator<TestEntityClass> discountApplicator =
                 Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(
-                org.mockito.Matchers.any(TestEntityClass.class))).thenReturn(Trax.trax(0));
+                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
         Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
                 .thenReturn(Trax.trax(0));
         final CostJournal<TestEntityClass> journal =
@@ -278,7 +282,7 @@ public class CostJournalTest {
         final DiscountApplicator<TestEntityClass> discountApplicator =
                 Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(
-                org.mockito.Matchers.any(TestEntityClass.class))).thenReturn(Trax.trax(0));
+                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
         Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
                 .thenReturn(Trax.trax(0));
         final CostJournal<TestEntityClass> journal =
@@ -314,7 +318,7 @@ public class CostJournalTest {
         final DiscountApplicator<TestEntityClass> discountApplicator =
                 Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(
-                org.mockito.Matchers.any(TestEntityClass.class))).thenReturn(Trax.trax(0));
+                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
 
         final TestEntityClass childCostProvider =
                 TestEntityClass.newBuilder(123).build(infoExtractor);
@@ -368,7 +372,7 @@ public class CostJournalTest {
         final DiscountApplicator<TestEntityClass> discountApplicator =
                 Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(
-                org.mockito.Matchers.any(TestEntityClass.class))).thenReturn(Trax.trax(0));
+                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
         Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
                 .thenReturn(Trax.trax(0));
         final CostJournal<TestEntityClass> journal =
@@ -412,7 +416,7 @@ public class CostJournalTest {
         final DiscountApplicator<TestEntityClass> discountApplicator =
                 Mockito.mock(DiscountApplicator.class);
         Mockito.when(discountApplicator.getDiscountPercentage(
-                org.mockito.Matchers.any(TestEntityClass.class))).thenReturn(Trax.trax(0));
+                any(TestEntityClass.class))).thenReturn(Trax.trax(0));
         Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
                 .thenReturn(Trax.trax(0));
         final QualifiedJournalEntry<TestEntityClass> reservedLicenseEntry =
@@ -431,6 +435,40 @@ public class CostJournalTest {
                 journal.getHourlyCostBySourceAndCategory(CostCategory.RESERVED_LICENSE,
                         CostSource.BUY_RI_DISCOUNT).getValue(), Matchers.is(0.125));
         System.out.println(journal);
+    }
+
+    /**
+     * Tests if discounted RI compute costs are being calculated correctly.
+     */
+    @Test
+    public void testRIDiscountedRate() {
+        final long tierId = 7L;
+        final float discountPercent = 0.2f;
+        final TraxNumber riBoughtPercentage = Trax.trax(1.0);
+        final ReservedInstanceData riData =
+                new ReservedInstanceData(ReservedInstanceBought.getDefaultInstance(),
+                        ReservedInstanceSpec.newBuilder()
+                                .setReservedInstanceSpecInfo(
+                                        ReservedInstanceSpecInfo.newBuilder().setTierId(tierId))
+                                .build());
+
+        final TestEntityClass entity = TestEntityClass.newBuilder(7L).build(infoExtractor);
+        final QualifiedJournalEntry<TestEntityClass> entry =
+                new RIDiscountJournalEntry<>(riData, riBoughtPercentage,
+                        CostCategory.ON_DEMAND_COMPUTE, CostSource.ON_DEMAND_RATE, false);
+        final DiscountApplicator<TestEntityClass> discountApplicator =
+                Mockito.mock(DiscountApplicator.class);
+        Mockito.when(discountApplicator.getDiscountPercentage(entity))
+                .thenReturn(Trax.trax(discountPercent));
+        Mockito.when(discountApplicator.getDiscountPercentage(org.mockito.Matchers.anyLong()))
+                .thenReturn(Trax.trax(discountPercent));
+        final RateExtractor rateExtractor = Mockito.mock(RateExtractor.class);
+        Mockito.when(rateExtractor.lookupCostWithFilter(eq(CostCategory.ON_DEMAND_COMPUTE), any()))
+                .thenReturn(Trax.trax(TOTAL_PRICE));
+        final double discountedCost = -TOTAL_PRICE;
+        final TraxNumber cost =
+                entry.calculateHourlyCost(infoExtractor, discountApplicator, rateExtractor);
+        MatcherAssert.assertThat(cost.getValue(), Matchers.closeTo(discountedCost, VALID_DELTA));
     }
 
     private Price createPrice(final Unit timeUnit, final double amount) {

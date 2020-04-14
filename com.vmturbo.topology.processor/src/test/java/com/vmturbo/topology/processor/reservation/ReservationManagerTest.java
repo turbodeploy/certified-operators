@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.reservation;
 
+import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE;
+import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE;
+import static com.vmturbo.topology.processor.reservation.ReservationManager.RESERVATION_KEY;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
@@ -21,6 +24,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import com.google.common.collect.Lists;
 
@@ -52,9 +56,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.reservation.ReservationValidator.ValidationErrors;
+import com.vmturbo.topology.processor.targets.Target;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
 
 public class ReservationManagerTest {
@@ -80,7 +87,7 @@ public class ReservationManagerTest {
                                     .setName("Test-reservation_0")
                                     .addPlacementInfo(PlacementInfo.newBuilder()
                                             .setProviderId(222)
-                                            .setProviderType(EntityType.PHYSICAL_MACHINE_VALUE)
+                                            .setProviderType(PHYSICAL_MACHINE_VALUE)
                                             .addCommodityBought(CommodityBoughtDTO.newBuilder()
                                                     .setCommodityType(CommodityType.newBuilder()
                                                             .setType((CommodityDTO
@@ -119,7 +126,7 @@ public class ReservationManagerTest {
             .setOid(111)
             .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setProviderEntityType(PHYSICAL_MACHINE_VALUE)
                     .addCommodityBought(CommodityBoughtDTO.newBuilder()
                             .setUsed(100)
                             .setCommodityType(CommodityType.newBuilder()
@@ -138,7 +145,7 @@ public class ReservationManagerTest {
     final TopologyEntityDTO.Builder topologyEntityBuildFuture = TopologyEntityDTO.newBuilder()
             .setOid(2)
             .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
-                    .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setProviderEntityType(PHYSICAL_MACHINE_VALUE)
                     .addCommodityBought(CommodityBoughtDTO.newBuilder()
                             .setUsed(100)
                             .setCommodityType(CommodityType.newBuilder()
@@ -154,6 +161,7 @@ public class ReservationManagerTest {
 
     final TopologyEntityDTO.Builder providerEntity = TopologyEntityDTO.newBuilder()
             .setOid(222)
+            .setEntityType(PHYSICAL_MACHINE_VALUE)
             .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                     .setUsed(10)
                     .setCommodityType(CommodityType.newBuilder()
@@ -164,12 +172,14 @@ public class ReservationManagerTest {
 
     private ReservationValidator validator = mock(ReservationValidator.class);
 
+    private TargetStore targetStore = mock(TargetStore.class);
+
     @Before
     public void setup() {
         reservationManager = new ReservationManager(
             ReservationServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             templateConverterFactory,
-            validator);
+            validator, targetStore);
     }
 
     /**
@@ -199,9 +209,96 @@ public class ReservationManagerTest {
             .build()));
     }
 
+    /**
+     * Test {@link ReservationManager#applyReservation(Map, TopologyInfo)} with
+     * one reservation.
+     * @throws Exception any test error
+     */
+    @Test
+    public void testApplyReservationReserved() throws Exception {
+        doReturn(Collections.singletonList(reservation))
+            .when(reservationService).getAllReservations(any());
+        when(templateConverterFactory.generateReservationEntityFromTemplates(
+            (Map<Long, Long>)argThat(hasEntry(456L, 1L)), anyMap()))
+            .thenReturn(Lists.newArrayList(topologyEntityBuildReserved).stream());
+        when(validator.validateReservations(any(), any())).thenReturn(new ValidationErrors());
+        when(targetStore.getAll()).thenReturn(Collections.emptyList());
+
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(providerEntity.getOid(), TopologyEntity.newBuilder(providerEntity));
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build();
+        reservationManager.applyReservation(topology, topologyInfo);
+
+        assertEquals(2L, topology.size());
+        assertTrue(topology.containsKey(1L));
+        assertTrue(topology.containsKey(providerEntity.getOid()));
+
+        // Check already reserved Reservation
+        final TopologyEntityDTO.Builder builderReserved = topology.get(1L).getEntityBuilder();
+        assertFalse(builderReserved.getAnalysisSettings().getSuspendable());
+        assertEquals(2L, builderReserved.getCommoditiesBoughtFromProvidersCount());
+        assertTrue(builderReserved.getCommoditiesBoughtFromProvidersBuilderList().stream()
+            .anyMatch(commoditiesBought -> commoditiesBought.getProviderId() == providerEntity.getOid()));
+
+        // Check provider commodity sold utilization changed correctly.
+        final List<CommoditySoldDTO> commoditySoldDTOs = topology.get(providerEntity.getOid())
+            .getEntityBuilder().getCommoditySoldListList();
+        assertEquals(1, commoditySoldDTOs.size());
+        assertEquals(110.0, commoditySoldDTOs.get(0).getUsed(), epsilon);
+    }
+
+    /**
+     * Test {@link ReservationManager#applyReservation(Map, TopologyInfo)} with
+     * one reservation with cloud target.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testApplyReservationReservedWithCloudTarget() throws Exception {
+        doReturn(Collections.singletonList(reservation))
+            .when(reservationService).getAllReservations(any());
+        when(templateConverterFactory.generateReservationEntityFromTemplates(
+            (Map<Long, Long>)argThat(hasEntry(456L, 1L)), anyMap()))
+            .thenReturn(Lists.newArrayList(topologyEntityBuildReserved).stream());
+        when(validator.validateReservations(any(), any())).thenReturn(new ValidationErrors());
+        Target target = mock(Target.class);
+        when(target.getId()).thenReturn(123L);
+        when(targetStore.getAll()).thenReturn(Collections.singletonList(target));
+        when(targetStore.getProbeTypeForTarget(123L)).thenReturn(Optional.of(SDKProbeType.AWS));
+
+        final Map<Long, Builder> topology = new HashMap<>();
+        topology.put(providerEntity.getOid(), TopologyEntity.newBuilder(providerEntity));
+        TopologyInfo topologyInfo = TopologyInfo.newBuilder().setTopologyType(TopologyType.REALTIME).build();
+        reservationManager.applyReservation(topology, topologyInfo);
+
+        assertEquals(2L, topology.size());
+        assertTrue(topology.containsKey(1L));
+        assertTrue(topology.containsKey(providerEntity.getOid()));
+
+        // Check already reserved Reservation
+        final TopologyEntityDTO.Builder builderReserved = topology.get(1L).getEntityBuilder();
+        assertFalse(builderReserved.getAnalysisSettings().getSuspendable());
+        assertEquals(2L, builderReserved.getCommoditiesBoughtFromProvidersCount());
+        assertTrue(builderReserved.getCommoditiesBoughtFromProvidersBuilderList().stream()
+            .filter(commBought -> commBought.getProviderId() == providerEntity.getOid())
+            .flatMap(commBought -> commBought.getCommodityBoughtBuilderList().stream())
+            .anyMatch(commBought -> commBought.getUsed() == 1.0d &&
+                commBought.getCommodityType().getType() == VMPM_ACCESS_VALUE &&
+                commBought.getCommodityType().getKey() == RESERVATION_KEY));
+
+        // Check provider commodity sold utilization changed correctly.
+        final List<CommoditySoldDTO> commoditySoldDTOs = topology.get(providerEntity.getOid())
+            .getEntityBuilder().getCommoditySoldListList();
+        assertEquals(2, commoditySoldDTOs.size());
+        assertEquals(110.0, commoditySoldDTOs.get(0).getUsed(), epsilon);
+        assertEquals(VMPM_ACCESS_VALUE, commoditySoldDTOs.get(1).getCommodityType().getType());
+        assertEquals(RESERVATION_KEY, commoditySoldDTOs.get(1).getCommodityType().getKey());
+        assertEquals(1e9, commoditySoldDTOs.get(1).getCapacity(), epsilon);
+    }
+
     @Ignore
     @Test
-    public void testApplyReservationReservedAndFuture() {
+    public void testApplyReservationReservedAndFuture() throws Exception {
         when(templateConverterFactory.generateReservationEntityFromTemplates(
                 (Map<Long, Long>) argThat(hasEntry(456L, 1L)), anyMap()))
                 .thenReturn(Lists.newArrayList(topologyEntityBuildReserved).stream());
@@ -249,7 +346,7 @@ public class ReservationManagerTest {
     public void testModifyCommodityBought() {
         final TopologyEntityDTO.Builder providerEntity = TopologyEntityDTO.newBuilder()
                 .setOid(123)
-                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setEntityType(PHYSICAL_MACHINE_VALUE)
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                         .setUsed(100.0)
                         .setCommodityType(CommodityType.newBuilder()

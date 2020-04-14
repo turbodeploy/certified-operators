@@ -199,7 +199,7 @@ public class ClusterMgrService {
     private static final String CURL_COMMAND = "curl";
     @VisibleForTesting
     static final String UPLOAD_VMTURBO_COM_URL =
-        "http://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi";
+        "https://upload.vmturbo.com/appliance/cgi-bin/vmtupload.cgi";
 
     private static Logger log = LogManager.getLogger();
 

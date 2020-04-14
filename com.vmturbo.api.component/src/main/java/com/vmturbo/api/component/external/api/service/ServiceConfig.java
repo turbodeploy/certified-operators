@@ -374,6 +374,7 @@ public class ServiceConfig {
                 communicationConfig.actionsRpcService(),
                 planEntityStatsFetcher(),
                 communicationConfig.searchServiceBlockingStub(),
+                actionSearchUtil(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -604,6 +605,7 @@ public class ServiceConfig {
                 communicationConfig.repositoryApi(),
                 mapperConfig.actionSpecMapper(),
                 communicationConfig.actionsRpcService(),
+                actionSearchUtil(),
                 communicationConfig.getRealtimeTopologyContextId(),
                 websocketConfig.websocketHandler());
     }
@@ -713,7 +715,8 @@ public class ServiceConfig {
     public HistoricalCommodityStatsSubQuery historicalCommodityStatsSubQuery() {
         final HistoricalCommodityStatsSubQuery historicalStatsQuery =
             new HistoricalCommodityStatsSubQuery(mapperConfig.statsMapper(),
-                communicationConfig.historyRpcService(), userSessionContext());
+                communicationConfig.historyRpcService(), userSessionContext(),
+                communicationConfig.repositoryApi());
         statsQueryExecutor().addSubquery(historicalStatsQuery);
         return historicalStatsQuery;
     }
@@ -787,7 +790,7 @@ public class ServiceConfig {
     @Bean
     public StatsQueryExecutor statsQueryExecutor() {
         return new StatsQueryExecutor(statsQueryContextFactory(), scopeExpander(),
-            communicationConfig.repositoryApi());
+            communicationConfig.repositoryApi(), mapperConfig.uuidMapper());
     }
 
     @Bean

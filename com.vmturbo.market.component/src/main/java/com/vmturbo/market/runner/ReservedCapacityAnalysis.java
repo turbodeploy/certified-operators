@@ -206,8 +206,8 @@ public class ReservedCapacityAnalysis {
         // We use utilization only for deciding resize up or resize down.
         // Here we just use reservedCapacity as utilization.
         ResizeExplanation.Builder resizeExplanation = ResizeExplanation.newBuilder()
-            .setStartUtilization(newReservedCapacity)
-            .setEndUtilization((float)commBought.getReservedCapacity());
+                .setDeprecatedStartUtilization(newReservedCapacity)
+                .setDeprecatedEndUtilization((float)commBought.getReservedCapacity());
         scalingGroupId.ifPresent(resizeExplanation::setScalingGroupId);
         expBuilder.setResize(resizeExplanation);
 

@@ -34,10 +34,12 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.StatsService;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.dto.BaseApiDTO;
+import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
@@ -69,11 +71,14 @@ import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.HistUtili
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.schema.RelationType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Unit tests for the static Mapper utility functions for the {@link StatsService}.
@@ -807,6 +812,110 @@ public class StatsMapperTest {
         assertThat(cloudStatRecord.getStatRecordsCount(), is(mapped.getStatistics().size()));
         assertEquals(1, cloudStatRecord.getStatRecordsCount());
         assertTrue(mapped.getStatistics().stream().allMatch(statApiDTO -> CollectionUtils.isEmpty(statApiDTO.getFilters())));
+    }
+
+    /**
+     * Test the population of an entity stats api dto from a minimal entity dto.
+     */
+    @Test
+    public void testPopulateEntityDataEntityStatApiDTOFromMinimalEntity() {
+        MinimalEntity vm = MinimalEntity.newBuilder()
+                .setOid(123L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("Test VM 1")
+                .setEnvironmentType(
+                        EnvironmentTypeMapper.fromApiToXL(
+                                com.vmturbo.api.enums.EnvironmentType.ONPREM))
+                .build();
+        EntityStatsApiDTO outputDTO = new EntityStatsApiDTO();
+
+        StatsMapper.populateEntityDataEntityStatsApiDTO(vm, outputDTO);
+        // Verify the data in the output
+        assertEquals("123", outputDTO.getUuid());
+        assertEquals("VirtualMachine", outputDTO.getClassName());
+        assertEquals("Test VM 1", outputDTO.getDisplayName());
+        assertEquals(com.vmturbo.api.enums.EnvironmentType.ONPREM, outputDTO.getEnvironmentType());
+
+        // Also test an entity without an env type
+        MinimalEntity pm = MinimalEntity.newBuilder()
+                .setOid(123L)
+                .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setDisplayName("Test PM 1")
+                .build();
+        EntityStatsApiDTO outputDTO2 = StatsMapper.populateEntityDataEntityStatsApiDTO(pm,
+                new EntityStatsApiDTO());
+        // Verify the data in the output
+        assertEquals("123", outputDTO2.getUuid());
+        assertEquals("PhysicalMachine", outputDTO2.getClassName());
+        assertEquals("Test PM 1", outputDTO2.getDisplayName());
+        //  no env type was specified.  So, this will be null
+        assertEquals(null, outputDTO2.getEnvironmentType());
+
+    }
+
+
+    /**
+     * Test the population of an entity stats api dto from an api id.
+     */
+    @Test
+    public void testPopulateEntityDataEntityStatApiDTOFromApiId() {
+
+        ApiId apiId = mock(ApiId.class);
+        when(apiId.oid()).thenReturn(123L);
+        when(apiId.uuid()).thenReturn("123");
+        when(apiId.getClassName()).thenReturn("VirtualMachine");
+        when(apiId.getDisplayName()).thenReturn("Test VM 1");
+        when(apiId.getEnvironmentType())
+                .thenReturn(
+                        EnvironmentTypeMapper.fromApiToXL(
+                                com.vmturbo.api.enums.EnvironmentType.ONPREM));
+
+        EntityStatsApiDTO outputDTO = StatsMapper.populateEntityDataEntityStatsApiDTO(
+                apiId, new EntityStatsApiDTO());
+        // Verify the data in the output
+        assertEquals("123", outputDTO.getUuid());
+        assertEquals("VirtualMachine", outputDTO.getClassName());
+        assertEquals("Test VM 1", outputDTO.getDisplayName());
+        assertEquals(com.vmturbo.api.enums.EnvironmentType.ONPREM, outputDTO.getEnvironmentType());
+    }
+
+    /**
+     * Test the population of an entity stats api dto from an api partial entity dto.
+     */
+    @Test
+    public void testPopulateEntityDataEntityStatApiDTOFromApiPartialEntity() {
+
+        ApiPartialEntity apiPartialEntity = ApiPartialEntity.newBuilder()
+                .setOid(123L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("Test VM 1")
+                .setEnvironmentType(
+                        EnvironmentTypeMapper.fromApiToXL(
+                                com.vmturbo.api.enums.EnvironmentType.ONPREM))
+                .build();
+
+        EntityStatsApiDTO outputDTO = StatsMapper.populateEntityDataEntityStatsApiDTO(
+                apiPartialEntity, new EntityStatsApiDTO());
+        // Verify the data in the output
+        assertEquals("123", outputDTO.getUuid());
+        assertEquals("VirtualMachine", outputDTO.getClassName());
+        assertEquals("Test VM 1", outputDTO.getDisplayName());
+        assertEquals(com.vmturbo.api.enums.EnvironmentType.ONPREM, outputDTO.getEnvironmentType());
+
+        // Test without env type
+        ApiPartialEntity apiPartialEntityNoEnv = ApiPartialEntity.newBuilder()
+                .setOid(456L)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("Test VM 2")
+                .build();
+
+        EntityStatsApiDTO outputDTONoEnv = new EntityStatsApiDTO();
+        StatsMapper.populateEntityDataEntityStatsApiDTO(apiPartialEntityNoEnv, outputDTONoEnv);
+        // Verify the data in the output
+        assertEquals("456", outputDTONoEnv.getUuid());
+        assertEquals("VirtualMachine", outputDTONoEnv.getClassName());
+        assertEquals("Test VM 2", outputDTONoEnv.getDisplayName());
+        assertEquals(null, outputDTONoEnv.getEnvironmentType());
     }
 
     /**

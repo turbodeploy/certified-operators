@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -182,6 +183,50 @@ public class QueryFilterTest {
         assertTrue(new QueryFilter(ActionQueryFilter.newBuilder()
                 .addCategories(ActionCategory.EFFICIENCY_IMPROVEMENT)
                 .build(), PlanActionStore.VISIBILITY_PREDICATE).test(actionView));
+    }
+
+    /**
+     * Tests various filters based on severity.
+     */
+    @Test
+    public void testFilterActionViewsBySeverity() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(0L)
+                .setInfo(TestActionBuilder.makeMoveInfo(3L, 1L, 1, 2L, 1))
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.getDefaultInstance()))))
+                .build();
+        final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator);
+
+        // no severity filter: should succeed
+        assertTrue(new QueryFilter(ActionQueryFilter.getDefaultInstance(),
+                                   PlanActionStore.VISIBILITY_PREDICATE)
+                        .test(actionView));
+
+        // only critical actions accepted: should fail (this is a minor severity action)
+        assertFalse(new QueryFilter(ActionQueryFilter.newBuilder()
+                                        .addSeverities(Severity.CRITICAL)
+                                        .build(),
+                                    PlanActionStore.VISIBILITY_PREDICATE)
+                        .test(actionView));
+
+        // only minor severity actions accepted: should succeed
+        assertTrue(new QueryFilter(ActionQueryFilter.newBuilder()
+                                        .addSeverities(Severity.MINOR)
+                                        .build(),
+                                   PlanActionStore.VISIBILITY_PREDICATE)
+                        .test(actionView));
+
+        // only minor and major severity actions accepted: should succeed
+        assertTrue(new QueryFilter(ActionQueryFilter.newBuilder()
+                                        .addSeverities(Severity.MAJOR)
+                                        .addSeverities(Severity.MINOR)
+                                        .build(),
+                                   PlanActionStore.VISIBILITY_PREDICATE)
+                        .test(actionView));
     }
 
     @Test

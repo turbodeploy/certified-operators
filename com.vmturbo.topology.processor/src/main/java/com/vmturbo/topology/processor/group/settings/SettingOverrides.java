@@ -7,8 +7,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -17,9 +17,7 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.MaxUtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
@@ -31,10 +29,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.graph.TopologyGraphEntity;
-import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
 
 /**
  * A helper class to capture the {@link SettingOverride}s defined for a scenario and index
@@ -128,23 +123,22 @@ public class SettingOverrides {
      * these to override the existing policies, rather than co-exist with them.
      *
      * @param groupsById    A map of group id -> Groups, used for group resolution.
-     * @param groupResolver the group resolver to use
-     * @param topologyGraph the topology graph used for finding group members
      */
-    public void resolveGroupOverrides(@Nonnull Map<Long, Grouping> groupsById,
-                                      @Nonnull GroupResolver groupResolver, TopologyGraph<TopologyEntity> topologyGraph) {
+    public void resolveGroupOverrides(@Nonnull final Map<Long, ResolvedGroup> groupsById) {
         final Map<Setting, Set<Long>> groupOverrideSettings = new HashMap<>();
         final Map<String, SettingSpec> grpOverrideSpecs = new HashMap<>();
         overridesForGroup.forEach((groupOid, settingsMap) -> {
-            Grouping group = groupsById.get(groupOid);
-            Set<Long> groupMemberOids = groupResolver.resolve(group, topologyGraph);
-            settingsMap.forEach((settingName, setting) ->
-                EntitySettingSpecs.getSettingByName(settingName).ifPresent(entitySpec -> {
-                    grpOverrideSpecs.putIfAbsent(settingName, entitySpec.getSettingSpec());
-                    groupOverrideSettings.computeIfAbsent(setting, k -> new HashSet<>())
-                                                            .addAll(groupMemberOids);
-                })
-            );
+            final ResolvedGroup group = groupsById.get(groupOid);
+            if (group != null) {
+                settingsMap.forEach((settingName, setting) ->
+                    EntitySettingSpecs.getSettingByName(settingName).ifPresent(entitySpec -> {
+                        final Set<Long> groupMemberOids = group.getEntitiesOfSdkTypes(entitySpec.getEntityTypeScope());
+                        grpOverrideSpecs.putIfAbsent(settingName, entitySpec.getSettingSpec());
+                        groupOverrideSettings.computeIfAbsent(setting, k -> new HashSet<>())
+                            .addAll(groupMemberOids);
+                    })
+                );
+            }
         });
 
         resolveEntitySettings(groupOverrideSettings, grpOverrideSpecs);

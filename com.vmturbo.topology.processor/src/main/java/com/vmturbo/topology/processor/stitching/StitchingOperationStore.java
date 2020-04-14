@@ -42,6 +42,7 @@ import com.vmturbo.stitching.StringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.journal.JournalableOperation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeOrdering;
+import com.vmturbo.topology.processor.probes.ProbeStore;
 
 /**
  * A store of stitching operations for use during stitching.
@@ -296,6 +297,12 @@ public class StitchingOperationStore {
                                        @Nonnull final StitchingOperation<?, ?> stitchingOperation) {
             this.probeId = probeId;
             this.stitchingOperation = stitchingOperation;
+        }
+
+        public String toString(@Nonnull final ProbeStore probeStore) {
+            return stitchingOperation.getOperationName() + "[" +
+                probeStore.getProbe(probeId).map(ProbeInfo::getProbeCategory).orElse("") + "/" +
+                probeStore.getProbe(probeId).map(ProbeInfo::getProbeType).orElse("") + "]";
         }
     }
 }

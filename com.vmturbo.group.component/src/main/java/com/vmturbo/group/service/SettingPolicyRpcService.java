@@ -616,26 +616,25 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
     public void getEntitySettingPolicies(final GetEntitySettingPoliciesRequest request,
                                          final StreamObserver<GetEntitySettingPoliciesResponse> responseStreamObserver) {
 
-        if (!request.hasEntityOid()) {
+        if (request.getEntityOidListList().isEmpty()) {
             responseStreamObserver.onNext(GetEntitySettingPoliciesResponse.getDefaultInstance());
             responseStreamObserver.onCompleted();
             return;
         }
 
-        GetEntitySettingPoliciesResponse.Builder response =
-                GetEntitySettingPoliciesResponse.newBuilder();
-
+        GetEntitySettingPoliciesResponse.Builder response = GetEntitySettingPoliciesResponse.newBuilder();
+        Set<SettingPolicy> policies = new HashSet<>();
         try {
-            for (SettingPolicy settingPolicy : entitySettingStore.getEntitySettingPolicies(request.getEntityOid())) {
-                response.addSettingPolicies(settingPolicy);
-            }
+            entitySettingStore.getEntitySettingPolicies(request.getEntityOidListList()
+                .stream().collect(Collectors.toSet())).forEach(p -> policies.add(p));
+            response.addAllSettingPolicies(policies);
             responseStreamObserver.onNext(response.build());
             responseStreamObserver.onCompleted();
         } catch (StoreOperationException e) {
             logger.error("Failed processing entity setting policies request for " +
-                    request.getEntityOid(), e);
+                request.getEntityOidListList(), e);
             responseStreamObserver.onError(
-                    e.getStatus().withDescription(e.getMessage()).asException());
+                e.getStatus().withDescription(e.getMessage()).asException());
         }
     }
 

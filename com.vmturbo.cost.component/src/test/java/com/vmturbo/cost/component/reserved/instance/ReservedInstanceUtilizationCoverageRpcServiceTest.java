@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
@@ -133,7 +134,7 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
             createRIStatsRecord(0, 0,
                     now + 50);
         when(projectedRICoverageStore.getReservedInstanceCoverageStats(any(), anyBoolean(), anyLong()))
-                .thenReturn(projectedRICoverageStatRecord);
+                .thenReturn(Optional.of(projectedRICoverageStatRecord));
     }
 
     private void mockRICoverageStore() {
@@ -156,9 +157,8 @@ public class ReservedInstanceUtilizationCoverageRpcServiceTest {
         final ReservedInstanceStatsRecord projectedRIUtilizationStatRecord =
                 createRIStatsRecord(0, 0,
                         now + 50);
-        when(projectedRICoverageStore.getReservedInstanceUtilizationStats(any(), anyBoolean(),
-                anyLong()))
-                .thenReturn(projectedRIUtilizationStatRecord);
+        when(projectedRICoverageStore.getReservedInstanceUtilizationStats(any(), anyBoolean(), anyLong()))
+                .thenReturn(Optional.of(projectedRIUtilizationStatRecord));
     }
 
     private ReservedInstanceStatsRecord createRIStatsRecord(final float capacity,

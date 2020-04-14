@@ -86,8 +86,10 @@ public class ProjectedRICoverageListener implements ProjectedReservedInstanceCov
                         originalTopologyInfo,
                         riCoverageList);
                 // PLAN_PROJECTED_RESERVED_INSTANCE_UTILIZATION
-                planProjectedRICoverageAndUtilStore.updateProjectedRIUtilTableForPlan(originalTopologyInfo,
-                        riCoverageList);
+                planProjectedRICoverageAndUtilStore.updateProjectedRIUtilTableForPlan(
+                        originalTopologyInfo,
+                        riCoverageList,
+                        projectedRICoverageAndUtilStore.resolveBuyRIsInScope(originalTopologyInfo.getTopologyContextId()));
             } else {
                 projectedRICoverageAndUtilStore.updateProjectedRICoverage(originalTopologyInfo,
                         riCoverageList);

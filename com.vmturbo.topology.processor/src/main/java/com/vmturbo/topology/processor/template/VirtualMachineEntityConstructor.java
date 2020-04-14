@@ -9,6 +9,8 @@ import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.ge
 import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getCommoditySoldConstraint;
 
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -16,7 +18,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -30,13 +31,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
  * Create a TopologyEntityDTO from Virtual Machine Template. The new Topology Entity contains such as OID,
@@ -48,7 +49,7 @@ import com.vmturbo.stitching.TopologyEntity;
  * buy provision commodity, all other commodity boght value will be set to zero. It use isReservationEntity
  * field to represent it is a reservation virtual machine or not.
  */
-public class VirtualMachineEntityConstructor implements TopologyEntityConstructor {
+public class VirtualMachineEntityConstructor extends TopologyEntityConstructor {
 
     private static final String ZERO = "0";
     private static final String RDM = "RDM";
@@ -65,24 +66,16 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
         this.isReservationEntity = isReservationEntity;
     }
 
-    /**
-     * Create a TopologyEntityDTO from Virtual Machine Template. based on input template.
-     *
-     * @param template {@link Template}
-     * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
-     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
-     *                 entities related to the entity being replaced may be updated to fix up relationships
-     *                 to point to the new entity along with the old entity.
-     * @param originalTopologyEntity the original topology entity which this template want to keep its
-     *                               commodity constrains. It could be null, if it is new adding template.
-     * @return {@link TopologyEntityDTO}
-     */
     @Override
-    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
+    public Collection<TopologyEntityDTO.Builder> createTopologyEntityFromTemplate(
             @Nonnull final Template template,
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity) {
+            @Nonnull Optional<TopologyEntity.Builder> originalTopologyEntity, boolean isReplaced,
+            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
+        TopologyEntityDTO.Builder topologyEntityBuilder = super.createTopologyEntityFromTemplate(
+                template, topology, originalTopologyEntity, isReplaced, identityProvider).iterator()
+                        .next();
+
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints =
                 sortAccessCommodityBought(getActiveCommoditiesWithKeysGroups(originalTopologyEntity));
         final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
@@ -96,7 +89,7 @@ public class VirtualMachineEntityConstructor implements TopologyEntityConstructo
         addStorageCommodities(topologyEntityBuilder, storageTemplateResources);
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
         handleProviderIdForCommodityBought(topologyEntityBuilder);
-        return topologyEntityBuilder;
+        return Collections.singletonList(topologyEntityBuilder);
     }
 
     /**

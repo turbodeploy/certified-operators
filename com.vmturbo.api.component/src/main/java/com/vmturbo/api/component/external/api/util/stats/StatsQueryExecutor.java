@@ -19,8 +19,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Table;
 
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
@@ -28,6 +31,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -45,8 +49,10 @@ import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.api.utils.StatsUtils;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
@@ -67,14 +73,26 @@ public class StatsQueryExecutor {
 
     private final RepositoryApi repositoryApi;
 
+    private final UuidMapper uuidMapper;
+
     private final Set<StatsSubQuery> queries = new HashSet<>();
+
+    // entity types that don't support historical statistics
+    private final Set<ApiEntityType> entitiesWithoutHistoricalStats = ImmutableSet.of(ApiEntityType.COMPUTE_TIER,
+            ApiEntityType.DATABASE_TIER, ApiEntityType.DATABASE_SERVER_TIER, ApiEntityType.STORAGE_TIER);
+
+    // entity types with additional metrics which are not commodities
+    private final ImmutableMap<String, Set<String>> additionalEntityMetrics =
+            ImmutableMap.of(ApiEntityType.COMPUTE_TIER.name(), ImmutableSet.of(StringConstants.NUM_CORES));
 
     public StatsQueryExecutor(@Nonnull final StatsQueryContextFactory contextFactory,
                               @Nonnull final StatsQueryScopeExpander scopeExpander,
-                              @Nonnull final RepositoryApi repositoryApi) {
+                              @Nonnull final RepositoryApi repositoryApi,
+                              @Nonnull final UuidMapper uuidMapper) {
         this.contextFactory = contextFactory;
         this.scopeExpander = scopeExpander;
         this.repositoryApi = repositoryApi;
+        this.uuidMapper = uuidMapper;
     }
 
     /**
@@ -128,6 +146,15 @@ public class StatsQueryExecutor {
             // In any other case - return empty stats.
             logger.warn("expandedScope is empty. scopeOID: {}", scope.oid());
             return Collections.emptyList();
+        }
+
+        // if scope is an entity without historical stats, get real-time stats from full entity
+        ApiId apiId = this.uuidMapper.fromUuid(scope.uuid());
+        // we only support entities with real-time stats, no groups
+        if (apiId.getScopeTypes().isPresent() && apiId.isEntity()
+                && entitiesWithoutHistoricalStats.contains(apiId.getScopeTypes().get().iterator().next())) {
+            Optional<TopologyDTO.TopologyEntityDTO> topologyEntityDTO = repositoryApi.entityRequest(scope.oid()).getFullEntity();
+            return createRealtimeStatSnapshots(inputDTO, topologyEntityDTO.orElse(null));
         }
 
         final StatsQueryContext context =
@@ -205,6 +232,58 @@ public class StatsQueryExecutor {
 
         return StatsUtils.filterStats(stats,
             allowCoolingPowerCommodities(scope, context) ? null : Collections.emptyList());
+    }
+
+    List<StatSnapshotApiDTO> createRealtimeStatSnapshots(StatPeriodApiInputDTO inputDTO,
+                                                          TopologyDTO.TopologyEntityDTO topologyEntityDTO) {
+        List<StatSnapshotApiDTO> statSnapshotApiDTOS = new ArrayList<>();
+        StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+        statSnapshotApiDTOS.add(statSnapshotApiDTO);
+
+        // if input has stats, only return those else return all
+        List<String> statsRequested = new ArrayList<>();
+        if (inputDTO.getStatistics() != null) {
+            inputDTO.getStatistics().forEach(stat -> {
+                if (stat.getName() != null) {
+                    statsRequested.add(stat.getName());
+                }
+            });
+        }
+
+        List<StatApiDTO> statApiDTOS = new ArrayList<>();
+        if (topologyEntityDTO != null) {
+            List<TopologyDTO.CommoditySoldDTO> soldCommodities = topologyEntityDTO.getCommoditySoldListList();
+            soldCommodities.forEach(commodity -> {
+                UICommodityType commodityType = UICommodityType.fromType(commodity.getCommodityType().getType());
+                if (statsRequested.isEmpty() || statsRequested.contains(commodityType.apiStr())) {
+                    StatApiDTO statApiDTO = new StatApiDTO();
+                    statApiDTO.setValue((float)commodity.getCapacity());
+                    statApiDTO.setName(commodityType.apiStr());
+                    statApiDTOS.add(statApiDTO);
+                }
+            });
+
+            // not all relevant metrics are available under commodities, some are under typeSpecificInfo.
+            String typeCase = topologyEntityDTO.getTypeSpecificInfo().getTypeCase().name();
+            if (additionalEntityMetrics.containsKey(typeCase)) {
+                additionalEntityMetrics.get(typeCase).forEach(metric -> {
+                    if (statsRequested.isEmpty() || statsRequested.contains(StringConstants.NUM_CORES)
+                            && metric.equals(StringConstants.NUM_CORES)) {
+                        StatApiDTO statApiDTO = new StatApiDTO();
+                        statApiDTO.setValue((float)topologyEntityDTO.getTypeSpecificInfo().getComputeTier()
+                                .getNumCores());
+                        statApiDTO.setName(StringConstants.NUM_CORES);
+                        statApiDTOS.add(statApiDTO);
+                    }
+                });
+            }
+
+            statSnapshotApiDTO.setStatistics(statApiDTOS);
+            statSnapshotApiDTO.setDate(DateTimeUtil.getNow());
+            statSnapshotApiDTO.setEpoch(Epoch.CURRENT);
+            return statSnapshotApiDTOS;
+        }
+        return statSnapshotApiDTOS;
     }
 
     /**

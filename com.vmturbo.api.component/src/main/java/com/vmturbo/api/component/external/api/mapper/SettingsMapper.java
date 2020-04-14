@@ -271,6 +271,13 @@ public class SettingsMapper {
     @VisibleForTesting
     int resolveEntityType(@Nonnull final SettingsPolicyApiDTO settingPolicy)
             throws InvalidOperationException, UnknownObjectException {
+        // If the policy explicitly specifies an entity type, we will use that entity type.
+        if (settingPolicy.getEntityType() != null) {
+            return ApiEntityType.fromStringToSdkType(settingPolicy.getEntityType());
+        }
+
+        // If the policy DOES NOT explicitly specify an entity type we will infer the entity
+        // type from the scopes.
         if (settingPolicy.getScopes() == null || settingPolicy.getScopes().isEmpty()) {
             throw new InvalidOperationException("Unscoped setting policy: " +
                     settingPolicy.getDisplayName());
@@ -308,10 +315,12 @@ public class SettingsMapper {
             throw new UnknownObjectException("Group IDs " + groupIds + " not found.");
         } else if (groupsByEntityType.size() > 1) {
             // All the groups should share the same entity type.
-            throw new InvalidOperationException("Setting policy scopes have " +
+            // If the user wants to scope to a group that has more than one entity type they
+            // need to explicitly specify the entity type to apply the policy to.
+            throw new InvalidOperationException("Cannot infer entity type." +
+                " Please specify entity type directly in the request. Setting policy scopes have " +
                 "different entity types: " + groupsByEntityType.keySet().stream()
-                    .map(EntityType::forNumber)
-                    .map(EntityType::name)
+                    .map(ApiEntityType::fromSdkTypeToEntityTypeString)
                     .collect(Collectors.joining(",")));
         } else {
             return groupsByEntityType.keySet().iterator().next();

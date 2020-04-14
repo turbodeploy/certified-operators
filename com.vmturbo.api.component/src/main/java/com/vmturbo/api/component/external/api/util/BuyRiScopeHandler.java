@@ -37,6 +37,7 @@ public class BuyRiScopeHandler {
 
     private static final Set<ApiEntityType> GROUP_OF_REGIONS = Collections.singleton(ApiEntityType.REGION);
     private static final Set<GroupType> GROUP_OF_BILLING_FAMILY = Collections.singleton(GroupType.BILLING_FAMILY);
+    private static final Set<ApiEntityType> GROUP_OF_SERVICE_PROVIDERS = Collections.singleton(ApiEntityType.SERVICE_PROVIDER);
 
     /**
      * Extract action types from user input and selected scope. Selected scope affects whether
@@ -92,9 +93,10 @@ public class BuyRiScopeHandler {
             return Collections.emptySet();
         }
 
-        // Entity scope (single Region)
+        // Entity scope (single Region / Service Providers)
         if (scopeId.isEntity() && scopeId.getScopeTypes().isPresent()) {
-            if (GROUP_OF_REGIONS.equals(scopeId.getScopeTypes().orElse(null))) {
+            if (GROUP_OF_REGIONS.equals(scopeId.getScopeTypes().orElse(null)) ||
+                            GROUP_OF_SERVICE_PROVIDERS.equals(scopeId.getScopeTypes().orElse(null))) {
                 return ImmutableSet.of(scopeId.oid());
             }
             return Collections.emptySet();
@@ -104,12 +106,13 @@ public class BuyRiScopeHandler {
         if (scopeId.isGroup() && scopeId.getCachedGroupInfo().isPresent()) {
             final UuidMapper.CachedGroupInfo groupInfo = scopeId.getCachedGroupInfo().get();
 
-            // Group of regions
+            // Group of regions or Service Providers
             if (GROUP_OF_REGIONS.equals(groupInfo.getEntityTypes())
                     // Billing Family
                     || groupInfo.getGroupType() == GroupType.BILLING_FAMILY
                     // Group of Billing Family
-                    || GROUP_OF_BILLING_FAMILY.equals(groupInfo.getNestedGroupTypes())) {
+                    || GROUP_OF_BILLING_FAMILY.equals(groupInfo.getNestedGroupTypes())
+                    || GROUP_OF_SERVICE_PROVIDERS.equals(groupInfo.getEntityTypes())) {
                 return groupInfo.getEntityIds();
             }
         }
@@ -133,13 +136,15 @@ public class BuyRiScopeHandler {
         if (inputScope.isRealtimeMarket() || inputScope.isPlan()) {
             return true;
         } else if (inputScope.isEntity() && inputScope.getScopeTypes().isPresent()) {
-            // The buy RI discount should be shown in scope of a region
-            return GROUP_OF_REGIONS.equals(inputScope.getScopeTypes().orElse(null));
+            // The buy RI discount should be shown in scope of a region and a scoped based on service providers
+            return GROUP_OF_REGIONS.equals(inputScope.getScopeTypes().orElse(null)) ||
+                            GROUP_OF_SERVICE_PROVIDERS.equals(inputScope.getScopeTypes().orElse(null));
         } else if (inputScope.isGroup() && inputScope.getCachedGroupInfo().isPresent()) {
             final UuidMapper.CachedGroupInfo groupInfo = inputScope.getCachedGroupInfo().get();
 
-            // If it is a group of region we should not exclude the buy RI discount
-            if (GROUP_OF_REGIONS.equals(groupInfo.getEntityTypes())) {
+            // If it is a group of region or Service Providers we should not exclude the buy RI discount
+            if (GROUP_OF_REGIONS.equals(groupInfo.getEntityTypes()) ||
+                            GROUP_OF_SERVICE_PROVIDERS.equals(groupInfo.getEntityTypes())) {
                 return true;
             }
             // Otherwise only return true if this is a billing family or group of billing family

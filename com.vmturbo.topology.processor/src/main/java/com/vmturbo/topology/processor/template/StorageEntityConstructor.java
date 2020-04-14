@@ -14,6 +14,7 @@ import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.ge
 import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getCommoditySoldConstraint;
 import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.updateRelatedEntityAccesses;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -25,7 +26,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -35,43 +35,35 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
  * Create a TopologyEntityDTO from Storage Template. The new Topology Entity contains such as OID, displayName,
  * commodity sold, commodity bought, entity state, provider policy and consumer policy.
  * And also it will try to keep all commodity constrains from the original topology entity.
  */
-public class StorageEntityConstructor implements TopologyEntityConstructor {
+public class StorageEntityConstructor extends TopologyEntityConstructor {
 
     private static final String ZERO = "0";
 
     static final String COMMODITY_KEY_PREFIX = "AddFromTemplate::";
 
-    /**
-     * Create a TopologyEntityDTO from Storage Template.
-     *
-     * @param template {@link Template}
-     * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
-     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
-     *                 entities related to the entity being replaced may be updated to fix up relationships
-     *                 to point to the new entity along with the old entity.
-     * @param originalTopologyEntity the original topology entity which this template want to keep its
-     *                               commodity constrains. It could be null, if it is new adding template.
-     * @return {@link TopologyEntityDTO}.
-     */
     @Override
-    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
+    public Collection<TopologyEntityDTO.Builder> createTopologyEntityFromTemplate(
             @Nonnull final Template template,
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity) {
+            @Nonnull Optional<TopologyEntity.Builder> originalTopologyEntity, boolean isReplaced,
+            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
+        TopologyEntityDTO.Builder topologyEntityBuilder = super.createTopologyEntityFromTemplate(
+                template, topology, originalTopologyEntity, isReplaced, identityProvider).iterator()
+                        .next();
+
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints;
         final Set<CommoditySoldDTO> commoditySoldConstraints;
-        if (originalTopologyEntity == null) {
+        if (!originalTopologyEntity.isPresent()) {
             // The case where a new storage is added from template.
             addExtentCommodityBought(topology, topologyEntityBuilder);
             commodityBoughtConstraints = Collections.emptyList();
@@ -94,11 +86,12 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
         topologyEntityBuilder.getAnalysisSettingsBuilder().setShopTogether(false);
 
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
-        if (originalTopologyEntity != null) {
-            updateRelatedEntityAccesses(originalTopologyEntity.getOid(), topologyEntityBuilder.getOid(),
+        if (originalTopologyEntity.isPresent()) {
+            updateRelatedEntityAccesses(originalTopologyEntity.get().getOid(),
+                    topologyEntityBuilder.getOid(),
                 commoditySoldConstraints, topology);
         }
-        return topologyEntityBuilder;
+        return Collections.singletonList(topologyEntityBuilder);
     }
 
     /**

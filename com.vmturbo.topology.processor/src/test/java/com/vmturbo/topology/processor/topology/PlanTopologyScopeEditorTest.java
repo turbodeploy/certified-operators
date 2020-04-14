@@ -1,6 +1,9 @@
 package com.vmturbo.topology.processor.topology;
 
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -12,7 +15,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,6 +23,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -56,7 +59,8 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
+import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor.FastLookupQueue;
 
 /**
  * Unit tests for {@link PlanTopologyScopeEditor}.
@@ -578,10 +582,10 @@ public class PlanTopologyScopeEditorTest {
      * Scenario: scope on pm1 and pm2 which consumes on dc1.
      * Expected: the entities in scope should be vm1, vm2, pm1, pm2, dc1, vv, st1, da1, app1, as1, ba
      *
-     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnCluster() throws PipelineStageException {
+    public void testScopeOnpremTopologyOnCluster() throws Exception {
         Grouping g = Grouping.newBuilder()
                         .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
                         .setDefinition(GroupDefinition.newBuilder()
@@ -599,7 +603,9 @@ public class PlanTopologyScopeEditorTest {
             .setGroupFilter(GroupFilter.newBuilder().addId(25001L))
             .setReplaceGroupPropertyWithGroupMembershipFilter(true)
             .build())).thenReturn(groups);
-        when(groupResolver.resolve(eq(g), eq(graph))).thenReturn(new HashSet<>(Arrays.asList(pm1InDc1.getOid(), pm2InDc1.getOid())));
+        when(groupResolver.resolve(eq(g), eq(graph))).thenReturn(
+            new ResolvedGroup(g, Collections.singletonMap(ApiEntityType.PHYSICAL_MACHINE,
+                Sets.newHashSet(pm1InDc1.getOid(), pm2InDc1.getOid()))));
 
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Cluster")
@@ -619,10 +625,10 @@ public class PlanTopologyScopeEditorTest {
      * Expected: the entities in scope should be ba, as1, vm1, vm2, pm1, pm2, dc1, vv, st1,
      * da1, as2, vm3, pm3, dc2, st2
      *
-     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnBA() throws PipelineStageException {
+    public void testScopeOnpremTopologyOnBA() throws Exception {
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("BusinessApplication")
                                 .setScopeObjectOid(80001L).setDisplayName("BusinessApplication1").build()).build();
@@ -643,10 +649,10 @@ public class PlanTopologyScopeEditorTest {
      * Scenario: scope on st2 which hosts vm on dc2.
      * Expected: the entities in scope should be ba, as2, vm3, pm3, st2, dc2, da1
      *
-     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnStorage() throws PipelineStageException {
+    public void testScopeOnpremTopologyOnStorage() throws Exception {
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("Storage")
                                 .setScopeObjectOid(40002L).setDisplayName("Storage2").build()).build();
@@ -665,10 +671,10 @@ public class PlanTopologyScopeEditorTest {
      * Scenario: scope on vm2 which consumes pm2 on dc1, st1 on da1. The vm2 hosts no application at all.
      * Expected: the entities in scope should be dc1, da1, pm1, pm2, st1, vm2
      *
-     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnVM() throws PipelineStageException {
+    public void testScopeOnpremTopologyOnVM() throws Exception {
         final PlanScope planScope = PlanScope.newBuilder()
                         .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
                                 .setScopeObjectOid(30002L).setDisplayName("VM2").build()).build();
@@ -687,10 +693,10 @@ public class PlanTopologyScopeEditorTest {
      * Scenario: scope on vm2 and a clone added of this VM via plan scenario.
      * Expected: the entities in scope should be vm2 and its clone.
      *
-     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnVMWithCloneInScope() throws PipelineStageException {
+    public void testScopeOnpremTopologyOnVMWithCloneInScope() throws Exception {
         long originalVMOid = 30002L;
         final PlanScope planScope = PlanScope.newBuilder()
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
@@ -725,10 +731,10 @@ public class PlanTopologyScopeEditorTest {
      * Scenario: scope on VM2 and a clone added of out of scope VM1_clone (VM1 is out of scope) via plan scenario.
      * Expected: the entities in scope should be the clone and VM2.
      *
-     * @throws PipelineStageException An exception thrown when a stage of the pipeline fails.
+     * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
     @Test
-    public void testScopeOnpremTopologyOnClonedVMFromOutOfScope() throws PipelineStageException {
+    public void testScopeOnpremTopologyOnClonedVMFromOutOfScope() throws Exception {
         long originalVMOid = 30002L;
         final PlanScope planScope = PlanScope.newBuilder()
                 .addScopeEntries(PlanScopeEntry.newBuilder().setClassName("VirtualMachine")
@@ -756,6 +762,38 @@ public class PlanTopologyScopeEditorTest {
         assertTrue(result.getEntity(cloneOid).isPresent());
         assertTrue(result.getEntity(cloneOid).get().getClonedFromEntity().isPresent());
         assertEquals(vm1InDc1.getOid(), result.getEntity(cloneOid).get().getClonedFromEntity().get().getOid());
+    }
+
+    /**
+     * Test operations on the {@link FastLookupQueue} used internally in the editor.
+     */
+    @Test
+    public void testLookupQueue() {
+        FastLookupQueue lookupQueue = new FastLookupQueue();
+        assertTrue(lookupQueue.isEmpty());
+
+        lookupQueue.tryAdd(1L);
+        assertFalse(lookupQueue.isEmpty());
+        lookupQueue.tryAdd(2L);
+        assertThat(lookupQueue.size(), is(2));
+
+        // Second addition shouldn't increase the size of the queue.
+        lookupQueue.tryAdd(1L);
+        assertThat(lookupQueue.size(), is(2));
+
+        // Check contains.
+        assertTrue(lookupQueue.contains(1L));
+        assertTrue(lookupQueue.contains(2L));
+        assertFalse(lookupQueue.contains(3L));
+
+        // Start removing stuff, and verify that it gets removed in the right order.
+        assertThat(lookupQueue.remove(), is(1L));
+        assertFalse(lookupQueue.contains(1L));
+        lookupQueue.tryAdd(3L);
+        assertThat(lookupQueue.remove(), is(2L));
+        assertFalse(lookupQueue.contains(2L));
+        assertThat(lookupQueue.remove(), is(3L));
+        assertTrue(lookupQueue.isEmpty());
     }
 
     private static TopologyEntity.Builder createHypervisorTopologyEntity(long oid,

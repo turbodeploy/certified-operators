@@ -6,15 +6,20 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.buildEntityTypeAn
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.getCommodityDisplayName;
 
 import java.text.MessageFormat;
+import java.text.SimpleDateFormat;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.StringJoiner;
+import java.util.TimeZone;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -45,6 +50,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
+import com.vmturbo.commons.Pair;
 
 /**
  * A utility with static methods that assist in composing explanations for actions.
@@ -445,7 +451,12 @@ public class ExplanationComposer {
         // NOT addressing special cases for: Ready Queue, Reserved Instance, Cloud Template, Fabric
         // Interconnect, VStorage, VCPU. If we really need those, we can add them in as necessary.
         ResizeExplanation resizeExplanation = action.getExplanation().getResize();
-        boolean isResizeDown = resizeExplanation.getStartUtilization() < resizeExplanation.getEndUtilization();
+        boolean isResizeDown;
+        if (action.getInfo().getResize().getOldCapacity() > action.getInfo().getResize().getNewCapacity()) {
+            isResizeDown = true;
+        } else {
+            isResizeDown = false;
+        }
 
         // since we may show entity name, we are going to build a translatable explanation
         StringBuilder sb = new StringBuilder(keepItShort ? "" : ActionDTOUtil.TRANSLATION_PREFIX);
@@ -526,9 +537,8 @@ public class ExplanationComposer {
         @Nonnull List<ReasonCommodity> reasonCommodities,
         @Nonnull ChangeProviderExplanationTypeCase explanationType,
         final boolean keepItShort) {
-        String commaSeparatedReasonCommodities = reasonCommodities.stream()
-                            .map(ReasonCommodity::getCommodityType)
-                            .map(c -> commodityDisplayName(c, keepItShort))
+        final String commaSeparatedReasonCommodities = reasonCommodities.stream()
+                            .map(c -> buildExplanationWithTimeSlots(c, keepItShort))
                             .collect(Collectors.joining(", "));
         if (explanationType == ChangeProviderExplanationTypeCase.EFFICIENCY) {
             return "Underutilized " + commaSeparatedReasonCommodities;
@@ -693,5 +703,63 @@ public class ExplanationComposer {
      */
     private static String buildProvisionBySupplyExplanation(@Nonnull final CommodityType commodity) {
         return getCommodityDisplayName(commodity) + " congestion";
+    }
+
+    /**
+     * Build congestion explanation with time slots, if needed.
+     *
+     * @param reasonCommodity Commodity causing the move
+     * @param keepItShort Short of long explanation
+     * @return Explanation string
+     */
+    @Nonnull
+    private static String buildExplanationWithTimeSlots(@Nonnull final ReasonCommodity reasonCommodity,
+                                                        final boolean keepItShort) {
+        String commodityDisplayName = commodityDisplayName(reasonCommodity.getCommodityType(),
+            keepItShort);
+        if (!reasonCommodity.hasTimeSlot()) {
+            return commodityDisplayName;
+        }
+        final Pair<Long, Long> timeSlotEndPoints = getTimeSlotEndPoints(reasonCommodity);
+        if (timeSlotEndPoints == null) {
+            return commodityDisplayName;
+        }
+        final SimpleDateFormat formatter = new SimpleDateFormat("hh:mm a");
+        formatter.setTimeZone(TimeZone.getTimeZone("UTC"));
+        final Date today = new Date();
+        today.setTime(timeSlotEndPoints.first);
+        final String startStr = formatter.format(today);
+        today.setTime(timeSlotEndPoints.second);
+        final String endStr = formatter.format(today);
+        commodityDisplayName += " at " + startStr + " - " + endStr;
+        return commodityDisplayName;
+    }
+
+    /**
+     * Convert slot number to times within the day.
+     *
+     * @param reasonCommodity Commodity with time slot
+     * @return Array with start/end time corresponding to the slot number, or null if we failed
+     * to convert it.
+     */
+    @Nullable
+    private static Pair<Long, Long> getTimeSlotEndPoints(@Nonnull final ReasonCommodity reasonCommodity) {
+        final int totalSlotNumber = reasonCommodity.getTimeSlot().getTotalSlotNumber();
+        if (totalSlotNumber == 0) {
+            logger.error("Total number of time slots is 0 in ReasonCommodity {}",
+                () -> reasonCommodity);
+            return null;
+        }
+        final int slot = reasonCommodity.getTimeSlot().getSlot();
+        if (slot < 0 || slot >= totalSlotNumber) {
+            logger.error("Time slot {} is not a positive number less than configured number of " +
+                    "time slots {} in ReasonCommodity {}", () -> slot, () -> totalSlotNumber,
+                () -> reasonCommodity);
+            return null;
+        }
+        final Duration eachSlotDuration = Duration.ofHours(24 / totalSlotNumber);
+        final long start = (slot * eachSlotDuration.toMillis());
+        final long end = start + eachSlotDuration.toMillis();
+        return new Pair<>(start, end);
     }
 }

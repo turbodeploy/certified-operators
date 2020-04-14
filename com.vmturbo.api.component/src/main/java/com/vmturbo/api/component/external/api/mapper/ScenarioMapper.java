@@ -1265,28 +1265,47 @@ public class ScenarioMapper {
      * represents the scope contents in XL DTO schema objects.
      * @param scopeDTOs the list of scope DTO objects, which can be empty or null.
      * @return the equivalent PlanScope, if any scope DTO's were found. Empty otherwise.
+     * @throws IllegalArgumentException if any of the scope DTOs in the list does not have a uuid,
+     *                                  or if the class name provided in a scopeDTO does not match
+     *                                  the class name internally associated with the DTO's uuid.
+     * @throws OperationFailedException if looking up the uuid from a scopeDTO fails.
      */
-    private Optional<PlanScope> getScope(@Nullable final List<BaseApiDTO> scopeDTOs) {
+    private Optional<PlanScope> getScope(@Nullable final List<BaseApiDTO> scopeDTOs)
+            throws IllegalArgumentException, OperationFailedException {
         // convert scope info from BaseApiDTO's to PlanScopeEntry objects
         if (scopeDTOs == null || scopeDTOs.size() == 0) {
             return Optional.empty(); // no scope to convert
         }
 
+        ApiId resolvedScope;
         PlanScope.Builder scopeBuilder = PlanScope.newBuilder();
         // add all of the scope entries to the builder
         for (BaseApiDTO scopeDTO : scopeDTOs) {
+            if (scopeDTO.getUuid() == null) {
+                throw new IllegalArgumentException("Found scopes with invalid uuid: "
+                        + scopeDTO.getDisplayName());
+            }
+            resolvedScope = uuidMapper.fromUuid(scopeDTO.getUuid());
+            // Validate class name only, no need for display name (we'll use what we get from the
+            // apiId)
+            // - If it is empty, then we'll just use apiId's class name.
+            // - If it is populated, check that it matches the apiId's class name.
+            if (scopeDTO.getClassName() != null
+                    && !scopeDTO.getClassName().equalsIgnoreCase(resolvedScope.getClassName())) {
+                throw new IllegalArgumentException("Incorrect class name for scope with uuid "
+                        + resolvedScope.uuid());
+            }
             // Since all scope entries are additive, if any scope is the Market scope, then this is
             // effectively the same as an unscoped plan, so return the empty scope. In the future,
             // if we support scope reduction entries, this may change.
-            if (scopeDTO.getClassName().equalsIgnoreCase(MARKET_PLAN_SCOPE_CLASSNAME)) {
+            if (resolvedScope.getClassName().equalsIgnoreCase(MARKET_PLAN_SCOPE_CLASSNAME)) {
                 return Optional.empty();
             }
 
-            long objectId = Long.parseLong(scopeDTO.getUuid());
             scopeBuilder.addScopeEntriesBuilder()
-                    .setScopeObjectOid(objectId)
-                    .setClassName(scopeDTO.getClassName())
-                    .setDisplayName(scopeDTO.getDisplayName());
+                    .setScopeObjectOid(resolvedScope.oid())
+                    .setClassName(resolvedScope.getClassName())
+                    .setDisplayName(resolvedScope.getDisplayName());
         }
         // we have a customized scope -- return it
         return Optional.of(scopeBuilder.build());

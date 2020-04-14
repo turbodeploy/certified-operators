@@ -874,8 +874,8 @@ public class ActionModeCalculatorTest {
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setExplanation(Explanation.newBuilder()
                 .setResize(ResizeExplanation.newBuilder()
-                    .setStartUtilization(25)
-                    .setEndUtilization(50)
+                    .setDeprecatedStartUtilization(25)
+                    .setDeprecatedEndUtilization(50)
                     .build()))
             .setDeprecatedImportance(0);
         final ActionDTO.Action recommendation = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -899,8 +899,8 @@ public class ActionModeCalculatorTest {
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setExplanation(Explanation.newBuilder()
                 .setResize(ResizeExplanation.newBuilder()
-                    .setStartUtilization(100)
-                    .setEndUtilization(50)
+                    .setDeprecatedStartUtilization(100)
+                    .setDeprecatedEndUtilization(50)
                     .build()))
             .setDeprecatedImportance(0);
         final ActionDTO.Action recommendation = actionBuilder

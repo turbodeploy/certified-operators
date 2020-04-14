@@ -84,6 +84,9 @@ public class GroupScopePropertyExtractor {
                     .put(EntityPropertyName.GUEST_LOAD_UUID, groupScopedEntity -> {
                             return groupScopedEntity.getGuestLoadEntityOid();
                     })
+                    .put(EntityPropertyName.LOCAL_NAME, groupScopedEntity -> {
+                        return groupScopedEntity.getLocalName();
+                    })
                     .put(EntityPropertyName.MEM_BALLOONING,
                             new CommodityCapacityExtractor(CommodityType.BALLOONING))
                     .put(EntityPropertyName.VCPU_CAPACITY,

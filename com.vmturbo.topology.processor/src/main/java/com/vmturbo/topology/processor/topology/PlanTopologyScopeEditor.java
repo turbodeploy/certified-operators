@@ -3,55 +3,68 @@ package com.vmturbo.topology.processor.topology;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import gnu.trove.TLongCollection;
+import gnu.trove.list.TLongList;
+import gnu.trove.list.array.TLongArrayList;
+import gnu.trove.list.linked.TLongLinkedList;
+import gnu.trove.set.TLongSet;
+import gnu.trove.set.hash.TLongHashSet;
+
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
-import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.analysis.InvertedIndex;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.graph.TopologyGraphCreator;
 import com.vmturbo.topology.graph.TopologyGraphEntity;
+import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
-import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.PipelineStageException;
 
 public class PlanTopologyScopeEditor {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final Set<EntityType> CLOUD_SCOPE_ENTITY_TYPES = Stream.of(EntityType.REGION,
-                             EntityType.BUSINESS_ACCOUNT, EntityType.VIRTUAL_MACHINE,
-                             EntityType.DATABASE, EntityType.DATABASE_SERVER,
-                             EntityType.VIRTUAL_VOLUME)
-                    .collect(Collectors.collectingAndThen(Collectors.toSet(),
+    private static final Set<EntityType> CLOUD_SCOPE_ENTITY_TYPES = Stream.of(
+            EntityType.REGION,
+            EntityType.BUSINESS_ACCOUNT,
+            EntityType.VIRTUAL_MACHINE,
+            EntityType.DATABASE,
+            EntityType.DATABASE_SERVER,
+            EntityType.VIRTUAL_VOLUME,
+            EntityType.AVAILABILITY_ZONE)
+            .collect(Collectors.collectingAndThen(Collectors.toSet(),
                                                           Collections::unmodifiableSet));
 
     private static final Set<Integer> ENTITY_TYPES_TO_SKIP =
@@ -219,7 +232,7 @@ public class PlanTopologyScopeEditor {
      * @param planScope the user defined plan scope
      * @param planProjectType the type of plan.
      * @return scoped {@link TopologyGraph}
-     * @throws PipelineStageException if the pipeline has errors.
+     * @throws GroupResolutionException if the pipeline has errors.
      **/
     public TopologyGraph<TopologyEntity> indexBasedScoping(
             @Nonnull final InvertedIndex<TopologyEntity,
@@ -227,35 +240,37 @@ public class PlanTopologyScopeEditor {
             @Nonnull final TopologyGraph<TopologyEntity> topology,
             @Nonnull final GroupResolver groupResolver,
             @Nonnull final PlanScope planScope,
-            PlanProjectType planProjectType) throws PipelineStageException {
+            PlanProjectType planProjectType) throws GroupResolutionException {
+        final Stopwatch stopwatch = Stopwatch.createStarted();
 
         logger.info("Entering scoping stage for on-prem topology .....");
         // record a count of the number of entities by their entity type in the context.
-        logger.info("Initial entity graph total count is {}", topology.size());
         entityCountMsg(topology.entities().collect(Collectors.toSet()));
 
         Map<EntityType, Set<TopologyEntity>> allSeed = getSeedEntities(groupResolver, planScope, topology);
+
+        final TLongSet seedOids = new TLongHashSet(allSeed.values().stream().mapToInt(Set::size).sum());
+        allSeed.values().forEach(entities -> entities.forEach(e -> seedOids.add(e.getOid())));
+
         // a "work queue" of entities to expand; any given OID is only ever added once -
         // if already in 'scopedTopologyOIDs' it has been considered and won't be re-expanded
-        List<Long> seedOids = allSeed.values().stream()
-                .flatMap(s -> s.stream())
-                .mapToLong(TopologyEntity::getOid)
-                .boxed().collect(Collectors.toList());
         // When the seed is a set of entities, we start traversing upwards till top of the supply-chain by successively
         // adding all the customers of one entity into the suppliersToExpand and recursively epanding upwards
-        Queue<Long> suppliersToExpand = Lists.newLinkedList(seedOids);
+        final FastLookupQueue suppliersToExpand = new FastLookupQueue(seedOids);
 
         // the queue of entities to expand "downwards".
-        Queue<Long> buyersToSatisfy = Lists.newLinkedList();
-        Set<Long> visited = new HashSet<>();
+        final FastLookupQueue buyersToSatisfy = new FastLookupQueue();
+        final TLongSet visited = new TLongHashSet();
 
         // the resulting scoped topology - contains at least the seed OIDs
-        final Set<Long> scopedTopologyOIDs = Sets.newHashSet(suppliersToExpand);
+        final TLongSet scopedTopologyOIDs = new TLongHashSet(seedOids);
 
         // starting with the seed, expand "up"
         while (!suppliersToExpand.isEmpty()) {
-            long traderOid = suppliersToExpand.remove();
-            Optional<TopologyEntity> optionalEntity = topology.getEntity(traderOid);
+            // the traversal is going to be in a random order in this version.
+            // We do not lose any functionality or performance by having a random order.
+            final long traderOid = suppliersToExpand.remove();
+            final Optional<TopologyEntity> optionalEntity = topology.getEntity(traderOid);
             if (!optionalEntity.isPresent()) {
                 // not all entities are guaranteed to be in the traders set -- the
                 // market will exclude entities based on factors such as entitystate, for example.
@@ -267,143 +282,134 @@ public class PlanTopologyScopeEditor {
             if (logger.isTraceEnabled()) {
                 logger.trace("expand OID {}: {}", traderOid, optionalEntity.get().getDisplayName());
             }
-            TopologyEntity entity = optionalEntity.get();
+            final TopologyEntity entity = optionalEntity.get();
             // remember the trader for this OID in the scoped topology & continue expanding "up"
             scopedTopologyOIDs.add(traderOid);
+
+            // Used to track how many suppliers we added while processing this trader.
+            final int beforeSuppliers = suppliersToExpand.size();
+
             // add OIDs of traders THAT buy from this entity which we have not already added
-            List<Long> relatedEntityOids = entity.getConsumers().stream()
-                    .map(trader -> trader.getOid())
-                    .filter(customerOid -> !scopedTopologyOIDs.contains(customerOid) &&
-                            !suppliersToExpand.contains(customerOid))
-                    .collect(Collectors.toList());
+            entity.getConsumers().forEach(e -> {
+                final long oid = e.getOid();
+                if (!scopedTopologyOIDs.contains(oid)) {
+                    suppliersToExpand.tryAdd(oid);
+                }
+            });
+
             // For reservation plan we remove all vms..so the cluster is empty.
             // so we have to add the storages explicitly.
             if (planProjectType == PlanProjectType.RESERVATION_PLAN &&
                     entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
-                boolean ishostEmpty =
-                        !entity.getConsumers().stream().anyMatch(a -> (a.getEntityType()
-                                == EntityType.VIRTUAL_MACHINE_VALUE));
-                if (ishostEmpty) {
-                    scopedTopologyOIDs
-                            .addAll(entity.getProviders().stream()
-                                    .filter(a -> a.getEntityType()
-                                            == EntityType.STORAGE_VALUE)
-                                    .map(b -> b.getOid())
-                                    .collect(Collectors.toSet()));
+                final boolean isHostEmpty = entity.getConsumers().stream()
+                    .noneMatch(a -> (a.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE));
+                if (isHostEmpty) {
+                    entity.getProviders().stream()
+                        .filter(a -> a.getEntityType() == EntityType.STORAGE_VALUE)
+                        .forEach(e -> scopedTopologyOIDs.add(e.getOid()));
                 }
             }
 
             // pull in inboundAssociatedEntities of VMs so as to not skip entities like vVolume
             // that doesnt buy/sell commodities
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                entity.getOutboundAssociatedEntities().stream()
-                        .map(trader -> trader.getOid())
-                        .filter(entityOid -> !scopedTopologyOIDs.contains(entityOid) &&
-                                !suppliersToExpand.contains(entityOid))
-                        .collect(Collectors.toCollection(() -> relatedEntityOids));
+                entity.getOutboundAssociatedEntities().forEach(e -> {
+                    final long oid = e.getOid();
+                    if (!scopedTopologyOIDs.contains(oid)) {
+                        suppliersToExpand.tryAdd(oid);
+                    }
+                });
             }
-            if (relatedEntityOids.size() == 0) {
-                // if no customers, then "start downwards" from here
+
+            final int numSuppliersAdded = suppliersToExpand.size() - beforeSuppliers;
+            // if no customers, then "start downwards" from here
+            // otherwise keep expanding upwards
+            if (numSuppliersAdded == 0) {
                 if (!visited.contains(traderOid)) {
-                    buyersToSatisfy.add(traderOid);
+                    buyersToSatisfy.tryAdd(traderOid);
                     visited.add(traderOid);
-                }
-            } else {
-                // otherwise keep expanding upwards
-                suppliersToExpand.addAll(relatedEntityOids);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("add supplier oids ");
-                    relatedEntityOids.forEach(oid -> logger.trace("{}: {}", oid, entity.getDisplayName()));
                 }
             }
         }
+
+        logger.info("Completed consumer traversal in {} millis.", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+        stopwatch.reset();
+        stopwatch.start();
+
         logger.trace("top OIDs: {}", buyersToSatisfy);
         // record the 'providers' we've expanded on the way down so we don't re-expand unnecessarily
-        Set<Long> providersExpanded = new HashSet<>();
+        final TLongSet providersExpanded = new TLongHashSet();
         // starting with buyersToSatisfy, expand "downwards"
         while (!buyersToSatisfy.isEmpty()) {
-            long traderOid = buyersToSatisfy.remove();
-            TopologyEntity buyer = topology.getEntity(traderOid).get();
+            final long traderOid = buyersToSatisfy.remove();
+            final TopologyEntity buyer = topology.getEntity(traderOid).get();
+            final boolean skipEntityType = ENTITY_TYPES_TO_SKIP.contains(buyer.getEntityType());
             providersExpanded.add(traderOid);
-            TopologyEntity thisTrader = topology.getEntity(traderOid).get();
             // build list of potential sellers for the commodities this Trader buys; omit Traders already expanded
             // also omit traders of the type pulled in as seed members
-            Set<TopologyEntity> potentialSellers = getPotentialSellers(index, thisTrader.getTopologyEntityDtoBuilder()
+            final Stream<TopologyEntity> potentialSellers = getPotentialSellers(index, buyer.getTopologyEntityDtoBuilder()
                             .getCommoditiesBoughtFromProvidersList().stream());
-            List<Long> sellersAndConnectionsOids = potentialSellers.stream()
-                    .map(trader -> trader.getOid())
-                    .filter(buyerOid -> !providersExpanded.contains(buyerOid))
-                    .collect(Collectors.toList());
-            // pull in inboundAssociatedEntities of VMs so as to not skip entities like vVolume
-            // that doesnt buy/sell commodities
+            final Stream<TopologyEntity> associatedEntities;
             if (buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                buyer.getOutboundAssociatedEntities().stream()
-                        .map(trader -> trader.getOid())
-                        .filter(entityOid -> !scopedTopologyOIDs.contains(entityOid) &&
-                                !suppliersToExpand.contains(entityOid))
-                        .collect(Collectors.toCollection(() -> sellersAndConnectionsOids));
+                associatedEntities = Stream.concat(potentialSellers, buyer.getOutboundAssociatedEntities().stream());
+            } else {
+                associatedEntities = potentialSellers;
             }
+
+            associatedEntities.forEach(seller -> {
+                final long sellerId = seller.getOid();
+                if (!providersExpanded.contains(sellerId)) {
+                    // if thisTrader is "skipped", and is not a seed, bring in just the sellers that we have already scoped in.
+                    // This logic is for business applications.
+                    if (!skipEntityType || (seedOids.contains(traderOid) || scopedTopologyOIDs.contains(seller.getOid())) ) {
+                        if (!allSeed.containsKey(EntityType.forNumber(topology.getEntity(sellerId).get().getEntityType()))) {
+                            scopedTopologyOIDs.add(sellerId);
+                        }
+                        if (!visited.contains(sellerId)) {
+                            visited.add(sellerId);
+                            buyersToSatisfy.tryAdd(sellerId);
+                        }
+                    }
+                }
+            });
 
             // For reservation plan we remove all vms..so the cluster is empty.
             // so we have to add the storages explicitly.
             if (planProjectType == PlanProjectType.RESERVATION_PLAN &&
                     buyer.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE) {
-                boolean ishostEmpty =
-                        !buyer.getConsumers().stream().anyMatch(a -> (a.getEntityType()
-                                == EntityType.VIRTUAL_MACHINE_VALUE));
-                if (ishostEmpty) {
-                    scopedTopologyOIDs
-                            .addAll(buyer.getProviders().stream()
-                                    .filter(a -> a.getEntityType()
-                                            == EntityType.STORAGE_VALUE)
-                                    .map(b -> b.getOid())
-                                    .collect(Collectors.toSet()));
-                }
-            }
-
-            // if thisTrader is a bapp that is not a seed, bring in just the apps that we have already scoped in
-            if (ENTITY_TYPES_TO_SKIP.contains(thisTrader.getEntityType())) {
-                if (!seedOids.contains(traderOid)) {
-                    sellersAndConnectionsOids.retainAll(scopedTopologyOIDs);
-                }
-            }
-            for (Long buyerOid : sellersAndConnectionsOids) {
-                // if sellersAndConnectionsOids is an entity of type that we have scoped to, dont add it to scope.
-                if (!allSeed.containsKey(EntityType.forNumber(topology.getEntity(buyerOid).get().getEntityType()))) {
-                    scopedTopologyOIDs.add(buyerOid);
-                }
-                if (visited.contains(buyerOid)) {
-                    continue;
-                }
-                visited.add(buyerOid);
-                buyersToSatisfy.add(buyerOid);
-            }
-
-            if (logger.isTraceEnabled()) {
-                if (sellersAndConnectionsOids.size() > 0) {
-                    logger.trace("add buyer oids: ");
-                    sellersAndConnectionsOids.forEach(oid -> logger.trace("{}: {}",
-                            oid, topology.getEntity(oid).get().getDisplayName()));
+                final boolean isHostEmpty = buyer.getConsumers().stream()
+                    .noneMatch(a -> (a.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE));
+                if (isHostEmpty) {
+                    buyer.getProviders().forEach(e -> {
+                        if (e.getEntityType() == EntityType.STORAGE_VALUE) {
+                            scopedTopologyOIDs.add(e.getOid());
+                        }
+                    });
                 }
             }
         }
-        Map<Long, TopologyEntity.Builder> scopingResult = new HashMap<>();
-        // return the subset of the original TraderTOs that correspond to the scoped topology
-        scopedTopologyOIDs.stream().forEach(oid -> scopingResult.put(oid,
-                TopologyEntity.newBuilder(topology.getEntity(oid).get().getTopologyEntityDtoBuilder())));
 
-        // including addedEntities into the scope
-        topology.entities().filter(entity -> entity.getTopologyEntityDtoBuilder().hasOrigin() &&
-                (entity.getTopologyEntityDtoBuilder().getOrigin().hasPlanScenarioOrigin() ||
-                entity.getTopologyEntityDtoBuilder().getOrigin().hasReservationOrigin()))
-                .forEach(entity -> scopingResult.put(entity.getOid(),
-                        (entity.getClonedFromEntity().isPresent() ?
-                        // For plan origin set cloned from entity
-                        TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder())
-                            .setClonedFromEntity(entity.getClonedFromEntity().get())
-                        : TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder()))));
-        logger.info("Completed scoping stage for on-prem topology .....");
-        return new TopologyGraphCreator<>(scopingResult).build();
+        logger.info("Completed buyer traversal in {} millis", stopwatch.elapsed(TimeUnit.MILLISECONDS));
+        stopwatch.stop();
+
+        final TopologyGraphCreator<TopologyEntity.Builder, TopologyEntity> graphCreator =
+            new TopologyGraphCreator<>(scopedTopologyOIDs.size());
+        topology.entities().forEach(entity -> {
+            // Make sure to add the plan/reservation entities, even if they're not in scope.
+            final boolean planOrReservation =
+                entity.getTopologyEntityDtoBuilder().getOrigin().hasPlanScenarioOrigin() ||
+                entity.getTopologyEntityDtoBuilder().getOrigin().hasReservationOrigin();
+            if (planOrReservation || scopedTopologyOIDs.contains(entity.getOid())) {
+                TopologyEntity.Builder eBldr = TopologyEntity.newBuilder(entity.getTopologyEntityDtoBuilder());
+                entity.getClonedFromEntity().ifPresent(eBldr::setClonedFromEntity);
+                graphCreator.addEntity(eBldr);
+            }
+        });
+
+        final TopologyGraph<TopologyEntity> retGraph = graphCreator.build();
+
+        logger.info("Completed scoping stage for on-prem topology. {} scoped entities", retGraph.size());
+        return retGraph;
     }
 
     /**
@@ -413,15 +419,14 @@ public class PlanTopologyScopeEditor {
      * @param commBoughtFromProviders list of {@link CommoditiesBoughtFromProvider}
      * @return list of potential sellers selling the list of commoditiesBought.
      */
-    public Set<TopologyEntity> getPotentialSellers(@Nonnull final InvertedIndex<TopologyEntity,
+    private Stream<TopologyEntity> getPotentialSellers(@Nonnull final InvertedIndex<TopologyEntity,
             TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider> index,
                        @Nonnull final Stream<CommoditiesBoughtFromProvider> commBoughtFromProviders) {
-        Set<TopologyEntity> potentialSellers = new HashSet<>();
         // vCenter PMs buy latency and iops with active=false from underlying DSs.
         // Bring in only providers for baskets with atleast 1 active commodity
-        commBoughtFromProviders.filter(cbp -> cbp.getCommodityBoughtList().stream().anyMatch(c -> c.getActive() == true))
-                .forEach(cbp -> potentialSellers.addAll(index.getSatisfyingSellers(cbp).collect(Collectors.toList())));
-        return potentialSellers;
+        return commBoughtFromProviders
+            .filter(cbp -> cbp.getCommodityBoughtList().stream().anyMatch(CommodityBoughtDTO::getActive))
+            .flatMap(index::getSatisfyingSellers);
     }
 
     private static boolean discoveredBy(@Nonnull TopologyEntity topologyEntity,
@@ -443,30 +448,18 @@ public class PlanTopologyScopeEditor {
     }
 
     /**
-     * Returns a map of entity set by entity type.
-     *
-     * @param resultEntityMap the entities to be counted.
-     * @return entity count by entity type
-     */
-    private Map<Integer, Long> entityByType(Map<Long, TopologyEntity.Builder> resultEntityMap) {
-        return resultEntityMap.values().stream()
-                .collect(Collectors.groupingBy(TopologyEntity.Builder::getEntityType,
-                        Collectors.counting()));
-    }
-
-    /**
      * Resolves the plan scope and returns a map of entity set by entity type.
      *
      * @param groupResolver the group resolver
      * @param planScope user defined plan scope
      * @param graph the topology entity graph
      * @return a set of topology entities that are grouped by entity type
-     * @throws PipelineStageException
+     * @throws GroupResolutionException If there is an error resolving one of the scope groups.
      */
     private Map<EntityType, Set<TopologyEntity>> getSeedEntities(@Nonnull final GroupResolver groupResolver,
                                                                  @Nonnull final PlanScope planScope,
                                                                  @Nonnull final TopologyGraph<TopologyEntity> graph)
-                                                                 throws PipelineStageException {
+            throws GroupResolutionException {
         // create seed entity set by adding scope entries representing individual entities.
         Set<Long> seedEntityIdSet = planScope.getScopeEntriesList().stream()
                 .filter(s -> !StringConstants.GROUP_TYPES.contains(s.getClassName()))
@@ -479,15 +472,16 @@ public class PlanTopologyScopeEditor {
                 .map(PlanScopeEntry::getScopeObjectOid)
                 .collect(Collectors.toSet());
         if (!groupIds.isEmpty()) {
-            groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
+            final Iterator<Grouping> groups = groupServiceClient.getGroups(GetGroupsRequest.newBuilder()
                     .setGroupFilter(GroupFilter.newBuilder()
                             .addAllId(groupIds))
                     .setReplaceGroupPropertyWithGroupMembershipFilter(true)
-                    .build())
-                    .forEachRemaining(g -> {
-                        Set<Long> groupMembers = groupResolver.resolve(g, graph);
-                        seedEntityIdSet.addAll(groupMembers);
-                    });
+                    .build());
+            while (groups.hasNext()) {
+                final Grouping group = groups.next();
+                Set<Long> groupMembers = groupResolver.resolve(group, graph).getAllEntities();
+                seedEntityIdSet.addAll(groupMembers);
+            }
         }
         logger.debug("Seed entity ids : {}", seedEntityIdSet);
         Map<EntityType, Set<TopologyEntity>> seedByEntityType = graph.getEntities(seedEntityIdSet)
@@ -496,4 +490,61 @@ public class PlanTopologyScopeEditor {
         return seedByEntityType;
     }
 
+
+    /**
+     * A helper object to provide queue-like semantics for traversal, while supporting quick
+     * membership checks (to avoid adding same entities multiple times).
+     */
+    @VisibleForTesting
+    static class FastLookupQueue {
+        private final TLongList queue;
+        private final TLongSet lookupSet;
+
+        FastLookupQueue() {
+            queue = new TLongArrayList();
+            lookupSet = new TLongHashSet();
+        }
+
+        FastLookupQueue(TLongCollection seedOids) {
+            queue = new TLongLinkedList(seedOids.size());
+            queue.addAll(seedOids);
+            lookupSet = new TLongHashSet(seedOids);
+        }
+
+        /**
+         * Remove and return the first element of the queue.
+         * Throws an exception if called with an empty queue. Always call
+         * {@link FastLookupQueue#isEmpty()} to check.
+         *
+         * @return The element.
+         */
+        long remove() {
+            long val = queue.removeAt(0);
+            lookupSet.remove(val);
+            return val;
+        }
+
+        /**
+         * Add an oid to the queue if it's not already in the queue.
+         *
+         * @param oid The element to add.
+         */
+        void tryAdd(long oid) {
+            if (lookupSet.add(oid)) {
+                queue.add(oid);
+            }
+        }
+
+        boolean contains(long oid) {
+            return lookupSet.contains(oid);
+        }
+
+        int size() {
+            return queue.size();
+        }
+
+        public boolean isEmpty() {
+            return queue.isEmpty();
+        }
+    }
 }

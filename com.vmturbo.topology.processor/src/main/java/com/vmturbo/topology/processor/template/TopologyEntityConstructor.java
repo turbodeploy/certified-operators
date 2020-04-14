@@ -1,36 +1,80 @@
 package com.vmturbo.topology.processor.template;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
- * Responsible for creating a TopologyEntityDTO from TemplateDTO. And those entities should be unplaced.
- * And also it will try to keep all commodity constrains from the original topology entity.
+ * Responsible for creating a TopologyEntityDTO from TemplateDTO. And those
+ * entities should be unplaced. And also it will try to keep all commodity
+ * constrains from the original topology entity.
  */
-public interface TopologyEntityConstructor {
+public class TopologyEntityConstructor {
+
 
     /**
-     * Creating a TopologyEntityDTO from TemplateDTO.
+     * Create topology entities from a template. It modifies the original entity
+     * with the reference to the new one.
+     *
+     * @param template template
+     * @param topology topology
+     * @param originalTopologyEntity original TopologyEntity
+     * @param isReplaced is replaced
+     * @param identityProvider identity provider
+     * @return topology entities
+     * @throws TopologyEntityConstructorException error creating topology
+     *             entities
+     */
+    public Collection<TopologyEntityDTO.Builder> createTopologyEntityFromTemplate(
+            @Nonnull Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
+            @Nonnull Optional<TopologyEntity.Builder> originalTopologyEntity, boolean isReplaced,
+            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
+        TopologyEntityDTO.Builder result = generateTopologyEntityBuilder(template);
+
+        long oid = identityProvider.generateTopologyId();
+        result.setOid(oid);
+
+        String actionName = isReplaced ? " - Replacing " : " - Cloning ";
+        String displayName = template.getTemplateInfo().getName() + actionName;
+
+        if (originalTopologyEntity.isPresent()) {
+            // Modify original topology entity.
+            if (isReplaced) {
+                originalTopologyEntity.get().getEntityBuilder().getEditBuilder()
+                        .getReplacedBuilder().setReplacementId(oid);
+            }
+
+            displayName += originalTopologyEntity.get().getDisplayName();
+        }
+
+        result.setDisplayName(displayName);
+
+        return Collections.singletonList(result);
+    }
+
+    /**
+     * Generate a {@link TopologyEntityDTO} builder contains common fields
+     * between different templates.
      *
      * @param template {@link Template}
-     * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
-     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
-     *                 entities related to the entity being replaced may be updated to fix up relationships
-     *                 to point to the new entity along with the old entity.
-     * @param originalTopologyEntity the original topology entity which this template want to keep its
-     *                               commodity constrains. It could be null, if it is new adding template.
-     * @return {@link TopologyEntityDTO.Builder}
+     * @return {@link TopologyEntityDTO} builder
      */
-    TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-        @Nonnull final Template template,
-        @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-        @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-        @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity);
+    private static TopologyEntityDTO.Builder generateTopologyEntityBuilder(
+            @Nonnull final Template template) {
+        TemplateInfo templateInfo = template.getTemplateInfo();
+        return TopologyEntityDTO.newBuilder().setEntityType(templateInfo.getEntityType())
+                .setEntityState(EntityState.POWERED_ON).setAnalysisSettings(AnalysisSettings
+                        .newBuilder().setIsAvailableAsProvider(true).setShopTogether(true));
+    }
 }

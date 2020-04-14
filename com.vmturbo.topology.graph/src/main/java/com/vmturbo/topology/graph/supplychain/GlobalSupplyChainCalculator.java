@@ -1,11 +1,13 @@
 package com.vmturbo.topology.graph.supplychain;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -35,6 +37,50 @@ public class GlobalSupplyChainCalculator {
                         EntityType.PROCESSOR_POOL_VALUE, EntityType.SERVICE_PROVIDER_VALUE);
 
     public static final Predicate<Integer> DEFAULT_ENTITY_TYPE_FILTER = IGNORED_ENTITY_TYPES_FOR_GLOBAL_SUPPLY_CHAIN::contains;
+
+    /**
+     * Utility method. It takes two sets containing type entities
+     * and an entity. It adds the consumers and the inbound connections
+     * of the entity to the first list and the providers and outbound
+     * connections of the entity to the second list.
+     *
+     * @param consumerTypes the list of entity types ids, in which to add
+     *                      the entity types of consumers and ingoing
+     *                      connections of the entity
+     * @param providerTypes the list of entity types ids, in which to add
+     *                      the entity types of providers and outgoing
+     *                      connections of the entity
+     * @param entity the entity
+     * @param <E1> the subclass of {@link TopologyGraphEntity}
+     *             that represents the entity
+     */
+    public static <E1 extends TopologyGraphEntity<E1>> void
+            updateConsumerAndProviderTypeSets(@Nonnull Set<Integer> consumerTypes,
+                                              @Nonnull Set<Integer> providerTypes,
+                                              @Nonnull E1 entity) {
+        providerTypes.addAll(getEntityTypesFromListOfEntities(entity.getProviders()));
+        providerTypes.addAll(getEntityTypesFromListOfEntities(entity.getAggregatorsAndOwner()));
+        providerTypes.addAll(getEntityTypesFromListOfEntities(entity.getOutboundAssociatedEntities()));
+        consumerTypes.addAll(getEntityTypesFromListOfEntities(entity.getConsumers()));
+        consumerTypes.addAll(getEntityTypesFromListOfEntities(entity.getAggregatedAndOwnedEntities()));
+        consumerTypes.addAll(getEntityTypesFromListOfEntities(entity.getInboundAssociatedEntities()));
+    }
+
+    /**
+     * Utility method to get a list of entity type ids
+     * given a collection of entities.
+     *
+     * @param entities the entities
+     * @param <E1> the subclass of {@link TopologyGraphEntity}
+     *             that represents the entity
+     * @return the entity type ids
+     */
+    private static <E1 extends TopologyGraphEntity<E1>> Set<Integer>
+            getEntityTypesFromListOfEntities(@Nonnull Collection<E1> entities) {
+        return entities.stream()
+                .map(E1::getEntityType)
+                .collect(Collectors.toSet());
+    }
 
     /**
      * Compute the global supply chain.
@@ -89,7 +135,7 @@ public class GlobalSupplyChainCalculator {
             topology.entitiesOfType(entityTypeId)
                 .filter(entityFilter)
                 .forEach(entity -> {
-                            SupplyChainCalculator.updateConsumerAndProviderTypeSets(
+                            updateConsumerAndProviderTypeSets(
                                 connectedConsumerTypes, connectedProviderTypes, entity);
                             membersByState.computeIfAbsent(entity.getEntityState(), k -> new HashSet<>())
                                           .add(entity.getOid());
@@ -101,8 +147,8 @@ public class GlobalSupplyChainCalculator {
             }
 
             // filter unwanted types from connected type sets
-            connectedConsumerTypes.removeIf(entityTypesToSkip::test);
-            connectedProviderTypes.removeIf(entityTypesToSkip::test);
+            connectedConsumerTypes.removeIf(entityTypesToSkip);
+            connectedProviderTypes.removeIf(entityTypesToSkip);
 
             final ApiEntityType entityType = ApiEntityType.fromType(entityTypeId);
 
