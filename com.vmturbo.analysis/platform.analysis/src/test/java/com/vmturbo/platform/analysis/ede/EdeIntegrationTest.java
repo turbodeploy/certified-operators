@@ -27,6 +27,7 @@ import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.SuspensionsThrottlingConfig;
 import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
@@ -143,7 +144,7 @@ public class EdeIntegrationTest {
 
         Ede engine = new Ede();
         engine.setReplayActions(replayActions);
-        replayActions.replayActions(first, ledger);
+        replayActions.replayActions(first, ledger, SuspensionsThrottlingConfig.DEFAULT);
         // assert absence of replayed suspension
         assertTrue(replayActions.getActions().isEmpty());
 
@@ -152,7 +153,7 @@ public class EdeIntegrationTest {
         assertTrue(provisionActions.isEmpty());
 
         // assert absence of suspension
-        Suspension suspension = new Suspension();
+        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
         List<Action> suspendActions = suspension.suspensionDecisions(first, ledger);
         assertTrue(suspendActions.isEmpty());
     }
@@ -176,7 +177,7 @@ public class EdeIntegrationTest {
         Ede engine = new Ede();
         Ledger ledger = new Ledger(first);
         engine.setReplayActions(replayActions);
-        replayActions.replayActions(first, ledger);
+        replayActions.replayActions(first, ledger, SuspensionsThrottlingConfig.DEFAULT);
         // validate that suspension was replayed
         assertTrue(!replayActions.getActions().isEmpty());
 
@@ -189,7 +190,7 @@ public class EdeIntegrationTest {
         assertTrue(provisionActions.stream().filter(Activate.class::isInstance).count() == 1);
 
         // assert absence of 1 suspension
-        Suspension suspension = new Suspension();
+        Suspension suspension = new Suspension(SuspensionsThrottlingConfig.DEFAULT);
         List<Action> suspendActions = suspension.suspensionDecisions(first, ledger);
         assertTrue(suspendActions.isEmpty());
     }
