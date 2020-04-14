@@ -297,10 +297,13 @@ public class SupplyChainFetcherFactory {
                 if (expandServiceEntities.containsKey(oidToExpand)) {
                     final MinimalEntity expandEntity = expandServiceEntities.get(oidToExpand);
                     final List<String> relatedEntityTypes =
-                            expandingMap.get(ApiEntityType.fromType(expandEntity.getEntityType()))
+                            expandingMap.getOrDefault(ApiEntityType.fromType(expandEntity.getEntityType()), Collections.emptySet())
                             .stream()
                             .map(ApiEntityType::apiStr)
                             .collect(Collectors.toList());
+                    if (relatedEntityTypes.isEmpty()) {
+                        continue;
+                    }
                     // fetch the supply chain map:  entity type -> SupplyChainNode
                     Map<String, SupplyChainNode> supplyChainMap = newNodeFetcher()
                         .entityTypes(relatedEntityTypes)
