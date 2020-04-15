@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
+import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -23,10 +24,13 @@ import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.Star
  */
 @Configuration
 @Lazy
-@Import({BaseKafkaConsumerConfig.class})
+@Import({BaseKafkaConsumerConfig.class, AuthClientConfig.class})
 public class LicenseCheckClientConfig {
     @Autowired
     private BaseKafkaConsumerConfig kafkaConsumerConfig;
+
+    @Autowired
+    private AuthClientConfig authClientConfig;
 
     @Bean(destroyMethod = "shutdownNow")
     protected ExecutorService threadPool() {
@@ -45,6 +49,7 @@ public class LicenseCheckClientConfig {
 
     @Bean
     public LicenseCheckClient licenseCheckClient() {
-        return new LicenseCheckClient(licenseSummaryConsumer(), threadPool());
+        return new LicenseCheckClient(licenseSummaryConsumer(), threadPool(),
+                authClientConfig.authClientChannel());
     }
 }

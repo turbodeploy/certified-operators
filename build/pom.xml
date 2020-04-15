@@ -457,9 +457,15 @@
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
             </modules>
         </profile>
+        <profile>
+            <id>integration-intersight</id>
+            <modules>
+                <module>../com.vmturbo.integrations.intersight</module>
+            </modules>
+        </profile>
 
         <profile>
-        <id>mediation-intersight</id>
+            <id>mediation-intersight</id>
             <modules>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
@@ -1096,6 +1102,7 @@
                 <module>../com.vmturbo.mediation.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.hyperv.component</module>
                 <module>../com.vmturbo.mediation.hyperv.conversion</module>
+                <module>../com.vmturbo.integration.intersight</module>
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
                 <module>../com.vmturbo.mediation.intersight.server.component</module>
                 <module>../com.vmturbo.mediation.intersight.ucs.component</module>
@@ -2062,6 +2069,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.common</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.mediation.connector.intersight</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
             </dependency>
             <dependency>

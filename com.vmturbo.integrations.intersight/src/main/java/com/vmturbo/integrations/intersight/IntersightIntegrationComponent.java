@@ -16,7 +16,7 @@ import com.vmturbo.components.common.BaseVmtComponent;
  */
 @Configuration("theComponent")
 @Import({
-    IntersightConfig.class,
+    IntersightConfig.class
 })
 public class IntersightIntegrationComponent extends BaseVmtComponent {
 
@@ -38,8 +38,15 @@ public class IntersightIntegrationComponent extends BaseVmtComponent {
     private void setup() {
         logger.info("Adding Intersight health check to the component health monitor.");
         getHealthMonitor().addHealthCheck(intersightConfig.getIntersightMonitor());
+    }
+
+
+    @Override
+    protected void onStartComponent() {
+        super.onStartComponent();
 
         logger.info("Scheduling tasks to integrate with Intersight.");
         intersightConfig.scheduleTasks();
     }
+
 }

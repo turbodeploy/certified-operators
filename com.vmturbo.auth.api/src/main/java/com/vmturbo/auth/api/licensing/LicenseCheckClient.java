@@ -1,15 +1,27 @@
 package com.vmturbo.auth.api.licensing;
 
+import java.time.Instant;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 
+import com.google.protobuf.Empty;
+
+import io.grpc.Channel;
+
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.FluxSink;
+
+import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc;
+import com.vmturbo.common.protobuf.licensing.LicenseCheckServiceGrpc.LicenseCheckServiceBlockingStub;
+import com.vmturbo.common.protobuf.licensing.Licensing.GetLicenseSummaryResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
-import com.vmturbo.components.api.client.ApiClientException;
 import com.vmturbo.components.api.client.ComponentNotificationReceiver;
 import com.vmturbo.components.api.client.IMessageReceiver;
 
@@ -27,12 +39,65 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
 
     private final Logger logger = LogManager.getLogger();
 
+    private final Channel authChannel;
+
     // cache the most recent license summary
+    @GuardedBy("this")
     private LicenseSummary lastLicenseSummary;
 
+    /**
+     * Provides access to a stream of license summary updates.
+     */
+    private final Flux<LicenseSummary> updateEventFlux;
+
+    /**
+     * The statusEmitter is used to push updates to the statusFlux subscribers.
+     */
+    private FluxSink<LicenseSummary> updateEventEmitter;
+
     public LicenseCheckClient(@Nonnull final IMessageReceiver<LicenseSummary> messageReceiver,
-                              @Nonnull final ExecutorService executorService) {
+                              @Nonnull final ExecutorService executorService,
+                              @Nullable final Channel authChannel) {
         super(messageReceiver, executorService);
+        this.authChannel = authChannel;
+        // create a flux that a listener can subscribe to LicenseSummary update events on.
+        Flux<LicenseSummary> primaryFlux = Flux.create(emitter -> updateEventEmitter = emitter);
+        updateEventFlux = primaryFlux.share(); // create a shareable flux for multicasting.
+        // start publishing immediately w/o waiting for a consumer to signal demand.
+        updateEventFlux.publish().connect();
+        // bootstrap the license check client by trying to get the latest available license summary
+        // from the auth service.
+        requestLatestLicenseSummary();
+    }
+
+    /**
+     * Request the latest available license summary from the LicenseCheckService.
+     */
+    protected void requestLatestLicenseSummary() {
+        if (authChannel == null) {
+            logger.info("No auth channel available -- will not request current license summary.");
+            return;
+        }
+        // if we have an auth channel, then lets' try to fetch the latest available license summary.
+        // create a grpc client
+        LicenseCheckServiceBlockingStub client = LicenseCheckServiceGrpc.newBlockingStub(authChannel)
+                .withWaitForReady();
+        logger.info("Requesting latest available license summary.");
+        GetLicenseSummaryResponse response = client.getLicenseSummary(Empty.getDefaultInstance());
+        if (response.hasLicenseSummary()) {
+            updateLicenseSummary(response.getLicenseSummary());
+        }
+    }
+
+    /**
+     * Get the update event stream. A listener can .subscribe() to the {@link Flux} that
+     * is returned and get realtime notification of new LicenseSummary objects as soon as they are
+     * available.
+     *
+     * @return a {@link Flux} of {@link LicenseSummary} objects
+     */
+    public Flux<LicenseSummary> getUpdateEventStream() {
+        return updateEventFlux;
     }
 
     /**
@@ -61,6 +126,15 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
     }
 
     /**
+     * Get the current license summary.
+     *
+     * @return
+     */
+    public LicenseSummary geCurrentLicenseSummary() {
+        return lastLicenseSummary;
+    }
+
+    /**
      * Is license check ready? Internally, it will check if last license summary is available.
      * @return true if summary is available.
      */
@@ -78,11 +152,31 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
 
     @Override
     protected void processMessage(@Nonnull final LicenseSummary message) {
-        if (isLicenseDifferent(lastLicenseSummary, message)) {
-            logger.info("Got a new license summary generated at {}", message.getGenerationDate());
+        updateLicenseSummary(message);
+    }
+
+    /**
+     * Evaluate an incoming license summary to see if it should replace the last known license summary.
+     *
+     * The new summary can replace the last known license summary as long as one of the following
+     * is true:
+     * <ul>
+     *     <li>The new license summary has a newer generation date than the last known.</li>
+     *     <li>There is no "last known" license summary yet.</li>
+     * </ul>
+     *
+     * @param incomingLicenseSummary the new license summary to check
+     * @return true, if the summary was updated. false otherwise.
+     */
+    protected synchronized boolean updateLicenseSummary(@Nonnull final LicenseSummary incomingLicenseSummary) {
+        if (isLicenseSummaryDifferentAndNewer(lastLicenseSummary, incomingLicenseSummary)) {
+            logger.info("Got a new license summary generated at {}", incomingLicenseSummary.getGenerationDate());
+            lastLicenseSummary = incomingLicenseSummary;
+            // push to flux too
+            updateEventEmitter.next(lastLicenseSummary);
+            return true;
         }
-        lastLicenseSummary = message;
-        // trigger update
+        return false;
     }
 
     /**
@@ -93,13 +187,29 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
      *
      * @return true if the licenses are different in any way.
      */
-    private static boolean isLicenseDifferent(@Nullable LicenseSummary before, @Nonnull LicenseSummary after) {
+    protected static boolean isLicenseSummaryDifferentAndNewer(@Nullable LicenseSummary before, @Nonnull LicenseSummary after) {
         if (before == null) {
             // no previous license, this is a change
             return true;
         }
 
         // If any license fields are different, we'll call the license different
-        return !before.equals(after);
+        if (before.equals(after)) {
+            return false;
+        }
+        // The licenses are different, now let's make sure the "after" is actually "after".
+        // if the before license has no generation date, we'll return true since we can't actually
+        // compare the dates anyways.
+        if (StringUtils.isBlank(before.getGenerationDate())) {
+            return true;
+        }
+
+        // if "after" has no generation date, we have to assume "before" is later.
+        if (StringUtils.isBlank(after.getGenerationDate())) {
+            return false;
+        }
+
+        // both license summaries should have generation dates -- compare them.
+        return Instant.parse(before.getGenerationDate()).isBefore(Instant.parse(after.getGenerationDate()));
     }
 }

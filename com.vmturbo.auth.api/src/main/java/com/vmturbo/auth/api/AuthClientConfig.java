@@ -1,4 +1,4 @@
-package com.vmturbo.auth.api.widgets;
+package com.vmturbo.auth.api;
 
 import java.util.concurrent.TimeUnit;
 
