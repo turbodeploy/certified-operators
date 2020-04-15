@@ -332,7 +332,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             if (isPlan) {
                 // read from plan topologies
                 returnPlanTopologyStats(responseObserver, entitiesList.get(0),
-                        filter.getCommodityRequestsList());
+                        filter.getCommodityRequestsList(), request.getGlobalFilter());
             } else {
                 // read from live topologies
                 getLiveMarketStats(filter, entitiesList, request.getGlobalFilter())
@@ -984,16 +984,18 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      *  @param responseObserver the chunking channel on which the response should be returned
      * @param topologyContextId the context id for the plan topology to look up
      * @param commodityRequests the commodities to include.
+     * @param globalFilter the global filter to apply to all returned stats
      */
     private void returnPlanTopologyStats(StreamObserver<StatSnapshot> responseObserver,
                                          long topologyContextId,
-                                         List<CommodityRequest> commodityRequests) {
+                                         List<CommodityRequest> commodityRequests,
+                                         @Nonnull GlobalFilter globalFilter) {
         StatSnapshot.Builder beforePlanStatSnapshotResponseBuilder = StatSnapshot.newBuilder();
         StatSnapshot.Builder afterPlanStatSnapshotResponseBuilder = StatSnapshot.newBuilder();
         List<MktSnapshotsStatsRecord> dbSnapshotStatsRecords;
         try {
             dbSnapshotStatsRecords = planStatsReader.getStatsRecords(
-                    topologyContextId, commodityRequests);
+                    topologyContextId, commodityRequests, globalFilter);
         } catch (VmtDbException e) {
             throw new RuntimeException("Error fetching plan market stats for "
                     + topologyContextId, e);
