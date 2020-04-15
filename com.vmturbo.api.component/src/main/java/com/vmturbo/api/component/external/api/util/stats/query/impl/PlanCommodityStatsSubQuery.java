@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -14,6 +15,7 @@ import com.google.common.collect.Streams;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -121,6 +123,12 @@ public class PlanCommodityStatsSubQuery implements StatsSubQuery {
 
             // Note - we do not support sub-scopes within the plan.
             entityStatsRequest.addEntities(context.getInputScope().oid());
+
+            // Pass along global request parameters, like a relatedEntityType or environmentType
+            // which applies to the entire request.
+            final Optional<GlobalScope> queryGlobalScope = context.getQueryScope().getGlobalScope();
+            queryGlobalScope.ifPresent(globalScope ->
+                entityStatsRequest.setGlobalFilter(statsMapper.newGlobalFilter(globalScope)));
 
             return entityStatsRequest.build();
         }
