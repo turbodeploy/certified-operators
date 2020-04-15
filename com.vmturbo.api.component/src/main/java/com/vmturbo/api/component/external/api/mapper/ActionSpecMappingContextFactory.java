@@ -20,6 +20,9 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -73,6 +76,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * returned from the API.
  */
 public class ActionSpecMappingContextFactory {
+    private static final Logger logger = LogManager.getLogger();
 
     private final PolicyServiceBlockingStub policyService;
 
@@ -412,16 +416,15 @@ public class ActionSpecMappingContextFactory {
     }
 
     @Nonnull
-    private Map<Long, ApiPartialEntity> getEntities(@Nonnull final List<Action> actions, final long contextId) {
-        final Set<Long> srcEntities = new HashSet<>();
-        final Set<Long> projEntities = new HashSet<>();
+    @VisibleForTesting
+    Map<Long, ApiPartialEntity> getEntities(@Nonnull final List<Action> actions, final long contextId) {
         final Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(actions);
-
+        boolean isPlan = contextId != realtimeTopologyContextId;
         // In plans, we also want to retrieve the provisioned sellers, because we will show and
         // interpret actions that interact with them (e.g. provision host X, move vm Y onto host X).
         // In realtime, we don't show those second-order moves, and the provisioned sellers are
         // not in the projected topology, so no point looking for them.
-        if (contextId != realtimeTopologyContextId) {
+        if (isPlan) {
             // getInvolvedEntityIds doesn't return the IDs of provisioned sellers (representations
             // of entities provisioned by the market), since those aren't "real" entities, and are
             // not relevant in most places. However, they ARE relevant when displaying action details
@@ -432,38 +435,40 @@ public class ActionSpecMappingContextFactory {
                 }
             }
         }
-
-        involvedEntities.forEach(id -> {
-            // Because it is faster to retrieve realtime source entities (compared to realtime
-            // projected entities), we try a shortcut:
-            //
-            // Right now (June 21 2019) the Market always assigns negative OIDs to entities that
-            // it provisions. For example, if the market recommends provisioning a host
-            // and moving VM 1 onto the host, the move will be to a host with some negative ID.
-            // We can use this as a quick way to determine of an involved entity can be found
-            // in the source topology (Market-recommended entities will only be
-            // in the projected topology).
-            if (!isProjected(id)) {
-                srcEntities.add(id);
-            } else {
-                projEntities.add(id);
-            }
-        });
-
-        final Map<Long, ApiPartialEntity> retMap = repositoryApi.entitiesRequest(srcEntities)
+        // First look up in source topology (plan or real-time)
+        final Map<Long, ApiPartialEntity> retMap = repositoryApi.entitiesRequest(involvedEntities)
             .contextId(contextId)
             .getEntities()
             .collect(Collectors.toMap(ApiPartialEntity::getOid, Function.identity()));
-        // Find entities we can't find in the source topology in the projected topology.
-        srcEntities.stream()
-            .filter(srcId -> !retMap.containsKey(srcId))
-            .forEach(projEntities::add);
-        if (!projEntities.isEmpty()) {
-            repositoryApi.entitiesRequest(projEntities)
+
+        // Check if we could not get any mappings.
+        Set<Long> missingEntities = new HashSet<>(Sets.difference(involvedEntities, retMap.keySet()));
+
+        // Find entities we can't find in the source topology, in the projected topology.
+        if (!missingEntities.isEmpty()) {
+            repositoryApi.entitiesRequest(missingEntities)
                 .contextId(contextId)
                 .projectedTopology()
                 .getEntities()
-                .forEach(e -> retMap.put(e.getOid(), e));
+                .forEach(e -> {
+                    retMap.put(e.getOid(), e);
+                    missingEntities.remove(e.getOid());
+                });
+        }
+        // For plans, if we could not lookup one or more entities, then look in real-time topology.
+        // Sometimes regions for BuyRI actions are missing from plan, so check in real-time.
+        if (isPlan && !missingEntities.isEmpty()) {
+            repositoryApi.entitiesRequest(missingEntities)
+                    .contextId(realtimeTopologyContextId)
+                    .getEntities()
+                    .forEach(e -> {
+                        retMap.put(e.getOid(), e);
+                        missingEntities.remove(e.getOid());
+                    });
+        }
+        if (!missingEntities.isEmpty()) {
+            logger.warn("For context {}, got mapping for only {} entities, didn't get for: {}",
+                    contextId, retMap.size(), missingEntities);
         }
         return retMap;
     }
