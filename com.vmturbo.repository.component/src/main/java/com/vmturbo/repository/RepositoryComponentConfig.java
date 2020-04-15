@@ -32,6 +32,8 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseDriverBuilder;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
@@ -40,6 +42,7 @@ import com.vmturbo.repository.graph.executor.ArangoDBExecutor;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.executor.ReactiveArangoDBExecutor;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
+import com.vmturbo.repository.listener.RepositoryPlanGarbageCollector;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.service.SupplyChainService;
@@ -52,7 +55,7 @@ import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
  * Spring configuration for repository component.
  */
 @Configuration
-@Import({RepositoryProperties.class, UserSessionConfig.class})
+@Import({RepositoryProperties.class, UserSessionConfig.class, PlanOrchestratorClientConfig.class})
 public class RepositoryComponentConfig {
 
     private static final String DOCUMENT_KEY_FIELD = "_key";
@@ -106,6 +109,9 @@ public class RepositoryComponentConfig {
 
     @Autowired
     private UserSessionConfig userSessionConfig;
+
+    @Autowired
+    private PlanOrchestratorClientConfig planOrchestratorClientConfig;
 
     private final SetOnce<ArangoDB> arangoDB = new SetOnce<>();
 
@@ -164,6 +170,17 @@ public class RepositoryComponentConfig {
     @Bean
     public LiveTopologyStore liveTopologyStore() {
         return new LiveTopologyStore(globalSupplyChainCalculator());
+    }
+
+    /**
+     * Listener for plan deletion.
+     *
+     * @return The listener.
+     */
+    @Bean
+    public PlanGarbageDetector repositoryPlanGarbageDetector() {
+        final RepositoryPlanGarbageCollector collector = new RepositoryPlanGarbageCollector(topologyManager());
+        return planOrchestratorClientConfig.newPlanGarbageDetector(collector);
     }
 
     /**

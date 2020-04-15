@@ -1189,7 +1189,24 @@ public class HistorydbIO extends BasedbIO {
         execute(Style.FORCED, JooqBuilder()
             .delete(Scenarios.SCENARIOS)
             .where(Scenarios.SCENARIOS.ID.eq(topologyContextId)));
+    }
 
+
+    /**
+     * List the ids of plans that have data in the database.
+     *
+     * @return The set of ids.
+     * @throws VmtDbException If there is an error connecting to the database.
+     */
+    public Set<Long> listPlansWithStats() throws VmtDbException {
+        try (Connection conn = connection()) {
+            return using(conn).selectDistinct(Scenarios.SCENARIOS.ID).from(Scenarios.SCENARIOS)
+                .fetch().stream()
+                .map(Record1::value1)
+                .collect(Collectors.toSet());
+        } catch (SQLException e) {
+            throw new VmtDbException(VmtDbException.SQL_EXEC_ERR, e);
+        }
     }
 
     /**

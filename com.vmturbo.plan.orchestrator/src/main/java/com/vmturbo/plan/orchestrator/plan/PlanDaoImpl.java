@@ -29,10 +29,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
 
 import io.grpc.Channel;
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -45,14 +42,6 @@ import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserContextUtils;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.common.protobuf.action.ActionDTO.DeleteActionsRequest;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.Cost.DeletePlanEntityCostsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.DeletePlanReservedInstanceStatsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.DeleteRIBuyContextDataRequest;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
@@ -61,16 +50,11 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponse;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.RepositoryOperationResponseCode;
-import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
@@ -81,7 +65,6 @@ import com.vmturbo.plan.orchestrator.db.tables.pojos.PlanInstance;
 import com.vmturbo.plan.orchestrator.db.tables.records.PlanInstanceRecord;
 import com.vmturbo.plan.orchestrator.plan.PlanStatusListener.PlanStatusListenerException;
 import com.vmturbo.plan.orchestrator.scenario.ScenarioScopeAccessChecker;
-import com.vmturbo.repository.api.RepositoryClient;
 
 /**
  * DAO backed by RDBMS to hold plan instances.
@@ -119,12 +102,6 @@ public class PlanDaoImpl implements PlanDao {
     @GuardedBy("setLock")
     private final Set<Long> planLocks = new HashSet<>();
 
-    private final RepositoryClient repositoryClient;
-
-    private final ActionsServiceBlockingStub actionOrchestratorClient;
-
-    private final StatsHistoryServiceBlockingStub statsClient;
-
     private final Object listenerLock = new Object();
 
     private final SettingServiceBlockingStub settingService;
@@ -138,26 +115,14 @@ public class PlanDaoImpl implements PlanDao {
     @GuardedBy("listenerLock")
     private final List<PlanStatusListener> planStatusListeners = new LinkedList<>();
 
-    private final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub;
-
-    private final PlanReservedInstanceServiceBlockingStub planRIService;
-
-    private final CostServiceBlockingStub costService;
-
     private final ScheduledExecutorService cleanupExecutor;
 
     private final OldPlanCleanup oldPlanCleanup;
 
     PlanDaoImpl(@Nonnull final DSLContext dsl,
-                       @Nonnull final RepositoryClient repositoryClient,
-                       @Nonnull final ActionsServiceBlockingStub actionOrchestratorClient,
-                       @Nonnull final StatsHistoryServiceBlockingStub statsClient,
                        @Nonnull final Channel groupChannel,
                        @Nonnull final UserSessionContext userSessionContext,
                        @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
-                       @Nonnull final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
-                       @Nonnull final PlanReservedInstanceServiceBlockingStub planRIService,
-                       @Nonnull final CostServiceBlockingStub costService,
                        @Nonnull final Clock clock,
                        @Nonnull final ScheduledExecutorService cleanupExecutor,
                        final long planTimeout,
@@ -165,14 +130,8 @@ public class PlanDaoImpl implements PlanDao {
                        final long cleanupInterval,
                        @Nonnull final TimeUnit cleanupIntervalUnit) {
         this.dsl = Objects.requireNonNull(dsl);
-        this.repositoryClient = Objects.requireNonNull(repositoryClient);
-        this.actionOrchestratorClient = Objects.requireNonNull(actionOrchestratorClient);
-        this.statsClient = Objects.requireNonNull(statsClient);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.userSessionContext = userSessionContext;
-        this.riStub = riStub;
-        this.planRIService = planRIService;
-        this.costService = costService;
         this.clock = clock;
         this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
                 GroupServiceGrpc.newBlockingStub(groupChannel), searchServiceBlockingStub);
@@ -294,29 +253,26 @@ public class PlanDaoImpl implements PlanDao {
 
     @Override
     public PlanDTO.PlanInstance deletePlan(final long id) throws NoSuchObjectException {
-        // For now delete each piece of the plan independently.
-        // TODO: implement atomic deletion with rollback. If any piece deletion fails then rollback everything.
-        // Delete the plan topologies from PlanOrchestrator, ActionOrchestrator,
-        // Repository and History (stats)
         PlanDTO.PlanInstance plan = getPlanInstance(id).orElseThrow(() -> noSuchObjectException(id));
         if (!PlanUtils.canCurrentUserAccessPlan(plan)) {
             // throw an access error if the current user should not be able to delete the plan.
             throw new UserAccessException("User does not have access to plan.");
         }
-        // First delete all the plan related data in other components. Then
-        // delete the data in plan db. This ordering is to ensure that we don't leave
-        // orphan/dangling plan data in the other components. There can still be
-        // some dangling plan data as we haven't handled all the error cases.
-        // But this atleast minimizes the number of dangling objects.
-        // TODO - karthikt - The deleteRelatedObjects function should be moved
-        // outside this class where the deletePlan is called as DAO classes should
-        // concern itself only with access to the DB.
-        deleteRelatedObjects(plan);
+
         if (dsl.deleteFrom(PLAN_INSTANCE)
                 .where(PLAN_INSTANCE.ID.eq(id))
                 .execute() != 1) {
             throw noSuchObjectException(id);
         }
+
+        planStatusListeners.forEach(listener -> {
+            try {
+                listener.onPlanDeleted(plan);
+            } catch (PlanStatusListenerException e) {
+                logger.error("Failed to forward exception to listener: " + listener.getClass().getSimpleName(), e);
+            }
+        });
+
         return plan;
     }
 
@@ -326,140 +282,6 @@ public class PlanDaoImpl implements PlanDao {
         Scenario newScenario = ensureScenarioExist(scenarioId);
         return updatePlanInstance(planId, oldPlanInstance ->
                 oldPlanInstance.setScenario(newScenario));
-    }
-
-    private void deleteRelatedObjects(@Nonnull PlanDTO.PlanInstance plan) {
-
-        // TODO - karthikt * Do deletes in parallel
-        // TODO - karthikt * Handle failure and retry
-        // TODO - karthikt * Delete plan immmediately and delete others in the background
-        // TODO - karthikt * For the background delete, we would have to add a delete job(in
-        // TODO - karthikt    a queue in a db/local file)
-        //
-        final List<String> errors = new ArrayList<>();
-        final long topologyContextId = plan.getPlanId();
-        // Delete the source topology, if it exists
-        if (plan.hasSourceTopologyId()) {
-            deletePlanTopology(topologyContextId, plan.getSourceTopologyId(),
-                TopologyType.SOURCE, errors);
-        } else {
-            logger.info("Skipping source topology deletion for plan {}... no topology to delete.",
-                topologyContextId);
-        }
-        // Delete the projected topology, if it exists
-        if (plan.hasProjectedTopologyId()) {
-            deletePlanTopology(topologyContextId, plan.getProjectedTopologyId(),
-                TopologyType.PROJECTED, errors);
-        } else {
-            logger.info("Skipping projected topology deletion for plan {}... no topology to delete.",
-                    topologyContextId);
-        }
-
-        // Delete actions associated with the plan in the ActionsOrchestraor
-        if (!plan.getActionPlanIdList().isEmpty()) {
-            final DeleteActionsRequest actionRequest = DeleteActionsRequest.newBuilder()
-                    .setTopologyContextId(topologyContextId)
-                    .build();
-            try {
-                actionOrchestratorClient.deleteActions(actionRequest);
-            } catch (StatusRuntimeException e) {
-                if (e.getStatus().getCode() == Status.Code.NOT_FOUND) {
-                    // If object doesn't exist, just ignore
-                    logger.info("Actions for planId:{} not found", topologyContextId);
-                } else {
-                    errors.add("Failed to delete actions associated with plan " + topologyContextId +
-                            " due to error: " + e.getLocalizedMessage());
-                }
-            }
-        } else {
-            logger.info("Skipping action plan deletion for plan {}. No action plan to delete.",
-                    topologyContextId);
-        }
-
-        if (plan.hasStatsAvailable()) {
-            // Delete plan stats in history component
-            final DeletePlanStatsRequest statsRequest = DeletePlanStatsRequest.newBuilder()
-                    .setTopologyContextId(topologyContextId)
-                    .build();
-
-            final DeletePlanReservedInstanceStatsRequest planRIStatsRequest = DeletePlanReservedInstanceStatsRequest
-                            .newBuilder().setTopologyContextId(topologyContextId).build();
-            try {
-                // If the plan doesn't exist, stats will not throw any exception.
-                statsClient.deletePlanStats(statsRequest);
-                planRIService.deletePlanReservedInstanceStats(planRIStatsRequest);
-            } catch (StatusRuntimeException e) {
-                errors.add("Failed to delete stats associated with plan " + topologyContextId +
-                        " due to error: " + e.getLocalizedMessage());
-            }
-        } else {
-            logger.info("Skipping stats deletion for plan {}. No stats available to delete.",
-                    topologyContextId);
-        }
-
-        if (!plan.getActionPlanIdList().isEmpty()) {
-            // Deletes all entries from the action context ri buy table for a plan.
-            try {
-                riStub.deleteRIBuyContextData(DeleteRIBuyContextDataRequest.newBuilder()
-                    .setTopologyContextId(topologyContextId).build());
-            } catch (StatusRuntimeException e) {
-                errors.add("Failed to delete related RI data. Error: " + e.getMessage());
-            }
-        }
-
-        final DeletePlanEntityCostsRequest deleteCostsRequest =
-                        DeletePlanEntityCostsRequest.newBuilder().setPlanId(topologyContextId).build();
-        try {
-            costService.deletePlanEntityCosts(deleteCostsRequest);
-        } catch (StatusRuntimeException e) {
-            errors.add("Failed to delete entity costs assosiated with plan " + topologyContextId
-                +
-                "due to error: "
-                + e.getLocalizedMessage());
-        }
-
-        if (!errors.isEmpty()) {
-            logger.error("Encountered errors trying to delete plan {}. Errors:\n{}", plan.getPlanId(),
-                    StringUtils.join(errors, "\n"));
-        } else {
-            logger.info("Successfully deleted all known related objects for plan {}", topologyContextId);
-        }
-
-    }
-
-    /**
-     * Delete a plan topology
-     *
-     * <p>Deletes the plan topology specified by the combination of topologyContextId,
-     * topologyId and topologyType from the Repository by making a remote call. Any error
-     * messages are added to the errors list.</p>
-     *
-     * @param topologyContextId the planId
-     * @param topologyId the ID of the specific plan topology to delete (each plan has two)
-     * @param topologyType the type (SOURCE or PROJECTED) of plan topology to delete
-     * @param errors a list to append any error messages encountered
-     */
-    private void deletePlanTopology(long topologyContextId, long topologyId,
-                                    TopologyType topologyType, List<String> errors) {
-        logger.info("Deleting plan topology with id:{}, contextId:{} and type:{}",
-            topologyId, topologyContextId, topologyType);
-
-        // Delete topology from Repository
-        try {
-            final RepositoryOperationResponse repoResponse =
-                repositoryClient.deleteTopology(topologyId, topologyContextId, topologyType);
-            if (repoResponse.getResponseCode() == RepositoryOperationResponseCode.OK) {
-                logger.info("Successfully deleted {} topology with id:{} "
-                        + "and contextId:{} from the Repository.",
-                    topologyType, topologyId, topologyContextId);
-            } else {
-                errors.add("Error trying to delete " + topologyType + " topology with id "
-                    + topologyId + " : " + repoResponse.getError());
-            }
-        } catch (StatusRuntimeException e) {
-            errors.add("Failed to delete " + topologyType + " topology " + topologyId +
-                " due to error: " + e.getLocalizedMessage());
-        }
     }
 
     private static NoSuchObjectException noSuchObjectException(long id) {

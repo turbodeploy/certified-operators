@@ -10,7 +10,8 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.MarketNotificationDTO.MarketNotification;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification.PlanDeleted;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification.StatusUpdate;
 import com.vmturbo.plan.orchestrator.api.PlanListener;
 
 /**
@@ -27,11 +28,16 @@ public class ApiComponentPlanListener implements PlanListener {
     }
 
     @Override
-    public void onPlanStatusChanged(@Nonnull final PlanInstance planInstance) {
+    public void onPlanStatusChanged(@Nonnull final StatusUpdate planInstanceStatusUpdate) {
         final MarketNotification marketNotification =
-                MarketMapper.notificationFromPlanInstance(planInstance);
-        logger.debug("Received new plan instance: {} Broadcasting notification: {}",
-                planInstance, marketNotification);
+                MarketMapper.notificationFromPlanStatus(planInstanceStatusUpdate);
+        logger.debug("Received new plan instance status: {} Broadcasting notification: {}",
+                planInstanceStatusUpdate, marketNotification);
         uiNotificationChannel.broadcastMarketNotification(marketNotification);
+    }
+
+    @Override
+    public void onPlanDeleted(@Nonnull final PlanDeleted planInstance) {
+        // Nothing to do for plan deletion.
     }
 }

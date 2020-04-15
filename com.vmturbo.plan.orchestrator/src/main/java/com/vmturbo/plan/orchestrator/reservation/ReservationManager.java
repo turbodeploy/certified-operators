@@ -44,9 +44,9 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Settin
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
@@ -407,6 +407,11 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                 updateReservationsOnPlanFailure();
             }
         }
+    }
+
+    @Override
+    public void onPlanDeleted(@Nonnull final PlanInstance plan) throws PlanStatusListenerException {
+        // We ignore plan deletions for reservations, since we delete them very eagerly.
     }
 
     /**

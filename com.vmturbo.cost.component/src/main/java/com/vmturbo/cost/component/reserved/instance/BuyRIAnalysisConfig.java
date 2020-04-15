@@ -27,6 +27,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 @Configuration
 @Import({ComputeTierDemandStatsConfig.class,
         ReservedInstanceAnalysisConfig.class,
+    ReservedInstanceConfig.class,
         GroupClientConfig.class,
         RepositoryClientConfig.class,
         PricingConfig.class,
@@ -119,12 +120,7 @@ public class BuyRIAnalysisConfig {
     }
 
     @Bean
-    public ActionContextRIBuyStore actionContextRIBuyStore() {
-        return new ActionContextRIBuyStore(getDsl());
-    }
-
-    @Bean
     public RIBuyContextFetchRpcService riBuyContextFetchRpcService() {
-        return new RIBuyContextFetchRpcService(actionContextRIBuyStore());
+        return new RIBuyContextFetchRpcService(reservedInstanceConfig.actionContextRIBuyStore());
     }
 }

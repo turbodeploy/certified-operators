@@ -11,7 +11,6 @@ import "plan/Scenario.proto";
 
 // NB Informational (most) messages in this set of declarations are serialized in rdbms.
 // They are not modifiable, only extendable.
-
 message PlanInstance {
     // The plan ID. Plan ID is used as TopologyContextId.
     required int64 plan_id = 1;
@@ -102,6 +101,41 @@ message PlanInstance {
 
         // plan has been force-stopped by user
         STOPPED = 10;
+    }
+}
+
+// A notification about a change to a plan, broadcast from the plan orchestrator to any components
+// that care to listen.
+message PlanStatusNotification {
+    // The plan changed status. This happens as the plan continues through its stages of execution,
+    // until it eventually reaches a terminal state (SUCCEEDED, FAILED, or STOPPED).
+    message StatusUpdate {
+        // The id of the plan with the new status.
+        required int64 plan_id = 1;
+
+        // The new status of the plan.
+        required PlanInstance.PlanStatus new_plan_status = 2;
+    }
+
+    // The plan was deleted. This can be user-triggered (clicked delete in UI) or system-triggered
+    // (e.g. plan retention period exceeded). The plan no longer exists in the plan orchestrator.
+    message PlanDeleted {
+        // The id of the plan that got deleted.
+        // Note - at the time the client receives the notification, this ID will no longer refer
+        // to an actual plan known to the plan orchestrator.
+        required int64 plan_id = 1;
+
+        // The status of the plan before it was deleted.
+        required PlanInstance.PlanStatus status_before_delete = 2;
+    }
+
+    // The type of notification.
+    oneof type {
+        // The plan changed state/status.
+        StatusUpdate update = 1;
+
+        // The plan got deleted and no longer exists.
+        PlanDeleted delete = 2;
     }
 }
 
