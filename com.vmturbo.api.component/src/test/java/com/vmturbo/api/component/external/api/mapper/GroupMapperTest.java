@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -89,6 +90,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -103,6 +105,7 @@ import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -691,6 +694,61 @@ public class GroupMapperTest {
         inputDTO.setClassName(className);
         inputDTO.setCriteriaList(Arrays.asList(filters));
         return inputDTO;
+    }
+
+    /**
+     * Test that a single invalid group doesn't prevent the mapping of other valid groups.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testMapInvalidGroup() throws Exception {
+
+        final Grouping invalidGroup = Grouping.newBuilder().setId(77777L)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setDisplayName("not cool boy")
+                .setGroupFilters(GroupFilters.newBuilder()
+                    .addGroupFilter(GroupDTO.GroupFilter.newBuilder()
+                        // This filter is currently invalid because it's adding a "tags" property filter
+                        // without specifying that we are looking for a specific group type.
+                        .addPropertyFilters(PropertyFilter.newBuilder()
+                            .setPropertyName(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)
+                            .setMapFilter(MapFilter.newBuilder()
+                                .setKey("foo")
+                                .addValues("bar"))))))
+            .build();
+        final Grouping validGroup = Grouping.newBuilder().setId(7L)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setDisplayName("cool boy")
+                .setStaticGroupMembers(StaticMembers.newBuilder()))
+            .build();
+
+        when(groupExpander.getMembersForGroup(invalidGroup)).thenReturn(ImmutableGroupAndMembers
+            .builder().group(invalidGroup)
+            .members(Collections.emptyList())
+            .entities(Collections.emptyList())
+            .build());
+        when(groupExpander.getMembersForGroup(validGroup)).thenReturn(ImmutableGroupAndMembers
+            .builder().group(validGroup)
+            .members(Collections.emptyList())
+            .entities(Collections.emptyList())
+            .build());
+
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+
+        final Map<Long, GroupApiDTO> dto =
+            // The valid group is second in the order, so we make sure we continue processing
+            // after the invalid group.
+            groupMapper.groupsToGroupApiDto(Arrays.asList(invalidGroup, validGroup), false);
+
+        // Only the valid group got returned.
+        assertThat(dto.keySet(), containsInAnyOrder(validGroup.getId()));
+        // We don't do additional checks, because the job of this test isn't to check how the group
+        // is mapped, but THAT the group is mapped even if a previous group had mapping errors.
+        assertEquals("7", dto.get(validGroup.getId()).getUuid());
     }
 
     @Test
