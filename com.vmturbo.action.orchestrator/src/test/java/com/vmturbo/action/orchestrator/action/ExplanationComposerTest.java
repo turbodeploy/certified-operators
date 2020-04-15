@@ -2,6 +2,9 @@ package com.vmturbo.action.orchestrator.action;
 
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.COMMODITY_KEY_SEPARATOR;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+import java.util.Collections;
 
 import java.util.Collection;
 
@@ -9,6 +12,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.junit.Test;
 
@@ -88,13 +92,15 @@ public class ExplanationComposerTest {
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                             .setCompliance(Compliance.newBuilder()
                                 .addMissingCommodities(MEM)
-                                .addMissingCommodities(CPU)))))
+                                .addMissingCommodities(CPU)
+                                .addMissingCommodities(SEGMENTATION)))))
                 .build();
 
-        assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the request for resource(s) Mem, CPU",
+        assertEquals("(^_^)~{entity:1:displayName:Physical Machine} can not satisfy the " +
+                "request for resource(s) Mem, CPU, Segmentation Commodity",
             ExplanationComposer.composeExplanation(action));
-            assertEquals("Current supplier can not satisfy the request for resource(s) Mem, CPU",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(ImmutableSet.of("Mem compliance", "CPU compliance", "Placement policy compliance"),
+            ExplanationComposer.composeShortExplanation(action));
     }
 
     /**
@@ -115,48 +121,48 @@ public class ExplanationComposerTest {
         // commodity with no time slots
         Explanation explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, CPU));
         ActionDTO.Action action = createAction(actionInfo, explanation);
-        assertEquals("(^_^)~Mem, CPU congestion",
+        assertEquals("(^_^)~Mem, CPU Congestion",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Mem, CPU congestion",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(ImmutableSet.of("Mem Congestion", "CPU Congestion"),
+            ExplanationComposer.composeShortExplanation(action));
 
         final ReasonCommodity tsCommoditySlot0Total6 = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
             null, 0, 6);
         explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, tsCommoditySlot0Total6));
         action = createAction(actionInfo, explanation);
 
-        assertEquals("(^_^)~Mem, Pool CPU at 12:00 AM - 04:00 AM congestion",
+        assertEquals("(^_^)~Mem, Pool CPU at 12:00 AM - 04:00 AM Congestion",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Mem, Pool CPU at 12:00 AM - 04:00 AM congestion",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(ImmutableSet.of("Mem Congestion", "Pool CPU Congestion"),
+            ExplanationComposer.composeShortExplanation(action));
 
         final ReasonCommodity tsCommoditySlot1Total3 = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
             null, 1, 3);
         explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, tsCommoditySlot1Total3));
         action = createAction(actionInfo, explanation);
 
-        assertEquals("(^_^)~Mem, Pool CPU at 08:00 AM - 04:00 PM congestion",
+        assertEquals("(^_^)~Mem, Pool CPU at 08:00 AM - 04:00 PM Congestion",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Mem, Pool CPU at 08:00 AM - 04:00 PM congestion",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(ImmutableSet.of("Mem Congestion", "Pool CPU Congestion"),
+            ExplanationComposer.composeShortExplanation(action));
 
         final ReasonCommodity tsInvalidSlot = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
             null, -1, 3);
         explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, tsInvalidSlot));
         action = createAction(actionInfo, explanation);
-        assertEquals("(^_^)~Mem, Pool CPU congestion",
+        assertEquals("(^_^)~Mem, Pool CPU Congestion",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Mem, Pool CPU congestion",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(ImmutableSet.of("Mem Congestion", "Pool CPU Congestion"),
+            ExplanationComposer.composeShortExplanation(action));
 
         final ReasonCommodity tsInvalidTotalSlotNumber = createReasonCommodity(CommodityDTO.CommodityType.POOL_CPU_VALUE,
             null, -0, 0);
         explanation = createMoveExplanationWithCongestion(ImmutableList.of(MEM, tsInvalidTotalSlotNumber));
         action = createAction(actionInfo, explanation);
-        assertEquals("(^_^)~Mem, Pool CPU congestion",
+        assertEquals("(^_^)~Mem, Pool CPU Congestion",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Mem, Pool CPU congestion",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(ImmutableSet.of("Mem Congestion", "Pool CPU Congestion"),
+            ExplanationComposer.composeShortExplanation(action));
     }
 
     @Test
@@ -181,8 +187,8 @@ public class ExplanationComposerTest {
         assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(moveAction,
                 ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
-        assertEquals("Current entity doesn't comply with setting",
-            ExplanationComposer.shortExplanation(moveAction));
+        assertEquals(Collections.singleton("Setting policy compliance"),
+            ExplanationComposer.composeShortExplanation(moveAction));
     }
 
     /**
@@ -204,8 +210,8 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~{entity:2:displayName:Current supplier} can be suspended to improve efficiency",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Current supplier can be suspended to improve efficiency",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(Collections.singleton("Underutilized resources"),
+            ExplanationComposer.composeShortExplanation(action));
     }
 
     @Test
@@ -225,8 +231,8 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~{entity:2:displayName:Current supplier} is not available",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Current supplier is not available",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(Collections.singleton("Underutilized resources"),
+            ExplanationComposer.composeShortExplanation(action));
     }
 
     @Test
@@ -243,10 +249,10 @@ public class ExplanationComposerTest {
                             ChangeProviderExplanation.InitialPlacement.getDefaultInstance()))))
             .build();
 
-        assertEquals("Improve overall performance",
+        assertEquals("(^_^)~Improve overall performance",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Improve overall performance",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(Collections.singleton("Improve overall performance"),
+            ExplanationComposer.composeShortExplanation(action));
     }
 
     /**
@@ -279,8 +285,8 @@ public class ExplanationComposerTest {
 
         assertEquals("(^_^)~Current supplier can not satisfy the request for resource(s) Mem, CPU",
             ExplanationComposer.composeExplanation(action));
-        assertEquals("Current supplier can not satisfy the request for resource(s) Mem, CPU",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(ImmutableSet.of("Mem compliance", "CPU compliance"),
+            ExplanationComposer.composeShortExplanation(action));
     }
 
     @Test
@@ -296,10 +302,10 @@ public class ExplanationComposerTest {
                 .setExplanation(validExplanation)
                 .build();
 
-        assertEquals("Increase RI Coverage by 50%.",
+        assertEquals("Increase RI Coverage by 50%",
                 ExplanationComposer.composeExplanation(action));
-        assertEquals("Increase RI Coverage",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(Collections.singleton("Increase RI Coverage"),
+            ExplanationComposer.composeShortExplanation(action));
 
         final Builder invalidExplanation = Explanation.newBuilder()
                 .setBuyRI(BuyRIExplanation.newBuilder()
@@ -312,10 +318,10 @@ public class ExplanationComposerTest {
                 .setExplanation(invalidExplanation)
                 .build();
 
-        assertEquals("Invalid total demand.",
+        assertEquals("Invalid total demand",
                 ExplanationComposer.composeExplanation(action));
-        assertEquals("Invalid total demand.",
-            ExplanationComposer.shortExplanation(action));
+        assertEquals(Collections.singleton("Invalid total demand"),
+            ExplanationComposer.composeShortExplanation(action));
     }
 
     /**
@@ -342,14 +348,14 @@ public class ExplanationComposerTest {
         assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity " +
                         "testNetwork1",
             ExplanationComposer.composeExplanation(reconfigure));
-        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity",
-            ExplanationComposer.shortExplanation(reconfigure));
+        assertEquals(Collections.singleton("Misconfiguration"),
+            ExplanationComposer.composeShortExplanation(reconfigure));
 
         assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity " +
                         "testNetwork2",
                 ExplanationComposer.composeExplanation(reconfigureWithPrefix));
-        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, Network Commodity",
-            ExplanationComposer.shortExplanation(reconfigureWithPrefix));
+        assertEquals(Collections.singleton("Misconfiguration"),
+            ExplanationComposer.composeShortExplanation(reconfigureWithPrefix));
 
         // Make the reconfigure with prefix  for a member of a scaling group
         builder.getExplanationBuilder().getReconfigureBuilder().setScalingGroupId("example group");
@@ -357,9 +363,8 @@ public class ExplanationComposerTest {
         assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, " +
                     "Network Commodity testNetwork2 (Scaling Groups: example group)",
             ExplanationComposer.composeExplanation(reconfigureWithPrefixCSG));
-        assertEquals("Enable supplier to offer requested resource(s) Segmentation Commodity, " +
-                    "Network Commodity (Scaling Groups: example group)",
-            ExplanationComposer.shortExplanation(reconfigureWithPrefixCSG));
+        assertEquals(Collections.singleton("Misconfiguration"),
+            ExplanationComposer.composeShortExplanation(reconfigureWithPrefixCSG));
     }
 
     /**
@@ -384,8 +389,8 @@ public class ExplanationComposerTest {
         assertEquals("(^_^)~{entity:1:displayName:Virtual Machine} doesn't comply with setting1, setting2",
             ExplanationComposer.composeExplanation(reconfigureAction,
                 ImmutableMap.of(reasonSetting1, "setting1", reasonSetting2, "setting2")));
-        assertEquals("Current entity doesn't comply with setting",
-            ExplanationComposer.shortExplanation(reconfigureAction));
+        assertEquals(Collections.singleton("Misconfiguration"),
+            ExplanationComposer.composeShortExplanation(reconfigureAction));
     }
 
     /**
@@ -404,8 +409,8 @@ public class ExplanationComposerTest {
 
                 .build();
 
-        assertEquals("Mem congestion", ExplanationComposer.composeExplanation(provision));
-        assertEquals("Mem congestion", ExplanationComposer.shortExplanation(provision));
+        assertEquals("Mem Congestion", ExplanationComposer.composeExplanation(provision));
+        assertEquals(Collections.singleton("Mem Congestion"), ExplanationComposer.composeShortExplanation(provision));
     }
 
     /**
@@ -427,10 +432,11 @@ public class ExplanationComposerTest {
                             .setCommodityBaseType(21).setMaxAmountAvailable(0).setRequestedAmount(0)))))
             .build();
 
-        assertEquals("(^_^)~CPU, Mem congestion in '{entity:1:displayName:Physical Machine}'",
-            ExplanationComposer.composeExplanation(provision));
-        assertEquals("CPU, Mem congestion",
-            ExplanationComposer.shortExplanation(provision));
+        assertTrue(ImmutableSet.of("(^_^)~CPU, Mem Congestion in '{entity:1:displayName:Physical Machine}'",
+            "(^_^)~Mem, CPU Congestion in '{entity:1:displayName:Physical Machine}'").contains(
+                ExplanationComposer.composeExplanation(provision)));
+        assertEquals(ImmutableSet.of("Mem Congestion", "CPU Congestion"),
+            ExplanationComposer.composeShortExplanation(provision));
     }
 
     @Test
@@ -453,24 +459,24 @@ public class ExplanationComposerTest {
         action.getInfoBuilder().getResizeBuilder().setOldCapacity(4).setNewCapacity(2).build();
         assertEquals("(^_^)~Underutilized VMem in Virtual Machine {entity:0:displayName:}",
             ExplanationComposer.composeExplanation(action.build()));
-        assertEquals("Underutilized VMem",
-            ExplanationComposer.shortExplanation(action.build()));
+        assertEquals(Collections.singleton("Underutilized VMem"),
+            ExplanationComposer.composeShortExplanation(action.build()));
 
         // test resize up by capacity
         action.getInfoBuilder().getResizeBuilder().setOldCapacity(2).setNewCapacity(4).build();
-        assertEquals("(^_^)~VMem congestion in Virtual Machine {entity:0:displayName:}",
-            ExplanationComposer.composeExplanation(action.build()));
-        assertEquals("VMem congestion",
-            ExplanationComposer.shortExplanation(action.build()));
+        assertEquals("(^_^)~VMem Congestion in Virtual Machine {entity:0:displayName:}",
+                ExplanationComposer.composeExplanation(action.build()));
+        assertEquals(Collections.singleton("VMem Congestion"),
+            ExplanationComposer.composeShortExplanation(action.build()));
 
         // Test the resize down again with scaling group information
         action.getExplanationBuilder().getResizeBuilder()
             .setScalingGroupId("example scaling group");
-        assertEquals("(^_^)~VMem congestion in Virtual Machine {entity:0:displayName:}" +
+        assertEquals("(^_^)~VMem Congestion in Virtual Machine {entity:0:displayName:}" +
                 " (Scaling Groups: example scaling group)",
             ExplanationComposer.composeExplanation(action.build()));
-        assertEquals("VMem congestion (Scaling Groups: example scaling group)",
-            ExplanationComposer.shortExplanation(action.build()));
+        assertEquals(Collections.singleton("VMem Congestion"),
+            ExplanationComposer.composeShortExplanation(action.build()));
 
         // Test action without Resize action
         action.getInfoBuilder().clearResize();
@@ -487,7 +493,8 @@ public class ExplanationComposerTest {
                 .build();
 
         assertEquals("Address high utilization of CPU", ExplanationComposer.composeExplanation(activate));
-        assertEquals("Address high utilization of CPU", ExplanationComposer.shortExplanation(activate));
+        assertEquals(Collections.singleton("CPU Congestion"),
+            ExplanationComposer.composeShortExplanation(activate));
     }
 
     @Test
@@ -499,7 +506,8 @@ public class ExplanationComposerTest {
             .build();
 
         assertEquals("Improve infrastructure efficiency", ExplanationComposer.composeExplanation(deactivate));
-        assertEquals("Improve infrastructure efficiency", ExplanationComposer.shortExplanation(deactivate));
+        assertEquals(Collections.singleton("Improve infrastructure efficiency"),
+            ExplanationComposer.composeShortExplanation(deactivate));
     }
 
     /**
@@ -526,8 +534,8 @@ public class ExplanationComposerTest {
 
         assertEquals("Increase savings",
             ExplanationComposer.composeExplanation(deleteVolume));
-        assertEquals("Increase savings",
-            ExplanationComposer.shortExplanation(deleteVolume));
+        assertEquals(Collections.singleton("Increase savings"),
+            ExplanationComposer.composeShortExplanation(deleteVolume));
 
 
         // Test On-Prem Delete Storage Action
@@ -549,8 +557,8 @@ public class ExplanationComposerTest {
 
         assertEquals("Idle or non-productive",
             ExplanationComposer.composeExplanation(deleteFiles));
-        assertEquals("Idle or non-productive",
-            ExplanationComposer.shortExplanation(deleteFiles));
+        assertEquals(Collections.singleton("Idle or non-productive"),
+            ExplanationComposer.composeShortExplanation(deleteFiles));
     }
 
     /**
@@ -572,14 +580,11 @@ public class ExplanationComposerTest {
                 .build();
         final ActionDTO.Action action = createAction(actionInfo, explanation);
 
-        // Act
-        final String shortExplanation = ExplanationComposer.shortExplanation(action);
-        final String fullExplanation = ExplanationComposer.composeExplanation(action);
-
         // Assert
         final String expectedExplanation = "Virtual Machine can be covered by m4 RI";
-        assertEquals(expectedExplanation, shortExplanation);
-        assertEquals(expectedExplanation, fullExplanation);
+        assertEquals(expectedExplanation, ExplanationComposer.composeExplanation(action));
+        assertEquals(Collections.singleton("Virtual Machine RI Coverage"),
+            ExplanationComposer.composeShortExplanation(action));
     }
 
     private static ActionEntity createActionEntity(long id, int type) {
