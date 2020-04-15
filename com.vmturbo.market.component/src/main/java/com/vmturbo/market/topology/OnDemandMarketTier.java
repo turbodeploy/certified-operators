@@ -18,6 +18,22 @@ public class OnDemandMarketTier implements MarketTier {
     private final TopologyEntityDTO tier;
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean hasRIDiscount() {
+        return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isSingleRegion() {
+        return false;
+    }
+
+    /**
      * Constructor for the on Demand market tier.
      *
      * @param tier tier we want to create a market tier object for.
