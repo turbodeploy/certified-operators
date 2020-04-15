@@ -451,10 +451,10 @@ public class GroupMapper {
                     groups.stream().map(Grouping::getId).collect(Collectors.toList()) + ": " +
                     e.getLocalizedMessage(), e);
         }
+
         final Map<Long, GroupApiDTO> result = new LinkedHashMap<>(groups.size());
-        final Iterator<Grouping> iterator = groups.iterator();
         for (GroupApiDTO apiGroup : apiGroups) {
-            result.put(iterator.next().getId(), apiGroup);
+            result.put(Long.parseLong(apiGroup.getUuid()), apiGroup);
         }
         return result;
     }
@@ -506,7 +506,14 @@ public class GroupMapper {
         }
         final List<GroupApiDTO> result = new ArrayList<>(groupsAndMembers.size());
         for (GroupAndMembers group : groupsPage.getObjects()) {
-            result.add(toGroupApiDto(group, context, populateSeverity));
+            try {
+                result.add(toGroupApiDto(group, context, populateSeverity));
+            } catch (ConversionException | RuntimeException e) {
+                // We log the error, but we continue converting other groups or else we will
+                // return no results when a single group has an error.
+                logger.error("Failed to convert group " +
+                    group.group().getId()  + " (name: " + group.group().getDefinition().getDisplayName() + ")", e);
+            }
         }
         return new ObjectsPage<>(result, groupsPage.getTotalCount(), groupsPage.getNextCursor());
     }
