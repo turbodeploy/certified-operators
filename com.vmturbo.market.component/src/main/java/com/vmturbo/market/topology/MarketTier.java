@@ -17,9 +17,19 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
  */
 public interface MarketTier {
 
-    default boolean hasRIDiscount() {
-        return false;
-    }
+    /**
+     * Return if {@link MarketTier} has RI discount.
+     *
+     * @return true if {@link MarketTier} has RI discount. Otherwise, false
+     */
+    boolean hasRIDiscount();
+
+    /**
+     * Return if {@link MarketTier} is single region.
+     *
+     * @return true if {@link MarketTier} is single region.. Otherwise, false
+     */
+    boolean isSingleRegion();
 
     /**
      * Gets the connected market tiers of specified type.

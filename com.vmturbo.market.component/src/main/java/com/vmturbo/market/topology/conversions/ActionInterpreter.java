@@ -674,52 +674,47 @@ public class ActionInterpreter {
         TopologyEntityDTO destAzOrRegion = null;
         TopologyEntityDTO sourceTier = null;
         TopologyEntityDTO destTier = null;
-        TopologyEntityDTO target = originalTopology.get(targetOid);
-        Long moveSource = move.hasSource() ? move.getSource() : null;
-        // Update moveSource if the original supplier is in MAINTENANCE or FAILOVER state.
-        final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(move.getShoppingListToMove());
-        TopologyEntityDTO destinationRegion;
-        if (destMarketTier instanceof SingleRegionMarketTier) {
-            // For a RI Discounted market tier we get the region from the destination market tier
-            // SingleRegionMarketTier is currently only for RIDiscountedMarketTier. So,
-            // region information is coming from Tier itself.
-            destinationRegion = ((SingleRegionMarketTier)destMarketTier).getRegion();
-        } else {
-            // This is a onDemandMarketTier so we get the region from the move context.
-            // MultiRegionMarketTier contains all region's cost information so only move context
-            // can tell which region was chosen inside market analysis.
-            long regionCommSpec = move.getMoveContext().getRegionId();
-            destinationRegion = originalTopology.get(regionCommSpec);
-        }
         TopologyEntityDTO sourceRegion = null;
-        if (sourceMarketTier instanceof SingleRegionMarketTier) {
-            // Ri Discounted MarketTiers have a region associated with them
-            sourceRegion = ((SingleRegionMarketTier)sourceMarketTier).getRegion();
-        } else {
-            if (originalCloudTopology != null) {
-                Optional<TopologyEntityDTO> regionFromCloudTopo = originalCloudTopology.getConnectedRegion(targetOid);
-                if (regionFromCloudTopo != null && regionFromCloudTopo.isPresent()) {
-                    // For an onDemandMarketTier get the source region from the original cloud topology
-                    sourceRegion = regionFromCloudTopo.get();
-                }
-            }
-        }
-        if (!move.hasSource() &&
-            shoppingListInfo.getSellerId() != null &&
-            projectedTopology.containsKey(shoppingListInfo.getSellerId()) &&
-            evacuationEntityState.contains(
-                projectedTopology.get(shoppingListInfo.getSellerId()).getEntity().getEntityState()))
-            moveSource = shoppingListInfo.getSellerId();
+        TopologyEntityDTO destinationRegion = null;
+        TopologyEntityDTO target = originalTopology.get(targetOid);
+
         if (destMarketTier != null ) {
+            if (destMarketTier.isSingleRegion()) {
+                // For a RI Discounted market tier we get the region from the destination market tier
+                // SingleRegionMarketTier is currently only for RIDiscountedMarketTier. So,
+                // region information is coming from Tier itself.
+                destinationRegion = ((SingleRegionMarketTier)destMarketTier).getRegion();
+            } else {
+                // This is a onDemandMarketTier so we get the region from the move context.
+                // MultiRegionMarketTier contains all region's cost information so only move context
+                // can tell which region was chosen inside market analysis.
+                long regionCommSpec = move.getMoveContext().getRegionId();
+                destinationRegion = originalTopology.get(regionCommSpec);
+            }
+
             // TODO: We are considering the destination AZ as the first AZ of the destination
             // region. In case of zonal RIs, we need to get the zone of the RI.
             List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(
-                    destinationRegion, EntityType.AVAILABILITY_ZONE_VALUE, originalTopology);
+                destinationRegion, EntityType.AVAILABILITY_ZONE_VALUE, originalTopology);
             destAzOrRegion = connectedEntities.isEmpty() ?
-                    destinationRegion : connectedEntities.get(0);
+                destinationRegion : connectedEntities.get(0);
             destTier = destMarketTier.getTier();
         }
+
         if (sourceMarketTier != null) {
+            if (sourceMarketTier.isSingleRegion()) {
+                // Ri Discounted MarketTiers have a region associated with them
+                sourceRegion = ((SingleRegionMarketTier)sourceMarketTier).getRegion();
+            } else {
+                if (originalCloudTopology != null) {
+                    Optional<TopologyEntityDTO> regionFromCloudTopo = originalCloudTopology.getConnectedRegion(targetOid);
+                    if (regionFromCloudTopo != null && regionFromCloudTopo.isPresent()) {
+                        // For an onDemandMarketTier get the source region from the original cloud topology
+                        sourceRegion = regionFromCloudTopo.get();
+                    }
+                }
+            }
+
             // Soruce AZ or Region is the AZ or Region which the target is connected to.
             List<TopologyEntityDTO> connectedEntities = TopologyDTOUtil.getConnectedEntitiesOfType(target,
                 Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE, EntityType.REGION_VALUE),
@@ -728,11 +723,11 @@ public class ActionInterpreter {
                 sourceAzOrRegion = connectedEntities.get(0);
             else
                 logger.error("{} is not connected to any AZ or Region", target.getDisplayName());
-            if (sourceMarketTier instanceof RiDiscountedMarketTier) {
+            if (sourceMarketTier.hasRIDiscount()) {
                 Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> boughtGroupingFromTier =
-                        target.getCommoditiesBoughtFromProvidersList().stream()
-                                .filter(grouping -> grouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
-                                .findFirst();
+                    target.getCommoditiesBoughtFromProvidersList().stream()
+                        .filter(grouping -> grouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE)
+                        .findFirst();
 
                 if (boughtGroupingFromTier.isPresent()) {
                     sourceTier = originalCloudTopology.getEntity(boughtGroupingFromTier.get().getProviderId()).get();
@@ -741,6 +736,18 @@ public class ActionInterpreter {
                 sourceTier = sourceMarketTier.getTier();
             }
         }
+
+        Long moveSource = move.hasSource() ? move.getSource() : null;
+        // Update moveSource if the original supplier is in MAINTENANCE or FAILOVER state.
+        final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(move.getShoppingListToMove());
+        if (!move.hasSource() &&
+            shoppingListInfo.getSellerId() != null &&
+            projectedTopology.containsKey(shoppingListInfo.getSellerId()) &&
+            evacuationEntityState.contains(
+                projectedTopology.get(shoppingListInfo.getSellerId()).getEntity().getEntityState())) {
+            moveSource = shoppingListInfo.getSellerId();
+        }
+
         Long resourceId = shoppingListOidToInfos.get(move.getShoppingListToMove()).resourceId;
         // 4 case of moves:
         // 1) Cloud to cloud. 2) on prem to cloud. 3) cloud to on prem. 4) on prem to on prem.
@@ -757,7 +764,7 @@ public class ActionInterpreter {
             final boolean isAccountingAction = destinationRegion == sourceRegion
                     && destTier == sourceTier
                     && (move.hasCouponDiscount() && move.hasCouponId() ||
-                        sourceMarketTier instanceof RiDiscountedMarketTier);
+                        sourceMarketTier.hasRIDiscount());
             if (isAccountingAction) {
                 // We need to check if the original projected RI coverage of the target are the same.
                 // If they are the same, we should drop the action.
@@ -795,6 +802,7 @@ public class ActionInterpreter {
                     move.getDestination(), resourceId, projectedTopology));
         } else {
             // On prem to on prem (with or without source)
+            // A cloud container pod moving from a cloud VM to another cloud VM is covered by this case.
             changeProviders.add(createChangeProvider(moveSource,
                     move.getDestination(), resourceId, projectedTopology));
         }
