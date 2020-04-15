@@ -606,7 +606,7 @@ public class ActionSpecMapperTest {
             ActionInfo.newBuilder()
                 .setProvision(Provision.newBuilder()
                     .setEntityToClone(ApiUtilsTest.createActionEntity(3))
-                    .setProvisionedSeller(-1).build()).build();
+                    .setProvisionedSeller(2).build()).build();
         Explanation provision = Explanation.newBuilder().setProvision(ProvisionExplanation
             .newBuilder().setProvisionBySupplyExplanation(ProvisionBySupplyExplanation
                 .newBuilder().setMostExpensiveCommodityInfo(
@@ -614,21 +614,18 @@ public class ActionSpecMapperTest {
                         CommodityType.newBuilder().setType(21).build())
                         .build())).build()).build();
 
-        final MultiEntityRequest srcReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO("EntityToClone", 3L, EntityType.VIRTUAL_MACHINE_VALUE)));
-        final MultiEntityRequest projReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO("EntityToClone", -1, EntityType.VIRTUAL_MACHINE_VALUE)));
-        when(repositoryApi.entitiesRequest(Sets.newHashSet(3L)))
-            .thenReturn(srcReq);
-        when(repositoryApi.entitiesRequest(Sets.newHashSet(-1L)))
-            .thenReturn(projReq);
+        final MultiEntityRequest allReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
+            topologyEntityDTO("EntityToClone", 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                topologyEntityDTO("EntityToClone", 2L, EntityType.VIRTUAL_MACHINE_VALUE)));
+        when(repositoryApi.entitiesRequest(Sets.newHashSet(3L, 2L)))
+            .thenReturn(allReq);
 
         final long planId = 1 + REAL_TIME_TOPOLOGY_CONTEXT_ID;
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
             buildActionSpec(provisionInfo, provision), planId);
 
         // Verify that we set the context ID on the request.
-        verify(srcReq).contextId(planId);
+        verify(allReq).contextId(planId);
 
         assertEquals("EntityToClone", actionApiDTO.getCurrentEntity().getDisplayName());
         assertEquals("3", actionApiDTO.getCurrentValue());
@@ -639,7 +636,7 @@ public class ActionSpecMapperTest {
 
         assertEquals("EntityToClone", actionApiDTO.getNewEntity().getDisplayName());
         assertEquals("VirtualMachine", actionApiDTO.getNewEntity().getClassName());
-        assertEquals("-1", actionApiDTO.getNewEntity().getUuid());
+        assertEquals("2", actionApiDTO.getNewEntity().getUuid());
 
         assertEquals(ActionType.PROVISION, actionApiDTO.getActionType());
         assertEquals(DC2_NAME, actionApiDTO.getCurrentLocation().getDisplayName());
