@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
@@ -59,6 +60,8 @@ import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
+import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
@@ -664,9 +667,21 @@ public class StatsMapper {
         return filterRequestBuilder.build();
     }
 
-    private boolean areRelatedEntityTypesCompatible(@Nonnull final String relatedEntityType,
-                                                    @Nonnull final String otherEntityType) {
-        return normalizeRelatedType(relatedEntityType).equals(normalizeRelatedType(otherEntityType));
+    /**
+     * Create a global filter based on a provided global scope.
+     *
+     * @param globalScope a global scope that applies to an entire API stats request
+     * @return a GlobalFilter that can be used as part of a Stats query
+     */
+    @Nonnull
+    public GlobalFilter newGlobalFilter(@Nonnull final GlobalScope globalScope) {
+        final Builder globalFilter = GlobalFilter.newBuilder();
+        globalScope.environmentType().ifPresent(globalFilter::setEnvironmentType);
+        // since we've expanded DC to PMs, we should also set related entity type to
+        // PhysicalMachine, otherwise history component will not return required data
+        globalScope.entityTypes().forEach(type -> globalFilter.addRelatedEntityType(
+            normalizeRelatedType(type.apiStr())));
+        return globalFilter.build();
     }
 
     @Nonnull

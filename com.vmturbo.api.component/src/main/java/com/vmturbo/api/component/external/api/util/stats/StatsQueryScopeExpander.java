@@ -205,15 +205,15 @@ public class StatsQueryScopeExpander {
      * @return if the scope is a global scope the {@link GlobalScope} object otherwise null.
      */
     @Nullable
-    private GlobalScope findGlobalScope(ApiId scope, Set<ApiEntityType> relatedTypes) {
+    private Optional<GlobalScope> findGlobalScope(ApiId scope, Set<ApiEntityType> relatedTypes) {
         // Full market.
         if (scope.isRealtimeMarket()) {
             if (!userSessionContext.isUserScoped()) {
-                return ImmutableGlobalScope.builder()
+                return Optional.of(ImmutableGlobalScope.builder()
                     .entityTypes(relatedTypes)
-                    .build();
+                    .build());
             } else {
-                return null;
+                return Optional.empty();
             }
         }
 
@@ -222,27 +222,20 @@ public class StatsQueryScopeExpander {
             List<ApiEntityType> entityTypes = relatedTypes.isEmpty() ?
                 new ArrayList<>(scope.getCachedGroupInfo().get().getEntityTypes()) :
                 new ArrayList<>(relatedTypes);
-            return ImmutableGlobalScope.builder()
+            return Optional.of(ImmutableGlobalScope.builder()
                 .entityTypes(entityTypes)
                 .environmentType(scope.getCachedGroupInfo().get().getGlobalEnvType())
-                .build();
+                .build());
         }
 
         if (scope.isPlan()) {
-            final Set<Long>  explicitPlanScope = scope.getPlanInstance()
-                .map(MarketMapper::getPlanScopeIds)
-                .orElse(Collections.emptySet());
-
-            // If the plan is not scoped, it must be defined on the entire market, so
-            // the expanded scope is "all".
-            if (explicitPlanScope.isEmpty()) {
-                return ImmutableGlobalScope.builder()
-                    .entityTypes(relatedTypes)
-                    .build();
-            }
+            // A plan represents an entire plan market (whatever the scope of that plan is)
+            return Optional.of(ImmutableGlobalScope.builder()
+                .entityTypes(relatedTypes)
+                .build());
         }
 
-        return null;
+        return Optional.empty();
     }
 
     /**
@@ -324,16 +317,17 @@ public class StatsQueryScopeExpander {
             .map(ApiEntityType::fromString)
             .collect(Collectors.toSet());
 
-        final GlobalScope globalScope = findGlobalScope(scope, relatedTypes);
+        final Optional<GlobalScope> globalScope = findGlobalScope(scope, relatedTypes);
         final Set<Long> scopeOids;
 
-        if (globalScope == null) {
-            scopeOids = scope.getScopeOids(userSessionContext, statistics);
-        } else {
+        if (globalScope.isPresent()) {
             scopeOids = null;
+        } else {
+            scopeOids = scope.getScopeOids(userSessionContext, statistics);
         }
+
         return new StatQueryScopeLazyLoader(
-                this, scope, globalScope,
+                this, scope, globalScope.orElse(null),
                 scopeOids, relatedTypes, userSessionContext);
     }
 
