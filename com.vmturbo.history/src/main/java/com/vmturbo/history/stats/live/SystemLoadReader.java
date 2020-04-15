@@ -1,5 +1,9 @@
 package com.vmturbo.history.stats.live;
 
+import static com.vmturbo.history.schema.abstraction.Tables.SYSTEM_LOAD;
+
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -8,23 +12,21 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
-import javax.annotation.Nonnull;
+import com.google.common.collect.ImmutableMap;
 
-import jersey.repackaged.com.google.common.collect.Maps;
-
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.Record2;
+import org.jooq.Result;
 import org.jooq.SelectConditionStep;
 
-import com.vmturbo.auth.api.Pair;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.schema.abstraction.tables.SystemLoad;
 import com.vmturbo.history.schema.abstraction.tables.records.SystemLoadRecord;
-import com.vmturbo.history.utils.SystemLoadCommodities;
-import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
  * The class SystemLoadReader reads the system load information from the DB.
@@ -42,110 +44,39 @@ public class SystemLoadReader {
 
     private final HistorydbIO historydbIO;
 
-    private SystemLoadHelper systemLoadHelper = null;
-
     /**
      * Create a new instance.
      *
-     * @param historydbIO historydbio instance
+     * @param historydbIO DB utilites.
      */
     public SystemLoadReader(HistorydbIO historydbIO) {
         this.historydbIO = historydbIO;
     }
 
-    public void setSystemLoadUtils(SystemLoadHelper systemLoadHelper) {
-        this.systemLoadHelper = systemLoadHelper;
-    }
-
     /**
-     * The method loads the system load info of the current day in memory.
+     * Get previously saved overall system load values for for all slices.
      *
-     * @return The system load info (value, date) per slice.
+     * @param fromInclusive inclusive lower bound on snapshot time
+     * @param toInclusive   inclusive upper bound on snapshot time
+     * @return list of slice system load values within specified range
      */
-    @Nonnull
-    public Map<Long, Pair<Double, Date>> initSystemLoad() {
-        Map<Long, Pair<Double, Date>> systemLoad = Maps.newHashMap();
-        try {
-            final long snapshot = System.currentTimeMillis();
-            Date snapshotDate = new Date(snapshot);
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-            Date today = null;
-            try {
-                today = sdf.parse(sdf.format(snapshotDate));
-            } catch (ParseException e) {
-                logger.error("SYSLOAD- Error when parsing snaphot date during initialization of system load", e);
-            }
-            Calendar calendar = Calendar.getInstance();
-            calendar.setTime(today);
-            calendar.add(Calendar.DATE, 1);
-            Date tomorrow = calendar.getTime();
-
-
-            SelectConditionStep<SystemLoadRecord> queryBuilder = historydbIO.JooqBuilder()
-                    .selectFrom(SystemLoad.SYSTEM_LOAD)
-                    .where(SystemLoad.SYSTEM_LOAD.SNAPSHOT_TIME.between(new Timestamp(today.getTime()), new Timestamp(tomorrow.getTime())))
-                    .and(SystemLoad.SYSTEM_LOAD.PROPERTY_TYPE.eq("system_load"));
-
-            Map<Long, Double[]> slice2used = Maps.newHashMap();
-            Map<Long, Double[]> slice2capacities = Maps.newHashMap();
-            List<SystemLoadRecord> records = (List<SystemLoadRecord>)historydbIO.execute(queryBuilder);
-
-            for (SystemLoadRecord record : records) {
-                long slice = Long.valueOf(record.getSlice());
-                Double used = record.getAvgValue();
-                Double capacity = record.getCapacity();
-                String propertySubtype = record.getPropertySubtype();
-
-                Optional<SystemLoadCommodities> optCommodity
-                        = SystemLoadCommodities.toSystemLoadCommodity(propertySubtype);
-                // ignore unrecognized commodities. They can appear during upgrades when we have
-                // changed what is considered a system load commodity
-                if (optCommodity.isPresent()) {
-                    final SystemLoadCommodities commodity = optCommodity.get();
-                    if (commodity != null) {
-
-                        if (slice2used.containsKey(slice)) {
-                            Double[] tempUsed = slice2used.get(slice);
-                            tempUsed[commodity.ordinal()] = used;
-                            slice2used.put(slice, tempUsed);
-                        } else {
-                            Double[] tempUsed = new Double[SystemLoadCommodities.SIZE];
-                            tempUsed[commodity.ordinal()] = used;
-                            slice2used.put(slice, tempUsed);
-                        }
-
-                        if (slice2capacities.containsKey(slice)) {
-                            Double[] tempCapacities = slice2capacities.get(slice);
-                            tempCapacities[commodity.ordinal()] = capacity;
-                            slice2capacities.put(slice, tempCapacities);
-                        } else {
-                            Double[] tempCapacities = new Double[SystemLoadCommodities.SIZE];
-                            tempCapacities[commodity.ordinal()] = capacity;
-                            slice2capacities.put(slice, tempCapacities);
-                        }
-                    }
-                }
-            }
-
-            for (long slice : slice2used.keySet()) {
-
-                if (!slice2capacities.containsKey(slice)) {
-                    logger.error("SYSLOAD- Error in the system load data of DB");
-                    continue;
-                }
-
-                Double[] used = slice2used.get(slice);
-                Double[] capacities = slice2capacities.get(slice);
-
-                Double previousLoad = systemLoadHelper.calcSystemLoad(used, capacities, slice);
-
-                systemLoad.put(slice, new Pair<>(previousLoad, snapshotDate));
-            }
-        } catch (VmtDbException e) {
-            logger.error("Error when initializing system load", e);
+    public Map<Long, Double> getSystemLoadValues(final Timestamp fromInclusive, final Timestamp toInclusive) {
+        try (Connection conn = historydbIO.connection()) {
+            final Result<Record2<String, Double>> results =
+                    historydbIO.using(conn).select(SYSTEM_LOAD.SLICE, SYSTEM_LOAD.AVG_VALUE)
+                            .from(SYSTEM_LOAD)
+                            .where(SYSTEM_LOAD.SNAPSHOT_TIME.between(fromInclusive, toInclusive)
+                                    .and(SYSTEM_LOAD.PROPERTY_TYPE.eq(StringConstants.SYSTEM_LOAD))
+                                    .and(SYSTEM_LOAD.PROPERTY_SUBTYPE.eq(StringConstants.SYSTEM_LOAD)))
+                            .fetch();
+            return results.stream().collect(ImmutableMap.toImmutableMap(
+                    rec -> Long.valueOf(rec.value1()),
+                    Record2::value2));
+        } catch (SQLException | VmtDbException e) {
+            logger.error("Failed to retrieve system load values between {} and {}",
+                    fromInclusive, toInclusive, e);
+            return ImmutableMap.of();
         }
-
-        return systemLoad;
     }
 
     /**
@@ -161,17 +92,17 @@ public class SystemLoadReader {
         final long snapshot = System.currentTimeMillis();
         Date snapshotDate = new Date(snapshot);
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-        Date today = null;
+        Date today;
         try {
             today = sdf.parse(sdf.format(snapshotDate));
         } catch (ParseException e) {
             logger.error("SYSLOAD- Error when parsing snaphot date during initialization of system load");
-            return new ArrayList<SystemLoadRecord>();
+            return new ArrayList<>();
         }
         Calendar calendar = Calendar.getInstance();
         calendar.setTime(today);
 
-        List<Pair<Integer, Double>> systemLoads = new ArrayList<Pair<Integer, Double>>();
+        List<Pair<Integer, Double>> systemLoads = new ArrayList<>();
 
         // Loading the "system_load" records from past LOOPBACK_DAYS and calculating the system
         // load value for each of these dates
@@ -204,21 +135,21 @@ public class SystemLoadReader {
                 double totalCapacity = record.getCapacity();
                 double utilization = totalUsed / totalCapacity;
                 if (utilization > systemLoad) {
-                        systemLoad = utilization;
+                    systemLoad = utilization;
                 }
             }
 
-            systemLoads.add(i, new Pair(i, systemLoad));
+            systemLoads.add(i, Pair.of(i, systemLoad));
         }
 
         // Sorting the system load values of the past LOOPBACK_DAYS to choose the system load snapshot
         // which is at the SYSTEM_LOAD_PERCENTILE of the ordered system loads.
         // If 2 days have the same system load we choose the closest day to the present.
         systemLoads.sort((p1, p2) -> {
-            final double load1 = p1.second;
-            final double load2 = p2.second;
-            final int day1 = p1.first;
-            final int day2 = p2.first;
+            final double load1 = p1.getRight();
+            final double load2 = p2.getRight();
+            final int day1 = p1.getLeft();
+            final int day2 = p2.getLeft();
 
             int loadCompare = Double.compare(load1, load2);
             return loadCompare == 0 ? Integer.compare(day2, day1) : loadCompare; // earlier day has bigger number integer in Pair
@@ -228,7 +159,7 @@ public class SystemLoadReader {
         final Pair<Integer, Double> load = systemLoads.get(index);
 
         // Loading and returning all the system load records for the chosen snapshot
-        calendar.add(Calendar.DATE, -load.first);
+        calendar.add(Calendar.DATE, -load.getLeft());
         Date endTime = calendar.getTime();
         calendar.add(Calendar.DATE, -1);
         Date startTime = calendar.getTime();

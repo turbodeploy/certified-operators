@@ -3,16 +3,35 @@ package com.vmturbo.history.db.bulk;
 import java.util.Collection;
 
 import org.jooq.Record;
+import org.jooq.Table;
 
 /**
  * Simple interface for most clients of a {@link BulkInserter}, exposing only methods that
  * allow only record insertion.
+ *
  * @param <R> type of inserted records
  */
 public interface BulkLoader<R extends Record> {
 
     /**
+     * Get the input table for this loader.
+     *
+     * @return the input table
+     */
+    Table<R> getInTable();
+
+    /**
+     * Get the output table for this loader.
+     *
+     * <p>This can be different from the input table in the case of a transient loader.</p>
+     *
+     * @return the output table
+     */
+    Table<?> getOutTable();
+
+    /**
      * Insert a single record.
+     *
      * @param record record to be inserted
      * @throws InterruptedException if interrupted
      */

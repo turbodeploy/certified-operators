@@ -20,7 +20,6 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
 import com.vmturbo.history.listeners.TopologyCoordinator;
-import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
  * Test the Live Topology processing classes
@@ -32,13 +31,11 @@ public class LiveTopologyListenerTest {
     private TopologyCoordinator topologyCoordinator;
     private StatsAvailabilityTracker availabilityTracker;
     private GroupServiceBlockingStub groupServiceClient = null;
-    private SystemLoadHelper systemLoadHelper;
 
     @Before
     public void setup() {
         topologyCoordinator = Mockito.mock(TopologyCoordinator.class);
         availabilityTracker = Mockito.mock(StatsAvailabilityTracker.class);
-        systemLoadHelper = mock(SystemLoadHelper.class);
     }
 
     /**

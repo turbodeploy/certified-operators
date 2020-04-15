@@ -1,16 +1,26 @@
 package com.vmturbo.history.db.bulk;
 
-import static org.mockito.Matchers.anyCollectionOf;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.impl.DSL;
+import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.db.bulk.BulkInserterFactory.TableOperation;
 
 /**
  * Class that creates mocks for {@link SimpleBulkLoaderFactory} that are backed by a {@link DbMock}
@@ -38,6 +48,11 @@ public class BulkLoaderMock {
     public SimpleBulkLoaderFactory getFactory() {
         SimpleBulkLoaderFactory mock = mock(SimpleBulkLoaderFactory.class);
         doAnswer(getLoader).when(mock).getLoader(isA(Table.class));
+        try {
+            doAnswer(getTransientLoader).when(mock).getTransientLoader(
+                    isA(Table.class), anyBoolean(), isA(TableOperation.class));
+        } catch (SQLException | InstantiationException | VmtDbException | IllegalAccessException e) {
+        }
         return mock;
     }
 
@@ -47,6 +62,22 @@ public class BulkLoaderMock {
     private Answer<BulkLoader<?>> getLoader = invocation -> {
         Table<?> table = invocation.getArgumentAt(0, Table.class);
         return loaders.getLoader(table);
+    };
+
+    private Answer<BulkLoader<?>> getTransientLoader = new Answer<BulkLoader<?>>() {
+        @Override
+        public BulkLoader<?> answer(final InvocationOnMock invocation) throws Throwable {
+            Table<?> table = invocation.getArgumentAt(0, Table.class);
+            final String transName = table.getName() + "_transient_" + System.nanoTime();
+            final Table<?> transTable = mock(Table.class);
+            when(transTable.getName()).thenReturn(transName);
+            doAnswer(inv -> table.field(inv.getArgumentAt(0, String.class)))
+                    .when(transTable).field(anyString());
+            dbMock.setTableKeys(transTable, dbMock.getTableKeys(table));
+            TableOperation tableOp = invocation.getArgumentAt(2, TableOperation.class);
+            tableOp.execute(transTable);
+            return loaders.getLoader(transTable);
+        }
     };
 
     /**
@@ -68,10 +99,10 @@ public class BulkLoaderMock {
         private <T extends Record> BulkLoader<T> getMockLoader(Table<T> table) throws InterruptedException {
             @SuppressWarnings("unchecked")
             BulkLoader<T> mock = mock(BulkLoader.class);
-            doAnswer(dbMock.insert).when(mock).insert(isA(table.getRecordType()));
-            @SuppressWarnings("unchecked")
-            Class<T> tClass = (Class<T>)Record.class;
-            doAnswer(dbMock.insert).when(mock).insertAll(anyCollectionOf(tClass));
+            doAnswer(dbMock.insert).when(mock).insert(any());
+            doAnswer(dbMock.insert).when(mock).insertAll(any());
+            doReturn(table).when(mock).getInTable();
+            doReturn(table).when(mock).getOutTable();
             return mock;
         }
     }
