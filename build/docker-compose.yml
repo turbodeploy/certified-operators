@@ -490,6 +490,26 @@ services:
         kafkaServers: ${KAFKA_SERVERS}
       mem_limit: ${COST_MEM_LIMIT_MB}M
 
+  integration-intersight:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/intersight-integration:${XL_VERSION}
+    ports:
+      - "${INTEGRATION_INTERSIGHT_PORT}"
+      - "${INTEGRATION_INTERSIGHT_DEBUG_PORT}"
+    depends_on:
+      - clustermgr
+      - kafka1
+      - auth
+      - topology-processor
+    environment:
+      component_type: integration-intersight
+      instance_id: integration-intersight-1
+      JAVA_OPTS: "${DEV_JAVA_OPTS} ${INTEGRATION_INTERSIGHT_SYSTEM_PROPERTIES}"
+      kafkaServers: ${KAFKA_SERVERS}
+    mem_limit: ${INTEGRATION_INTERSIGHT_MEM_LIMIT_MB}M
+
   mediation-vcenter:
     extends:
       file: common-services.yml

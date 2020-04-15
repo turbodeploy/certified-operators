@@ -422,7 +422,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
             // until the repository service is up.
             int numInUseEntities = searchServiceClient.withWaitForReady().countEntities(request).getEntityCount();
             logger.debug("Search returned {} entities.", numInUseEntities);
-            isOverLimit = numInUseEntities > license.getNumLicensedEntities();
+
+            isOverLimit = (numInUseEntities > license.getNumLicensedEntities());
             license.setNumInUseEntities(numInUseEntities);
 
             if (isOverLimit) {
