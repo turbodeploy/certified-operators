@@ -1,13 +1,16 @@
 package com.vmturbo.history.db.bulk;
 
-import static com.vmturbo.history.db.RecordTransformer.identity;
+import static com.vmturbo.history.db.bulk.DbInserters.simpleUpserter;
 import static com.vmturbo.history.db.bulk.DbInserters.valuesInserter;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_DAY;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
+import static com.vmturbo.history.schema.abstraction.Tables.ENTITIES;
+import static com.vmturbo.history.schema.abstraction.Tables.HIST_UTILIZATION;
 import static com.vmturbo.history.schema.abstraction.tables.VmStatsLatest.VM_STATS_LATEST;
 
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -24,10 +27,10 @@ import org.jooq.Table;
 
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.EntityType;
-import com.vmturbo.history.db.EntityType.UseCase;
 import com.vmturbo.history.db.RecordTransformer;
-import com.vmturbo.history.schema.abstraction.tables.Entities;
-import com.vmturbo.history.schema.abstraction.tables.HistUtilization;
+import com.vmturbo.history.db.VmtDbException;
+import com.vmturbo.history.db.bulk.BulkInserterFactory.TableOperation;
+import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 
 /**
  * This class uses {@link BulkInserterFactory} to create bulk loaders that are automatically
@@ -66,8 +69,6 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
     private final BulkInserterFactory factory;
 
     private final BasedbIO basedbIO;
-    private final BulkInserterConfig defaultConfig;
-    private final ExecutorService executor;
 
     /**
      * Create a new instance.
@@ -79,23 +80,16 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
     public SimpleBulkLoaderFactory(final @Nonnull BasedbIO basedbIO,
                                    final @Nonnull BulkInserterConfig defaultConfig,
                                    final @Nonnull ExecutorService executor) {
-        this(basedbIO, defaultConfig, executor,
-            new BulkInserterFactory(basedbIO, defaultConfig, executor));
+        this(basedbIO, new BulkInserterFactory(basedbIO, defaultConfig, executor));
     }
 
     /** Create a new instance, supplying a BulkInserterFactory instance.
      * @param basedbIO      base db utilities
-     * @param defaultConfig config to be used by default when creating inserters
-     * @param executor      executor service to manage concurrent statement executions
      * @param factory       underlying BulkInserterFactory instance
      */
     public SimpleBulkLoaderFactory(final @Nonnull BasedbIO basedbIO,
-                                   final @Nonnull BulkInserterConfig defaultConfig,
-                                   final @Nonnull ExecutorService executor,
                                    final @Nonnull BulkInserterFactory factory) {
         this.basedbIO = basedbIO;
-        this.defaultConfig = defaultConfig;
-        this.executor = executor;
         this.factory = factory;
     }
 
@@ -123,16 +117,69 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      * @return an appropriately configured writer
      */
     public <R extends Record> BulkLoader<R> getLoader(final @Nonnull Table<R> table) {
-        if (EntityType.fromTable(table).map(t -> t.hasUseCase(UseCase.PersistStats)).orElse(false)) {
-            return getEntityStatsInserter(table);
-        } else if (Entities.ENTITIES == table || table == HistUtilization.HIST_UTILIZATION) {
-            return factory.getInserter(
-                    table, table, identity(), DbInserters.simpleUpserter(table, basedbIO));
-        } else if (CLUSTER_STATS_TABLES.contains(table)) {
-            return factory.getInserter(
-                    table, table, identity(), DbInserters.simpleUpserter(table, basedbIO));
+        return factory.getInserter(table, table, getRecordTransformer(table), getDbInserter(table));
+    }
+
+    /**
+     * Get a "transient" loader for the given table.
+     *
+     * <p>A transient loader is a loader that loads records not into the given table, but into a
+     * copy of that table created specifically for this request, and with the same record structure
+     * as the given table. This is similar in concept to the "temporary table" facilities ofr MySQL,
+     * but the tables are not bound to the connection from which they were created, which makes
+     * them far more suitable for use with bulk loaders.</p>
+     *
+     * <p>The jOOQ {@link Table} object returned can in many cases be used where a primary table
+     * object can be used, and will access the transient table. But there are some cases where this
+     * does not hold. In particular, when using a transient table in as a FROM table in a SELECT
+     * statement, you should use <code>DSL.table(transientTable.getName())</code>.</p>
+     *
+     * <p>If indexes need to be created on the transient table, or any other post-processing is
+     * needed, that can be accomplished by providing a <code>postCreateTableOp</code> function.</p>
+     *
+     * <p>Unlike non-transient tables, the factory does not give back shared instances to multiple
+     * requests for the same table. This method will ALWAYS create a new transient table and return
+     * a loader bound to that table.</p>
+     *
+     * <p>When the loader is closed, the transient table is dropped automatically.</p>
+     *
+     * @param table             the table whose structure will be copied when creating the transient
+     * @param dropExisting      whether to drop existing transient tables for this table first
+     *                          (i.e. clean up tables orphaned by a crash)
+     * @param postTableCreateOp a function to perform operations on the table after it has been created
+     * @param <R>               record type of underlying and transient tables
+     * @return the transient table, as a jOOQ {@link Table} instance
+     * @throws SQLException if there's a database error creating the table
+     * @throws InstantiationException if we can't create the jOOQ table object
+     * @throws VmtDbException if there's a problem with DB connection
+     * @throws IllegalAccessException if we can't create the jOOQ tabel object
+     */
+    public <R extends Record> BulkLoader<R> getTransientLoader(
+            final @Nonnull Table<R> table, boolean dropExisting, TableOperation<R> postTableCreateOp)
+            throws SQLException, InstantiationException, VmtDbException, IllegalAccessException {
+        return factory.getTransientInserter(
+                table, table, dropExisting, getRecordTransformer(table), getDbInserter(table),
+                postTableCreateOp);
+    }
+
+    private <R extends Record> RecordTransformer<R, R> getRecordTransformer(Table<R> table) {
+        final Optional<EntityType> entityType = EntityType.fromTable(table);
+        if (entityType.map(EntityType::rollsUp).orElse(false)) {
+            return new RollupKeyTransfomer<>();
         } else {
-            return factory.getInserter(table, table, identity(), valuesInserter(table, basedbIO));
+            return RecordTransformer.identity();
+        }
+    }
+
+    private <R extends Record> DbInserter<R> getDbInserter(Table<R> table) {
+        if (ENTITIES == table || HIST_UTILIZATION == table) {
+            // Entities table uses upserts so that previously existing entities get any changes
+            // to display name that show up in the topology.
+            return simpleUpserter(basedbIO);
+        } else {
+            // nothing else currently using bulk loader should ever have a primary key collision,
+            // so straight inserts are used.
+            return valuesInserter(basedbIO);
         }
     }
 
@@ -171,11 +218,6 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      */
     public void close(final Logger logger) throws InterruptedException {
         factory.close(logger);
-    }
-
-    private <R extends Record> BulkLoader<R> getEntityStatsInserter(Table<R> table) {
-        return factory.getInserter(
-            table, table, new RollupKeyTransfomer<R>(), valuesInserter(table, basedbIO));
     }
 
     /** RecordTrnasformer that adds rollup keys to a stats record.

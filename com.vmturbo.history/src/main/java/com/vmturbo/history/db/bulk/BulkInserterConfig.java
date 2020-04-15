@@ -1,6 +1,7 @@
 package com.vmturbo.history.db.bulk;
 
 import org.immutables.value.Value;
+import org.immutables.value.Value.Default;
 
 /**
  * This class collects various configuration parameters used by {@link BulkInserter}
@@ -42,4 +43,14 @@ public interface BulkInserterConfig {
      * @return max number of pending batches
      */
     int maxPendingBatches();
+
+    /**
+     * Should this table be dropped when the inserter is closed?
+     *
+     * @return true to drop the table
+     */
+    @Default()
+    default boolean dropOnClose() {
+        return false;
+    }
 }

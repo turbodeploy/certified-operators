@@ -72,6 +72,8 @@ public class DBPriceIndexVisitorTest {
                 .thenReturn(Optional.of(VIRTUAL_MACHINE_ENTITY_TYPE));
         when(historydbIO.getEntityType(BA_TYPE))
                 .thenReturn(Optional.of(BUSINESS_ACCOUNT_ENTITY_TYPE));
+        when(historydbIO.getMarketStatsRecord(any(MarketStatsData.class), any(TopologyInfo.class)))
+                .thenCallRealMethod();
     }
 
     /**
