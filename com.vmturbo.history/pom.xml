@@ -182,6 +182,10 @@
             <artifactId>grpc-testing</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.plan.orchestrator.api</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

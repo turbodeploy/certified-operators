@@ -12,6 +12,7 @@ import com.google.common.collect.ImmutableSet;
 
 import org.springframework.util.CollectionUtils;
 
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
@@ -185,5 +186,17 @@ public class PlanDTOUtil {
             }
         }
         return templatesBuilder.build();
+    }
+
+    /**
+     * Return whether or not a {@link PlanStatus} is terminal (i.e. no more state transitions, the
+     * plan is done running).
+     *
+     * @param planStatus The status of the plan.
+     * @return True if the status is terminal. False otherwise.
+     */
+    public static boolean isTerminalStatus(@Nonnull final PlanStatus planStatus) {
+        return planStatus == PlanStatus.SUCCEEDED ||
+            planStatus == PlanStatus.FAILED || planStatus == PlanStatus.STOPPED;
     }
 }

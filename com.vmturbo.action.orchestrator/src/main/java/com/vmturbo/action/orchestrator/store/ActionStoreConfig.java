@@ -22,6 +22,8 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 /**
@@ -35,6 +37,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
     RepositoryClientConfig.class,
     ActionStatsConfig.class,
     ActionTranslationConfig.class,
+    PlanOrchestratorClientConfig.class,
     UserSessionConfig.class})
 public class ActionStoreConfig {
 
@@ -46,6 +49,9 @@ public class ActionStoreConfig {
 
     @Autowired
     private RepositoryClientConfig repositoryClientConfig;
+
+    @Autowired
+    private PlanOrchestratorClientConfig planOrchestratorClientConfig;
 
     @Autowired
     private GroupClientConfig groupClientConfig;
@@ -147,6 +153,17 @@ public class ActionStoreConfig {
     public ActionStorehouse actionStorehouse() {
         return new ActionStorehouse(actionStoreFactory(), automatedActionExecutor(),
                 actionStoreLoader(), actionModeCalculator());
+    }
+
+    /**
+     * Cleans up stale plan data in the action orchestrator.
+     *
+     * @return The {@link PlanGarbageDetector}.
+     */
+    @Bean
+    public PlanGarbageDetector actionPlanGarbageDetector() {
+        ActionPlanGarbageCollector collector = new ActionPlanGarbageCollector(actionStorehouse());
+        return planOrchestratorClientConfig.newPlanGarbageDetector(collector);
     }
 
     @Bean

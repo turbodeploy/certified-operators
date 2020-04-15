@@ -1,7 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
-import static org.jooq.impl.DSL.isoDayOfWeek;
 import static org.jooq.impl.DSL.sum;
 
 import java.math.BigDecimal;
@@ -15,6 +14,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
+import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Record3;
 import org.jooq.Result;
@@ -44,6 +44,20 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore {
     public PlanReservedInstanceStore(@Nonnull DSLContext dsl, @Nonnull IdentityProvider identityProvider,
         @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator) {
         super(dsl, identityProvider, reservedInstanceCostCalculator);
+    }
+
+    /**
+     * Get the ids of plans with information in the store.
+     *
+     * @return Set of plan IDs.
+     */
+    @Nonnull
+    public Set<Long> getPlanIds() {
+        return getDsl().selectDistinct(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID)
+            .from(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
+            .fetch().stream()
+            .map(Record1::value1)
+            .collect(Collectors.toSet());
     }
 
     /**

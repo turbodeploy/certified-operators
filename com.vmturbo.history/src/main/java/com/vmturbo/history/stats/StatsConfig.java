@@ -31,6 +31,7 @@ import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.bulk.BulkLoader;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
+import com.vmturbo.history.listeners.HistoryPlanGarbageCollector;
 import com.vmturbo.history.schema.abstraction.tables.ClusterStatsByDay;
 import com.vmturbo.history.schema.abstraction.tables.records.ClusterStatsByDayRecord;
 import com.vmturbo.history.stats.StatRecordBuilder.DefaultStatRecordBuilder;
@@ -54,12 +55,16 @@ import com.vmturbo.history.stats.snapshots.PropertyTypeVisitor.PropertyTypePopul
 import com.vmturbo.history.stats.snapshots.SharedPropertyPopulator;
 import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 import com.vmturbo.history.stats.snapshots.UsageRecordVisitor.UsagePopulator;
+import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 
 /**
  * Spring configuration for Stats RPC service related objects.
  **/
 @Configuration
-@Import({HistoryDbConfig.class, GroupClientConfig.class})
+@Import({HistoryDbConfig.class,
+    GroupClientConfig.class,
+    PlanOrchestratorClientConfig.class})
 public class StatsConfig {
     /**
      * Populates related entity type into {@link StatRecord.Builder} instance.
@@ -109,7 +114,10 @@ public class StatsConfig {
     private GroupClientConfig groupClientConfig;
 
     @Autowired
-    HistoryApiConfig historyApiConfig;
+    private HistoryApiConfig historyApiConfig;
+
+    @Autowired
+    private PlanOrchestratorClientConfig planOrchestratorClientConfig;
 
     @Value("${retention.numRetainedMinutes}")
     private int numRetainedMinutes;
@@ -153,6 +161,17 @@ public class StatsConfig {
                         historyDbConfig.bulkLoaderConfig(),
                         Executors.newSingleThreadExecutor());
         return loaders.getLoader(ClusterStatsByDay.CLUSTER_STATS_BY_DAY);
+    }
+
+    /**
+     * Cleans up stale plan data in the history component.
+     *
+     * @return The {@link PlanGarbageDetector}.
+     */
+    @Bean
+    public PlanGarbageDetector historyPlanGarbageDetector() {
+        HistoryPlanGarbageCollector listener = new HistoryPlanGarbageCollector(historyDbConfig.historyDbIO());
+        return planOrchestratorClientConfig.newPlanGarbageDetector(listener);
     }
 
     @Bean

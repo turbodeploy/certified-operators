@@ -14,7 +14,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -22,12 +21,11 @@ import javax.annotation.Nonnull;
 import com.arangodb.ArangoDBException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Collections2;
+import com.google.common.collect.Sets;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import javaslang.Function1;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.ProjectedTopologyEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -541,6 +539,16 @@ public class TopologyLifecycleManager implements DiagsRestorable {
     @Nonnull
     public Optional<TopologyID> getRealtimeTopologyId() {
         return getRealtimeTopologyId(TopologyType.SOURCE);
+    }
+
+    /**
+     * List the ids of all registered contexts in the manager (including realtime context).
+     *
+     * @return The set of ids.
+     */
+    @Nonnull
+    public Set<Long> listRegisteredContexts() {
+        return Sets.newHashSet(topologyIdByContextAndType.keySet());
     }
 
     @Nonnull

@@ -32,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -241,6 +242,18 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
             // Do nothing.
             logger.info("Cluster headroom plan for cluster {} has new status: {}",
                 displayName, plan.getStatus());
+        }
+    }
+
+    @Override
+    public void onPlanDeleted(@Nonnull final PlanInstance plan) {
+        if (!PlanDTOUtil.isTerminalStatus(plan.getStatus())) {
+            // Got deleted while in progress, probably via user intervention via the
+            // command line/a manual gRPC call directly to the Plan Orchestrator.
+            logger.warn("Cluster headroom plan {} deleted while in progress.", plan);
+            if (onCompleteHandler != null) {
+                onCompleteHandler.accept(this);
+            }
         }
     }
 

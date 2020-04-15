@@ -1,5 +1,7 @@
 package com.vmturbo.cost.component.entity.cost;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -81,6 +83,15 @@ public class PlanProjectedEntityCostStoreTest {
     public void testUpdateProjectedEntityCostsTable() {
         initializeCostStore(chunkSize);
         commonUpdateProjectedEntityCostsTableVerification();
+    }
+
+    /**
+     * Test listing plan IDs the store knows about.
+     */
+    @Test
+    public void testListPlanIds() {
+        PlanProjectedEntityCostStore store = initializeCostStore(chunkSize);
+        assertThat(store.getPlanIds(), containsInAnyOrder(PLAN_ID));
     }
 
     @Test

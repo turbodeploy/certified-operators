@@ -21,6 +21,7 @@ import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -70,13 +71,18 @@ public class MarketMapper {
         return retDto;
     }
 
-    public static MarketNotification notificationFromPlanInstance(@Nonnull final PlanInstance instance) {
+    /**
+     * Create a {@link MarketNotification} for a plan state transition given a plan status update.
+     * @param statusUpdate The plan status update.
+     * @return The {@link MarketNotification} to send to the UI.
+     */
+    public static MarketNotification notificationFromPlanStatus(@Nonnull final StatusUpdate statusUpdate) {
         final StatusNotification status = StatusNotification.newBuilder()
-                .setProgressPercentage(progressFromStatus(instance.getStatus()))
-                .setStatus(stateFromStatus(instance.getStatus()))
+                .setProgressPercentage(progressFromStatus(statusUpdate.getNewPlanStatus()))
+                .setStatus(stateFromStatus(statusUpdate.getNewPlanStatus()))
                 .build();
         final MarketNotification.Builder retBuilder = MarketNotification.newBuilder();
-        retBuilder.setMarketId(Long.toString(instance.getPlanId()));
+        retBuilder.setMarketId(Long.toString(statusUpdate.getPlanId()));
         if (status.getStatus().equals(SUCCEEDED) || status.getStatus().equals(STOPPED)) {
             retBuilder.setStatusNotification(status);
         } else {

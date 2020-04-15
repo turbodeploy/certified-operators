@@ -47,6 +47,14 @@ public class ProjectPlanPostProcessorRegistry implements PlanStatusListener, Pro
         }
     }
 
+    @Override
+    public void onPlanDeleted(@Nonnull final PlanInstance plan) throws PlanStatusListenerException {
+        final ProjectPlanPostProcessor postProcessor = projectIdForPlan.get(plan.getPlanId());
+        if (postProcessor != null) {
+            postProcessor.onPlanDeleted(plan);
+        }
+    }
+
     /**
      * Register a {@link ProjectPlanPostProcessor} to be called when the plan associated
      * with it changes state.

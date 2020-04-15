@@ -47,6 +47,7 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketSubscription;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.repository.controller.RepositorySecurityConfig;
 import com.vmturbo.repository.diagnostics.RepositoryDiagnosticsConfig;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
@@ -78,6 +79,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
     ActionOrchestratorClientConfig.class,
     GroupClientConfig.class,
     MarketClientConfig.class,
+    PlanOrchestratorClientConfig.class,
     RepositorySecurityConfig.class,
     RepositoryProperties.class,
     SpringSecurityConfig.class,

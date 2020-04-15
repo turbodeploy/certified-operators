@@ -1,5 +1,8 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -154,6 +157,14 @@ public class PlanReservedInstanceStoreTest {
         Assert.assertEquals(300, stats.getFixedCost(), DELTA);
         Assert.assertEquals(7.5, stats.getRecurringCost(), DELTA);
         Assert.assertEquals(7.517, stats.getAmortizedCost(), DELTA);
+    }
+
+    /**
+     * Test listing plan IDs in the store.
+     */
+    @Test
+    public void testListPlanIds() {
+        assertThat(planReservedInstanceStore.getPlanIds(), containsInAnyOrder(PLAN_ID));
     }
 
     private void insertDefaultReservedInstanceSpec() {
