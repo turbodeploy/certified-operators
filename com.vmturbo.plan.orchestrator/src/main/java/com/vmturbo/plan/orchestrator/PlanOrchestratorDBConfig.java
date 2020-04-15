@@ -62,4 +62,9 @@ public class PlanOrchestratorDBConfig extends SQLDatabaseConfig {
     public ReservationDao reservationDao() {
         return new ReservationDaoImpl(super.dsl());
     }
+
+    @Override
+    protected String getDbSchemaName() {
+        return dbSchemaName;
+    }
 }

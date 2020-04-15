@@ -1,4 +1,4 @@
-package com.vmturbo.cost.component;
+package com.vmturbo.clustermgr;
 
 import javax.sql.DataSource;
 
@@ -11,38 +11,42 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.SQLDatabaseConfig;
 
 /**
- * Configuration for cost component interaction with a schema.
+ * Configuration for clustermgr interaction with a schema.
  */
 @Configuration
-public class CostDBConfig extends SQLDatabaseConfig {
-
+public class ClustermgrDBConfig extends SQLDatabaseConfig {
     /**
      * DB user name accessible to given schema.
      */
-    @Value("${costDbUsername:cost}")
-    private String costDbUsername;
+    @Value("${clustermgrDbUsername:clustermgr}")
+    private String clustermgrDbUsername;
 
     /**
      * DB user password accessible to given schema.
      */
-    @Value("${costDbPassword:}")
-    private String costDbPassword;
+    @Value("${clustermgrDbPassword:}")
+    private String clustermgrDbPassword;
 
     /**
      * DB schema name.
      */
-    @Value("${dbSchemaName:cost}")
+    @Value("${dbSchemaName:clustermgr}")
     private String dbSchemaName;
 
+    /**
+     * Initialize plan-orchestrator DB config by running flyway migration and creating a user.
+     *
+     * @return DataSource of plan-orchestrator DB.
+     */
     @Bean
     @Override
     public DataSource dataSource() {
         // If no db password specified, use root password by default.
         DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
             authRetryDelaySecs);
-        String dbPassword = !Strings.isEmpty(costDbPassword) ?
-            costDbPassword : dbPasswordUtil.getSqlDbRootPassword();
-        return dataSourceConfig(dbSchemaName, costDbUsername, dbPassword);
+        String dbPassword = !Strings.isEmpty(clustermgrDbPassword) ?
+            clustermgrDbPassword : dbPasswordUtil.getSqlDbRootPassword();
+        return dataSourceConfig(dbSchemaName, clustermgrDbUsername, dbPassword);
     }
 
     @Override
