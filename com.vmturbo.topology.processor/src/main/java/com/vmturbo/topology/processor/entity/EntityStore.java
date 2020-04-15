@@ -30,6 +30,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
@@ -302,9 +303,9 @@ public class EntityStore {
     }
 
     /**
-     * Check if the probe type of the given target uses layeredOver and consistsOf in the DTO to
-     * represent normal connectedTo relationships and owns connectedTo relationships respectively
-     * or not. This is used in
+     * Check if the probe type or probe category of the given target uses layeredOver and consistsOf
+     * in the DTO to represent normal connectedTo relationships and owns connectedTo relationships
+     * respectively or not. This is used in
      * {@link TopologyStitchingGraph#addStitchingData(StitchingEntityData, Map)} to add connected
      * entity. This logic can be removed once EntityDTO itself supports connected relationship.
      *
@@ -313,7 +314,9 @@ public class EntityStore {
      */
     private boolean supportsConnectedTo(long targetId) {
         return targetStore.getProbeTypeForTarget(targetId)
-            .map(SUPPORTED_CONNECTED_TO_PROBES::contains).orElse(false);
+            .map(SUPPORTED_CONNECTED_TO_PROBES::contains).orElse(false) ||
+             targetStore.getProbeCategoryForTarget(targetId)
+                 .map(ProbeCategory.CLOUD_NATIVE::equals).orElse(false);
     }
 
     /**
