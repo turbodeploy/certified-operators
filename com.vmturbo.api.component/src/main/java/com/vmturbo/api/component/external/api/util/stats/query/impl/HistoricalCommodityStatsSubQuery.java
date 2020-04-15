@@ -276,7 +276,13 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
             return Optional.empty();
         }
         if (queryGlobalScope.isPresent()) {
-            entityStatsRequest.setGlobalFilter(statsMapper.newGlobalFilter(queryGlobalScope.get()));
+            GlobalFilter.Builder globalFilter = GlobalFilter.newBuilder();
+            queryGlobalScope.get().environmentType().ifPresent(globalFilter::setEnvironmentType);
+            // since we've expanded DC to PMs, we should also set related entity type to
+            // PhysicalMachine, otherwise history component will not return required data
+            queryGlobalScope.get().entityTypes().forEach(type -> globalFilter.addRelatedEntityType(
+                statsMapper.normalizeRelatedType(type.apiStr())));
+            entityStatsRequest.setGlobalFilter(globalFilter);
         } else {
             entityStatsRequest.addAllEntities(expandedOids);
         }

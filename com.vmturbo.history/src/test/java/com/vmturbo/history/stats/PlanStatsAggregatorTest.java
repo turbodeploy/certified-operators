@@ -3,6 +3,8 @@ package com.vmturbo.history.stats;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertThat;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -95,6 +97,7 @@ public class PlanStatsAggregatorTest {
         Assert.assertEquals(2, (int)entityTypeCounts.get(EntityType.VIRTUAL_MACHINE_VALUE));
         Assert.assertEquals(3, (int)entityTypeCounts.get(EntityType.PHYSICAL_MACHINE_VALUE));
         Assert.assertEquals(1, (int)entityTypeCounts.get(EntityType.CONTAINER_POD_VALUE));
+        Assert.assertEquals(3, (int)aggregator.getCommodityTypeCounts().get(CommodityDTO.CommodityType.CPU_VALUE));
     }
 
     /**

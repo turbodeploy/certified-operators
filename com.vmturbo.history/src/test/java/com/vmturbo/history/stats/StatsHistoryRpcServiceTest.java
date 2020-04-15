@@ -341,7 +341,7 @@ public class StatsHistoryRpcServiceTest {
 
         // assert
         assertThat(snapshots.size(), is(2));
-        verify(mockPlanStatsReader).getStatsRecords(eq(PLAN_OID), anyObject(), anyObject());
+        verify(mockPlanStatsReader).getStatsRecords(eq(PLAN_OID), anyObject());
         verifyNoMoreInteractions(mockLivestatsreader);
     }
 

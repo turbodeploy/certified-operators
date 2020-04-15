@@ -22,7 +22,6 @@ import com.vmturbo.history.schema.abstraction.tables.MktSnapshotsStats;
 import com.vmturbo.history.schema.abstraction.tables.records.MktSnapshotsStatsRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.PlanStatsAggregator;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
  * Class to write stats data while ingesting a projected plan topology broadcast by market.
@@ -117,8 +116,6 @@ public class ProjectedPlanStatsWriter extends ProjectedTopologyWriterBase {
         commodityRecord.setMaxValue(Double.MIN_VALUE);
         commodityRecord.setCapacity(0D);
         commodityRecord.setProjectionTime(scenarioInfo.getCreateTime());
-        // This priceIndex represents the entire plan market, so no single entity type applies
-        commodityRecord.setEntityType((short)EntityType.UNKNOWN_VALUE);
         return commodityRecord;
     }
 

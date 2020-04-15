@@ -5,7 +5,6 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -143,13 +142,13 @@ public class StatsQueryContextFactory {
                                  @Nonnull final StatsQueryScope expandedScope,
                                  final long curTime,
                                  final boolean requestProjected) {
-            this.scope = Objects.requireNonNull(scope);
-            this.requestedStats = Objects.requireNonNull(requestedStats);
+            this.scope = scope;
+            this.requestedStats = requestedStats;
             this.curTime = curTime;
-            this.timeWindow = Objects.requireNonNull(timeWindow);
-            this.userSessionContext = Objects.requireNonNull(userSessionContext);
-            this.targets = Objects.requireNonNull(targets);
-            this.queryScope = Objects.requireNonNull(expandedScope);
+            this.timeWindow = timeWindow;
+            this.userSessionContext = userSessionContext;
+            this.targets = targets;
+            this.queryScope = expandedScope;
             this.requestProjected = requestProjected;
         }
 
