@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ExecutorService;
@@ -59,6 +60,7 @@ import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.health.ComponentStatusNotifier;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
 import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
 import com.vmturbo.components.common.health.HealthStatus;
@@ -235,7 +237,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private ServletContext servletContext;
 
     @Autowired
-    private ConsulHealthcheckRegistration consulHealthcheckRegistration;
+    private ConsulRegistrationConfig consulRegistrationConfig;
 
     /**
      * Embed a component for monitoring dependency/subcomponent health.
@@ -377,6 +379,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             try {
                 this.onStartComponent();
                 publishVersionInformation();
+                consulRegistrationConfig.componentStatusNotifier().ifPresent(ComponentStatusNotifier::notifyComponentStartup);
                 setStatus(ExecutionStatus.RUNNING);
             } catch (Exception e) {
                 logger.error("Error while trying to finish startup routine. Will shut down.", e);
@@ -393,7 +396,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     public final void stopComponent() {
         setStatus(ExecutionStatus.STOPPING);
         logger.info("Deregistering service: {}", instanceId);
-        consulHealthcheckRegistration.deregisterService();
+        consulRegistrationConfig.consulHealthcheckRegistration().deregisterService();
+        consulRegistrationConfig.componentStatusNotifier().ifPresent(ComponentStatusNotifier::notifyComponentShutdown);
         onStopComponent();
         ComponentGrpcServer.get().stop();
         JETTY_SERVER.getValue().ifPresent(server -> {

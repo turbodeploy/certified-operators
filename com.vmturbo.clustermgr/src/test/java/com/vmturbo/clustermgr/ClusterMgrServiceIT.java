@@ -14,6 +14,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import com.vmturbo.clustermgr.api.ComponentProperties;
+import com.vmturbo.clustermgr.management.ComponentRegistry;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 
 /**
@@ -38,7 +39,7 @@ public class ClusterMgrServiceIT {
     public void startup() {
         final ConsulService consulService = new ConsulService("localhost", consul.getHttpPort(), "");
         final OsCommandProcessRunner runner = new OsCommandProcessRunner();
-        svc = new ClusterMgrService(consulService, runner, mock(DiagEnvironmentSummary.class));
+        svc = new ClusterMgrService(consulService, runner, mock(DiagEnvironmentSummary.class), mock(ComponentRegistry.class));
         final ComponentProperties defaultProperties = new ComponentProperties();
         defaultProperties.put(PROP_1, PROP_1_DEF_VAL);
         defaultProperties.put(PROP_2, PROP_2_DEF_VAL);

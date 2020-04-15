@@ -3,6 +3,7 @@ package com.vmturbo.components.api.server;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.components.api.BaseKafkaConfig;
 
@@ -38,6 +39,7 @@ public class BaseKafkaProducerConfig extends BaseKafkaConfig {
      * @return kafka message sender.
      */
     @Bean
+    @Lazy
     public KafkaMessageProducer kafkaMessageSender() {
         return new KafkaMessageProducer(bootstrapServer(), kafkaNamespacePrefix(),
             maxRequestSizeBytes, recommendedRequestSizeBytes);

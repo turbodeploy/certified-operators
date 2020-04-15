@@ -44,5 +44,10 @@ public class TopologyProcessorDBConfig extends SQLDatabaseConfig {
             topologyProcessorDbPassword : dbPasswordUtil.getSqlDbRootPassword();
         return dataSourceConfig(dbSchemaName, topologyProcessorDbUsername, dbPassword);
     }
+
+    @Override
+    protected String getDbSchemaName() {
+        return dbSchemaName;
+    }
 }
 

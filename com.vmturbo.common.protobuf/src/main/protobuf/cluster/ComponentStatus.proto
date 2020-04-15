@@ -1,0 +1,104 @@
+syntax = "proto2";
+package cluster;
+
+option java_package = "com.vmturbo.common.protobuf.cluster";
+
+
+message UriInfo {
+    // The IP address of the component.
+    // i.e. for 10.20.30.40:123/someRoute this is 10.20.30.40
+    optional string ip_address = 1;
+
+    // The port for the component's http server.
+    // i.e. for 10.20.30.40:123/someRoute this is 123
+    optional int32 port = 2;
+
+    // If any, this is the HTTP route all uses of this component should be prefixed with.
+    // i.e. for 10.20.30.40:123/someRoute this is someRoute
+    optional string route = 3;
+}
+
+message ComponentIdentifier {
+    // The type of the component (e.g. topology-processor).
+    optional string component_type = 1;
+
+    // The instance ID of the component. In kubernetes this would be the pod id.
+    // (e.g. topology-processor-d298vx)
+    optional string instance_id = 2;
+
+    // The JVM ID of the component. Each restart of the same instance will have a different JVM
+    // ID, even if the instance ID is the same.
+    //
+    // The main reason we have this is to properly interpret interleaved starting and stopping
+    // notifications from the same instance during pod restarts.
+    optional int64 jvm_id = 3;
+}
+
+// Build properties of the component at the time it was built.
+message BuildProperties {
+    // The git branch for the build.
+    optional string branch = 1;
+
+    // The version of the build.
+    optional string version = 2;
+
+    // The time of the build.
+    optional string build_time = 3;
+
+    // The commit ID at the time of the build (abbreviated).
+    optional string commit_id = 4;
+
+    // Whether or not the build has local changes that are not yet committed.
+    //
+    // A dirty build is a red flag - unless someone manually built some in-progress work and
+    // deployed it for preliminary testing.
+    optional bool is_dirty = 5;
+}
+
+message ComponentInfo {
+    // Identifier for the component's instance.
+    optional ComponentIdentifier id = 1;
+
+    // Information about how to access the component's REST endpoints.
+    optional UriInfo uri_info = 2;
+}
+
+message ComponentStarting {
+
+    // Information about the component that's starting up.
+    optional ComponentInfo component_info = 1;
+
+    // Information about the component's build.
+    optional BuildProperties build_properties = 2;
+
+    // The time the component started up.
+    //
+    // This may be somewhat different from the timestamp of the notification.
+    optional int64 start_timestamp = 3;
+}
+
+message ComponentStopping {
+    // The time the component started up.
+    //
+    // Should be the same as the start timestamp in the ComponentStarting message for this
+    // component.
+    optional int64 start_timestamp = 1;
+
+    // The identifier of the component.
+    optional ComponentIdentifier component_id = 2;
+}
+
+message ComponentStatusNotification {
+
+    // Epoch timestamp of the notification.
+    optional int64 time_ms = 1;
+
+    oneof type {
+        // A component is starting up.
+        ComponentStarting startup = 10;
+
+        // A component is shutting down.
+        ComponentStopping shutdown = 11;
+    }
+
+}
