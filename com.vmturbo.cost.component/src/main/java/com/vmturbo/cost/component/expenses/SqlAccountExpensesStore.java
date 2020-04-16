@@ -206,8 +206,9 @@ public class SqlAccountExpensesStore implements AccountExpensesStore {
                 selectFrom =
                     select.from(table.innerJoin(dsl
                     .select(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
-                        DSL.max(ACCOUNT_EXPENSES.EXPENSE_DATE).as(ACCOUNT_EXPENSES.EXPENSE_DATE))
+                                    ACCOUNT_EXPENSES.EXPENSE_DATE)
                     .from(table)
+                                    .where(ACCOUNT_EXPENSES.EXPENSE_DATE.eq(dsl.select(DSL.max(ACCOUNT_EXPENSES.EXPENSE_DATE)).from(table)))
                     .groupBy(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID))
                     .using(ACCOUNT_EXPENSES.ASSOCIATED_ACCOUNT_ID,
                         ACCOUNT_EXPENSES.EXPENSE_DATE));
