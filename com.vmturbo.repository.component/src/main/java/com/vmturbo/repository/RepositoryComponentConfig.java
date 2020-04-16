@@ -6,6 +6,7 @@ import javax.annotation.PreDestroy;
 
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
+import com.arangodb.ArangoDatabase;
 import com.arangodb.Protocol;
 import com.arangodb.velocypack.VPackDeserializer;
 import com.arangodb.velocypack.VPackSerializer;
@@ -116,11 +117,6 @@ public class RepositoryComponentConfig {
     private final SetOnce<ArangoDB> arangoDB = new SetOnce<>();
 
     /**
-     * Boolean field to check if given database has been created or not.
-     */
-    private boolean databaseCreated = false;
-
-    /**
      * Store an object of type {@link TopologyDTO.Topology} into ArangoDB.
      *
      * <p>A {@link TopologyDTO.Topology} object will be stored as an Arango document which
@@ -219,7 +215,7 @@ public class RepositoryComponentConfig {
     @Bean
     public ArangoDatabaseFactory arangoDatabaseFactory() {
         return () -> {
-            ArangoDB db = this.arangoDB.ensureSet(() -> {
+            ArangoDB driver = this.arangoDB.ensureSet(() -> {
                 return new ArangoDB.Builder().host(repositoryProperties.getArangodb().getHost(),
                         repositoryProperties.getArangodb().getPort())
                         .registerSerializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_SERIALIZER)
@@ -231,35 +227,40 @@ public class RepositoryComponentConfig {
                         .useProtocol(Protocol.HTTP_VPACK)
                         .build();
             });
-            // Check databaseCreated first so that every time calling getArangoDriver(), we don't
-            // have to list all databases to see if the given database exists.
-            // We don't expect an Arango database deleted once repository component is running. If by
-            // accident a database is deleted, we have to restart repository component to recreate the
-            // database.
-            // TODO This can be improved by returning a queried ArangoDatabase (arangoDriver.db(databaseName))
-            // instead of arangoDriver (ArangoDB) in this method. If DB does not exist, catch the exception
-            // and recreate the DB so that we don't have to restart repository component to recreate the DB.
-            if (!databaseCreated) {
-                if (!db.getAccessibleDatabases().contains(getArangoDatabaseName())) {
-                    logger.info("Creating database {}.", getArangoDatabaseName());
-                    try {
-                        db.createDatabase(getArangoDatabaseName());
-                    } catch (ArangoDBException adbe) {
-                        // We will treat "duplicate name" errors as harmless -- this means someone
-                        // else may have already created our database.
-                        if (adbe.getErrorNum() == ArangoError.ERROR_ARANGO_DUPLICATE_NAME) {
-                            logger.info("Database {} already created.", getArangoDatabaseName());
-                        } else {
-                            // we'll re-throw the other errors.
-                            logger.error("Error when creating database {}.", getArangoDatabaseName());
-                            throw adbe;
-                        }
-                    }
-                }
-                databaseCreated = true;
+            ArangoDatabase db = driver.db(getArangoDatabaseName());
+            if (!db.exists()) {
+                logger.info("Arango DB {} does not exist. Creating database.", getArangoDatabaseName());
+                createDatabase(driver);
             }
-            return db;
+            // TODO: Ideally it would be good to return the created database from here instead of the driver.
+            // But since that is quite a big refactor, we are not doing it at the moment.
+            return driver;
         };
+    }
+
+    /**
+     * Create an {@link ArangoDatabase}.
+     * 
+     * @param driver the Arango driver.
+     */
+    private void createDatabase(ArangoDB driver) {
+        try {
+            if (driver.createDatabase(getArangoDatabaseName())) {
+                logger.info("Database {} successfully created.", getArangoDatabaseName());
+            } else {
+                throw new IllegalStateException("Could not create Arango DB. Arango createDatabase returned false.");
+            }
+        } catch (ArangoDBException adbe) {
+            // We will treat "duplicate name" errors as harmless -- this means someone
+            // else may have already created our database.
+            if (adbe.getErrorNum() == ArangoError.ERROR_ARANGO_DUPLICATE_NAME) {
+                logger.info("Database {} already created.", getArangoDatabaseName());
+            } else {
+                // we'll re-throw the other errors.
+                logger.error("Error when creating database {}.", getArangoDatabaseName());
+                throw adbe;
+            }
+        }
     }
 
     /**
