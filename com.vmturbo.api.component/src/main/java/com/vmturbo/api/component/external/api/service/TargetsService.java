@@ -63,6 +63,7 @@ import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -81,24 +82,6 @@ import com.vmturbo.topology.processor.api.dto.InputField;
  * Service entry points to search the Repository.
  **/
 public class TargetsService implements ITargetsService {
-
-    /**
-     * Indicates that validation is still in progress by the topology processor.
-     */
-    @VisibleForTesting
-    static final String TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS = "Validation in progress";
-
-    /**
-     * Indicates that validation has successfully completed in the topology processor.
-     */
-    @VisibleForTesting
-    static final String TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS = "Validated";
-
-    /**
-     * Indicates that validation has successfully completed in the topology processor.
-     */
-    @VisibleForTesting
-    static final String TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS = "Discovery in progress";
 
     @VisibleForTesting
     static final String UI_VALIDATING_STATUS = "VALIDATING";
@@ -124,9 +107,9 @@ public class TargetsService implements ITargetsService {
     @VisibleForTesting
     static final Map<String, String> TARGET_STATUS_MAP =
             new ImmutableMap.Builder<String, String>()
-                    .put(TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, UI_VALIDATING_STATUS)
-                    .put(TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS, UI_VALIDATED_STATUS)
-                    .put(TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, UI_VALIDATING_STATUS)
+                    .put(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, UI_VALIDATING_STATUS)
+                    .put(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS, UI_VALIDATED_STATUS)
+                    .put(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, UI_VALIDATING_STATUS)
                     .build();
 
     /**
@@ -156,9 +139,10 @@ public class TargetsService implements ITargetsService {
      * Target status set that contains non-failed validation status from topology processor, including
      * "Validated", "Validation in progress" and "Discovery in progress".
      */
-    private static final Set<String> NON_VALIDATION_FAILED_STATUS_SET =
-        Sets.newHashSet(TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS,
-            TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+    private static final Set<String> NON_VALIDATION_FAILED_STATUS_SET = ImmutableSet.of(
+        StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS,
+        StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS,
+        StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
 
     private final Logger logger = LogManager.getLogger();
 
@@ -473,7 +457,7 @@ public class TargetsService implements ITargetsService {
                 // if validation is successful and this is the first target, listen to the results
                 // and send notification to UI
                 if (validatedTargetInfo != null &&
-                        TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(validatedTargetInfo.getStatus()) &&
+                        StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(validatedTargetInfo.getStatus()) &&
                         targetSizeBeforeValidation == 0) {
                     apiComponentTargetListener.triggerBroadcastAfterNextDiscovery();
                 }
@@ -542,7 +526,7 @@ public class TargetsService implements ITargetsService {
             // There is no point in running a discovery when validation has just immediately failed.
             boolean shouldDiscover = rediscover != null && rediscover &&
                 result.map(targetDto -> targetDto.getStatus() != null &&
-                    targetDto.getStatus().equals(TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS))
+                    targetDto.getStatus().equals(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS))
                 .orElse(true);
 
             if (shouldDiscover) {
@@ -830,7 +814,7 @@ public class TargetsService implements ITargetsService {
         try {
             topologyProcessor.validateTarget(targetId);
             TargetInfo targetInfo = pollForTargetStatus(targetId, targetValidationTimeout,
-                targetValidationPollInterval, TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+                targetValidationPollInterval, StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
             // If target status is not validated or in progress from topology processor, the target
             // validation fails. Send failed validation message to UI.
             if (!NON_VALIDATION_FAILED_STATUS_SET.contains(targetInfo.getStatus())) {
@@ -895,7 +879,7 @@ public class TargetsService implements ITargetsService {
 
         topologyProcessor.discoverTarget(targetId);
         return pollForTargetStatus(targetId, targetDiscoveryTimeout,
-                targetDiscoveryPollInterval, TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+                targetDiscoveryPollInterval, StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
     }
 
     /**

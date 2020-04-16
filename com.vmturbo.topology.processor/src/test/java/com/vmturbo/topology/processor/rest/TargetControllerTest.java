@@ -56,6 +56,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 import org.springframework.web.util.NestedServletException;
 
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.identity.store.IdentityStore;
@@ -580,13 +581,13 @@ public class TargetControllerTest {
                     .thenReturn(Optional.empty());
             validation.success();
             final TargetInfo target3 = getTarget(result.getId());
-            Assert.assertThat(target3.getStatus(), is(TargetController.VALIDATED));
+            Assert.assertThat(target3.getStatus(), is(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS));
             Assert.assertEquals(validation.getCompletionTime(), target3.getLastValidationTime());
         }
         {
             discovery.success();
             final TargetInfo target4 = getTarget(result.getId());
-            Assert.assertThat(target4.getStatus(), is(TargetController.VALIDATED));
+            Assert.assertThat(target4.getStatus(), is(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS));
             Assert.assertEquals(discovery.getCompletionTime(), target4.getLastValidationTime());
         }
         {
@@ -601,7 +602,7 @@ public class TargetControllerTest {
             validation.success();
             final TargetInfo target = getTarget(result.getId());
             Assert.assertThat(target.getStatus(),
-                    CoreMatchers.containsString(TargetController.VALIDATED));
+                    CoreMatchers.containsString(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS));
             Assert.assertEquals(validation.getCompletionTime(), target.getLastValidationTime());
         }
     }

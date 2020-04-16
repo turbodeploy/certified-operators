@@ -417,4 +417,19 @@ public class StringConstants {
     public static final String BUSINESS_ACCOUNT_PREFIX = "BUSINESS_ACCOUNT::";
     public static final String TOTAL_CORE_QUOTA = "cores";
     public static final String TOTAL_REGIONAL_VCPUS_QUOTA_DISPLAYNAME = "total Regional vCPUs";
+
+    /**
+     * Indicates that validation has successfully completed in the topology processor.
+     */
+    public static final String TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS = "Discovery in progress";
+
+    /**
+     * Indicates that validation is still in progress by the topology processor.
+     */
+    public static final String TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS = "Validation in progress";
+
+    /**
+     * Indicates that validation has successfully completed in the topology processor.
+     */
+    public static final String TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS = "Validated";
 }
