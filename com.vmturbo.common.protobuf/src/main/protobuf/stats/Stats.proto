@@ -449,8 +449,11 @@ message EntityCommoditiesMaxValues {
 }
 
 message GetEntityCommoditiesMaxValuesRequest {
-    // List of entity types whose commodity sold max values has to be fetched.
-    repeated int32 entityTypes = 1;
+    // Entity Type whose commodity sold max value will be fetched.
+    optional int32 entityType = 1;
+
+    // List of commodity types whose max used value will be fetched.
+    repeated int32 commodityTypes = 2;
 }
 
 // Request for system load info.

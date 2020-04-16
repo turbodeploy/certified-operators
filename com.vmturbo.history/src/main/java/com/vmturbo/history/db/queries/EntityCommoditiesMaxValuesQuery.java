@@ -5,10 +5,17 @@ import static com.vmturbo.common.protobuf.utils.StringConstants.MAX_VALUE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_SUBTYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.RELATION;
+import static com.vmturbo.common.protobuf.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
 import static com.vmturbo.history.db.jooq.JooqUtils.getDoubleField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getRelationTypeField;
+import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
+
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 import javax.annotation.Nonnull;
 
@@ -36,24 +43,35 @@ import com.vmturbo.history.stats.StatsHistoryRpcService;
  */
 public class EntityCommoditiesMaxValuesQuery extends QueryBase {
 
+    private static final String FORCE_INDEX = "property_type";
+
     /**
      * Create a new query.
      *
      * @param table Entity
+     * @param comms The list of commodities to get the max value for.
+     * @param maxUsedLookbackDays Look back days for querying max used value.
      */
-    public EntityCommoditiesMaxValuesQuery(@Nonnull Table<?> table) {
+    public EntityCommoditiesMaxValuesQuery(@Nonnull Table<?> table, @Nonnull List<String> comms,
+        @Nonnull int maxUsedLookbackDays) {
         final Field<String> propertyTypeField = getStringField(table, PROPERTY_TYPE);
         final Field<String> propertySubtypeField = getStringField(table, PROPERTY_SUBTYPE);
         final Field<RelationType> relationField = getRelationTypeField(table, RELATION);
         final Field<String> uuidField = getStringField(table, UUID);
         final Field<String> commodityKeyField = getStringField(table, COMMODITY_KEY);
         final Field<Double> maxValueField = getDoubleField(table, MAX_VALUE);
+        final Field<Timestamp> snapshotTime = getTimestampField(table, SNAPSHOT_TIME);
 
         addSelectFields(uuidField, propertyTypeField, commodityKeyField, DSL.max(maxValueField));
         addTable(table);
+        table.getIndexes().stream()
+            .filter(idx -> idx.getName().toLowerCase().equals(FORCE_INDEX))
+            .findFirst().ifPresent(idx -> this.forceIndex(table, FORCE_INDEX));
         addConditions(
-                propertySubtypeField.eq(PropertySubType.Used.getApiParameterName()),
-                relationField.eq(RelationType.COMMODITIES));
+            snapshotTime.greaterOrEqual(Timestamp.from(Instant.now().minus(maxUsedLookbackDays, ChronoUnit.DAYS))),
+            propertyTypeField.in(comms),
+            propertySubtypeField.eq(PropertySubType.Used.getApiParameterName()),
+            relationField.eq(RelationType.COMMODITIES));
         groupBy(uuidField, propertyTypeField, commodityKeyField);
     }
 }

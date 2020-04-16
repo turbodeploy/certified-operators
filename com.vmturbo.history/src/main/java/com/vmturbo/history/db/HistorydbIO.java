@@ -96,6 +96,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
@@ -117,6 +118,7 @@ import com.vmturbo.history.schema.abstraction.tables.records.ScenariosRecord;
 import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.PropertySubType;
 import com.vmturbo.platform.common.dto.CommonDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.sql.utils.SQLDatabaseConfig.SQLConfigObject;
 
@@ -177,6 +179,9 @@ public class HistorydbIO extends BasedbIO {
 
     @Value("${migrationTimeoutSeconds:600}")
     private int migrationTimeout_sec;
+
+    @Value("${maxUsedLookbackDays:90}")
+    private int maxUsedLookbackDays;
 
     // Mapping from the retention settings DB column name -> Setting name
     private final ImmutableBiMap<String, String> retentionDbColumnNameToSettingName =
@@ -1332,20 +1337,24 @@ public class HistorydbIO extends BasedbIO {
      * <p>TODO:karthikt - Do batch selects(paginate) from the DB.</p>
      *
      * @param entityTypeNo entity type number
+     * @param comms commodity list to obtain max value for.
      * @return query results, transformed into  {@link EntityCommoditiesMaxValues} strucures
      * @throws VmtDbException on DB exceptions
      * @throws SQLException on DB exceptions
      */
-    public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(int entityTypeNo)
+    public List<EntityCommoditiesMaxValues> getEntityCommoditiesMaxValues(int entityTypeNo, List<Integer> comms)
             throws VmtDbException, SQLException {
-
         final EntityType entityType = EntityType.fromSdkEntityType(entityTypeNo).orElse(null);
         Optional<Table<?>> table = entityType != null ? entityType.getMonthTable() : Optional.empty();
         if (table.isPresent()) {
+            List<String> commStrings = comms.stream().map(comm -> {
+                return ClassicEnumMapper.getCommodityString(
+                    CommodityDTO.CommodityType.forNumber(comm));
+            }).collect(Collectors.toList());
             // Query for the max of the max values from all the days in the DB for
             // each commodity in each entity.
             try (Connection conn = connection()) {
-                final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(table.get()).getQuery();
+                final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(table.get(), commStrings, maxUsedLookbackDays).getQuery();
                 Result<? extends Record> statsRecords = using(conn).fetch(query);
                 logger.debug("Number of records fetched for table {} = {}", table.get(), statsRecords.size());
                 return convertToEntityCommoditiesMaxValues(table.get(), statsRecords);

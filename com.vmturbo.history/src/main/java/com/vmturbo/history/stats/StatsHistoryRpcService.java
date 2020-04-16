@@ -117,6 +117,8 @@ import com.vmturbo.history.stats.readers.LiveStatsReader.StatRecordPage;
 import com.vmturbo.history.stats.readers.MostRecentLiveStatReader;
 import com.vmturbo.history.stats.snapshots.StatSnapshotCreator;
 import com.vmturbo.history.stats.writers.PercentileWriter;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
  * Handles incoming RPC calls to History Component to return Stats information.
@@ -1251,14 +1253,27 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     GetEntityCommoditiesMaxValuesRequest request,
                     StreamObserver<EntityCommoditiesMaxValues> responseObserver) {
         try {
-            if (request.getEntityTypesCount() <= 0) {
-                logger.warn("Invalid entities count in request: {}", request.getEntityTypesCount());
+            if (request.getEntityType() < 0 || EntityDTO.EntityType.forNumber(request.getEntityType()) == null) {
+                logger.error("Invalid entity type in getEntityCommoditiesMaxValues request for entity {}",
+                    request.getEntityType());
                 responseObserver.onCompleted();
                 return;
             }
-            for (Integer entityType : request.getEntityTypesList()) {
-                historydbIO.getEntityCommoditiesMaxValues(entityType).forEach(responseObserver::onNext);
+            if (request.getCommodityTypesCount() <= 0) {
+                logger.error("Invalid commodities count {} in getEntityCommoditiesMaxValues request for entity {}",
+                    request.getCommodityTypesCount(), request.getEntityType());
+                responseObserver.onCompleted();
+                return;
             }
+            if (request.getCommodityTypesList().stream().anyMatch(commNum ->
+                CommodityDTO.CommodityType.forNumber(commNum) == null)) {
+                logger.error("Invalid commodities {} in getEntityCommoditiesMaxValues request for entity {}",
+                    request.getCommodityTypesList(), request.getEntityType());
+                responseObserver.onCompleted();
+                return;
+            }
+            historydbIO.getEntityCommoditiesMaxValues(request.getEntityType(),
+                request.getCommodityTypesList()).forEach(responseObserver::onNext);
             responseObserver.onCompleted();
         } catch (VmtDbException | SQLException e) {
             responseObserver.onError(
