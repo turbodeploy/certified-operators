@@ -6,7 +6,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -30,6 +32,7 @@ import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountB
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountRequest;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought;
+import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataRequest;
 import com.vmturbo.common.protobuf.cost.Cost.UploadRIDataResponse;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceImplBase;
@@ -45,18 +48,22 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
 
     private final PlanReservedInstanceStore planReservedInstanceStore;
     private final BuyReservedInstanceStore buyReservedInstanceStore;
+    private final ReservedInstanceSpecStore reservedInstanceSpecStore;
 
     /**
      * Creates {@link PlanReservedInstanceRpcService} instance.
      *
      * @param planReservedInstanceStore plan RI store.
      * @param buyReservedInstanceStore buy RI Store.
+     * @param reservedInstanceSpecStore Store for RI specification (meta-data) info.
      */
     public PlanReservedInstanceRpcService(
             @Nonnull final PlanReservedInstanceStore planReservedInstanceStore,
-            @Nonnull final BuyReservedInstanceStore buyReservedInstanceStore) {
+            @Nonnull final BuyReservedInstanceStore buyReservedInstanceStore,
+            @Nonnull final ReservedInstanceSpecStore reservedInstanceSpecStore) {
         this.planReservedInstanceStore = Objects.requireNonNull(planReservedInstanceStore);
         this.buyReservedInstanceStore = Objects.requireNonNull(buyReservedInstanceStore);
+        this.reservedInstanceSpecStore = Objects.requireNonNull(reservedInstanceSpecStore);
     }
 
     @Override
@@ -64,12 +71,24 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
         StreamObserver<GetPlanReservedInstanceBoughtCountByTemplateResponse> responseObserver) {
         try {
             final long planId = request.getPlanId();
-            final Map<String, Long> riCountByRiSpecId = planReservedInstanceStore
+            final Map<Long, Long> riCountByRiSpecId = planReservedInstanceStore
                             .getPlanReservedInstanceCountByRISpecIdMap(planId);
+
+            final Map<Long, ReservedInstanceSpec> riSpecBySpecId = reservedInstanceSpecStore
+                    .getReservedInstanceSpecByIds(riCountByRiSpecId.keySet())
+                    .stream().collect(Collectors.toMap(ReservedInstanceSpec::getId,
+                            Function.identity()));
+
+            final Map<Long, Long> riBoughtCountByTierId =
+                    riCountByRiSpecId.entrySet().stream()
+                            .filter(e -> riSpecBySpecId.containsKey(e.getKey()))
+                            .collect(Collectors.toMap(e -> riSpecBySpecId.get(e.getKey())
+                                            .getReservedInstanceSpecInfo().getTierId(),
+                                    Entry::getValue, Long::sum));
 
             final GetPlanReservedInstanceBoughtCountByTemplateResponse response =
                             GetPlanReservedInstanceBoughtCountByTemplateResponse.newBuilder()
-                                            .putAllReservedInstanceCountMap(riCountByRiSpecId)
+                                            .putAllReservedInstanceCountMap(riBoughtCountByTierId)
                                             .build();
             responseObserver.onNext(response);
             responseObserver.onCompleted();
