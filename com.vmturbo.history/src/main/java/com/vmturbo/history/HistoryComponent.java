@@ -30,6 +30,7 @@ import com.vmturbo.components.common.BaseVmtComponent;
 import com.vmturbo.components.common.health.sql.MariaDBHealthMonitor;
 import com.vmturbo.history.api.ApiSecurityConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
+import com.vmturbo.history.db.DBConnectionPool;
 import com.vmturbo.history.db.HistoryDbConfig;
 import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.dbmonitor.DbMonitorConfig;
@@ -133,6 +134,20 @@ public class HistoryComponent extends BaseVmtComponent {
         if (dbMonitorConfig.isEnabled()) {
             log.info("Starting Database monitor");
             startDbMonitor();
+        }
+    }
+
+    @Override
+    protected void onStopComponent() {
+        super.onStopComponent();
+        // Release all pooled DB connections (including actively borrowed) and shut down the pool
+        // We have no way to close unpooled connections
+        if (DBConnectionPool.instance != null) {
+            log.info("Shutting down connection pool");
+            if (DBConnectionPool.instance.getInternalPool() != null) {
+                DBConnectionPool.instance.getInternalPool().close(true);
+            }
+            DBConnectionPool.instance.shutdown();
         }
     }
 
