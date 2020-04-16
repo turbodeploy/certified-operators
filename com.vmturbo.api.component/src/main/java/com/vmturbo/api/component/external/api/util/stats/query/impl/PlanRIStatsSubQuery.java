@@ -4,17 +4,23 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountByTemplateResponse;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtCountRequest;
@@ -71,7 +77,11 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
         }
         final PlanInstance planInstance = planInstanceOpt.get();
         if (containsStat(StringConstants.NUM_RI, stats)) {
-            snapshots.addAll(getNumRIStatsSnapshots(planInstance.getPlanId()));
+            try {
+                snapshots.addAll(getNumRIStatsSnapshots(planInstance.getPlanId()));
+            } catch (Exception e) {
+                throw new OperationFailedException(e.getMessage(), e);
+            }
         }
         if (containsStat(StringConstants.RI_COUPON_COVERAGE, stats)) {
             snapshots.addAll(getRICoverageSnapshots(context));
@@ -119,13 +129,22 @@ public class PlanRIStatsSubQuery extends AbstractRIStatsSubQuery {
                 utilizationResponse.getReservedInstanceStatsRecordsList(), false);
     }
 
-    private List<StatSnapshotApiDTO> getNumRIStatsSnapshots(final long planId) {
+    @VisibleForTesting
+    List<StatSnapshotApiDTO> getNumRIStatsSnapshots(final long planId)
+            throws ConversionException, InterruptedException {
         final GetPlanReservedInstanceBoughtCountRequest countRequest =
                 GetPlanReservedInstanceBoughtCountRequest.newBuilder().setPlanId(planId).build();
         final GetPlanReservedInstanceBoughtCountByTemplateResponse response =
                 planReservedInstanceService.getPlanReservedInstanceBoughtCountByTemplateType(
                         countRequest);
-        final Map<String, Long> riBoughtCountByTierName = response.getReservedInstanceCountMapMap();
+        final Map<Long, Long> riBoughtCountsByTierId = response.getReservedInstanceCountMapMap();
+        final Map<Long, ServiceEntityApiDTO> tierApiDTOByTierId =
+                getRepositoryApi().entitiesRequest(riBoughtCountsByTierId.keySet()).getSEMap();
+        final Map<String, Long> riBoughtCountByTierName = riBoughtCountsByTierId.entrySet()
+                .stream()
+                .filter(e -> tierApiDTOByTierId.containsKey(e.getKey()))
+                .collect(Collectors.toMap(e -> tierApiDTOByTierId.get(e.getKey()).getDisplayName(),
+                        Entry::getValue, Long::sum));
         return convertNumRIStatsMapToStatSnapshotApiDTO(riBoughtCountByTierName);
     }
 

@@ -41,7 +41,6 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO;
  */
 public class PlanReservedInstanceRpcServiceTest {
     private static final long PLAN_ID = 11111L;
-    private static final String RI_NAME = "t1000.medium";
     private static final long RI_SPEC_ID = 2222L;
     private static final long REGION1_OID = 789456L;
     private static final long TIER_ID = 3333L;
@@ -57,7 +56,7 @@ public class PlanReservedInstanceRpcServiceTest {
     private BuyReservedInstanceStore buyReservedInstanceStore = mock(BuyReservedInstanceStore.class);
 
     private PlanReservedInstanceRpcService service = new PlanReservedInstanceRpcService(
-                    planReservedInstanceStore, buyReservedInstanceStore);
+                    planReservedInstanceStore, buyReservedInstanceStore, reservedInstanceSpecStore);
 
     private static final ReservedInstanceBoughtInfo RI_INFO_1 = ReservedInstanceBoughtInfo.newBuilder()
                     .setBusinessAccountId(123L)
@@ -84,19 +83,6 @@ public class PlanReservedInstanceRpcServiceTest {
                     .setDisplayName("t102.large")
                     .build();
 
-    private static final ReservedInstanceBoughtInfo RI_INFO_3 = ReservedInstanceBoughtInfo.newBuilder()
-                    .setBusinessAccountId(456L)
-                    .setProbeReservedInstanceId("foo")
-                    .setReservedInstanceSpec(103L)
-                    .setAvailabilityZoneId(100L)
-                    .setNumBought(20)
-                    .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
-                                    .newBuilder()
-                                    .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
-                                    .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
-                    .setDisplayName("m3.large")
-                    .build();
-
     /**
      * Set up a test GRPC server.
      */
@@ -112,7 +98,7 @@ public class PlanReservedInstanceRpcServiceTest {
     public void setup() {
         client = PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel());
         Mockito.when(planReservedInstanceStore.getPlanReservedInstanceCountByRISpecIdMap(PLAN_ID))
-                        .thenReturn(Collections.singletonMap(RI_NAME, RI_BOUGHT_COUNT));
+                        .thenReturn(Collections.singletonMap(RI_SPEC_ID, RI_BOUGHT_COUNT));
         Mockito.when(reservedInstanceSpecStore.getReservedInstanceSpecByIds(Matchers.any()))
                         .thenReturn(Collections.singletonList(createRiSpec()));
         final Cost.ReservedInstanceCostStat riCostStat = Cost.ReservedInstanceCostStat.newBuilder().setFixedCost(90.0D)
@@ -139,10 +125,10 @@ public class PlanReservedInstanceRpcServiceTest {
         final GetPlanReservedInstanceBoughtCountByTemplateResponse response = client
                         .getPlanReservedInstanceBoughtCountByTemplateType(request);
         Assert.assertNotNull(response);
-        final Map<String, Long> riBoughtCountByTierId = response.getReservedInstanceCountMapMap();
+        final Map<Long, Long> riBoughtCountByTierId = response.getReservedInstanceCountMapMap();
         Assert.assertFalse(riBoughtCountByTierId.isEmpty());
-        Assert.assertEquals(RI_NAME, riBoughtCountByTierId.keySet().iterator().next());
-        Assert.assertEquals(RI_BOUGHT_COUNT, riBoughtCountByTierId.get(RI_NAME), DELTA);
+        Assert.assertEquals(Long.valueOf(TIER_ID), riBoughtCountByTierId.keySet().iterator().next());
+        Assert.assertEquals(RI_BOUGHT_COUNT, riBoughtCountByTierId.get(TIER_ID), DELTA);
     }
 
     private static ReservedInstanceSpec createRiSpec() {

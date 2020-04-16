@@ -95,20 +95,20 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore {
      * Get the sum count of reserved instance bought by RI spec ID.
      *
      * @param planId plan ID.
-     * @return a Map which key is reservedInstance spec ID and value is the sum count of reserved instance bought
-     * which belong to this spec.
+     * @return a Map which key is reservedInstance spec ID (Long) and value is the sum count
+     * of reserved instance bought which belong to this spec.
      */
-    public Map<String, Long> getPlanReservedInstanceCountByRISpecIdMap(Long planId) {
+    public Map<Long, Long> getPlanReservedInstanceCountByRISpecIdMap(Long planId) {
         final Result<Record2<ReservedInstanceBoughtInfo, BigDecimal>> riCountMap =
                         getDsl().select(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO,
                                         (sum(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
                                         .from(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
                                         .where(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID.eq(planId))
                                         .groupBy(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID).fetch();
-        final Map<String, Long> countsByTemplate = new HashMap<>();
+        final Map<Long, Long> countsByTemplate = new HashMap<>();
         for (Record2<ReservedInstanceBoughtInfo, BigDecimal> record : riCountMap) {
             final ReservedInstanceBoughtInfo riInfo = record.value1();
-            final String key = riInfo.getDisplayName();
+            final long key = riInfo.getReservedInstanceSpec();
             final long count = record.value2().longValue();
             countsByTemplate.compute(key, (k, v) -> v == null ? count : v + count);
         }

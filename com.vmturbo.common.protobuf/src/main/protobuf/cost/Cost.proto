@@ -758,7 +758,7 @@ message GetPlanReservedInstanceBoughtCountRequest {
 // Response contains plan ri bought count map by tier name
 message GetPlanReservedInstanceBoughtCountByTemplateResponse {
     // A map where key is the tier id and value is the number of the RIs bought for the tier id
-    map<string, int64> reserved_instance_count_map = 1;
+    map<int64, int64> reserved_instance_count_map = 1;
 }
 
 // A request to get reserved instance bought by some filter condition. If both region

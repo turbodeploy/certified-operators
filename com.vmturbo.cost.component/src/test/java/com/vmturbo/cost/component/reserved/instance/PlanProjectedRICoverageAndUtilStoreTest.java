@@ -98,7 +98,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
     private BuyReservedInstanceStore buyReservedInstanceStore = mock(BuyReservedInstanceStore.class);
 
     private PlanReservedInstanceRpcService planRiService = new PlanReservedInstanceRpcService(
-            planReservedInstanceStore, buyReservedInstanceStore);
+            planReservedInstanceStore, buyReservedInstanceStore, reservedInstanceSpecStore);
 
     /**
      * Test gRPC server for mocking gRPC dependencies.
