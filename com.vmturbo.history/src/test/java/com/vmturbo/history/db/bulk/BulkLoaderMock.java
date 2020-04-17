@@ -50,7 +50,7 @@ public class BulkLoaderMock {
         doAnswer(getLoader).when(mock).getLoader(isA(Table.class));
         try {
             doAnswer(getTransientLoader).when(mock).getTransientLoader(
-                    isA(Table.class), anyBoolean(), isA(TableOperation.class));
+                    isA(Table.class), isA(TableOperation.class));
         } catch (SQLException | InstantiationException | VmtDbException | IllegalAccessException e) {
         }
         return mock;
@@ -74,7 +74,7 @@ public class BulkLoaderMock {
             doAnswer(inv -> table.field(inv.getArgumentAt(0, String.class)))
                     .when(transTable).field(anyString());
             dbMock.setTableKeys(transTable, dbMock.getTableKeys(table));
-            TableOperation tableOp = invocation.getArgumentAt(2, TableOperation.class);
+            TableOperation tableOp = invocation.getArgumentAt(1, TableOperation.class);
             tableOp.execute(transTable);
             return loaders.getLoader(transTable);
         }
