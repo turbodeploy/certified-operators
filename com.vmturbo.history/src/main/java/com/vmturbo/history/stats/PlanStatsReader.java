@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
 
@@ -53,6 +54,7 @@ public class PlanStatsReader {
         if (!commodityRequests.isEmpty()) {
             final List<String> commodityNames = commodityRequests.stream()
                 .map(CommodityRequest::getCommodityName)
+                .filter(StringUtils::isNotEmpty)
                 .collect(Collectors.toList());
 
             if (!commodityNames.isEmpty()) {

@@ -142,7 +142,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
             // search for attachment string
 
             // When requested for groupBy Virtual Volume attachment status
-            if (requestedStat.getName().equals(NUM_VOL) &&
+            if (NUM_VOL.equals(requestedStat.getName()) &&
                 requestedStat.getGroupBy() != null &&
                 requestedStat.getGroupBy().contains(StringConstants.ATTACHMENT) &&
                 requestedStat.getRelatedEntityType().equals(ApiEntityType.VIRTUAL_VOLUME.apiStr())) {

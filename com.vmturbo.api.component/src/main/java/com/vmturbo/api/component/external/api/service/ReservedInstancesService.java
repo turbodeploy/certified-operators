@@ -329,6 +329,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
         for (StatApiInputDTO statApiInputDTO : inputDto.getPeriod().getStatistics()) {
             // there should be a valid statistic requested
+            // TODO (OM-57608): Remove this assertion. 'name' is an optional field on the request!
             if (statApiInputDTO.getName() == null) {
                 throw new InvalidOperationException("Missing requested statistic name");
             }

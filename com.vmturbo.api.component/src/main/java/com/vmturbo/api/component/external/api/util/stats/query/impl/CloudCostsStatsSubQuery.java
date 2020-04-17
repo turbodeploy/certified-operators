@@ -291,7 +291,8 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
              * Queries with name {@link #COST_PRICE_QUERY_KEY is used for querying to cost component.
              */
             Set<StatApiInputDTO> requestedCostPriceStats = requestedStats.stream()
-                    .filter(requestedStat -> requestedStat.getName().equals(COST_PRICE_QUERY_KEY)).collect(toSet());
+                .filter(requestedStat -> COST_PRICE_QUERY_KEY.equals(requestedStat.getName()))
+                .collect(toSet());
 
             if (isResourceGroup(inputScope)) {
                 requestedCostPriceStats =

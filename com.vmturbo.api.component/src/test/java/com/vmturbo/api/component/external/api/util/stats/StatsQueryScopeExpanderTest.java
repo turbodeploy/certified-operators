@@ -4,7 +4,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -229,8 +228,8 @@ public class StatsQueryScopeExpanderTest {
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 
-        assertTrue(expandedScope.getGlobalScope().isPresent());
-        assertTrue(expandedScope.getExpandedOids().isEmpty());
+        assertThat(expandedScope.getGlobalScope(), is(Optional.empty()));
+        assertThat(expandedScope.getExpandedOids(), is(Collections.singleton(1L)));
     }
 
     @Test
