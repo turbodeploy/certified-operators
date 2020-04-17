@@ -385,7 +385,9 @@ public class StatsQueryExecutor {
 
         if (requestAll) {
             // Request all stats from all applicable sub-queries.
-            final SubQueryInput input = SubQueryInput.all();
+            // If we got here, then there are no named stat requests--and any remaining stats
+            // requests are global (for example a relatedType request).
+            final SubQueryInput input = SubQueryInput.all(context.getRequestedStats());
             queriesToStats = applicableQueries.stream()
                 .collect(Collectors.toMap(Function.identity(), q -> input));
         } else {
@@ -540,13 +542,13 @@ public class StatsQueryExecutor {
         }
 
         @Nonnull
-        public static SubQueryInput all() {
-            return new SubQueryInput(true, Collections.emptySet());
+        public static SubQueryInput all(@Nonnull final Set<StatApiInputDTO> requestedGlobalStats) {
+            return new SubQueryInput(true, requestedGlobalStats);
         }
 
         @Nonnull
-        public static SubQueryInput stats(@Nonnull final Set<StatApiInputDTO> requestedStats) {
-            return new SubQueryInput(false, requestedStats);
+        public static SubQueryInput stats(@Nonnull final Set<StatApiInputDTO> requestedNamedStats) {
+            return new SubQueryInput(false, requestedNamedStats);
         }
     }
 }

@@ -24,6 +24,7 @@ import org.immutables.value.Value;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -229,10 +230,17 @@ public class StatsQueryScopeExpander {
         }
 
         if (scope.isPlan()) {
-            // A plan represents an entire plan market (whatever the scope of that plan is)
-            return Optional.of(ImmutableGlobalScope.builder()
+            final Set<Long>  explicitPlanScope = scope.getCachedPlanInfo()
+                .map(CachedPlanInfo::getPlanScopeIds)
+                .orElse(Collections.emptySet());
+
+            // If the plan is not scoped, it must be defined on the entire market, so
+            // the expanded scope is "all".
+            if (explicitPlanScope.isEmpty()) {
+                return Optional.of(ImmutableGlobalScope.builder()
                 .entityTypes(relatedTypes)
-                .build());
+                    .build());
+            }
         }
 
         return Optional.empty();
