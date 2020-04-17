@@ -1,7 +1,5 @@
 package com.vmturbo.api.component.external.api.mapper;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.GROUP_TYPES;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -24,7 +22,6 @@ import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
-import org.apache.commons.collections4.SetUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
@@ -50,14 +47,14 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.OptionalPlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.SetOnce;
-import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -341,6 +338,44 @@ public class UuidMapper implements RepositoryListener {
     }
 
     /**
+     * Information about an plan, saved inside an {@link ApiId} referring to an plan.
+     */
+    public static class CachedPlanInfo {
+        private final PlanInstance planInstance;
+        private final EnvironmentType environmentType;
+        private final Map<ApiEntityType, Set<Long>> entityOidsByType;
+        private final Set<Long> planScopeIds;
+
+        public CachedPlanInfo(final PlanInstance planInstance, final EnvironmentType envType,
+                              final Set<Long> planScopeIds, final Map<ApiEntityType, Set<Long>> entityOidsByType) {
+            this.planInstance = planInstance;
+            this.environmentType = envType;
+            this.planScopeIds = planScopeIds;
+            this.entityOidsByType = entityOidsByType;
+        }
+
+        @Nonnull
+        public PlanInstance getPlanInstance() {
+            return planInstance;
+        }
+
+        @Nonnull
+        public EnvironmentType getEnvironmentType() {
+            return environmentType;
+        }
+
+        @Nonnull
+        public Set<Long> getPlanScopeIds() {
+            return planScopeIds;
+        }
+
+        @Nonnull
+        public Set<ApiEntityType> getEntityTypes() {
+            return Collections.unmodifiableSet(entityOidsByType.keySet());
+        }
+    }
+
+    /**
      * A class to represent an id for interactions between the external API and XL.
      *
      * The properties of the ID are lazily instantiated - for example, we don't determine whether
@@ -355,8 +390,6 @@ public class UuidMapper implements RepositoryListener {
 
         private final long realtimeContextId;
 
-        private final SetOnce<Boolean> isPlan = new SetOnce<>();
-
         private Set<Long> targetOids = null;
         private final Object targetOidsLock = new Object();
 
@@ -364,10 +397,11 @@ public class UuidMapper implements RepositoryListener {
          * If this is a group, it will be set to a {@link CachedGroupInfo}.
          * If this is decisively NOT a group, it will be set to an empty {@link Optional}.
          * If we don't know yet, it will be unset.
+         * Same for entityInfo and planInfo.
          */
         private final SetOnce<Optional<CachedGroupInfo>> groupInfo = new SetOnce<>();
-
         private final SetOnce<Optional<CachedEntityInfo>> entityInfo = new SetOnce<>();
+        private final SetOnce<Optional<CachedPlanInfo>> planInfo = new SetOnce<>();
 
         private final SetOnce<Boolean> isTarget = new SetOnce<>();
 
@@ -406,7 +440,7 @@ public class UuidMapper implements RepositoryListener {
             this.thinTargetCache = thinTargetCache;
             this.cloudTypeMapper = cloudTypeMapper;
             if (isRealtimeMarket()) {
-                isPlan.trySetValue(false);
+                planInfo.trySetValue(Optional.empty());
                 groupInfo.trySetValue(Optional.empty());
                 entityInfo.trySetValue(Optional.empty());
                 isTarget.trySetValue(false);
@@ -434,65 +468,10 @@ public class UuidMapper implements RepositoryListener {
                         .map(CachedEntityInfo::getEntityType)
                         .map(Collections::singleton);
             } else if (isPlan()) {
-                scopeTypes = getPlanInstance().map(MarketMapper::getPlanScopeTypes);
+                scopeTypes = getCachedPlanInfo()
+                        .map(CachedPlanInfo::getEntityTypes);
             }
             return scopeTypes;
-        }
-
-        /**
-         * Given a set of group OIDs, returns the expanded set of members.
-         *
-         * @param uuidsToExpand a set of group OIDs to get the members of
-         * @return a set of OIDs corresponding to the members of the input group OIDs
-         */
-        @Nonnull
-        public Set<Long> getGroupMembers(@Nullable Set<Long> uuidsToExpand) {
-            if (CollectionUtils.isEmpty(uuidsToExpand)) {
-                return Sets.newHashSet();
-            }
-            final GroupDTO.GetGroupsRequest groupsRequest = GroupDTO.GetGroupsRequest.newBuilder()
-                    .setGroupFilter(GroupDTO.GroupFilter.newBuilder()
-                            .addAllId(uuidsToExpand).build())
-                    .build();
-            final List<GroupAndMembers> groupsAndMembers = groupExpander.getGroupsWithMembers(groupsRequest);
-            return CollectionUtils.isEmpty(groupsAndMembers)
-                    ? Sets.newHashSet()
-                    : groupsAndMembers.stream()
-                            .map(GroupAndMembers::members)
-                            .flatMap(Collection::stream)
-                            .collect(Collectors.toSet());
-        }
-
-        /**
-         * Gathers all plan-scope entity OIDs, and expands plan-scope groups to expose group members.
-         * Combines all entity OIDs in a single collection filtered by CSP.
-         *
-         * @param statApiInputDTOList list of DTOs that potentially contain CSP filters
-         * @return a set of OIDs that the plan scope encompasses
-         */
-        public Set<Long> getPlanEntities(@Nullable List<StatApiInputDTO> statApiInputDTOList) {
-            final Optional<PlanInstance> planInstance = getPlanInstance();
-            if (!planInstance.isPresent()) {
-                return Sets.newHashSet();
-            }
-            final List<ScenarioOuterClass.PlanScopeEntry> planScopeEntries = planInstance.get()
-                    .getScenario()
-                    .getScenarioInfo()
-                    .getScope()
-                    .getScopeEntriesList();
-            final Map<Boolean, Set<Long>> isGroupToOids = planScopeEntries.stream()
-                    .collect(Collectors.groupingBy(
-                            planScopeEntry -> GROUP_TYPES.contains(planScopeEntry.getClassName()),
-                            Collectors.mapping(ScenarioOuterClass.PlanScopeEntry::getScopeObjectOid, Collectors.toSet())
-                    ));
-            final Set<Long> groupMemberOids = getGroupMembers(isGroupToOids.get(true));
-            final Set<Long> entityOids = isGroupToOids.get(false);
-            return filterEntitiesByCsp(
-                    SetUtils.union(
-                            CollectionUtils.isEmpty(entityOids) ? Sets.newHashSet() : entityOids,
-                            groupMemberOids),
-                    statApiInputDTOList
-            );
         }
 
         /**
@@ -519,7 +498,8 @@ public class UuidMapper implements RepositoryListener {
             } else if (isGroup()) {
                 result = getCachedGroupInfo().get().getEntityIds();
             } else if (isPlan()) {
-                result = getPlanEntities(statApiInputDTOList);
+                final Set<Long> entitiesInPlanScope = getCachedPlanInfo().get().getPlanScopeIds();
+                result = filterEntitiesByCsp(entitiesInPlanScope, statApiInputDTOList);
             } else if (isTarget()) {
                 synchronized (targetOidsLock) {
                     if (targetOids == null) {
@@ -573,8 +553,9 @@ public class UuidMapper implements RepositoryListener {
                 return groupName.get();
             }
 
-            final Optional<String> planName = getPlanInstance()
-                .map(planInstance -> planInstance.getScenario().getScenarioInfo().getName());
+            final Optional<String> planName = getCachedPlanInfo()
+                    .map(CachedPlanInfo::getPlanInstance)
+                    .map(planInstance -> planInstance.getScenario().getScenarioInfo().getName());
             if (planName.isPresent()) {
                 return planName.get();
             }
@@ -711,7 +692,7 @@ public class UuidMapper implements RepositoryListener {
                 // If it's an entity, it's not a group or plan.
                 // We do this outside the entityInfo.ensureSet() to avoid possible deadlocks.
                 groupInfo.ensureSet(Optional::empty);
-                isPlan.ensureSet(FALSE);
+                planInfo.ensureSet(Optional::empty);
                 isTarget.ensureSet(FALSE);
             }
             return newCachedInfo == null ? Optional.empty() : newCachedInfo;
@@ -763,7 +744,7 @@ public class UuidMapper implements RepositoryListener {
         }
 
         public boolean isCloud() {
-            return isCloudEntity() || isCloudGroup();
+            return isCloudEntity() || isCloudGroup() || isCloudPlan();
         }
 
         public Optional<GroupType> getGroupType() {
@@ -786,11 +767,11 @@ public class UuidMapper implements RepositoryListener {
 
             final boolean retIsTarget = newIsTarget != null && newIsTarget;
             if (retIsTarget) {
-                // If it's a plan, it's not a group or entity.
-                // We do this outside the isPlan.ensureSet() to avoid possible deadlocks.
+                // If it's a target, it's not a group or entity or a plan.
+                // We do this outside the isTarget.ensureSet() to avoid possible deadlocks.
                 groupInfo.ensureSet(Optional::empty);
                 entityInfo.ensureSet(Optional::empty);
-                isPlan.ensureSet(FALSE);
+                planInfo.ensureSet(Optional::empty);
             }
             return retIsTarget;
         }
@@ -804,8 +785,8 @@ public class UuidMapper implements RepositoryListener {
             Optional<CachedGroupInfo> cachedInfoOpt = groupInfo.ensureSet(() -> {
                 try {
                     final GetGroupResponse resp = groupServiceBlockingStub.getGroup(GroupID.newBuilder()
-                        .setId(oid)
-                        .build());
+                            .setId(oid)
+                            .build());
                     if (resp.hasGroup()) {
                         final Collection<Long> entityOids =
                             groupExpander.getMembersForGroup(resp.getGroup()).entities();
@@ -856,72 +837,92 @@ public class UuidMapper implements RepositoryListener {
             if (cachedInfoOpt != null && cachedInfoOpt.isPresent()) {
                 // If it's a group, it's not a plan or entity.
                 // Do this outside the groupInfo.ensureSet() to avoid deadlocks.
-                isPlan.ensureSet(FALSE);
                 entityInfo.ensureSet(Optional::empty);
+                planInfo.ensureSet(Optional::empty);
                 isTarget.ensureSet(FALSE);
             }
 
             return cachedInfoOpt != null ? cachedInfoOpt : Optional.empty();
         }
 
-        private SetOnce<PlanInstance> checkPlanInstance() {
-            SetOnce<PlanInstance> instance = new SetOnce<>();
-            final Boolean newIsPlan = isPlan.ensureSet(() -> {
+        @Nonnull
+        public Optional<CachedPlanInfo> getCachedPlanInfo() {
+            Optional<CachedPlanInfo> cachedInfoOpt = planInfo.ensureSet(() -> {
                 try {
                     OptionalPlanInstance optPlanInstance = planServiceBlockingStub.getPlan(PlanId.newBuilder()
-                        .setPlanId(oid)
-                        .build());
-                    if (optPlanInstance.hasPlanInstance()) {
-                        instance.trySetValue(optPlanInstance.getPlanInstance());
-                        return true;
-                    } else {
-                        return false;
+                            .setPlanId(oid)
+                            .build());
+
+                    if (!optPlanInstance.hasPlanInstance()) {
+                        return Optional.empty();
                     }
+
+                    PlanInstance planInstance = optPlanInstance.getPlanInstance();
+                    ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
+                    if (!scenarioInfo.hasScope()) {
+                        return Optional.empty();
+                    }
+
+                    PlanScope planScope = scenarioInfo.getScope();
+                    if (planScope.getScopeEntriesCount() == 0) {
+                        return Optional.empty();
+                    }
+
+                    Set<Long> planScopeIds = Sets.newHashSet();
+                    // Get all the entities in the Plan Scope
+                    Set<MinimalEntity> minimalEntities = Sets.newHashSet();
+                    planScope.getScopeEntriesList().stream().forEach(se -> {
+                        planScopeIds.add(se.getScopeObjectOid());
+
+                        if (StringConstants.GROUP_TYPES.contains(se.getClassName())) {
+                            final GetGroupResponse resp = groupServiceBlockingStub.getGroup(GroupID
+                                    .newBuilder()
+                                    .setId(se.getScopeObjectOid())
+                                    .build());
+                            if (resp.hasGroup()) {
+                                minimalEntities.addAll(getGroupMembers(resp.getGroup()));
+                            }
+                        } else {
+                            repositoryApi.entityRequest(se.getScopeObjectOid()).getMinimalEntity()
+                                    .map(minimalEntities::add);
+                        }
+                    });
+                    // Extract the Environment Type of the entities
+                    EnvironmentType planEnvType = getEnvironmentType(minimalEntities);
+
+                    final Map<ApiEntityType, Set<Long>> entityOidsByType = minimalEntities.stream()
+                            .collect(Collectors.groupingBy(
+                                    ApiEntityType::fromMinimalEntity,
+                                    Collectors.mapping(MinimalEntity::getOid,
+                                            Collectors.toSet())));
+                    return Optional.of(new CachedPlanInfo(planInstance, planEnvType, planScopeIds,
+                            entityOidsByType));
+
                 } catch (StatusRuntimeException e) {
                     // Return null to leave the SetOnce value unset - we still don't know!
                     return null;
                 }
             });
 
-            if (newIsPlan != null && newIsPlan) {
+            if (cachedInfoOpt != null && cachedInfoOpt.isPresent()) {
                 // If it's a plan, it's not a group or entity.
-                // We do this outside the isPlan.ensureSet() to avoid possible deadlocks.
-                groupInfo.ensureSet(Optional::empty);
+                // Do this outside the planInfo.ensureSet() to avoid deadlocks.
                 entityInfo.ensureSet(Optional::empty);
+                groupInfo.ensureSet(Optional::empty);
                 isTarget.ensureSet(FALSE);
             }
 
-            return instance;
+            return cachedInfoOpt != null ? cachedInfoOpt : Optional.empty();
         }
 
-        @Nonnull
-        public Optional<PlanInstance> getPlanInstance() {
-            final SetOnce<PlanInstance> instance = checkPlanInstance();
-            if (isPlan.getValue().orElse(false)) {
-                // It may already be set, or it may not be.
-                return Optional.ofNullable(instance.ensureSet(() -> {
-                    try {
-                        OptionalPlanInstance optPlanInstance = planServiceBlockingStub.getPlan(PlanId.newBuilder()
-                            .setPlanId(oid)
-                            .build());
-                        if (optPlanInstance.hasPlanInstance()) {
-                            return optPlanInstance.getPlanInstance();
-                        } else {
-                            // It's possible the plan got deleted out from underneath.
-                            return null;
-                        }
-                    } catch (StatusRuntimeException e) {
-                        return null;
-                    }
-                }));
-            } else {
-                return Optional.empty();
-            }
+        public boolean isCloudPlan() {
+            return getCachedPlanInfo()
+                    .map(info -> info.getEnvironmentType() == EnvironmentType.CLOUD)
+                    .orElse(false);
         }
 
         public boolean isPlan() {
-            checkPlanInstance();
-            return isPlan.getValue().orElse(false);
+            return getCachedPlanInfo().isPresent();
         }
 
         /**
@@ -959,10 +960,11 @@ public class UuidMapper implements RepositoryListener {
          * Determines the topology context ID of this scope.
          *
          * @return If this scope is a plan scope, returns the plan ID. If the scope is not a plan
-         * instance (based on {@link #getPlanInstance()}), returns the realtime context ID.
+         * instance (based on {@link #getCachedPlanInfo()}), returns the realtime context ID.
          */
         public long getTopologyContextId() {
-            return getPlanInstance()
+            return getCachedPlanInfo()
+                    .map(CachedPlanInfo::getPlanInstance)
                     .map(PlanInstance::getPlanId)
                     .orElse(realtimeContextId);
         }
@@ -1036,6 +1038,49 @@ public class UuidMapper implements RepositoryListener {
                 }).collect(Collectors.toSet());
             }
             return Collections.emptySet();
+        }
+
+        /**
+         * Get all the members of a Group as {@link MinimalEntity}.
+         *
+         * @param grouping group
+         * @return {@link Set} of {@link MinimalEntity}
+         */
+        private Set<MinimalEntity> getGroupMembers(Grouping grouping) {
+            final Collection<Long> entityOids =
+                    groupExpander.getMembersForGroup(grouping).entities();
+            final Set<MinimalEntity> minimalMembers =
+                    repositoryApi.entitiesRequest(Sets.newHashSet(entityOids)).getMinimalEntities()
+                            .collect(Collectors.toSet());
+            return minimalMembers;
+        }
+
+        /**
+         * Get the EnvironmentType given a Set of entities.
+         *
+         * @param minimalEntities Set of entities
+         * @return CLOUD if all entities are CLOUD,
+         * ON_PREM if all entities are ON_PREM,
+         * HYBRID if there are some CLOUD and ON_PREM.
+         */
+        private EnvironmentType getEnvironmentType(Set<MinimalEntity> minimalEntities) {
+            boolean hasCloud = false;
+            boolean hasOnPrem = false;
+            for (MinimalEntity me : minimalEntities) {
+                hasCloud = me.getEnvironmentType() == EnvironmentType.CLOUD || hasCloud;
+                hasOnPrem = me.getEnvironmentType() == EnvironmentType.ON_PREM || hasOnPrem;
+            }
+
+            EnvironmentType envType = EnvironmentType.UNKNOWN_ENV;
+            if (hasCloud && hasOnPrem) {
+                envType = EnvironmentType.HYBRID;
+            } else if (hasCloud) {
+                envType = EnvironmentType.CLOUD;
+            } else if (hasOnPrem) {
+                envType = EnvironmentType.ON_PREM;
+            }
+
+            return envType;
         }
     }
 

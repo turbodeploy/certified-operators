@@ -18,7 +18,6 @@ import com.google.common.collect.Lists;
 import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
@@ -40,9 +39,9 @@ import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceUtilizationStats
 import com.vmturbo.common.protobuf.cost.Cost.RegionFilter;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceCostStat;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -321,9 +320,7 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
                     .map(CachedGroupInfo::getEntityIds)
                     .orElse(Collections.emptySet());
         } else if (inputScope.isPlan()) {
-            return context.getPlanInstance()
-                    .map(MarketMapper::getPlanScopeIds)
-                    .orElse(Collections.emptySet());
+            return inputScope.getCachedPlanInfo().get().getPlanScopeIds();
         } else {
             return Collections.singleton(inputScope.oid());
         }
