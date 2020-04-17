@@ -47,7 +47,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
 
         // check each changed entity
         assertEquals(8, entitiesByType.get(EntityType.DATABASE_SERVER).size());
-        assertEquals(26, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
+        assertEquals(34, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(4, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
 
         // unmodified
@@ -80,7 +80,7 @@ public class AwsConversionProbeTest extends AwsConversionProbe {
 
         // check each changed entity
         assertEquals(2, entitiesByType.get(EntityType.DATABASE_SERVER).size());
-        assertEquals(87, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
+        assertEquals(89, entitiesByType.get(EntityType.VIRTUAL_MACHINE).size());
         assertEquals(1, entitiesByType.get(EntityType.BUSINESS_ACCOUNT).size());
         assertEquals(16, entitiesByType.get(EntityType.REGION).size());
 
