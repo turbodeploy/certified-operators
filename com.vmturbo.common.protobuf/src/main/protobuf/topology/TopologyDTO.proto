@@ -382,6 +382,8 @@ message PartialEntity {
         optional .common.EnvironmentType environment_type = 4;
 
         repeated int64 discovering_target_ids = 5;
+
+        optional .topology.EntityState entity_state = 6 [default = POWERED_ON];
     }
 
     // The type specific info of the Topology entity DTO.

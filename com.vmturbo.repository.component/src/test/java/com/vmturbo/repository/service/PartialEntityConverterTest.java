@@ -127,6 +127,7 @@ public class PartialEntityConverterTest {
         assertThat(minEntity.getDisplayName(), is(ENTITY.getDisplayName()));
         assertThat(minEntity.getEntityType(), is(ENTITY.getEntityType()));
         assertThat(minEntity.getDiscoveringTargetIdsList(), contains(TARGET_ID));
+        assertThat(minEntity.getEntityState(), is(EntityState.POWERED_OFF));
     }
 
     @Test
