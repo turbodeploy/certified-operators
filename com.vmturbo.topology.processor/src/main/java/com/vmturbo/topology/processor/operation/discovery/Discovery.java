@@ -20,6 +20,12 @@ public class Discovery extends Operation {
     private final DiscoveryType discoveryType;
 
     /**
+     * The unique id of the mediation message sent to probe for this discovery. It's guaranteed
+     * that discovery which happens later get a larger value.
+     */
+    private int mediationMessageId;
+
+    /**
      * The timer used for timing the duration of discoveries.
      * Mark transient to avoid serialization of this field.
      */
@@ -96,5 +102,13 @@ public class Discovery extends Operation {
 
     public DiscoveryType getDiscoveryType() {
         return discoveryType;
+    }
+
+    public int getMediationMessageId() {
+        return mediationMessageId;
+    }
+
+    public void setMediationMessageId(int mediationMessageId) {
+        this.mediationMessageId = mediationMessageId;
     }
 }

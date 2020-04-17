@@ -9,7 +9,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -336,18 +335,20 @@ public class RemoteMediationServer implements TransportRegistrar, RemoteMediatio
     }
 
     @Override
-    public void sendDiscoveryRequest(final long probeId,
+    public int sendDiscoveryRequest(final long probeId,
                                      final long targetId,
                                      @Nonnull final DiscoveryRequest discoveryRequest,
                                      @Nonnull final IOperationMessageHandler<Discovery>
                                              responseHandler)
         throws ProbeException, CommunicationException, InterruptedException {
 
+        final int messageId = nextMessageId();
         final MediationServerMessage message = MediationServerMessage.newBuilder()
-                .setMessageID(nextMessageId())
+                .setMessageID(messageId)
                 .setDiscoveryRequest(discoveryRequest).build();
 
         sendDiscoveryMessageToProbe(probeId, targetId, message, responseHandler);
+        return messageId;
     }
 
     @Override

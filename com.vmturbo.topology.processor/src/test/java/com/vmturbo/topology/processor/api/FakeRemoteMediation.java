@@ -61,8 +61,8 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public void sendDiscoveryRequest(long probeId, final long targetId,
-                                     DiscoveryRequest discoveryRequest,
+    public int sendDiscoveryRequest(long probeId, final long targetId,
+                                    DiscoveryRequest discoveryRequest,
             IOperationMessageHandler<Discovery> responseHandler)
             throws ProbeException, CommunicationException, InterruptedException {
         final DiscoveryResponse response = discoveryResponses.get(String.valueOf(targetId));
@@ -72,6 +72,7 @@ public class FakeRemoteMediation implements RemoteMediation {
         responseHandler.onReceive(MediationClientMessage.newBuilder()
                 .setDiscoveryResponse(DiscoveryResponse.getDefaultInstance())
                 .build());
+        return 0;
     }
 
     @Override

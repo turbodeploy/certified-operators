@@ -51,6 +51,7 @@ import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.common.dto.Discovery.ValidationResponse;
 import com.vmturbo.platform.sdk.common.MediationMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
@@ -605,8 +606,8 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
                 .getIdsForEntities(Mockito.eq(probeId),
                         Mockito.eq(new ArrayList<>(entities.values())));
         // Add the entities to the entity store, which houses the raw discovered entity data
-        entityStore.entitiesDiscovered(probeId, targetId,
-                new ArrayList<>(entities.values()));
+        entityStore.entitiesDiscovered(probeId, targetId, 0, DiscoveryType.FULL,
+            new ArrayList<>(entities.values()));
         // Also update the repository client mock to respond appropriately when queried about these
         // entities. This simulates these entities also being found in the repository (where
         // stitched data is found).

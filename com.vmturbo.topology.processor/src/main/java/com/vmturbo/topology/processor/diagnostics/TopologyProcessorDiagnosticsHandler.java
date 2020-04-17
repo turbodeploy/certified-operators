@@ -558,7 +558,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
      * @param lastUpdatedTime the last updated time to set on the restored entities
      * @param serializedEntities a list of serialized entity DTOs
      * @throws TargetNotFoundException if no target exists with the provided targetId
-     * @see EntityStore#entitiesDiscovered(long, long, List) entitiesDiscovered
+     * @see EntityStore#entitiesDiscovered(long, long, int, DiscoveryType, List) entitiesDiscovered
      */
     private void restoreEntities(final long targetId, final long lastUpdatedTime,
                                 @Nonnull final List<String> serializedEntities)
