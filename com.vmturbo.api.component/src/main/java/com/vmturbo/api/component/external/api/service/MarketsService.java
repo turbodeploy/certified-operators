@@ -46,6 +46,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -835,13 +836,13 @@ public class MarketsService implements IMarketsService {
 
         //marketUuid is interpreted as planUuid
         final ApiId planInstanceId = uuidMapper.fromUuid(marketUuid);
-        final Optional<PlanInstance> planInstanceOptional = planInstanceId.getPlanInstance();
+        final Optional<CachedPlanInfo> planInfoOptional = planInstanceId.getCachedPlanInfo();
 
-        if (!planInstanceOptional.isPresent()) {
+        if (!planInfoOptional.isPresent()) {
             throw new InvalidOperationException("Invalid market id: " + marketUuid);
         }
 
-        final PlanInstance planInstance = planInstanceOptional.get();
+        final PlanInstance planInstance = planInfoOptional.get().getPlanInstance();
 
         // verify the user can access the plan
         if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {

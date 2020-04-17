@@ -8,8 +8,6 @@ import static com.vmturbo.api.MarketNotificationDTO.StatusNotification.Status.SU
 
 import java.util.Collections;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -22,9 +20,6 @@ import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification.StatusUpdate;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 
 /**
  * Converts {@link PlanInstance} objects to the plan-related API objects - namely
@@ -131,37 +126,5 @@ public class MarketMapper {
             default:
                 throw new IllegalArgumentException("Unexpected plan status: " + status);
         }
-    }
-
-    /**
-     * Get the plan scope ids from given PlanInstance.
-     *
-     * @param planInstance the PlanInstance to get scope ids from
-     * @return set of plan scope ids
-     */
-    public static Set<Long> getPlanScopeIds(@Nonnull PlanInstance planInstance) {
-        return planInstance.getScenario().getScenarioInfo()
-            .getScope().getScopeEntriesList().stream()
-            .map(PlanScopeEntry::getScopeObjectOid)
-            .collect(Collectors.toSet());
-    }
-
-    /**
-     * Get the plan scope types from given PlanInstance.
-     *
-     * @param planInstance the PlanInstance to get scope ids from
-     * @return set of plan scope types
-     */
-    public static Set<ApiEntityType> getPlanScopeTypes(@Nonnull PlanInstance planInstance) {
-        final ScenarioOuterClass.PlanScope planScope = planInstance
-                .getScenario().getScenarioInfo().getScope();
-        final Set<ApiEntityType> planScopeTypes = planScope
-                .getScopeEntriesList()
-                .stream()
-                .map(PlanScopeEntry::getClassName)
-                .filter(Objects::nonNull)
-                .map(ApiEntityType::fromString)
-                .collect(Collectors.toSet());
-        return planScopeTypes;
     }
 }

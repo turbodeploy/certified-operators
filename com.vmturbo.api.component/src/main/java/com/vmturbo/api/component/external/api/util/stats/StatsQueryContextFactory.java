@@ -17,6 +17,7 @@ import com.google.common.collect.Lists;
 import org.apache.commons.collections4.ListUtils;
 import org.immutables.value.Value;
 
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
@@ -222,7 +223,8 @@ public class StatsQueryContextFactory {
         @Nonnull
         public Optional<PlanInstance> getPlanInstance() {
             if (this.planInstance == null) {
-                this.planInstance = scope.getPlanInstance();
+                this.planInstance = scope.getCachedPlanInfo()
+                        .map(UuidMapper.CachedPlanInfo::getPlanInstance);
             }
             return this.planInstance;
         }
