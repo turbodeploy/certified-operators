@@ -58,6 +58,7 @@ import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
@@ -341,6 +342,7 @@ public class TopologyGraphSearchRpcServiceTest {
         when(e1.getTags()).thenReturn(ImmutableMap.of(String.valueOf(oid), Collections.singletonList(String.valueOf(oid))));
         when(e1.getTopologyEntity()).thenReturn(createTestEntity(oid, environmentType));
         when(e1.getDiscoveringTargetIds()).thenAnswer(invocation -> Stream.empty());
+        when(e1.getEntityState()).thenReturn(EntityState.POWERED_ON);
         return e1;
     }
 
