@@ -1,9 +1,13 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
@@ -167,6 +171,16 @@ public final class MarketAnalysisUtils {
                     CommodityDTO.CommodityType.Q64_VCPU_VALUE,
                     CommodityDTO.CommodityType.QN_VCPU_VALUE,
                     CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE);
+
+    /**
+     * Map of list of commodities that simulation of resize action based on historical value
+     * should be skipped by commodity type.
+     */
+    public static final Map<Integer, List<Integer>> HISTORY_BASED_RESIZE_DEPENDENCY_SKIP_MAP =
+        ImmutableMap.<Integer, List<Integer>>builder()
+            .put(CommodityDTO.CommodityType.VMEM_VALUE, Collections.singletonList(CommodityDTO.CommodityType.MEM_VALUE))
+            .put(CommodityDTO.CommodityType.VCPU_VALUE, Collections.singletonList(CommodityDTO.CommodityType.CPU_VALUE))
+            .build();
 
     /**
      * These are the types that in the platform are subclasses of AccessCommodity.
