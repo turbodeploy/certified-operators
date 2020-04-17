@@ -137,7 +137,7 @@ public class SystemLoadWriter extends TopologyWriterBase {
         this.systemLoadReader = systemLoadReader;
         this.loader = loaders.getLoader(SYSTEM_LOAD);
         try {
-            this.transientLoader = loaders.getTransientLoader(SYSTEM_LOAD, true, table -> {
+            this.transientLoader = loaders.getTransientLoader(SYSTEM_LOAD, table -> {
                 try (Connection conn = basedbIO.connection()) {
                     basedbIO.using(conn)
                             .createIndex("slice")

@@ -144,8 +144,6 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      * <p>When the loader is closed, the transient table is dropped automatically.</p>
      *
      * @param table             the table whose structure will be copied when creating the transient
-     * @param dropExisting      whether to drop existing transient tables for this table first
-     *                          (i.e. clean up tables orphaned by a crash)
      * @param postTableCreateOp a function to perform operations on the table after it has been created
      * @param <R>               record type of underlying and transient tables
      * @return the transient table, as a jOOQ {@link Table} instance
@@ -155,10 +153,10 @@ public class SimpleBulkLoaderFactory implements AutoCloseable {
      * @throws IllegalAccessException if we can't create the jOOQ tabel object
      */
     public <R extends Record> BulkLoader<R> getTransientLoader(
-            final @Nonnull Table<R> table, boolean dropExisting, TableOperation<R> postTableCreateOp)
+            final @Nonnull Table<R> table, TableOperation<R> postTableCreateOp)
             throws SQLException, InstantiationException, VmtDbException, IllegalAccessException {
         return factory.getTransientInserter(
-                table, table, dropExisting, getRecordTransformer(table), getDbInserter(table),
+                table, table, getRecordTransformer(table), getDbInserter(table),
                 postTableCreateOp);
     }
 

@@ -67,7 +67,7 @@ import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 public class BulkInserterFactory implements AutoCloseable {
 
     /** part of the unique suffix appended to a table name to create a transient table. */
-    public static final String TRANSIENT_TABLE_SUFFIX = "_transient_";
+    public static final String TRANSIENT_TABLE_SUFFIX = "__transient__";
 
     private static Logger logger = LogManager.getLogger();
 
@@ -174,8 +174,6 @@ public class BulkInserterFactory implements AutoCloseable {
      * @param inTable             table for records that will be fed to this inserter
      * @param outTable            table whose structure will be used to define the transient
      *                            table, where records sent to this instance will actually be inserted
-     * @param dropExisting        whether to drop existing transient tables for this table (i.e.
-     *                            clean up orphans left by a crash or whatever)
      * @param recordTransformer   function to transform input records to database records
      * @param dbInserter          {@link DbInserter} responsible for saving database records
      * @param postTableCreateFunc function that is invoked after table creation
@@ -190,7 +188,6 @@ public class BulkInserterFactory implements AutoCloseable {
     public <InT extends Record, OutT extends Record> BulkInserter<InT, OutT> getTransientInserter(
             @Nonnull Table<InT> inTable,
             @Nonnull Table<OutT> outTable,
-            boolean dropExisting,
             @Nonnull RecordTransformer<InT, OutT> recordTransformer,
             @Nonnull DbInserter<OutT> dbInserter,
             @Nullable TableOperation<OutT> postTableCreateFunc)
@@ -201,9 +198,6 @@ public class BulkInserterFactory implements AutoCloseable {
             final String tableNamePrefix = outTable.getName() + TRANSIENT_TABLE_SUFFIX;
             String transientTableName = tableNamePrefix + System.nanoTime();
             Table<OutT> transientTable = outTable.getClass().newInstance().as(transientTableName);
-            if (dropExisting) {
-                dropExistingTransientTables(tableNamePrefix, basedbIO.using(conn));
-            }
             // create that table in the database
             basedbIO.using(conn).createTable(transientTable).columns(outTable.fields()).execute();
             if (postTableCreateFunc != null) {
@@ -217,16 +211,25 @@ public class BulkInserterFactory implements AutoCloseable {
         }
     }
 
-    private void dropExistingTransientTables(String namePrefix, DSLContext ctx) {
+    /**
+     * Called during history component shutdown to check for any transient tables that may have
+     * been in use at the time of shutdown and deletes them.
+     *
+     * <p>The code that would normally drop these tables is unlikely to run due to the shutdown.</p>
+     *
+     * @param ctx {@link DSLContext} to use for DB operations
+     */
+    public static void cleanupTransientTables(DSLContext ctx) {
         try {
             final List<String> tables =
-                    ctx.fetch(String.format("SHOW TABLES LIKE '%s%%'", namePrefix)).stream()
+                    ctx.fetch("SHOW TABLES LIKE '%" + TRANSIENT_TABLE_SUFFIX + "%'").stream()
                             .map(r -> r.getValue(0, String.class))
                             .collect(Collectors.toList());
             for (final String table : tables) {
                 // Double-check - we really don't want to be deleting tables that we're not
                 // supposed to!
-                if (table.startsWith(namePrefix)) {
+                if (table.contains(TRANSIENT_TABLE_SUFFIX)) {
+                    logger.info("Dropping orphaned transient table {}", table);
                     ctx.dropTable(table).execute();
                 } else {
                     logger.error("Narrowly avoided dropping table {} - should not be possible",
@@ -234,9 +237,8 @@ public class BulkInserterFactory implements AutoCloseable {
                 }
             }
         } catch (DataAccessException e) {
-            logger.warn("Failed to clean up orphaned transient system load tables", e);
+            logger.warn("Failed to clean up orphaned transient tables", e);
         }
-
     }
 
     /**

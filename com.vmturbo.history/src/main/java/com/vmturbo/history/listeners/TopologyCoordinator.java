@@ -323,22 +323,26 @@ public class TopologyCoordinator extends TopologyListenerBase
                         processingStatus.finishIngestion(
                                 flavor, info, topologyLabel, results.getRight());
                         // announce it to the world
-                        switch (flavor) {
-                            case Live:
-                                availabilityTracker.topologyAvailable(
-                                        info.getTopologyContextId(), TopologyContextType.LIVE, true);
-                                break;
-                            case Projected:
-                                availabilityTracker.projectedTopologyAvailable(
-                                        info.getTopologyContextId(), TopologyContextType.LIVE, true);
-                                break;
-                            default:
-                                logger.warn("Unknown topology flavor: {}", flavor.name());
-                                break;
+                        try {
+                            switch (flavor) {
+                                case Live:
+                                    availabilityTracker.topologyAvailable(
+                                            info.getTopologyContextId(), TopologyContextType.LIVE, true);
+                                    break;
+                                case Projected:
+                                    availabilityTracker.projectedTopologyAvailable(
+                                            info.getTopologyContextId(), TopologyContextType.LIVE, true);
+                                    break;
+                                default:
+                                    logger.warn("Unknown topology flavor: {}", flavor.name());
+                                    break;
+                            }
+                        } catch (Exception e) {
+                            logger.info("Failed to notify availability after ingestion of {}",
+                                    topologyLabel, e);
                         }
                         return results.getLeft();
                     } catch (Exception e) {
-                        logger.info("Failed to notify availability after ingestion", e);
                         processingStatus.failIngestion(
                                 flavor, info, topologyLabel, Optional.of(loaders.getStats()), e);
                     } finally {

@@ -401,7 +401,9 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
             try (Connection conn = basedbIO.connection()) {
                 basedbIO.using(conn).dropTable(outTable).execute();
             } catch (VmtDbException | SQLException | DataAccessException e) {
-                logger.error("Failed to drop transient bulk inserter table {} when inserter was closed",
+                // create our own logger for this if the caller didn't provide one
+                final Logger log = logger != null ? logger : LogManager.getLogger();
+                log.error("Failed to drop transient bulk inserter table {} when inserter was closed",
                         outTable.getName(), e);
             }
         }
