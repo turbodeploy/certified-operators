@@ -10,6 +10,8 @@ public class SearchableProperties {
 
     public static final String ENTITY_STATE = "state";
 
+    public static final String USER_DEFINED_ENTITY = "UserDefinedEntity";
+
     public static final String ENVIRONMENT_TYPE = "environmentType";
 
     public static final String TAGS_TYPE_PROPERTY_NAME = "tags";
