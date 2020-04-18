@@ -110,7 +110,9 @@ public class MapperConfig {
 
     @Bean
     public EntityFilterMapper entityFilterMapper() {
-        return new EntityFilterMapper(groupUseCaseParser());
+        return new EntityFilterMapper(
+                groupUseCaseParser(),
+                communicationConfig.thinTargetCache());
     }
 
     @Bean
