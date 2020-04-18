@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>analysis-parent</artifactId>
-        <version>3.21.5-SNAPSHOT</version>
+        <version>3.22.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>platform.analysis</artifactId>
@@ -20,7 +20,7 @@
         <checker-qual.version>1.9.5</checker-qual.version>
         <log4j2Version>2.6.2</log4j2Version>
         <websocket.version>1.1</websocket.version>
-        <vmturbo.mt.branch.version>7.21.5-SNAPSHOT</vmturbo.mt.branch.version>
+        <vmturbo.mt.branch.version>7.22.0-SNAPSHOT</vmturbo.mt.branch.version>
     </properties>
 
     <build>
