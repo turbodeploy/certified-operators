@@ -72,6 +72,7 @@ import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.Pair;
@@ -1528,6 +1529,10 @@ public class ActionSpecMapper {
                     .map(ApiEntityType::typeNumber)
                     .forEach(queryBuilder::addEntityType);
             }
+
+            if (inputDto.getCostType() != null) {
+                queryBuilder.setCostType(ActionSpecMapper.mapApiCostTypeToXL(inputDto.getCostType()));
+            }
         } else {
             // When "inputDto" is null, we should automatically insert the operational action states.
             Stream.of(OPERATIONAL_ACTION_STATES).forEach(queryBuilder::addStates);
@@ -2037,6 +2042,25 @@ public class ActionSpecMapper {
             default:
                 logger.error("Unknown action mode {}", actionMode);
                 return Optional.empty();
+        }
+    }
+
+    /**
+     * Map UI's ActionCostType to ActionDTO.ActionCostType.
+     *
+     * @param actionCostType UI's ActionCostType
+     * @return ActionDTO.ActionCostType
+     */
+    public static ActionDTO.ActionCostType mapApiCostTypeToXL(final ActionCostType actionCostType) {
+        switch (actionCostType) {
+            case SAVING:
+                return ActionDTO.ActionCostType.SAVINGS;
+            case INVESTMENT:
+                return ActionDTO.ActionCostType.INVESTMENT;
+            case ACTION_COST_TYPE_NONE:
+                return ActionDTO.ActionCostType.ACTION_COST_TYPE_NONE;
+            default:
+                throw new IllegalArgumentException("Unknown action cost type" + actionCostType);
         }
     }
 }

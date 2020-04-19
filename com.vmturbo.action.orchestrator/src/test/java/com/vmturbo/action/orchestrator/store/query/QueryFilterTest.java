@@ -34,8 +34,10 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
 /**
  * Tests for the {@link QueryFilter} class.
@@ -428,6 +430,85 @@ public class QueryFilterTest {
         final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
         assertFalse(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
             .test(actionView));
+    }
+
+    /**
+     * Test query filter should return true when filter costType is SAVINGS and amount is
+     * non-negative
+     */
+    @Test
+    public void testCostTypeFilterMatchForSaving() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setSavingsPerHour(CurrencyAmount.newBuilder()
+                        .setAmount(0.05))
+                .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setCostType(ActionCostType.SAVINGS)
+                .build();
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+    }
+
+    /**
+     * Test query filter should return true when filter costType is INVESTMENT and amount is
+     * negative
+     */
+    @Test
+    public void testCostTypeFilterMatchForInvestment() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setSavingsPerHour(CurrencyAmount.newBuilder()
+                        .setAmount(-0.05))
+                .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setCostType(ActionCostType.INVESTMENT)
+                .build();
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+    }
+
+    /**
+     * Test query filter should return true when filter costType is SAVINGS or ACTION_COST_TYPE_NONE
+     * and amount is zero
+     */
+    @Test
+    public void testCostTypeFilterMatchForZeroSaving() {
+        final ActionDTO.Action action = ActionDTO.Action.newBuilder()
+                .setId(1)
+                .setDeprecatedImportance(0)
+                .setExecutable(true)
+                .setExplanation(Explanation.newBuilder().build())
+                .setInfo(ActionInfo.getDefaultInstance())
+                .setSavingsPerHour(CurrencyAmount.newBuilder()
+                        .setAmount(0.00))
+                .build();
+
+        final ActionQueryFilter filter = ActionQueryFilter.newBuilder()
+                .setCostType(ActionCostType.SAVINGS)
+                .build();
+        final ActionView actionView = ActionOrchestratorTestUtils.mockActionView(action);
+        assertTrue(new QueryFilter(filter, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView));
+
+        final ActionQueryFilter filter2 = ActionQueryFilter.newBuilder()
+                .setCostType(ActionCostType.ACTION_COST_TYPE_NONE)
+                .build();
+        final ActionView actionView2 = ActionOrchestratorTestUtils.mockActionView(action);
+        assertTrue(new QueryFilter(filter2, PlanActionStore.VISIBILITY_PREDICATE)
+                .test(actionView2));
     }
 
     private ActionView executableMoveAction(long id, long sourceId, int sourceType, long destId, int destType, long targetId) {
