@@ -27,7 +27,7 @@ import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.history.schema.RelationType;
 
 /**
- * An assortment of utility classes to assist in utilization of jOOQ, especially in construction
+ * An assortment of utility classes to assist in getUtilization of jOOQ, especially in construction
  * of queries that dynamically incorporate tables and fields.
  */
 public class JooqUtils {

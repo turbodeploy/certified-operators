@@ -93,12 +93,39 @@ message GetEntityStatsResponse {
     optional common.PaginationResponse pagination_response = 10;
 }
 
-message ClusterStatsRequest {
+// Request made from the plan component to the history component
+// to fetch headroom stats.
+message ClusterStatsRequestForHeadroomPlan {
     // The ID of the cluster to retrieve stats from.
     optional int64 cluster_id = 1;
 
     // The filter to apply to the stats. If not set, retrieve all stats.
     optional StatsFilter stats = 2;
+}
+
+// Get cluster stats
+message ClusterStatsRequest {
+    // The IDs of the cluster to retrieve stats from.
+    // If empty, then the request concerns all clusters
+    // in the topology
+    repeated int64 cluster_ids = 1;
+
+    // The filter to apply to the stats. If not set, retrieve all stats.
+    optional StatsFilter stats = 2;
+
+    // The pagination parameters outlying the sort order, and previous cursor (if any).
+    // If not set, use the default instance of PaginationParameters. The backend
+    // will enforce a default ordering and limit, and retrieve the first page.
+    optional common.PaginationParameters pagination_params = 10;
+}
+
+// Response with cluster stats
+message ClusterStatsResponse {
+    // the stats snapshots requested grouped by cluster
+    repeated EntityStats snapshots = 1;
+
+    // The response containing the cursor to retrieve the next page of results.
+    optional common.PaginationResponse pagination_response = 10;
 }
 
 // The stats filter represents the restrictions to apply to stats before returning them.
@@ -579,10 +606,10 @@ service StatsHistoryService {
     rpc GetEntityStats(GetEntityStatsRequest) returns (GetEntityStatsResponse);
 
     //Get stats filtered by certain options and average over all desired entities in the cluser.
-    rpc GetClusterStats(ClusterStatsRequest) returns (stream StatSnapshot);
+    rpc GetClusterStats(ClusterStatsRequest) returns (ClusterStatsResponse);
 
     // Get cluster stats for headroom plan, e.g. number of VMs.
-    rpc GetClusterStatsForHeadroomPlan(ClusterStatsRequest) returns (stream StatSnapshot);
+    rpc GetClusterStatsForHeadroomPlan(ClusterStatsRequestForHeadroomPlan) returns (stream StatSnapshot);
 
     // Get stats from the latest projected topology.
     // Will return a response with no data if the stats service

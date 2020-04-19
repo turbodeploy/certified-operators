@@ -30,6 +30,8 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
@@ -132,14 +134,19 @@ public class ClusterStatsSubQueryTest {
         when(context.newPeriodInputDto(any())).thenReturn(periodInputDto);
 
         final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.newBuilder()
-            .setClusterId(1231)
+            .addClusterIds(1231)
             .build();
         final StatSnapshot statSnapshot = StatSnapshot.newBuilder()
             .setSnapshotDate(1111111)
             .build();
 
         when(statsMapper.toClusterStatsRequest("1", periodInputDto)).thenReturn(clusterStatsRequest);
-        doReturn(Collections.singletonList(statSnapshot)).when(backend).getClusterStats(any());
+        final ClusterStatsResponse clusterStatsResponse =
+                ClusterStatsResponse.newBuilder()
+                    .addSnapshots(EntityStats.newBuilder()
+                                    .addStatSnapshots(statSnapshot))
+                    .build();
+        doReturn(clusterStatsResponse).when(backend).getClusterStats(any());
 
         final StatSnapshotApiDTO mappedApiSnapshot = new StatSnapshotApiDTO();
         mappedApiSnapshot.setDate(DateTimeUtil.toString(1_000_000));

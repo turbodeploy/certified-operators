@@ -31,7 +31,6 @@
  import java.time.Duration;
  import java.util.ArrayList;
  import java.util.Arrays;
- import java.util.Collection;
  import java.util.Collections;
  import java.util.List;
  import java.util.Map;
@@ -65,6 +64,8 @@
  import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
  import com.vmturbo.common.protobuf.stats.Stats;
  import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+ import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequestForHeadroomPlan;
+ import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
  import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
  import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
  import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
@@ -605,18 +606,18 @@ public class StatsHistoryRpcServiceTest {
         String[] commodityNames = {HEADROOM_VMS, NUM_VMS};
         String clusterId = "1234567890";
 
-        ClusterStatsRequest request = ClusterStatsRequest.newBuilder()
+        ClusterStatsRequestForHeadroomPlan request = ClusterStatsRequestForHeadroomPlan.newBuilder()
                 .setClusterId(Long.parseLong(clusterId))
                 .setStats(StatsFilter.newBuilder()
                         .addAllCommodityRequests(buildCommodityRequests(commodityNames))
                         .build())
                 .build();
 
-        when(mockClusterStatsReader.getStatsRecords(anyLong(), anyLong(), anyLong(), any(), any()))
+        when(mockClusterStatsReader.getStatsRecordsForHeadRoomPlanRequest(anyLong(), anyLong(), anyLong(), any(), any()))
                 .thenReturn(getMockStatRecords(clusterId, dates, commodityNames, 20));
 
         final List<StatSnapshot> snapshots = new ArrayList<>();
-        clientStub.getClusterStats(request).forEachRemaining(snapshots::add);
+        clientStub.getClusterStatsForHeadroomPlan(request).forEachRemaining(snapshots::add);
 
         assertThat(snapshots.size(), is(1));
         final StatSnapshot capturedArgument = snapshots.get(0);
@@ -626,6 +627,22 @@ public class StatsHistoryRpcServiceTest {
         List<String> recordNames = Arrays.asList(startRecordList.get(0).getName(),
                 startRecordList.get(1).getName());
         assertThat(recordNames, containsInAnyOrder(HEADROOM_VMS, NUM_VMS));
+    }
+
+    /**
+     * Test that the {@link StatsHistoryRpcService#getClusterStats}
+     * behaves as expected: delegates the call to {@link ClusterStatsReader}.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testClusterStats() throws Exception {
+        final ClusterStatsRequest request = ClusterStatsRequest.getDefaultInstance();
+        final ClusterStatsResponse expectedResponse = ClusterStatsResponse.getDefaultInstance();
+        when(mockClusterStatsReader.getStatsRecords(request)).thenReturn(expectedResponse);
+
+        assertEquals(expectedResponse, clientStub.getClusterStats(request));
+        verify(mockClusterStatsReader).getStatsRecords(eq(request));
     }
 
     /**
@@ -644,7 +661,7 @@ public class StatsHistoryRpcServiceTest {
         long endDate = Timestamp.valueOf(dates[dates.length - 1]).getTime();
         String clusterId = "1234567890";
 
-        ClusterStatsRequest request = ClusterStatsRequest.newBuilder()
+        ClusterStatsRequestForHeadroomPlan request = ClusterStatsRequestForHeadroomPlan.newBuilder()
                 .setClusterId(Long.parseLong(clusterId))
                 .setStats(StatsFilter.newBuilder()
                         .setStartDate(startDate)
@@ -653,11 +670,11 @@ public class StatsHistoryRpcServiceTest {
                         .build())
                 .build();
 
-        when(mockClusterStatsReader.getStatsRecords(anyLong(), anyLong(), anyLong(), any(), any()))
+        when(mockClusterStatsReader.getStatsRecordsForHeadRoomPlanRequest(anyLong(), anyLong(), anyLong(), any(), any()))
                 .thenReturn(getMockStatRecords(clusterId, dates, commodityNames, 20));
 
         final List<StatSnapshot> snapshots = new ArrayList<>();
-        clientStub.getClusterStats(request).forEachRemaining(snapshots::add);
+        clientStub.getClusterStatsForHeadroomPlan(request).forEachRemaining(snapshots::add);
 
         assertThat(snapshots.size(), is(3));
         for (int i = 0; i < 3; i++) {
@@ -682,7 +699,7 @@ public class StatsHistoryRpcServiceTest {
         long endDate = Timestamp.valueOf("2017-12-19 00:00:00").getTime();
         String clusterId = "1234567890";
 
-        ClusterStatsRequest request = ClusterStatsRequest.newBuilder()
+        ClusterStatsRequestForHeadroomPlan request = ClusterStatsRequestForHeadroomPlan.newBuilder()
                 .setClusterId(Long.parseLong(clusterId))
                 .setStats(StatsFilter.newBuilder()
                         .setStartDate(startDate)
@@ -692,12 +709,14 @@ public class StatsHistoryRpcServiceTest {
                 .build();
 
         final List<StatSnapshot> snapshots = new ArrayList<>();
-        clientStub.getClusterStats(request).forEachRemaining(snapshots::add);
+        clientStub.getClusterStatsForHeadroomPlan(request).forEachRemaining(snapshots::add);
 
         assertThat(snapshots.size(), is(0));
 
-        verify(mockClusterStatsReader).getStatsRecords(eq(Long.parseLong(clusterId)),
-                eq(startDate), eq(endDate), anyObject(), any());
+        verify(mockClusterStatsReader, atLeastOnce())
+            .getStatsRecordsForHeadRoomPlanRequest(eq(Long.parseLong(clusterId)),
+                                                   eq(startDate), eq(endDate),
+                                                   anyObject(), any());
     }
 
     @Test
@@ -1058,7 +1077,7 @@ public class StatsHistoryRpcServiceTest {
     }
 
     /**
-     * Test {@link StatsHistoryRpcService#createProjectedHeadroomStats(StreamObserver, long, long, long, long, Collection)}.
+     * Test {@link StatsHistoryRpcService#createProjectedHeadroomStats}.
      *
      * @throws Exception if there's any
      */
@@ -1068,7 +1087,7 @@ public class StatsHistoryRpcServiceTest {
         final long startDate = latestRecordDate - TimeUnit.DAYS.toMillis(1);
         final long endDate = latestRecordDate + TimeUnit.DAYS.toMillis(1) * 2 + 1;
         final long clusterId = 1L;
-        when(mockClusterStatsReader.getStatsRecords(anyLong(), anyLong(), anyLong(), any(), any())).thenReturn(
+        when(mockClusterStatsReader.getStatsRecordsForHeadRoomPlanRequest(anyLong(), anyLong(), anyLong(), any(), any())).thenReturn(
             getMockStatRecords(String.valueOf(clusterId), new String[] {new Timestamp(latestRecordDate).toString()},
                 new String[] {StringConstants.VM_GROWTH}, 30));
 
@@ -1083,7 +1102,7 @@ public class StatsHistoryRpcServiceTest {
         final ArgumentCaptor<StatSnapshot> statSnapshotCaptor = ArgumentCaptor.forClass(StatSnapshot.class);
 
         statsHistoryRpcService.createProjectedHeadroomStats(responseStreamObserver,
-            ClusterStatsRequest.newBuilder().setClusterId(clusterId).setStats(
+            ClusterStatsRequestForHeadroomPlan.newBuilder().setClusterId(clusterId).setStats(
                 StatsFilter.newBuilder().setStartDate(startDate).setEndDate(endDate)).build(),
             latestRecordDate, Collections.singletonList(statRecord));
 

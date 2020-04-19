@@ -55,6 +55,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRe
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequestForHeadroomPlan;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -375,14 +376,15 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
         final Map<Long, Float> dailyVMGrowthPerCluster = new HashMap<>(clusterIds.size());
         for (final long clusterId : clusterIds) {
-            final ClusterStatsRequest vmCountRequest = ClusterStatsRequest.newBuilder()
-                .setClusterId(clusterId)
-                .setStats(StatsFilter.newBuilder()
-                    .setStartDate(calendar.getTimeInMillis())
-                    .setEndDate(currentTime)
-                    .addCommodityRequests(CommodityRequest.newBuilder()
-                        .setCommodityName(StringConstants.VM_NUM_VMS)))
-                .build();
+            final ClusterStatsRequestForHeadroomPlan vmCountRequest =
+                ClusterStatsRequestForHeadroomPlan.newBuilder()
+                    .setClusterId(clusterId)
+                    .setStats(StatsFilter.newBuilder()
+                        .setStartDate(calendar.getTimeInMillis())
+                        .setEndDate(currentTime)
+                        .addCommodityRequests(CommodityRequest.newBuilder()
+                            .setCommodityName(StringConstants.VM_NUM_VMS)))
+                    .build();
             final Iterator<StatSnapshot> snapshotIterator = statsHistoryService
                 .getClusterStatsForHeadroomPlan(vmCountRequest);
 

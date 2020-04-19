@@ -760,13 +760,16 @@ public class StatsMapper {
      */
     @Nonnull
     public ClusterStatsRequest toClusterStatsRequest(
-        @Nonnull final String uuid,
-        @Nullable final StatPeriodApiInputDTO inputDto,
-        final boolean requestProjectedHeadroom) {
-        return ClusterStatsRequest.newBuilder()
-            .setClusterId(Long.parseLong(uuid))
-            .setStats(newPeriodStatsFilter(inputDto, requestProjectedHeadroom))
-            .build();
+            @Nonnull final String uuid,
+            @Nullable final StatPeriodApiInputDTO inputDto,
+            final boolean requestProjectedHeadroom) {
+        final ClusterStatsRequest.Builder resultBuilder =
+                ClusterStatsRequest.newBuilder()
+                    .setStats(newPeriodStatsFilter(inputDto, requestProjectedHeadroom));
+        if (!"Market".equalsIgnoreCase(uuid)) {
+            resultBuilder.addClusterIds(Long.valueOf(uuid));
+        }
+        return resultBuilder.build();
     }
 
     /**
