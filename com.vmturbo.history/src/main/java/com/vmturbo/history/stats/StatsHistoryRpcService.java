@@ -57,6 +57,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.DeletePlanStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
@@ -355,7 +356,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     /**
      * Get the comparator that can be used to sort EntityStats according to the passed-in pagination
-     * parameters. We compare the utilization of the stat (used / capacity).
+     * parameters. We compare the getUtilization of the stat (used / capacity).
      *
      * @param entityStats list of entity stats to get comparator for
      * @param commodity name of the stat to compare
@@ -366,7 +367,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     protected Comparator<EntityStats> getEntityStatsComparator(@Nonnull List<EntityStats> entityStats,
                                                              @Nonnull String commodity,
                                                              final boolean ascending) {
-        // pre calculate the utilization for each entity, to reduce the calculation during sorting
+        // pre calculate the getUtilization for each entity, to reduce the calculation during sorting
         final Map<Long, Float> utilizationByEntity = entityStats.stream()
             .collect(Collectors.toMap(EntityStats::getOid, stats ->
                 getStatsUtilization(stats, commodity, ascending)));
@@ -383,14 +384,14 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     }
 
     /**
-     * Get the utilization of the given commodity from the list of snapshots. If no no snapshots,
+     * Get the getUtilization of the given commodity from the list of snapshots. If no no snapshots,
      * or no capacity, or commodity is not found, return max/min if it's ascending/descending so
      * it is placed at the end after sorting.
      *
      * @param entityStats entityStats containing entity id and a list of snapshots
-     * @param commodity name of the commodity to calculate utilization for
+     * @param commodity name of the commodity to calculate getUtilization for
      * @param ascending whether or not the pagination is ascending or descending
-     * @return utilization of the given commodity
+     * @return getUtilization of the given commodity
      */
     private Float getStatsUtilization(@Nonnull final EntityStats entityStats,
                                       @Nonnull final String commodity,
@@ -404,7 +405,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         // take the first matching one for comparison
         return snapshots.get(0).getStatRecordsList().stream()
             .filter(statRecord -> StringUtils.equals(statRecord.getName(), commodity))
-            // must have capacity to calculate utilization
+            // must have capacity to calculate getUtilization
             .filter(statRecord -> statRecord.hasCapacity() && statRecord.getCapacity().getAvg() != 0)
             .map(statRecord -> statRecord.getValues().getAvg() / statRecord.getCapacity().getAvg())
             .findFirst()
@@ -579,33 +580,14 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
 
     @Override
     public void getClusterStats(@Nonnull Stats.ClusterStatsRequest request,
-                                @Nonnull StreamObserver<StatSnapshot> responseObserver) {
-        final long clusterId = request.getClusterId();
-        final StatsFilter filter = request.getStats();
-
-        long now = System.currentTimeMillis();
-        long startDate = (filter.hasStartDate()) ? filter.getStartDate() : now;
-        long endDate = filter.hasEndDate() ? filter.getEndDate() : now;
-        if (startDate > endDate) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Invalid date range for retrieving cluster statistics.")
-                    .asException());
-            return;
-        }
-        final Set<String> commodityNames = collectCommodityNames(filter);
+                                @Nonnull StreamObserver<ClusterStatsResponse> responseObserver) {
         try {
-            // retrieve records, using timeframe computed from parameters
-            final List<ClusterStatsRecordReader> records =
-                    clusterStatsReader.getStatsRecords(clusterId,
-                            startDate, endDate, Optional.empty(), commodityNames);
-            // package up the reults and send them back
-            sendClusterStatsResponse(request, records, responseObserver);
-        } catch (Exception e) {
-            responseObserver.onError(
-                    (e instanceof StatusException) ? e : Status.INTERNAL
-                            .withDescription("Cluster stats request failed")
-                            .withCause(e)
-                            .asException());
+            responseObserver.onNext(clusterStatsReader.getStatsRecords(request));
+            responseObserver.onCompleted();
+        } catch (IllegalArgumentException e) {
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
+        } catch (Throwable e) {
+            responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
 
@@ -632,7 +614,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         }
         final Set<String> commodityNames = collectCommodityNames(filter);
 
-        return clusterStatsReader.getStatsRecords(clusterId,
+        return clusterStatsReader.getStatsRecordsForHeadRoomPlanRequest(clusterId,
                 startDate, endDate, Optional.of(timeFrame), commodityNames);
     }
 
@@ -645,7 +627,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param responseObserver a stream observer on which to write cluster stats
      */
     @Override
-    public void getClusterStatsForHeadroomPlan(@Nonnull Stats.ClusterStatsRequest request,
+    public void getClusterStatsForHeadroomPlan(@Nonnull Stats.ClusterStatsRequestForHeadroomPlan request,
                                                @Nonnull StreamObserver<StatSnapshot> responseObserver) {
         final long clusterId = request.getClusterId();
         StatsFilter statsFilter = request.getStats();
@@ -673,7 +655,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
      * @param responseObserver where to send the results
      * @throws StatusException if there's a problem packaging or sending results
      */
-    private void sendClusterStatsResponse(@Nonnull final Stats.ClusterStatsRequest request,
+    private void sendClusterStatsResponse(@Nonnull final Stats.ClusterStatsRequestForHeadroomPlan request,
                                           @Nonnull final Collection<ClusterStatsRecordReader> results,
                                           @Nonnull final StreamObserver<StatSnapshot> responseObserver)
             throws StatusException {
@@ -815,7 +797,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @VisibleForTesting
     void createProjectedHeadroomStats(
             @Nonnull final StreamObserver<StatSnapshot> responseObserver,
-            @Nonnull final Stats.ClusterStatsRequest request, final long latestRecordDate,
+            @Nonnull final Stats.ClusterStatsRequestForHeadroomPlan request, final long latestRecordDate,
             @Nonnull final Collection<StatRecord> latestStatRecords) {
         final StatsFilter filter = request.getStats();
         final long startDate;
@@ -842,7 +824,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
             final List<ClusterStatsRecordReader> statDBRecords;
             try {
                 // retrieve records, using timeframe computed from parameters
-                statDBRecords = clusterStatsReader.getStatsRecords(clusterId,
+                statDBRecords = clusterStatsReader.getStatsRecordsForHeadRoomPlanRequest(clusterId,
                     startDate, endDate, Optional.empty(), Collections.singleton(StringConstants.VM_GROWTH));
             } catch (VmtDbException e) {
                 responseObserver.onError(Status.INTERNAL

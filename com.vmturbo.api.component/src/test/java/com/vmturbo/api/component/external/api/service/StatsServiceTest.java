@@ -1,8 +1,8 @@
 package com.vmturbo.api.component.external.api.service;
 
 import static com.vmturbo.api.component.external.api.service.PaginationTestUtil.getStatsByUuidsQuery;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
@@ -11,6 +11,7 @@ import static org.mockito.Matchers.anyList;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -18,6 +19,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -52,12 +54,11 @@ import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.dto.statistic.StatValueApiDTO;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
@@ -65,6 +66,10 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.cost.CostMoles;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -94,8 +99,11 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
@@ -103,8 +111,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
-import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
@@ -214,7 +222,6 @@ public class StatsServiceTest {
         when(apiId1.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
                         ApiEntityType.PHYSICAL_MACHINE)));
         when(apiId1.isGroup()).thenReturn(false);
-        when(apiId1.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
 
         when(uuidMapper.fromUuid(oid2)).thenReturn(apiId2);
         when(apiId2.uuid()).thenReturn(oid2);
@@ -222,12 +229,10 @@ public class StatsServiceTest {
         when(apiId2.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
                         ApiEntityType.PHYSICAL_MACHINE)));
         when(apiId2.isGroup()).thenReturn(false);
-        when(apiId2.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
 
         when(uuidMapper.fromUuid(marketUuid)).thenReturn(marketApiId);
         when(marketApiId.getScopeTypes()).thenReturn(Optional.empty());
         when(marketApiId.isGroup()).thenReturn(false);
-        when(marketApiId.getEnvironmentType()).thenReturn(EnvironmentType.HYBRID);
 
         se1.setUuid(apiId1.uuid());
         se1.setClassName("ClassName-1");
@@ -235,259 +240,604 @@ public class StatsServiceTest {
         se2.setClassName("ClassName-2");
     }
 
+    /**
+     * Tests {@link StatsService} for cluster stats queries.
+     *
+     * <p>In this test:
+     *    <ul>
+     *        <li>the scopes list is empty (which translates to the full market)</li>
+     *        <li>the user is not restricted</li>
+     *        <li>we ask for 2 records and give a null offset</li>
+     *        <li>we get 2 records back and a final pagination response</li>
+     *    </ul>
+     *    We test correctness of all intermediate results and the fact that
+     *    the stats mapper service and the history service are called with
+     *    appropriate parameters and that the group service is <i>not</i>
+     *    called at all.
+     * </p>
+     *
+     * @throws Exception should not happen.
+     */
     @Test
-    public void testGetStatsByUuidsClusterStats() throws Exception {
-        final EntityStatsPaginationRequest paginationRequest =
-                spy(new EntityStatsPaginationRequest("foo", 1, true, "order"));
-        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+    public void testGetClusterStatsEmptyScope() throws Exception {
+        // constants
+        final String statRequested = "foo";
+        final int limit = 2;
+        final long clusterId1 = 1L;
+        final long clusterId2 = 2L;
 
-        // Add a cluster stat request.
+        // input to the API method
+        final EntityStatsPaginationRequest paginationRequest =
+                new EntityStatsPaginationRequest(null, limit, true, statRequested);
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
         final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
         statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
         periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
-
         final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
-        inputDto.setScopes(Collections.singletonList("7"));
         inputDto.setPeriod(periodApiInputDTO);
-        ApiId apiId = mock(ApiId.class);
-        when(apiId.uuid()).thenReturn("7");
-        when(apiId.oid()).thenReturn(7L);
-        when(apiId.getScopeTypes()).thenReturn(Optional.of(Collections.singleton(
-                ApiEntityType.COMPUTE_TIER)));
-        when(apiId.isGroup()).thenReturn(true);
-        when(apiId.getDisplayName()).thenReturn("Winter woede");
-        when(apiId.getClassName()).thenReturn("Cluster");
-        when(apiId.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
-        when(uuidMapper.fromOid(7)).thenReturn(apiId);
 
-        final GroupDefinition clusterInfo = GroupDefinition.newBuilder()
-                .setType(GroupType.COMPUTE_HOST_CLUSTER)
-                .setDisplayName("Winter woede")
+        // expected input to the internal gRPC call
+        final OrderBy orderBy = OrderBy.newBuilder()
+                                    .setEntityStats(EntityStatsOrderBy.newBuilder()
+                                            .setStatName(statRequested))
+                                    .build();
+        final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
+                                                                .setCursor("0")
+                                                                .setAscending(true)
+                                                                .setLimit(limit)
+                                                                .setOrderBy(orderBy)
+                                                                .build();
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                                            .addCommodityRequests(CommodityRequest.newBuilder()
+                                                    .setCommodityName(statRequested))
+                                            .build();
+        final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.newBuilder()
+                                                            .setStats(statsFilter)
+                                                            .setPaginationParams(paginationParameters)
+                                                            .build();
+
+        // mock mapping from API input to internal input
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO)).thenReturn(statsFilter);
+
+        // mock mapping from internal output to external output
+        final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+        statSnapshotApiDTO.setClassName(StringConstants.CLUSTER);
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(statSnapshotApiDTO);
+
+        // mock internal group gRPC call
+        final Grouping cluster1 = makeCluster(clusterId1, Collections.singleton(11L));
+        final Grouping cluster2 = makeCluster(clusterId2, Collections.singleton(12L));
+        when(groupServiceSpy.getGroups(any())).thenReturn(ImmutableList.of(cluster1, cluster2));
+
+        // mock internal history gRPC call
+        final ClusterStatsResponse clusterStatsResponse =
+            ClusterStatsResponse.newBuilder()
+                .addSnapshots(EntityStats.newBuilder()
+                                    .setOid(clusterId1)
+                                    .addStatSnapshots(STAT_SNAPSHOT))
+                .addSnapshots(EntityStats.newBuilder()
+                                    .setOid(clusterId2)
+                                    .addStatSnapshots(STAT_SNAPSHOT))
+                .setPaginationResponse(PaginationResponse.newBuilder()
+                                            .setTotalRecordCount(2))
                 .build();
-        when(groupServiceSpy.getGroups(GetGroupsRequest.newBuilder()
-                .setGroupFilter(GroupFilter.newBuilder().addId(7)).build())).thenReturn(
-                Collections.singletonList(Grouping.newBuilder().setId(7)
-                        .setDefinition(clusterInfo).build()));
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest)).thenReturn(clusterStatsResponse);
 
-        final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.getDefaultInstance();
-        when(statsMapper.toClusterStatsRequest("7", periodApiInputDTO, true))
-                .thenReturn(clusterStatsRequest);
-        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest))
-                .thenReturn(Collections.singletonList(STAT_SNAPSHOT));
-        final StatSnapshotApiDTO apiSnapshot = new StatSnapshotApiDTO();
-        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(apiSnapshot);
-
+        // call service
         final EntityStatsPaginationResponse response =
                 statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
+        // mapping from external input to internal input happened
+        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO);
+
+        // proper use of the history service
+        verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
+
+        // mapping from internal output to external output happened
+        verify(statsMapper, atLeast(2)).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+
+        // verify values of the result
+        assertThat(response.getRawResults().size(), is(2));
+        final EntityStatsApiDTO clusterStats1 = response.getRawResults().get(0);
+        assertEquals(Long.toString(clusterId1), clusterStats1.getUuid());
+        assertEquals(StringConstants.CLUSTER, clusterStats1.getClassName());
+        assertEquals(Collections.singletonList(statSnapshotApiDTO), clusterStats1.getStats());
+        final EntityStatsApiDTO clusterStats2 = response.getRawResults().get(1);
+        assertEquals(Long.toString(clusterId2), clusterStats2.getUuid());
+        assertEquals(StringConstants.CLUSTER, clusterStats2.getClassName());
+        assertEquals(Collections.singletonList(statSnapshotApiDTO), clusterStats2.getStats());
+        assertEquals(Collections.singletonList(""),
+                     response.getRestResponse().getHeaders().get("X-Next-Cursor"));
+    }
+
+    /**
+     * Tests {@link StatsService} for cluster stats queries.
+     *
+     * <p>In this test:
+     *    <ul>
+     *        <li>the scopes list contains the string "Market"</li>
+     *        <li>the user is not restricted</li>
+     *        <li>we ask for 2 records and give an offset of 3</li>
+     *        <li>we get 2 records back and a new cursor 4</li>
+     *    </ul>
+     *    We test correctness of all intermediate results and the fact that
+     *    the stats mapper service and the history service are called with
+     *    appropriate parameters and that the group service is <i>not</i>
+     *    called at all.
+     * </p>
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetClusterStatsMarketScope() throws Exception {
+        // constants
+        final String statRequested = "foo";
+        final int limit = 2;
+        final String cursor = "3";
+        final String nextCursor = "4";
+        final long clusterId1 = 1L;
+        final long clusterId2 = 2L;
+
+        // input to the API method
+        final EntityStatsPaginationRequest paginationRequest =
+                new EntityStatsPaginationRequest(cursor, limit, true, statRequested);
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
+        periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setPeriod(periodApiInputDTO);
+        inputDto.setScopes(ImmutableList.of("Market", "0"));
+
+        // expected input to the internal gRPC call
+        final OrderBy orderBy = OrderBy.newBuilder()
+                                    .setEntityStats(EntityStatsOrderBy.newBuilder()
+                                            .setStatName(statRequested))
+                                    .build();
+        final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
+                                                                .setCursor(cursor)
+                                                                .setAscending(true)
+                                                                .setLimit(limit)
+                                                                .setOrderBy(orderBy)
+                                                                .build();
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                                            .addCommodityRequests(CommodityRequest.newBuilder()
+                                                    .setCommodityName(statRequested))
+                                            .build();
+        final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.newBuilder()
+                                                            .setStats(statsFilter)
+                                                            .setPaginationParams(paginationParameters)
+                                                            .build();
+
+        // mock mapping from API input to internal input
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO)).thenReturn(statsFilter);
+
+        // mock mapping from internal output to external output
+        final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+        statSnapshotApiDTO.setClassName(StringConstants.CLUSTER);
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(statSnapshotApiDTO);
+
+        // mock internal group gRPC call
+        final Grouping cluster1 = makeCluster(clusterId1, Collections.singleton(11L));
+        final Grouping cluster2 = makeCluster(clusterId2, Collections.singleton(12L));
+        when(groupServiceSpy.getGroups(any())).thenReturn(ImmutableList.of(cluster1, cluster2));
+
+        // mock internal history gRPC call
+        final ClusterStatsResponse clusterStatsResponse =
+                ClusterStatsResponse.newBuilder()
+                    .addSnapshots(EntityStats.newBuilder()
+                                    .setOid(clusterId1)
+                                    .addStatSnapshots(STAT_SNAPSHOT))
+                    .addSnapshots(EntityStats.newBuilder()
+                                    .setOid(clusterId2)
+                                    .addStatSnapshots(STAT_SNAPSHOT))
+                    .setPaginationResponse(PaginationResponse.newBuilder()
+                                                .setTotalRecordCount(2)
+                                                .setNextCursor(nextCursor))
+                    .build();
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest)).thenReturn(clusterStatsResponse);
+
+        // call service
+        final EntityStatsPaginationResponse response =
+                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+
+        // mapping from external input to internal input happened
+        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO);
+
+        // proper use of the history service
+        verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
+
+        // mapping from internal output to external output happened
+        verify(statsMapper, atLeast(2)).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+
+        // verify values of the result
+        assertThat(response.getRawResults().size(), is(2));
+        final EntityStatsApiDTO clusterStats1 = response.getRawResults().get(0);
+        assertEquals(Long.toString(clusterId1), clusterStats1.getUuid());
+        assertEquals(StringConstants.CLUSTER, clusterStats1.getClassName());
+        assertEquals(Collections.singletonList(statSnapshotApiDTO), clusterStats1.getStats());
+        final EntityStatsApiDTO clusterStats2 = response.getRawResults().get(1);
+        assertEquals(Long.toString(clusterId2), clusterStats2.getUuid());
+        assertEquals(StringConstants.CLUSTER, clusterStats2.getClassName());
+        assertEquals(Collections.singletonList(statSnapshotApiDTO), clusterStats2.getStats());
+        assertEquals(Collections.singletonList(nextCursor),
+                response.getRestResponse().getHeaders().get("X-Next-Cursor"));
+    }
+
+    /**
+     * Tests {@link StatsService} for cluster stats queries.
+     *
+     * <p>In this test:
+     *    <ul>
+     *        <li>the scopes list ids of a cluster and a group of clusters</li>
+     *        <li>the user is not restricted</li>
+     *    </ul>
+     *    We test correctness the internal call to the group component
+     *    and the history component.
+     * </p>
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetClusterStatsWithClusterAndGroupOfClusters() throws Exception {
+        // constants
+        final String statRequested = "foo";
+        final long scopeId1 = 1L;
+        final long scopeId2 = 2L;
+
+        // input to the API method
+        final EntityStatsPaginationRequest paginationRequest =
+                new EntityStatsPaginationRequest(null, 4, true, statRequested);
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
+        periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setPeriod(periodApiInputDTO);
+        inputDto.setScopes(ImmutableList.of(Long.toString(scopeId1), Long.toString(scopeId2)));
+
+        // mock cluster of hosts and mock group of clusters
+        // cluster 1 contains PH 1
+        // group of clusters contains clusters 2 and 3
+        final long ph1Id = 100L;
+        final long ph2Id = 200L;
+        final long ph3Id = 300L;
+        final long clusterId1 = scopeId1;
+        final long clusterId2 = 3L;
+        final long clusterId3 = 4L;
+        final Grouping cluster1 = makeCluster(clusterId1, Collections.singleton(ph1Id));
+        final Grouping groupOfClusters = makeGroupOfClusters(scopeId2,
+                                                             ImmutableList.of(clusterId2, clusterId3));
+        final Grouping cluster2 = makeCluster(clusterId2, Collections.singleton(ph2Id));
+        final Grouping cluster3 = makeCluster(clusterId3, Collections.singleton(ph3Id));
+
+        // expected input / output to the group gRPC calls
+        final GetGroupsRequest groupRequest = GetGroupsRequest.newBuilder()
+                                                    .setGroupFilter(GroupFilter.newBuilder()
+                                                                        .addId(scopeId1)
+                                                                        .addId(scopeId2))
+                                                    .build();
+        final List<Grouping> groupResponse = ImmutableList.of(cluster1, groupOfClusters);
+        when(groupServiceSpy.getGroups(groupRequest)).thenReturn(groupResponse);
+        final GetGroupsRequest secondGroupRequest = GetGroupsRequest.newBuilder()
+                                                        .setGroupFilter(GroupFilter.newBuilder()
+                                                                            .addId(clusterId2)
+                                                                            .addId(clusterId3))
+                                                        .build();
+        final List<Grouping> secondGroupResponse = ImmutableList.of(cluster2, cluster3);
+        when(groupServiceSpy.getGroups(secondGroupRequest)).thenReturn(secondGroupResponse);
+
+        // expected input / output to the internal history gRPC call
+        final OrderBy orderBy = OrderBy.newBuilder()
+                                    .setEntityStats(EntityStatsOrderBy.newBuilder()
+                                            .setStatName(statRequested))
+                                    .build();
+        final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
+                                                                .setCursor("0")
+                                                                .setAscending(true)
+                                                                .setOrderBy(orderBy)
+                                                                .setLimit(4)
+                                                                .build();
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                                            .addCommodityRequests(CommodityRequest.newBuilder()
+                                                    .setCommodityName(statRequested))
+                                            .build();
+        final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.newBuilder()
+                                                            .addClusterIds(clusterId1)
+                                                            .addClusterIds(clusterId2)
+                                                            .addClusterIds(clusterId3)
+                                                            .setStats(statsFilter)
+                                                            .setPaginationParams(paginationParameters)
+                                                            .build();
+        final ClusterStatsResponse clusterStatsResponse =
+                ClusterStatsResponse.newBuilder()
+                        .addSnapshots(EntityStats.newBuilder()
+                                            .setOid(clusterId1)
+                                            .addStatSnapshots(STAT_SNAPSHOT))
+                        .addSnapshots(EntityStats.newBuilder()
+                                            .setOid(clusterId2)
+                                            .addStatSnapshots(STAT_SNAPSHOT))
+                        .addSnapshots(EntityStats.newBuilder()
+                                            .setOid(clusterId3)
+                                            .addStatSnapshots(STAT_SNAPSHOT))
+                        .setPaginationResponse(PaginationResponse.newBuilder()
+                                                    .setTotalRecordCount(3))
+                        .build();
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO)).thenReturn(statsFilter);
+        final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+        statSnapshotApiDTO.setClassName(StringConstants.CLUSTER);
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(statSnapshotApiDTO);
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest)).thenReturn(clusterStatsResponse);
+
+        // call service
+        final EntityStatsPaginationResponse response =
+                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+
+        // mapping from external input to internal input happened
+        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO);
+
+        // proper use of the group service
+        verify(groupServiceSpy).getGroups(groupRequest);
+
+        // proper use of the history service
+        verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
+
+        // mapping from internal output to external output happened
+        verify(statsMapper, atLeast(3)).toStatSnapshotApiDTO(STAT_SNAPSHOT);
+
+        // verify values of the result
+        assertThat(response.getRawResults().size(), is(3));
+        final EntityStatsApiDTO clusterStats1 = response.getRawResults().get(0);
+        assertEquals(Long.toString(clusterId1), clusterStats1.getUuid());
+        assertEquals(StringConstants.CLUSTER, clusterStats1.getClassName());
+        assertEquals(Collections.singletonList(statSnapshotApiDTO), clusterStats1.getStats());
+        final EntityStatsApiDTO clusterStats2 = response.getRawResults().get(1);
+        assertEquals(Long.toString(clusterId2), clusterStats2.getUuid());
+        assertEquals(StringConstants.CLUSTER, clusterStats2.getClassName());
+        assertEquals(Collections.singletonList(statSnapshotApiDTO), clusterStats2.getStats());
+        final EntityStatsApiDTO clusterStats3 = response.getRawResults().get(2);
+        assertEquals(Long.toString(clusterId3), clusterStats3.getUuid());
+        assertEquals(StringConstants.CLUSTER, clusterStats2.getClassName());
+        assertEquals(Collections.singletonList(statSnapshotApiDTO), clusterStats2.getStats());
+        assertEquals(Collections.singletonList(""),
+                     response.getRestResponse().getHeaders().get("X-Next-Cursor"));
+    }
+
+    /**
+     * Tests {@link StatsService} for cluster stats queries.
+     *
+     * <p>In this test:
+     *    <ul>
+     *        <li>the scopes list two ids</li>
+     *        <li>the user is not restricted</li>
+     *        <li>the group component returns only one cluster</li>
+     *    </ul>
+     *    We test correctness of all the internal calls to the group component.
+     *    The test should throw an exception because not all ids are accounted for.
+     * </p>
+     *
+     * @throws Exception should happen because not all ids are accounted for
+     */
+    @Test(expected = UnknownObjectException.class)
+    public void testGetClusterStatsWithMissingClusters() throws Exception {
+        // constants
+        final String statRequested = "foo";
+        final long scopeId1 = 1L;
+        final long scopeId2 = 2L;
+
+        // input to the API method
+        final EntityStatsPaginationRequest paginationRequest =
+                new EntityStatsPaginationRequest(null, 4, true, statRequested);
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
+        periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setPeriod(periodApiInputDTO);
+        inputDto.setScopes(ImmutableList.of(Long.toString(scopeId1), Long.toString(scopeId2)));
+
+        // mock cluster of hosts
+        // cluster 1 contains PH 1
+        final long ph1Id = 100L;
+        final long clusterId = scopeId1;
+        final Grouping cluster = makeCluster(clusterId, Collections.singleton(ph1Id));
+
+        // expected input / output to the group gRPC call
+        final GetGroupsRequest groupRequest = GetGroupsRequest.newBuilder()
+                                                    .setGroupFilter(GroupFilter.newBuilder()
+                                                                        .addId(scopeId1)
+                                                                        .addId(scopeId2))
+                                                    .build();
+        final List<Grouping> groupResponse = ImmutableList.of(cluster);
+        when(groupServiceSpy.getGroups(groupRequest)).thenReturn(groupResponse);
+
+        // mock internal input mapping
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO))
+                .thenReturn(StatsFilter.getDefaultInstance());
+
+        // call service
+        statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+    }
+
+    /**
+     * Tests {@link StatsService} for cluster stats queries.
+     *
+     * <p>In this test, the scope contains a single id
+     *    that does not correspond to a cluster.  An exception must be thrown.
+     * </p>
+     *
+     * @throws Exception should happen because the scope
+     *                   contains groups that are not clusters
+     */
+    @Test(expected = IllegalArgumentException.class)
+    public void testGetClusterStatsWithBadId() throws Exception {
+        // constants
+        final String statRequested = "foo";
+        final long scopeId = 1L;
+
+        // input to the API method
+        final EntityStatsPaginationRequest paginationRequest =
+                new EntityStatsPaginationRequest(null, 4, true, statRequested);
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
+        periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setPeriod(periodApiInputDTO);
+        inputDto.setScopes(Collections.singletonList(Long.toString(scopeId)));
+
+        // expected input / output to the group gRPC call
+        final GetGroupsRequest groupRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                                    .addId(scopeId))
+                .build();
+        final List<Grouping> groupResponse = ImmutableList.of(Grouping.getDefaultInstance());
+        when(groupServiceSpy.getGroups(groupRequest)).thenReturn(groupResponse);
+
+        // mock internal input mapping
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO))
+                .thenReturn(StatsFilter.getDefaultInstance());
+
+        // call service
+        statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+    }
+
+    @Nonnull
+    private Grouping makeCluster(long id, @Nonnull Collection<Long> ids) {
+        final StaticMembersByType staticMembersByType = StaticMembersByType.newBuilder()
+                                                            .setType(MEMBER_TYPE_HOSTS)
+                                                            .addAllMembers(ids)
+                                                            .build();
+        return Grouping.newBuilder()
+                .setId(id)
+                .addExpectedTypes(MEMBER_TYPE_HOSTS)
+                .setDefinition(GroupDefinition.newBuilder()
+                                    .setDisplayName("name")
+                                    .setStaticGroupMembers(StaticMembers.newBuilder()
+                                                               .addMembersByType(staticMembersByType))
+                                    .setType(GroupType.COMPUTE_HOST_CLUSTER))
+                .build();
+    }
+
+    @Nonnull
+    private Grouping makeGroupOfClusters(long id, @Nonnull Collection<Long> ids) {
+        final StaticMembersByType staticMembersByType = StaticMembersByType.newBuilder()
+                                                            .setType(MEMBER_TYPE_CLUSTERS)
+                                                            .addAllMembers(ids)
+                                                            .build();
+        return Grouping.newBuilder()
+                .setId(id)
+                .addExpectedTypes(MEMBER_TYPE_CLUSTERS)
+                .setDefinition(GroupDefinition.newBuilder()
+                                    .setStaticGroupMembers(StaticMembers.newBuilder()
+                                                                .addMembersByType(staticMembersByType)))
+                .build();
+    }
+
+    private static final MemberType MEMBER_TYPE_CLUSTERS = MemberType.newBuilder()
+                                                                .setGroup(GroupType.COMPUTE_HOST_CLUSTER)
+                                                                .build();
+
+    private static final MemberType MEMBER_TYPE_HOSTS = MemberType.newBuilder()
+                                                            .setEntity(EntityType.PHYSICAL_MACHINE_VALUE)
+                                                            .build();
+
+    /**
+     * Tests {@link StatsService} for cluster stats queries.
+     *
+     * @throws Exception should not happen
+     */
+    @Test
+    public void testGetStatsByUuidsClusterStats() throws Exception {
+        // constants
+        final String statRequested = "foo";
+        final long id = 7;
+        final String idString = Long.toString(id);
+
+        // input to the API method
+        final EntityStatsPaginationRequest paginationRequest =
+                spy(new EntityStatsPaginationRequest(null, 1, true, statRequested));
+        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
+        final StatApiInputDTO statApiInputDTO = new StatApiInputDTO();
+        statApiInputDTO.setName(StringConstants.CPU_HEADROOM);
+        periodApiInputDTO.setStatistics(Collections.singletonList(statApiInputDTO));
+        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
+        inputDto.setScopes(Collections.singletonList(idString));
+        inputDto.setPeriod(periodApiInputDTO);
+
+        // input to the internal gRPC call
+        final OrderBy orderBy = OrderBy.newBuilder()
+                                    .setEntityStats(EntityStatsOrderBy.newBuilder()
+                                                        .setStatName(statRequested))
+                                    .build();
+        final PaginationParameters paginationParameters = PaginationParameters.newBuilder()
+                                                                .setAscending(true)
+                                                                .setCursor("0")
+                                                                .setLimit(1)
+                                                                .setOrderBy(orderBy)
+                                                                .build();
+        final StatsFilter statsFilter = StatsFilter.newBuilder()
+                                            .addCommodityRequests(CommodityRequest.newBuilder()
+                                                                        .setCommodityName(statRequested))
+                                            .build();
+        final ClusterStatsRequest clusterStatsRequest = ClusterStatsRequest.newBuilder()
+                                                            .addClusterIds(id)
+                                                            .setStats(statsFilter)
+                                                            .setPaginationParams(paginationParameters)
+                                                            .build();
+
+        // mock mapping from API input to internal input
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO)).thenReturn(statsFilter);
+
+
+        // mock internal group gRPC call
+        final GroupDefinition clusterInfo = GroupDefinition.newBuilder()
+                                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
+                                                .setDisplayName("Winter woede")
+                                                .build();
+        when(groupServiceSpy.getGroups(GetGroupsRequest.newBuilder()
+                                            .setGroupFilter(GroupFilter.newBuilder()
+                                                    .addId(id))
+                                                    .build()))
+                .thenReturn(Collections.singletonList(Grouping.newBuilder()
+                                                            .setId(id)
+                                                            .setDefinition(clusterInfo)
+                                                            .build()));
+
+        // mock internal history gRPC call
+        final ClusterStatsResponse clusterStatsResponse = ClusterStatsResponse.newBuilder()
+                                                            .addSnapshots(EntityStats.newBuilder()
+                                                                            .setOid(id)
+                                                                            .addStatSnapshots(STAT_SNAPSHOT))
+                                                            .build();
+        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest)).thenReturn(clusterStatsResponse);
+
+        // mock mapping from internal output to external output
+        final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
+        statSnapshotApiDTO.setUuid(idString);
+        statSnapshotApiDTO.setClassName(StringConstants.CLUSTER);
+        when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(statSnapshotApiDTO);
+
+        // call service
+        final EntityStatsPaginationResponse response =
+                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
+
+        // internal group gRPC call happened
         verify(groupServiceSpy).getGroups(GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder().addId(7)).build());
-        verify(statsMapper).toClusterStatsRequest("7", periodApiInputDTO, true);
-        verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
+        // mapping from external input to internal input happened
+        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO);
+        // internal history gRPC call happened
+        verify(statsService).getStatsByUuidsQuery(inputDto, paginationRequest);
+        // mapping from internal output to external output happened
         verify(statsMapper).toStatSnapshotApiDTO(STAT_SNAPSHOT);
 
+        // verify values of the result
         assertThat(response.getRawResults().size(), is(1));
         final EntityStatsApiDTO clusterStats = response.getRawResults().get(0);
-        assertThat(clusterStats.getUuid(), is("7"));
-        assertThat(clusterStats.getDisplayName(), is(clusterInfo.getDisplayName()));
-        assertThat(clusterStats.getStats(), containsInAnyOrder(apiSnapshot));
+        assertThat(clusterStats.getUuid(), is(idString));
         assertThat(clusterStats.getClassName(), is(StringConstants.CLUSTER));
-    }
-
-    /**
-     * Test cluster stats sorted by CPU headroom, ascending.
-     *
-     * @throws Exception should not happen
-     */
-    @Test
-    public void testClusterStatsSortingByCpuHeadRoomAscending() throws Exception {
-        Assert.assertEquals(ImmutableList.of(2L, 3L, 1L),
-                            prepareClusterStatsOrderingTest(StringConstants.CPU_HEADROOM, true));
-    }
-
-    /**
-     * Test cluster stats sorted by CPU headroom, descending.
-     *
-     * @throws Exception should not happen
-     */
-    @Test
-    public void testClusterStatsSortingByCpuHeadRoomDescending() throws Exception {
-        Assert.assertEquals(ImmutableList.of(1L, 3L, 2L),
-                            prepareClusterStatsOrderingTest(StringConstants.CPU_HEADROOM, false));
-    }
-
-    /**
-     * Test cluster stats sorted by memory utilization.
-     *
-     * @throws Exception should not happen
-     */
-    @Test
-    public void testClusterStatsSortingByMemUtilizationDescending() throws Exception {
-        Assert.assertEquals(ImmutableList.of(2L, 3L, 1L),
-                            prepareClusterStatsOrderingTest(StringConstants.MEM, false));
-    }
-
-    /**
-     * This method fakes three cluster with the following stats:
-     * <ul>
-     *     <li>Mem Utilization: 1/200, CPU headroom: 10</li>
-     *     <li>Mem Utilization: 2/3, CPU headroom: 1</li>
-     *     <li>Mem Utilization: 2/4, CPU headroom: 9</li>
-     * </ul>
-     * then sorts their stats according to the parameters passed to it,
-     * then takes the sorted list and returns their ids in that order.
-     *
-     * <p>For example, if we sort by mem utilization ascending,
-     *     what this method should return is: [1, 3, 2]
-     * </p>
-     * @param orderBy what statistic to order by.
-     *                Accepted values: {@link StringConstants#CPU_HEADROOM} and
-     *                {@link StringConstants#MEM}
-     * @param ascending whether the sorting should be ascending
-     * @return list of ids after sorting
-     * @throws Exception should not happen
-     */
-    private List<Long> prepareClusterStatsOrderingTest(@Nonnull String orderBy, boolean ascending)
-            throws Exception {
-        final EntityStatsPaginationRequest paginationRequest =
-                spy(new EntityStatsPaginationRequest("foo", 100, ascending, orderBy));
-        final StatPeriodApiInputDTO periodApiInputDTO = new StatPeriodApiInputDTO();
-
-        // Add a cluster stat request.
-        final StatApiInputDTO statApiInputDTO1 = new StatApiInputDTO();
-        statApiInputDTO1.setName(StringConstants.CPU_HEADROOM);
-        final StatApiInputDTO statApiInputDTO2 = new StatApiInputDTO();
-        statApiInputDTO2.setName(StringConstants.MEM);
-        periodApiInputDTO.setStatistics(ImmutableList.of(statApiInputDTO1, statApiInputDTO2));
-
-        final StatScopesApiInputDTO inputDto = new StatScopesApiInputDTO();
-        inputDto.setScopes(ImmutableList.of("1", "2", "3"));
-        inputDto.setPeriod(periodApiInputDTO);
-
-        final GroupDefinition clusterInfo1 = GroupDefinition.newBuilder()
-                                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
-                                                .setDisplayName("1")
-                                                .build();
-        final GroupDefinition clusterInfo2 = GroupDefinition.newBuilder()
-                                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
-                                                .setDisplayName("2")
-                                                .build();
-        final GroupDefinition clusterInfo3 = GroupDefinition.newBuilder()
-                                                .setType(GroupType.COMPUTE_HOST_CLUSTER)
-                                                .setDisplayName("3")
-                                                .build();
-        when(groupServiceSpy.getGroups(any()))
-            .thenReturn(ImmutableList.of(Grouping.newBuilder()
-                                                .setId(1)
-                                                .setDefinition(clusterInfo1)
-                                                .build(),
-                                         Grouping.newBuilder()
-                                                .setId(2)
-                                                .setDefinition(clusterInfo2)
-                                                .build(),
-                                         Grouping.newBuilder()
-                                                .setId(3)
-                                                .setDefinition(clusterInfo3)
-                                                .build()));
-
-        final ApiId apiId1 = mock(ApiId.class);
-        when(uuidMapper.fromUuid("1")).thenReturn(apiId1);
-        when(uuidMapper.fromOid(1L)).thenReturn(apiId1);
-        when(apiId1.uuid()).thenReturn("1");
-        when(apiId1.oid()).thenReturn(1L);
-        when(apiId1.isGroup()).thenReturn(true);
-        when(apiId1.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
-        when(apiId1.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
-
-        final ApiId apiId2 = mock(ApiId.class);
-        when(uuidMapper.fromUuid("2")).thenReturn(apiId2);
-        when(uuidMapper.fromOid(2L)).thenReturn(apiId2);
-        when(apiId2.uuid()).thenReturn("2");
-        when(apiId2.oid()).thenReturn(2L);
-        when(apiId2.isGroup()).thenReturn(true);
-        when(apiId2.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
-        when(apiId2.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
-
-        final ApiId apiId3 = mock(ApiId.class);
-        when(uuidMapper.fromUuid("3")).thenReturn(apiId3);
-        when(uuidMapper.fromOid(3L)).thenReturn(apiId3);
-        when(apiId3.uuid()).thenReturn("3");
-        when(apiId3.oid()).thenReturn(3L);
-        when(apiId3.isGroup()).thenReturn(true);
-        when(apiId3.getGroupType()).thenReturn(Optional.of(GroupType.COMPUTE_HOST_CLUSTER));
-        when(apiId3.getEnvironmentType()).thenReturn(EnvironmentType.ON_PREM);
-
-        final ClusterStatsRequest clusterStatsRequest1 = ClusterStatsRequest.newBuilder()
-                                                                .setClusterId(1L)
-                                                                .build();
-        final ClusterStatsRequest clusterStatsRequest2 = ClusterStatsRequest.newBuilder()
-                                                                .setClusterId(2L)
-                                                                .build();
-        final ClusterStatsRequest clusterStatsRequest3 = ClusterStatsRequest.newBuilder()
-                                                                .setClusterId(3L)
-                                                                .build();
-        when(statsMapper.toClusterStatsRequest("1", periodApiInputDTO, true))
-                .thenReturn(clusterStatsRequest1);
-        when(statsMapper.toClusterStatsRequest("2", periodApiInputDTO, true))
-                .thenReturn(clusterStatsRequest2);
-        when(statsMapper.toClusterStatsRequest("3", periodApiInputDTO, true))
-                .thenReturn(clusterStatsRequest3);
-
-        final StatSnapshot fakeSnapshot1 = StatSnapshot.newBuilder()
-                                                .setSnapshotDate(1L)
-                                                .build();
-        final StatSnapshot fakeSnapshot2 = StatSnapshot.newBuilder()
-                                                .setSnapshotDate(2L)
-                                                .build();
-        final StatSnapshot fakeSnapshot3 = StatSnapshot.newBuilder()
-                                                .setSnapshotDate(3L)
-                                                .build();
-        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest1))
-                .thenReturn(Collections.singletonList(fakeSnapshot1));
-        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest2))
-                .thenReturn(Collections.singletonList(fakeSnapshot2));
-        when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest3))
-                .thenReturn(Collections.singletonList(fakeSnapshot3));
-
-        final StatSnapshotApiDTO apiSnapshot1 = makeStatApiDTO("1", 10.0f, 1.0f, 200.0f);
-        final StatSnapshotApiDTO apiSnapshot2 = makeStatApiDTO("2", 1.0f, 2.0f, 3.0f);
-        final StatSnapshotApiDTO apiSnapshot3 = makeStatApiDTO("3", 9.0f, 2.0f, 4.0f);
-
-        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot1)).thenReturn(apiSnapshot1);
-        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot2)).thenReturn(apiSnapshot2);
-        when(statsMapper.toStatSnapshotApiDTO(fakeSnapshot3)).thenReturn(apiSnapshot3);
-
-        final EntityStatsPaginationResponse response =
-                statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
-        return response.getRawResults().stream()
-                        .map(EntityStatsApiDTO::getUuid)
-                        .map(x -> Long.valueOf(x))
-                        .collect(Collectors.toList());
-    }
-
-    private StatSnapshotApiDTO makeStatApiDTO(@Nonnull String id, float cpuHeadRoom,
-                                              float memAvg, float memCap) {
-        final StatApiDTO statApiDTO1 = new StatApiDTO();
-        statApiDTO1.setName(StringConstants.CPU_HEADROOM);
-        final StatValueApiDTO statValueApiDTO1 = new StatValueApiDTO();
-        statValueApiDTO1.setAvg(cpuHeadRoom);
-        statApiDTO1.setValues(statValueApiDTO1);
-        statApiDTO1.setUuid(id);
-
-        final StatApiDTO statApiDTO2 = new StatApiDTO();
-        statApiDTO2.setName(StringConstants.MEM);
-        final StatValueApiDTO statValueApiDTO21 = new StatValueApiDTO();
-        statValueApiDTO21.setAvg(memAvg);
-        statApiDTO2.setValues(statValueApiDTO21);
-        final StatValueApiDTO statValueApiDTO22 = new StatValueApiDTO();
-        statValueApiDTO22.setAvg(memCap);
-        statApiDTO2.setCapacity(statValueApiDTO22);
-        statApiDTO2.setUuid(id);
-
-        final StatSnapshotApiDTO result = new StatSnapshotApiDTO();
-        result.setStatistics(ImmutableList.of(statApiDTO1, statApiDTO2));
-
-        return result;
+        assertThat(clusterStats.getStats(), is(Collections.singletonList(statSnapshotApiDTO)));
     }
 
     @Test
@@ -555,7 +905,7 @@ public class StatsServiceTest {
         // configure the user to only have access to entity 1
         when(userSessionContext.isUserScoped()).thenReturn(true);
         EntityAccessScope accessScope = new EntityAccessScope(null, null,
-                new ArrayOidSet(Arrays.asList(1L)), null);
+                null, null);
         when(userSessionContext.getUserAccessScope()).thenReturn(accessScope);
 
         // not a temp group and has an entity that's out of scope

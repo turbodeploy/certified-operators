@@ -338,6 +338,27 @@ public class GroupProtoUtil {
     }
 
     /**
+     * Returns true if and only if the input is a cluster.
+     *
+     * @param group the input group
+     * @return true iff the input group is a cluster
+     */
+    public static boolean isCluster(@Nonnull final Grouping group) {
+        return CLUSTER_GROUP_TYPES.contains(group.getDefinition().getType());
+    }
+
+    /**
+     * Returns true if and only if the input is a group of clusters.
+     *
+     * @param group the input group
+     * @return true iff the input group is a group of clusters
+     */
+    public static boolean isGroupOfClusters(@Nonnull final Grouping group) {
+        return group.getExpectedTypesCount() == 1 && group.getExpectedTypes(0).hasGroup()
+                    && CLUSTER_GROUP_TYPES.contains(group.getExpectedTypes(0).getGroup());
+    }
+
+    /**
      * Get the IDs of groups specified in a {@link Policy}.
      *
      * @param policy The {@link Policy}.
