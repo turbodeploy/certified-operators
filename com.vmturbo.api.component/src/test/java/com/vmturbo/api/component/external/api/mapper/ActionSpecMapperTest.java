@@ -62,6 +62,7 @@ import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
+import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -1807,6 +1808,26 @@ public class ActionSpecMapperTest {
         assertEquals(startTimeToString, executionDto.getExecutionTime());
         assertNull(executionDto.getProgress());
         assertNull(executionDto.getCompletionTime());
+    }
+
+    /**
+     * Test valid actionCostType is mapped.
+     */
+    @Test
+    public void testValidMapApiCostTypeToXL() {
+        assertEquals(ActionDTO.ActionCostType.SAVINGS, ActionSpecMapper.mapApiCostTypeToXL(ActionCostType.SAVING));
+        assertEquals(ActionDTO.ActionCostType.INVESTMENT, ActionSpecMapper.mapApiCostTypeToXL(ActionCostType.INVESTMENT));
+        assertEquals(ActionDTO.ActionCostType.ACTION_COST_TYPE_NONE, ActionSpecMapper.mapApiCostTypeToXL(ActionCostType.ACTION_COST_TYPE_NONE));
+    }
+
+    /**
+     * Test Exception thrown when invalid actionCostType is mapped.
+     *
+     * @throws IllegalArgumentException thrown if invalid actionCostType is mapped
+     */
+    @Test (expected = IllegalArgumentException.class)
+    public void testInvalidMapApiCostTypeToXL() throws IllegalArgumentException {
+        ActionSpecMapper.mapApiCostTypeToXL(ActionCostType.SUPER_SAVING);
     }
 
     private ActionInfo getHostMoveActionInfo() {
