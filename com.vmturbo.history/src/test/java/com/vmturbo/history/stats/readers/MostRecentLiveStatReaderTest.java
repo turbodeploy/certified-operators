@@ -14,6 +14,7 @@ import java.sql.Timestamp;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import io.grpc.stub.ServerCallStreamObserver;
 import org.jooq.DSLContext;
 import org.jooq.Field;
 import org.jooq.Query;
@@ -45,6 +46,7 @@ public class MostRecentLiveStatReaderTest {
     private MostRecentLiveStatReader reader;
     private HistorydbIO historydbIO;
     private DSLContext dslContext;
+    private ServerCallStreamObserver streamObserver;
 
     private static final String VOLUME_COMMODITY_KEY = "vol-1111";
     private static final long RELATED_ENTITY_OID = 7777777L;
@@ -62,6 +64,8 @@ public class MostRecentLiveStatReaderTest {
         final MockConnection mockConnection = new MockConnection(mockDataProvider);
         dslContext = DSL.using(mockConnection, SQLDialect.MARIADB);
         when(HistorydbIO.getJooqBuilder()).thenReturn(dslContext);
+        streamObserver = mock(ServerCallStreamObserver.class);
+        when(streamObserver.isCancelled()).thenReturn(false);
     }
 
     /**
@@ -79,35 +83,10 @@ public class MostRecentLiveStatReaderTest {
         // when
         final Optional<GetMostRecentStatResponse.Builder> result =
                 reader.getMostRecentStat(StringConstants.VIRTUAL_MACHINE,
-                        StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY);
+                        StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY, streamObserver);
 
         // then
         Assert.assertFalse(result.isPresent());
-    }
-
-    /**
-     * Test record returned from hourly table.
-     *
-     * @throws VmtDbException if getMostRecentStat throws VmtDbException.
-     */
-    @Test
-    public void testGetRecentLiveStatFromHourlyData() throws VmtDbException {
-        // given
-        final Result<? extends Record> queryResult = createResult();
-        doReturn(queryResult)
-                .when(historydbIO)
-                .execute(any(BasedbIO.Style.class), any(Query.class));
-
-        // when
-        final Optional<GetMostRecentStatResponse.Builder> result =
-                reader.getMostRecentStat(StringConstants.VIRTUAL_MACHINE,
-                StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY);
-
-        // then
-        Assert.assertTrue(result.isPresent());
-        final GetMostRecentStatResponse.Builder response = result.get();
-        Assert.assertEquals(StatHistoricalEpoch.HOUR, response.getEpoch());
-        Assert.assertEquals(RELATED_ENTITY_OID, response.getEntityUuid());
     }
 
     /**
@@ -118,15 +97,14 @@ public class MostRecentLiveStatReaderTest {
     @Test
     public void testGetRecentLiveStatFromDailyTable() throws VmtDbException {
         // given
-        doReturn(createEmptyResult())
-                .doReturn(createResult())
+        doReturn(createResult())
                 .when(historydbIO)
                 .execute(any(BasedbIO.Style.class), any(Query.class));
 
         // when
         final Optional<GetMostRecentStatResponse.Builder> result =
                 reader.getMostRecentStat(StringConstants.VIRTUAL_MACHINE,
-                        StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY);
+                        StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY, streamObserver);
 
         // then
         Assert.assertTrue(result.isPresent());
@@ -144,7 +122,6 @@ public class MostRecentLiveStatReaderTest {
     public void testGetRecentLiveStatFromMonthlyTable() throws VmtDbException {
         // given
         doReturn(createEmptyResult())
-                .doReturn(createEmptyResult())
                 .doReturn(createResult())
                 .when(historydbIO)
                 .execute(any(BasedbIO.Style.class), any(Query.class));
@@ -152,7 +129,7 @@ public class MostRecentLiveStatReaderTest {
         // when
         final Optional<GetMostRecentStatResponse.Builder> result =
                 reader.getMostRecentStat(StringConstants.VIRTUAL_MACHINE,
-                        StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY);
+                        StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY, streamObserver);
 
         // then
         Assert.assertTrue(result.isPresent());
@@ -177,7 +154,7 @@ public class MostRecentLiveStatReaderTest {
         // when
         final Optional<GetMostRecentStatResponse.Builder> result =
                 reader.getMostRecentStat(StringConstants.VIRTUAL_MACHINE,
-                        StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY);
+                        StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY, streamObserver);
 
         // then
         Assert.assertFalse(result.isPresent());
@@ -199,11 +176,55 @@ public class MostRecentLiveStatReaderTest {
         // when
         final Optional<GetMostRecentStatResponse.Builder> result =
                 reader.getMostRecentStat(StringConstants.VIRTUAL_MACHINE,
-                        StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY);
+                        StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY, streamObserver);
 
         // then
         Assert.assertTrue(result.isPresent());
         Assert.assertEquals(SNAPSHOT_TIME_VALUE, result.get().getSnapshotDate());
+    }
+
+    /**
+     * Test that when VmtDbException is encountered, for example when there is a SQL timeout, then
+     * getMostRecentStat returns an empty optional.
+     *
+     * @throws VmtDbException if historyDbio::execute throws VmtDbException
+     */
+    @Test
+    public void testGetRecentLiveStatVmtDbException() throws VmtDbException {
+        // given
+        doThrow(VmtDbException.class)
+            .when(historydbIO)
+            .execute(any(BasedbIO.Style.class), any(Query.class));
+
+        // when
+        final Optional<GetMostRecentStatResponse.Builder> result =
+            reader.getMostRecentStat(StringConstants.VIRTUAL_MACHINE,
+                StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY, streamObserver);
+
+        // then
+        Assert.assertFalse(result.isPresent());
+    }
+
+    /**
+     * Test that getMostRecentStat returns early if StreamObserver is cancelled.
+     *
+     * @throws VmtDbException if getMostRecentStat throws VmtDbException.
+     */
+    @Test
+    public void testGetRecentLiveStatCancelledObserver() throws VmtDbException {
+        // given
+        doReturn(createResult())
+            .when(historydbIO)
+            .execute(any(BasedbIO.Style.class), any(Query.class));
+        when(streamObserver.isCancelled()).thenReturn(true);
+
+        // when
+        final Optional<GetMostRecentStatResponse.Builder> result =
+            reader.getMostRecentStat(StringConstants.VIRTUAL_MACHINE,
+                StringConstants.STORAGE_AMOUNT, VOLUME_COMMODITY_KEY, streamObserver);
+
+        // then
+        Assert.assertFalse(result.isPresent());
     }
 
     private Result<? extends Record> createEmptyResult() {
