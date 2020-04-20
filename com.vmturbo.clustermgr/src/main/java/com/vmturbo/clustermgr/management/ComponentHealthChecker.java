@@ -81,8 +81,8 @@ public class ComponentHealthChecker {
                                                            final long healthCheckReadTimeout,
                                                            @Nonnull final TimeUnit healthCheckIntervalUnit) {
         final SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout((int)healthCheckIntervalUnit.toSeconds(healthCheckConnectTimeout));
-        requestFactory.setReadTimeout((int)healthCheckIntervalUnit.toSeconds(healthCheckReadTimeout));
+        requestFactory.setConnectTimeout((int)healthCheckIntervalUnit.toMillis(healthCheckConnectTimeout));
+        requestFactory.setReadTimeout((int)healthCheckIntervalUnit.toMillis(healthCheckReadTimeout));
         final AsyncListenableTaskExecutor taskExecutor = new ConcurrentTaskExecutor(executorService);
         requestFactory.setTaskExecutor(taskExecutor);
 

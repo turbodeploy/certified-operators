@@ -2,9 +2,7 @@ package com.vmturbo.clustermgr.management;
 
 import java.time.Clock;
 import java.util.concurrent.Executors;
-import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
@@ -31,14 +29,14 @@ public class ComponentRegistrationConfig {
     @Autowired
     private ComponentStatusClientConfig componentStatusClientConfig;
 
-    @Value("${healthCheckIntervalSeconds:60}")
-    private long healthCheckIntervalSeconds;
+    @Value("${healthCheckIntervalMs:60000}")
+    private long healthCheckIntervalMs;
 
-    @Value("${healthCheckConnectTimeoutSeconds:10}")
-    private long healthCheckConnectTimeout;
+    @Value("${healthCheckConnectTimeoutMs:10000}")
+    private long healthCheckConnectTimeoutMs;
 
-    @Value("${healthCheckReadTimeout:10}")
-    private long healthCheckReadTimeout;
+    @Value("${healthCheckReadTimeoutMs:30000}")
+    private long healthCheckReadTimeoutMs;
 
     /**
      * How long to allow an component instance to be unhealthy before forcefully deregistering it.
@@ -85,9 +83,9 @@ public class ComponentRegistrationConfig {
             Executors.newSingleThreadScheduledExecutor(scheduleThreadFactory),
             // TODO (roman, April 14 2020): Explore WebClient after Spring 5 upgrade.
             Executors.newCachedThreadPool(threadFactory),
-            healthCheckIntervalSeconds,
-            healthCheckConnectTimeout,
-            healthCheckReadTimeout,
-            TimeUnit.SECONDS);
+            healthCheckIntervalMs,
+            healthCheckConnectTimeoutMs,
+            healthCheckReadTimeoutMs,
+            TimeUnit.MILLISECONDS);
     }
 }
