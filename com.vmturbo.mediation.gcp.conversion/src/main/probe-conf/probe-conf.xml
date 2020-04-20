@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<probe>
+    <full-class-name>com.vmturbo.mediation.gcp.GcpConversionProbe</full-class-name>
+    <type>GCP</type>
+    <category>Cloud Management</category>
+    <version>1.0.0</version>
+</probe>

@@ -32,8 +32,11 @@
                             <artifactItems>
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
-                                    <artifactId>com.vmturbo.mediation.gcp</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <!--change this to "com.vmturbo.mediation.gcp" once probe is
+                                    changed to support new cloud model, and ${project.version}
+                                    should be changed to ${vmturbo.mt.branch.version}-->
+                                    <artifactId>com.vmturbo.mediation.gcp.conversion</artifactId>
+                                    <version>${project.version}</version>
                                     <type>zip</type>
                                     <overWrite>false</overWrite>
                                     <outputDirectory>${project.build.directory}/probe-jars/probe</outputDirectory>
@@ -42,6 +45,14 @@
                         </configuration>
                     </execution>
                 </executions>
+                <dependencies>
+                    <dependency>
+                        <!-- This dependency is added to enforce build order -->
+                        <groupId>com.vmturbo</groupId>
+                        <artifactId>com.vmturbo.mediation.gcp.conversion</artifactId>
+                        <version>${project.version}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
     </build>
