@@ -832,18 +832,6 @@ public enum EntitySettingSpecs {
             true),
 
     /**
-     * SLA Capacity used by Service and Database.
-     */
-    SLACapacity("slaCapacity", "SLA Capacity",
-            Collections.emptyList(),
-            SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.SERVICE,
-            EntityType.BUSINESS_APPLICATION,
-            EntityType.DATABASE_SERVER),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
-            true),
-
-    /**
      * Transaction SLO used by Application and Database.
      */
     TransactionsCapacity("transactionsCapacity", "Transaction SLO",
