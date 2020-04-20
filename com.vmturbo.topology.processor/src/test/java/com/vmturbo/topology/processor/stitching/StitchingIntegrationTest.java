@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -112,8 +113,8 @@ public abstract class StitchingIntegrationTest {
                 .thenReturn(entities);
         // Pretend that any target exists
         when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
-        entityStore.entitiesDiscovered(probeId, targetId,
-                new ArrayList<>(entities.values()));
+        entityStore.entitiesDiscovered(probeId, targetId, 0, DiscoveryType.FULL,
+            new ArrayList<>(entities.values()));
     }
 
     protected List<Long> oidsFor(@Nonnull final Stream<String> displayNames,

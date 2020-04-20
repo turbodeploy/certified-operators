@@ -506,7 +506,7 @@ public class OperationControllerTest {
 
         final long secondProbeId = addProbe("second-category", "second-type");
         final long secondTargetId = addTarget(secondProbeId);
-        Mockito.doNothing().when(mockRemoteMediation)
+        Mockito.doReturn(0).when(mockRemoteMediation)
                 .sendDiscoveryRequest(
                         Matchers.eq(secondProbeId),
                         Matchers.anyLong(),

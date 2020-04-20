@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.communication;
 
 import java.time.Clock;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
@@ -14,7 +13,6 @@ import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
-import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
@@ -41,12 +39,13 @@ public interface RemoteMediation {
      * @param targetId target to discover
      * @param discoveryRequest discovery request data
      * @param responseHandler handler to accept discovery responses.
+     * @return the unique mediation message id for this discovery request
      * @throws ProbeException if probe requested does not exist.
      * @throws CommunicationException if some communication error occurred.
      * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void sendDiscoveryRequest(long probeId, long targetId,
-                              @Nonnull DiscoveryRequest discoveryRequest,
+    int sendDiscoveryRequest(long probeId, long targetId,
+                    @Nonnull DiscoveryRequest discoveryRequest,
                     @Nonnull final IOperationMessageHandler<Discovery> responseHandler)
                     throws ProbeException, CommunicationException, InterruptedException;
 
