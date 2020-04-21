@@ -107,9 +107,9 @@ public class EntityStore {
     private final TargetStore targetStore;
 
     /**
-     * All the probes which support convert layered over to connected to relationship.
+     * All the probe types which support converting layered over and consists of to connected to relationship.
      */
-    private static final Set<SDKProbeType> SUPPORTED_CONNECTED_TO_PROBES = ImmutableSet.of(
+    private static final Set<SDKProbeType> SUPPORTED_CONNECTED_TO_PROBE_TYPES = ImmutableSet.of(
             SDKProbeType.AWS,
             SDKProbeType.AWS_BILLING,
             SDKProbeType.AZURE,
@@ -120,6 +120,12 @@ public class EntityStore {
             SDKProbeType.VC_STORAGE_BROWSE,
             SDKProbeType.HYPERV,
             SDKProbeType.VMM);
+
+    /**
+     * All the probe categories which support converting layered over and consists of to connected to relationship.
+     */
+    private static final Set<ProbeCategory> SUPPORTED_CONNECTED_TO_PROBE_CATEGORIES = ImmutableSet.of(
+        ProbeCategory.CLOUD_NATIVE);
 
     /**
      * Mapping from entity type to the list of operations which are performed to apply entities
@@ -389,13 +395,14 @@ public class EntityStore {
      * entity. This logic can be removed once EntityDTO itself supports connected relationship.
      *
      * @param targetId the id of the target
-     * @return true if the target is in {@link #SUPPORTED_CONNECTED_TO_PROBES} otherwise false
+     * @return true if the target is in {@link #SUPPORTED_CONNECTED_TO_PROBE_TYPES} or
+     * {@link #SUPPORTED_CONNECTED_TO_PROBE_CATEGORIES} otherwise false
      */
     private boolean supportsConnectedTo(long targetId) {
         return targetStore.getProbeTypeForTarget(targetId)
-            .map(SUPPORTED_CONNECTED_TO_PROBES::contains).orElse(false) ||
+            .map(SUPPORTED_CONNECTED_TO_PROBE_TYPES::contains).orElse(false) ||
              targetStore.getProbeCategoryForTarget(targetId)
-                 .map(ProbeCategory.CLOUD_NATIVE::equals).orElse(false);
+                 .map(SUPPORTED_CONNECTED_TO_PROBE_CATEGORIES::contains).orElse(false);
     }
 
     /**
