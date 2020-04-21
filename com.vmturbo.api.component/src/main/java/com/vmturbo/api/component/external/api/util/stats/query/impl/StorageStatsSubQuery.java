@@ -191,7 +191,7 @@ public class StorageStatsSubQuery implements StatsSubQuery {
                 results.addAll(stats);
 
                 // when request for stat group by storage tier of Virtual volume
-            } else if (requestedStat.getName().equals(NUM_VOL) &&
+            } else if (NUM_VOL.equals(requestedStat.getName()) &&
                 requestedStat.getGroupBy() != null &&
                 requestedStat.getGroupBy().contains(ApiEntityType.STORAGE_TIER.apiStr()) &&
                 requestedStat.getRelatedEntityType().equals(ApiEntityType.VIRTUAL_VOLUME.apiStr())) {
