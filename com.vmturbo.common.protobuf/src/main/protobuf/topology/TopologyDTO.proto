@@ -76,6 +76,9 @@ message TypeSpecificInfo {
         // If present, info about any read-only locks that might prevent VM action execution.
         optional string locks = 11;
 
+        // Whether the VM memory is allocated dynamically
+        optional bool dynamic_memory = 12;
+
         message DriverInfo {
             // Does the VM have driver for Elastic Network adapter? It is an AWS specific driver.
             optional bool hasEnaDriver = 1;
