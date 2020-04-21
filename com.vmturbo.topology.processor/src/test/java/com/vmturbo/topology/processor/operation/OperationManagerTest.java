@@ -26,6 +26,9 @@ import java.util.concurrent.Future;
 
 import com.google.common.collect.Lists;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+
 import org.hamcrest.CoreMatchers;
 import org.jooq.DSLContext;
 import org.junit.Assert;
@@ -37,9 +40,6 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
@@ -72,6 +72,7 @@ import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
+import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetSpec;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
@@ -160,6 +161,7 @@ public class OperationManagerTest {
 
     private long probeId;
     private long targetId;
+    private Target target;
 
     private static final long ACTIVATE_VM_ID = 100L;
     private static final long DEACTIVATE_VM_ID = 200L;
@@ -196,8 +198,11 @@ public class OperationManagerTest {
         System.setProperty("com.vmturbo.keydir", testFolder.newFolder().getAbsolutePath());
         final ProbeInfo probeInfo = Probes.emptyProbe;
         probeStore.registerNewProbe(probeInfo, transport);
-        final TargetSpec target = new TargetSpec(probeId, Collections.emptyList());
-        targetId = targetStore.createTarget(target.toDto()).getId();
+        final TargetSpec targetSpec = new TargetSpec(probeId, Collections.singletonList(new InputField("targetId",
+            "123",
+            Optional.empty())));
+        target = targetStore.createTarget(targetSpec.toDto());
+        targetId = target.getId();
 
         when(mockRemoteMediationServer.getMessageHandlerExpirationClock())
                 .thenReturn(Clock.systemUTC());
@@ -247,8 +252,7 @@ public class OperationManagerTest {
     @Parameters({"FULL", "INCREMENTAL"})
     public void testDiscoverTarget(DiscoveryType discoveryType) throws Exception {
         final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
-        Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(eq(probeId),
-                eq(targetId),
+        Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(eq(target),
                 any(DiscoveryRequest.class), any(OperationMessageHandler.class));
         Assert.assertEquals(discovery, operationManager.getInProgressDiscovery(discovery.getId()).get());
     }
@@ -380,9 +384,9 @@ public class OperationManagerTest {
         final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
         ArgumentCaptor<DiscoveryRequest> requestCaptor
             = ArgumentCaptor.forClass(DiscoveryRequest.class);
-        Mockito.verify(mockRemoteMediationServer, times(2)).sendDiscoveryRequest(eq(probeId),
-            eq(targetId),
-            requestCaptor.capture(), any(OperationMessageHandler.class));
+        Mockito.verify(mockRemoteMediationServer, times(2))
+            .sendDiscoveryRequest(eq(target),
+                requestCaptor.capture(), any(OperationMessageHandler.class));
         List<DiscoveryRequest> requests = requestCaptor.getAllValues();
         // Verify that the first discovery request contained an empty discovery context
         Assert.assertEquals(DiscoveryContextDTO.getDefaultInstance(),
@@ -564,7 +568,7 @@ public class OperationManagerTest {
     @Test
     public void testValidateTarget() throws Exception {
         final Validation validation = operationManager.startValidation(targetId);
-        Mockito.verify(mockRemoteMediationServer).sendValidationRequest(eq(probeId),
+        Mockito.verify(mockRemoteMediationServer).sendValidationRequest(eq(target),
             any(ValidationRequest.class), any(OperationMessageHandler.class));
         Assert.assertEquals(validation, operationManager.getInProgressValidation(validation.getId()).get());
 
@@ -773,8 +777,7 @@ public class OperationManagerTest {
 
         operationManager.addPendingDiscovery(targetId, discoveryType);
         Assert.assertTrue(operationManager.hasPendingDiscovery(targetId, discoveryType));
-        Mockito.verify(mockRemoteMediationServer, never()).sendDiscoveryRequest(eq(probeId),
-            eq(targetId),
+        Mockito.verify(mockRemoteMediationServer, never()).sendDiscoveryRequest(eq(target),
             any(DiscoveryRequest.class), any(OperationMessageHandler.class));
 
         probeInfo = Probes.defaultProbe.toBuilder()
@@ -787,8 +790,7 @@ public class OperationManagerTest {
             operationManager,
             operationManager -> operationManager.getInProgressDiscoveryForTarget(targetId, discoveryType).isPresent()
         );
-        Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(eq(probeId),
-            eq(targetId),
+        Mockito.verify(mockRemoteMediationServer).sendDiscoveryRequest(any(Target.class),
             any(DiscoveryRequest.class), any(OperationMessageHandler.class));
     }
 
@@ -808,7 +810,7 @@ public class OperationManagerTest {
                 actionItemDtos,
                 new HashSet<>(Arrays.asList(MOVE_SOURCE_ID, MOVE_DESTINATION_ID)),
                 Optional.empty());
-        Mockito.verify(mockRemoteMediationServer).sendActionRequest(eq(probeId),
+        Mockito.verify(mockRemoteMediationServer).sendActionRequest(any(Target.class),
             any(ActionRequest.class), any(OperationMessageHandler.class));
         Assert.assertTrue(operationManager.getInProgressAction(moveAction.getId()).isPresent());
         Set<Long> moveEntityIds = dsl.selectFrom(ENTITY_ACTION)

@@ -48,6 +48,7 @@ import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.operation.validation.ValidationMessageHandler;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
 
 /**
  * Implementation of {@link IRemoteMediation}, Topology-processor specific.
@@ -68,10 +69,13 @@ public class RemoteMediationImpl implements IRemoteMediation {
         final ValidationRequest request =
                         ValidationRequest.newBuilder().addAllAccountValue(target.getAccountValues())
                                         .setProbeType(target.getProbe().getType()).build();
+        final Target targetMock = Mockito.mock(Target.class);
         final long probeId = getProbeId(target.getProbe());
+        Mockito.when(targetMock.getProbeId()).thenReturn(probeId);
+        Mockito.when(targetMock.getSerializedIdentifyingFields()).thenReturn(target.getTargetId());
         final ValidationCaptor captor = new ValidationCaptor();
         try {
-            remoteMediation.sendValidationRequest(probeId, request, captor.getHandler());
+            remoteMediation.sendValidationRequest(targetMock, request, captor.getHandler());
             return captor.getResult();
         } catch (ProbeException | CommunicationException | InterruptedException | ExecutionException e) {
             throw new RuntimeException("Error during validation", e);
@@ -87,10 +91,13 @@ public class RemoteMediationImpl implements IRemoteMediation {
                             .setDiscoveryType(DiscoveryType.FULL)
                             .setProbeType(target.getProbe().getType())
                             .build();
+        final Target targetMock = Mockito.mock(Target.class);
+        Mockito.when(targetMock.getSerializedIdentifyingFields()).thenReturn(target.getTargetId());
         final long probeId = getProbeId(target.getProbe());
+        Mockito.when(targetMock.getProbeId()).thenReturn(probeId);
         final DiscoveryCaptor captor = new DiscoveryCaptor();
         try {
-            remoteMediation.sendDiscoveryRequest(probeId, Long.valueOf(target.getTargetId()),
+            remoteMediation.sendDiscoveryRequest(targetMock,
                 request,
                 captor.getHandler());
             return captor.getResult();
@@ -102,7 +109,10 @@ public class RemoteMediationImpl implements IRemoteMediation {
     @Override
     public void executeAction(@Nonnull SdkTarget target, @Nonnull ActionExecutionDTO action,
             @Nonnull ActionResultProcessor progressListener) {
+        final Target targetMock = Mockito.mock(Target.class);
         final long probeId = getProbeId(target.getProbe());
+        Mockito.when(targetMock.getProbeId()).thenReturn(probeId);
+        Mockito.when(targetMock.getSerializedIdentifyingFields()).thenReturn(target.getTargetId());
         final OperationManager opManager = Mockito.mock(OperationManager.class);
         Mockito.doAnswer(new Answer() {
             @Override
@@ -136,7 +146,7 @@ public class RemoteMediationImpl implements IRemoteMediation {
                 new ActionMessageHandler(opManager, Mockito.mock(Action.class), Clock.systemUTC(),
                         TestConstants.TIMEOUT * 1000);
         try {
-            remoteMediation.sendActionRequest(probeId, ActionRequest.newBuilder()
+            remoteMediation.sendActionRequest(targetMock, ActionRequest.newBuilder()
                     .setActionExecutionDTO(action)
                     .setProbeType(target.getProbe().getType())
                     .addAllAccountValue(target.getAccountValues())

@@ -41,7 +41,10 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  */
 public class FakeRemoteMediation implements RemoteMediation {
 
-    public static final String TGT_ID = "targetIdentifier";
+    /**
+     * Target id.
+     */
+    public static final String TGT_ID = "targetId";
 
     private final Map<String, ValidationResponse> validationResponses = new HashMap<>();
 
@@ -61,11 +64,11 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public int sendDiscoveryRequest(long probeId, final long targetId,
-                                    DiscoveryRequest discoveryRequest,
+    public int sendDiscoveryRequest(Target target,
+                                     DiscoveryRequest discoveryRequest,
             IOperationMessageHandler<Discovery> responseHandler)
             throws ProbeException, CommunicationException, InterruptedException {
-        final DiscoveryResponse response = discoveryResponses.get(String.valueOf(targetId));
+        final DiscoveryResponse response = discoveryResponses.get(String.valueOf(target.getId()));
         Assert.assertNotNull(response);
         responseHandler.onReceive(
                         MediationClientMessage.newBuilder().setDiscoveryResponse(response).build());
@@ -76,7 +79,7 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public void sendValidationRequest(long probeId, ValidationRequest validationRequest,
+    public void sendValidationRequest(Target target, ValidationRequest validationRequest,
             IOperationMessageHandler<Validation> validationMessageHandler)
                     throws InterruptedException, ProbeException, CommunicationException {
         final String targetId = validationRequest.getAccountValueList().stream()
@@ -89,7 +92,7 @@ public class FakeRemoteMediation implements RemoteMediation {
     }
 
     @Override
-    public void sendActionRequest(long probeId,
+    public void sendActionRequest(@Nonnull Target target,
                                   @Nonnull ActionRequest actionRequest,
                                   @Nonnull IOperationMessageHandler<Action> actionMessageHandler)
             throws InterruptedException, ProbeException, CommunicationException {

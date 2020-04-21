@@ -43,6 +43,7 @@ import com.vmturbo.topology.processor.probes.ProbeStoreListener;
  * is the base unit of operation for a probe. For example, if the
  * probe is a VCenter probe, the target will be a VCenter instance.
  */
+@Immutable
 public class Target implements ProbeStoreListener {
     private static Logger logger = Logger.getLogger(Target.class);
     private final long id;
@@ -62,6 +63,8 @@ public class Target implements ProbeStoreListener {
     private ProbeInfo probeInfo;
 
     private List<com.vmturbo.platform.common.dto.Discovery.AccountDefEntry> accountDefEntryList;
+
+    private final String serializedIdentifyingFields;
 
     /**
      * Flag to indicate whether this target has a group scope defined.
@@ -91,6 +94,7 @@ public class Target implements ProbeStoreListener {
         mediationAccountVals = accountValBuilder.build();
 
         refreshProbeInfo(probeInfo, true, internalTargetInfo.targetInfo.getSpec());
+        this.serializedIdentifyingFields = generateSerializedIdentifiers(internalTargetInfo, probeInfo);
     }
 
     /**
@@ -144,6 +148,7 @@ public class Target implements ProbeStoreListener {
             new InvalidTargetException("No probe found in store for probe ID " + probeId));
 
         refreshProbeInfo(probeInfo, validateAccountValues, targetSpec.build());
+        this.serializedIdentifyingFields = generateSerializedIdentifiers(info, probeInfo);
     }
 
     /**
@@ -487,6 +492,11 @@ public class Target implements ProbeStoreListener {
         return noSecretAnonymousDto;
     }
 
+    @Nonnull
+    public String getSerializedIdentifyingFields() {
+        return this.serializedIdentifyingFields;
+    }
+
     /**
      * Get the {@link InternalTargetInfo} containing information about secret fields.
      *
@@ -572,6 +582,19 @@ public class Target implements ProbeStoreListener {
         }
     }
 
+    private static String generateSerializedIdentifiers(InternalTargetInfo info,
+                                                        ProbeInfo probeInfo) throws InvalidTargetException {
+        final Map<String, String> accountValuesMap = info.targetInfo.getSpec().getAccountValueList()
+            .stream()
+            .filter(TopologyProcessorDTO.AccountValue::hasStringValue)
+            .collect(Collectors.toMap(TopologyProcessorDTO.AccountValue::getKey,
+                TopologyProcessorDTO.AccountValue::getStringValue));
+
+
+            return TargetUtil.getTargetId(probeInfo.getAccountDefinitionList(),
+                accountValuesMap, probeInfo.getTargetIdentifierFieldList(), InvalidTargetException::new);
+
+    }
 
     @Override
     public String toString() {

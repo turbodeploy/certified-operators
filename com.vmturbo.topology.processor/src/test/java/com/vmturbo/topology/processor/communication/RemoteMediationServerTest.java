@@ -1,6 +1,8 @@
 package com.vmturbo.topology.processor.communication;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -12,8 +14,8 @@ import org.mockito.Mockito;
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.UpdateType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.DiscoveryRequest;
@@ -35,6 +37,7 @@ import com.vmturbo.topology.processor.probeproperties.ProbePropertyStore;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeInfoCompatibilityChecker;
 import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.util.Probes;
 
 /**
@@ -54,7 +57,8 @@ public class RemoteMediationServerTest {
 
     private final RemoteMediationServer remoteMediationServer = Mockito.spy(
         new RemoteMediationServer(probeStore,
-                                  Mockito.mock(ProbePropertyStore.class)));
+                                  Mockito.mock(ProbePropertyStore.class),
+            new ProbeContainerChooserImpl(probeStore)));
 
     private final DiscoveryMessageHandler mockOperationMessageHandler =
         mock(DiscoveryMessageHandler.class);
@@ -64,8 +68,10 @@ public class RemoteMediationServerTest {
         (ITransport<MediationServerMessage, MediationClientMessage>)mock(ITransport.class);
 
     private long probeId;
-    private long targetId1 = 1;
-    private long targetId2 = 2;
+    private String targetIdentifyingValues1 = "1";
+    private String targetIdentifyingValues2 = "2";
+    private Target target1;
+    private Target target2;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -76,6 +82,14 @@ public class RemoteMediationServerTest {
         probeStore.registerNewProbe(probeInfo, transport);
         probeId = identityProvider.getProbeId(probeInfo);
         Mockito.when(mockOperationMessageHandler.expirationTime()).thenReturn(Long.MAX_VALUE);
+        target1 = mock(Target.class);
+        target2 = mock(Target.class);
+        Mockito.when(target1.getProbeId()).thenReturn(probeId);
+        Mockito.when(target2.getProbeId()).thenReturn(probeId);
+        Mockito.when(target1.getSerializedIdentifyingFields()).thenReturn(targetIdentifyingValues1);
+        Mockito.when(target2.getSerializedIdentifyingFields()).thenReturn(targetIdentifyingValues2);
+
+
     }
 
     @Test
@@ -84,7 +98,7 @@ public class RemoteMediationServerTest {
         final MediationClientMessage mediationClientMessage = buildMediationClientMessage();
         Mockito.when(mockOperationMessageHandler.onMessage(mediationClientMessage))
                 .thenReturn(HandlerStatus.IN_PROGRESS);
-        remoteMediationServer.sendDiscoveryRequest(probeId, targetId1, discoveryRequest,
+        remoteMediationServer.sendDiscoveryRequest(target1, discoveryRequest,
             mockOperationMessageHandler);
         remoteMediationServer.onTransportMessage(transport, mediationClientMessage);
 
@@ -97,11 +111,11 @@ public class RemoteMediationServerTest {
             .setDiscoveryType(DiscoveryType.FULL)
             .setProbeType("probe type")
             .build();
-
+        Target targetWithBadProbe = mock(Target.class);
+        Mockito.when(targetWithBadProbe.getProbeId()).thenReturn(-1L);
         expectedException.expect(ProbeException.class);
         expectedException.expectMessage("Probe for requested type is not registered: -1");
-
-        remoteMediationServer.sendDiscoveryRequest(-1, targetId1, discoveryRequest,
+        remoteMediationServer.sendDiscoveryRequest(targetWithBadProbe, discoveryRequest,
             mockOperationMessageHandler);
     }
 
@@ -116,7 +130,7 @@ public class RemoteMediationServerTest {
         Mockito.when(mockOperationMessageHandler.getOperation()).thenReturn(mockOperation);
         Mockito.when(mockOperationMessageHandler.onMessage(mediationClientMessage))
                 .thenReturn(HandlerStatus.IN_PROGRESS);
-        remoteMediationServer.sendDiscoveryRequest(probeId, targetId1, discoveryRequest,
+        remoteMediationServer.sendDiscoveryRequest(target1, discoveryRequest,
             mockOperationMessageHandler);
         TargetUpdateRequest request = TargetUpdateRequest.newBuilder()
                         .setProbeType("qqq")
@@ -146,16 +160,18 @@ public class RemoteMediationServerTest {
         long incrementalProbeId = identityProvider.getProbeId(incrementalProbeInfo1);
 
         Assert.assertEquals(2, probeStore.getTransport(incrementalProbeId).size());
-        final DiscoveryRequest discoveryRequest = buildIncrementalDiscoveryRequest();
 
-        remoteMediationServer.sendDiscoveryRequest(incrementalProbeId, targetId1, discoveryRequest,
+        final DiscoveryRequest discoveryRequest = buildIncrementalDiscoveryRequest();
+        Mockito.when(target1.getProbeId()).thenReturn(incrementalProbeId);
+        Mockito.when(target2.getProbeId()).thenReturn(incrementalProbeId);
+
+        remoteMediationServer.sendDiscoveryRequest(target1, discoveryRequest,
             mockOperationMessageHandler);
-        remoteMediationServer.sendDiscoveryRequest(incrementalProbeId, targetId2, discoveryRequest,
+        remoteMediationServer.sendDiscoveryRequest(target2, discoveryRequest,
             mockOperationMessageHandler);
-        Mockito.verify(remoteMediationServer).getOrCreateTransportForTarget(incrementalProbeId,
-            targetId1);
-        Mockito.verify(remoteMediationServer).getOrCreateTransportForTarget(incrementalProbeId,
-            targetId2);
+
+        verify(transport).send(any());
+        verify(transport2).send(any());
     }
 
     private DiscoveryRequest buildFullDiscoveryRequest() {
