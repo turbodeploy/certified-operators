@@ -496,7 +496,9 @@ public class UuidMapper implements RepositoryListener {
             } else if (isEntity()) {
                 result = Collections.singleton(oid);
             } else if (isGroup()) {
-                result = getCachedGroupInfo().get().getEntityIds();
+                result = getCachedGroupInfo().map(
+                        g -> filterEntitiesByCsp(g.getEntityIds(), statApiInputDTOList))
+                        .orElse(Collections.emptySet());
             } else if (isPlan()) {
                 final Set<Long> entitiesInPlanScope = getCachedPlanInfo().get().getPlanScopeIds();
                 result = filterEntitiesByCsp(entitiesInPlanScope, statApiInputDTOList);
