@@ -226,23 +226,34 @@ public class TargetsService implements ITargetsService {
     public List<TargetApiDTO> getTargets(@Nullable final EnvironmentType environmentType) {
         try {
             final Set<TargetInfo> targets = topologyProcessor.getAllTargets();
+            final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
             return targets.stream()
-                .filter(target -> environmentTypeFilter(target, environmentType))
+                .filter(target -> environmentTypeFilter(target, environmentType, probeMap))
                 .filter(target -> !target.isHidden())
-                .map(targetInfo -> createTargetDtoWithRelationships(targetInfo, targets))
+                .map(targetInfo -> createTargetDtoWithRelationships(targetInfo, targets, probeMap))
                 .collect(Collectors.toList());
         } catch (CommunicationException e) {
             throw new RuntimeException("Error getting targets list", e);
         }
     }
 
-    private boolean environmentTypeFilter(final TargetInfo target, EnvironmentType envType) {
+    /**
+     * Check if a target matches an environmentType.
+     *
+     * @param target target to check
+     * @param envType environment type
+     * @param probeMap map of probeInfo objects indexed by probeId
+     * @return true if target matches environmentType, false otherwise
+     */
+    private boolean environmentTypeFilter(final TargetInfo target, EnvironmentType envType, @Nonnull final Map<Long, ProbeInfo> probeMap) {
         try {
             if (envType == EnvironmentType.CLOUD || envType == EnvironmentType.ONPREM) {
                 // gather the other info for this target, based on the related probe
                 final long probeId = target.getProbeId();
-                final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
                 final ProbeInfo probeInfo = probeMap.get(probeId);
+                if (probeInfo == null) {
+                    return false;
+                }
                 boolean isPublicCloud = GroupMapper.CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.getType());
 
                 // return true if and only if isPublicCloud agrees with the parameter
@@ -277,7 +288,7 @@ public class TargetsService implements ITargetsService {
         long targetId = Long.valueOf(uuid);
         try {
             return createTargetDtoWithRelationships(
-                    topologyProcessor.getTarget(targetId), Collections.emptySet());
+                    topologyProcessor.getTarget(targetId), Collections.emptySet(), getProbeIdToProbeInfoMap());
         } catch (TopologyProcessorException e) {
             throw new UnknownObjectException(e);
         } catch (CommunicationException e) {
@@ -462,7 +473,7 @@ public class TargetsService implements ITargetsService {
                     apiComponentTargetListener.triggerBroadcastAfterNextDiscovery();
                 }
                 return createTargetDtoWithRelationships(
-                        validatedTargetInfo, Collections.emptySet());
+                        validatedTargetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
             } catch (TopologyProcessorException e) {
                 throw new OperationFailedException(e);
             }
@@ -534,10 +545,10 @@ public class TargetsService implements ITargetsService {
             }
 
             if (result.isPresent()) {
-                return createTargetDtoWithRelationships(result.get(), Collections.emptySet());
+                return createTargetDtoWithRelationships(result.get(), Collections.emptySet(), getProbeIdToProbeInfoMap());
             } else {
                 return createTargetDtoWithRelationships(
-                        topologyProcessor.getTarget(targetId), Collections.emptySet());
+                        topologyProcessor.getTarget(targetId), Collections.emptySet(), getProbeIdToProbeInfoMap());
             }
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -572,7 +583,7 @@ public class TargetsService implements ITargetsService {
                         "Target " + targetId + " cannot be changed through public APIs.");
             }
             topologyProcessor.modifyTarget(targetId, updatedTargetData);
-            return createTargetDtoWithRelationships(targetInfo, Collections.emptySet());
+            return createTargetDtoWithRelationships(targetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
         } catch (TopologyProcessorException e) {
@@ -922,16 +933,19 @@ public class TargetsService implements ITargetsService {
      * @param targetInfo the {@link TargetInfo} structure returned from the Topology-Processor.
      * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
      * made an API call, otherwise an empty set.
+     * @param probeMap A map of probeInfo indexed by probeId.
      * @return a {@link TargetApiDTO} containing the target information and its derived targets
      * relationships.
      */
     private TargetApiDTO createTargetDtoWithRelationships(@Nonnull final TargetInfo targetInfo,
-                                                 @Nonnull final Set<TargetInfo> allTargetInfos) {
+                                                 @Nonnull final Set<TargetInfo> allTargetInfos,
+                                                 @Nonnull final Map<Long, ProbeInfo> probeMap) {
+
         try {
-            TargetApiDTO targetApiDTO = mapTargetInfoToDTO(targetInfo);
+            TargetApiDTO targetApiDTO = mapTargetInfoToDTO(targetInfo, probeMap);
             targetApiDTO.setDerivedTargets(
                 convertDerivedTargetInfosToDtos(targetInfo.getDerivedTargetIds().stream()
-                    .map(String::valueOf).collect(Collectors.toList()), allTargetInfos));
+                    .map(String::valueOf).collect(Collectors.toList()), allTargetInfos, probeMap));
             return targetApiDTO;
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -945,12 +959,14 @@ public class TargetsService implements ITargetsService {
      * @param derivedTargetIds a List of derived target's ids that associated with a parent target.
      * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
      * made an API call, otherwise an empty set.
+     * @param probeMap A map of probeInfo objects indexed by probeId.
      * @return List of {@link TargetApiDTO}s containing the target information from their
      * {@link TargetInfo}s.
      */
     private List<TargetApiDTO> convertDerivedTargetInfosToDtos(
                                 @Nonnull final List<String> derivedTargetIds,
-                                @Nonnull final Set<TargetInfo> allTargetInfos) {
+                                @Nonnull final Set<TargetInfo> allTargetInfos,
+                                @Nonnull final Map<Long, ProbeInfo> probeMap) {
         if (derivedTargetIds.isEmpty()) {
             return Collections.emptyList();
         }
@@ -968,7 +984,7 @@ public class TargetsService implements ITargetsService {
                     logger.debug("Skip the conversion of a hidden derived target: {}", targetId);
                 } else {
                     try {
-                        derivedTargetsDtos.add(mapTargetInfoToDTO(targetInfo));
+                        derivedTargetsDtos.add(mapTargetInfoToDTO(targetInfo, probeMap));
                     } catch (CommunicationException e) {
                         throw new CommunicationError(e);
                     }
@@ -988,11 +1004,13 @@ public class TargetsService implements ITargetsService {
      * are added to the result {@link TargetApiDTO} by mapProbeInfoToDTO().
      *
      * @param targetInfo the {@link TargetInfo} structure returned from the Topology-Processor
+     * @param probeMap a map of probeInfo indexed by probeId
      * @return a {@link TargetApiDTO} containing the target information from the given TargetInfo
      * @throws RuntimeException since you may not return a checked exception within a lambda
      *             expression
      */
-    private TargetApiDTO mapTargetInfoToDTO(@Nonnull final TargetInfo targetInfo)
+    private TargetApiDTO mapTargetInfoToDTO(@Nonnull final TargetInfo targetInfo,
+                                            @Nonnull final Map<Long, ProbeInfo> probeMap)
             throws CommunicationException {
         Objects.requireNonNull(targetInfo);
         final TargetApiDTO targetApiDTO = new TargetApiDTO();
@@ -1012,7 +1030,6 @@ public class TargetsService implements ITargetsService {
 
         // gather the other info for this target, based on the related probe
         final long probeId = targetInfo.getProbeId();
-        final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
         final ProbeInfo probeInfo = probeMap.get(probeId);
 
         // The probeInfo object of targets should always be present because it is stored in Consul
