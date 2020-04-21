@@ -94,8 +94,7 @@ public class RESTConfig extends WebMvcConfigurerAdapter {
         return new TopologyController(
             schedulerConfig.scheduler(),
             topologyConfig.topologyHandler(),
-            entityConfig.entityStore(),
-            clockConfig.clock());
+            entityConfig.entityStore());
     }
 
     @Bean
