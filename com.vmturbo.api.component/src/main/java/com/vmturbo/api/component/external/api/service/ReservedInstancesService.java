@@ -210,7 +210,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
                 final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
                         GetReservedInstanceBoughtByFilterRequest.newBuilder();
 
-                List<Long> groupScopeMemberOids = new ArrayList<>();
                 // add any scope filters
                 scope.getScopeEntitiesByType().forEach((entityType, entityOids) -> {
                     switch (entityType) {
@@ -232,13 +231,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                             .addAllAccountId(entityOids)
                                             .build());
                             break;
-                        // Note that scope expansion will happen only for groups.  However, related business
-                        // accounts will only be pulled in for plans.
-                        case VIRTUAL_MACHINE:
-                        case DATABASE:
-                        case DATABASE_SERVER:
-                            groupScopeMemberOids.addAll(entityOids);
-                            break;
                         default:
                             // This is an unsupported scope type, therefore we'll ignore it
                             break;
@@ -251,22 +243,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
             }
         } else { // The call for groups is only made from plans.
             if (groupOptional.isPresent()) {
-                List<Long> groupScopeMemberOids = new ArrayList<>();
-                // add any scope filters
-                scope.getScopeEntitiesByType().forEach((entityType, entityOids) -> {
-                    switch (entityType) {
-                        // Note that scope expansion will happen only for groups.  However, related business
-                        // accounts will only be pulled in for plans.
-                        case VIRTUAL_MACHINE:
-                        case DATABASE:
-                        case DATABASE_SERVER:
-                            groupScopeMemberOids.addAll(entityOids);
-                            break;
-                        default:
-                            // This is an unsupported scope type, therefore we'll ignore it
-                            break;
-                    }
-                });
                 return reservedInstanceService.getReservedInstanceBoughtForScope(
                         GetReservedInstanceBoughtForScopeRequest.newBuilder()
                                 .addAllScopeSeedOids(scope.getScopeOids())
