@@ -10,10 +10,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.Maps;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-
-import com.google.common.collect.Maps;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -355,7 +355,9 @@ public class DataDrivenStitchingOperation<INTERNAL_SIGNATURE_TYPE, EXTERNAL_SIGN
             // with the ontoCommodity
             final CommoditySoldMergeSpec commoditySoldMergeSpec =
                 this.commoditySoldMergeSpecByType.get(fromCommodity.getCommodityType());
-            if (commoditySoldMergeSpec != null) {
+            // if the fromCommodity is a type which should be ignored when ontoEntity already
+            // has this commodity, then we can just use the ontoCommodity, no need to merge
+            if (commoditySoldMergeSpec != null && !commoditySoldMergeSpec.isIgnoreIfPresent()) {
                 return Optional.of(DTOFieldAndPropertyHandler.mergeBuilders(fromCommodity,
                         ontoCommodity, commoditySoldMergeSpec.getPatchedFields()));
             }

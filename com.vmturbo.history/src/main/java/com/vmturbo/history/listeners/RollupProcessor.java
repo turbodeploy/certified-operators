@@ -113,7 +113,7 @@ public class RollupProcessor {
         performRollups(tables, snapshot, RollupType.BY_HOUR, timer);
         addAvailableTimestamps(snapshot, RollupType.BY_HOUR, HistoryVariety.ENTITY_STATS, HistoryVariety.PRICE_DATA);
         timer.stopAll().info(
-            String.format("Rollup Processing for %s", snapshot), Detail.STAGE_SUMMARY);
+                String.format("Rollup Processing for %s", snapshot), Detail.STAGE_SUMMARY);
     }
 
     /**
@@ -150,7 +150,7 @@ public class RollupProcessor {
             performRetentionProcessing(timer);
         }
         timer.stopAll().info(
-            String.format("Rollup Processing for %s", snapshot), Detail.STAGE_SUMMARY);
+                String.format("Rollup Processing for %s", snapshot), Detail.STAGE_SUMMARY);
     }
 
     private void addAvailableTimestamps(Timestamp snapshot, RollupType rollupType, HistoryVariety... historyVarieties) {
@@ -165,26 +165,26 @@ public class RollupProcessor {
         Timestamp rollupEnd = rollupType.getPeriodEnd(snapshot);
         try (Connection conn = historydbIO.connection()) {
             String sql = historydbIO.using(conn)
-                .insertInto(AVAILABLE_TIMESTAMPS,
-                    AVAILABLE_TIMESTAMPS.TIME_STAMP,
-                    AVAILABLE_TIMESTAMPS.TIME_FRAME,
-                    AVAILABLE_TIMESTAMPS.HISTORY_VARIETY,
-                    AVAILABLE_TIMESTAMPS.EXPIRES_AT)
-                .select(
-                    select(
-                        inline(rollupTime).as(AVAILABLE_TIMESTAMPS.TIME_STAMP),
-                        inline(rollupType.getTimeFrame().name()).as(AVAILABLE_TIMESTAMPS.TIME_FRAME),
-                        inline(historyVariety.name()).as(AVAILABLE_TIMESTAMPS.HISTORY_VARIETY),
-                        inline(Timestamp.from(
-                            rollupType.getRetentionPolicy().getExpiration(rollupTime.toInstant())))
-                            .as(AVAILABLE_TIMESTAMPS.EXPIRES_AT))
-                        .from(AVAILABLE_TIMESTAMPS)
-                        .where(exists(selectFrom(AVAILABLE_TIMESTAMPS)
-                            .where(AVAILABLE_TIMESTAMPS.TIME_STAMP.between(inline(rollupStart), inline(rollupEnd)))
-                            .and(AVAILABLE_TIMESTAMPS.HISTORY_VARIETY.eq(inline(historyVariety.name()))))
-                        )
+                    .insertInto(AVAILABLE_TIMESTAMPS,
+                            AVAILABLE_TIMESTAMPS.TIME_STAMP,
+                            AVAILABLE_TIMESTAMPS.TIME_FRAME,
+                            AVAILABLE_TIMESTAMPS.HISTORY_VARIETY,
+                            AVAILABLE_TIMESTAMPS.EXPIRES_AT)
+                    .select(
+                            select(
+                                    inline(rollupTime).as(AVAILABLE_TIMESTAMPS.TIME_STAMP),
+                                    inline(rollupType.getTimeFrame().name()).as(AVAILABLE_TIMESTAMPS.TIME_FRAME),
+                                    inline(historyVariety.name()).as(AVAILABLE_TIMESTAMPS.HISTORY_VARIETY),
+                                    inline(Timestamp.from(
+                                            rollupType.getRetentionPolicy().getExpiration(rollupTime.toInstant())))
+                                            .as(AVAILABLE_TIMESTAMPS.EXPIRES_AT))
+                                    .from(AVAILABLE_TIMESTAMPS)
+                                    .where(exists(selectFrom(AVAILABLE_TIMESTAMPS)
+                                            .where(AVAILABLE_TIMESTAMPS.TIME_STAMP.between(inline(rollupStart), inline(rollupEnd)))
+                                            .and(AVAILABLE_TIMESTAMPS.HISTORY_VARIETY.eq(inline(historyVariety.name()))))
+                                    )
 
-                ).getSQL();
+                    ).getSQL();
             // JOOQ's onDuplicateKeyIgnore method can't currently be used with its INSERT...SELECT
             // construction. So we need to create the INSERT statement without it, and then modify
             // the generated SQL as needed to get the intended effect.
@@ -203,7 +203,7 @@ public class RollupProcessor {
         timer.start("Expire available_timestamps records");
         try (Connection conn = historydbIO.connection()) {
             historydbIO.using(conn).deleteFrom(AVAILABLE_TIMESTAMPS)
-                .where(DSL.currentTimestamp().ge(AVAILABLE_TIMESTAMPS.EXPIRES_AT)).execute();
+                    .where(DSL.currentTimestamp().ge(AVAILABLE_TIMESTAMPS.EXPIRES_AT)).execute();
         } catch (VmtDbException | SQLException | DataAccessException e) {
             logger.error("Failed to delete expired available_timestamps records", e);
         } finally {
@@ -231,7 +231,7 @@ public class RollupProcessor {
         timer.start("Repartitioning");
         final Set<Table> tables = getTablesToRepartition();
         final Stream<Pair<Table, Future<Void>>> tableFutures = tables.stream()
-            .map(table -> Pair.of(table, scheduleRepartition(table)));
+                .map(table -> Pair.of(table, scheduleRepartition(table)));
         tableFutures.forEach(tf -> {
             try {
                 tf.getRight().get(REPARTITION_TIMEOUT_SECS, TimeUnit.SECONDS);
@@ -239,10 +239,10 @@ public class RollupProcessor {
                 Thread.currentThread().interrupt();
             } catch (TimeoutException e) {
                 logger.warn("Timed out during repartitioning of table {}; " +
-                    "repartition may still complete normally", tf.getLeft());
+                        "repartition may still complete normally", tf.getLeft());
             } catch (ExecutionException e) {
                 logger.error("Error during repartitioning of table {}: {}",
-                    tf.getLeft().getName(), e.toString());
+                        tf.getLeft().getName(), e.toString());
             }
         });
     }
@@ -273,19 +273,8 @@ public class RollupProcessor {
     private Future<Void> scheduleRepartition(Table<?> table) {
         return executorService.submit(() -> {
             try (Connection conn = historydbIO.unpooledConnection()) {
-                // MySQL does not permit LOCK TABLES statement within a stored
-                // procedure, so we must obtain locks outside the call. And we must
-                // lock every table that we will access!
                 historydbIO.using(conn).execute(String.format(
-                    "LOCK TABLES %s WRITE," +
-                        "appl_performance WRITE," +
-                        "retention_policies READ," +
-                        "idle_threads_policy READ",
-                    table.getName()));
-                historydbIO.using(conn).execute(String.format(
-                    "CALL rotate_partition('%s', NULL)",
-                    table.getName()));
-                historydbIO.using(conn).execute("UNLOCK TABLES");
+                        "CALL rotate_partition('%s', NULL)", table.getName()));
             } catch (Exception e) {
                 logger.error("Repartitioning failed for table {}: {}", table.getName(), e.toString());
             }
@@ -408,10 +397,10 @@ public class RollupProcessor {
                         Thread.currentThread().interrupt();
                     } catch (TimeoutException e) {
                         logger.warn("Timed out during rollup activity for table {}; " +
-                            "rollup may still complete normally", tf.getLeft());
+                                "rollup may still complete normally", tf.getLeft());
                     } catch (ExecutionException e) {
                         logger.error("Error during rollup activity for table {}: {}",
-                            tf.getLeft().getName(), e.toString());
+                                tf.getLeft().getName(), e.toString());
                     }
                 });
             }
@@ -557,8 +546,8 @@ public class RollupProcessor {
                     return getRollupTime(snapshotTime);
                 case BY_MONTH:
                     LocalDateTime periodStart = LocalDateTime.ofInstant(snapshotTime.toInstant(), ZoneOffset.UTC)
-                        .truncatedTo(ChronoUnit.DAYS)
-                        .withDayOfMonth(1);
+                            .truncatedTo(ChronoUnit.DAYS)
+                            .withDayOfMonth(1);
                     return Timestamp.from(periodStart.toInstant(ZoneOffset.UTC));
                 default:
                     badValue();
@@ -639,7 +628,7 @@ public class RollupProcessor {
 
         private void badValue() {
             throw new IllegalStateException(
-                String.format("Unknown RollupType value: %s", this));
+                    String.format("Unknown RollupType value: %s", this));
         }
     }
 

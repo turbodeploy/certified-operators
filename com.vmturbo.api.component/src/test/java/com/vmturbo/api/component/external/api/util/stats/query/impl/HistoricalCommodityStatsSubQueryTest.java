@@ -210,16 +210,21 @@ public class HistoricalCommodityStatsSubQueryTest {
 
         // These entities in the scope.
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
-        when(queryScope.getGlobalScope()).thenReturn(Optional.of(ImmutableGlobalScope.builder()
+        final ImmutableGlobalScope globalScope = ImmutableGlobalScope.builder()
             .addEntityTypes(ApiEntityType.VIRTUAL_MACHINE)
             .environmentType(EnvironmentType.CLOUD)
-            .build()));
+            .build();
+        when(queryScope.getGlobalScope()).thenReturn(Optional.of(globalScope));
         when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
         when(context.getQueryScope()).thenReturn(queryScope);
 
         // normalize vm to vm
         when(statsMapper.normalizeRelatedType(ApiEntityType.VIRTUAL_MACHINE.apiStr())).thenReturn(
             ApiEntityType.VIRTUAL_MACHINE.apiStr());
+        when(statsMapper.newGlobalFilter(globalScope)).thenReturn(GlobalFilter.newBuilder()
+            .addRelatedEntityType(ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .build());
 
         // ACT
         final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);
@@ -359,11 +364,12 @@ public class HistoricalCommodityStatsSubQueryTest {
         // These entities in the scope.
         final StatsQueryScope queryScope = mock(StatsQueryScope.class);
         //Setting to global scope.
-        GlobalScope globalScope =  ImmutableGlobalScope.builder().build();
+        GlobalScope globalScope = ImmutableGlobalScope.builder().build();
         when(queryScope.getGlobalScope()).thenReturn(Optional.of(globalScope));
         //setting expandedOids to empty.
         when(queryScope.getExpandedOids()).thenReturn(Collections.emptySet());
         when(context.getQueryScope()).thenReturn(queryScope);
+        when(statsMapper.newGlobalFilter(globalScope)).thenReturn(GlobalFilter.newBuilder().build());
 
         // ACT
         final List<StatSnapshotApiDTO> results = query.getAggregateStats(REQ_STATS, context);

@@ -76,6 +76,8 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
     private final int[] batchRetryBackoffsMsec;
     // sum of retry backoffs
     private final int sumOfRetryBackoffsMsec;
+    // whether to drop out-table when closing the inserter (used for transient loaders)
+    private final boolean dropOnClose;
 
     // maximum number of batchs each inserter is allowed to have submitted to the executor (and
     // not yet resolved) at any time.
@@ -140,12 +142,21 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
         this.dbInserter = dbInserter;
         this.batchSize = config.batchSize();
         this.batchRetryBackoffsMsec = computeBatchRetryBackoffs(
-            config.maxBatchRetries(), config.maxRetryBackoffMsec());
+                config.maxBatchRetries(), config.maxRetryBackoffMsec());
         this.sumOfRetryBackoffsMsec = IntStream.of(batchRetryBackoffsMsec).sum();
         this.maxPendingBatches = config.maxPendingBatches();
+        this.dropOnClose = config.dropOnClose();
         this.executor = executor;
         this.inserterStats = new BulkInserterStats(key, inTable, outTable);
         this.pendingRecords = new ArrayList<>(batchSize);
+    }
+
+    public Table<InT> getInTable() {
+        return inTable;
+    }
+
+    public Table<OutT> getOutTable() {
+        return outTable;
     }
 
     /**
@@ -283,7 +294,7 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
                 try (Connection conn = basedbIO.transConnection()) {
                     try {
                         // use our dbInserter to actually perform the operation
-                        dbInserter.insert(records, conn);
+                        dbInserter.insert(outTable, records, conn);
                     } catch (Exception e) {
                         // rollback the transaction since closing will only release back to
                         // connection pool
@@ -384,6 +395,16 @@ public class BulkInserter<InT extends Record, OutT extends Record> implements Bu
                 if (logger != null) {
                     inserterStats.logStats(logger);
                 }
+            }
+        }
+        if (dropOnClose) {
+            try (Connection conn = basedbIO.connection()) {
+                basedbIO.using(conn).dropTable(outTable).execute();
+            } catch (VmtDbException | SQLException | DataAccessException e) {
+                // create our own logger for this if the caller didn't provide one
+                final Logger log = logger != null ? logger : LogManager.getLogger();
+                log.error("Failed to drop transient bulk inserter table {} when inserter was closed",
+                        outTable.getName(), e);
             }
         }
     }

@@ -16,9 +16,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.protobuf.util.JsonFormat;
@@ -33,10 +35,14 @@ import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
+import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyReservedInstanceServiceGrpc.BuyReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.Cost.GetBuyReservedInstancesByFilterRequest;
@@ -275,12 +281,112 @@ public class ActionSpecMappingContextFactoryTest {
                 73367279135571L, 73367357167052L, 73367284550368L, 73367280089256L, 73367357166981L,
                 73367279846050L, 73367279135833L, 73367284550442L};
         for (Long oid : regionOids) {
-            try {
-                assertNotNull(result.getRegion(oid));
-            } catch (UnknownObjectException e) {
-                System.out.println("Missing OID in expected region list");
-            }
+            assertNotNull(result.getRegion(oid));
         }
+    }
+
+    /**
+     * Sometimes BuyRI actions are generated for regions that are no longer in the plan scope,
+     * as entities have since been deleted (but action is valid as workloads may have historical
+     * usage). We lookup such regions in real-time topology if we don't find in plan.
+     */
+    @Test
+    public void entitiesGetterMissingRegion() {
+        long regionIdParis = 201;
+        long regionIdIreland = 202;
+        long t2ComputeTierId = 302;
+        long ptAccountId = 102;
+        List<Action> actions = new ArrayList<>();
+        actions.add(Action.newBuilder()
+                .setId(501)
+                .setDeprecatedImportance(1d)
+                .setExplanation(Explanation.newBuilder().setBuyRI(
+                        BuyRIExplanation.newBuilder().build())
+                        .build())
+                .setInfo(ActionInfo.newBuilder()
+                .setBuyRi(BuyRI.newBuilder()
+                        .setComputeTier(ActionEntity.newBuilder().setId(t2ComputeTierId).setType(56)
+                                .setEnvironmentType(EnvironmentType.CLOUD).build())
+                        .setCount(1)
+                        .setMasterAccount(ActionEntity.newBuilder().setId(ptAccountId)
+                                .setType(28).setEnvironmentType(EnvironmentType.CLOUD).build())
+                        .setRegion(ActionEntity.newBuilder().setId(regionIdParis)
+                                .setType(54).setEnvironmentType(EnvironmentType.CLOUD).build())
+                ).build()
+        ).build());
+        actions.add(Action.newBuilder()
+                .setId(502)
+                .setDeprecatedImportance(1d)
+                .setExplanation(Explanation.newBuilder().setBuyRI(
+                        BuyRIExplanation.newBuilder().build())
+                        .build())
+                .setInfo(ActionInfo.newBuilder()
+                .setBuyRi(BuyRI.newBuilder()
+                        .setComputeTier(ActionEntity.newBuilder().setId(t2ComputeTierId).setType(56)
+                                .setEnvironmentType(EnvironmentType.CLOUD).build())
+                        .setCount(1)
+                        .setMasterAccount(ActionEntity.newBuilder().setId(ptAccountId)
+                                .setType(28).setEnvironmentType(EnvironmentType.CLOUD).build())
+                        .setRegion(ActionEntity.newBuilder().setId(regionIdIreland)
+                                .setType(54).setEnvironmentType(EnvironmentType.CLOUD).build())
+                ).build()
+        ).build());
+
+        final long realtimeContextId = 777777L;
+        final long planContextId = 888888L;
+
+        RepositoryApi repositoryApiMock = Mockito.mock(RepositoryApi.class);
+        final ActionSpecMappingContextFactory actionSpecMappingContextFactory = new
+                ActionSpecMappingContextFactory(PolicyServiceGrpc.newBlockingStub(
+                        grpcTestServer.getChannel()),
+                Mockito.mock(ExecutorService.class),
+                repositoryApiMock,
+                Mockito.mock(EntityAspectMapper.class),
+                Mockito.mock(VirtualVolumeAspectMapper.class),
+                realtimeContextId,
+                BuyReservedInstanceServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                ReservedInstanceSpecServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                Mockito.mock(ServiceEntityMapper.class),
+                SupplyChainServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+
+        List<ApiPartialEntity> planPartialEntities = new ArrayList<>();
+        planPartialEntities.add(ApiPartialEntity.newBuilder().setDisplayName("aws-EU (Paris)")
+                .setEntityType(54).setOid(regionIdParis).build());
+        // Ireland region is in realtime, not in plan.
+        planPartialEntities.add(ApiPartialEntity.newBuilder().setDisplayName("Product Trust")
+                .setEntityType(28).setOid(ptAccountId).build());
+        planPartialEntities.add(ApiPartialEntity.newBuilder().setDisplayName("t2.small")
+                .setEntityType(56).setOid(t2ComputeTierId).build());
+
+        final Set<Long> planRequestIds = ImmutableSet.of(regionIdParis, regionIdIreland, ptAccountId,
+                t2ComputeTierId);
+        final Set<Long> missingRequestIds = ImmutableSet.of(regionIdIreland);
+
+        MultiEntityRequest planRequest = Mockito.mock(MultiEntityRequest.class);
+        when(planRequest.getEntities()).thenReturn(planPartialEntities.stream());
+        when(planRequest.contextId(planContextId)).thenReturn(planRequest);
+        when(repositoryApiMock.entitiesRequest(planRequestIds)).thenReturn(planRequest);
+
+        // Ireland region is returned when realtime entities request is made.
+        List<ApiPartialEntity> realtimePartialEntities = new ArrayList<>();
+        realtimePartialEntities.add(ApiPartialEntity.newBuilder().setDisplayName("aws-EU (Ireland)")
+                .setEntityType(54).setOid(regionIdIreland).build());
+        MultiEntityRequest realtimeRequest = Mockito.mock(MultiEntityRequest.class);
+        when(realtimeRequest.getEntities()).thenReturn(realtimePartialEntities.stream());
+        when(realtimeRequest.contextId(realtimeContextId)).thenReturn(realtimeRequest);
+        when(realtimeRequest.contextId(planContextId)).thenReturn(realtimeRequest);
+
+        MultiEntityRequest projectedRequest = Mockito.mock(MultiEntityRequest.class);
+        List<ApiPartialEntity> projectedEntities = new ArrayList<>();
+        when(realtimeRequest.projectedTopology()).thenReturn(projectedRequest);
+        when(projectedRequest.getEntities()).thenReturn(projectedEntities.stream());
+        when(repositoryApiMock.entitiesRequest(missingRequestIds)).thenReturn(realtimeRequest);
+
+        Map<Long, ApiPartialEntity> entities = actionSpecMappingContextFactory.getEntities(actions,
+                planContextId);
+
+        assertEquals(4, entities.size());
+        assertEquals(entities.keySet(), planRequestIds);
     }
 }
 

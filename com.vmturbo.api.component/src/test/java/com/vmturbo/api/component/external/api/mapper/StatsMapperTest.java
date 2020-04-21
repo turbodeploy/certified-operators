@@ -360,10 +360,10 @@ public class StatsMapperTest {
         assertThat(filter.getCommodityAttributesCount(), equalTo(0));
     }
 
-    private static final long planId = 7L;
+    private static final long PLAN_ID = 7L;
     private static final long projectedTopologyId = 77L;
     private static final PlanInstance PLAN_INSTANCE = PlanInstance.newBuilder()
-            .setPlanId(planId)
+            .setPlanId(PLAN_ID)
             .setProjectedTopologyId(projectedTopologyId)
             .setStatus(PlanStatus.SUCCEEDED)
             .build();
@@ -487,8 +487,8 @@ public class StatsMapperTest {
         final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
         when(statsMapper.newPeriodStatsFilter(period, false)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
-                statsMapper.toClusterStatsRequest("7", period);
-        assertThat(clusterStatsRequest.getClusterId(), is(planId));
+                statsMapper.toClusterStatsRequest(Long.toString(PLAN_ID), period);
+        assertThat(clusterStatsRequest.getClusterIds(0), is(PLAN_ID));
         assertThat(clusterStatsRequest.getStats(), is(STATS_FILTER));
     }
 
@@ -497,9 +497,20 @@ public class StatsMapperTest {
         final StatPeriodApiInputDTO period = null;
         when(statsMapper.newPeriodStatsFilter(period, false)).thenReturn(STATS_FILTER);
         final ClusterStatsRequest clusterStatsRequest =
-                statsMapper.toClusterStatsRequest("7", period);
-        assertThat(clusterStatsRequest.getClusterId(), is(planId));
+                statsMapper.toClusterStatsRequest(Long.toString(PLAN_ID), period);
+        assertThat(clusterStatsRequest.getClusterIds(0), is(PLAN_ID));
         assertThat(clusterStatsRequest.getStats(), is(STATS_FILTER));
+    }
+
+    /**
+     * Tests {@link StatsMapper#toClusterStatsRequest(String, StatPeriodApiInputDTO)}
+     * with a market scope.
+     */
+    @Test
+    public void testClusterStatsRequestWithMarketScope() {
+        when(statsMapper.newPeriodStatsFilter(null, false)).thenReturn(STATS_FILTER);
+        assertEquals(Collections.emptyList(),
+                     statsMapper.toClusterStatsRequest("Market", null).getClusterIdsList());
     }
 
     /**

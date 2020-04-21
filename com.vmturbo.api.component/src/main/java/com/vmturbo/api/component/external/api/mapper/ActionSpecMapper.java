@@ -72,8 +72,8 @@ import com.vmturbo.api.enums.ActionMode;
 import com.vmturbo.api.enums.ActionState;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.enums.ActionCostType;
 import com.vmturbo.api.exceptions.ConversionException;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.auth.api.auditing.AuditLogUtils;
@@ -128,6 +128,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 
@@ -293,20 +294,13 @@ public class ActionSpecMapper {
         final ActionSpecMappingContext context =
                 actionSpecMappingContextFactory.createActionSpecMappingContext(recommendations, topologyContextId);
         final ImmutableList.Builder<ActionApiDTO> actionApiDTOS = ImmutableList.builder();
-        int unresolvedEntities = 0;
         for (ActionSpec spec : actionSpecs) {
-            try {
-                final ActionApiDTO actionApiDTO = mapActionSpecToActionApiDTOInternal(spec, context,
-                        topologyContextId, detailLevel);
-                actionApiDTOS.add(actionApiDTO);
-            } catch (UnknownObjectException e) {
-                unresolvedEntities += 1;
-                logger.debug("Couldn't resolve entity from spec {} {}", spec, e);
-            }
+            final ActionApiDTO actionApiDTO =
+                    mapActionSpecToActionApiDTOInternal(spec, context, topologyContextId,
+                            detailLevel);
+            actionApiDTOS.add(actionApiDTO);
         }
-        if (unresolvedEntities > 0) {
-            logger.error("Couldn't resolve {}", (unresolvedEntities > 1 ? "entities" : "entity"));
-        }
+
         return actionApiDTOS.build();
     }
 
@@ -327,17 +321,16 @@ public class ActionSpecMapper {
      *                          produced. We need this to get the right information froGm related
      *                          entities.
      * @return an {@link ActionApiDTO} object populated from the given ActionSpec
-     * @throws UnknownObjectException If any entities involved in the action are not found in
-     * the repository.
      * @throws UnsupportedActionException If the action type of the {@link ActionSpec} is not
      * supported.
+     * @throws ExecutionException on failure getting entities
      * @throws InterruptedException if thread has been interrupted
      * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nonnull
     public ActionApiDTO mapActionSpecToActionApiDTO(@Nonnull final ActionSpec actionSpec,
                                                     final long topologyContextId)
-            throws UnknownObjectException, UnsupportedActionException, ExecutionException,
+            throws UnsupportedActionException, ExecutionException,
             InterruptedException, ConversionException {
         return mapActionSpecToActionApiDTO(actionSpec, topologyContextId, ActionDetailLevel.STANDARD);
     }
@@ -358,16 +351,17 @@ public class ActionSpecMapper {
      *                          entities.
      * @param detailLevel       Level of action details requested, used to include or exclude certain information.
      * @return an {@link ActionApiDTO} object populated from the given ActionSpec
-     * @throws UnknownObjectException     If any entities involved in the action are not found in
-     *                                    the repository.
      * @throws UnsupportedActionException If the action type of the {@link ActionSpec} is not
      *                                    supported.
+     * @throws ExecutionException on failure getting entities
+     * @throws InterruptedException if thread has been interrupted
+     * @throws ConversionException if errors faced during converting data to API DTOs
      */
     @Nonnull
     public ActionApiDTO mapActionSpecToActionApiDTO(@Nonnull final ActionSpec actionSpec,
                                                     final long topologyContextId,
                                                     @Nullable final ActionDetailLevel detailLevel)
-            throws UnknownObjectException, UnsupportedActionException, ExecutionException,
+            throws UnsupportedActionException, ExecutionException,
             InterruptedException, ConversionException {
         final ActionSpecMappingContext context =
                 actionSpecMappingContextFactory.createActionSpecMappingContext(
@@ -463,10 +457,8 @@ public class ActionSpecMapper {
     private ActionApiDTO mapActionSpecToActionApiDTOInternal(
             @Nonnull final ActionSpec actionSpec,
             @Nonnull final ActionSpecMappingContext context,
-            final long topologyContextId,
-            @Nullable final ActionDetailLevel detailLevel)
-                    throws UnsupportedActionException, UnknownObjectException,
-                           ExecutionException, InterruptedException {
+            final long topologyContextId, @Nullable final ActionDetailLevel detailLevel)
+            throws UnsupportedActionException {
         // Construct a response ActionApiDTO to return
         final ActionApiDTO actionApiDTO = new ActionApiDTO();
         // actionID and uuid are the same
@@ -605,14 +597,13 @@ public class ActionSpecMapper {
      * @param actionApiDTO the plan ActionApiDTO to add more info to
      * @param context the ActionSpecMappingContext
      * @param action action info
-     * @throws UnknownObjectException if target entity is not found
      * @throws UnsupportedActionException if the action type of the {@link ActionSpec}
      * is not supported.
      */
     private void addMoreInfoToActionApiDTOForPlan(@Nonnull ActionApiDTO actionApiDTO,
                                                   @Nonnull ActionSpecMappingContext context,
                                                   @Nonnull ActionDTO.Action action)
-                throws UnknownObjectException, UnsupportedActionException {
+                throws UnsupportedActionException {
         final ServiceEntityApiDTO targetEntity = actionApiDTO.getTarget();
         final ServiceEntityApiDTO newEntity = actionApiDTO.getNewEntity();
         final String targetEntityUuid = targetEntity.getUuid();
@@ -784,29 +775,28 @@ public class ActionSpecMapper {
                     @Nonnull final ActionSpecMappingContext context) throws UnsupportedActionException {
         final Optional<String> policyId = tryExtractPlacementPolicyId(actionSpec.getRecommendation());
         if (policyId.isPresent()) {
-            final long entityOid = ActionDTOUtil.getPrimaryEntityId(actionSpec.getRecommendation());
+            final ActionEntity entity =
+                    ActionDTOUtil.getPrimaryEntity(actionSpec.getRecommendation());
             final long policyOid = Long.parseLong(policyId.get());
 
-            try {
-                final Optional<PolicyDTO.Policy> policy =
-                                Optional.ofNullable(context.getPolicy(policyOid));
-                if (!policy.isPresent()) {
-                    return actionSpec.getExplanation();
-                }
-                if (actionSpec.getRecommendation().getExplanation().hasProvision()) {
-                    return String.format("%s violation",
-                            policy.get().getPolicyInfo().getName());
-                } else {
-                    // constructing risk with policyName for move and reconfigure
-                    Optional<String> commNames = nonSegmentationCommoditiesToString(actionSpec.getRecommendation());
-                    return String.format("%s doesn't comply to %s%s",
-                            context.getEntity(entityOid).getDisplayName(),
-                            policy.get().getPolicyInfo().getName(),
-                            commNames.isPresent() ?
-                                    ", " + commNames.get() : "");
-                }
-            } catch (UnknownObjectException ex) {
-                logger.error(String.format("Cannot resolve VM with oid %s from context", entityOid), ex);
+            final Optional<PolicyDTO.Policy> policy =
+                    Optional.ofNullable(context.getPolicy(policyOid));
+            if (!policy.isPresent()) {
+                return actionSpec.getExplanation();
+            }
+            if (actionSpec.getRecommendation().getExplanation().hasProvision()) {
+                return String.format("%s violation", policy.get().getPolicyInfo().getName());
+            } else {
+                // constructing risk with policyName for move and reconfigure
+                final Optional<String> commNames =
+                        nonSegmentationCommoditiesToString(actionSpec.getRecommendation());
+                final Optional<ServiceEntityApiDTO> serviceEntity = context.getEntity(entity.getId());
+                return String.format("%s doesn't comply to %s%s",
+                        serviceEntity.isPresent() ? serviceEntity.get().getDisplayName() :
+                                String.format("%s(%d)", EntityType.forNumber(entity.getType()),
+                                        entity.getId()),
+                        policy.get().getPolicyInfo().getName(),
+                        commNames.isPresent() ? ", " + commNames.get() : "");
             }
         }
         return translateExplanation(actionSpec.getExplanation(), context);
@@ -885,10 +875,16 @@ public class ActionSpecMapper {
             // replace the pattern
             try {
                 long oid = Long.valueOf(matcher.group(1));
-                ServiceEntityApiDTO entity = context.getEntity(oid);
-                // invoke the getter via reflection
-                Object fieldValue = new PropertyDescriptor(matcher.group(2), ServiceEntityApiDTO.class).getReadMethod().invoke(entity);
-                sb.append(fieldValue);
+                final Optional<ServiceEntityApiDTO> entity = context.getEntity(oid);
+                if (entity.isPresent()) {
+                    // invoke the getter via reflection
+                    Object fieldValue = new PropertyDescriptor(matcher.group(2),
+                            ServiceEntityApiDTO.class).getReadMethod().invoke(entity.get());
+                    sb.append(fieldValue);
+                } else {
+                    // use the substitute/fallback value because there is no entity in topology
+                    sb.append(matcher.group(3));
+                }
             } catch (Exception e) {
                 logger.warn("Couldn't translate entity {}:{} -- using default value {}",
                         matcher.group(1), matcher.group(2), matcher.group(3), e);
@@ -964,15 +960,13 @@ public class ActionSpecMapper {
      * @param action Action object
      * @param context mapping from {@link ActionSpec} to {@link ActionApiDTO}
      * @param actionType {@link ActionType} that will be assigned to wrapperDto param
-     * @throws UnknownObjectException when the actions involve an unrecognized (out of
-     * context) oid
      * @throws UnsupportedActionException if the action is an unsupported type.
      */
     private void addMoveInfo(@Nonnull final ActionApiDTO wrapperDto,
                              @Nonnull final ActionDTO.Action action,
                              @Nonnull final ActionSpecMappingContext context,
                              @Nonnull final ActionType actionType)
-            throws UnknownObjectException, UnsupportedActionException {
+            throws UnsupportedActionException {
 
         // If any part of the compound move is an initial placement, the whole move is an initial
         // placement.
@@ -994,16 +988,14 @@ public class ActionSpecMapper {
         wrapperDto.setActionType(actionType);
         // Set entity DTO fields for target, source (if needed) and destination entities
         final ActionEntity target = ActionDTOUtil.getPrimaryEntity(action, true);
-        wrapperDto.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(target.getId())));
+        wrapperDto.setTarget(getServiceEntityDTO(context, target));
 
         final ChangeProvider primaryChange = ActionDTOUtil.getPrimaryChangeProvider(action);
         final boolean hasPrimarySource = !initialPlacement && primaryChange.getSource().hasId();
         if (hasPrimarySource) {
             long primarySourceId = primaryChange.getSource().getId();
             wrapperDto.setCurrentValue(Long.toString(primarySourceId));
-            wrapperDto.setCurrentEntity(
-                ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(primarySourceId)));
+            wrapperDto.setCurrentEntity(getServiceEntityDTO(context, primaryChange.getSource()));
             setRelatedDatacenter(primarySourceId, wrapperDto, context, false);
         } else {
             // For less brittle UI integration, we set the current entity to an empty object.
@@ -1013,13 +1005,12 @@ public class ActionSpecMapper {
         }
         long primaryDestinationId = primaryChange.getDestination().getId();
         wrapperDto.setNewValue(Long.toString(primaryDestinationId));
-        wrapperDto.setNewEntity(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(primaryDestinationId)));
+        wrapperDto.setNewEntity(getServiceEntityDTO(context, primaryChange.getDestination()));
         setRelatedDatacenter(primaryDestinationId, wrapperDto, context, true);
 
         List<ActionApiDTO> actions = Lists.newArrayList();
         for (ChangeProvider change : ActionDTOUtil.getChangeProviderList(action)) {
-            actions.add(singleMove(actionType, wrapperDto, target.getId(), change, context));
+            actions.add(singleMove(actionType, wrapperDto, target, change, context));
         }
         wrapperDto.addCompoundActions(actions);
 
@@ -1060,10 +1051,9 @@ public class ActionSpecMapper {
     }
 
     private ActionApiDTO singleMove(ActionType actionType, ActionApiDTO compoundDto,
-                    final long targetId,
+                    final ActionEntity targetActionEntity,
                     @Nonnull final ChangeProvider change,
-                    @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException {
+                    @Nonnull final ActionSpecMappingContext context) {
         ActionApiDTO actionApiDTO = new ActionApiDTO();
         actionApiDTO.setTarget(new ServiceEntityApiDTO());
         actionApiDTO.setCurrentEntity(new ServiceEntityApiDTO());
@@ -1077,21 +1067,21 @@ public class ActionSpecMapper {
 
         actionApiDTO.setActionType(actionType);
         // Set entity DTO fields for target, source (if needed) and destination entities
-        actionApiDTO.setTarget(ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetId)));
+        actionApiDTO.setTarget(getServiceEntityDTO(context, targetActionEntity));
 
         final boolean hasSource = change.getSource().hasId();
         if (hasSource) {
             final long sourceId = change.getSource().getId();
             actionApiDTO.setCurrentValue(Long.toString(sourceId));
-            actionApiDTO.setCurrentEntity(
-                ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(sourceId)));
+            actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, change.getSource()));
         }
         actionApiDTO.setNewValue(Long.toString(destinationId));
-        actionApiDTO.setNewEntity(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(destinationId)));
+        actionApiDTO.setNewEntity(getServiceEntityDTO(context, change.getDestination()));
 
         // Set action details
-        actionApiDTO.setDetails(actionDetails(hasSource, actionApiDTO, targetId, change, context));
+        actionApiDTO.setDetails(
+                actionDetails(hasSource, actionApiDTO, targetActionEntity.getId(), change,
+                        context));
         return actionApiDTO;
     }
 
@@ -1116,8 +1106,8 @@ public class ActionSpecMapper {
         } else {
             long destinationId = change.getDestination().getId();
             long sourceId = change.getSource().getId();
-            Optional<ServiceEntityApiDTO> destination = context.getOptionalEntity(destinationId);
-            Optional<ServiceEntityApiDTO> source = context.getOptionalEntity(sourceId);
+            final Optional<ServiceEntityApiDTO> destination = context.getEntity(destinationId);
+            final Optional<ServiceEntityApiDTO> source = context.getEntity(sourceId);
             final String verb =
                 SCALE_TIER_VALUES.contains(destination.map(BaseApiDTO::getClassName).orElse("")) &&
                     SCALE_TIER_VALUES.contains(source.map(BaseApiDTO::getClassName).orElse("")) ?
@@ -1126,7 +1116,7 @@ public class ActionSpecMapper {
             if (change.hasResource()) {
                 final long resourceId = change.getResource().getId();
                 final Optional<ServiceEntityApiDTO> resourceEntity =
-                    context.getOptionalEntity(resourceId);
+                    context.getEntity(resourceId);
                 if (resourceEntity.isPresent() && resourceId != targetId) {
                     resource = readableEntityTypeAndName(resourceEntity.get()) + " of ";
                 }
@@ -1142,16 +1132,14 @@ public class ActionSpecMapper {
     private void addAllocateInfo(
             @Nonnull final ActionApiDTO actionApiDTO,
             @Nonnull final ActionSpec allocateActionSpec,
-            @Nonnull final ActionSpecMappingContext context)
-            throws UnknownObjectException {
+            @Nonnull final ActionSpecMappingContext context) {
         // Set action type
         actionApiDTO.setActionType(ActionType.ALLOCATE);
 
         // Set action target
-        ActionDTO.ActionInfo actionInfo = allocateActionSpec.getRecommendation().getInfo();
-        final long targetId = actionInfo.getAllocate().getTarget().getId();
-        final ServiceEntityApiDTO target = context.getEntity(targetId);
-        actionApiDTO.setTarget(ServiceEntityMapper.copyServiceEntityAPIDTO(target));
+        final ActionDTO.ActionInfo actionInfo = allocateActionSpec.getRecommendation().getInfo();
+        final ActionEntity targetActionEntity = actionInfo.getAllocate().getTarget();
+        actionApiDTO.setTarget(getServiceEntityDTO(context, targetActionEntity));
 
         // Set template family in current entity
         final String templateFamily =
@@ -1162,8 +1150,8 @@ public class ActionSpecMapper {
         actionApiDTO.setCurrentEntity(serviceEntityApiDTO);
 
         // Set the template for the current entity
-        final long workloadTierId = actionInfo.getAllocate().getWorkloadTier().getId();
-        final ServiceEntityApiDTO workloadTier = context.getEntity(workloadTierId);
+        final ActionEntity workloadTierActionEntity = actionInfo.getAllocate().getWorkloadTier();
+        final ServiceEntityApiDTO workloadTier = getServiceEntityDTO(context, workloadTierActionEntity);
         TemplateApiDTO templateApiDTO = new TemplateApiDTO();
         templateApiDTO.setUuid(workloadTier.getUuid());
         templateApiDTO.setDisplayName(workloadTier.getDisplayName());
@@ -1171,10 +1159,10 @@ public class ActionSpecMapper {
         actionApiDTO.setTemplate(templateApiDTO);
 
         // Set action current and new locations (should be the same for Allocate)
-        setCurrentAndNewLocation(targetId, context, actionApiDTO);
+        setCurrentAndNewLocation(targetActionEntity.getId(), context, actionApiDTO);
 
         // Set Cloud aspect
-        context.getCloudAspect(targetId).ifPresent(cloudAspect -> {
+        context.getCloudAspect(targetActionEntity.getId()).ifPresent(cloudAspect -> {
             final Map<AspectName, EntityAspect> aspects = new HashMap<>();
             aspects.put(AspectName.CLOUD, cloudAspect);
             actionApiDTO.getTarget().setAspectsByName(aspects);
@@ -1183,20 +1171,17 @@ public class ActionSpecMapper {
 
     private void addReconfigureInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                     @Nonnull final Reconfigure reconfigure,
-                                    @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
+                                    @Nonnull final ActionSpecMappingContext context) {
         actionApiDTO.setActionType(ActionType.RECONFIGURE);
+        final ActionEntity targetEntity = reconfigure.getTarget();
 
-        actionApiDTO.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(reconfigure.getTarget().getId())));
+        actionApiDTO.setTarget(getServiceEntityDTO(context, targetEntity));
         // Since we may or may not have a current entity, we store the DC for the target as the
         // new location.  This way, the UI will always be able to find a DC in one of the two
         // places.
         setRelatedDatacenter(reconfigure.getTarget().getId(), actionApiDTO, context, true);
         if (reconfigure.hasSource()) {
-            actionApiDTO.setCurrentEntity(
-                ServiceEntityMapper.copyServiceEntityAPIDTO(
-                    context.getEntity(reconfigure.getSource().getId())));
+            actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, reconfigure.getSource()));
             setRelatedDatacenter(reconfigure.getSource().getId(), actionApiDTO, context, false);
         } else {
             // For less brittle UI integration, we set the current entity to an empty object.
@@ -1210,30 +1195,37 @@ public class ActionSpecMapper {
 
     private void addProvisionInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                   @Nonnull final Provision provision,
-                                  @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
-        final long currentEntityId = provision.getEntityToClone().getId();
+                                  @Nonnull final ActionSpecMappingContext context) {
+        final ActionEntity currentEntity = provision.getEntityToClone();
+        long currentEntityId = currentEntity.getId();
         final long provisionedSellerId = provision.getProvisionedSeller();
 
         actionApiDTO.setActionType(ActionType.PROVISION);
 
         actionApiDTO.setCurrentValue(Long.toString(currentEntityId));
-        actionApiDTO.setCurrentEntity(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(
-                context.getEntity(currentEntityId)));
+        actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, currentEntity));
         setRelatedDatacenter(currentEntityId, actionApiDTO, context, false);
         setRelatedDatacenter(currentEntityId, actionApiDTO, context, true);
 
-        actionApiDTO.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(actionApiDTO.getCurrentEntity()));
+        actionApiDTO.setTarget(getServiceEntityDTO(context, currentEntity));
 
         if (context.isPlan()) {
             // In plan actions we want to provide a reference to the provisioned entities, because
             // we will show other actions (e.g. moves/starts) that involve the provisioned entities.
             //
             // The "new" entity is the provisioned seller.
-            final ServiceEntityApiDTO newEntity = ServiceEntityMapper.copyServiceEntityAPIDTO(
-                context.getEntity(provisionedSellerId));
+            final Optional<ServiceEntityApiDTO> provisionedEntity =
+                    context.getEntity(provisionedSellerId);
+            final ServiceEntityApiDTO newEntity;
+            if (provisionedEntity.isPresent()) {
+                newEntity = ServiceEntityMapper.copyServiceEntityAPIDTO(provisionedEntity.get());
+            } else {
+                logger.error("There is no provisioned entity {} in projected topology. Populate " +
+                        "new entity using information from current entity.", provisionedSellerId);
+                newEntity = new ServiceEntityApiDTO();
+                newEntity.setUuid(String.valueOf(provisionedSellerId));
+                newEntity.setClassName(ApiEntityType.fromType(currentEntity.getType()).apiStr());
+            }
             actionApiDTO.setNewEntity(newEntity);
             actionApiDTO.setNewValue(newEntity.getUuid());
         } else {
@@ -1247,19 +1239,15 @@ public class ActionSpecMapper {
 
     private void addResizeInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                @Nonnull final Resize resize,
-                               @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
+                               @Nonnull final ActionSpecMappingContext context) {
         actionApiDTO.setActionType(ActionType.RESIZE);
 
-        long originalEntityOid = resize.getTarget().getId();
-        actionApiDTO.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(originalEntityOid)));
-        actionApiDTO.setCurrentEntity(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(originalEntityOid)));
-        actionApiDTO.setNewEntity(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(originalEntityOid)));
-        setRelatedDatacenter(originalEntityOid, actionApiDTO, context, false);
-        setRelatedDatacenter(originalEntityOid, actionApiDTO, context, true);
+        final ActionEntity originalEntity = resize.getTarget();
+        actionApiDTO.setTarget(getServiceEntityDTO(context, originalEntity));
+        actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, originalEntity));
+        actionApiDTO.setNewEntity(getServiceEntityDTO(context, originalEntity));
+        setRelatedDatacenter(originalEntity.getId(), actionApiDTO, context, false);
+        setRelatedDatacenter(originalEntity.getId(), actionApiDTO, context, true);
 
         final CommodityDTO.CommodityType commodityType = CommodityDTO.CommodityType.forNumber(
                 resize.getCommodityType().getType());
@@ -1299,10 +1287,8 @@ public class ActionSpecMapper {
      * @param targetUuid - uuid of action target
      * @param context - ActionSpecMappingContext for given action
      * @param actionApiDTO - result actionApiDTO
-     * @throws UnknownObjectException
      */
-    private void setCurrentAndNewLocation(long targetUuid, ActionSpecMappingContext context, ActionApiDTO actionApiDTO)
-        throws UnknownObjectException {
+    private void setCurrentAndNewLocation(long targetUuid, ActionSpecMappingContext context, ActionApiDTO actionApiDTO) {
         ApiPartialEntity region = context.getRegion(targetUuid);
         if (region != null) {
             BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
@@ -1317,12 +1303,10 @@ public class ActionSpecMapper {
      * @param actionApiDTO Action API DTO.
      * @param buyRI Buy RI DTO.
      * @param context ActionSpecMappingContext.
-     * @throws UnknownObjectException
      */
     private void addBuyRIInfo(@Nonnull final ActionApiDTO actionApiDTO,
                               @Nonnull final BuyRI buyRI,
-                              @Nonnull final ActionSpecMappingContext context)
-                              throws UnknownObjectException {
+                              @Nonnull final ActionSpecMappingContext context) {
         actionApiDTO.setActionType(ActionType.BUY_RI);
 
         final Pair<ReservedInstanceBought, ReservedInstanceSpec> pair = context
@@ -1335,8 +1319,7 @@ public class ActionSpecMapper {
             ReservedInstanceApiDTO riApiDTO = reservedInstanceMapper
                     .mapToReservedInstanceApiDTO(ri, riSpec, context.getServiceEntityApiDTOs());
             actionApiDTO.setReservedInstance(riApiDTO);
-            actionApiDTO.setTarget(
-                    ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(buyRI.getRegion().getId())));
+            actionApiDTO.setTarget(getServiceEntityDTO(context, buyRI.getRegion()));
             // For less brittle UI integration, we set the current entity to an empty object.
             // The UI sometimes checks the validity of the "currentEntity.uuid" field,
             // which throws an error if current entity is unset.
@@ -1377,15 +1360,12 @@ public class ActionSpecMapper {
 
     private void addActivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                  @Nonnull final Activate activate,
-                                 @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException {
+                                 @Nonnull final ActionSpecMappingContext context) {
         actionApiDTO.setActionType(ActionType.START);
-        final long targetEntityId = activate.getTarget().getId();
-        actionApiDTO.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
-        actionApiDTO.setCurrentEntity(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
-        setRelatedDatacenter(targetEntityId, actionApiDTO, context, false);
+        final ActionEntity targetEntity = activate.getTarget();
+        actionApiDTO.setTarget(getServiceEntityDTO(context, targetEntity));
+        actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, targetEntity));
+        setRelatedDatacenter(targetEntity.getId(), actionApiDTO, context, false);
 
         final List<String> reasonCommodityNames =
             activate.getTriggeringCommoditiesList().stream()
@@ -1399,14 +1379,11 @@ public class ActionSpecMapper {
 
     private void addDeactivateInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                    @Nonnull final Deactivate deactivate,
-                                   @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
-        final long targetEntityId = deactivate.getTarget().getId();
-        actionApiDTO.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
-        actionApiDTO.setCurrentEntity(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
-        setRelatedDatacenter(targetEntityId, actionApiDTO, context, false);
+                                   @Nonnull final ActionSpecMappingContext context) {
+        final ActionEntity targetEntity = deactivate.getTarget();
+        actionApiDTO.setTarget(getServiceEntityDTO(context, targetEntity));
+        actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, targetEntity));
+        setRelatedDatacenter(targetEntity.getId(), actionApiDTO, context, false);
 
         actionApiDTO.setActionType(ActionType.SUSPEND);
 
@@ -1428,20 +1405,14 @@ public class ActionSpecMapper {
      * @param delete the {@link Delete} action info object that contains the basic delete action parameters
      * @param deleteExplanation the {@link DeleteExplanation} that contains the details of the action
      * @param context the {@link ActionSpecMappingContext}
-     * @throws UnknownObjectException
-     * @throws ExecutionException
-     * @throws InterruptedException
      */
     private void addDeleteInfo(@Nonnull final ActionApiDTO actionApiDTO,
                                @Nonnull final Delete delete,
                                @Nonnull final DeleteExplanation deleteExplanation,
-                               @Nonnull final ActionSpecMappingContext context)
-                    throws UnknownObjectException, ExecutionException, InterruptedException {
-        final long targetEntityId = delete.getTarget().getId();
-        actionApiDTO.setTarget(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
-        actionApiDTO.setCurrentEntity(
-            ServiceEntityMapper.copyServiceEntityAPIDTO(context.getEntity(targetEntityId)));
+                               @Nonnull final ActionSpecMappingContext context) {
+        final ActionEntity targetEntity = delete.getTarget();
+        actionApiDTO.setTarget(getServiceEntityDTO(context, targetEntity));
+        actionApiDTO.setCurrentEntity(getServiceEntityDTO(context, targetEntity));
         actionApiDTO.setActionType(ActionType.DELETE);
         long deletedSizeinKB = deleteExplanation.getSizeKb();
         if (deletedSizeinKB > 0) {
@@ -1557,6 +1528,10 @@ public class ActionSpecMapper {
                     .map(ApiEntityType::fromString)
                     .map(ApiEntityType::typeNumber)
                     .forEach(queryBuilder::addEntityType);
+            }
+
+            if (inputDto.getCostType() != null) {
+                queryBuilder.setCostType(ActionSpecMapper.mapApiCostTypeToXL(inputDto.getCostType()));
             }
         } else {
             // When "inputDto" is null, we should automatically insert the operational action states.
@@ -2008,6 +1983,46 @@ public class ActionSpecMapper {
     }
 
     /**
+     * Get entity ({@link ServiceEntityApiDTO} involved in action. If certain entity is absent in
+     * context (e.g. entity was removed from topology because of deleting target) we get all
+     * possible information from {@link ActionEntity}.
+     *
+     * @param context contains different information related to action and helps for
+     * mapping {@link ActionSpec} to {@link ActionApiDTO}.
+     * @param actionEntity entity involved in action
+     * @return {@link ServiceEntityApiDTO} entity involved in action
+     */
+    @Nonnull
+    private ServiceEntityApiDTO getServiceEntityDTO(@Nonnull ActionSpecMappingContext context,
+            @Nonnull ActionEntity actionEntity) {
+        final Optional<ServiceEntityApiDTO> targetEntity = context.getEntity(actionEntity.getId());
+        if (targetEntity.isPresent()) {
+            return ServiceEntityMapper.copyServiceEntityAPIDTO(targetEntity.get());
+        } else {
+            return getMinimalServiceEntityApiDTO(actionEntity);
+        }
+    }
+
+    /**
+     * Get as much information about entity involved in action as possible from
+     * {@link ActionEntity}.
+     *
+     * @param actionEntity entity involved in action
+     * @return {@link ServiceEntityApiDTO} contains all possible information from {@link ActionEntity}
+     */
+    @Nonnull
+    private ServiceEntityApiDTO getMinimalServiceEntityApiDTO(@Nonnull ActionEntity actionEntity) {
+        final ServiceEntityApiDTO serviceEntity = new ServiceEntityApiDTO();
+        serviceEntity.setUuid(String.valueOf(actionEntity.getId()));
+        serviceEntity.setClassName(ApiEntityType.fromType(actionEntity.getType()).apiStr());
+        if (actionEntity.hasEnvironmentType()) {
+            serviceEntity.setEnvironmentType(
+                    EnvironmentTypeMapper.fromXLToApi(actionEntity.getEnvironmentType()));
+        }
+        return serviceEntity;
+    }
+
+    /**
      * Map UI's ActionMode to ActionDTO.ActionMode.
      *
      * @param actionMode UI's ActionMode
@@ -2027,6 +2042,25 @@ public class ActionSpecMapper {
             default:
                 logger.error("Unknown action mode {}", actionMode);
                 return Optional.empty();
+        }
+    }
+
+    /**
+     * Map UI's ActionCostType to ActionDTO.ActionCostType.
+     *
+     * @param actionCostType UI's ActionCostType
+     * @return ActionDTO.ActionCostType
+     */
+    public static ActionDTO.ActionCostType mapApiCostTypeToXL(final ActionCostType actionCostType) {
+        switch (actionCostType) {
+            case SAVING:
+                return ActionDTO.ActionCostType.SAVINGS;
+            case INVESTMENT:
+                return ActionDTO.ActionCostType.INVESTMENT;
+            case ACTION_COST_TYPE_NONE:
+                return ActionDTO.ActionCostType.ACTION_COST_TYPE_NONE;
+            default:
+                throw new IllegalArgumentException("Unknown action cost type" + actionCostType);
         }
     }
 }

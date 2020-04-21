@@ -8,7 +8,7 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.MulticastNotificationReceiver;
@@ -20,7 +20,7 @@ import com.vmturbo.plan.orchestrator.api.ReservationListener;
  * Implementation of plan orchestrator client.
  */
 public class PlanOrchestratorClientImpl extends
-        MulticastNotificationReceiver<PlanInstance, PlanListener> implements PlanOrchestrator {
+        MulticastNotificationReceiver<PlanStatusNotification, PlanListener> implements PlanOrchestrator {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -44,12 +44,20 @@ public class PlanOrchestratorClientImpl extends
      * @param executorService the executor service.
      * @param kafkaReceiverTimeoutSeconds the kafka message timeout.
      */
-    public PlanOrchestratorClientImpl(@Nonnull final IMessageReceiver<PlanInstance> planMessageReceiver,
+    public PlanOrchestratorClientImpl(@Nonnull final IMessageReceiver<PlanStatusNotification> planMessageReceiver,
                                       @Nullable final IMessageReceiver<ReservationChanges> reservationMessageReceiver,
                                       @Nonnull final ExecutorService executorService, int kafkaReceiverTimeoutSeconds) {
         super(planMessageReceiver, executorService, kafkaReceiverTimeoutSeconds, message -> {
-            logger.debug("Received plan instance {}", message.hasPlanId());
-            return listener -> listener.onPlanStatusChanged(message);
+            logger.debug("Received plan status {}", message);
+            return listener -> {
+                if (message.hasDelete()) {
+                    listener.onPlanDeleted(message.getDelete());
+                } else if (message.hasUpdate()) {
+                    listener.onPlanStatusChanged(message.getUpdate());
+                } else {
+                    logger.warn("Unknown message type {}. Dropping message.", message.getTypeCase());
+                }
+            };
         });
 
         if (reservationMessageReceiver == null) {

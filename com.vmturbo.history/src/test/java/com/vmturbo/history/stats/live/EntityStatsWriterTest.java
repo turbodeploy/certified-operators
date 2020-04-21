@@ -44,7 +44,6 @@ import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.IngestersConfig;
 import com.vmturbo.history.schema.abstraction.tables.records.EntitiesRecord;
-import com.vmturbo.history.utils.SystemLoadHelper;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 
 /**
@@ -77,7 +76,6 @@ public class EntityStatsWriterTest {
     private EntitiesRecord mockEntitiesRecord;
     private HistorydbIO mockHistorydbIO;
     private GroupServiceBlockingStub groupServiceClient;
-    private SystemLoadHelper systemLoadHelper;
     private DSLContext mockDSLContext;
     private Collection<TopologyEntityDTO> allEntities;
     @Captor
@@ -112,7 +110,6 @@ public class EntityStatsWriterTest {
                 buildEntityDTO(sdkEntityType, TEST_OID, displayName));
 
         groupServiceClient = Mockito.mock(IngestersConfig.class).groupServiceBlockingStub();
-        systemLoadHelper = Mockito.mock(SystemLoadHelper.class);
 
         // this is so we can check real insertion counts
         doCallRealMethod().when(mockWriter).insertAll(any());

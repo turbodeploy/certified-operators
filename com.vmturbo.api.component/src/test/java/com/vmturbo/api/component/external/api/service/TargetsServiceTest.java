@@ -91,6 +91,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -802,14 +803,14 @@ public class TargetsServiceTest {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
-        when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+        when(targetInfo.getStatus()).thenReturn(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
 
         when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
         TargetInfo validationInfo = targetsService.validateTargetSynchronously(targetId);
 
         Mockito.verify(topologyProcessor, times(2)).getTarget(targetId);
         org.junit.Assert.assertEquals(
-            TargetsService.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, validationInfo.getStatus());
+            StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, validationInfo.getStatus());
     }
 
     @Test
@@ -859,14 +860,14 @@ public class TargetsServiceTest {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
-        when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+        when(targetInfo.getStatus()).thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
 
         when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
         TargetInfo discoveryInfo = targetsService.discoverTargetSynchronously(targetId);
 
         Mockito.verify(topologyProcessor, times(2)).getTarget(targetId);
         org.junit.Assert.assertEquals(
-                TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, discoveryInfo.getStatus());
+            StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, discoveryInfo.getStatus());
     }
 
     /**
@@ -1053,7 +1054,7 @@ public class TargetsServiceTest {
     public void testDiscoveryInProgressValidationStatusNoPriorValidation() throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getStatus())
-            .thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+            .thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
         when(targetInfo.getLastValidationTime()).thenReturn(null);
 
         org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
@@ -1065,7 +1066,7 @@ public class TargetsServiceTest {
     public void testDiscoveryInProgressValidationStatusWithPriorValidation() throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getStatus())
-            .thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+            .thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
         when(targetInfo.getLastValidationTime()).thenReturn(LocalDateTime.now());
 
         org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,

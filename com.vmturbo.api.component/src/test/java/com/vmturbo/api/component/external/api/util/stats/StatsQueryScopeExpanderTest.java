@@ -19,8 +19,8 @@ import java.util.Optional;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 
-import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -29,8 +29,10 @@ import org.mockito.Mockito;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedGroupInfo;
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
@@ -44,19 +46,13 @@ import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
-import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 
@@ -226,17 +222,9 @@ public class StatsQueryScopeExpanderTest {
         when(scope.isPlan()).thenReturn(true);
         when(scope.getScopeOids(userSessionContext, Collections.emptyList())).thenReturn(Collections.singleton(1L));
 
-        PlanInstance planInstance = PlanInstance.newBuilder()
-            .setPlanId(121)
-            .setStatus(PlanStatus.READY)
-            .setScenario(Scenario.newBuilder()
-                .setId(111)
-                .setScenarioInfo(ScenarioInfo.newBuilder()
-                    .setScope(PlanScope.newBuilder()
-                        .addScopeEntries(PlanScopeEntry.newBuilder()
-                            .setScopeObjectOid(1L)))))
-            .build();
-        when(scope.getPlanInstance()).thenReturn(Optional.of(planInstance));
+        final UuidMapper.CachedPlanInfo planInfo = mock(UuidMapper.CachedPlanInfo.class);
+        when(planInfo.getPlanScopeIds()).thenReturn(Sets.newHashSet(1L));
+        when(scope.getCachedPlanInfo()).thenReturn(Optional.of(planInfo));
 
         StatsQueryScope expandedScope = scopeExpander.expandScope(scope, Collections.emptyList());
 

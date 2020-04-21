@@ -5,6 +5,8 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import org.apache.commons.lang3.StringUtils;
+
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -70,6 +72,8 @@ public interface StatsSubQuery {
     default boolean containsStat(@Nonnull String statName,
                                  @Nonnull Set<StatApiInputDTO> requestedStats) {
         return requestedStats.stream()
-                .anyMatch(stat -> stat.getName().equalsIgnoreCase(statName));
+            .map(StatApiInputDTO::getName)
+            .filter(StringUtils::isNotEmpty)
+            .anyMatch(name -> name.equalsIgnoreCase(statName));
     }
 }

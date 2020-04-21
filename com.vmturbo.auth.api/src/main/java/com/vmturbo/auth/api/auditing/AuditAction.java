@@ -45,6 +45,7 @@ public enum AuditAction {
     CHANGE_POLICY("Change Policy"),
     ADD_LICENSE("Add License"),
     DELETE_LICENSE("Delete License"),
+    ENABLE_EXTERNAL_LICENSE_SYNC("An external license synchronization service was enabled"),
     SET_SAML_AUTH("Configure SAML authentication and authorization"),
     SET_DEFAULT_AUTH("Configure local and AD authentication and authorization"),
     SET_AD_ONLY_AUTH("Configure AD only authentication and authorization"),

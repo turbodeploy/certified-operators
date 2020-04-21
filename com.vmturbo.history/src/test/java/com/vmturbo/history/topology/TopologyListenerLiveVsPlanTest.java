@@ -15,7 +15,6 @@ import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.ingesters.IngestersConfig;
 import com.vmturbo.history.ingesters.plan.writers.PlanStatsWriter;
 import com.vmturbo.history.listeners.TopologyCoordinator;
-import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
  * Test that the StatsHistoryService distinguishes correctly between Live topologies and
@@ -34,7 +33,6 @@ public class TopologyListenerLiveVsPlanTest {
     private RemoteIterator<TopologyDTO.TopologyEntityDTO> testTopologyDTOs;
     private StatsAvailabilityTracker availabilityTracker;
     private GroupServiceBlockingStub groupServiceClient;
-    private SystemLoadHelper systemLoadHelper;
 
     @Before
     public void setup() {
@@ -43,7 +41,6 @@ public class TopologyListenerLiveVsPlanTest {
         testTopologyDTOs = Mockito.mock(RemoteIterator.class);
         availabilityTracker = Mockito.mock(StatsAvailabilityTracker.class);
         groupServiceClient = Mockito.mock(IngestersConfig.class).groupServiceBlockingStub();
-        systemLoadHelper = Mockito.mock(SystemLoadHelper.class);
     }
 
     @Test

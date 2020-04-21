@@ -181,7 +181,7 @@ public class BulkInserterTest extends Assert {
         BulkInserter<NotificationsRecord, NotificationsRecord> keyedLoader
                 = loaders.getFactory().getInserter(
                 "KEY", NOTIFICATIONS, NOTIFICATIONS, RecordTransformer.identity(),
-                DbInserters.batchStoreInserter(NOTIFICATIONS, historydbIO),
+                DbInserters.batchStoreInserter(historydbIO),
                 Optional.empty());
         assertTrue(loaders.getLoader(NOTIFICATIONS) != keyedLoader);
     }
@@ -195,7 +195,7 @@ public class BulkInserterTest extends Assert {
     @Test
     public void testInserterAndTransfomerConfigurations() {
         final BulkInserterFactory factory = mock(BulkInserterFactory.class);
-        loaders = new SimpleBulkLoaderFactory(historydbIO, config, threadPool, factory);
+        loaders = new SimpleBulkLoaderFactory(historydbIO, factory);
         final ArgumentCaptor<DbInserter> inserterCaptor = ArgumentCaptor.forClass(DbInserter.class);
         final ArgumentCaptor<RecordTransformer> transformerCaptor
                 = ArgumentCaptor.forClass(RecordTransformer.class);
@@ -204,7 +204,7 @@ public class BulkInserterTest extends Assert {
         verify(factory).getInserter(any(Entities.class), any(Entities.class),
                 transformerCaptor.capture(), inserterCaptor.capture());
         assertNotNull(Objects.castIfBelongsToType(inserterCaptor.getValue(),
-                DbInserters.simpleUpserter(ENTITIES, historydbIO).getClass()));
+                DbInserters.simpleUpserter(historydbIO).getClass()));
         assertTrue(transformerCaptor.getValue() == RecordTransformer.IDENTITY);
         reset(factory);
 
@@ -212,7 +212,7 @@ public class BulkInserterTest extends Assert {
         verify(factory).getInserter(any(VmStatsLatest.class), any(VmStatsLatest.class),
                 transformerCaptor.capture(), inserterCaptor.capture());
         assertNotNull(Objects.castIfBelongsToType(inserterCaptor.getValue(),
-                DbInserters.valuesInserter(VM_STATS_LATEST, historydbIO).getClass()));
+                DbInserters.valuesInserter(historydbIO).getClass()));
         assertTrue(transformerCaptor.getValue() instanceof RollupKeyTransfomer);
         reset(factory);
 
@@ -220,7 +220,7 @@ public class BulkInserterTest extends Assert {
         verify(factory).getInserter(any(SystemLoad.class), any(SystemLoad.class),
                 transformerCaptor.capture(), inserterCaptor.capture());
         assertNotNull(Objects.castIfBelongsToType(inserterCaptor.getValue(),
-                DbInserters.valuesInserter(SYSTEM_LOAD, historydbIO).getClass()));
+                DbInserters.valuesInserter(historydbIO).getClass()));
         assertTrue(transformerCaptor.getValue() == RecordTransformer.IDENTITY);
         reset(factory);
     }
@@ -310,7 +310,7 @@ public class BulkInserterTest extends Assert {
     );
 
     /**
-     * Test that the {@link DbInserter#simpleUpserter(Table, BasedbIO)} inserter works properly.
+     * Test that the {@link DbInserter#simpleUpserter(BasedbIO)} inserter works properly.
      *
      * <p>This inserter uses an "upsert" statement - i.e. an INSERT... ON DUPLICATE UPDATE
      * statement in order to either insert or update the supplied records, depending on whether
@@ -380,7 +380,7 @@ public class BulkInserterTest extends Assert {
         final BulkInserter<NotificationsRecord, NotificationsRecord> loader =
                 loaders.getFactory().getInserter(NOTIFICATIONS, NOTIFICATIONS,
                         RecordTransformer.identity(),
-                        DbInserters.batchInserter(Tables.NOTIFICATIONS, historydbIO));
+                        DbInserters.batchInserter(historydbIO));
         performInserts(loader, NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(10));
         loaders.close();
         verifyInserts(NOTIFICATIONS, NOTIFICATIONS.ID, longIdRange(10));

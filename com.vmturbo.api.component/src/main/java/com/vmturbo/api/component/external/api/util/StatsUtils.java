@@ -100,6 +100,10 @@ public class StatsUtils {
         if (UserScopeUtils.isUserObserver() && UserScopeUtils.isUserScoped()) {
             return false;
         }
+        // Always true for Plans where the entities are Cloud
+        if (scope.isCloudPlan()) {
+            return true;
+        }
         return scope.getScopeTypes()
                 // If this is scoped to a set of entity types, if any of the scope entity types
                 // are supported, RIs will be scoped through the supported types and non-supported

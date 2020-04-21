@@ -106,7 +106,8 @@ public class SyncTargetsTask implements Runnable {
                 IntersightDefaultQueryParameters.$apply,
                 IntersightDefaultQueryParameters.$count,
                 IntersightDefaultQueryParameters.$inlinecount,
-                IntersightDefaultQueryParameters.$at);
+                IntersightDefaultQueryParameters.$at,
+                IntersightDefaultQueryParameters.$tags);
 
         if (assetTargetList != null && assetTargetList.getResults() != null) {
             for (final AssetTarget assetTarget : assetTargetList.getResults()) {
@@ -161,16 +162,16 @@ public class SyncTargetsTask implements Runnable {
     private void updateTargetStatus(@Nonnull final AssetApi assetApi,
                                     @Nonnull final AssetTarget assetTarget,
                                     @Nullable final String status) throws ApiException {
-        Objects.requireNonNull(assetTarget).getServices().stream()
-                .filter(AssetWorkloadOptimizerService.class::isInstance)
-                .forEach(service -> service.setStatus(status));
+//        Objects.requireNonNull(assetTarget).getServices().stream()
+//                .filter(AssetWorkloadOptimizerService.class::isInstance)
+//                .forEach(service -> service.setStatus(status));
         // empty out other fields that we are not modifying
         assetTarget.setParent(null);
         assetTarget.setOwners(null);
         assetTarget.setConnections(null);
         assetTarget.setAccount(null);
         assetTarget.setAssist(null);
-        assetTarget.setLink(null);
+//        assetTarget.setLink(null);
         assetTarget.setTags(null);
         assetTarget.setVersionContext(null);
         Objects.requireNonNull(assetApi).updateAssetTarget(assetTarget.getMoid(), assetTarget, null);

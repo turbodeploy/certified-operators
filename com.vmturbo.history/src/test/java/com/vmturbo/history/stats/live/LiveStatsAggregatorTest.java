@@ -32,6 +32,7 @@ import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.schema.abstraction.Tables;
 import com.vmturbo.history.schema.abstraction.tables.records.PmStatsLatestRecord;
 import com.vmturbo.history.schema.abstraction.tables.records.VmStatsLatestRecord;
+import com.vmturbo.history.stats.MarketStatsAccumulatorImpl.MarketStatsData;
 import com.vmturbo.history.stats.PropertySubType;
 import com.vmturbo.history.stats.StatsTestUtils;
 
@@ -61,6 +62,7 @@ public class LiveStatsAggregatorTest {
         // we need these methods to work normally in order to construct records to be inserted
         Mockito.doCallRealMethod().when(historydbIO).initializeCommodityRecord(any(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
         Mockito.doCallRealMethod().when(historydbIO).setCommodityValues(any(), anyDouble(), anyDouble(), any(), any());
+        Mockito.doCallRealMethod().when(historydbIO).getMarketStatsRecord(any(MarketStatsData.class), any(TopologyInfo.class));
         Mockito.doCallRealMethod().when(historydbIO).clipValue(anyDouble());
         Mockito.when(historydbIO.getEntityType(anyInt())).thenCallRealMethod();
         Mockito.when(historydbIO.getBaseEntityType(anyInt())).thenCallRealMethod();
@@ -145,7 +147,8 @@ public class LiveStatsAggregatorTest {
         // totoal records inserted
         // 4 PM attribute + 3 PM cpu sold + 2 PM flow sold = 9
         // 3 VM attribute + 2 VM cpu bought + 2 VM flow bought = 7
-        assertEquals(16, (long)dbMock.getTables().stream()
+        // 2 entities * 3 commodities each = 6 market stats records
+        assertEquals(22, (long)dbMock.getTables().stream()
                 .map(dbMock::getRecords)
                 .collect(Collectors.summingInt(Collection::size)));
         // "Produces" attribute records, recording # of sold commodities

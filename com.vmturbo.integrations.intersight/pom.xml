@@ -76,5 +76,21 @@
             <artifactId>com.vmturbo.mediation.connector.intersight</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.components.common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>auth-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>com.vmturbo.licensing</artifactId>
+        </dependency>
     </dependencies>
 </project>

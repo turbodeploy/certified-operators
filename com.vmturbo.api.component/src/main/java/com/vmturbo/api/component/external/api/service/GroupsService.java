@@ -983,6 +983,7 @@ public class GroupsService implements IGroupsService {
                             " is invalid. The only supported order is by id");
                     }
                     final int memberCount = groupAndMembers.members().size();
+                    int actualFoundCount = memberCount;
                     final Set<Long> nextPageIds = groupAndMembers.members().stream()
                         .sorted()
                         .skip(skipCount)
@@ -1000,13 +1001,14 @@ public class GroupsService implements IGroupsService {
                     if (missingEntities > 0) {
                         logger.warn("{} group members from group {} not found in repository.",
                             missingEntities, uuid);
+                        actualFoundCount -= missingEntities;
                     }
                     Long nextCursor = skipCount + nextPageIds.size();
                     if (nextCursor == memberCount) {
-                        return request.finalPageResponse(Lists.newArrayList(results), memberCount);
+                        return request.finalPageResponse(Lists.newArrayList(results), actualFoundCount);
                     }
                     return request.nextPageResponse(Lists.newArrayList(results),
-                        Long.toString(nextCursor), memberCount);
+                        Long.toString(nextCursor), actualFoundCount);
 
                 }
             }

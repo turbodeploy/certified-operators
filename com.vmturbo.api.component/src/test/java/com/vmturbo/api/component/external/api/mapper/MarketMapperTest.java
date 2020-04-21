@@ -12,6 +12,7 @@ import com.vmturbo.api.dto.scenario.ScenarioApiDTO;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification.StatusUpdate;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 
@@ -143,7 +144,10 @@ public class MarketMapperTest {
 
     @Test
     public void testNotificationFromPlanInstanceInProgress() throws Exception {
-        MarketNotification inProgress = MarketMapper.notificationFromPlanInstance(IN_PROGRESS_INSTANCE);
+        MarketNotification inProgress = MarketMapper.notificationFromPlanStatus(StatusUpdate.newBuilder()
+            .setPlanId(PLAN_ID)
+            .setNewPlanStatus(PlanStatus.WAITING_FOR_RESULT)
+            .build());
         Assert.assertEquals(Long.toString(PLAN_ID), inProgress.getMarketId());
         Assert.assertTrue(inProgress.hasStatusProgressNotification());
         Assert.assertEquals(Status.RUNNING, inProgress.getStatusProgressNotification().getStatus());
@@ -151,7 +155,10 @@ public class MarketMapperTest {
 
     @Test
     public void testNotificationFromPlanInstanceSucceeded() throws Exception {
-        MarketNotification success = MarketMapper.notificationFromPlanInstance(SUCCEEDED_INSTANCE);
+        MarketNotification success = MarketMapper.notificationFromPlanStatus(StatusUpdate.newBuilder()
+            .setPlanId(PLAN_ID)
+            .setNewPlanStatus(PlanStatus.SUCCEEDED)
+            .build());
         Assert.assertEquals(Long.toString(PLAN_ID), success.getMarketId());
         Assert.assertTrue(success.hasStatusNotification());
         Assert.assertEquals(Status.SUCCEEDED, success.getStatusNotification().getStatus());
@@ -159,7 +166,10 @@ public class MarketMapperTest {
 
     @Test
     public void testNotificationFromPlanInstanceFailed() throws Exception {
-        MarketNotification failure = MarketMapper.notificationFromPlanInstance(FAILED_INSTANCE);
+        MarketNotification failure = MarketMapper.notificationFromPlanStatus(StatusUpdate.newBuilder()
+            .setPlanId(PLAN_ID)
+            .setNewPlanStatus(PlanStatus.FAILED)
+            .build());
         Assert.assertEquals(Long.toString(PLAN_ID), failure.getMarketId());
         Assert.assertTrue(failure.hasStatusNotification());
         Assert.assertEquals(Status.STOPPED, failure.getStatusNotification().getStatus());
@@ -170,10 +180,10 @@ public class MarketMapperTest {
      */
     @Test
     public void testNotificationWithPlanInstanceStartingBuyRI() {
-        MarketNotification startBuyRi = MarketMapper.notificationFromPlanInstance(BASE.toBuilder()
-                .setStatus(PlanStatus.STARTING_BUY_RI)
-                .setCreatedByUser(CREATED_BY_USER)
-                .build());
+        MarketNotification startBuyRi = MarketMapper.notificationFromPlanStatus(StatusUpdate.newBuilder()
+            .setPlanId(PLAN_ID)
+            .setNewPlanStatus(PlanStatus.STARTING_BUY_RI)
+            .build());
         Assert.assertEquals(Status.RUNNING, startBuyRi.getStatusProgressNotification().getStatus());
     }
 
@@ -182,10 +192,10 @@ public class MarketMapperTest {
      */
     @Test
     public void testNotificationWithPlanInstanceStatusBuyRICompleted() {
-        MarketNotification buyRICompleted = MarketMapper.notificationFromPlanInstance(BASE.toBuilder()
-                .setStatus(PlanStatus.BUY_RI_COMPLETED)
-                .setCreatedByUser(CREATED_BY_USER)
-                .build());
+        MarketNotification buyRICompleted = MarketMapper.notificationFromPlanStatus(StatusUpdate.newBuilder()
+            .setPlanId(PLAN_ID)
+            .setNewPlanStatus(PlanStatus.BUY_RI_COMPLETED)
+            .build());
         Assert.assertEquals(Status.RUNNING, buyRICompleted.getStatusProgressNotification().getStatus());
     }
 

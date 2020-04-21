@@ -460,9 +460,15 @@
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
             </modules>
         </profile>
+        <profile>
+            <id>integration-intersight</id>
+            <modules>
+                <module>../com.vmturbo.integrations.intersight</module>
+            </modules>
+        </profile>
 
         <profile>
-        <id>mediation-intersight</id>
+            <id>mediation-intersight</id>
             <modules>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
@@ -878,6 +884,7 @@
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
                 <module>../com.vmturbo.system.notification.sender</module>
+                <module>../com.vmturbo.component.status.api</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
 
                 <!-- Probe components. This should only include core mediation packages
@@ -960,6 +967,7 @@
                 <module>../com.vmturbo.reports.templates</module -->
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
+                <module>../com.vmturbo.component.status.api</module>
                 <module>../com.vmturbo.system.notification.sender</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
 
@@ -1056,6 +1064,7 @@
                 <module>../com.vmturbo.reports.templates</module -->
                 <module>../com.vmturbo.cost.component.api</module>
                 <module>../com.vmturbo.cost.component</module>
+                <module>../com.vmturbo.component.status.api</module>
                 <module>../com.vmturbo.system.notification.sender</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
 
@@ -1960,9 +1969,14 @@
                 <artifactId>cost-calculation</artifactId>
                 <version>${project.version}</version>
             </dependency>
-	        <dependency>
+            <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>reserved-instance-coverage-allocator</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>component-status-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -2069,6 +2083,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.mediation.common</artifactId>
+                <version>${vmturbo.mt.branch.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>com.vmturbo.mediation.connector.intersight</artifactId>
                 <version>${vmturbo.mt.branch.version}</version>
             </dependency>
             <dependency>
@@ -2563,6 +2582,12 @@
                 <groupId>io.grpc</groupId>
                 <artifactId>grpc-core</artifactId>
                 <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-testing</artifactId>
+                <version>${grpc.version}</version>
+                <scope>test</scope>
             </dependency>
             <!-- END gRPC dependencies. -->
 

@@ -5,8 +5,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 
 public class PlanInstanceCompletionListener implements PlanStatusListener {
 
@@ -22,20 +22,20 @@ public class PlanInstanceCompletionListener implements PlanStatusListener {
     @Override
     public void onPlanStatusChanged(@Nonnull final PlanInstance plan)
             throws PlanStatusListenerException {
-        if (plan.getStatus().equals(PlanStatus.SUCCEEDED) ||
-                plan.getStatus().equals(PlanStatus.FAILED) ||
-                plan.getStatus().equals(PlanStatus.STOPPED)) {
+        if (PlanDTOUtil.isTerminalStatus(plan.getStatus())) {
+            logger.info("Plan instance {} has completed execution.", plan.getPlanId());
+            // Run the next plan instance in queue if available.
+            planInstanceQueue.runNextPlanInstance();
+        }
+    }
 
-            try {
-                logger.info("Plan [{} {}] has completed execution in {} ms with status {}.",
-                    plan.getPlanId(),
-                    plan.getScenario().getScenarioInfo().getType(),
-                    plan.getEndTime() - plan.getStartTime(),
-                    plan.getStatus());
-            } catch (Exception e) {
-                logger.error("Encountered exception while trying to log plan completion: ", e);
-            }
-
+    @Override
+    public void onPlanDeleted(@Nonnull final PlanInstance plan) {
+        if (!PlanDTOUtil.isTerminalStatus(plan.getStatus())) {
+            // Plan got deleted while running, so it's safe to run the next plan instance in queue.
+            logger.info("Plan instance {} deleted (while in status {}). Queueing next instance.",
+                plan.getPlanId(), plan.getStatus());
+            logger.debug("Full plan instance: {}", plan);
             // Run the next plan instance in queue if available.
             planInstanceQueue.runNextPlanInstance();
         }

@@ -1005,6 +1005,8 @@ message ActionQueryFilter {
     // If non-empty, include only actions of the given severities
     repeated Severity severities = 13;
 
+    // If non-empty, include only actions of given cost type
+    optional ActionCostType cost_type = 14;
 }
 
 // The number of actions of a specific type that match the criteria in

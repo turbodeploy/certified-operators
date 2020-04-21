@@ -67,7 +67,6 @@ import com.vmturbo.history.schema.abstraction.tables.VpodStatsLatest;
 import com.vmturbo.history.schema.abstraction.tables.records.MarketStatsLatestRecord;
 import com.vmturbo.history.stats.DbTestConfig;
 import com.vmturbo.history.stats.StatsTestUtils;
-import com.vmturbo.history.utils.SystemLoadHelper;
 
 /**
  * Write live stats to real DB table.
@@ -175,7 +174,6 @@ public class LiveStatsDBTest {
                 .build();
 
         GroupServiceBlockingStub groupServiceClient = Mockito.mock(IngestersConfig.class).groupServiceBlockingStub();
-        SystemLoadHelper systemLoadHelper = Mockito.mock(SystemLoadHelper.class);
 
         RemoteIterator<TopologyEntityDTO> allDTOs = Mockito.mock(RemoteIterator.class);
         when(allDTOs.hasNext()).thenReturn(true).thenReturn(true).thenReturn(false);

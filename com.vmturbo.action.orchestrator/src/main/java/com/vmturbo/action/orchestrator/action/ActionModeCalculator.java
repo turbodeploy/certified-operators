@@ -699,7 +699,7 @@ public class ActionModeCalculator {
                             // A resize up action
                             if (oldCapacity < maxThreshold && newCapacity <= maxThreshold) {
                                 applicableSpec = Optional.of(resizeSettings.upInBetweenThresholds());
-                            } else if (oldCapacity > maxThreshold && newCapacity > maxThreshold) {
+                            } else if (oldCapacity >= maxThreshold && newCapacity > maxThreshold) {
                                 applicableSpec = Optional.of(resizeSettings.aboveMaxThreshold());
                             } else {
                                 // Wrong resize up action
@@ -713,7 +713,7 @@ public class ActionModeCalculator {
                             // A resize down action
                             if (oldCapacity > minThreshold && newCapacity >= minThreshold) {
                                 applicableSpec = Optional.of(resizeSettings.downInBetweenThresholds());
-                            } else if (oldCapacity < minThreshold && newCapacity < minThreshold) {
+                            } else if (oldCapacity <= minThreshold && newCapacity < minThreshold) {
                                 applicableSpec = Optional.of(resizeSettings.belowMinThreshold());
                             } else {
                                 // Wrong resize down action

@@ -351,12 +351,6 @@ data:
         # If true, calculate headroom for all clusters in one plan instance.
         # If false, calculate headroom for restricted number of clusters in multiple plan instances.
         headroomCalculationForAllClusters: true
-      reporting:
-        dbSchemaName: vmtdb
-        identityGeneratorPrefix: 8
-        scheduledReportsGenerationTime: 1
-        maxConnectRetryCount: 60
-        retryDelayInMilliSec: 10000
       repository:
         repositorySearchPaginationDefaultLimit: 100
         repositorySearchPaginationMaxLimit: 500
@@ -393,10 +387,6 @@ data:
         minimumAccountExpensesUploadIntervalMins: 60
         minimumRIDataUploadIntervalMins: 5
         actionTimeoutSeconds: 30
-        # Max number of concurrent target discoveries per probe.
-        maxConcurrentTargetDiscoveriesPerProbeCount: 5
-        # Max number of concurrent target incremental discoveries per probe.
-        maxConcurrentTargetIncrementalDiscoveriesPerProbeCount: 10
         # Urgent metrics are collected every 10 minutes, the offline every 3 days
         collectionIntervalUrgentSec: 600
         collectionIntervalOfflineSec: 259200

@@ -1,5 +1,8 @@
 package com.vmturbo.cost.component.reserved.instance;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,32 +56,37 @@ public class PlanReservedInstanceStoreTest {
 
     private static final long riId_1 = 1L;
     private static final long riId_2 = 2L;
+    private static final long tierId1 = 101L;
+    private static final String tierName1 = "t101.small";
+    private static final long tierId2 = 102L;
+    private static final String tierName2 = "t102.large";
+
     private static final ReservedInstanceBoughtInfo RI_INFO_1 = ReservedInstanceBoughtInfo.newBuilder()
                     .setBusinessAccountId(123L)
                     .setProbeReservedInstanceId("bar")
-                    .setReservedInstanceSpec(101L)
+                    .setReservedInstanceSpec(tierId1)
                     .setAvailabilityZoneId(100L)
                     .setNumBought(10)
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost.newBuilder()
                                     .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0))
                                     .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
-                    .setDisplayName("t101.small")
+                    .setDisplayName(tierName1)
                     .build();
 
     private static final ReservedInstanceBoughtInfo RI_INFO_2 = ReservedInstanceBoughtInfo.newBuilder()
                     .setBusinessAccountId(456L)
                     .setProbeReservedInstanceId("foo")
-                    .setReservedInstanceSpec(102L)
+                    .setReservedInstanceSpec(tierId2)
                     .setAvailabilityZoneId(100L)
                     .setNumBought(20)
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
                                     .newBuilder()
                                     .setFixedCost(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(15))
                                     .setRecurringCostPerHour(CloudCostDTO.CurrencyAmount.newBuilder().setAmount(0.25)))
-                    .setDisplayName("t102.large")
+                    .setDisplayName(tierName2)
                     .build();
 
-    private static final Map<String, Long> TIER_TO_COUNT_MAP = createTierToCountMap();
+    private static final Map<Long, Long> TIER_ID_TO_COUNT_MAP = createTierIdToCountMap();
 
     private DSLContext dsl = dbConfig.getDslContext();
 
@@ -103,10 +111,10 @@ public class PlanReservedInstanceStoreTest {
         planReservedInstanceStore.insertPlanReservedInstanceBought(reservedInstanceBoughtInfos, PLAN_ID);
     }
 
-    private static Map<String, Long> createTierToCountMap() {
-        final Map<String, Long> result = new HashMap<>();
-        result.put("t101.small", 10L);
-        result.put("t102.large", 20L);
+    private static Map<Long, Long> createTierIdToCountMap() {
+        final Map<Long, Long> result = new HashMap<>();
+        result.put(tierId1, 10L);
+        result.put(tierId2, 20L);
         return Collections.unmodifiableMap(result);
     }
 
@@ -130,8 +138,8 @@ public class PlanReservedInstanceStoreTest {
      */
     @Test
     public void testGetPlanReservedInstanceCountByRISpecIdMap() {
-        final Map<String, Long> tierToCountMap = planReservedInstanceStore.getPlanReservedInstanceCountByRISpecIdMap(PLAN_ID);
-        Assert.assertEquals(TIER_TO_COUNT_MAP, tierToCountMap);
+        final Map<Long, Long> tierToCountMap = planReservedInstanceStore.getPlanReservedInstanceCountByRISpecIdMap(PLAN_ID);
+        Assert.assertEquals(TIER_ID_TO_COUNT_MAP, tierToCountMap);
     }
 
     /**
@@ -154,6 +162,14 @@ public class PlanReservedInstanceStoreTest {
         Assert.assertEquals(300, stats.getFixedCost(), DELTA);
         Assert.assertEquals(7.5, stats.getRecurringCost(), DELTA);
         Assert.assertEquals(7.517, stats.getAmortizedCost(), DELTA);
+    }
+
+    /**
+     * Test listing plan IDs in the store.
+     */
+    @Test
+    public void testListPlanIds() {
+        assertThat(planReservedInstanceStore.getPlanIds(), containsInAnyOrder(PLAN_ID));
     }
 
     private void insertDefaultReservedInstanceSpec() {

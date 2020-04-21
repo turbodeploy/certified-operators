@@ -162,4 +162,18 @@ public class PlanProjectedEntityCostStore extends AbstractProjectedEntityCostSto
                         .fetch();
         return records.stream().map(Record1::value1).collect(Collectors.toSet());
     }
+
+    /**
+     * Return the plan ids we have data for.
+     *
+     * @return The set of plan ids.
+     */
+    @Nonnull
+    public Set<Long> getPlanIds() {
+        return dslContext.selectDistinct(Tables.PLAN_PROJECTED_ENTITY_COST.PLAN_ID)
+            .from(Tables.PLAN_PROJECTED_ENTITY_COST)
+            .fetch().stream()
+            .map(Record1::value1)
+            .collect(Collectors.toSet());
+    }
 }

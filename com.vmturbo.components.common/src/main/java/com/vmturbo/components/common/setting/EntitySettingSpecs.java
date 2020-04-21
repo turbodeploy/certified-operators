@@ -46,7 +46,7 @@ public enum EntitySettingSpecs {
      * Move action automation mode for business user.
      */
     BusinessUserMove("businessUserMove", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.BUSINESS_USER), actionExecutionModeSetToRecommend(), true),
+            EnumSet.of(EntityType.BUSINESS_USER), actionExecutionModeSetToManual(), true),
 
     /**
      * Storage Move action automation mode.

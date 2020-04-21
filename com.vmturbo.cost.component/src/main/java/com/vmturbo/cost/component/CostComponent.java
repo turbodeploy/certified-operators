@@ -57,6 +57,7 @@ import com.vmturbo.trax.TraxThrottlingLimit;
     TopologyListenerConfig.class,
     CostDebugConfig.class,
     CostStatsConfig.class,
+    CostPlanListenerConfig.class,
     ReservedInstanceSpecConfig.class})
 public class CostComponent extends BaseVmtComponent {
     /**

@@ -71,11 +71,17 @@ public class DBConnectionPool {
                 poolPropertiesBase.setMaxWait(CONNECT_TIMEOUT_MILLIS);
 
                 poolPropertiesBase.setTestOnBorrow(true);
-                poolPropertiesBase.setValidationQuery("select 1;");
 
-                poolPropertiesBase.setRemoveAbandonedTimeout(queryTimeoutSeconds); //Recover connection after timeout
-                poolPropertiesBase.setRemoveAbandoned(true); // Try to recover unclosed and unused connections
-                poolPropertiesBase.setLogAbandoned(true); // Print stack trace for unclosed connections
+                //Recover connection after timeout
+                poolPropertiesBase.setRemoveAbandonedTimeout(queryTimeoutSeconds);
+                // Try to recover unclosed and unused connections
+                poolPropertiesBase.setRemoveAbandoned(true);
+                // Print stack trace for unclosed connections
+                poolPropertiesBase.setLogAbandoned(true);
+
+                // if a connection is returned to the pool with an active transaction, roll back
+                // that transaction (as would happen when closing an unpooled connection)
+                poolPropertiesBase.setRollbackOnReturn(true);
 
                 pool = new DataSource(poolPropertiesBase);
 

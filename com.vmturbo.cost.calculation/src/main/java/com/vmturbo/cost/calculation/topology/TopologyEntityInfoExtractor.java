@@ -76,11 +76,12 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
             return Optional.empty();
         }
         if (entity.getTypeSpecificInfo().hasVirtualVolume()) {
-            VirtualVolumeInfo volumeConfig = entity.getTypeSpecificInfo().getVirtualVolume();
+            final VirtualVolumeInfo volumeConfig = entity.getTypeSpecificInfo().getVirtualVolume();
             return Optional.of(new VirtualVolumeConfig(
                     volumeConfig.getStorageAccessCapacity(),
                     volumeConfig.getStorageAmountCapacity(),
-                    volumeConfig.getIsEphemeral()));
+                    volumeConfig.getIsEphemeral(),
+                    volumeConfig.hasRedundancyType() ? volumeConfig.getRedundancyType() : null));
         } else {
             return Optional.empty();
         }

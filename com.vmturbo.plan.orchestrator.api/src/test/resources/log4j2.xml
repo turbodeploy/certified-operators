@@ -3,14 +3,14 @@
     <Appenders>
         <Console name="stdout">
             <PatternLayout>
-                <Pattern>%d %5p [%t] [%c{1}]\t: %m%n%throwable</Pattern>
+                <Pattern>%d [%c{1}]\t: %m%n%throwable</Pattern>
             </PatternLayout>
         </Console>
     </Appenders>
 
     <Loggers>
+        <Logger name="com.vmturbo" level="debug" />
         <Logger name="org.springframework" level="warn" />
-        <Logger name="com.vmturbo" level="info" />
         <Root level="info">
             <AppenderRef ref="stdout"/>
         </Root>

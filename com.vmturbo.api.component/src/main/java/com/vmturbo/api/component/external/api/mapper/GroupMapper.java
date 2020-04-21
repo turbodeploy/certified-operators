@@ -44,7 +44,6 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.communication.FutureObserver;
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator.SeverityMapImpl;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
@@ -92,6 +91,7 @@ import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -501,10 +501,10 @@ public class GroupMapper {
                     groups.stream().map(Grouping::getId).collect(Collectors.toList()) + ": " +
                     e.getLocalizedMessage(), e);
         }
+
         final Map<Long, GroupApiDTO> result = new LinkedHashMap<>(groups.size());
-        final Iterator<Grouping> iterator = groups.iterator();
         for (GroupApiDTO apiGroup : apiGroups) {
-            result.put(iterator.next().getId(), apiGroup);
+            result.put(Long.parseLong(apiGroup.getUuid()), apiGroup);
         }
         return result;
     }
@@ -556,7 +556,14 @@ public class GroupMapper {
         }
         final List<GroupApiDTO> result = new ArrayList<>(groupsAndMembers.size());
         for (GroupAndMembers group : groupsPage.getObjects()) {
-            result.add(toGroupApiDto(group, context, populateSeverity));
+            try {
+                result.add(toGroupApiDto(group, context, populateSeverity));
+            } catch (ConversionException | RuntimeException e) {
+                // We log the error, but we continue converting other groups or else we will
+                // return no results when a single group has an error.
+                logger.error("Failed to convert group " +
+                    group.group().getId()  + " (name: " + group.group().getDefinition().getDisplayName() + ")", e);
+            }
         }
         return new ObjectsPage<>(result, groupsPage.getTotalCount(), groupsPage.getNextCursor());
     }
@@ -595,7 +602,6 @@ public class GroupMapper {
         outputDTO.setUuid(Long.toString(group.getId()));
 
         outputDTO.setEnvironmentType(getEnvironmentTypeForTempGroup(envCloudType.getEnvironmentType()));
-        outputDTO.setEntitiesCount(groupAndMembers.entities().size());
         outputDTO.setActiveEntitiesCount(
                 getActiveEntitiesCount(groupAndMembers, conversionContext.getActiveEntities()));
 
@@ -613,7 +619,7 @@ public class GroupMapper {
         return outputDTO;
     }
 
-    private int getMembersCount(GroupAndMembers groupAndMembers) {
+    private Set<Long> getMembersConsideredInMembersCount(GroupAndMembers groupAndMembers) {
         if (groupAndMembers.group().getDefinition().getType() == GroupType.RESOURCE) {
             return groupAndMembers.group()
                 .getDefinition()
@@ -623,12 +629,12 @@ public class GroupMapper {
                 .filter(membersByType -> membersByType.getType().hasEntity()
                     && WORKLOAD_ENTITY_TYPES.contains(
                         ApiEntityType.fromType(membersByType.getType().getEntity())))
-                .map(StaticMembersByType::getMembersCount)
-                .mapToInt(Integer::intValue)
-                .sum();
+                .map(StaticMembersByType::getMembersList)
+                .flatMap(List::stream)
+                .collect(Collectors.toSet());
 
         } else {
-            return groupAndMembers.members().size();
+            return Sets.newHashSet(groupAndMembers.members());
         }
     }
 
@@ -726,13 +732,37 @@ public class GroupMapper {
          outputDTO.setIsStatic(groupDefinition.hasStaticGroupMembers());
          outputDTO.setTemporary(groupDefinition.getIsTemporary());
 
+         boolean memberUuidListSet = false;
          switch (groupDefinition.getSelectionCriteriaCase()) {
              case STATIC_GROUP_MEMBERS:
-                 outputDTO.setMemberUuidList(GroupProtoUtil
-                                .getStaticMembers(group)
-                                .stream()
-                                .map(String::valueOf)
-                                .collect(Collectors.toList()));
+                 List<Long> groupMembers = GroupProtoUtil.getStaticMembers(group);
+                 if (GroupProtoUtil.isNestedGroup(groupAndMembers.group())) {
+                     outputDTO.setMemberUuidList(groupMembers
+                             .stream()
+                             .map(String::valueOf)
+                             .collect(Collectors.toList()));
+                     memberUuidListSet = true;
+                 } else {
+                     // Retain valid entities of group members/entities.
+                     Set<Long> groupValidEntities = Sets.newHashSet(groupMembers);
+                     Set<Long> validEntities = conversionContext.getValidEntities();
+                     groupValidEntities.retainAll(validEntities);
+                     final int missingEntities = groupMembers.size() - groupValidEntities.size();
+                     if (missingEntities > 0) {
+                         logger.warn("{} members for static group {} not found in repository.",
+                                 missingEntities, groupDefinition.getDisplayName());
+                     }
+                     outputDTO.setMemberUuidList(groupValidEntities
+                             .stream()
+                             .map(String::valueOf)
+                             .collect(Collectors.toList()));
+                     memberUuidListSet = true;
+                     outputDTO.setEntitiesCount(groupValidEntities.size());
+
+                     Set<Long> membersConsideredInMembersCount = getMembersConsideredInMembersCount(groupAndMembers);
+                     membersConsideredInMembersCount.retainAll(validEntities);
+                     outputDTO.setMembersCount(membersConsideredInMembersCount.size());
+                 }
                  break;
 
              case ENTITY_FILTERS:
@@ -776,11 +806,16 @@ public class GroupMapper {
          // BillingFamily has custom code for determining the number of members. An undiscovered
          // account is not considered a member in classic.
          if (outputDTO.getMembersCount() == null) {
-             outputDTO.setMembersCount(getMembersCount(groupAndMembers));
+             outputDTO.setMembersCount(getMembersConsideredInMembersCount(groupAndMembers).size());
          }
-         outputDTO.setMemberUuidList(groupAndMembers.members().stream()
-             .map(oid -> Long.toString(oid))
-             .collect(Collectors.toList()));
+         if (!memberUuidListSet) {
+             outputDTO.setMemberUuidList(groupAndMembers.members().stream()
+                     .map(oid -> Long.toString(oid))
+                     .collect(Collectors.toList()));
+         }
+         if (outputDTO.getEntitiesCount() == null) {
+             outputDTO.setEntitiesCount(groupAndMembers.entities().size());
+         }
 
          return outputDTO;
     }
@@ -982,23 +1017,19 @@ public class GroupMapper {
     }
 
     /**
-     * Retunrs all the active entities from the specified OIDs.
+     * Returns mapping from oid to entity in repository, based on the specified OIDs.
      *
-     * @param members oids to filter
-     * @return a subset of {@code members} containing only active entities
+     * @param oids oids.
+     * @return a subset of {@code members} containing only valid entities in repository.
      */
     @Nonnull
-    private Future<Set<Long>> getActiveMembers(@Nonnull Set<Long> members) {
-        if (members.isEmpty()) {
-            return CompletableFuture.completedFuture(Collections.emptySet());
+    private Future<Map<Long, MinimalEntity>> getMinimalEntities(@Nonnull Set<Long> oids) {
+        if (oids.isEmpty()) {
+            return CompletableFuture.completedFuture(Collections.emptyMap());
         }
-        final PropertyFilter startingFilter = SearchProtoUtil.idFilter(members);
-        final SearchRequest request = repositoryApi.newSearchRequest(
-                SearchProtoUtil.makeSearchParameters(startingFilter)
-                        .addSearchFilter(SearchProtoUtil.searchFilterProperty(
-                                SearchProtoUtil.stateFilter(UIEntityState.ACTIVE)))
-                        .build());
-        return request.getOidsFuture();
+        final MinimalEntitiesObserver observer = new MinimalEntitiesObserver();
+        repositoryApi.entitiesRequest(oids).getMinimalEntities(observer);
+        return observer.getFuture();
     }
 
     /**
@@ -1074,6 +1105,7 @@ public class GroupMapper {
      * Helper structure, holding all the data necessary for batch conversion of groups.
      */
     private static class GroupConversionContext {
+        private final Set<Long> validEntities;
         private final Set<Long> activeEntities;
         private final Map<Long, String> ownerDisplayName;
         private final Map<Long, EntityEnvironment> entities;
@@ -1088,13 +1120,15 @@ public class GroupMapper {
          */
         private final Map<String, Exception> retrievalErrors;
 
-        GroupConversionContext(@Nonnull Set<Long> activeEntities,
+        GroupConversionContext(@Nonnull Set<Long> validEntities,
+                @Nonnull Set<Long> activeEntities,
                 @Nonnull Map<Long, String> ownerDisplayName,
                 @Nullable Map<Long, EntityEnvironment> entities,
                 @Nullable EntityEnvironment entityEnvironment,
                 @Nonnull SeverityMap severityMap,
                 @Nonnull Map<Long, Float> groupCosts,
                 @Nonnull final Map<String, Exception> retrievalErrors) {
+            this.validEntities = validEntities;
             this.activeEntities = activeEntities;
             this.ownerDisplayName = ownerDisplayName;
             this.entities = entities;
@@ -1107,6 +1141,16 @@ public class GroupMapper {
                         "Either entities or entity environment is expected to be set for groups " +
                                 groupCosts.keySet());
             }
+        }
+
+        /**
+         * Returns a set of valid entities OIDs.
+         *
+         * @return a set of OIDs
+         */
+        @Nonnull
+        public Set<Long> getValidEntities() {
+            return validEntities;
         }
 
         /**
@@ -1177,6 +1221,25 @@ public class GroupMapper {
         @Nonnull
         public Map<Long, Float> getGroupCosts() {
             return groupCosts;
+        }
+    }
+
+    /**
+     * Observer collecting minimal entities into a map, mapping from oid to MinimalEntity.
+     */
+    private static class MinimalEntitiesObserver extends
+            FutureObserver<MinimalEntity, Map<Long, MinimalEntity>> {
+        private final Map<Long, MinimalEntity> result = new HashMap<>();
+
+        @Nonnull
+        @Override
+        protected Map<Long, MinimalEntity> createResult() {
+            return Collections.unmodifiableMap(result);
+        }
+
+        @Override
+        public void onNext(MinimalEntity value) {
+            result.put(value.getOid(), value);
         }
     }
 
@@ -1453,14 +1516,8 @@ public class GroupMapper {
                     .flatMap(Collection::stream)
                     .collect(Collectors.toSet());
             final EntityEnvironment entityEnvironment = getApplianceEnvironment();
-            final Future<Set<Long>> activeEntitiesFuture = getActiveMembers(members);
+            final Future<Map<Long, MinimalEntity>> entitiesFuture = getMinimalEntities(members);
             final Future<Map<Long, String>> ownerEntitiesFuture = getOwnerDisplayNames(groupsAndMembers);
-            final Future<Map<Long, EntityEnvironment>> groupEnvironmentsFuture;
-            if (entityEnvironment == null) {
-                groupEnvironmentsFuture = getGroupsEnvironment(groupsAndMembers, members);
-            } else {
-                groupEnvironmentsFuture = CompletableFuture.completedFuture(null);
-            }
             final Future<SeverityMap> severityMapFuture = getSeverityMap(members);
             final Future<Map<Long, Float>> groupCostsFuture = getCosts(groupsAndMembers, members);
 
@@ -1473,13 +1530,31 @@ public class GroupMapper {
             // try to get as much as we can, and prevent a failure in a single component from
             // stopping ANY group results from being displayed.
 
-            // Wait for the active entities.
+            // Wait for the entities.
+            Map<Long, MinimalEntity> entitiesFromRepository;
+            Set<Long> validEntities;
             Set<Long> activeEntities;
             try {
-                activeEntities = Objects.requireNonNull(activeEntitiesFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+                entitiesFromRepository = Objects.requireNonNull(entitiesFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS));
+                validEntities = Sets.newHashSet(entitiesFromRepository.keySet());
+                activeEntities = entitiesFromRepository.values().stream()
+                        .filter(e -> e.getEntityState() == EntityState.POWERED_ON)
+                        .map(MinimalEntity::getOid).collect(Collectors.toSet());
             } catch (ExecutionException | TimeoutException e) {
-                errors.put("Failed to get active entities. Error: " + e.getMessage(), e);
-                activeEntities = Collections.emptySet();
+                errors.put("Failed to get entities from repository. Error: " + e.getMessage(), e);
+                entitiesFromRepository = Collections.emptyMap();
+                // fallback values for valid/active entities
+                validEntities = Sets.newHashSet(members);
+                activeEntities = Sets.newHashSet(members);
+            }
+
+            Map<Long, EntityEnvironment> groupEnvironments = null;
+            if (entityEnvironment == null) {
+                groupEnvironments = new HashMap<>();
+                for (GroupAndMembers group : groupsAndMembers) {
+                    groupEnvironments.put(group.group().getId(),
+                            getEnvironmentAndCloudTypeForGroup(group, entitiesFromRepository));
+                }
             }
 
             // Wait for the owner display names.
@@ -1489,15 +1564,6 @@ public class GroupMapper {
             } catch (ExecutionException | TimeoutException e) {
                 errors.put("Failed to get owner display name. Error: " + e.getMessage(), e);
                 ownerDisplayName = Collections.emptyMap();
-            }
-
-            // Wait for the entities.
-            Map<Long, EntityEnvironment> groupEnvironments;
-            try {
-                groupEnvironments = groupEnvironmentsFuture.get(REQUEST_TIMEOUT_SEC, TimeUnit.SECONDS);
-            } catch (ExecutionException | TimeoutException e) {
-                errors.put("Failed to get entities. Error: " + e.getMessage(), e);
-                groupEnvironments = Collections.emptyMap();
             }
 
             // Wait for the severity map.
@@ -1525,8 +1591,8 @@ public class GroupMapper {
                     errors.forEach(logger::debug);
                 }
             }
-            context = new GroupConversionContext(activeEntities, ownerDisplayName, groupEnvironments, entityEnvironment,
-                    severityMap, groupCosts, errors);
+            context = new GroupConversionContext(validEntities, activeEntities, ownerDisplayName, groupEnvironments,
+                    entityEnvironment, severityMap, groupCosts, errors);
             return context;
         }
 
