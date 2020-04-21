@@ -154,17 +154,14 @@ public abstract class ChangeProviderContext extends AbstractActionExecutionConte
      */
     private List<ActionItemDTO.Builder> getActionItemsForUnchangedStorageProviders(
             final EntityDTO fullEntityDTO, final List<ChangeProvider> changeList) {
-        TopologyEntityDTO topologyEntityDTO;
         final long primaryEntityId = getPrimaryEntityId();
-        topologyEntityDTO = entityRetriever.retrieveTopologyEntity(primaryEntityId)
+        final TopologyEntityDTO topologyEntityDTO = entityRetriever.retrieveTopologyEntity(primaryEntityId)
                 .orElseThrow(() ->
                         new ContextCreationException("No entity found for id " + primaryEntityId));
         // Get a set containing all of the storage associated with this entity
         final Set<Long> storageEntityIds = getAllStorageProviderIds(topologyEntityDTO);
         if (storageEntityIds.isEmpty()) {
-            throw new ContextCreationException("Could not retrieve "
-                    + "storage provider ID, which is required for a cross-target move. "
-                    + "Offending action: " + getActionId());
+            return Collections.emptyList();
         }
         // find storage ids which are already included in the changeProvider list, and remove
         // from the storageEntityIds which we will create action item for
