@@ -40,6 +40,7 @@ import com.google.common.collect.Table.Cell;
 
 import io.grpc.Status;
 import io.grpc.StatusException;
+import io.grpc.stub.ServerCallStreamObserver;
 import io.grpc.stub.StreamObserver;
 import io.prometheus.client.Summary;
 import io.prometheus.client.Summary.Timer;
@@ -1375,20 +1376,22 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     @Override
     public void getMostRecentStat(GetMostRecentStatRequest request,
                                   StreamObserver<GetMostRecentStatResponse> responseObserver) {
+        final ServerCallStreamObserver streamObserver =
+            responseObserver instanceof ServerCallStreamObserver ?
+                (ServerCallStreamObserver)responseObserver : null;
         final Optional<GetMostRecentStatResponse.Builder> response = mostRecentLiveStatReader
-                .getMostRecentStat(request.getEntityType(), request.getCommodityName(),
-                        request.getCommodityKey());
-
+            .getMostRecentStat(request.getEntityType(), request.getCommodityName(),
+                request.getCommodityKey(), streamObserver);
         final GetMostRecentStatResponse returnObject = response.map(stat -> {
             final String entityDisplayName = liveStatsReader
-                    .getEntityDisplayNameForId(stat.getEntityUuid());
+                .getEntityDisplayNameForId(stat.getEntityUuid());
             if (entityDisplayName != null) {
                 stat.setEntityDisplayName(entityDisplayName);
             }
             return stat.build();
         }).orElse(GetMostRecentStatResponse.newBuilder().build());
         logger.debug("Most recent stat response for request {}, is {}", () -> request,
-                () -> returnObject);
+            () -> returnObject);
         responseObserver.onNext(returnObject);
         responseObserver.onCompleted();
     }

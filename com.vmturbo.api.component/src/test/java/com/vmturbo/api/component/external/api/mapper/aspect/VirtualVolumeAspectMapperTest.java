@@ -704,7 +704,8 @@ public class VirtualVolumeAspectMapperTest {
         CostServiceBlockingStub costRpc = CostServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         final StatsHistoryServiceBlockingStub historyRpc =
                 StatsHistoryServiceGrpc.newBlockingStub(grpcTestHistoryServer.getChannel());
-        volumeAspectMapper = spy(new VirtualVolumeAspectMapper(costRpc, repositoryApi, historyRpc));
+        volumeAspectMapper = spy(new VirtualVolumeAspectMapper(costRpc, repositoryApi, historyRpc,
+            5, 10));
     }
 
     @Test

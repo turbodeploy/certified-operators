@@ -8,7 +8,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -99,13 +103,22 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
     private final StatsHistoryServiceBlockingStub historyRpcService;
 
+    private final long getMostRecentStatRpcDeadlineDurationSeconds;
+
+    private final long getMostRecentStatRpcFutureTimeoutSeconds;
+
     public VirtualVolumeAspectMapper(@Nonnull final CostServiceBlockingStub costServiceRpc,
                                      @Nonnull final RepositoryApi repositoryApi,
                                      @Nonnull final StatsHistoryServiceBlockingStub
-                                             historyRpcService) {
+                                             historyRpcService,
+                                     final long getMostRecentStatRpcDeadlineDurationSeconds,
+                                     final long getMostRecentStatRpcFutureTimeoutSeconds) {
         this.costServiceRpc = costServiceRpc;
         this.repositoryApi = repositoryApi;
         this.historyRpcService = historyRpcService;
+        this.getMostRecentStatRpcDeadlineDurationSeconds =
+            getMostRecentStatRpcDeadlineDurationSeconds;
+        this.getMostRecentStatRpcFutureTimeoutSeconds = getMostRecentStatRpcFutureTimeoutSeconds;
     }
 
     @Override
@@ -807,7 +820,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     }
 
     private void populateUnattachedHistoryInfo(final TopologyEntityDTO volume,
-                                               final VirtualDiskApiDTO virtualDiskApiDTO) {
+                                               final VirtualDiskApiDTO virtualDiskApiDTO)
+        throws InterruptedException {
         final GetMostRecentStatResponse response = retrieveUnattachedHistoryStat(volume);
         if (response.hasSnapshotDate() && response.hasEpoch()) {
             final long currentTime = System.currentTimeMillis();
@@ -832,15 +846,37 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     }
 
     private GetMostRecentStatResponse retrieveUnattachedHistoryStat(
-            final TopologyEntityDTO volume) {
+            final TopologyEntityDTO volume) throws InterruptedException {
         final GetMostRecentStatRequest request = GetMostRecentStatRequest.newBuilder()
                 .setCommodityName(StringConstants.STORAGE_AMOUNT)
                 .setEntityType(StringConstants.VIRTUAL_MACHINE)
                 .setCommodityKey(Long.toString(volume.getOid()))
                 .build();
-        final GetMostRecentStatResponse response = historyRpcService.getMostRecentStat(request);
+        final GetMostRecentStatResponse response = executeGetMostRecentStatQuery(request, volume);
         logger.debug("Unattached volume history for volume: {}, request: {}, response: {}",
                 volume::getOid, () -> request, () -> response);
+        return response;
+    }
+
+    private GetMostRecentStatResponse executeGetMostRecentStatQuery(
+        final GetMostRecentStatRequest request, final TopologyEntityDTO volume)
+        throws InterruptedException {
+        final Future<GetMostRecentStatResponse> responseFuture =
+            CompletableFuture.supplyAsync(() -> historyRpcService
+                .withDeadlineAfter(getMostRecentStatRpcDeadlineDurationSeconds,
+                    TimeUnit.SECONDS).getMostRecentStat(request));
+        GetMostRecentStatResponse response = GetMostRecentStatResponse.newBuilder().build();
+        try {
+            response = responseFuture.get(getMostRecentStatRpcFutureTimeoutSeconds,
+                TimeUnit.SECONDS);
+        } catch (ExecutionException e) {
+            logger.debug("Error encountered while retrieving volume attachment history for: "
+                + volume.getOid(), e.getCause());
+        } catch (TimeoutException e) {
+            logger.error("Timed out while retrieving volume attachment history for volume: {}",
+                volume::getOid);
+            responseFuture.cancel(true);
+        }
         return response;
     }
 
