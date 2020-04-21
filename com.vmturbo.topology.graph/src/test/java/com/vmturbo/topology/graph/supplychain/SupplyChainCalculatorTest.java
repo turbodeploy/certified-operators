@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Collection;
@@ -46,6 +47,18 @@ public class SupplyChainCalculatorTest {
     private static final long PM_ID2 = 4L;
     private static final long ST_ID2 = 5L;
     private static final long VM_ID = 6L;
+
+    /**
+     * Constants for cloud-native checks.
+     */
+    private static final long WORKLOAD_CONTROLLER_ID = 7L;
+    private static final long CONTAINER_SPEC_ID = 8L;
+    private static final long NAMESPACE_ID = 9L;
+    private static final long CONTAINER_1_ID = 10L;
+    private static final long CONTAINER_2_ID = 11L;
+    private static final long CONTAINER_POD_1_ID = 12L;
+    private static final long CONTAINER_POD_2_ID = 13L;
+
     /**
      * Constants and variables for the main cloud checks.
      */
@@ -441,6 +454,67 @@ public class SupplyChainCalculatorTest {
 
         assertEquals(Collections.singleton(PM_ID), getAllNodeIds(pmNode));
         assertEquals(Collections.singleton(ST_ID), getAllNodeIds(stNode));
+    }
+
+    /**
+     * Test cloud native topology starting from WorkloadController. Ensure that we include
+     * VMs and Hosts connected through our related pods.
+     */
+    @Test
+    public void testWorkloadControllerSeed() {
+        /*
+         * Container -- ContainerSpec
+         *     |             |
+         *  -Pod ------ WorkloadController
+         * |   |             |
+         * |  VM-----        |
+         * |         |    Namespace
+         *  --PM    ST
+         */
+        final TopologyGraph<TestGraphEntity> graph =
+            TestGraphEntity.newGraph(
+                TestGraphEntity.newBuilder(PM_ID, ApiEntityType.PHYSICAL_MACHINE),
+                TestGraphEntity.newBuilder(ST_ID, ApiEntityType.STORAGE),
+                TestGraphEntity.newBuilder(VM_ID, ApiEntityType.VIRTUAL_MACHINE)
+                    .addProviderId(ST_ID),
+                TestGraphEntity.newBuilder(NAMESPACE_ID, ApiEntityType.NAMESPACE),
+                TestGraphEntity.newBuilder(WORKLOAD_CONTROLLER_ID, ApiEntityType.WORKLOAD_CONTROLLER)
+                    .addProviderId(NAMESPACE_ID),
+                TestGraphEntity.newBuilder(CONTAINER_POD_1_ID, ApiEntityType.CONTAINER_POD)
+                    .addProviderId(VM_ID)
+                    .addProviderId(WORKLOAD_CONTROLLER_ID),
+                TestGraphEntity.newBuilder(CONTAINER_POD_2_ID, ApiEntityType.CONTAINER_POD)
+                    .addProviderId(PM_ID)
+                    .addProviderId(WORKLOAD_CONTROLLER_ID),
+                TestGraphEntity.newBuilder(CONTAINER_1_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_1_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_2_ID, ApiEntityType.CONTAINER)
+                    .addProviderId(CONTAINER_POD_2_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
+                TestGraphEntity.newBuilder(CONTAINER_SPEC_ID, ApiEntityType.CONTAINER_SPEC)
+                    .addConnectedEntity(WORKLOAD_CONTROLLER_ID, ConnectionType.OWNS_CONNECTION)
+            );
+
+        // Ensure nodes are reachable from workload controller
+        Map<Integer, SupplyChainNode> supplychain = getSupplyChain(graph, WORKLOAD_CONTROLLER_ID);
+        SupplyChainNode vmNode = supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber());
+        SupplyChainNode pmNode = supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber());
+        SupplyChainNode stNode = supplychain.get(ApiEntityType.STORAGE.typeNumber());
+
+        assertEquals(Collections.singleton(PM_ID), getAllNodeIds(pmNode));
+        assertEquals(Collections.singleton(VM_ID), getAllNodeIds(vmNode));
+        assertEquals(Collections.singleton(ST_ID), getAllNodeIds(stNode));
+
+        // Ensure nodes are NOT reachable from namespace
+        supplychain = getSupplyChain(graph, NAMESPACE_ID);
+        assertNull(supplychain.get(ApiEntityType.VIRTUAL_MACHINE.typeNumber()));
+        assertNull(supplychain.get(ApiEntityType.PHYSICAL_MACHINE.typeNumber()));
+
+        // Ensure namespaces are reachable from containers
+        supplychain = getSupplyChain(graph, CONTAINER_1_ID);
+        final SupplyChainNode workloadControllerNode = supplychain.get(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber());
+        assertEquals(Collections.singleton(WORKLOAD_CONTROLLER_ID), getAllNodeIds(workloadControllerNode));
     }
 
     /**
