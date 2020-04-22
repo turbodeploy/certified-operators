@@ -1,4 +1,4 @@
-package com.vmturbo.components.common;
+package com.vmturbo.components.api.grpc;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -10,28 +10,33 @@ import javax.annotation.Nonnull;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
-import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
 import io.grpc.BindableService;
-import io.grpc.Channel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
+import io.grpc.ServerBuilder;
 import io.grpc.ServerInterceptor;
 import io.grpc.ServerInterceptors;
 import io.grpc.ServerServiceDefinition;
+import io.grpc.inprocess.InProcessChannelBuilder;
+import io.grpc.inprocess.InProcessServerBuilder;
+import io.grpc.internal.GrpcUtil;
+import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.netty.NettyServerBuilder;
+import io.opentracing.contrib.grpc.TracingClientInterceptor;
 import io.opentracing.contrib.grpc.TracingServerInterceptor;
 
 import me.dinowernli.grpc.prometheus.MonitoringServerInterceptor;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.core.env.ConfigurableEnvironment;
 
-import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.tracing.Tracing;
-import com.vmturbo.components.common.grpc.RequestLoggingInterceptor;
 
 /**
  * A wrapper around a gRPC {@link Server} that can be used inside a component. Used to isolate
@@ -47,6 +52,14 @@ import com.vmturbo.components.common.grpc.RequestLoggingInterceptor;
  */
 @ThreadSafe
 public class ComponentGrpcServer {
+
+    /**
+     * The default interval for keep-alives for the channel.
+     *
+     * <p/>This should not be lower than GRPC_MIN_KEEPALIVE_TIME_MIN in BaseVmtComponent (i.e. the
+     * lowest keepalive interval accepted by the server).
+     */
+    private static final int DEFAULT_CHANNEL_KEEPALIVE_TIME_MIN = 5;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -76,6 +89,8 @@ public class ComponentGrpcServer {
      * message size for the gRPC server of this component.
      */
     public static final String PROP_GRPC_MAX_MESSAGE_BYTES = "grpcMaxMessageBytes";
+
+    private static final String LOCAL_SERVER_NAME = "localServer";
 
     /**
      * The default max message size - 4MB - which can be overriden by setting the
@@ -134,15 +149,13 @@ public class ComponentGrpcServer {
     }
 
     /**
-     * Gets a channel to the server over "localhost". Should only be used for testing!
+     * Get the port used for this server.
      *
-     * @return The {@link Channel}.
+     * @return The port.
      */
-    @VisibleForTesting
-    Channel getChannel() {
+    public int getPort() {
         synchronized (grpcServerLock) {
-            return GrpcChannelFactory.newChannelBuilder("localhost", grpcServer.getPort())
-                .build();
+            return grpcServer == null ? 0 : grpcServer.getPort();
         }
     }
 
@@ -188,12 +201,17 @@ public class ComponentGrpcServer {
             final int grpcMaxMessageBytes = Integer.parseInt(
                 environment.getProperty(PROP_GRPC_MAX_MESSAGE_BYTES,
                 Integer.toString(DEFAULT_GRPC_MAX_MESSAGE_BYTES)));
-            final NettyServerBuilder serverBuilder = NettyServerBuilder.forPort(serverPort)
-                // Allow keepalives even when there are no existing calls, because we want
-                // to send intermittent keepalives to keep the http2 connections open.
-                .permitKeepAliveWithoutCalls(true)
-                .permitKeepAliveTime(GRPC_MIN_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)
-                .maxMessageSize(grpcMaxMessageBytes);
+            final ServerBuilder serverBuilder;
+            if (useInProcess()) {
+                serverBuilder = InProcessServerBuilder.forName(LOCAL_SERVER_NAME);
+            } else {
+                serverBuilder = NettyServerBuilder.forPort(serverPort)
+                    // Allow keepalives even when there are no existing calls, because we want
+                    // to send intermittent keepalives to keep the http2 connections open.
+                    .permitKeepAliveWithoutCalls(true)
+                    .permitKeepAliveTime(GRPC_MIN_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)
+                    .maxMessageSize(grpcMaxMessageBytes);
+            }
 
             serviceDefinitions.values().forEach(serverBuilder::addService);
 
@@ -233,5 +251,59 @@ public class ComponentGrpcServer {
                 grpcServer = null;
             }
         }
+    }
+
+    /**
+     * Create a new {@link ManagedChannelBuilder}, pre-configured with the default options
+     * used for communication between components.
+     *
+     * @param host The host to connect to.
+     * @param port The port to connect at.
+     * @return A {@link ManagedChannelBuilder}. The caller can continue to configure it if desired.
+     */
+    @Nonnull
+    public static ManagedChannelBuilder newChannelBuilder(@Nonnull final String host,
+                                                          final int port) {
+        return newChannelBuilder(host, port, GrpcUtil.DEFAULT_MAX_MESSAGE_SIZE);
+    }
+
+    /**
+     * Create a new {@link ManagedChannelBuilder}, pre-configured with the default options
+     * used for communication between components.
+     *
+     * @param host The host to connect to.
+     * @param port The port to connect at.
+     * @param maxMessageSize the maximum message size
+     * @return A {@link ManagedChannelBuilder}. The caller can continue to configure it if desired.
+     */
+    @Nonnull
+    public static ManagedChannelBuilder newChannelBuilder(@Nonnull final String host,
+                                                          final int port,
+                                                          int maxMessageSize) {
+        final TracingClientInterceptor clientTracingInterceptor = TracingClientInterceptor.newBuilder()
+            .withTracer(Tracing.tracer())
+            .withStreaming()
+            .build();
+        Preconditions.checkArgument(!StringUtils.isEmpty(host), "Host must be provided.");
+        Preconditions.checkArgument(port > 0, "Port must be a positive integer!");
+
+        if (useInProcess()) {
+            return InProcessChannelBuilder.forName(LOCAL_SERVER_NAME)
+                .maxInboundMessageSize(maxMessageSize)
+                .intercept(clientTracingInterceptor);
+        } else {
+            return NettyChannelBuilder.forAddress(host, port)
+                .keepAliveWithoutCalls(true)
+                .keepAliveTime(DEFAULT_CHANNEL_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)
+                .maxInboundMessageSize(maxMessageSize)
+                // We add a client tracing interceptor to every channel.
+                .intercept(clientTracingInterceptor)
+                .usePlaintext();
+        }
+    }
+
+    private static boolean useInProcess() {
+        // Controlled via system property, false by default. Should only be used in development/test.
+        return Boolean.getBoolean("useInProcess");
     }
 }
