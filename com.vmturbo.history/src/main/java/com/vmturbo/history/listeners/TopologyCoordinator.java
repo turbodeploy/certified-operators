@@ -242,7 +242,6 @@ public class TopologyCoordinator extends TopologyListenerBase
                                             @Nonnull final RemoteIterator<ProjectedTopologyEntity>
                                                 topology) {
         awaitStartup();
-        final String topologyLabel = TopologyDTOUtil.getProjectedTopologyLabel(info);
         if (info.getTopologyContextId() == realtimeTopologyContextId) {
 
             String topologyLabel = ProjectedLiveTopologyIngester.getTopologyInfoSummary(info, info.getTopologyType().name());

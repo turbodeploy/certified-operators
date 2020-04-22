@@ -262,11 +262,4 @@ public class PlanConfig {
         planDao().addStatusListener(listener);
         return listener;
     }
-
-    @Bean
-    public PlanMetricsListener planMetricsListener() {
-        final PlanMetricsListener listener = new PlanMetricsListener();
-        planDao().addStatusListener(listener);
-        return listener;
-    }
 }
