@@ -231,5 +231,9 @@
             <artifactId>hamcrest-all</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>me.dinowernli</groupId>
+            <artifactId>java-grpc-prometheus</artifactId>
+        </dependency>
     </dependencies>
 </project>

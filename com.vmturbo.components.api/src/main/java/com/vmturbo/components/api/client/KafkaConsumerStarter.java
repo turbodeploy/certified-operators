@@ -13,8 +13,23 @@ import org.springframework.context.event.ContextRefreshedEvent;
 public class KafkaConsumerStarter implements ApplicationListener<ContextRefreshedEvent> {
     private final Logger logger = LogManager.getLogger();
 
+    private final boolean disable;
+
+    /**
+     * Create a new starter.
+     *
+     * @param disable If true, the starter won't do anything on context refresh.
+     */
+    public KafkaConsumerStarter(final boolean disable) {
+        this.disable = disable;
+    }
+
     @Override
     public void onApplicationEvent(ContextRefreshedEvent event) {
+        if (disable) {
+            return;
+        }
+
         final ApplicationContext context = event.getApplicationContext();
         for (KafkaMessageConsumer consumer : context.getBeansOfType(KafkaMessageConsumer.class)
                 .values()) {

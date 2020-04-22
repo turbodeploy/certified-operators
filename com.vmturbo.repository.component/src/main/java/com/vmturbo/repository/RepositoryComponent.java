@@ -10,6 +10,9 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,8 +21,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import io.grpc.BindableService;
-import io.grpc.ServerInterceptor;
 import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
 
@@ -141,7 +142,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @PostConstruct
     private void setup() {
-        getHealthMonitor().addHealthCheck(apiConfig.kafkaHealthMonitor());
+        getHealthMonitor().addHealthCheck(apiConfig.messageProducerHealthMonitor());
         // Temporarily force all Repository migrations to retry, in order to address some
         // observed issues with V_01_00_00__PURGE_ALL_LEGACY_PLANS not running successfully in
         // previous versions.
