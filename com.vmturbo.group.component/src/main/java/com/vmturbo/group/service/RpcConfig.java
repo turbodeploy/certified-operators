@@ -15,6 +15,7 @@ import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTOREST.GroupServiceController;
 import com.vmturbo.common.protobuf.group.PolicyDTOREST.PolicyServiceController;
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionREST.TopologyDataDefinitionServiceController;
 import com.vmturbo.common.protobuf.schedule.ScheduleProtoREST.ScheduleServiceController;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
@@ -29,6 +30,7 @@ import com.vmturbo.group.setting.DefaultSettingPolicyCreator;
 import com.vmturbo.group.setting.DiscoveredSettingPoliciesUpdater;
 import com.vmturbo.group.setting.SettingConfig;
 import com.vmturbo.group.stitching.GroupStitchingManager;
+import com.vmturbo.group.topologydatadefinition.TopologyDataDefinitionConfig;
 import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
@@ -42,7 +44,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         SettingConfig.class,
         ScheduleConfig.class,
         UserSessionConfig.class,
-        TopologyProcessorClientConfig.class})
+        TopologyProcessorClientConfig.class,
+        TopologyDataDefinitionConfig.class})
 public class RpcConfig {
 
     @Autowired
@@ -74,6 +77,9 @@ public class RpcConfig {
 
     @Autowired
     private TopologyProcessorClientConfig topologyProcessorClientConfig;
+
+    @Autowired
+    private TopologyDataDefinitionConfig topologyDataDefinitionConfig;
 
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
@@ -175,6 +181,30 @@ public class RpcConfig {
                 identityProviderConfig.identityProvider(),
                 transactionProvider(),
                 realtimeTopologyContextId, entitySettingsResponseChunkSize);
+    }
+
+    /**
+     * Service for CRUD operations on
+     * {@link com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition}.
+     *
+     * @return an instance of the service.
+     */
+    @Bean
+    public TopologyDataDefinitionRpcService topologyDataDefinitionRpcService() {
+        return new TopologyDataDefinitionRpcService(
+            topologyDataDefinitionConfig.topologyDataDefinitionStore());
+    }
+
+    /**
+     * Controller for TopologyDataDefinitionRpcService.
+     *
+     * @param topologyDataDefinitionRpcService service needed by controller constructor.
+     * @return TopologyDataDefinitionServiceController needed to service grpc calls.
+     */
+    @Bean
+    public TopologyDataDefinitionServiceController topologyDataDefinitionServiceController(
+        TopologyDataDefinitionRpcService topologyDataDefinitionRpcService) {
+        return new TopologyDataDefinitionServiceController(topologyDataDefinitionRpcService);
     }
 
     @Bean
