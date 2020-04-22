@@ -104,16 +104,13 @@
     },
 
     "BusinessApplication" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busAppsByName"},
-                      {"inputType": "s", "elements": "UserDefinedEntity", "filterCategory": "property", "filterType": "businessApplicationByUserDefinedEntity"}
-        ]
+        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busAppsByName"}]
     },
 
     "BusinessTransaction" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "busTransByName"},
-            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "businessTransactionByBusinessApplication"},
-            {"inputType": "s", "elements": "UserDefinedEntity", "filterCategory": "property", "filterType": "businessTransactionByUserDefinedEntity"}
+            {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "businessTransactionByBusinessApplication"}
         ]
     },
 
@@ -121,8 +118,7 @@
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "servicesByName"},
             {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessApplication"},
-            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessTransaction"},
-            {"inputType": "s", "elements": "UserDefinedEntity", "filterCategory": "property", "filterType": "serviceByUserDefinedEntity"}
+            {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "serviceByBusinessTransaction"}
         ]
     },
 

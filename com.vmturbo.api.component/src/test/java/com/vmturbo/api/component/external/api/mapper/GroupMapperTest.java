@@ -238,14 +238,13 @@ public class GroupMapperTest {
      */
     public GrpcTestServer grpcServer;
 
-    private ThinTargetCache targetCache;
-
-    private EntityFilterMapper entityFilterMapper =
-            new EntityFilterMapper(groupUseCaseParser, targetCache);
+    private EntityFilterMapper entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
 
     private GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
 
     private SeverityPopulator severityPopulator;
+
+    private ThinTargetCache targetCache;
 
     private final CloudTypeMapper cloudTypeMapper = new CloudTypeMapper();
 

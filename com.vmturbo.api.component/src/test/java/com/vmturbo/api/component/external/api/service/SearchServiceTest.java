@@ -113,6 +113,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesRequest;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.Search.SearchEntityOidsRequest;
@@ -158,7 +159,6 @@ public class SearchServiceTest {
 
     private final SupplyChainTestUtils supplyChainTestUtils = new SupplyChainTestUtils();
     private SearchService searchService;
-    private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
     private MarketsService marketsService = mock(MarketsService.class);
     private GroupsService groupsService = mock(GroupsService.class);
     private TargetsService targetsService = mock(TargetsService.class);
@@ -174,8 +174,7 @@ public class SearchServiceTest {
     private final TagsService tagsService = mock(TagsService.class);
     private final BusinessAccountRetriever businessAccountRetriever = mock(BusinessAccountRetriever.class);
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
-    private final EntityFilterMapper entityFilterMapper =
-            new EntityFilterMapper(groupUseCaseParser, targetCache);
+    private final EntityFilterMapper entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
     private final GroupFilterMapper groupFilterMapper = new GroupFilterMapper();
     private final EntityAspectMapper entityAspectMapper = mock(EntityAspectMapper.class);
 
@@ -203,6 +202,7 @@ public class SearchServiceTest {
     private final String probeType2 = SDKProbeType.AZURE.getProbeType();
 
     private SeverityPopulator severityPopulator = mock(SeverityPopulator.class);
+    private final ThinTargetCache targetCache = mock(ThinTargetCache.class);
     private final CloudTypeMapper cloudTypeMapper = mock(CloudTypeMapper.class);
     private ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
