@@ -7,12 +7,6 @@ import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityTy
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.EXTENT_VALUE;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.addCommodityConstraints;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommodityBoughtDTO;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommoditySoldDTO;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getActiveCommoditiesWithKeysGroups;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getCommoditySoldConstraint;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.updateRelatedEntityAccesses;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -20,14 +14,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -54,16 +47,16 @@ public class StorageEntityConstructor extends TopologyEntityConstructor {
     @Override
     public Collection<TopologyEntityDTO.Builder> createTopologyEntityFromTemplate(
             @Nonnull final Template template,
-            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nonnull Optional<TopologyEntity.Builder> originalTopologyEntity, boolean isReplaced,
+            @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
-        TopologyEntityDTO.Builder topologyEntityBuilder = super.createTopologyEntityFromTemplate(
-                template, topology, originalTopologyEntity, isReplaced, identityProvider).iterator()
-                        .next();
+        TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
+                template, originalTopologyEntity, isReplaced, identityProvider).iterator().next();
+        topologyEntityBuilder.setEntityType(EntityType.STORAGE_VALUE);
 
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints;
         final Set<CommoditySoldDTO> commoditySoldConstraints;
-        if (!originalTopologyEntity.isPresent()) {
+        if (originalTopologyEntity == null && topology != null) {
             // The case where a new storage is added from template.
             addExtentCommodityBought(topology, topologyEntityBuilder);
             commodityBoughtConstraints = Collections.emptyList();
@@ -75,10 +68,10 @@ public class StorageEntityConstructor extends TopologyEntityConstructor {
             addStorageCommoditiesBought(topologyEntityBuilder);
         }
 
-        final List<TemplateResource> storageTemplateResources =
-            TemplatesConverterUtils.getTemplateResources(template, Storage);
+        final List<TemplateResource> storageTemplateResources = getTemplateResources(template,
+                Storage);
         final Map<String, String> fieldNameValueMap =
-            TemplatesConverterUtils.createFieldNameValueMap(storageTemplateResources);
+                createFieldNameValueMap(storageTemplateResources);
         addStorageCommoditiesSold(topologyEntityBuilder, fieldNameValueMap);
 
         // shopRogether entities are not allowed to sell biclique commodities (why???), and storages need
@@ -86,10 +79,13 @@ public class StorageEntityConstructor extends TopologyEntityConstructor {
         topologyEntityBuilder.getAnalysisSettingsBuilder().setShopTogether(false);
 
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
-        if (originalTopologyEntity.isPresent()) {
-            updateRelatedEntityAccesses(originalTopologyEntity.get().getOid(),
+        if (originalTopologyEntity != null) {
+            updateRelatedEntityAccesses(originalTopologyEntity.getOid(),
                     topologyEntityBuilder.getOid(),
-                commoditySoldConstraints, topology);
+                    commoditySoldConstraints, topology);
+
+            topologyEntityBuilder.setTypeSpecificInfo(
+                    originalTopologyEntity.getEntityBuilder().getTypeSpecificInfo());
         }
         return Collections.singletonList(topologyEntityBuilder);
     }
@@ -131,7 +127,7 @@ public class StorageEntityConstructor extends TopologyEntityConstructor {
         final String commodityKey = COMMODITY_KEY_PREFIX + EntityType.DISK_ARRAY.name() +
             COMMODITY_KEY_SEPARATOR + topologyEntityBuilder.getOid();
         final CommodityBoughtDTO extentCommodityBought =
-            createCommodityBoughtDTO(EXTENT_VALUE, Optional.of(commodityKey), 1);
+                createCommodityBoughtDTO(EXTENT_VALUE, commodityKey, 1);
         commoditiesBoughtGroup.addCommodityBought(extentCommodityBought);
         commoditiesBoughtGroup.setMovable(true);
         topologyEntityBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtGroup.build());
@@ -214,41 +210,5 @@ public class StorageEntityConstructor extends TopologyEntityConstructor {
                         topologyEntityBuilder.getOid()))));
 
         return commoditySoldConstraints;
-    }
-
-    /**
-     * Generate storage commodity sold and add to TopologyEntityDTO.
-     *
-     * @param topologyEntityBuilder builder of TopologyEntity.
-     * @param fieldNameValueMap a Map which key is template field name and value is field value.
-     */
-    private static void addStorageCommoditiesSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-                                                  @Nonnull Map<String, String> fieldNameValueMap) {
-        final double diskSize =
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.STORAGE_DISK_SIZE, ZERO));
-        final double diskIops =
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.STORAGE_DISK_IOPS, ZERO));
-
-        CommoditySoldDTO storageAmoutCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, Optional.ofNullable(diskSize));
-        CommoditySoldDTO storageAccessCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, Optional.ofNullable(diskIops));
-        // Since storage templates don't have a latency value, but VMs do buy a latency commodity,
-        // a sold commodity is added. Capacity is left unset - StorageLatencyPostStitchingOperation
-        // will set it to the default value from EntitySettingSpecs.LatencyCapacity.
-        CommoditySoldDTO storageLatencyCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE);
-        // Because we don't have access to settings at this time, we can't calculate capacities for
-        // provisioned commodities. By leaving capacities unset, they will be set later in the
-        // topology pipeline when settings are avaialble by the
-        // OverprovisionCapacityPostStitchingOperation.
-        CommoditySoldDTO storageProvisionedCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE);
-
-        topologyEntityBuilder
-            .addCommoditySoldList(storageAccessCommodity)
-            .addCommoditySoldList(storageAmoutCommodity)
-            .addCommoditySoldList(storageLatencyCommodity)
-            .addCommoditySoldList(storageProvisionedCommodity);
     }
 }

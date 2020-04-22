@@ -4,11 +4,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -20,51 +23,74 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 public class HCIPhysicalMachineEntityConstructor extends TopologyEntityConstructor {
 
     @Override
+    @Nonnull
     public Collection<TopologyEntityDTO.Builder> createTopologyEntityFromTemplate(
-            @Nonnull Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
-            @Nonnull Optional<TopologyEntity.Builder> originalPM, boolean isReplaced,
+            @Nonnull Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nullable TopologyEntity.Builder originalHost, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
         List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
-        if (!originalPM.isPresent()) {
+        if (originalHost == null) {
             throw new TopologyEntityConstructorException(
                     "Original PM is missing. Template: " + template.getTemplateInfo().getName());
         }
 
-        Template.Builder pmTemplate = template.toBuilder();
-        pmTemplate.getTemplateInfoBuilder().setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
+        if (topology == null) {
+            throw new TopologyEntityConstructorException(
+                    "Topology is missing. Template: " + template.getTemplateInfo().getName());
+        }
 
-        Collection<TopologyEntityDTO.Builder> newPM = new PhysicalMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(pmTemplate.build(), topology, originalPM,
-                        isReplaced, identityProvider);
-        result.addAll(newPM);
+        TopologyEntityDTO.Builder newHost = new PhysicalMachineEntityConstructor()
+                .createTopologyEntityFromTemplate(template, null, originalHost, isReplaced,
+                        identityProvider)
+                .iterator().next();
+        result.add(newHost);
 
-        Template.Builder storageTemplate = template.toBuilder();
-        storageTemplate.getTemplateInfoBuilder().setEntityType(EntityType.STORAGE_VALUE);
-
-        long storageOid = getHCIStorageOid(originalPM.get());
+        long storageOid = getHCIStorageOid(originalHost);
         TopologyEntity.Builder originalStorage = topology.get(storageOid);
 
-        long planId = originalPM.get().getEntityBuilder().getEdit().getReplaced().getPlanId();
+        long planId = originalHost.getEntityBuilder().getEdit().getReplaced().getPlanId();
         originalStorage.getEntityBuilder().getEditBuilder().getReplacedBuilder().setPlanId(planId);
 
-        Collection<TopologyEntityDTO.Builder> newStorage = new StorageEntityConstructor()
-                .createTopologyEntityFromTemplate(storageTemplate.build(), topology,
-                        Optional.of(originalStorage), isReplaced, identityProvider);
-        result.addAll(newStorage);
+        TopologyEntityDTO.Builder newStorage = new StorageEntityConstructor()
+                .createTopologyEntityFromTemplate(template, null, originalStorage, isReplaced,
+                        identityProvider)
+                .iterator().next();
+        result.add(newStorage);
+
+        // Replace oids for the accesses commodities to the new ones
+        replaceAccessOid(newStorage, originalHost.getOid(), newHost.getOid());
+        replaceAccessOid(newHost, originalStorage.getOid(), newStorage.getOid());
+
+        // Create commodities from the template
+        Map<String, String> templateMap = createFieldNameValueMap(
+                getTemplateResources(template, ResourcesCategoryName.Storage));
+        addStorageCommoditiesSold(newHost, templateMap);
+        addStorageCommoditiesBought(newStorage, newHost.getOid(), templateMap);
 
         return result;
     }
 
-    private static long getHCIStorageOid(@Nonnull TopologyEntity.Builder originalPM)
-            throws TopologyEntityConstructorException {
-        for (TopologyEntity consumer : originalPM.getConsumers()) {
-            if (consumer.getEntityType() == EntityType.STORAGE_VALUE) {
-                return consumer.getOid();
+    private static void replaceAccessOid(@Nonnull TopologyEntityDTO.Builder entity, long oldOid,
+            long newOid) {
+        for (CommoditySoldDTO.Builder comm : entity.getCommoditySoldListBuilderList()) {
+            if (comm.getAccesses() == oldOid) {
+                comm.setAccesses(newOid);
             }
         }
+    }
 
-        throw new TopologyEntityConstructorException(
-                "PM '" + originalPM.getDisplayName() + "' does not have a Storage consumer");
+    private static long getHCIStorageOid(@Nonnull TopologyEntity.Builder originalHost)
+            throws TopologyEntityConstructorException {
+        List<TopologyEntity> storages = originalHost.getConsumers().stream()
+                .filter(consumer -> consumer.getEntityType() == EntityType.STORAGE_VALUE)
+                .collect(Collectors.toList());
+
+        if (storages.size() != 1) {
+            throw new TopologyEntityConstructorException("PM '" + originalHost.getDisplayName()
+                    + "' should have one Storage consumer, but has " + storages.size());
+        }
+
+        return storages.get(0).getOid();
     }
 }
