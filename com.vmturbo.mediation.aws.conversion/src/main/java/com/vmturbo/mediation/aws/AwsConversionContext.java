@@ -8,7 +8,6 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.mediation.conversion.cloud.CloudProviderConversionContext;
 import com.vmturbo.mediation.conversion.cloud.IEntityConverter;
-import com.vmturbo.mediation.conversion.cloud.converter.VirtualMachineConverter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 
@@ -21,7 +20,6 @@ public class AwsConversionContext implements CloudProviderConversionContext {
     private static final Map<EntityType, IEntityConverter> AWS_ENTITY_CONVERTERS;
     static {
         final Map<EntityType, IEntityConverter> converters = new EnumMap<>(EntityType.class);
-        converters.put(EntityType.VIRTUAL_MACHINE, new VirtualMachineConverter(SDKProbeType.AWS));
         AWS_ENTITY_CONVERTERS = Collections.unmodifiableMap(converters);
     }
 
