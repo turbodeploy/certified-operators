@@ -186,10 +186,6 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>com.vmturbo.plan.orchestrator.api</artifactId>
         </dependency>
-        <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.plan.orchestrator.api</artifactId>
-        </dependency>
     </dependencies>
 
 </project>

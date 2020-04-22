@@ -39,8 +39,8 @@ import org.apache.logging.log4j.io.IoBuilder;
 
 import tec.units.ri.unit.MetricPrefix;
 
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
-import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.test.utilities.ComponentTestRule;
 import com.vmturbo.external.api.TurboApiClient;
 
@@ -220,7 +220,7 @@ public class ComponentCluster {
     @Nonnull
     public ManagedChannelBuilder newGrpcChannelBuilder(@Nonnull final String service) {
         final DockerPort dockerPort = components.get(service).getGrpcPort();
-        return ComponentGrpcServer.newChannelBuilder(dockerPort.getIp(), dockerPort.getExternalPort());
+        return GrpcChannelFactory.newChannelBuilder(dockerPort.getIp(), dockerPort.getExternalPort());
     }
 
     public URI getMetricsURI(@Nonnull final String service) {

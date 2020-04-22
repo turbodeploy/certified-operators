@@ -32,7 +32,7 @@ import org.springframework.web.servlet.DispatcherServlet;
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationService;
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
 import com.vmturbo.clustermgr.management.ComponentRegistrationConfig;
-import com.vmturbo.components.api.grpc.ComponentGrpcServer;
+import com.vmturbo.components.common.ComponentGrpcServer;
 import com.vmturbo.components.common.config.PropertiesLoader;
 
 /**

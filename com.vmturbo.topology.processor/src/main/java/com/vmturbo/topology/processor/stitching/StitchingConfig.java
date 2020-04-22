@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.components.api.grpc.ComponentGrpcServer;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary;
@@ -115,7 +115,7 @@ public class StitchingConfig {
 
     @Bean
     public Channel historyChannel() {
-        return ComponentGrpcServer.newChannelBuilder(historyHost, grpcPort).build();
+        return GrpcChannelFactory.newChannelBuilder(historyHost, grpcPort).build();
     }
 
     @Bean

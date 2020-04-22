@@ -15,9 +15,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 
 /**
@@ -62,7 +62,7 @@ public class HistoryClientConfig {
 
     @Bean
     public Channel historyChannel() {
-        return ComponentGrpcServer.newChannelBuilder(historyHost, grpcPort).build();
+        return GrpcChannelFactory.newChannelBuilder(historyHost, grpcPort).build();
     }
 
     /**
@@ -73,7 +73,7 @@ public class HistoryClientConfig {
      */
     @Bean
     public Channel historyChannelWithMaxMessageSize(int maxMessageSize) {
-        return ComponentGrpcServer.newChannelBuilder(historyHost, grpcPort, maxMessageSize).build();
+        return GrpcChannelFactory.newChannelBuilder(historyHost, grpcPort, maxMessageSize).build();
     }
 
 }

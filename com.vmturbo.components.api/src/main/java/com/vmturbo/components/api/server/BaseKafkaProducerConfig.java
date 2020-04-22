@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.components.api.BaseKafkaConfig;
-import com.vmturbo.components.api.localbus.LocalBus;
 
 /**
  * Base configuration for Kafka notifications sender. This configuration should be imported from
@@ -32,6 +31,8 @@ public class BaseKafkaProducerConfig extends BaseKafkaConfig {
     @Value("${kafkaRecommendedRequestSizeBytes:126976}")
     private int recommendedRequestSizeBytes;
 
+
+
     /**
      * Kafka sender bean. only one instance is expected to exist in one component.
      *
@@ -39,12 +40,8 @@ public class BaseKafkaProducerConfig extends BaseKafkaConfig {
      */
     @Bean
     @Lazy
-    public IMessageSenderFactory kafkaMessageSender() {
-        if (useLocalBus()) {
-            return LocalBus.getInstance();
-        } else {
-            return new KafkaMessageProducer(bootstrapServer(), kafkaNamespacePrefix(),
-                maxRequestSizeBytes, recommendedRequestSizeBytes);
-        }
+    public KafkaMessageProducer kafkaMessageSender() {
+        return new KafkaMessageProducer(bootstrapServer(), kafkaNamespacePrefix(),
+            maxRequestSizeBytes, recommendedRequestSizeBytes);
     }
 }

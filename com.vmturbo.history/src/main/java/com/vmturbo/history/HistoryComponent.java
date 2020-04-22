@@ -142,7 +142,7 @@ public class HistoryComponent extends BaseVmtComponent {
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(
                 new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds, historyDbConfig.historyDbIO()::connection));
-        getHealthMonitor().addHealthCheck(historyApiConfig.messageProducerHealthMonitor());
+        getHealthMonitor().addHealthCheck(historyApiConfig.kafkaProducerHealthMonitor());
         if (dbMonitorConfig.isEnabled()) {
             log.info("Starting Database monitor");
             startDbMonitor();

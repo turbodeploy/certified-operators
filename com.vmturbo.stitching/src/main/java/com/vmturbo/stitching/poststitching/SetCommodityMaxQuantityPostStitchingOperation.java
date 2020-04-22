@@ -235,7 +235,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
                 entityCommodityToMaxQuantitiesMap.size(),
                 loadTime);
         } catch (StatusRuntimeException e) {
-            if (e.getStatus().getCode() == Status.Code.UNAVAILABLE) {
+            if (e.getCause() != null &&
+                    e.getStatus().getCode() == Status.Code.UNAVAILABLE) {
                 logger.error("Failed initializing max value map as history component is unavailable");
             }
             else {

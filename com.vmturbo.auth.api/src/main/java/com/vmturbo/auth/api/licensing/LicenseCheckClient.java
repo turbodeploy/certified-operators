@@ -67,8 +67,7 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
         updateEventFlux.publish().connect();
         // bootstrap the license check client by trying to get the latest available license summary
         // from the auth service.
-        final Thread bootstrapTread = new Thread(this::requestLatestLicenseSummary);
-        bootstrapTread.start();
+        requestLatestLicenseSummary();
     }
 
     /**

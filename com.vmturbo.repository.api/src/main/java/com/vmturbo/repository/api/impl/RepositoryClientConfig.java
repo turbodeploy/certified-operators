@@ -7,10 +7,6 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -18,14 +14,19 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
 import com.vmturbo.common.protobuf.repository.RepositoryNotificationDTO.RepositoryNotification;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
-import com.vmturbo.components.api.grpc.ComponentGrpcServer;
+import com.vmturbo.repository.api.Repository;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.TopologyAvailabilityTracker;
 
@@ -80,7 +81,7 @@ public class RepositoryClientConfig {
 
     @Bean
     public Channel repositoryChannel() {
-        return ComponentGrpcServer.newChannelBuilder(repositoryHost, grpcPort)
+        return GrpcChannelFactory.newChannelBuilder(repositoryHost, grpcPort)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }

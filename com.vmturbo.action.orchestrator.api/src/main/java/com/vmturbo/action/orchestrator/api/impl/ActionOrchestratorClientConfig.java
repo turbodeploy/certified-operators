@@ -16,9 +16,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.dto.ActionMessages.ActionOrchestratorNotification;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 
 /**
  * Spring configuration to import to connecto to Action Orchestrator instance.
@@ -66,7 +66,7 @@ public class ActionOrchestratorClientConfig {
 
     @Bean
     public Channel actionOrchestratorChannel() {
-        return ComponentGrpcServer.newChannelBuilder(actionOrchestratorHost, grpcPort)
+        return GrpcChannelFactory.newChannelBuilder(actionOrchestratorHost, grpcPort)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }

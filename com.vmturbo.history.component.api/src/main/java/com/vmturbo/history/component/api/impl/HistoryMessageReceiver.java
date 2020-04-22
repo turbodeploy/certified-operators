@@ -3,7 +3,6 @@ package com.vmturbo.history.component.api.impl;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.components.api.client.IMessageReceiver;
-import com.vmturbo.components.api.client.IMessageReceiverFactory;
 import com.vmturbo.components.api.client.KafkaMessageConsumer;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 
@@ -19,7 +18,7 @@ public class HistoryMessageReceiver {
      * @return message receiver.
      */
     public static IMessageReceiver<HistoryComponentNotification> create(
-            @Nonnull IMessageReceiverFactory kafkaMessageConsumer) {
+            @Nonnull KafkaMessageConsumer kafkaMessageConsumer) {
         return kafkaMessageConsumer.messageReceiver(
                 HistoryComponentNotificationReceiver.NOTIFICATION_TOPIC,
                 HistoryComponentNotification::parseFrom);

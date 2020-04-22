@@ -88,7 +88,7 @@ public class ActionOrchestratorComponent extends BaseVmtComponent {
         log.info("Adding MariaDB health check to the component health monitor.");
         getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
             dbConfig.dataSource()::getConnection));
-        getHealthMonitor().addHealthCheck(actionOrchestratorApiConfig.messageProducerHealthMonitor());
+        getHealthMonitor().addHealthCheck(actionOrchestratorApiConfig.kafkaProducerHealthMonitor());
     }
 
     @Override

@@ -7,10 +7,10 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.components.api.server.IMessageSenderFactory;
+import com.vmturbo.components.api.server.KafkaMessageProducer;
 
 /**
- * MessageProducerHealthMonitor will track the health of the singleton message producer. This is a
+ * KafkaProducerHealthMonitor will track the health of the singleton kafka producer. This is a
  * simple health check that will report unhealthy if the last sent message attempt resulted in
  * an exception.
  *
@@ -19,26 +19,25 @@ import com.vmturbo.components.api.server.IMessageSenderFactory;
  * ProducerInterceptor class, which does the same thing, but requires wiring in at kafka producer
  * construction time.
  */
-public class MessageProducerHealthMonitor extends SimpleHealthStatusProvider {
+public class KafkaProducerHealthMonitor extends SimpleHealthStatusProvider {
     private Logger log = LogManager.getLogger();
 
-    private final IMessageSenderFactory messageProducer;
+    private final KafkaMessageProducer kafkaMessageProducer;
 
     /**
-     * Constructs the producer health monitor.
+     * Constructs the kafka producer health monitor.
      *
-     * @param messageProducer the kafka producer config
+     * @param kafkaProducer the kafka producer config
      */
-    public MessageProducerHealthMonitor(@Nonnull IMessageSenderFactory messageProducer) {
+    public KafkaProducerHealthMonitor(@Nonnull KafkaMessageProducer kafkaProducer) {
         super("Kafka Producer");
 
-        this.messageProducer = Objects.requireNonNull(messageProducer);
+        this.kafkaMessageProducer = Objects.requireNonNull(kafkaProducer);
         reportHealthy("Running");
     }
 
     /**
-     * Dynamically check the sender factory to determine current health status
-     *
+     * Dynamically check the kafka producer to determine current health status
      * @return the current health status
      */
     @Override
@@ -46,7 +45,7 @@ public class MessageProducerHealthMonitor extends SimpleHealthStatusProvider {
         SimpleHealthStatus lastStatus = super.getHealthStatus();
 
         // only return a new status object if the health status has changed.
-        boolean isNowHealthy = !messageProducer.lastSendFailed();
+        boolean isNowHealthy = ! kafkaMessageProducer.lastSendFailed();
         if (lastStatus.isHealthy() == isNowHealthy) {
             return lastStatus;
         }

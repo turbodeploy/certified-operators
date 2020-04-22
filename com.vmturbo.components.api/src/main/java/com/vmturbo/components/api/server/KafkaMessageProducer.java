@@ -25,10 +25,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
 
-/**
- * Creates kafka-based message senders.
- */
-public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactory {
+public class KafkaMessageProducer implements AutoCloseable {
 
     /**
      * Interval between retrials to send the message.
@@ -109,7 +106,11 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
         producer = new KafkaProducer<>(props);
     }
 
-    @Override
+    /**
+     * Did the last send attempt fail?
+     *
+     * @return true if the last send attempt resulted in an exception
+     */
     public boolean lastSendFailed() {
         return lastSendFailed.get();
     }
@@ -174,13 +175,28 @@ public class KafkaMessageProducer implements AutoCloseable, IMessageSenderFactor
         producer.close();
     }
 
-    @Override
+    /**
+     * Creates message sender for the specific topic.
+     *
+     * @param topic topic to send messages to
+     * @return message sender.
+     */
     public <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic) {
         final String namespacedTopic = namespacePrefix + topic;
         return new BusMessageSender<>(namespacedTopic);
     }
 
-    @Override
+    /**
+     * Creates a message sender for the specific topic, with a specific key generator function.
+     *
+     * The key generator function should accept a message of the chosen type and return a string
+     * to use as the message key when sending.
+     *
+     * @param topic The topic to send messages to
+     * @param keyGenerator The key generation function to use
+     * @param <S> The Type of the messages to send on this topic
+     * @return a message sender configured for the topic and key generator
+     */
     public <S extends AbstractMessage> IMessageSender<S> messageSender(@Nonnull String topic,
                                            @Nonnull Function<S, String> keyGenerator) {
         final String namespacedTopic = namespacePrefix + topic;

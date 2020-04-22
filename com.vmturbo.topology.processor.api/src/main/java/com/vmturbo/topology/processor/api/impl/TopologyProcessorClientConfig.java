@@ -10,10 +10,6 @@ import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -21,14 +17,18 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
+import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
-import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
@@ -173,7 +173,7 @@ public class TopologyProcessorClientConfig {
      */
     @Bean
     public Channel topologyProcessorChannel() {
-        return ComponentGrpcServer.newChannelBuilder(topologyProcessorHost, topologyProcessorRpcPort)
+        return GrpcChannelFactory.newChannelBuilder(topologyProcessorHost, topologyProcessorRpcPort)
                 .build();
     }
 }

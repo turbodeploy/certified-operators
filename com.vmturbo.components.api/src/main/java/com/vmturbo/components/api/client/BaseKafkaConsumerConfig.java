@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.components.api.BaseKafkaConfig;
-import com.vmturbo.components.api.localbus.LocalBus;
 
 /**
  * Base Kafka client configuration. This configuration should be imported from Spring context in
@@ -29,17 +28,12 @@ public class BaseKafkaConsumerConfig extends BaseKafkaConfig {
      */
     @Bean
     @Lazy
-    public IMessageReceiverFactory kafkaConsumer() {
-        if (useLocalBus()) {
-            return LocalBus.getInstance();
-        } else {
-            return new KafkaMessageConsumer(bootstrapServer(), consumerGroup, kafkaNamespacePrefix());
-        }
-
+    public KafkaMessageConsumer kafkaConsumer() {
+        return new KafkaMessageConsumer(bootstrapServer(), consumerGroup, kafkaNamespacePrefix());
     }
 
     @Bean
     public KafkaConsumerStarter startKafka() {
-        return new KafkaConsumerStarter(useLocalBus());
+        return new KafkaConsumerStarter();
     }
 }

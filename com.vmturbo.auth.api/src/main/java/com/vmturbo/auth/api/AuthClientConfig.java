@@ -4,13 +4,13 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
-import io.grpc.Channel;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import com.vmturbo.components.api.grpc.ComponentGrpcServer;
+import io.grpc.Channel;
+
+import com.vmturbo.components.api.GrpcChannelFactory;
 
 /**
  * Spring configuration for a GRPC client of the Widgets functionality
@@ -35,7 +35,7 @@ public class AuthClientConfig {
 
     @Bean
     public Channel authClientChannel() {
-        return ComponentGrpcServer.newChannelBuilder(authHost, grpcPort)
+        return GrpcChannelFactory.newChannelBuilder(authHost, grpcPort)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }

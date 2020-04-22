@@ -45,9 +45,4 @@ public class BaseKafkaConfig  {
     public String kafkaNamespacePrefix() {
         return StringUtils.isEmpty(namespace) ? StringUtils.EMPTY : namespace + PREFIX_DELIM;
     }
-
-    protected static boolean useLocalBus() {
-        // Controlled via system property, false by default. Should only be used in development/test.
-        return Boolean.getBoolean("useLocalBus");
-    }
 }

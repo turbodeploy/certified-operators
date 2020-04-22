@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 
-import com.vmturbo.components.api.grpc.ComponentGrpcServer;
+import com.vmturbo.components.api.GrpcChannelFactory;
 
 /**
  * Configuration cluster manager clients can use to connect to cluster manager.
@@ -39,7 +39,7 @@ public class ClusterMgrClientConfig {
      */
     @Bean
     public Channel clustermgrChannel() {
-        return ComponentGrpcServer.newChannelBuilder(clusterMgrHost, grpcPort)
+        return GrpcChannelFactory.newChannelBuilder(clusterMgrHost, grpcPort)
             .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
             .build();
     }
