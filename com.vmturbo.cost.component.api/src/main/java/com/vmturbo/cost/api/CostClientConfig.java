@@ -22,11 +22,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.common.protobuf.cost.CostNotificationOuterClass.CostNotification;
-import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.cost.api.impl.CostComponentImpl;
 import com.vmturbo.cost.api.impl.CostSubscription;
 import com.vmturbo.cost.api.impl.CostSubscription.Topic;
@@ -64,7 +64,7 @@ public class CostClientConfig {
 
     @Bean
     public Channel costChannel() {
-        return GrpcChannelFactory.newChannelBuilder(costHost, grpcPort)
+        return ComponentGrpcServer.newChannelBuilder(costHost, grpcPort)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }

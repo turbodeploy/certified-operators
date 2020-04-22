@@ -1,4 +1,4 @@
-package com.vmturbo.components.common;
+package com.vmturbo.components.api.grpc;
 
 import io.grpc.ForwardingServerCallListener.SimpleForwardingServerCallListener;
 import io.grpc.Metadata;
