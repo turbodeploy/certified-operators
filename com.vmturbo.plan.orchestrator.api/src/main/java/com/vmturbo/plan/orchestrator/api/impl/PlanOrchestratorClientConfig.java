@@ -22,9 +22,9 @@ import org.springframework.context.annotation.Lazy;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationChanges;
-import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.plan.orchestrator.api.PlanOrchestrator;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector.PlanGarbageCollector;
 
@@ -100,7 +100,7 @@ public class PlanOrchestratorClientConfig {
 
     @Bean
     public Channel planOrchestratorChannel() {
-        return GrpcChannelFactory.newChannelBuilder(planOrchestratorHost, grpcPort)
+        return ComponentGrpcServer.newChannelBuilder(planOrchestratorHost, grpcPort)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 .build();
     }

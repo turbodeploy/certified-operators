@@ -5,6 +5,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -12,13 +16,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
-import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
 
 @Configuration
@@ -51,7 +51,7 @@ public class GroupClientConfig {
 
     @Bean
     public Channel groupChannel() {
-        return GrpcChannelFactory.newChannelBuilder(groupHost, grpcPort)
+        return ComponentGrpcServer.newChannelBuilder(groupHost, grpcPort)
                 .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
                 // TODO (roman, Mar 8 2018) OM-32762: Go back to default max message size once the
                 // call to get entity settings is optimized.

@@ -40,7 +40,7 @@ import com.vmturbo.clustermgr.transfer.DataTransfer;
 import com.vmturbo.common.protobuf.logging.LoggingREST.LogConfigurationServiceController;
 import com.vmturbo.common.protobuf.logging.LoggingREST.TracingConfigurationServiceController;
 import com.vmturbo.components.api.ComponentGsonFactory;
-import com.vmturbo.components.api.GrpcChannelFactory;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.OsCommandProcessRunner;
 import com.vmturbo.components.common.OsProcessFactory;
 import com.vmturbo.components.common.logging.LogConfigurationService;
@@ -187,7 +187,7 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
     @Bean
     public DiagEnvironmentSummary diagFileNameFormatter() {
         return new DiagEnvironmentSummary(BuildProperties.get(),
-            Clock.systemUTC(), (host, port) -> GrpcChannelFactory.newChannelBuilder(host, port).build(), authHost, serverGrpcPort);
+            Clock.systemUTC(), (host, port) -> ComponentGrpcServer.newChannelBuilder(host, port).build(), authHost, serverGrpcPort);
     }
 
     /**
