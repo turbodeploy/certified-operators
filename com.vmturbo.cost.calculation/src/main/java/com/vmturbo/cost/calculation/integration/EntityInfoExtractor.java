@@ -299,15 +299,18 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
     class VirtualVolumeConfig {
         private final float accesCapacityMillionIops;
         private final float amountCapacityMb;
+        private final float ioThroughputCapacityMBps;
         private final boolean isEphemeral;
         private final RedundancyType redundancyType;
 
         public VirtualVolumeConfig(final float accesCapacityMillionIops,
                                    final float amountCapacityMb,
+                                   final float ioThroughputCapacityMBps,
                                    final boolean isEphemeral,
                                    @Nullable final RedundancyType redundancyType) {
             this.accesCapacityMillionIops = accesCapacityMillionIops;
             this.amountCapacityMb = amountCapacityMb;
+            this.ioThroughputCapacityMBps = ioThroughputCapacityMBps;
             this.isEphemeral = isEphemeral;
             this.redundancyType = redundancyType;
         }
@@ -318,6 +321,10 @@ public interface EntityInfoExtractor<ENTITY_CLASS> {
 
         public float getAmountCapacityGb() {
             return amountCapacityMb / 1024;
+        }
+
+        public float getIoThroughputCapacityMBps() {
+            return ioThroughputCapacityMBps;
         }
 
         public boolean isEphemeral() {

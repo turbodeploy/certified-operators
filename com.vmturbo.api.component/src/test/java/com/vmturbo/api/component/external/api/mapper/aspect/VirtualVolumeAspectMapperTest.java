@@ -62,6 +62,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.commons.Units;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -91,6 +92,7 @@ public class VirtualVolumeAspectMapperTest {
     private Long azureVolumeId = 23L;
     private Long azureStorageTierId = 32L;
     private Long azureRegionId = 52L;
+    private float azureVolumeIoThroughput = 30;
     private String azureVmName = "testAzureVM";
     private String azureVolumeName = "azureVolume";
     private String azureStorageTierName = "UNMANAGED_STANDARD";
@@ -278,6 +280,7 @@ public class VirtualVolumeAspectMapperTest {
             .build())
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                 .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                        .setIoThroughputCapacity(azureVolumeIoThroughput)
                         .setStorageAccessCapacity(300)
                         .setStorageAmountCapacity(3000)
                         .build()))
@@ -381,6 +384,7 @@ public class VirtualVolumeAspectMapperTest {
             .setVirtualVolume(VirtualVolumeInfo.newBuilder()
                 .setStorageAccessCapacity(storageAccessCapacity)
                 .setStorageAmountCapacity(storageAmountCapacityInMB)
+                .setIoThroughputCapacity(azureVolumeIoThroughput)
                 .setSnapshotId(snapshotId)
                 .setAttachmentState(AttachmentState.ATTACHED)
                 .setEncryption(true)
@@ -441,7 +445,7 @@ public class VirtualVolumeAspectMapperTest {
 
                 // check stats for volume
                 java.util.List<StatApiDTO> stats = volumeAspect.getStats();
-                assertEquals(2, stats.size());
+                assertEquals(3, stats.size());
                 java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(stat -> stat.getName() == "StorageAccess").findFirst();
                 assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
                 java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
@@ -508,7 +512,7 @@ public class VirtualVolumeAspectMapperTest {
 
         // check stats for volume
         java.util.List<StatApiDTO> stats = volumeAspect.getStats();
-        assertEquals(2, stats.size());
+        assertEquals(3, stats.size());
         java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(stat -> stat.getName() == "StorageAccess").findFirst();
         assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
         java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
@@ -575,11 +579,15 @@ public class VirtualVolumeAspectMapperTest {
 
         // check stats for volume
         java.util.List<StatApiDTO> stats = volumeAspect.getStats();
-        assertEquals(2, stats.size());
+        assertEquals(3, stats.size());
         java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(stat -> stat.getName() == "StorageAccess").findFirst();
         assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
         java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
         assertEquals(storageAmountCapacityInMB / 1024F, statApiDTOStorageAmount.get().getCapacity().getAvg().longValue(), 0.00001);
+        java.util.Optional<StatApiDTO> statApiDTOIoThroughput = stats.stream()
+            .filter(stat -> stat.getName() == "IOThroughput").findFirst();
+        assertEquals(statApiDTOIoThroughput.get().getCapacity().getAvg().longValue(),
+            azureVolumeIoThroughput * Units.KIBI, 0.00001);
         assertEquals(VirtualVolumeAspectMapper.CLOUD_STORAGE_AMOUNT_UNIT, statApiDTOStorageAmount.get().getUnits());
 
         assertEquals(snapshotId, volumeAspect.getSnapshotId());
@@ -642,7 +650,7 @@ public class VirtualVolumeAspectMapperTest {
 
         // check stats for volume
         java.util.List<StatApiDTO> stats = volumeAspect.getStats();
-        assertEquals(2, stats.size());
+        assertEquals(3, stats.size());
         java.util.Optional<StatApiDTO> statApiDTOStorageAccess = stats.stream().filter(stat -> stat.getName() == "StorageAccess").findFirst();
         assertEquals(statApiDTOStorageAccess.get().getCapacity().getAvg().longValue(), storageAccessCapacity);
         java.util.Optional<StatApiDTO> statApiDTOStorageAmount = stats.stream().filter(stat -> stat.getName() == "StorageAmount").findFirst();
@@ -785,7 +793,7 @@ public class VirtualVolumeAspectMapperTest {
         assertEquals(azureStorageTierName, volumeAspect3.getTier());
 
         // check stats for different volumes
-        assertEquals(2, volumeAspect1.getStats().size());
+        assertEquals(3, volumeAspect1.getStats().size());
         volumeAspect1.getStats().forEach(statApiDTO -> {
             if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase())) {
                 assertEquals(50, statApiDTO.getValue(), 0);
@@ -795,10 +803,13 @@ public class VirtualVolumeAspectMapperTest {
                 assertEquals(100, statApiDTO.getValue(), 0);
                 assertEquals(1000, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
+            } else if (statApiDTO.getName().equals(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase())) {
+                assertEquals(0, statApiDTO.getCapacity().getTotal(), 0);
+                assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
             }
         });
 
-        assertEquals(2, volumeAspect2.getStats().size());
+        assertEquals(3, volumeAspect2.getStats().size());
         volumeAspect2.getStats().forEach(statApiDTO -> {
             if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase())) {
                 assertEquals(0, statApiDTO.getValue(), 0);
@@ -808,10 +819,14 @@ public class VirtualVolumeAspectMapperTest {
                 assertEquals(0, statApiDTO.getValue(), 0);
                 assertEquals(2000, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
+            } else if (statApiDTO.getName().equals(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase())) {
+                assertEquals(0, statApiDTO.getValue(), 0);
+                assertEquals(0, statApiDTO.getCapacity().getTotal(), 0);
+                assertEquals(String.valueOf(storageTierId1), statApiDTO.getRelatedEntity().getUuid());
             }
         });
 
-        assertEquals(2, volumeAspect3.getStats().size());
+        assertEquals(3, volumeAspect3.getStats().size());
         volumeAspect3.getStats().forEach(statApiDTO -> {
             if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_ACCESS.getMixedCase())) {
                 assertEquals(150, statApiDTO.getValue(), 0);
@@ -820,6 +835,10 @@ public class VirtualVolumeAspectMapperTest {
             } else if (statApiDTO.getName().equals(CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase())) {
                 assertEquals(500, statApiDTO.getValue(), 0);
                 assertEquals(3000, statApiDTO.getCapacity().getTotal(), 0);
+                assertEquals(String.valueOf(azureStorageTierId), statApiDTO.getRelatedEntity().getUuid());
+            } else if (statApiDTO.getName().equals(CommodityTypeUnits.IO_THROUGHPUT.getMixedCase())) {
+                assertEquals(0, statApiDTO.getValue(), 0);
+                assertEquals(azureVolumeIoThroughput * Units.KIBI, statApiDTO.getCapacity().getTotal(), 0);
                 assertEquals(String.valueOf(azureStorageTierId), statApiDTO.getRelatedEntity().getUuid());
             }
         });

@@ -254,6 +254,9 @@ message TypeSpecificInfo {
 
         // Boolean ephemeral storage
         optional bool isEphemeral = 8;
+
+        // float IO throughput capacity (MiB/s) needed for cost calculations
+        optional float io_throughput_capacity = 9;
     }
 
     // specific data for a Storage entity
