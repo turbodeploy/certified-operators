@@ -155,4 +155,15 @@ public class EntitySettingsCollection {
                                                   @Nonnull final EntitySettingSpecs setting) {
         return getEntityUserSetting(entity.getOid(), setting.getSettingName());
     }
+
+    /**
+     * Indicate weather an entity with a given entityOid has a user policy defined.
+     *
+     * @param entityOid of the input entity
+     * @return true if the entity has a user policy, false otherwise.
+     */
+    public boolean hasUserPolicySettings(final long entityOid) {
+        return settingsByEntity.containsKey(entityOid) &&
+            !settingsByEntity.get(entityOid).getUserSettingsList().isEmpty();
+    }
 }

@@ -88,6 +88,9 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityMaxValue;
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
+import com.vmturbo.common.protobuf.stats.Stats.EntityToCommodityTypeCapacity;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesResponse;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesResponse.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.PropertyValueFilter;
@@ -102,6 +105,7 @@ import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.history.db.jooq.JooqUtils;
 import com.vmturbo.history.db.queries.AvailableEntityTimestampsQuery;
 import com.vmturbo.history.db.queries.AvailableTimestampsQuery;
+import com.vmturbo.history.db.queries.EntityCommoditiesCapacityValuesQuery;
 import com.vmturbo.history.db.queries.EntityCommoditiesMaxValuesQuery;
 import com.vmturbo.history.schema.HistoryVariety;
 import com.vmturbo.history.schema.RelationType;
@@ -1338,6 +1342,63 @@ public class HistorydbIO extends BasedbIO {
                     entityType != null ? entityType.getName() : "Entity type #" + entityTypeNo);
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * Constructing a query for getting entities commodity capacity and get the result from the db.
+     * according to entity type to know which for the stats tables to select.
+     *
+     * @param entityTypeNo for knowing the table to access
+     * @param uuids of the entity record we want
+     * @param commodityTypeName of the record we want
+     * @return a converted response ready for sending back
+     * @throws VmtDbException in case of a db connection issue
+     * @throws SQLException in case if issues executing the sql query
+     */
+    public List<GetEntityCommoditiesCapacityValuesResponse> getEntityCommoditiesCapacityValues(int entityTypeNo,
+               List<String> uuids, Map<Long,Map<String,Set<String>>> uuidToComTypeToComKey, String commodityTypeName)
+        throws VmtDbException, SQLException {
+        final EntityType entityType = EntityType.fromSdkEntityType(entityTypeNo).orElse(null);
+        Optional<Table<?>> table = entityType != null ? entityType.getDayTable() : Optional.empty();
+        if (table.isPresent()) {
+            // Query for the max of the capacities from the last 7 days in the DB for
+            // each commodity in each entity.
+            try (Connection conn = connection()) {
+                final ResultQuery<?> query = new EntityCommoditiesCapacityValuesQuery(table.get(),
+                    uuids, commodityTypeName).getQuery();
+                Result<? extends Record> statsRecords = using(conn).fetch(query);
+                logger.debug("Number of records fetched for table {} = {}", table.get(), statsRecords.size());
+                return convertToEntityCommoditiesCapacityValues(table.get(), statsRecords, uuidToComTypeToComKey);
+            }
+        } else {
+            logger.error("No monthly stats table for entityType: {}",
+                entityType != null ? entityType.getName() : "Entity type #" + entityTypeNo);
+            return Collections.emptyList();
+        }
+    }
+
+    private List<GetEntityCommoditiesCapacityValuesResponse> convertToEntityCommoditiesCapacityValues(
+        Table<?> tbl, final Result<? extends Record> statsRecords, Map<Long, Map<String, Set<String>>> uuidToComTypeToComKeys) {
+        final Builder responseBuilder = GetEntityCommoditiesCapacityValuesResponse.newBuilder();
+        statsRecords.forEach(record -> {
+            final Long uuid = Long.parseLong(record.getValue(getStringField(tbl, UUID)));
+            final String comKey = record.getValue(getStringField(tbl, COMMODITY_KEY));
+            final String comTypeString = record.getValue(getStringField(tbl, PROPERTY_TYPE));
+            final Integer comTypeInt = new Integer(UICommodityType.fromString(comTypeString).typeNumber());
+            final Double maxCapacity = record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class));
+            // filtering only the commodities with the correct key
+            if (uuidToComTypeToComKeys.get(uuid).get(comTypeString).contains(comKey)) {
+                responseBuilder.addEntitiesToCommodityTypeCapacity(
+                    EntityToCommodityTypeCapacity.newBuilder()
+                        .setEntityUuid(uuid)
+                        .setCommodityType(CommodityType.newBuilder()
+                            .setType(comTypeInt)
+                            .setKey(comKey).build())
+                        .setCapacity(maxCapacity).build()
+                );
+            }
+        });
+        return Collections.singletonList(responseBuilder.build());
     }
 
     /**

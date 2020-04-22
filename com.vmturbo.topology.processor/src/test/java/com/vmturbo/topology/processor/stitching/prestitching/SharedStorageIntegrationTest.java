@@ -45,7 +45,7 @@ import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
-import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
+import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -110,7 +110,7 @@ public class SharedStorageIntegrationTest {
         statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
         postStitchingOperationLibrary =
             new PostStitchingOperationLibrary(
-                new SetCommodityMaxQuantityPostStitchingOperationConfig(
+                new CommodityPostStitchingOperationConfig(
                     statsServiceClient, 30, 10), //meaningless values
                 diskCapacityCalculator, cpuCapacityStore, clock, 0);
         when(targetA.getId()).thenReturn(targetAId);
