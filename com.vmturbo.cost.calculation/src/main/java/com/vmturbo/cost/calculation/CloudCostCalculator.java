@@ -281,6 +281,9 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                             trax(volumeConfig.getAccessCapacityMillionIops(), "access capacity " +
                                 "million iops " + redundancyTypeSuffix), Unit.MILLION_IOPS);
                         recordStorageRangePricesByUnit(pricesByUnit, journal, storageTier,
+                            trax(volumeConfig.getIoThroughputCapacityMBps(), "throughput capacity in MiB/s"),
+                            Unit.MBPS_MONTH);
+                        recordStorageRangePricesByUnit(pricesByUnit, journal, storageTier,
                             trax(volumeConfig.getAmountCapacityGb(), "capacity gb/month "
                                 + redundancyTypeSuffix), Unit.GB_MONTH);
                         recordRangePricesForMonth(pricesByUnit.get(Unit.MONTH),

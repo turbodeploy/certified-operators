@@ -102,6 +102,7 @@ public class OnDemandJournalEntry<E> implements QualifiedJournalEntry<E> {
             case MONTH:
             case MILLION_IOPS:
             case GB_MONTH:
+            case MBPS_MONTH:
                 // In all of these cases, the key distinction is that the price is monthly,
                 // so to get the hourly price we need to divide.
                 cost = totalPrice.dividedBy(CostProtoUtil.HOURS_IN_MONTH, "hrs in month")
