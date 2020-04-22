@@ -6,7 +6,6 @@ import static org.junit.Assert.assertEquals;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 
 import org.junit.Test;
 import org.mockito.Mockito;
@@ -33,7 +32,7 @@ public class VirtualMachineEntityConstructorTest {
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, Optional.empty(), false,
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, false,
                         identityProvider)
                 .iterator().next();
         assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
@@ -77,8 +76,7 @@ public class VirtualMachineEntityConstructorTest {
         TopologyEntity.Builder topologyEntity = TopologyEntity.newBuilder(builder);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology,
-                        Optional.of(topologyEntity), false,
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, topologyEntity, false,
                         identityProvider)
                 .iterator().next();
 
@@ -125,7 +123,7 @@ public class VirtualMachineEntityConstructorTest {
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
 
         TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor(true)
-                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, Optional.empty(), false,
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, false,
                         identityProvider)
                 .iterator().next();
         assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());

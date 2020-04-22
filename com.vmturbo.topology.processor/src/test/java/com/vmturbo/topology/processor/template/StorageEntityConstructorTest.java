@@ -15,7 +15,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -137,8 +136,8 @@ public class StorageEntityConstructorTest {
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(10L);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
-                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology,
-                        Optional.empty(), false, identityProvider)
+                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, null, false,
+                        identityProvider)
                 .iterator().next();
 
         // 6 commodities sold: storage latency, provisioned, amount, access and 2 DSPM_ACCESS
@@ -192,8 +191,7 @@ public class StorageEntityConstructorTest {
         TopologyEntity.Builder topologyEntity = TopologyEntity.newBuilder(builder);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
-                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology,
-                        Optional.of(topologyEntity), false,
+                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, topologyEntity, false,
                         identityProvider)
                 .iterator().next();
         // 7 commodities sold: storage latency, provisioned, amount and access

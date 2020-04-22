@@ -7,24 +7,32 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.io.Files;
+import com.google.protobuf.Internal.EnumLiteMap;
 import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
@@ -38,12 +46,13 @@ import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
  */
 public class HCIPhysicalMachineEntityConstructorTest {
 
-    private static long oid = 1;
+    private static final long[] OIDS = {11111111111111L, 22222222222222L};
+    private static int oidCount = 0;
 
     private static final IdentityProvider IDENTITY_PROVIDER = new IdentityProvider() {
         @Override
         public long generateTopologyId() {
-            return oid++;
+            return OIDS[oidCount++];
         }
 
         @Override
@@ -99,21 +108,21 @@ public class HCIPhysicalMachineEntityConstructorTest {
     @Test
     public void testConstructor() throws Exception {
         Template template = loadTemplate("HCITemplate.json");
-        TopologyEntityDTO hostDto = loadTopologyEntityDTO("HCIHost.json");
-        TopologyEntityDTO storageDto = loadTopologyEntityDTO("HCIStorage.json");
 
-        TopologyEntity.Builder originalHost = TopologyEntity.newBuilder(hostDto.toBuilder());
-        TopologyEntity.Builder originalStorage = TopologyEntity.newBuilder(storageDto.toBuilder());
-        originalHost.addConsumer(originalStorage);
+        TopologyEntity.Builder originalHostBuilder = TopologyEntity
+                .newBuilder(loadTopologyEntityDTO("HCIHost.json").toBuilder());
+        TopologyEntity.Builder originalStorageBuilder = TopologyEntity
+                .newBuilder(loadTopologyEntityDTO("HCIStorage.json").toBuilder());
+        originalHostBuilder.addConsumer(originalStorageBuilder);
 
         Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-        topology.put(originalHost.getOid(), originalHost);
-        topology.put(originalStorage.getOid(), originalStorage);
+        topology.put(originalHostBuilder.getOid(), originalHostBuilder);
+        topology.put(originalStorageBuilder.getOid(), originalStorageBuilder);
 
         // Run test
         Collection<Builder> result = new HCIPhysicalMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(template, topology, Optional.of(originalHost),
-                        true, IDENTITY_PROVIDER);
+                .createTopologyEntityFromTemplate(template, topology, originalHostBuilder, true,
+                        IDENTITY_PROVIDER);
 
         Assert.assertEquals(2, result.size());
         Builder newHost = result.stream()
@@ -122,16 +131,78 @@ public class HCIPhysicalMachineEntityConstructorTest {
         Builder newStorage = result.stream()
                 .filter(o -> o.getEntityType() == EntityType.STORAGE_VALUE).findFirst().get();
 
+        Builder originalHost = originalHostBuilder.getEntityBuilder();
+        Builder originalStorage = originalStorageBuilder.getEntityBuilder();
+
         // Check the original entities for modifications
         Assert.assertEquals(newHost.getOid(),
-                originalHost.getEntityBuilder().getEdit().getReplaced().getReplacementId());
+                originalHost.getEdit().getReplaced().getReplacementId());
         Assert.assertEquals(newStorage.getOid(),
-                originalStorage.getEntityBuilder().getEdit().getReplaced().getReplacementId());
+                originalStorage.getEdit().getReplaced().getReplacementId());
 
-        // Check the commodities
-        // TODO OM-56990 implement the checks
+        // New entities should not have any references to the old oids.
+        Assert.assertFalse(hasCommodityByAccessOid(newHost, originalStorage.getOid()));
+        Assert.assertFalse(hasCommodityByAccessOid(newStorage, originalHost.getOid()));
+
+        // New entities should have references to the new oids.
+        Assert.assertTrue(hasCommodityByAccessOid(newHost, newStorage.getOid()));
+        Assert.assertTrue(hasCommodityByAccessOid(newStorage, newHost.getOid()));
+
+        // Check vSAN info
+        Assert.assertEquals(StorageType.VSAN,
+                newStorage.getTypeSpecificInfo().getStorage().getStorageType());
+
+        // Compare sold commodities
+        checkMissingSoldCommodity(originalHost, newHost);
+        checkMissingSoldCommodity(originalStorage, newStorage);
+
+        // Check the Storage bought commodities
+        List<CommoditiesBoughtFromProvider> boughts = newStorage
+                .getCommoditiesBoughtFromProvidersList().stream()
+                .filter(b -> b.getProviderId() == newHost.getOid()).collect(Collectors.toList());
+        Assert.assertEquals(1, boughts.size());
+        boughts.get(0).getCommodityBoughtList().forEach(comm -> {
+            Assert.assertTrue(printCommBought(comm), comm.getUsed() > 0);
+        });
 
         Assert.assertNotNull(result);
+    }
+
+    private static void checkMissingSoldCommodity(@Nonnull Builder originalEntity,
+            @Nonnull Builder newEntity) {
+        for (CommoditySoldDTO commOrig : originalEntity.getCommoditySoldListList()) {
+            List<CommoditySoldDTO> comms = newEntity.getCommoditySoldListList().stream()
+                    .filter(commNew -> commOrig.getCommodityType().getType() == commNew
+                            .getCommodityType().getType()
+                            && commOrig.getCommodityType().getKey() == commNew.getCommodityType()
+                                    .getKey())
+                    .collect(Collectors.toList());
+
+            Assert.assertTrue(printComm(commOrig), comms.size() == 1);
+        }
+    }
+
+    private static String printComm(CommoditySoldDTO comm) {
+        return "[" + comm.getCommodityType().getType() + "-"
+                + getCommodityById(comm.getCommodityType()) + ", key: '"
+                + comm.getCommodityType().getKey() + "']";
+    }
+
+    private static String printCommBought(CommodityBoughtDTO comm) {
+        return "[" + comm.getCommodityType().getType() + "-"
+                + getCommodityById(comm.getCommodityType()) + ", key: '"
+                + comm.getCommodityType().getKey() + "']";
+    }
+
+    private static CommodityDTO.CommodityType getCommodityById(
+            TopologyDTO.CommodityType commodityType) {
+        EnumLiteMap<CommodityType> s = CommodityType.internalGetValueMap();
+        return s.findValueByNumber(commodityType.getType());
+    }
+
+    private static boolean hasCommodityByAccessOid(TopologyEntityDTO.Builder entity, long oid) {
+        return entity.getCommoditySoldListBuilderList().stream()
+                .filter(comm -> comm.getAccesses() == oid).findAny().isPresent();
     }
 
     @Nonnull
@@ -158,5 +229,4 @@ public class HCIPhysicalMachineEntityConstructorTest {
         String path = getClass().getClassLoader().getResource(fileName).getFile();
         return Files.asCharSource(new File(path), Charset.defaultCharset()).read();
     }
-
 }
