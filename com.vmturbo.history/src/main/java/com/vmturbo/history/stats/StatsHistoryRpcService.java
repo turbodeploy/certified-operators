@@ -65,9 +65,12 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroup;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroupList;
+import com.vmturbo.common.protobuf.stats.Stats.EntityToCommodity;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesRequest;
+import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityIdToEntityTypeMappingResponse;
@@ -1260,6 +1263,54 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         } catch (VmtDbException | SQLException e) {
             responseObserver.onError(
                     Status.INTERNAL.withDescription(e.getMessage()).asException());
+        }
+    }
+
+    /**
+     * Getting the request for commodities capacity and getting the response from the db.
+     *
+     * @param request   contains the entities and commodities to get capacity for
+     * @param responseObserver  for streaming the response
+     */
+    @Override
+    public void getEntityCommoditiesCapacityValues(
+        GetEntityCommoditiesCapacityValuesRequest request,
+        StreamObserver<GetEntityCommoditiesCapacityValuesResponse> responseObserver) {
+        try {
+            final Set<Integer> uniqEntityTypes = request.getEntityToCommoditySetList().stream()
+                .map(entity -> entity.getEntityType()).collect(Collectors.toSet());
+            for (Integer entityType : uniqEntityTypes) {
+                final Set<EntityToCommodity> entityToCommodities = request.getEntityToCommoditySetList().stream()
+                    .filter(entity -> entity.getEntityType() == entityType).collect(Collectors.toSet());
+                final List<String> uuids = entityToCommodities.stream()
+                    .map(entity -> String.valueOf(entity.getEntityUuid()))
+                    .collect(Collectors.toList());
+                Map<Long, Map<String, Set<String>>> uuidToComTypeToComKeys = new HashMap<>();
+                // This map is used for filtering the query results by the commodity keys as some of
+                // them can be null which can cause the response from the db to remove them.
+                entityToCommodities.forEach(entry -> {
+                    if (!uuidToComTypeToComKeys.containsKey(entry.getEntityUuid())) {
+                        uuidToComTypeToComKeys.put(entry.getEntityUuid(),
+                            new HashMap<String, Set<String>>() {{
+                                put(request.getCommodityTypeName(),
+                                    new HashSet<String>() {{
+                                        add(entry.getCommodityTypeKey());
+                                    }}
+                                );
+                            }});
+                    } else {
+                        uuidToComTypeToComKeys.get(entry.getEntityUuid())
+                            .get(entry.getEntityType()).add(entry.getCommodityTypeKey());
+                    }
+                });
+                historydbIO.getEntityCommoditiesCapacityValues(entityType, uuids, uuidToComTypeToComKeys,
+                    request.getCommodityTypeName()
+                ).forEach(responseObserver::onNext);
+            }
+            responseObserver.onCompleted();
+        } catch (VmtDbException | SQLException e) {
+            responseObserver.onError(
+                Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
     }
 

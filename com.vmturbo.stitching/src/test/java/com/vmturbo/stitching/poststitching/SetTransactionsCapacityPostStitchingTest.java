@@ -8,6 +8,7 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.google.common.collect.Lists;
@@ -32,9 +33,7 @@ public class SetTransactionsCapacityPostStitchingTest {
 
     private static final EntityType SELLER_TYPE = EntityType.DATABASE_SERVER;
 
-    private final SetTransactionsCapacityPostStitchingOperation stitchOperation =
-            new SetTransactionsCapacityPostStitchingOperation(SELLER_TYPE,
-                    ProbeCategory.DATABASE_SERVER, CAPACITY_SETTING, AUTOSET_SETTING);
+    private static SetTransactionsCapacityPostStitchingOperation stitchOperation;
 
     private static final double initialCapacity = 10.0d;
 
@@ -53,6 +52,14 @@ public class SetTransactionsCapacityPostStitchingTest {
             .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
             .build();
 
+    @BeforeClass
+    public static void init() {
+        com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig config =
+            mock(com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig.class);
+        stitchOperation = new SetTransactionsCapacityPostStitchingOperation(SELLER_TYPE,
+            ProbeCategory.DATABASE_SERVER, CAPACITY_SETTING, AUTOSET_SETTING, config);
+    }
+
     /**
      * Test that the transaction capacity is set to the setting value when autoset is true and
      * the setting value is larger than the used or capacity value of the commodity.
@@ -63,7 +70,8 @@ public class SetTransactionsCapacityPostStitchingTest {
         // to replace capacity value
         TopologyEntity provider = seller(1L, Optional.empty(),
                 Optional.of(initialCapacity));
-        testSetCapacityValue(provider,true, settingCapacityValue, initialCapacity);
+        testSetCapacityValue(provider, false, settingCapacityValue, initialCapacity);
+        testSetCapacityValue(provider, true, settingCapacityValue, initialCapacity);
     }
 
     /**
@@ -107,7 +115,7 @@ public class SetTransactionsCapacityPostStitchingTest {
         // to replace capacity value
         TopologyEntity provider = seller(1L, Optional.of(settingCapacityValue * 2d),
                 Optional.of(initialCapacity));
-        testSetCapacityValue(provider,true, settingCapacityValue * 2d,
+        testSetCapacityValue(provider,false, settingCapacityValue * 2d,
                 initialCapacity);
     }
 
