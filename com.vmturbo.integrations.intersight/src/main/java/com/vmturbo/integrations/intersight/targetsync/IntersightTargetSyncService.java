@@ -1,4 +1,4 @@
-package com.vmturbo.integrations.intersight.tasks;
+package com.vmturbo.integrations.intersight.targetsync;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -17,8 +17,8 @@ import com.cisco.intersight.client.ApiClient;
 import com.cisco.intersight.client.ApiException;
 import com.cisco.intersight.client.api.AssetApi;
 import com.cisco.intersight.client.model.AssetTarget;
+import com.cisco.intersight.client.model.AssetTarget.TargetTypeEnum;
 import com.cisco.intersight.client.model.AssetTargetList;
-import com.cisco.intersight.client.model.AssetWorkloadOptimizerService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,10 +37,10 @@ import com.vmturbo.topology.processor.api.TopologyProcessorException;
 import com.vmturbo.topology.processor.api.dto.InputField;
 
 /**
- * {@link SyncTargetsTask} checks on the specified Intersight instance and synchronize target
- * infos between Intersight and topology processor.
+ * {@link IntersightTargetSyncService} checks on the specified Intersight instance and
+ * synchronize target infos between Intersight and topology processor.
  */
-public class SyncTargetsTask implements Runnable {
+public class IntersightTargetSyncService implements Runnable {
     private static final Logger logger = LogManager.getLogger();
 
     /**
@@ -54,15 +54,26 @@ public class SyncTargetsTask implements Runnable {
     private final TopologyProcessor topologyProcessor;
 
     /**
-     * Create a {@link SyncTargetsTask} object that will check on the specified Intersight instance
+     * How long in seconds to hold off target status update since the target is created/modified
+     * in Intersight.
+     */
+    private final long noUpdateOnChangePeriodSeconds;
+
+    /**
+     * Create a {@link IntersightTargetSyncService} object that will check on the specified Intersight instance
      * and synchronize targets between Intersight and our topology processor.
      *
      * @param intersightConnection provides connection to the Intersight instance
      * @param topologyProcessor    the entry point to access topology processor APIs
+     * @param noUpdateOnChangePeriodSeconds how long to hold off target status update upon target
+     *                                      creation/modification
      */
-    public SyncTargetsTask(@Nonnull IntersightConnection intersightConnection, @Nonnull TopologyProcessor topologyProcessor) {
+    public IntersightTargetSyncService(@Nonnull IntersightConnection intersightConnection,
+                                       @Nonnull TopologyProcessor topologyProcessor,
+                                       long noUpdateOnChangePeriodSeconds) {
         this.intersightConnection = Objects.requireNonNull(intersightConnection);
         this.topologyProcessor = Objects.requireNonNull(topologyProcessor);
+        this.noUpdateOnChangePeriodSeconds = noUpdateOnChangePeriodSeconds;
     }
 
     @Override
@@ -70,7 +81,7 @@ public class SyncTargetsTask implements Runnable {
         try {
             syncTargets();
         } catch (Throwable t) {
-            logger.error("Intersight targets sync did not complete due to error: ", t);
+            logger.error("Intersight target sync did not complete due to error: ", t);
         }
     }
 
@@ -96,12 +107,20 @@ public class SyncTargetsTask implements Runnable {
 
         final ApiClient apiClient = intersightConnection.getApiClient();
         final AssetApi assetApi = new AssetApi(apiClient);
+        // Technically we only need Moid and TargetType.  We are getting CreateTime and ModTime
+        // too to carve out appropriate actions correspondingly to achieve better user experience.
+        // We are also getting "Services" and "Status" because:
+        // "Services": updating status requires passing back the entire Services portion;
+        //             get it and retain the other parts unchanged
+        // "Status": this is a top-level status field and is an enum and read-only;
+        //           To ensure accepted by the server, this has to be passed back unchanged.
+        final String select = "$select=Moid,TargetType,Services,Status,CreateTime,ModTime";
         final AssetTargetList assetTargetList = assetApi.getAssetTargetList(
                 IntersightDefaultQueryParameters.$filter,
                 IntersightDefaultQueryParameters.$orderby,
                 IntersightDefaultQueryParameters.$top,
                 IntersightDefaultQueryParameters.$skip,
-                IntersightDefaultQueryParameters.$select,
+                select,
                 IntersightDefaultQueryParameters.$expand,
                 IntersightDefaultQueryParameters.$apply,
                 IntersightDefaultQueryParameters.$count,
@@ -110,6 +129,8 @@ public class SyncTargetsTask implements Runnable {
                 IntersightDefaultQueryParameters.$tags);
 
         if (assetTargetList != null && assetTargetList.getResults() != null) {
+            final IntersightTargetUpdater targetUpdater = new IntersightTargetUpdater(apiClient,
+                    topologyProcessor, noUpdateOnChangePeriodSeconds);
             for (final AssetTarget assetTarget : assetTargetList.getResults()) {
                 final SDKProbeType probeType = findProbeType(assetTarget);
                 if (probeType == null) {
@@ -122,20 +143,19 @@ public class SyncTargetsTask implements Runnable {
                     continue;
                 }
                 try {
-                    final TargetInfo targetInfo = findTargetInfo(assetTarget, probeInfo, targetsByProbeId);
+                    TargetInfo targetInfo = findTargetInfo(assetTarget, probeInfo, targetsByProbeId);
                     if (targetInfo == null) {
                         final TargetData targetData = new AssetTargetData(assetTarget, probeInfo);
                         final long targetId = topologyProcessor.addTarget(probeInfo.getId(), targetData);
-                        logger.info("Added {} target {}... kicking off discovery", probeType, assetTarget.getMoid());
-                        topologyProcessor.discoverTarget(targetId);
-                        updateTargetStatus(assetApi, assetTarget, topologyProcessor.getTarget(targetId).getStatus());
+                        logger.info("Added {} target {}", probeType, assetTarget.getMoid());
+                        targetInfo = topologyProcessor.getTarget(targetId);
                     } else {
                         staleTargets.remove(targetInfo);
-                        updateTargetStatus(assetApi, assetTarget, targetInfo.getStatus());
                     }
-                } catch (TopologyProcessorException | ApiException e) {
-                    logger.error("Error adding or validating target {} of probe type {} due to: {}",
-                            assetTarget.getMoid(), probeType, e.getMessage());
+                    targetUpdater.update(assetTarget, targetInfo);
+                } catch (TopologyProcessorException | ApiException | RuntimeException e) {
+                    logger.error("Error adding or updating status for target {} of probe type {} due to: {}",
+                            assetTarget.getMoid(), probeType, e);
                 }
             }
         }
@@ -149,32 +169,6 @@ public class SyncTargetsTask implements Runnable {
                 logger.error("Error removing target {} due to: {}", target, e.getMessage());
             }
         }
-    }
-
-    /**
-     * Report the target status back to Intersight.
-     *
-     * @param assetApi the Intersight asset API
-     * @param assetTarget the asset target object discovered from Intersight
-     * @param status operation status returned from topology processor
-     * @throws ApiException thrown if updating the target status returns an API exception
-     */
-    private void updateTargetStatus(@Nonnull final AssetApi assetApi,
-                                    @Nonnull final AssetTarget assetTarget,
-                                    @Nullable final String status) throws ApiException {
-//        Objects.requireNonNull(assetTarget).getServices().stream()
-//                .filter(AssetWorkloadOptimizerService.class::isInstance)
-//                .forEach(service -> service.setStatus(status));
-        // empty out other fields that we are not modifying
-        assetTarget.setParent(null);
-        assetTarget.setOwners(null);
-        assetTarget.setConnections(null);
-        assetTarget.setAccount(null);
-        assetTarget.setAssist(null);
-//        assetTarget.setLink(null);
-        assetTarget.setTags(null);
-        assetTarget.setVersionContext(null);
-        Objects.requireNonNull(assetApi).updateAssetTarget(assetTarget.getMoid(), assetTarget, null);
     }
 
     /**
@@ -198,7 +192,7 @@ public class SyncTargetsTask implements Runnable {
         }
         for (final TargetInfo target : targets) {
             if (target.getAccountData().stream().filter(ac -> targetIdFields.contains(ac.getName()))
-                    .anyMatch(ac -> assetTarget.getMoid().equals(ac.getStringValue()))) {
+                    .anyMatch(ac -> Objects.equals(assetTarget.getMoid(), ac.getStringValue()))) {
                 return target;
             }
         }
@@ -214,7 +208,12 @@ public class SyncTargetsTask implements Runnable {
      */
     @Nullable
     private static SDKProbeType findProbeType(@Nonnull final AssetTarget assetTarget) {
-        switch (Objects.requireNonNull(assetTarget).getTargetType()) {
+        final TargetTypeEnum targetType = Objects.requireNonNull(assetTarget).getTargetType();
+        if (targetType == null) {
+            logger.warn("Null Intersight target type in asset.Target {}", assetTarget.getMoid());
+            return null;
+        }
+        switch (targetType) {
             case VMWAREVCENTER:
                 return SDKProbeType.VCENTER;
             case APPDYNAMICS:
@@ -239,7 +238,7 @@ public class SyncTargetsTask implements Runnable {
                 return SDKProbeType.DYNATRACE;
             default:
                 logger.warn("Unsupported Intersight target type {} in asset.Target {}",
-                        assetTarget.getTargetType().getValue(), assetTarget.getMoid());
+                        assetTarget.getTargetType(), assetTarget.getMoid());
                 return null;
         }
     }
@@ -280,7 +279,8 @@ public class SyncTargetsTask implements Runnable {
                             value = assetTarget.getMoid();
                         } else if (accountDefEntry.getDefaultValue() != null) {
                             value = accountDefEntry.getDefaultValue();
-                        } else if (accountDefEntry.getAllowedValues().size() > 0) {
+                        } else if (accountDefEntry.getAllowedValues() != null &&
+                                accountDefEntry.getAllowedValues().size() > 0) {
                             value = accountDefEntry.getAllowedValues().get(0);
                         } else {
                             switch (accountDefEntry.getValueType()) {
@@ -295,7 +295,7 @@ public class SyncTargetsTask implements Runnable {
                                     break;
                             }
                         }
-                        return new InputField(name, value, Optional.empty());
+                        return new InputField(name, Objects.toString(value, ""), Optional.empty());
                     }).collect(Collectors.toSet());
         }
     }
