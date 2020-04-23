@@ -235,5 +235,23 @@
       "criteria" : [
         {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "lbsByName"}
       ]
+    },
+
+    "DesktopPool" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "desktopPoolByName"}
+      ]
+    },
+
+    "BusinessUser" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "businessUserByName"}
+      ]
+    },
+
+    "ViewPod" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "viewPodByName"}
+      ]
     }
 }
