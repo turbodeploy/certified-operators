@@ -82,7 +82,7 @@ public class HeaderApiSecurityConfig extends ApiSecurityConfig {
      * @param auth SecurityBuilder used to create an AuthenticationManager.
      */
     @Override
-    protected void configure(AuthenticationManagerBuilder auth) {
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
         super.configure(auth);
         auth.authenticationProvider(headerAuthenticationProvider);
     }
