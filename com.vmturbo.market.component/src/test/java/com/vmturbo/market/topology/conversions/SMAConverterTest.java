@@ -109,7 +109,7 @@ public class SMAConverterTest {
         when(cloudTC.getIndexOfSlSuppliedByPrimaryTier(any())).thenReturn(0);
         when(cloudTC.getRegionOfCloudConsumer(any())).thenReturn(region);
         when(cloudTC.getRiDataById(1000001L)).thenReturn(riData);
-        when(converter.getRIDiscountedMarketTierIDFromRIData(riData, region))
+        when(cloudTC.getRIDiscountedMarketTierIDFromRIData(riData))
                 .thenReturn(15100002L);
         when(converter.createCouponCommodityBoughtForCloudEntity(
                 15100002L, 2000002L))

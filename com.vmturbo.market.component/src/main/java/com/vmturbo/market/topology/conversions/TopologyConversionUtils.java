@@ -11,6 +11,7 @@ import com.google.common.base.Preconditions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cost.Cost.EntityReservedInstanceCoverage;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -167,5 +168,16 @@ public class TopologyConversionUtils {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Gets the total number of coupons covered from a given entity ri coverage.
+     *
+     * @param riCoverage the entity ri coverage using which total number of coupons covered are calculated.
+     * @return the total number of coupons covered
+     */
+    public static float getTotalNumberOfCouponsCovered(@Nonnull EntityReservedInstanceCoverage riCoverage) {
+        return (float)riCoverage.getCouponsCoveredByRiMap().values().stream()
+            .mapToDouble(Double::new).sum();
     }
 }
