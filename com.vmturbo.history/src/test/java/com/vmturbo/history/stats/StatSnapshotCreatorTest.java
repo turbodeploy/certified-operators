@@ -294,6 +294,7 @@ public class StatSnapshotCreatorTest {
         percentileRecord.setCommodityKey("percentileCommodityKey");
         percentileRecord.setPropertySlot(0);
         percentileRecord.setValueType(HistoryUtilizationType.Percentile.ordinal());
+        percentileRecord.setProducerOid(1L);
 
         final List<StatSnapshot> statSnapshots =
                 snapshotCreator.createStatSnapshots(Arrays.asList(percentileRecord, usedRecord),
