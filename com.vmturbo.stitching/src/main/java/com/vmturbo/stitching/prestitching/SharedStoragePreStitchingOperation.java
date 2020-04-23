@@ -19,7 +19,10 @@ import com.google.common.base.Preconditions;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.stitching.PreStitchingOperation;
 import com.vmturbo.stitching.StitchingEntity;
@@ -97,11 +100,13 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
         OptionalDouble storageProvisionedUsed = calculateStorageProvisionedUsed(mostUpToDate, sharedStorageInstances);
         OptionalDouble storageLatencyUsed = calculateStorageLatencyUsed(sharedStorageInstances);
         OptionalDouble storageAccessUsed = calculateStorageAccessUsed(sharedStorageInstances);
+        PowerState mergedPowerState = calculatePowerState(sharedStorageInstances);
 
         resultBuilder.queueUpdateEntityAlone(mostUpToDate, entity -> {
                 updateCommoditySoldUsed(entity, CommodityType.STORAGE_PROVISIONED, storageProvisionedUsed);
                 updateCommoditySoldUsed(entity, CommodityType.STORAGE_LATENCY, storageLatencyUsed);
                 updateCommoditySoldUsed(entity, CommodityType.STORAGE_ACCESS, storageAccessUsed);
+                entity.getEntityBuilder().setPowerState(mergedPowerState);
             });
     }
 
@@ -242,6 +247,22 @@ public class SharedStoragePreStitchingOperation implements PreStitchingOperation
                 .filter(Builder::hasUsed))
             .mapToDouble(Builder::getUsed)
             .sum());
+    }
+
+    /**
+     * Calculate the best power state of the shared storages.
+     * eg. if there is at least one POWERED_ON among the storages, the final power state will be POWERED_ON
+     * @param storageInstances The shared storage instances.
+     * @return The calculated PowerState
+     */
+    @Nonnull
+    private PowerState calculatePowerState(@Nonnull final List<StitchingEntity> storageInstances) {
+        return storageInstances.stream().map(StitchingEntity::getEntityBuilder)
+                .filter(entity -> entity.getOrigin() == EntityOrigin.DISCOVERED)
+                .filter(EntityDTO.Builder::hasPowerState).map(EntityDTO.Builder::getPowerState)
+                .reduce(PowerState.POWERSTATE_UNKNOWN, (state1, state2) ->
+                        //POWERED_ON < POWERED_OFF < SUSPENDED < POWERSTATE_UNKNOWN
+                        state1.getNumber() < state2.getNumber() ? state1 : state2);
     }
 
     /**
