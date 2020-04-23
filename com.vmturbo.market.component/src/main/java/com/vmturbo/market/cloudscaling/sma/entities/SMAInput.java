@@ -903,12 +903,9 @@ public class SMAInput {
                 riBoughtId, name, regionId);
             return false;
         }
-        OSType osTypeForContext = osType;
-        if (csp == SMACSP.AZURE) {
-            osTypeForContext = OSType.UNKNOWN_OS;
-        }
+        final OSType osTypeForContext = csp == SMACSP.AZURE ? OSType.UNKNOWN_OS : osType;
 
-        boolean found = contextExists(regionIdToOsTypeToContexts, billingFamilyId, regionId, osType, tenancy);
+        boolean found = contextExists(regionIdToOsTypeToContexts, billingFamilyId, regionId, osTypeForContext, tenancy);
         if (found == false) {
             final String nameFinal = name;
             logger.debug("processRI: no context exits for RI name={} with billingFamilyId={} regionId={} OSType={} Tenancy={} ISF={} shared={} platformFlexible={}",
@@ -1055,12 +1052,8 @@ public class SMAInput {
             logger.error("getRegion: can't find region for OID={}", oid);
         } else {
             region = regionOpt.get();
-            if (region == null) {
-                logger.error("getRegionID: can't find region for VM ID={}", oid);
-            } else {
-                regionId = region.getOid();
-                cspFromRegion.updateWithRegion(region);
-            }
+            regionId = region.getOid();
+            cspFromRegion.updateWithRegion(region);
         }
         return regionId;
     }
@@ -1182,9 +1175,8 @@ public class SMAInput {
     private static void
     updateRegionIdToOsTypeToContexts(Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
                                      long regionId, OSType osType, SMAContext context) {
-        Map<OSType, Set<SMAContext>> map = (Map<OSType, Set<SMAContext>>)regionIdToOsTypeToContexts.row(regionId);
+        Map<OSType, Set<SMAContext>> map = regionIdToOsTypeToContexts.row(regionId);
         if (map == null) {
-            map = new HashMap<>();
             regionIdToOsTypeToContexts.put(regionId, osType, new HashSet<>());
         }
         Set<SMAContext> contexts = regionIdToOsTypeToContexts.get(regionId, osType);
