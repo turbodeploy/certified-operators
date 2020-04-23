@@ -65,7 +65,7 @@ public class ClusterMgrControllerTest {
     public void getClusterConfiguration() throws Exception {
         // Arrange
         // Act
-        MvcResult result = mockMvc.perform(get(API_PREFIX)
+        MvcResult result = mockMvc.perform(get("/")
                 .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -83,7 +83,7 @@ public class ClusterMgrControllerTest {
         }
 
         // Act
-        MvcResult result = mockMvc.perform(put(API_PREFIX)
+        MvcResult result = mockMvc.perform(put("/")
                 .contentType(MediaType.APPLICATION_JSON_UTF8_VALUE)
                 .content(sampleJson))
                 .andExpect(status().isOk())

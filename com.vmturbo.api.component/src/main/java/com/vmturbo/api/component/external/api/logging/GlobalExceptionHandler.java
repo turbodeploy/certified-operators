@@ -16,7 +16,6 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensaml.common.SAMLException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -218,12 +217,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(OperationFailedException.class)
     @ResponseBody
     public ResponseEntity<ErrorApiDTO> handleOperationFailedException(HttpServletRequest req, OperationFailedException ex) {
-        return createErrorDTO(req, ex, HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-
-    @ExceptionHandler(SAMLException.class)
-    @ResponseBody
-    public ResponseEntity<ErrorApiDTO> handleSAMLException(HttpServletRequest req, SAMLException ex) {
         return createErrorDTO(req, ex, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 

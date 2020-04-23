@@ -10,7 +10,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.user.UserApiDTO;
