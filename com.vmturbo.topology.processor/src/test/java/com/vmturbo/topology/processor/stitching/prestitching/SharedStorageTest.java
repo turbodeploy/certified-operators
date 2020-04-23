@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.PowerState;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.prestitching.SharedStoragePreStitchingOperation;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
@@ -42,6 +43,7 @@ public class SharedStorageTest {
         .selling(storageProvisioned().capacity(1000.0).used(500.0))
         .selling(storageLatencyMillis().capacity(100.0).used(100.0))
         .selling(storageAccessIOPS().capacity(100.0).used(20.0))
+        .powerState(PowerState.POWERED_ON)
         .build()
         .toBuilder();
 
@@ -51,6 +53,7 @@ public class SharedStorageTest {
         .selling(storageProvisioned().capacity(1000.0).used(250.0))
         .selling(storageLatencyMillis().capacity(100.0).used(50.0))
         .selling(storageAccessIOPS().capacity(100.0).used(30.0))
+        .powerState(PowerState.POWERSTATE_UNKNOWN)
         .build()
         .toBuilder();
 
@@ -141,6 +144,14 @@ public class SharedStorageTest {
             .filter(commodity -> commodity.getCommodityType() == CommodityType.STORAGE_ACCESS)
             .findFirst()
             .get().getUsed(), epsilon);
+    }
+
+    @Test
+    public void testStoragePowerState() {
+        operation.performOperation(Stream.of(newStorage, oldStorage), resultBuilder)
+                .getChanges().forEach(change -> change.applyChange(new StitchingJournal<>()));
+
+        assertEquals(PowerState.POWERED_ON, newStorage.getEntityBuilder().getPowerState());
     }
 
     private void setupEntities(@Nonnull final EntityDTO.Builder... entities) {
