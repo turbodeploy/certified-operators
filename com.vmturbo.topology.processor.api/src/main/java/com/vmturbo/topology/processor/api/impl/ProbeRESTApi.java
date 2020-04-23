@@ -3,7 +3,6 @@ package com.vmturbo.topology.processor.api.impl;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -14,7 +13,6 @@ import io.swagger.annotations.ApiModelProperty;
 
 import com.vmturbo.common.protobuf.topology.Probe.ProbeActionCapability;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.ProbeInfo;
@@ -66,11 +64,6 @@ public class ProbeRESTApi {
             value = "Verification regex to validate a field",
             required = false)
         private final String verificationRegexp;
-
-
-        @ApiModelProperty(value = "Dependency field configuration")
-        private final Pair<String, String> dependencyField;
-
         /**
          * Protected constructor, suitable only for deserialization purposes.
          */
@@ -84,15 +77,13 @@ public class ProbeRESTApi {
             this.defaultValue = null;
             this.allowedValues = Collections.emptyList();
             this.verificationRegexp = null;
-            this.dependencyField = null;
         }
 
         public AccountField(@Nonnull final String name, @Nonnull final String displayName,
                             @Nonnull final String description, final boolean required,
                             final boolean secret, AccountFieldValueType valueType,
                             @Nullable String defaultValue, @Nullable List<String> allowedValues,
-                            final String verificationRegexp,
-                            @Nullable Pair<String, String> dependencyField) {
+                            final String verificationRegexp) {
             this.name = Objects.requireNonNull(name);
             this.displayName = Objects.requireNonNull(displayName);
             this.description = Objects.requireNonNull(description);
@@ -102,7 +93,6 @@ public class ProbeRESTApi {
             this.defaultValue = defaultValue;
             this.allowedValues = allowedValues;
             this.verificationRegexp = verificationRegexp;
-            this.dependencyField = dependencyField;
         }
 
         @Override
@@ -150,12 +140,6 @@ public class ProbeRESTApi {
         @Nullable
         public List<String> getAllowedValues() {
             return allowedValues;
-        }
-
-        @Nonnull
-        @Override
-        public Optional<Pair<String, String>> getDependencyField() {
-            return Optional.ofNullable(dependencyField);
         }
     }
 

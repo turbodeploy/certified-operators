@@ -58,7 +58,6 @@ import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.GroupScop
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.actions.SdkToProbeActionsConverter;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
@@ -78,7 +77,6 @@ import com.vmturbo.topology.processor.util.SdkActionPolicyBuilder;
 public final class ProbeControllerTest {
 
     private static final Gson GSON = ComponentGsonFactory.createGson();
-    private static final String DEPENDENCY_VALUE = "some dependency";
 
     @Rule
     public final ExpectedException exception = ExpectedException.none();
@@ -116,7 +114,6 @@ public final class ProbeControllerTest {
 
     private AccountDefEntry optionalEntry;
     private AccountDefEntry mandatoryEntry;
-    private AccountDefEntry dependentyEntry;
 
     private ProbeInfo oneAccountFieldProbe;
     private ProbeInfo twoAccountFieldsProbe;
@@ -145,18 +142,6 @@ public final class ProbeControllerTest {
                 .setMandatory(false)
                 .build();
 
-        dependentyEntry = AccountDefEntry.newBuilder()
-                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
-                        .setName("dependency")
-                        .setDisplayName("dependencyDisplayName")
-                        .setDescription("a field with dependency")
-                        .setPrimitiveValue(PrimitiveValue.BOOLEAN)
-
-                        .build())
-                .setDependencyKey("name")
-                .setDependencyValue(DEPENDENCY_VALUE)
-                .build();
-
         oneAccountFieldProbe = ProbeInfo.newBuilder()
                 .setProbeType("type")
                 .setProbeCategory("cat")
@@ -176,7 +161,6 @@ public final class ProbeControllerTest {
                 .setProbeCategory("cat2")
                 .addAccountDefinition(optionalEntry)
                 .addAccountDefinition(mandatoryEntry)
-                .addAccountDefinition(dependentyEntry)
                 .addTargetIdentifierField("name")
                 .build();
     }
@@ -197,13 +181,6 @@ public final class ProbeControllerTest {
 
         exception.expect(ComparisonFailure.class);
         checkProbeDescription(twoAccountFieldsProbe, oneFieldDesc);
-        final Optional<Pair<String, String>> idField =
-                twoFieldDesc.getAccountDefinitions().get(0).getDependencyField();
-        final Optional<Pair<String, String>> dependencyField =
-                twoFieldDesc.getAccountDefinitions().get(2).getDependencyField();
-        Assert.assertEquals(Optional.empty(), idField);
-        Assert.assertNotEquals(Optional.empty(), dependencyField);
-        Assert.assertEquals(Pair.create("name", DEPENDENCY_VALUE), dependencyField.get());
     }
 
     /**

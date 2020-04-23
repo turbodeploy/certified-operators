@@ -66,7 +66,6 @@ import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -1100,12 +1099,6 @@ public class TargetsService implements ITargetsService {
         inputFieldDTO.setDescription(entry.getDescription());
         inputFieldDTO.setAllowedValues(entry.getAllowedValues());
         inputFieldDTO.setVerificationRegex(entry.getVerificationRegex());
-        if (entry.getDependencyField().isPresent()) {
-            final Pair<String, String> dependencyKey = entry.getDependencyField().get();
-            inputFieldDTO.setDependencyKey(dependencyKey.getFirst());
-            inputFieldDTO.setDependencyValue(dependencyKey.getSecond());
-        }
-
         return inputFieldDTO;
     }
 

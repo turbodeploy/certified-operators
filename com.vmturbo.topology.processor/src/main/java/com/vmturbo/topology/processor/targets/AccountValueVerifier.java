@@ -53,23 +53,18 @@ public class AccountValueVerifier {
      * Performs account entry validation.
      *
      * @param inputField input field to validate
-     * @param allFields all input fields in one map
      * @param entryWrapped account definition wrapper
      * @param accountDefinition account definition itself
      * @return string representation of validation errors, or {@code null} if no errors found
      */
     private static String validateAccountEntry(final AccountValue inputField,
-            @Nonnull Map<String, AccountValue> allFields, @Nonnull AccountDefEntry entryWrapped,
-            @Nonnull final Discovery.AccountDefEntry accountDefinition) {
+                    @Nonnull AccountDefEntry entryWrapped,
+                    @Nonnull final Discovery.AccountDefEntry accountDefinition) {
         Objects.requireNonNull(accountDefinition);
         if (inputField == null) {
-            try {
-                return isMandatory(entryWrapped, allFields) ?
-                        String.format("Missing mandatory field %s", entryWrapped.getName()) : null;
-            } catch (InvalidTargetException e) {
-                return String.format("Failed detecting mandatity of a field \"%s\": %s",
-                        entryWrapped.getName(), e.getErrors());
-            }
+            return accountDefinition.getMandatory()
+                            ? String.format("Missing mandatory field %s", entryWrapped.getName())
+                            : null;
         }
         switch (accountDefinition.getDefinitionCase()) {
             case CUSTOM_DEFINITION:
@@ -79,26 +74,6 @@ public class AccountValueVerifier {
             default:
                 return "Malformed account definition. Could not verify field "
                                 + inputField.getKey();
-        }
-    }
-
-    private static boolean isMandatory(@Nonnull AccountDefEntry accountDefEntry,
-            @Nonnull Map<String, AccountValue> accountValues) throws InvalidTargetException {
-        if (!accountDefEntry.isRequired()) {
-            return false;
-        } else if (!accountDefEntry.getDependencyField().isPresent()) {
-            return true;
-        } else {
-            final AccountValue dependencyField =
-                    accountValues.get(accountDefEntry.getDependencyField().get().getFirst());
-            if (dependencyField == null) {
-                throw new InvalidTargetException(String.format(
-                        "Malformed account definition. Dependency field \"%s\" is absent",
-                        accountDefEntry.getDependencyField().get().getFirst()));
-            }
-            return Pattern.compile(accountDefEntry.getDependencyField().get().getSecond())
-                    .matcher(dependencyField.getStringValue())
-                    .matches();
         }
     }
 
@@ -193,7 +168,6 @@ public class AccountValueVerifier {
         fieldErrors.addAll(entries.entrySet().stream()
                         .map(entry -> validateAccountEntry(
                                         inputFields.get(entry.getValue().getName()),
-                                        inputFields,
                                         entry.getValue(), entry.getKey()))
                         .filter(Objects::nonNull).collect(Collectors.toList()));
         if (!fieldErrors.isEmpty()) {

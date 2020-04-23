@@ -97,7 +97,6 @@ import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -1005,7 +1004,7 @@ public class TargetsServiceTest {
         final List<String> allowedValuesList = Lists.newArrayList("A", "B", "C");
         final AccountField allowedValuesField =
                 new AccountField(key, key + "-name", key + "-description", false, false,
-                        AccountFieldValueType.LIST, null, allowedValuesList, ".*", null);
+                        AccountFieldValueType.LIST, null, allowedValuesList, ".*");
         final ProbeInfo probeInfo =
                 createMockProbeInfo(1, "type1", "category1", allowedValuesField);
         final MvcResult result = mockMvc
@@ -1018,8 +1017,6 @@ public class TargetsServiceTest {
         final TargetApiDTO probe = resp.iterator().next();
         final List<InputFieldApiDTO> fields = probe.getInputFields();
         Assert.assertEquals(allowedValuesList, fields.get(0).getAllowedValues());
-        Assert.assertNull(fields.get(0).getDependencyKey());
-        Assert.assertNull(fields.get(0).getDependencyValue());
     }
 
     /**
@@ -1049,33 +1046,6 @@ public class TargetsServiceTest {
         for (InputFieldApiDTO field : fields) {
             Assert.assertNotNull(field.getValueType());
         }
-    }
-
-    /**
-     * Tests that "dependencyField" is propagated from {@link ProbeInfo} to {@link TargetApiDTO}.
-     *
-     * @throws Exception on exceptions occur
-     */
-    @Test
-    public void testAccountValueFieldDependency() throws Exception {
-        final String key = "allowedValues";
-        final AccountField field =
-                new AccountField(key, key + "-name", key + "-description", false, false,
-                        AccountFieldValueType.LIST, null, null, ".*",
-                        Pair.create("field", "value"));
-        final ProbeInfo probeInfo =
-                createMockProbeInfo(1, "type1", "category1", field);
-        final MvcResult result = mockMvc
-                .perform(MockMvcRequestBuilders.get("/targets/specs")
-                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
-                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
-        final List<TargetApiDTO> resp = Arrays.asList(GSON
-                .fromJson(result.getResponse().getContentAsString(), TargetApiDTO[].class));
-        Assert.assertEquals(1, resp.size());
-        final TargetApiDTO probe = resp.iterator().next();
-        final List<InputFieldApiDTO> fields = probe.getInputFields();
-        Assert.assertEquals("field", fields.get(0).getDependencyKey());
-        Assert.assertEquals("value", fields.get(0).getDependencyValue());
     }
 
     // If no prior validation, discovery in progress should display as "Validating"
@@ -1282,7 +1252,7 @@ public class TargetsServiceTest {
 
     private static AccountDefEntry createAccountDef(String key, AccountFieldValueType valueType) {
         return new AccountField(key, key + "-name", key + "-description", true, false, valueType,
-                null, Collections.emptyList(), ".*", null);
+                null, Collections.emptyList(), ".*");
     }
 
     /**

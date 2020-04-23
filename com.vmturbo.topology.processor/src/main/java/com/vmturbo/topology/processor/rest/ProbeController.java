@@ -7,12 +7,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiParam;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -21,9 +15,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.annotations.Api;
+import io.swagger.annotations.ApiOperation;
+import io.swagger.annotations.ApiParam;
+import io.swagger.annotations.ApiResponse;
+import io.swagger.annotations.ApiResponses;
+
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
-import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.actions.SdkToProbeActionsConverter;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.impl.ProbeRESTApi.AccountField;
@@ -81,10 +80,8 @@ public final class ProbeController {
         return new AccountField(
                     wrapper.getName(), wrapper.getDisplayName(),
                     wrapper.getDescription(), wrapper.isRequired(), wrapper.isSecret(),
-                    wrapper.getValueType(), wrapper.getDefaultValue(), wrapper.getAllowedValues(),
-                wrapper.getVerificationRegex(), accountDefEntry.hasDependencyKey() ?
-                Pair.create(accountDefEntry.getDependencyKey(),
-                        accountDefEntry.getDependencyValue()) : null);
+                    wrapper.getValueType(), wrapper.getDefaultValue(), wrapper.getAllowedValues()
+            , wrapper.getVerificationRegex());
     }
 
     protected static ProbeDescription create(final long probeId, @Nonnull final ProbeInfo probeInfo) {
