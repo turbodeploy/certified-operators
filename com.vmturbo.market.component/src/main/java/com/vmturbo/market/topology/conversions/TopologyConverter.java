@@ -195,7 +195,8 @@ public class TopologyConverter {
                 marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
         this.commodityIndex = commodityIndexFactory.newIndex();
         this.marketMode = MarketMode.M2Only;
-        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(oidToOriginalTraderTOMap, cloudTc, commodityConverter);
+        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
+            oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
         this.actionInterpreter = new ActionInterpreter(commodityConverter,
             shoppingListOidToInfos,
             cloudTc,
@@ -241,7 +242,7 @@ public class TopologyConverter {
      *                  the SMA (Stable Marriage Algorithm)  library generates them if true.
      * @param liveMarketMoveCostFactor used by the live market to control aggressiveness of move actions.
      * @param marketPriceTable market price table
-     * @param commodityConverter the commodity converter
+     * @param incomingCommodityConverter the commodity converter
      * @param cloudCostData cloud cost data
      * @param commodityIndexFactory commodity index factory
      * @param tierExcluderFactory tierExcluderFactory
@@ -254,7 +255,7 @@ public class TopologyConverter {
                              final MarketMode marketMode,
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
-                             CommodityConverter commodityConverter,
+                             CommodityConverter incomingCommodityConverter,
                              final CloudCostData cloudCostData,
                              final CommodityIndexFactory commodityIndexFactory,
                              @Nonnull final TierExcluderFactory tierExcluderFactory,
@@ -268,8 +269,8 @@ public class TopologyConverter {
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
         this.consistentScalingHelper = consistentScalingHelperFactory
             .newConsistentScalingHelper(topologyInfo, getShoppingListOidToInfos());
-        this.commodityConverter = commodityConverter != null ?
-                commodityConverter : new CommodityConverter(new NumericIDAllocator(),
+        this.commodityConverter = incomingCommodityConverter != null ?
+                incomingCommodityConverter : new CommodityConverter(new NumericIDAllocator(),
                 includeGuaranteedBuyer, dsBasedBicliquer, numConsumersOfSoldCommTable,
                 conversionErrorCounts, consistentScalingHelper);
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
@@ -278,7 +279,8 @@ public class TopologyConverter {
                 pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap, businessAccounts,
                 marketPriceTable, cloudCostData, tierExcluder, cloudTopology);
         this.commodityIndex = commodityIndexFactory.newIndex();
-        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(oidToOriginalTraderTOMap, cloudTc, commodityConverter);
+        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
+            oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
         this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
                 cloudTc,
                 unmodifiableEntityOidToDtoMap,
@@ -393,7 +395,7 @@ public class TopologyConverter {
                              final MarketMode marketMode,
                              final float liveMarketMoveCostFactor,
                              @Nonnull final MarketPriceTable marketPriceTable,
-                             @Nonnull CommodityConverter commodityConverter,
+                             @Nonnull CommodityConverter incomingCommodityConverter,
                              @Nonnull final CommodityIndexFactory commodityIndexFactory,
                              @NonNull final TierExcluderFactory tierExcluderFactory,
                              @Nonnull final ConsistentScalingHelperFactory
@@ -404,15 +406,16 @@ public class TopologyConverter {
         this.quoteFactor = quoteFactor;
         this.marketMode = marketMode;
         this.liveMarketMoveCostFactor = liveMarketMoveCostFactor;
-        this.commodityConverter = commodityConverter;
+        this.commodityConverter = incomingCommodityConverter;
         this.tierExcluder = tierExcluderFactory.newExcluder(topologyInfo, this.commodityConverter,
             getShoppingListOidToInfos());
         this.cloudTc = new CloudTopologyConverter(unmodifiableEntityOidToDtoMap, topologyInfo,
-                pmBasedBicliquer, dsBasedBicliquer, commodityConverter, azToRegionMap,
+                pmBasedBicliquer, dsBasedBicliquer, this.commodityConverter, azToRegionMap,
                 businessAccounts, marketPriceTable, null, tierExcluder, cloudTopology);
         this.commodityIndex = commodityIndexFactory.newIndex();
-        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(oidToOriginalTraderTOMap, cloudTc, commodityConverter);
-        this.actionInterpreter = new ActionInterpreter(commodityConverter, shoppingListOidToInfos,
+        this.projectedRICoverageCalculator = new ProjectedRICoverageCalculator(
+            oidToOriginalTraderTOMap, cloudTc, this.commodityConverter);
+        this.actionInterpreter = new ActionInterpreter(this.commodityConverter, shoppingListOidToInfos,
                 cloudTc,
             unmodifiableEntityOidToDtoMap,
             oidToProjectedTraderTOMap,
