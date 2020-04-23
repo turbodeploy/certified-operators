@@ -186,62 +186,6 @@
       },
       {
         "category" : {
-          "name" : "Storage"
-        },
-        "fields" : [
-          {
-            "name" : "storageAmount",
-            "displayName" : "Storage Amount",
-            "valueType" : "NUMERIC",
-            "units" : "GB",
-            "divisor" : "1024f",
-            "description" : "Storage Amount"
-          },
-          {
-            "name" : "diskIops",
-            "displayName" : "IOPS",
-            "valueType" : "NUMERIC",
-            "description" : "Disk IOPS"
-          },
-          {
-            "name" : "failuresToTolerate",
-            "displayName" : "Failures to Tolerate",
-            "valueType" : "NUMERIC",
-            "description" : "Failures to Tolerate",
-            "defaultValue" : "1.0f"
-          },
-          {
-            "name" : "spaceReservationPct",
-            "displayName" : "Space Reservation",
-            "valueType" : "NUMERIC",
-            "units" : "%",
-            "description" : "Space Reservation"
-          },
-          {
-            "name" : "compressionRatio",
-            "displayName" : "Compression Ratio",
-            "valueType" : "NUMERIC",
-            "description" : "Compression Ratio",
-            "defaultValue" : "1.0f"
-          },
-          {
-            "name" : "redundancyMethod",
-            "displayName" : "Redundancy Method",
-            "valueType" : "NUMERIC",
-            "description" : "Redundancy Method",
-            "defaultValue" : "1"
-          },
-          {
-            "name" : "isCompressionEnabled",
-            "displayName" : "Compression Enabled",
-            "valueType" : "NUMERIC",
-            "description" : "Compression Enabled",
-            "defaultValue" : "0"
-          }
-        ]
-      },
-      {
-        "category" : {
           "name" : "Infrastructure"
         },
         "fields" : [
@@ -351,12 +295,12 @@
         },
         "fields" : [
           {
-            "name" : "storageAmount",
-            "displayName" : "Storage Amount",
+            "name" : "diskSize",
+            "displayName" : "Size",
             "valueType" : "NUMERIC",
             "units" : "GB",
             "divisor" : "1024f",
-            "description" : "Storage Amount"
+            "description" : "Disk Size"
           },
           {
             "name" : "diskIops",
