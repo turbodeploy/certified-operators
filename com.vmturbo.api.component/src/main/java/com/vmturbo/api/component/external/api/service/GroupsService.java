@@ -110,8 +110,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupID;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
-import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
-import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Type;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin.User;
 import com.vmturbo.common.protobuf.group.GroupDTO.OriginFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.UpdateGroupRequest;
@@ -167,7 +165,6 @@ public class GroupsService implements IGroupsService {
      */
     @VisibleForTesting
     static final String USER_GROUPS = "GROUP-MyGroups";
-    static final String ENTITY_DEFINITION = "ENTITY_DEFINITION";
 
     private static final String CLUSTER_HEADROOM_GROUP_UUID = "GROUP-PhysicalMachineByCluster";
     private static final String STORAGE_CLUSTER_HEADROOM_GROUP_UUID = "GROUP-StorageByStorageCluster";
@@ -611,24 +608,6 @@ public class GroupsService implements IGroupsService {
         }
     }
 
-    public GroupApiDTO createEntityDefinition(GroupApiDTO inputDTO) throws Exception {
-        final GroupDefinition groupDefinition = groupMapper
-            .toEntityDefinition(inputDTO);
-        final CreateGroupResponse createGroupResponse = groupServiceRpc.createGroup(
-            CreateGroupRequest
-                .newBuilder()
-                .setGroupDefinition(groupDefinition)
-                .setOrigin(GroupDTO.Origin.newBuilder() //setting System origin as it is an entity definition
-                    .setSystem(Origin.System.newBuilder()
-                        .setDescription("EntityDefinition")))
-                .build()
-        );
-        return groupMapper.groupsToGroupApiDto(Collections.singletonList(createGroupResponse.getGroup()), true)
-            .values()
-            .iterator()
-            .next();
-    }
-
     @Override
     public GroupApiDTO createGroup(GroupApiDTO inputDTO)
             throws ConversionException, InterruptedException {
@@ -934,12 +913,6 @@ public class GroupsService implements IGroupsService {
                                 .newBuilder().addOrigin(GroupDTO.Origin.Type.USER)))
                 .build(), true);
              return request.allResultsResponse(Lists.newArrayList(groups));
-        } else if (ENTITY_DEFINITION.equals(uuid)) { // Get all entities definitions
-            final Collection<GroupApiDTO> entities = getGroupApiDTOS(GetGroupsRequest.newBuilder()
-                .setGroupFilter(GroupFilter.newBuilder().setOriginFilter(OriginFilter
-                    .newBuilder().addOrigin(Type.SYSTEM)))
-                .build(), true);
-            return request.allResultsResponse(Lists.newArrayList(entities));
         } else { // Get members of the group with the uuid (oid)
             final GroupAndMembers groupAndMembers =
                 groupExpander.getGroupWithMembers(uuid)
