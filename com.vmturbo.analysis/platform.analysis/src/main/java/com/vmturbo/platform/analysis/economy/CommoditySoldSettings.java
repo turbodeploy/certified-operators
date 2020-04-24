@@ -24,6 +24,34 @@ public interface CommoditySoldSettings {
     boolean isResizable(@ReadOnly CommoditySoldSettings this);
 
     /**
+     * Returns whether {@code this} commodity is resold by a provider.
+     *
+     * <p> A resold commodity is designed to model situations in which the true source of supply for that resold commodity
+     *  is further down the supply chain rather than directly at the trader providing the commodity. In these cases, the
+     *  true supplier is responsible for setting the price of the resold commodity. For a real-life economic analogy,
+     *  consider the case of buying a BigMac at McDonald's - the individual restaurant does not get to set the price.
+     *  Instead, the price may be set by the franchise based on national or regional prices of its ingredients along
+     *  with other factors.
+     *
+     * When computing the expense or desired capacity of a reseller's resold commodity, we perform a recursive traversal
+     * down the supply chain based on the raw materials map to find the true source of supply (that is, the commodities
+     * not marked as resold) and use those values. For example, in the supply chain:
+     *
+     * Foo
+     *  |
+     * Bar (reseller)
+     *  |
+     * Baz (reseller)
+     *  |
+     * Quux
+     *
+     * When trying to calculate Foo's expenses or desired capacity, we will traverse all the way to Quux because the
+     * commodities Foo is buying from Bar and the commodities Bar is buying from Baz are resold.</p>
+     */
+    @Pure
+    boolean isResold(@ReadOnly CommoditySoldSettings this);
+
+    /**
      * Returns the upper bound for {@code this} commodity's capacity, in case of a resize.
      *
      * <p>
@@ -110,6 +138,18 @@ public interface CommoditySoldSettings {
      * @return {@code this}
      */
     @NonNull CommoditySoldSettings setResizable(boolean resizable);
+
+    /**
+     * Sets the value of the <b>resold</b> field.
+     *
+     * <p>
+     *  Has no observable side-effects except setting the above field.
+     * </p>
+     *
+     * @param resold the new value for the field.
+     * @return {@code this}
+     */
+    @NonNull CommoditySoldSettings setResold(boolean resold);
 
     /**
      * Sets the value of the <b>capacity upper bound</b> field.
