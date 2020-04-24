@@ -28,6 +28,10 @@ spec:
   kubeturbo:
     enabled: true
 
+  # Prometurbo probe
+  prometurbo:
+    enabled: true
+
   # Monitoring
   # Enable prometheus mysql exporter
   prometheus-mysql-exporter:
