@@ -546,10 +546,10 @@ public class ClusterStatsReaderTest {
 
         Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
         Assert.assertEquals(4, response.getSnapshotsCount());
-        Assert.assertEquals(CLUSTER_ID_3, Long.toString(response.getSnapshots(0).getOid()));
-        Assert.assertEquals(CLUSTER_ID_4, Long.toString(response.getSnapshots(1).getOid()));
-        Assert.assertEquals(CLUSTER_ID_5, Long.toString(response.getSnapshots(2).getOid()));
-        Assert.assertEquals(CLUSTER_ID_6, Long.toString(response.getSnapshots(3).getOid()));
+        Assert.assertEquals(CLUSTER_ID_6, Long.toString(response.getSnapshots(0).getOid()));
+        Assert.assertEquals(CLUSTER_ID_5, Long.toString(response.getSnapshots(1).getOid()));
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(response.getSnapshots(2).getOid()));
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(response.getSnapshots(3).getOid()));
         for (int i = 0; i < 4; i++) {
             Assert.assertEquals(StringConstants.CPU_HEADROOM,
                                 response.getSnapshots(i).getStatSnapshots(0)
