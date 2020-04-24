@@ -14,6 +14,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -28,10 +32,6 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ede.EdeCommon;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 /**
  * A test case for the {@link ProvisionByDemand} class.
@@ -67,7 +67,7 @@ public class ProvisionByDemandTest {
         // verify that the settings are updated correctly on the provisionedTrader
         assertEquals(modelSellerSettings.getMaxDesiredUtil(), provisionedTraderSettings.getMaxDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
         assertEquals(modelSellerSettings.getMinDesiredUtil(), provisionedTraderSettings.getMinDesiredUtil(), TestUtils.FLOATING_POINT_DELTA);
-        assertEquals(modelSellerSettings.isSuspendable(), provisionedTraderSettings.isSuspendable());
+        assertTrue(provisionedTraderSettings.isSuspendable());
         assertEquals(modelSellerSettings.isGuaranteedBuyer(), provisionedTraderSettings.isGuaranteedBuyer());
         assertFalse(provisionedTraderSettings.isCloneable());
 

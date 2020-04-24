@@ -1,7 +1,5 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +97,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
         getProvisionedSeller().setCloneOf(getModelSeller());
         // traders cloned through provisionByDemand are marked non-cloneable by default
         TraderSettings copySettings = getProvisionedSeller().getSettings();
-        copySettings.setSuspendable(getModelSeller().getSettings().isSuspendable());
+        copySettings.setSuspendable(true);
         copySettings.setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
         copySettings.setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
         copySettings.setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
@@ -293,7 +291,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
         final @NonNull StringBuilder sb = new StringBuilder();
         sb.append("No ").append(traderType.apply(getModelBuyer().getBuyer().getType()/* Substitute correct type */))
           .append(" has enough capacity for ");
-        appendTrader(sb, getModelBuyer().getBuyer(), uuid, name);
+        Utility.appendTrader(sb, getModelBuyer().getBuyer(), uuid, name);
         sb.append(".");
         // TODO: update when we create the recommendation matrix for provisioning and possibly
         // create additional classes for provisioning actions.
