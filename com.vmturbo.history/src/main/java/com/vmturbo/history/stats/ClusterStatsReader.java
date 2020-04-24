@@ -80,13 +80,15 @@ public class ClusterStatsReader {
     private final ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory;
 
     /**
-     * These stats are not stored in the latest or hourly tables.
-     */
-    private static final Set<String> STATS_STORED_IN_DAILY_TABLE;
-    /**
      * These stats have two DB records per observation: one for usage and one for capacity.
      */
     private static final Set<String> STATS_STORED_IN_TWO_RECORDS;
+
+    private static final PaginationParameters DEFAULT_PAGINATION = PaginationParameters.newBuilder()
+                                                                        .setAscending(false)
+                                                                        .setCursor("0")
+                                                                        .setLimit(Integer.MAX_VALUE)
+                                                                        .build();
 
     static {
         final SortedSet<String> statsStoredInTwoRecords = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
@@ -96,20 +98,6 @@ public class ClusterStatsReader {
         statsStoredInTwoRecords.add(StringConstants.MEM_HEADROOM);
         statsStoredInTwoRecords.add(StringConstants.STORAGE_HEADROOM);
         STATS_STORED_IN_TWO_RECORDS = Collections.unmodifiableSortedSet(statsStoredInTwoRecords);
-
-        final SortedSet<String> statsStoredInDailyTable = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
-        statsStoredInDailyTable.add(StringConstants.CPU_EXHAUSTION);
-        statsStoredInDailyTable.add(StringConstants.CPU_HEADROOM);
-        statsStoredInDailyTable.add(StringConstants.HEADROOM_VMS);
-        statsStoredInDailyTable.add(StringConstants.MEM_EXHAUSTION);
-        statsStoredInDailyTable.add(StringConstants.MEM_HEADROOM);
-        statsStoredInDailyTable.add(StringConstants.STORAGE_EXHAUSTION);
-        statsStoredInDailyTable.add(StringConstants.STORAGE_HEADROOM);
-        statsStoredInDailyTable.add(StringConstants.VM_GROWTH);
-        statsStoredInDailyTable.add(StringConstants.NUM_HOSTS);
-        statsStoredInDailyTable.add(StringConstants.NUM_STORAGES);
-        statsStoredInDailyTable.add(StringConstants.NUM_VMS);
-        STATS_STORED_IN_DAILY_TABLE = Collections.unmodifiableSortedSet(statsStoredInDailyTable);
     }
 
     /**
@@ -230,19 +218,16 @@ public class ClusterStatsReader {
         final Set<String> requestedFields = StatsUtils.collectCommodityNames(filter);
         final Set<Long> clusterIds = request.getClusterIdsList().stream().collect(Collectors.toSet());
 
-        // extract and validate the pagination parameters
-        if (!request.hasPaginationParams()) {
-            throw new IllegalArgumentException("Cluster stats request has no pagination parameters");
-        }
-        final PaginationParameters paginationParameters = request.getPaginationParams();
-        if (!paginationParameters.hasOrderBy() || !paginationParameters.getOrderBy().hasEntityStats()
-                || !paginationParameters.getOrderBy().getEntityStats().hasStatName()
-                || !paginationParameters.hasAscending()) {
-            throw new IllegalArgumentException("Cannot extract valid ordering in cluster stats request");
-        }
-        final String orderByField = paginationParameters.getOrderBy().getEntityStats().getStatName();
-        if (requestedFields.stream().noneMatch(x -> x.equalsIgnoreCase(orderByField))) {
-            throw new IllegalArgumentException("Cluster stats request cannot be ordered by " + orderByField);
+        // extract the pagination parameters
+        final PaginationParameters paginationParameters = request.hasPaginationParams()
+                                                                ? request.getPaginationParams()
+                                                                : DEFAULT_PAGINATION;
+        final String orderByField;
+        if (paginationParameters.hasOrderBy() && paginationParameters.getOrderBy().hasEntityStats()
+                && paginationParameters.getOrderBy().getEntityStats().hasStatName()) {
+            orderByField = paginationParameters.getOrderBy().getEntityStats().getStatName();
+        } else {
+            orderByField = INTERNAL_NAME;
         }
 
         // decide on time frame
