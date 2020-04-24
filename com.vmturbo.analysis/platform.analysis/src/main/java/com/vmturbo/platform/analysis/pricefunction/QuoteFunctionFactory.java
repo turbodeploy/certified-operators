@@ -78,35 +78,14 @@ public class QuoteFunctionFactory {
     }
 
     /**
-     * Create a quote function which computes the risk of running out of budget if the buyer
-     * move from current supplier to a new seller.
+     * Create a quote function which computes the cost of running on the new supplier.
      *
      * @return {@link QuoteFunction}
      */
     public static @Nonnull QuoteFunction budgetDepletionRiskBasedQuoteFunction() {
         QuoteFunction qf = (buyer, seller, bestQuoteSoFar, forTraderIncomeStmt, economy) -> {
             MutableQuote costOnNewSeller = computeCost(buyer, seller, true, economy);
-            MutableQuote costOnCurrentSupplier = computeCost(buyer, buyer.getSupplier(), false, economy);
-            Context context = buyer.getBuyer().getSettings().getContext();
-            BalanceAccount ba = null;
-            if (context != null) {
-                ba = buyer.getBuyer().getSettings().getContext().getBalanceAccount();
-            }
-            // TODO: if the buyer is on the wrong supplier, costOnSupplier may be infinity
-            // now I added this to workaround such a case
-            if (Double.isInfinite(costOnCurrentSupplier.getQuoteValue())) {
-                costOnCurrentSupplier.setQuoteValue(0);
-            }
-            double spent = (ba == null ? 0 : ba.getSpent());
-            double budget = (ba == null ? 1 : ba.getBudget());
-            double budgetUtil = (spent - costOnCurrentSupplier.getQuoteValue() +
-                costOnNewSeller.getQuoteValue()) / budget;
-            final double quoteValue = (budgetUtil >= 1) ? Double.POSITIVE_INFINITY :
-                1 / ((1 - budgetUtil) * (1 - budgetUtil));
-            logMessagesForBudgetDepletion(buyer, seller, economy, costOnNewSeller.getQuoteValue(), quoteValue);
-
-            costOnNewSeller.setQuoteValue(quoteValue);
-
+            logMessagesForBudgetDepletion(buyer, seller, economy, costOnNewSeller.getQuoteValue());
             economy.getPlacementStats().incrementBudgetDepletionQuoteCount();
             return costOnNewSeller;
         };
@@ -121,7 +100,7 @@ public class QuoteFunctionFactory {
      * @return the cost
      */
     public static MutableQuote computeCost(ShoppingList shoppingList, Trader seller, boolean validate, UnmodifiableEconomy economy) {
-        return (seller == null || seller.getSettings().getCostFunction() == null) ? CommodityQuote.zero(seller)
+        return (seller == null || seller.getSettings().getCostFunction() == null) ? CommodityQuote.infinite(seller)
             : seller.getSettings().getCostFunction().calculateCost(shoppingList, seller, validate, economy);
     }
 
@@ -133,15 +112,14 @@ public class QuoteFunctionFactory {
      * @param seller          the seller providing quote
      * @param economy         the Economy
      * @param costOnNewSeller cost on the seller
-     * @param quoteValue      the quote provided by the seller
      */
     private static void logMessagesForBudgetDepletion(ShoppingList sl, Trader seller, Economy economy,
-                                                      double costOnNewSeller, double quoteValue) {
+                                                      double costOnNewSeller) {
         if (logger.isTraceEnabled() || seller.isDebugEnabled() || sl.getBuyer().isDebugEnabled()) {
             long topologyId = M2Utils.getTopologyId(economy);
-            logger.debug("topology id = {}, buyer = {}, seller = {}, cost = {}, quote = {}",
+            logger.debug("topology id = {}, buyer = {}, seller = {}, cost = {}",
                 topologyId, sl.getBuyer(),
-                seller, costOnNewSeller, quoteValue);
+                seller, costOnNewSeller);
         }
     }
 }
