@@ -270,7 +270,7 @@ public class TopologyEntitiesHandler {
             // actions to reference entities not actually in the projected topology.
             @NonNull List<Action> secondRoundActions = ede.generateActions(economy, true, true,
                 true, false, true, false, seedActions, marketId,
-                analysisConfig.getSuspensionsThrottlingConfig()).stream()
+                SuspensionsThrottlingConfig.DEFAULT).stream()
                 .filter(action -> (action instanceof ProvisionByDemand
                                 || action instanceof ProvisionBySupply
                                 || action instanceof Activate)
