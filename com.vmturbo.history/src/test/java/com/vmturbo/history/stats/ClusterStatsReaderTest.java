@@ -526,6 +526,39 @@ public class ClusterStatsReaderTest {
         }
     }
 
+    /**
+     * Tests {@link ClusterStatsReader#getStatsRecords}.
+     * In this test, the request does not have pagination parameters.
+     * All records should be returned, sorted by their oid.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void testGetClustersMissingPagination() throws Exception {
+        final CommodityRequest commodityRequest = CommodityRequest.newBuilder()
+                                                    .setCommodityName(StringConstants.CPU_HEADROOM)
+                                                    .build();
+        final ClusterStatsRequest request = ClusterStatsRequest.newBuilder()
+                                                .setStats(StatsFilter.newBuilder()
+                                                            .addCommodityRequests(commodityRequest))
+                                                .build();
+        final ClusterStatsResponse response = clusterStatsReader.getStatsRecords(request);
+
+        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
+        Assert.assertEquals(4, response.getSnapshotsCount());
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(response.getSnapshots(0).getOid()));
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(response.getSnapshots(1).getOid()));
+        Assert.assertEquals(CLUSTER_ID_5, Long.toString(response.getSnapshots(2).getOid()));
+        Assert.assertEquals(CLUSTER_ID_6, Long.toString(response.getSnapshots(3).getOid()));
+        for (int i = 0; i < 4; i++) {
+            Assert.assertEquals(StringConstants.CPU_HEADROOM,
+                                response.getSnapshots(i).getStatSnapshots(0)
+                                        .getStatRecords(0).getName());
+            Assert.assertTrue(response.getSnapshots(i).getStatSnapshots(0)
+                                        .getStatRecords(0).hasUsed());
+        }
+    }
+
     private ClusterStatsRequest constructTestInput(@Nonnull Collection<Long> scope, @Nonnull String statName,
                                                    boolean ascending, int offset, int limit) {
         final OrderBy orderBy = OrderBy.newBuilder()
