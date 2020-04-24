@@ -116,7 +116,11 @@ public class SystemLoadReader {
             SelectConditionStep<SystemLoadRecord> systemLoadQueryBuilder = historydbIO.JooqBuilder()
                     .selectFrom(SystemLoad.SYSTEM_LOAD)
                     .where(SystemLoad.SYSTEM_LOAD.SNAPSHOT_TIME.between(new Timestamp(startTime.getTime()), new Timestamp(endTime.getTime())))
-                    .and(SystemLoad.SYSTEM_LOAD.PROPERTY_TYPE.eq("system_load"))
+                    .and(SystemLoad.SYSTEM_LOAD.PROPERTY_TYPE.eq(StringConstants.SYSTEM_LOAD))
+                    // we exclude overall-system load records (one per slice). They were introduced
+                    // as an optimization for `SystemLoadWriter`, and users of this method will
+                    // not expect to see them
+                    .and(SystemLoad.SYSTEM_LOAD.PROPERTY_SUBTYPE.ne(StringConstants.SYSTEM_LOAD))
                     .and(SystemLoad.SYSTEM_LOAD.SLICE.eq(slice));
 
             List<SystemLoadRecord> systemLoadRecords = null;
