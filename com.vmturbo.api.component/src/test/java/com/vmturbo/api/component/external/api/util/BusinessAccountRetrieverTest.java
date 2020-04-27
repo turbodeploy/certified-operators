@@ -147,7 +147,7 @@ public class BusinessAccountRetrieverTest {
     public void init() {
         final GroupUseCaseParser groupUseCaseParser =
                 new GroupUseCaseParser("groupBuilderUsecases.json");
-        this.entityFilterMapper = new EntityFilterMapper(groupUseCaseParser);
+        this.entityFilterMapper = new EntityFilterMapper(groupUseCaseParser, thinTargetCache);
         searchFilterResolver = Mockito.mock(SearchFilterResolver.class);
         Mockito.when(searchFilterResolver.resolveExternalFilters(Mockito.any()))
                 .thenAnswer(invocation -> invocation.getArguments()[0]);

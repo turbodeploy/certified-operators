@@ -313,12 +313,22 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
             case SearchableProperties.EPHEMERAL: {
                 if (stringCriteria.getOptionsCount() == 1) {
                     return new PropertyFilter<>(
-                                    stringOptionsPredicate(stringCriteria.getOptionsList(),
-                                                    vmToVolumeInfoPropertyLookup(
-                                                                    v -> v.hasIsEphemeral() && v
-                                                                                    .getIsEphemeral()),
-                                                    false, false));
+                            stringOptionsPredicate(stringCriteria.getOptionsList(),
+                                    vmToVolumeInfoPropertyLookup(
+                                            v -> v.hasIsEphemeral() && v
+                                                    .getIsEphemeral()),
+                                    false, false));
                 }
+            }
+            case SearchableProperties.EXCLUSIVE_DISCOVERING_TARGET: {
+                final List<Long> targetIds = stringCriteria.getOptionsList()
+                        .stream()
+                        .map(Long::valueOf)
+                        .collect(Collectors.toList());
+                final boolean positive = stringCriteria.getPositiveMatch();
+                return new PropertyFilter<>(e ->
+                    (e.getDiscoveringTargetIds().collect(Collectors.toList()).equals(targetIds))
+                            == positive);
             }
             default:
                 throw new IllegalArgumentException("Unknown string property: " + propertyName
