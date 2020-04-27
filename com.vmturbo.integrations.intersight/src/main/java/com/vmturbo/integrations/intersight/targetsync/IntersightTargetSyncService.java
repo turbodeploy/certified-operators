@@ -93,7 +93,7 @@ public class IntersightTargetSyncService implements Runnable {
      * @throws CommunicationException when having problems communicating with the topology processor
      * @throws InterruptedException when interrupted while waiting for topology processor to respond
      */
-    private void syncTargets() throws IOException, ApiException, CommunicationException,
+    private void syncTargets() throws IOException, CommunicationException, ApiException,
             InterruptedException {
         // For looking up the probe below to add targets which requires the probe id
         final Map<String, ProbeInfo> probesByType = topologyProcessor.getAllProbes().stream()
@@ -115,18 +115,25 @@ public class IntersightTargetSyncService implements Runnable {
         // "Status": this is a top-level status field and is an enum and read-only;
         //           To ensure accepted by the server, this has to be passed back unchanged.
         final String select = "$select=Moid,TargetType,Services,Status,CreateTime,ModTime";
-        final AssetTargetList assetTargetList = assetApi.getAssetTargetList(
-                IntersightDefaultQueryParameters.$filter,
-                IntersightDefaultQueryParameters.$orderby,
-                IntersightDefaultQueryParameters.$top,
-                IntersightDefaultQueryParameters.$skip,
-                select,
-                IntersightDefaultQueryParameters.$expand,
-                IntersightDefaultQueryParameters.$apply,
-                IntersightDefaultQueryParameters.$count,
-                IntersightDefaultQueryParameters.$inlinecount,
-                IntersightDefaultQueryParameters.$at,
-                IntersightDefaultQueryParameters.$tags);
+        AssetTargetList assetTargetList =  null;
+        try {
+            assetTargetList = assetApi.getAssetTargetList(
+                    IntersightDefaultQueryParameters.$filter,
+                    IntersightDefaultQueryParameters.$orderby,
+                    IntersightDefaultQueryParameters.$top,
+                    IntersightDefaultQueryParameters.$skip,
+                    select,
+                    IntersightDefaultQueryParameters.$expand,
+                    IntersightDefaultQueryParameters.$apply,
+                    IntersightDefaultQueryParameters.$count,
+                    IntersightDefaultQueryParameters.$inlinecount,
+                    IntersightDefaultQueryParameters.$at,
+                    IntersightDefaultQueryParameters.$tags);
+        } catch (ApiException e) {
+            logger.error("Error Getting Targets using Intersight API. Query Header {} ",
+                    e.getResponseHeaders());
+            throw e;
+        }
 
         if (assetTargetList != null && assetTargetList.getResults() != null) {
             final IntersightTargetUpdater targetUpdater = new IntersightTargetUpdater(apiClient,

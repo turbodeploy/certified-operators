@@ -98,17 +98,24 @@ public class IntersightLicenseClient {
         if (filter != null) {
             logger.info("Fetching intersight licenses using filter: {}", filter);
         }
-        LicenseLicenseInfoList licenseList = licenseApi.getLicenseLicenseInfoList(filter,
-                IntersightDefaultQueryParameters.$orderby,
-                IntersightDefaultQueryParameters.$top,
-                IntersightDefaultQueryParameters.$skip,
-                IntersightDefaultQueryParameters.$select,
-                IntersightDefaultQueryParameters.$expand,
-                IntersightDefaultQueryParameters.$apply,
-                IntersightDefaultQueryParameters.$count,
-                IntersightDefaultQueryParameters.$inlinecount,
-                IntersightDefaultQueryParameters.$at,
-                IntersightDefaultQueryParameters.$tags);
+        LicenseLicenseInfoList licenseList = null;
+        try {
+            licenseList = licenseApi.getLicenseLicenseInfoList(filter,
+                    IntersightDefaultQueryParameters.$orderby,
+                    IntersightDefaultQueryParameters.$top,
+                    IntersightDefaultQueryParameters.$skip,
+                    IntersightDefaultQueryParameters.$select,
+                    IntersightDefaultQueryParameters.$expand,
+                    IntersightDefaultQueryParameters.$apply,
+                    IntersightDefaultQueryParameters.$count,
+                    IntersightDefaultQueryParameters.$inlinecount,
+                    IntersightDefaultQueryParameters.$at,
+                    IntersightDefaultQueryParameters.$tags);
+        } catch (ApiException e) {
+            logger.error("Error Getting License using Intersight API. Query Header {} ",
+                    e.getResponseHeaders());
+            throw e;
+        }
         return licenseList;
     }
 
