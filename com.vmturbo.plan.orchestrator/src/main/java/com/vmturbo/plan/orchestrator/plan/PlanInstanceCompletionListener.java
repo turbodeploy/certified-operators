@@ -23,7 +23,16 @@ public class PlanInstanceCompletionListener implements PlanStatusListener {
     public void onPlanStatusChanged(@Nonnull final PlanInstance plan)
             throws PlanStatusListenerException {
         if (PlanDTOUtil.isTerminalStatus(plan.getStatus())) {
-            logger.info("Plan instance {} has completed execution.", plan.getPlanId());
+            try {
+                logger.info("Plan [{} {}] has completed execution in {} ms with status {}.",
+                    plan.getPlanId(),
+                    plan.getScenario().getScenarioInfo().getType(),
+                    plan.getEndTime() - plan.getStartTime(),
+                    plan.getStatus());
+            } catch (Exception e) {
+                logger.error("Encountered exception while trying to log plan " +
+                    plan.getPlanId() + " completion: ", e);
+            }
             // Run the next plan instance in queue if available.
             planInstanceQueue.runNextPlanInstance();
         }
