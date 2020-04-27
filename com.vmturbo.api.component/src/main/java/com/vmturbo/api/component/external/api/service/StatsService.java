@@ -497,7 +497,6 @@ public class StatsService implements IStatsService {
                         final GroupDefinition cluster = clusters.get(entityStats.getOid());
                         entityStatsApiDTO.setUuid(Long.toString(entityStats.getOid()));
                         entityStatsApiDTO.setStats(entityStats.getStatSnapshotsList().stream()
-                                                        .limit(1)
                                                         .map(statsMapper::toStatSnapshotApiDTO)
                                                         .collect(Collectors.toList()));
                         if (cluster != null) {

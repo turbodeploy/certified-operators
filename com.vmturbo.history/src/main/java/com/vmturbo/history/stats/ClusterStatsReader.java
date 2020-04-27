@@ -241,18 +241,17 @@ public class ClusterStatsReader {
                                                                                     .build())
                                                                         .collect(Collectors.toList()))
                                             .build();
-        TimeFrame timeFrame = timeRangeFactory.resolveTimeRange(
-                                        statsFilter, Optional.empty(), Optional.empty(),
-                                        Optional.empty(), Optional.empty())
-                                    .map(TimeRange::getTimeFrame)
-                                    .orElse(TimeFrame.LATEST);
+        final Optional<TimeRange> timeRange = timeRangeFactory.resolveTimeRange(
+                                                    statsFilter, Optional.empty(), Optional.empty(),
+                                                    Optional.empty(), Optional.empty());
 
         // create query and run it
-        final ClusterStatsQuery query = new ClusterStatsQuery(getStatsTable(timeFrame),
-                                                              startDate.map(Timestamp::new),
-                                                              endDate.map(Timestamp::new),
-                                                              requestedFields,
-                                                              clusterIds);
+        final ClusterStatsQuery query =
+            new ClusterStatsQuery(getStatsTable(timeRange.map(TimeRange::getTimeFrame)
+                                                         .orElse(TimeFrame.LATEST)),
+                                  timeRange.map(TimeRange::getStartTime).map(Timestamp::new),
+                                  timeRange.map(TimeRange::getStartTime).map(Timestamp::new),
+                                  requestedFields, clusterIds);
         final Result<? extends Record> results = historydbIO.execute(query.getQuery());
 
         // process query results
