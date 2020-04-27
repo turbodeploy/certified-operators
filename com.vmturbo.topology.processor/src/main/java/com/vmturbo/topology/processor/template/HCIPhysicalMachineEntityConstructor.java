@@ -9,18 +9,24 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
  * Construct HCI PM and HCI storage out of the HCI template.
  */
 public class HCIPhysicalMachineEntityConstructor extends TopologyEntityConstructor {
+
+    private static final Logger logger = LogManager.getLogger();
 
     @Override
     @Nonnull
@@ -67,6 +73,21 @@ public class HCIPhysicalMachineEntityConstructor extends TopologyEntityConstruct
                 getTemplateResources(template, ResourcesCategoryName.Storage));
         addStorageCommoditiesSold(newHost, templateMap);
         addStorageCommoditiesBought(newStorage, newHost.getOid(), templateMap);
+
+        // Set Replace for the PM related storages
+        for (Long providerOid : originalHost.getProviderIds()) {
+            Builder provider = topology.get(providerOid);
+
+            if (provider.getEntityType() != EntityType.STORAGE_VALUE) {
+                continue;
+            }
+
+            provider.getEntityBuilder().getEditBuilder().getReplacedBuilder()
+                    .setReplacementId(newStorage.getOid()).setPlanId(planId);
+
+            logger.trace("Marked Storage '{}' for replacement with '{}'", provider.getDisplayName(),
+                    newStorage.getDisplayName());
+        }
 
         return result;
     }

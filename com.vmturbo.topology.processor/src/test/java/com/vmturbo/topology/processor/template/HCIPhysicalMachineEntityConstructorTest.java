@@ -5,8 +5,10 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -119,6 +121,15 @@ public class HCIPhysicalMachineEntityConstructorTest {
         topology.put(originalHostBuilder.getOid(), originalHostBuilder);
         topology.put(originalStorageBuilder.getOid(), originalStorageBuilder);
 
+        Set<Long> hostProviderOids = new HashSet<>();
+
+        for (int i = 1; i <= 5; i++) {
+            TopologyEntity.Builder hostProvider = TopologyEntity
+                    .newBuilder(loadTopologyEntityDTO("HostProvider" + i + ".json").toBuilder());
+            topology.put(hostProvider.getOid(), hostProvider);
+            hostProviderOids.add(hostProvider.getOid());
+        }
+
         // Run test
         Collection<Builder> result = new HCIPhysicalMachineEntityConstructor()
                 .createTopologyEntityFromTemplate(template, topology, originalHostBuilder, true,
@@ -165,7 +176,15 @@ public class HCIPhysicalMachineEntityConstructorTest {
             Assert.assertTrue(printCommBought(comm), comm.getUsed() > 0);
         });
 
-        Assert.assertNotNull(result);
+        // Check if the original host storages are marked for replacement
+        for (Long oid : hostProviderOids) {
+            TopologyEntity.Builder provider = topology.get(oid);
+
+            if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
+                Assert.assertEquals(newStorage.getOid(),
+                        provider.getEntityBuilder().getEdit().getReplaced().getReplacementId());
+            }
+        }
     }
 
     private static void checkMissingSoldCommodity(@Nonnull Builder originalEntity,
@@ -226,7 +245,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
 
     @Nonnull
     private String readResourceFileAsString(@Nonnull String fileName) throws IOException {
-        String path = getClass().getClassLoader().getResource(fileName).getFile();
+        String path = getClass().getClassLoader().getResource("template/" + fileName).getFile();
         return Files.asCharSource(new File(path), Charset.defaultCharset()).read();
     }
 }
