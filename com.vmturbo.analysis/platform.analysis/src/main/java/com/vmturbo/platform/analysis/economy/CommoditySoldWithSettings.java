@@ -14,6 +14,7 @@ import com.vmturbo.platform.analysis.utilities.FunctionalOperator;
 final class CommoditySoldWithSettings extends CommoditySold implements CommoditySoldSettings {
     // Fields for CommoditySoldSettings
     private boolean resizable_ = true;
+    private boolean resold_ = false;
     private boolean cloneWithNewType_ = false;
     private double capacityLowerBound_ = 0.0;
     private double capacityUpperBound_ = Double.MAX_VALUE;
@@ -55,6 +56,12 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
 
     @Override
     @Pure
+    public boolean isResold(@ReadOnly CommoditySoldWithSettings this) {
+        return resold_;
+    }
+
+    @Override
+    @Pure
     public double getCapacityUpperBound(@ReadOnly CommoditySoldWithSettings this) {
         return capacityUpperBound_;
     }
@@ -92,6 +99,13 @@ final class CommoditySoldWithSettings extends CommoditySold implements Commodity
     @Deterministic
     public @NonNull CommoditySoldSettings setResizable(boolean resizable) {
         resizable_ = resizable;
+        return this;
+    }
+
+    @Override
+    @Deterministic
+    public @NonNull CommoditySoldSettings setResold(boolean resold) {
+        resold_ = resold;
         return this;
     }
 
