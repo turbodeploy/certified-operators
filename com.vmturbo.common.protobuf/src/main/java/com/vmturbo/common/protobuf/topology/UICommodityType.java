@@ -39,6 +39,8 @@ public enum UICommodityType {
     CPU_ALLOCATION("CPUAllocation", CommodityType.CPU_ALLOCATION, "CPU Allocation"),
     /** The commodity CPU_PROVISIONED. */
     CPU_PROVISIONED("CPUProvisioned", CommodityType.CPU_PROVISIONED, "CPU Provisioned"),
+    /** The commodity CPU_REQUEST_ALLOCATION. */
+    CPU_REQUEST_ALLOCATION("CPURequestAllocation", CommodityType.CPU_REQUEST_ALLOCATION, "CPU Request Allocation"),
     /** The commodity CROSS_CLOUD_MOVE_SVC. */
     CROSS_CLOUD_MOVE_SVC("CrossCloudMoveSvc", CommodityType.CROSS_CLOUD_MOVE_SVC, "Cross Cloud Move SVC"),
     /** The commodity CROSS_CLUSTER_MOVE_SVC. */
@@ -85,6 +87,8 @@ public enum UICommodityType {
     MEM("Mem", CommodityType.MEM, "Mem"),
     /** The commodity MEM_ALLOCATION. */
     MEM_ALLOCATION("MemAllocation", CommodityType.MEM_ALLOCATION, "Mem Allocation"),
+    /** The commodity MEM_REQUEST_ALLOCATION. */
+    MEM_REQUEST_ALLOCATION("MemRequestAllocation", CommodityType.MEM_REQUEST_ALLOCATION, "Mem Request Allocation"),
     /** The commodity MEM_PROVISIONED. */
     MEM_PROVISIONED("MemProvisioned", CommodityType.MEM_PROVISIONED, "Mem Provisioned"),
     /** The commodity NET_THROUGHPUT. */

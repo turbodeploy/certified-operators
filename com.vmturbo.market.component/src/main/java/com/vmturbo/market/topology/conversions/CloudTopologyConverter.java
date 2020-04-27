@@ -35,9 +35,11 @@ import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostD
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
+import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.topology.MarketTier;
 import com.vmturbo.market.topology.OnDemandMarketTier;
+import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
@@ -73,6 +75,7 @@ public class CloudTopologyConverter {
     private final Set<TopologyEntityDTO> businessAccounts;
     private final CloudCostData<TopologyEntityDTO> cloudCostData;
     private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid = new HashMap<>();
+    private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     /**
      * @param topology the topologyEntityDTOs which came into market-component
@@ -90,11 +93,14 @@ public class CloudTopologyConverter {
      */
      @VisibleForTesting
      CloudTopologyConverter(
-             @Nonnull Map<Long, TopologyEntityDTO> topology, @Nonnull TopologyInfo topologyInfo,
-             @Nonnull BiCliquer pmBasedBicliquer, @Nonnull BiCliquer dsBasedBicliquer,
+             @Nonnull Map<Long, TopologyEntityDTO> topology,
+             @Nonnull TopologyInfo topologyInfo,
+             @Nonnull BiCliquer pmBasedBicliquer,
+             @Nonnull BiCliquer dsBasedBicliquer,
              @Nonnull CommodityConverter commodityConverter,
              @Nonnull Map<TopologyEntityDTO, TopologyEntityDTO> azToRegionMap,
-             @Nonnull Set<TopologyEntityDTO> businessAccounts, @Nonnull MarketPriceTable marketPriceTable,
+             @Nonnull Set<TopologyEntityDTO> businessAccounts,
+             @Nonnull MarketPriceTable marketPriceTable,
              @Nonnull CloudCostData cloudCostData,
              @Nonnull TierExcluder tierExcluder,
              @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology) {
@@ -110,6 +116,7 @@ public class CloudTopologyConverter {
          this.businessAccounts = businessAccounts;
          this.cloudCostData = cloudCostData;
          converterMap = Collections.unmodifiableMap(createConverterMap());
+         this.cloudTopology = cloudTopology;
      }
 
     /**
@@ -325,6 +332,38 @@ public class CloudTopologyConverter {
             return null;
         }
         return primaryMarketTiers.get(0);
+    }
+
+    /**
+     * find the oid of the RIDiscountedMarketTier for the given riData.
+     * @param riData given RI data.
+     * @return the oid of the RIDiscountedMarketTier.
+     */
+    @Nullable
+    public Long getRIDiscountedMarketTierIDFromRIData(ReservedInstanceData riData) {
+        final TopologyEntityDTO region = topology.get(riData.getReservedInstanceSpec()
+            .getReservedInstanceSpecInfo().getRegionId());
+        final TopologyEntityDTO computeTier =
+            topology.get(riData.getReservedInstanceSpec()
+                .getReservedInstanceSpecInfo().getTierId());
+        final long businessAccountId = riData.getReservedInstanceBought()
+            .getReservedInstanceBoughtInfo().getBusinessAccountId();
+        final Optional<GroupAndMembers> billingFamilyGroup = cloudTopology
+            .getBillingFamilyForEntity(businessAccountId);
+        if (!billingFamilyGroup.isPresent()) {
+            logger.error("Billing family group not found for RI Data: {}",
+                riData.getReservedInstanceBought());
+        }
+        final long billingFamilyId = billingFamilyGroup.map(group ->
+            group.group().getId()).orElse(businessAccountId);
+        final ReservedInstanceKey riKey = new ReservedInstanceKey(riData,
+            computeTier.getTypeSpecificInfo().getComputeTier().getFamily(),
+            billingFamilyId);
+        final ReservedInstanceAggregate riAggregate =
+            new ReservedInstanceAggregate(riData, riKey, computeTier,
+                Collections.emptySet());
+        return getTraderTOOid(new RiDiscountedMarketTier(computeTier,
+            region, riAggregate));
     }
 
     /**

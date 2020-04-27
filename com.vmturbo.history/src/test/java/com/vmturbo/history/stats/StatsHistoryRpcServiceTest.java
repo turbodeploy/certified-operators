@@ -49,6 +49,7 @@
 
  import io.grpc.Status.Code;
  import io.grpc.StatusRuntimeException;
+ import io.grpc.stub.ServerCallStreamObserver;
  import io.grpc.stub.StreamObserver;
 
  import org.jooq.Record;
@@ -1019,8 +1020,9 @@ public class StatsHistoryRpcServiceTest {
         final String vmName = "vm-1";
         final GetMostRecentStatResponse.Builder stubbedResponse = GetMostRecentStatResponse
                 .newBuilder().setEntityUuid(vmId);
-        when(mostRecentLiveStatReader.getMostRecentStat(VIRTUAL_MACHINE, STORAGE_AMOUNT, "vol-1"))
-                .thenReturn(Optional.of(stubbedResponse));
+        when(mostRecentLiveStatReader.getMostRecentStat(eq(VIRTUAL_MACHINE), eq(STORAGE_AMOUNT),
+            eq("vol-1"), any(ServerCallStreamObserver.class)))
+            .thenReturn(Optional.of(stubbedResponse));
         when(mockLivestatsreader.getEntityDisplayNameForId(vmId)).thenReturn(vmName);
         Stats.GetMostRecentStatRequest request = Stats.GetMostRecentStatRequest.newBuilder()
                 .setEntityType(VIRTUAL_MACHINE)

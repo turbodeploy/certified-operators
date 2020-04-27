@@ -1,25 +1,37 @@
 package com.vmturbo.topology.processor.communication;
 
-import java.util.Collection;
+import javax.annotation.Nonnull;
 
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
+import com.vmturbo.topology.processor.probes.ProbeException;
 
 /**
  * Interface implemented by classes that provide a way to choose a transport to communicate with
- * when multiple probe containers of the same type are running.  For example, a round robin chooser
- * would alternate messages among all possible transports in order.
+ * when multiple probe containers of the same type are running.
  */
 public interface ProbeContainerChooser {
 
     /**
-     * Choose the next ITransport to use to communicate with a probe of a particular type.
-     *
-     * @param containerCollection {@link Collection} of {@link ITransport} to choose from.
-     * @return {@link ITransport} to use for communicating with the probe.
+     * Chooses transport of a target.
+     * @param  probeId the id of the probe
+     * @param targetIdentifyingValues the serialized identifying field of a target
+     * @param message the message that is being sent to the probe
+     * @return return the assigned or created ITransport
+     * @throws ProbeException if probe can't be found
      */
-     ITransport<MediationServerMessage, MediationClientMessage> choose(
-        Collection<ITransport<MediationServerMessage, MediationClientMessage>> containerCollection);
+    @Nonnull
+     ITransport<MediationServerMessage, MediationClientMessage> choose(long probeId,
+                                                                       @Nonnull String targetIdentifyingValues,
+                                                                       @Nonnull MediationServerMessage message) throws ProbeException;
+
+    /**
+     * Assign the transport to a target.
+     * @param  transport the transport to assign of the probe
+     * @param targetIdentifyingValues the serialized identifying field of a target
+     */
+     void assignTargetToTransport(@Nonnull ITransport<MediationServerMessage,
+         MediationClientMessage> transport, @Nonnull String targetIdentifyingValues);
 
 }

@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.logging.Logging.GetLogLevelsRequest;
 import com.vmturbo.common.protobuf.logging.Logging.GetLogLevelsResponse;
 import com.vmturbo.common.protobuf.logging.Logging.LogLevel;
 import com.vmturbo.common.protobuf.logging.LoggingMoles.LogConfigurationServiceMole;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 
 /**
@@ -76,8 +77,9 @@ public class ComponentGrpcServerTest {
         startGrpcServer(env);
 
         // Set up the mock response.
+        ComponentGrpcServer server = ComponentGrpcServer.get();
         final LogConfigurationServiceBlockingStub client =
-            LogConfigurationServiceGrpc.newBlockingStub(ComponentGrpcServer.get().getChannel());
+            LogConfigurationServiceGrpc.newBlockingStub(ComponentGrpcServer.newChannelBuilder("localhost", server.getPort()).build());
         GetLogLevelsResponse logLevelsResponse = GetLogLevelsResponse.newBuilder()
             .putLogLevels("foo", LogLevel.INFO)
             .build();
@@ -120,8 +122,9 @@ public class ComponentGrpcServerTest {
         startGrpcServer(env);
 
         // Create a client.
+        ComponentGrpcServer server = ComponentGrpcServer.get();
         final LogConfigurationServiceBlockingStub client =
-            LogConfigurationServiceGrpc.newBlockingStub(ComponentGrpcServer.get().getChannel());
+            LogConfigurationServiceGrpc.newBlockingStub(ComponentGrpcServer.newChannelBuilder("localhost", server.getPort()).build());
 
 
         LogConfigurationServiceMole updatedMole = spy(LogConfigurationServiceMole.class);

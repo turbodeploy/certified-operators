@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -138,7 +137,7 @@ public class PhysicalMachineEntityConstructorTest {
 
         final TopologyEntityDTO.Builder topologyEntityDTO =
                 new PhysicalMachineEntityConstructor().createTopologyEntityFromTemplate(PM_TEMPLATE,
-                        topology, Optional.empty(), false, identityProvider).iterator().next();
+                        topology, null, false, identityProvider).iterator().next();
         assertEquals(15, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(1, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(200.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
@@ -196,8 +195,7 @@ public class PhysicalMachineEntityConstructorTest {
         TopologyEntity.Builder topologyEntity = TopologyEntity.newBuilder(builder);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new PhysicalMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(PM_TEMPLATE, topology,
-                        Optional.of(topologyEntity), false,
+                .createTopologyEntityFromTemplate(PM_TEMPLATE, topology, topologyEntity, false,
                         identityProvider)
                 .iterator().next();
         assertEquals(19, topologyEntityDTO.getCommoditySoldListCount());

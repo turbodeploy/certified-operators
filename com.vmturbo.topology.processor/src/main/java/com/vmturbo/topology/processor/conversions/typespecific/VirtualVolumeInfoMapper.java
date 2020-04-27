@@ -30,6 +30,9 @@ public class VirtualVolumeInfoMapper extends TypeSpecificInfoMapper {
         if (vvData.hasStorageAmountCapacity()) {
             vvInfo.setStorageAmountCapacity(vvData.getStorageAmountCapacity());
         }
+        if (vvData.hasIoThroughputCapacity()) {
+            vvInfo.setIoThroughputCapacity((float)vvData.getIoThroughputCapacity());
+        }
         if (vvData.hasSnapshotId()) {
             vvInfo.setSnapshotId(vvData.getSnapshotId());
         }

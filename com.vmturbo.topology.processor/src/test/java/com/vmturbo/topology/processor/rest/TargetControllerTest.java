@@ -232,9 +232,12 @@ public class TargetControllerTest {
         targetStore = wac.getBean(TargetStore.class);
         identityProvider = wac.getBean(IdentityProvider.class);
         operationManager = wac.getBean(IOperationManager.class);
-        probeInfo = createProbeInfo("test", "testCategoryStandAlone", "mandatory", CreationMode.STAND_ALONE);
-        derivedProbeInfo = createProbeInfo("testDerived", "testCategoryDerived", "mandatory", CreationMode.DERIVED);
-        otherProbeInfo = createProbeInfo("test", "testCategoryOther", "mandatory", CreationMode.OTHER);
+        probeInfo = createProbeInfo("test", "testCategoryStandAlone", "mandatory",
+            "mandatory",   CreationMode.STAND_ALONE);
+        derivedProbeInfo = createProbeInfo("testDerived", "testCategoryDerived", "mandatory",
+            "mandatory",   CreationMode.DERIVED);
+        otherProbeInfo = createProbeInfo("test", "testCategoryOther", "mandatory",
+            "mandatory", CreationMode.OTHER);
         mandatoryAccountDef = AccountDefEntry.newBuilder()
                 .setCustomDefinition(CustomAccountDefEntry.newBuilder()
                         .setName("mandatory")
@@ -255,7 +258,8 @@ public class TargetControllerTest {
         transport = mock;
     }
 
-    private static ProbeInfo createProbeInfo(String probeType, String category, String identifierField,
+    private static ProbeInfo createProbeInfo(String probeType, String category,
+                                             String identifierField, String accoutDef,
                                       CreationMode creationMode) {
         return ProbeInfo.newBuilder()
             .setProbeType(probeType)
@@ -263,6 +267,12 @@ public class TargetControllerTest {
             .setUiProbeCategory(category)
             .addTargetIdentifierField(identifierField)
             .setCreationMode(creationMode)
+            .addAccountDefinition(AccountDefEntry.newBuilder()
+                .setCustomDefinition(CustomAccountDefEntry.newBuilder()
+                    .setName(accoutDef)
+                .setDescription("test").setDisplayName("test"))
+                .setMandatory(true)
+                .build())
             .build();
     }
 
@@ -293,11 +303,7 @@ public class TargetControllerTest {
 
     @Test
     public void addTargetMissingMandatory() throws Exception {
-        final AccountDefEntry.Builder accountBuilder =
-                        AccountDefEntry.newBuilder(mandatoryAccountDef);
-        accountBuilder.getCustomDefinitionBuilder().setName("mandatory");
-        ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo)
-                .addAccountDefinition(accountBuilder).build();
+        ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo).build();
         probeStore.registerNewProbe(oneMandatory, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(oneMandatory));
         TargetInfo result = adder.postAndExpect(HttpStatus.BAD_REQUEST);
@@ -308,12 +314,9 @@ public class TargetControllerTest {
     public void addTargetMissingMultipleMandatory() throws Exception {
         final AccountDefEntry.Builder accountBuilder =
                         AccountDefEntry.newBuilder(mandatoryAccountDef);
-        accountBuilder.getCustomDefinitionBuilder().setName("1mandatory");
-        final AccountDefEntry mandatory1 = accountBuilder.build();
         accountBuilder.getCustomDefinitionBuilder().setName("2mandatory");
         final AccountDefEntry mandatory2 = accountBuilder.build();
         ProbeInfo twoMandatory = ProbeInfo.newBuilder(probeInfo)
-                .addAccountDefinition(mandatory1)
                 .addAccountDefinition(mandatory2).build();
         probeStore.registerNewProbe(twoMandatory, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(twoMandatory));
@@ -330,6 +333,7 @@ public class TargetControllerTest {
                 .addAccountDefinition(accountBuilder).build();
         probeStore.registerNewProbe(optional, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(optional));
+        adder.setAccountField("mandatory", "abc123");
         TargetInfo result = adder.postAndExpect(HttpStatus.OK);
         Assert.assertNotNull(result.getTargetId());
     }
@@ -345,6 +349,7 @@ public class TargetControllerTest {
         probeStore.registerNewProbe(abcPrefix, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(abcPrefix));
         adder.setAccountField("abcPrefix", "abc123");
+        adder.setAccountField("mandatory", "abc123");
         adder.postAndExpect(HttpStatus.OK);
     }
 
@@ -360,6 +365,7 @@ public class TargetControllerTest {
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(abcPrefix));
         // Invalid value, since it doesn't start with abc.
         adder.setAccountField("abcPrefix", "123");
+        adder.setAccountField("mandatory", "123");
         TargetInfo result = adder.postAndExpect(HttpStatus.BAD_REQUEST);
         Assert.assertEquals(result.getErrors().size(), 1);
     }
@@ -377,11 +383,7 @@ public class TargetControllerTest {
 
     @Test
     public void addTargetExtraFieldsAndMissingFields() throws Exception {
-        final AccountDefEntry.Builder accountBuilder =
-                        AccountDefEntry.newBuilder(mandatoryAccountDef);
-        accountBuilder.getCustomDefinitionBuilder().setName("mandatory");
-        final ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo)
-                .addAccountDefinition(accountBuilder).build();
+        final ProbeInfo oneMandatory = ProbeInfo.newBuilder(probeInfo).build();
         probeStore.registerNewProbe(oneMandatory, transport);
 
         final TargetAdder adder = new TargetAdder(identityProvider.getProbeId(oneMandatory));
@@ -469,21 +471,25 @@ public class TargetControllerTest {
         probeStore.registerNewProbe(info, transport);
         TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
         adder.setAccountField("secret", "nooneknows");
+        adder.setAccountField("mandatory", "nooneknows");
         TargetInfo result = adder.postAndExpect(HttpStatus.OK);
 
         TargetSpec retSpec = getTarget(result.getTargetId()).getSpec();
         // Expect an empty return spec, because we shouldn't
         // get secret fields.
-        TargetSpec expectedSpec = new TargetAdder(identityProvider.getProbeId(info)).buildSpec();
+        TargetAdder expectedAdder = new TargetAdder(identityProvider.getProbeId(info));
+        expectedAdder.setAccountField("mandatory", "nooneknows");
 
-        assertEqualSpecs(retSpec, expectedSpec);
+        assertEqualSpecs(retSpec, expectedAdder.buildSpec());
     }
 
     @Test
     public void testGetTargetProbeNotRegistered() throws Exception {
         ProbeInfo info = ProbeInfo.newBuilder(probeInfo).build();
         probeStore.registerNewProbe(info, transport);
-        TargetInfo result = new TargetAdder(identityProvider.getProbeId(info)).postAndExpect(HttpStatus.OK);
+        TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
+        adder.setAccountField("mandatory", "nooneknows");
+        TargetInfo result = adder.postAndExpect(HttpStatus.OK);
 
         // Now magically unregister the probeStore.
         final ProbeStore probeStore = wac.getBean(ProbeStore.class);
@@ -627,12 +633,16 @@ public class TargetControllerTest {
         for (int i = 0; i < 3; ++i) {
             TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
             adder.setAccountField("secret", "nooneknows" + i);
+            adder.setAccountField("mandatory", "abc123");
             TargetInfo resp = adder.postAndExpect(HttpStatus.OK);
             ids.add(resp.getTargetId());
         }
 
         Map<Long, TargetInfo> targets = getAllTargets();
-        TargetSpec emptySpec = new TargetAdder(identityProvider.getProbeId(info)).buildSpec();
+        TargetAdder adder = new TargetAdder(identityProvider.getProbeId(info));
+        adder.setAccountField("mandatory", "abc123");
+
+        TargetSpec emptySpec = adder.buildSpec();
         ids.stream().forEach(
                 targetId -> {
                     Assert.assertTrue(targets.containsKey(targetId));
@@ -652,8 +662,13 @@ public class TargetControllerTest {
         ProbeInfo registeredProbe = ProbeInfo.newBuilder(probeInfo).setProbeType("type2").build();
         probeStore.registerNewProbe(registeredProbe, transport);
 
-        final Long goneId = new TargetAdder(identityProvider.getProbeId(goneProbe)).postAndExpect(HttpStatus.OK).getTargetId();
-        final Long registeredId = new TargetAdder(identityProvider.getProbeId(registeredProbe)).postAndExpect(HttpStatus.OK).getTargetId();
+        final TargetAdder adder = new TargetAdder(identityProvider.getProbeId(goneProbe));
+        adder.setAccountField("mandatory", "abc123");
+        final Long goneId = adder.postAndExpect(HttpStatus.OK).getTargetId();
+
+        final TargetAdder newAdder = new TargetAdder(identityProvider.getProbeId(registeredProbe));
+        newAdder.setAccountField("mandatory", "abc123");
+        final Long registeredId = newAdder.postAndExpect(HttpStatus.OK).getTargetId();
 
         // Now magically unregister one of the probes.
         ProbeStore probeStore = wac.getBean(ProbeStore.class);
@@ -672,8 +687,11 @@ public class TargetControllerTest {
         Assert.assertTrue(targets.containsKey(goneId));
         Assert.assertFalse(targets.get(goneId).getProbeConnected());
         Assert.assertTrue(targets.containsKey(registeredId));
+        TargetAdder expectedAdder = new TargetAdder(identityProvider.getProbeId(registeredProbe));
+        expectedAdder.setAccountField("mandatory", "abc123");
+
         assertEqualSpecs(targets.get(registeredId).getSpec(),
-                new TargetAdder(identityProvider.getProbeId(registeredProbe)).buildSpec());
+            expectedAdder.buildSpec());
     }
 
     /**

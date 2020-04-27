@@ -2,12 +2,15 @@ package com.vmturbo.topology.processor.probes;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.vmturbo.platform.common.dto.Discovery;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
 import com.vmturbo.topology.processor.api.AccountFieldValueType;
 
@@ -69,6 +72,14 @@ public class AccountValueAdaptor {
         @Override
         public List<String> getAllowedValues() {
             return entry.getAllowedValuesList();
+        }
+
+        @Nonnull
+        @Override
+        public Optional<Pair<String, String>> getDependencyField() {
+            return entry.hasDependencyKey() ?
+                    Optional.of(Pair.create(entry.getDependencyKey(), entry.getDependencyValue())) :
+                    Optional.empty();
         }
     }
 

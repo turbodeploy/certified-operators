@@ -500,24 +500,30 @@ public class StatsService implements IStatsService {
                                                         .limit(1)
                                                         .map(statsMapper::toStatSnapshotApiDTO)
                                                         .collect(Collectors.toList()));
-                        entityStatsApiDTO.setDisplayName(cluster.getDisplayName());
-                        switch (cluster.getType()) {
-                            case COMPUTE_HOST_CLUSTER:
-                                entityStatsApiDTO.setClassName(StringConstants.CLUSTER);
-                                break;
-                            case COMPUTE_VIRTUAL_MACHINE_CLUSTER:
-                                entityStatsApiDTO.setClassName(StringConstants.VIRTUAL_MACHINE_CLUSTER);
-                                break;
-                            case STORAGE_CLUSTER:
-                                entityStatsApiDTO.setClassName(StringConstants.STORAGE_CLUSTER);
-                                break;
-                            default:
-                                logger.error("Cluster stats contain entry about non-cluster");
+                        if (cluster != null) {
+                            entityStatsApiDTO.setDisplayName(cluster.getDisplayName());
+                            switch (cluster.getType()) {
+                                case COMPUTE_HOST_CLUSTER:
+                                    entityStatsApiDTO.setClassName(StringConstants.CLUSTER);
+                                    break;
+                                case COMPUTE_VIRTUAL_MACHINE_CLUSTER:
+                                    entityStatsApiDTO.setClassName(StringConstants.VIRTUAL_MACHINE_CLUSTER);
+                                    break;
+                                case STORAGE_CLUSTER:
+                                    entityStatsApiDTO.setClassName(StringConstants.STORAGE_CLUSTER);
+                                    break;
+                                default:
+                                    logger.error("Cluster stats contain entry about non-cluster");
+                            }
+                            entityStatsApiDTO.setEnvironmentType(
+                                    cluster.getType() == GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER
+                                            ? com.vmturbo.api.enums.EnvironmentType.HYBRID
+                                            : com.vmturbo.api.enums.EnvironmentType.ONPREM);
+                        } else {
+                            logger.error("Could not get information about cluster with id "
+                                                + entityStats.getOid());
+                            entityStatsApiDTO.setDisplayName(Long.toString(entityStats.getOid()));
                         }
-                        entityStatsApiDTO.setEnvironmentType(
-                                cluster.getType() == GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER
-                                    ? com.vmturbo.api.enums.EnvironmentType.HYBRID
-                                    : com.vmturbo.api.enums.EnvironmentType.ONPREM);
                         return entityStatsApiDTO;
                 })
                 .collect(Collectors.toList());

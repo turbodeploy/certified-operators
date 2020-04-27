@@ -53,7 +53,7 @@ public class HistUtilizationRecordRecordsAggregator
     @Nonnull
     @Override
     protected String getRelation(@Nonnull HistUtilizationRecord record) {
-        final RelationType relationType = record.getProducerOid() == null ?
+        final RelationType relationType = record.getProducerOid() != null ?
                         RelationType.COMMODITIESBOUGHT :
                         RelationType.COMMODITIES;
         return relationType.getLiteral();

@@ -118,7 +118,10 @@ public class CostProtoUtil {
                 return price.getPriceAmount().getAmount();
             case DAYS:
                 return price.getPriceAmount().getAmount() / HOURS_IN_DAY;
-            case MONTH: case MILLION_IOPS: case GB_MONTH:
+            case MONTH:
+            case MILLION_IOPS:
+            case MBPS_MONTH:
+            case GB_MONTH:
                 return price.getPriceAmount().getAmount() / HOURS_IN_MONTH;
             case TOTAL:
                 throw new IllegalArgumentException("Cannot get hourly amount of TOTAL price.");

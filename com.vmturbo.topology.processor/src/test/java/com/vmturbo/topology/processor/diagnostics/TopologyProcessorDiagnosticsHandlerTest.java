@@ -310,7 +310,7 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             .setProbeCategory("cat")
             .setUiProbeCategory("uiCat")
             .setProbeType("type")
-            .addTargetIdentifierField("field")
+            .addTargetIdentifierField("name")
             .addAccountDefinition(AccountDefEntry.newBuilder()
                 .setMandatory(true)
                 .setIsTargetDisplayName(true)

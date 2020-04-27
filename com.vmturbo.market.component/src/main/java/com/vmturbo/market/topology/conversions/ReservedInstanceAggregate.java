@@ -30,6 +30,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.Payment
 public class ReservedInstanceAggregate {
     private static final Logger logger = LogManager.getLogger();
     private static final String SEPARATOR = "|";
+    private static final double COMPARISON_DELTA = 0.0001;
     // The RIs are sorted according to the payment options
     private static final Map<PaymentOption, Integer> RIPriority = ImmutableMap.of(
             PaymentOption.ALL_UPFRONT, 1,
@@ -178,7 +179,7 @@ public class ReservedInstanceAggregate {
             }
         }
 
-        if (totalNumberOfCouponsToUse > 0) {
+        if (totalNumberOfCouponsToUse > COMPARISON_DELTA) {
             logger.error("Attempted to use {} coupons but could only use {} in {} for entityId {}",
                     origTotalNumberOfCouponsToUse,
                     origTotalNumberOfCouponsToUse - totalNumberOfCouponsToUse,
@@ -205,7 +206,7 @@ public class ReservedInstanceAggregate {
             final RICouponInfo riCouponInfo = riCouponInfoMap.get(riId);
             if (riCouponInfo != null) {
                 double couponsRelinquished = riCouponInfo.relinquishCoupons(couponsToRelinquish);
-                if (couponsRelinquished < couponsToRelinquish) {
+                if (Math.abs(couponsRelinquished - couponsToRelinquish) > COMPARISON_DELTA) {
                     logger.error("Wanted to relinquish {} coupons, but could only relinquish {} " +
                                     "coupons in {} for {}", couponsToRelinquish, couponsRelinquished,
                             riId, riCoverageToRelinquish.getEntityId());

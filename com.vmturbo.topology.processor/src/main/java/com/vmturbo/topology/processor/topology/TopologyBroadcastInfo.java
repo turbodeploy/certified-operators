@@ -25,17 +25,20 @@ public class TopologyBroadcastInfo {
      */
     private final long topologyContextId;
 
-    public TopologyBroadcastInfo(@Nonnull final TopologyBroadcast broadcast,
-                                 final long entityCount) {
-        this(entityCount, broadcast.getTopologyId(), broadcast.getTopologyContextId());
-    }
+    /**
+     * The size of the serialized topology in bytes.
+     * This includes all data chunks but excludes start and end message sizes.
+     */
+    private final long serializedTopologySizeBytes;
 
     public TopologyBroadcastInfo(final long entityCount,
                                  final long topologyId,
-                                 final long topologyContextId) {
+                                 final long topologyContextId,
+                                 final long serializedTopologySizeBytes) {
         this.entityCount = entityCount;
         this.topologyId = topologyId;
         this.topologyContextId = topologyContextId;
+        this.serializedTopologySizeBytes = serializedTopologySizeBytes;
     }
 
     public long getEntityCount() {
@@ -48,5 +51,9 @@ public class TopologyBroadcastInfo {
 
     public long getTopologyContextId() {
         return topologyContextId;
+    }
+
+    public long getSerializedTopologySizeBytes() {
+        return serializedTopologySizeBytes;
     }
 }

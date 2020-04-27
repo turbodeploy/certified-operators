@@ -1,6 +1,6 @@
 {
   "entityType": 2,
-  "oid": "73415060210151",
+  "oid": "77777777777777",
   "displayName": "vsanDatastore (Cluster1)",
   "commoditySoldList": [{
     "commodityType": {
@@ -107,7 +107,7 @@
     "capacity": 1.0E9,
     "isResizeable": false,
     "isThin": true,
-    "accesses": "73415060210158",
+    "accesses": "88888888888888",
     "active": true,
     "displayName": ""
   }, {
@@ -181,7 +181,7 @@
       "displayName": ""
     }]
   }, {
-    "providerId": "73415060210158",
+    "providerId": "88888888888888",
     "providerEntityType": 14,
     "commodityBought": [{
       "commodityType": {
@@ -244,7 +244,7 @@
         "type": 60,
         "key": "DiskArray-525d5005cda275d5-e901b76e1a09c2a6"
       },
-      "used": 1.0,
+      "used": 7.0,
       "peak": 0.0,
       "active": true,
       "displayName": ""

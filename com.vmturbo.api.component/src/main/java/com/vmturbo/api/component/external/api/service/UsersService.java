@@ -1,6 +1,5 @@
 package com.vmturbo.api.component.external.api.service;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -14,14 +13,13 @@ import java.util.UUID;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.xml.parsers.ParserConfigurationException;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.tools.StringUtils;
@@ -36,13 +34,8 @@ import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.validation.Errors;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
 import com.vmturbo.api.component.communication.RestAuthenticationProvider;
-import com.vmturbo.api.component.external.api.SAML.SAMLUtils;
 import com.vmturbo.api.component.external.api.mapper.LoginProviderMapper;
 import com.vmturbo.api.component.external.api.mapper.UserMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -56,7 +49,6 @@ import com.vmturbo.api.dto.user.UserApiDTO;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.UnauthorizedObjectException;
 import com.vmturbo.api.serviceinterfaces.IUsersService;
-import com.vmturbo.auth.api.Base64CodecUtils;
 import com.vmturbo.auth.api.auditing.AuditAction;
 import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
@@ -117,9 +109,8 @@ public class UsersService implements IUsersService {
      * The GSON parser/builder.
      */
     private static final Gson GSON_ = new GsonBuilder().create();
-    private final String idpURL;
+    private final String registrationId;
     private final boolean samlEnabled;
-    private final boolean isSingleLogoutEnabled;
 
     // Uses to expire deleted user active sessions
     @Autowired
@@ -134,7 +125,7 @@ public class UsersService implements IUsersService {
      * @param authHost     The authentication host.
      * @param authPort     The authentication port.
      * @param restTemplate The synchronous client-side HTTP access.
-     * @param samlIdpMetadata The SAML IDP metadata
+     * @param samlRegistrationID       The SAML registration ID.
      * @param samlEnabled  is SAML enabled
      * @param groupsService The group service is used when translating scope groups back to API groups
      * @param widgetsetsService the widgetset service service to transfer the widget ownership
@@ -142,7 +133,7 @@ public class UsersService implements IUsersService {
     public UsersService(final @Nonnull String authHost,
                         final int authPort,
                         final @Nonnull RestTemplate restTemplate,
-                        final @Nonnull String samlIdpMetadata,
+                        final @Nonnull String samlRegistrationID,
                         final boolean samlEnabled,
                         final @Nonnull GroupsService groupsService,
                         final @Nonnull WidgetSetsService widgetsetsService) {
@@ -152,17 +143,6 @@ public class UsersService implements IUsersService {
             throw new IllegalArgumentException("Invalid AUTH port.");
         }
         restTemplate_ = Objects.requireNonNull(restTemplate);
-        Objects.requireNonNull(samlIdpMetadata);
-        if (samlEnabled) {
-            final String idpMetadata = geIdpMetadataXML(samlIdpMetadata);
-            this.idpURL = getIdpEntityName(idpMetadata).orElse("");
-            this.samlEnabled = true;
-            this.isSingleLogoutEnabled = isSingleLogoutEnabled(idpMetadata);
-        } else {
-            this.idpURL = "";
-            this.samlEnabled = false;
-            this.isSingleLogoutEnabled = false;
-        }
         this.groupsService = groupsService;
         this.widgetsetsService = widgetsetsService;
         // users cannot be created with the following group scopes
@@ -170,6 +150,8 @@ public class UsersService implements IUsersService {
         this.invalidScopes.add(ApiEntityType.REGION.displayName());
         this.invalidScopes.add(ApiEntityType.AVAILABILITY_ZONE.displayName());
         this.invalidScopes.add("ResourceGroup");
+        this.registrationId = Objects.requireNonNull(samlRegistrationID);
+        this.samlEnabled = samlEnabled;
     }
 
     /**
@@ -1026,51 +1008,17 @@ public class UsersService implements IUsersService {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * {@inheritDoc}
-     * @return
-     */
     @Override
     public Optional<SAMLIdpApiDTO> getSAMLIdp() {
         if (samlEnabled) {
-                logger_.info(SAML_IDP_ENTITY_NAME + idpURL);
-                SAMLIdpApiDTO samlIdpApiDTO = new SAMLIdpApiDTO();
-                samlIdpApiDTO.setIdpURL(idpURL);
-                samlIdpApiDTO.setSAMLOnly(true);
-                samlIdpApiDTO.setSingleLogoutEnabled(isSingleLogoutEnabled);
-                return Optional.of(samlIdpApiDTO);
+            logger_.info(SAML_IDP_ENTITY_NAME + registrationId);
+            SAMLIdpApiDTO samlIdpApiDTO = new SAMLIdpApiDTO();
+            samlIdpApiDTO.setIdpURL(registrationId);
+            samlIdpApiDTO.setSAMLOnly(true);
+            samlIdpApiDTO.setSingleLogoutEnabled(false);
+            return Optional.of(samlIdpApiDTO);
         }
         return Optional.empty();
-    }
-
-    private Optional<String> getIdpEntityName(@Nonnull final String idpMetadata) {
-        try {
-            Element element = SAMLUtils.loadXMLFromString(idpMetadata).getDocumentElement();
-            return Optional.ofNullable(element.getAttribute(ENTITY_ID));
-        } catch (SAXException | ParserConfigurationException | RuntimeException | IOException e) {
-            logger_.info(e);
-        } // it's called from constructor, and we don't want it throw any RuntimeException.
-
-        return Optional.empty();
-    }
-
-    // decode the SAML IDP metadata
-    private String geIdpMetadataXML(@Nonnull final String samlIdpMetadata) {
-        byte[] byteArray = Base64CodecUtils.decode(samlIdpMetadata);
-        return new String(byteArray);
-    }
-
-    // Check if the Single Logout is exist in IDP metadata.
-    private boolean isSingleLogoutEnabled(@Nonnull final String idpMetadata) {
-        try {
-            final Document document = SAMLUtils.loadXMLFromString(idpMetadata);
-            final NodeList nodeList =  document.getElementsByTagNameNS(MD_NAMESPACE_URI,
-                MD_SINGLE_LOGOUT_SERVICE);
-            return nodeList != null && nodeList.getLength() > 0;
-        } catch (IOException | SAXException | ParserConfigurationException | RuntimeException e) {
-            logger_.info(e);
-        }
-        return false;
     }
 
     /**

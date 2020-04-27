@@ -30,9 +30,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <spring.version>4.3.26.RELEASE</spring.version>
+        <spring.version>5.2.4.RELEASE</spring.version>
         <spring.retry.version>1.2.4.RELEASE</spring.retry.version>
-        <spring.security.version>4.2.13.RELEASE</spring.security.version>
+        <spring.security.version>5.3.0.RELEASE</spring.security.version>
         <guava.version>28.2-jre</guava.version>
         <units.of.measure.version>1.0.2</units.of.measure.version>
 
@@ -259,6 +259,7 @@
         <profile>
             <id>repository</id>
             <modules>
+                <module>../com.vmturbo.topology.graph</module>
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
             </modules>
@@ -333,11 +334,9 @@
                 <module>../com.vmturbo.mediation.appdynamics.component</module>
                 <module>../com.vmturbo.mediation.aws.billing.component</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.cost.component</module>
                 <module>../com.vmturbo.mediation.aws.lambda.component</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
                 <module>../com.vmturbo.mediation.azure.volumes.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
@@ -355,7 +354,6 @@
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.dynatrace.component</module>
                 <module>../com.vmturbo.mediation.gcp.component</module>
-                <module>../com.vmturbo.mediation.gcp.conversion</module>
                 <module>../com.vmturbo.mediation.gcp.cost.component</module>
                 <module>../com.vmturbo.mediation.istio.component</module>
                 <module>../com.vmturbo.mediation.intersight.hyperflex.component</module>
@@ -605,8 +603,6 @@
         <profile>
             <id>mediation-aws</id>
             <modules>
-                <module>../com.vmturbo.mediation.conversion</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
                 <module>../com.vmturbo.mediation.aws.component</module>
             </modules>
         </profile>
@@ -621,8 +617,6 @@
         <profile>
             <id>mediation-azure</id>
             <modules>
-                <module>../com.vmturbo.mediation.conversion</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
                 <module>../com.vmturbo.mediation.azure.component</module>
                 <module>../com.vmturbo.mediation.azure.cost.component</module>
                 <module>../com.vmturbo.mediation.azure.ea.component</module>
@@ -894,9 +888,6 @@
                 <module>../com.vmturbo.mediation.client.bootstrap</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
                 <module>../com.vmturbo.mediation.conversion</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
-                <module>../com.vmturbo.mediation.gcp.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.conversion</module>
                 <module>../com.vmturbo.mediation.vcenter.browsing.conversion</module>
                 <module>../com.vmturbo.mediation.horizon.component</module>
@@ -1075,9 +1066,6 @@
 
                 <module>../com.vmturbo.mediation.delegatingprobe</module>
                 <module>../com.vmturbo.mediation.actionscript</module>
-                <module>../com.vmturbo.mediation.aws.conversion</module>
-                <module>../com.vmturbo.mediation.azure.conversion</module>
-                <module>../com.vmturbo.mediation.gcp.conversion</module>
                 <module>../com.vmturbo.mediation.conversion</module>
 
                 <!-- Mediation container with all the probes inside. -->

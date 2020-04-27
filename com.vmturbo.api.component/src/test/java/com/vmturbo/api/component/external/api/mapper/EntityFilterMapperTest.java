@@ -782,7 +782,7 @@ public class EntityFilterMapperTest {
     @Test
     public void testGroupFilterProcessorPositive() {
         final List<FilterApiDTO> criteriaList = Collections.singletonList(
-            filterDTO(EntityFilterMapper.EQUAL, "asdf", "volumeByResourceGroup"));
+            filterDTO(EntityFilterMapper.EQUAL, "asdf", "volumeByResourceGroupName"));
         final List<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
             criteriaList, ApiEntityType.VIRTUAL_VOLUME.apiStr(), null);
         assertEquals(1, result.size());
@@ -793,7 +793,7 @@ public class EntityFilterMapperTest {
         assertEquals(1, params.getSearchFilterCount());
         final GroupFilter memFilter = params.getSearchFilter(0).getGroupFilter();
         assertEquals(GroupType.RESOURCE, memFilter.getGroupType());
-        assertEquals(SearchableProperties.OID, memFilter.getGroupSpecifier().getPropertyName());
+        assertEquals(SearchableProperties.DISPLAY_NAME, memFilter.getGroupSpecifier().getPropertyName());
         final StringFilter specifierStringFilter = memFilter.getGroupSpecifier().getStringFilter();
         assertEquals(1, specifierStringFilter.getOptionsCount());
         assertEquals("asdf", specifierStringFilter.getOptions(0));
@@ -807,7 +807,7 @@ public class EntityFilterMapperTest {
     @Test
     public void testGroupFilterProcessorNegative() {
         final List<FilterApiDTO> criteriaList = Collections.singletonList(
-            filterDTO(EntityFilterMapper.NOT_EQUAL, "asdf", "databaseServerByResourceGroupUuid"));
+            filterDTO(EntityFilterMapper.NOT_EQUAL, "asdf", "databaseServerByResourceGroupName"));
         final List<SearchParameters> result = entityFilterMapper.convertToSearchParameters(
             criteriaList, ApiEntityType.DATABASE_SERVER.apiStr(), null);
         assertEquals(1, result.size());
@@ -818,7 +818,7 @@ public class EntityFilterMapperTest {
         assertEquals(1, params.getSearchFilterCount());
         final GroupFilter memFilter = params.getSearchFilter(0).getGroupFilter();
         assertEquals(GroupType.RESOURCE, memFilter.getGroupType());
-        assertEquals(SearchableProperties.OID, memFilter.getGroupSpecifier().getPropertyName());
+        assertEquals(SearchableProperties.DISPLAY_NAME, memFilter.getGroupSpecifier().getPropertyName());
         final StringFilter specifierStringFilter = memFilter.getGroupSpecifier().getStringFilter();
         assertEquals(1, specifierStringFilter.getOptionsCount());
         assertEquals("asdf", specifierStringFilter.getOptions(0));

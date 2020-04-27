@@ -31,38 +31,39 @@ import com.vmturbo.topology.processor.targets.GroupScopeResolver.GroupScopedEnti
 
 public class GroupScopePropertyExtractorTest {
 
-    private static Long oid = 1L;
+    private static final Long oid = 1L;
 
-    private static Long guestLoadOid = 2333L;
+    private static final Long guestLoadOid = 2333L;
 
-    private static String displayName = "foobar";
+    private static final String displayName = "foobar";
 
-    private static double vcpuCapacity = 200.0;
+    private static final double vcpuCapacity = 200.0;
 
-    private static double vmemCapacity = 300.0;
+    private static final double vmemCapacity = 300.0;
 
-    private static double ballooningCapacity = 400.0;
+    private static final double ballooningCapacity = 400.0;
 
-    private static String storagePrefix = "test_storage_";
+    private static final String storagePrefix = "test_storage_";
 
-    private static String storageSuffix1 = "storage1";
+    private static final String storageSuffix1 = "storage1";
 
-    private static String storageSuffix2 = "storage2";
+    private static final String storageSuffix2 = "storage2";
 
-    private static String ipAddress1 = "10.10.150.160";
+    private static final String ipAddress1 = "10.10.150.160";
 
-    private static String ipAddress2 = "10.10.150.170";
+    private static final String ipAddress2 = "10.10.150.170";
 
-    private static String targetAddress = "foo.eng.vmturbo.com";
+    private static final String targetAddress = "foo.eng.vmturbo.com";
 
-    private static String localName = "vm123";
+    private static final String localName = "vm123";
 
-    private static String expectedVStoragePrefix = "_wK4GWWTbEd-Ea97W1fNhs6\\foo.eng.vmturbo.com\\vm123";
+    private static final String expectedVStoragePrefix =
+            "_wK4GWWTbEd-Ea97W1fNhs6\\foo.eng.vmturbo.com\\vm123";
 
     @Test
     public void testAllPropertiesPresent() throws Exception {
         TopologyEntityDTO vmDTO = createTopologyEntity(oid, displayName, EntityState.MAINTENANCE,
-                vcpuCapacity, vmemCapacity, ballooningCapacity,
+                vcpuCapacity, vmemCapacity, ballooningCapacity, true,
                 ImmutableList.of(ipAddress1, ipAddress2),
                 ImmutableList.of(storagePrefix + storageSuffix1, storagePrefix + storageSuffix2));
         GroupScopedEntity vm = new GroupScopedEntity(vmDTO, Optional.of(String.valueOf(guestLoadOid)),
@@ -96,6 +97,9 @@ public class GroupScopePropertyExtractorTest {
         assertTrue(testValue.isPresent());
         assertEquals(Double.toString(ballooningCapacity), testValue.get());
         testValue = GroupScopePropertyExtractor
+                .extractEntityProperty(EntityPropertyName.DYNAMIC_MEMORY, vm);
+        assertEquals("true", testValue.get());
+        testValue = GroupScopePropertyExtractor
                 .extractEntityProperty(EntityPropertyName.VSTORAGE_KEY_PREFIX, vm);
         assertTrue(testValue.isPresent());
         assertEquals(expectedVStoragePrefix, testValue.get());
@@ -111,7 +115,7 @@ public class GroupScopePropertyExtractorTest {
     @Test
     public void testAllPropertiesMissing() throws Exception {
         TopologyEntityDTO vmDTO = createTopologyEntity(oid, null, null,
-                0, 0, 0,
+                0, 0, 0, null,
                 Collections.EMPTY_LIST,
                 Collections.EMPTY_LIST);
         GroupScopedEntity vm = new GroupScopedEntity(vmDTO, Optional.empty(), Optional.empty(),
@@ -141,6 +145,9 @@ public class GroupScopePropertyExtractorTest {
                 .extractEntityProperty(EntityPropertyName.MEM_BALLOONING, vm);
         assertFalse(testValue.isPresent());
         testValue = GroupScopePropertyExtractor
+                .extractEntityProperty(EntityPropertyName.DYNAMIC_MEMORY, vm);
+        assertEquals("false", testValue.get());
+        testValue = GroupScopePropertyExtractor
                 .extractEntityProperty(EntityPropertyName.VSTORAGE_KEY_PREFIX, vm);
         assertFalse(testValue.isPresent());
         testValue = GroupScopePropertyExtractor
@@ -152,6 +159,7 @@ public class GroupScopePropertyExtractorTest {
                                                    EntityState entityState,
                                                    double vcpuCap, double vmemCap,
                                                    double ballooningCap,
+                                                   Boolean dynamic,
                                                    @Nonnull List<String> ipAddresses,
                                                    @Nonnull List<String> vstorageKeys) {
         TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
@@ -182,6 +190,13 @@ public class GroupScopePropertyExtractorTest {
                         .build()));
 
         addIpAddresses(builder, ipAddresses);
+        if (dynamic != null) {
+            VirtualMachineInfo vmInfo = builder.getTypeSpecificInfo().getVirtualMachine().toBuilder()
+                            .setDynamicMemory(dynamic)
+                            .build();
+            builder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setVirtualMachine(vmInfo).build());
+        }
         return builder.build();
     }
 

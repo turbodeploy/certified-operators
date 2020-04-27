@@ -42,7 +42,7 @@ import com.google.common.collect.Sets;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -229,9 +229,10 @@ public class SearchService implements ISearchService {
                         (a, b, c) -> getConnectionStorageTierOptions())
                 .put(REGION_FILTER_PATH, (a, b, c) -> getRegionFilterOptions())
                 .put("discoveredBy:cloudProvider", (a, b, c) -> getCloudProviderOptions())
-                .put(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
+                .put(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsUUIDOptions())
+                .put(EntityFilterMapper.MEMBER_OF_RESOURCE_GROUP_NAME, (a, b, c) -> getResourceGroupsNameOptions())
                 .put(EntityFilterMapper.MEMBER_OF_BILLING_FAMILY_OID, (a, b, c) -> getBillingFamiliesOptions())
-                .put(EntityFilterMapper.OWNER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsOptions())
+                .put(EntityFilterMapper.OWNER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsUUIDOptions())
                 .put("discoveredBy:validationStatus", (a, b, c) -> getValidationStatusOptions())
                 .build();
     }
@@ -1061,29 +1062,36 @@ public class SearchService implements ISearchService {
     }
 
     @Nonnull
-    private List<CriteriaOptionApiDTO> getResourceGroupsOptions()
+    private List<CriteriaOptionApiDTO> getResourceGroupsUUIDOptions()
             throws OperationFailedException, ConversionException, InterruptedException,
             InvalidOperationException {
-        return getGroupsOptions(GroupType.RESOURCE);
+        return getGroupsOptions(GroupType.RESOURCE, false);
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getResourceGroupsNameOptions()
+            throws OperationFailedException, ConversionException, InterruptedException,
+            InvalidOperationException {
+        return getGroupsOptions(GroupType.RESOURCE, true);
     }
 
     @Nonnull
     private List<CriteriaOptionApiDTO> getBillingFamiliesOptions()
             throws OperationFailedException, ConversionException, InterruptedException,
             InvalidOperationException {
-        return getGroupsOptions(GroupType.BILLING_FAMILY);
+        return getGroupsOptions(GroupType.BILLING_FAMILY, false);
     }
 
-    private List<CriteriaOptionApiDTO> getGroupsOptions(GroupType groupType)
+    private List<CriteriaOptionApiDTO> getGroupsOptions(GroupType groupType, boolean nameOption)
             throws OperationFailedException, ConversionException, InterruptedException,
             InvalidOperationException {
-        final List<GroupApiDTO> resourceGroups =
+        final List<GroupApiDTO> groups =
                 groupsService.getGroupsByType(groupType, null, Collections.emptyList());
-        final List<CriteriaOptionApiDTO> result = new ArrayList<>(resourceGroups.size());
-        for (GroupApiDTO group : resourceGroups) {
+        final List<CriteriaOptionApiDTO> result = new ArrayList<>(groups.size());
+        for (GroupApiDTO group : groups) {
             final CriteriaOptionApiDTO option = new CriteriaOptionApiDTO();
             option.setDisplayName(group.getDisplayName());
-            option.setValue(group.getUuid());
+            option.setValue(nameOption ? group.getDisplayName() : group.getUuid());
             result.add(option);
         }
         return Collections.unmodifiableList(result);

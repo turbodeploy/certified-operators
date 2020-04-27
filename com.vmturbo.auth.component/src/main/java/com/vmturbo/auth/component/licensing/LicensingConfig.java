@@ -18,7 +18,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.LicenseSummary;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
+import com.vmturbo.components.common.health.MessageProducerHealthMonitor;
 import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.notification.api.NotificationApiConfig;
@@ -58,8 +58,8 @@ public class LicensingConfig {
     }
 
     @Bean
-    public KafkaProducerHealthMonitor kafkaProducerHealthMonitor() {
-        return new KafkaProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
+    public MessageProducerHealthMonitor kafkaProducerHealthMonitor() {
+        return new MessageProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
     }
 
     @Bean

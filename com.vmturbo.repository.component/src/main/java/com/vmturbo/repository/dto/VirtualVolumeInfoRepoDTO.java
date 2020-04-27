@@ -27,6 +27,8 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private Float storageAmountCapacity;
 
+    private Float ioThroughputCapacity;
+
     private Integer redundancyType;
 
     private String snapshotId;
@@ -51,6 +53,9 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (virtualVolumeInfo.hasStorageAmountCapacity()) {
             setStorageAmountCapacity(virtualVolumeInfo.getStorageAmountCapacity());
+        }
+        if (virtualVolumeInfo.hasIoThroughputCapacity()) {
+            setIoThroughputCapacity(virtualVolumeInfo.getIoThroughputCapacity());
         }
         if (virtualVolumeInfo.hasRedundancyType()) {
             setRedundancyType(virtualVolumeInfo.getRedundancyType().getNumber());
@@ -80,6 +85,9 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getStorageAmountCapacity() != null) {
             virtualVolumeInfoBuilder.setStorageAmountCapacity(getStorageAmountCapacity());
+        }
+        if (getIoThroughputCapacity() != null) {
+            virtualVolumeInfoBuilder.setIoThroughputCapacity(getIoThroughputCapacity());
         }
         if (getRedundancyType() != null) {
             virtualVolumeInfoBuilder.setRedundancyType(RedundancyType.forNumber(getRedundancyType()));
@@ -120,6 +128,14 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     public void setStorageAmountCapacity(Float storageAmountCapacity) {
         this.storageAmountCapacity = storageAmountCapacity;
+    }
+
+    public Float getIoThroughputCapacity() {
+        return ioThroughputCapacity;
+    }
+
+    public void setIoThroughputCapacity(Float ioThroughputCapacity) {
+        this.ioThroughputCapacity = ioThroughputCapacity;
     }
 
     public Integer getRedundancyType() {
@@ -191,6 +207,7 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
         return (Objects.equals(storageAccessCapacity, that.storageAccessCapacity)
                 && Objects.equals(storageAmountCapacity, that.storageAmountCapacity)
+                && Objects.equals(ioThroughputCapacity, that.ioThroughputCapacity)
                 && Objects.equals(redundancyType, that.redundancyType)
                 && Objects.equals(files, that.files)
                 && Objects.equals(snapshotId, that.snapshotId)
@@ -201,16 +218,17 @@ public class VirtualVolumeInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     @Override
     public int hashCode() {
-        return Objects.hash(storageAccessCapacity, storageAmountCapacity, redundancyType, files,
-                snapshotId, attachmentState, encryption, ephemeral);
+        return Objects.hash(storageAccessCapacity, storageAmountCapacity, ioThroughputCapacity,
+            redundancyType, files, snapshotId, attachmentState, encryption, ephemeral);
     }
 
     @Override
     public String toString() {
         return String.format(
-                        "%s [storageAccessCapacity=%s, storageAmountCapacity=%s, redundancyType=%s, snapshotId=%s, files=%s, encryption=%s, attachmentState=%s, ephemeral=%s]",
+                        "%s [storageAccessCapacity=%s, storageAmountCapacity=%s, ioThroughputCapacity=%s, redundancyType=%s, snapshotId=%s, files=%s, encryption=%s, attachmentState=%s, ephemeral=%s]",
                         getClass().getSimpleName(), this.storageAccessCapacity,
-                        this.storageAmountCapacity, this.redundancyType, this.snapshotId,
-                        this.files, this.encryption, this.attachmentState, this.ephemeral);
+                        this.storageAmountCapacity, ioThroughputCapacity, this.redundancyType,
+                        this.snapshotId, this.files, this.encryption, this.attachmentState,
+                        this.ephemeral);
     }
 }

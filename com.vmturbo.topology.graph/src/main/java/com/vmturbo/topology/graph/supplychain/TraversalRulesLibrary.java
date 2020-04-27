@@ -53,6 +53,10 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                 // never traverse from parent to child account
                 new AccountRule<>(),
 
+                // Always traverse from workload controller to namespace
+                // (Cloud native)
+                new WorkloadControllerRule<>(),
+
                 // use default traversal rule in all other cases
                 new DefaultTraversalRule<>());
 
@@ -304,6 +308,62 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
                                                           @Nonnull TraversalMode traversalMode) {
             return super.getFilteredAggregatedEntities(entity, traversalMode)
                         .filter(e -> e.getEntityType() != EntityType.BUSINESS_ACCOUNT_VALUE);
+        }
+    }
+
+    /**
+     * Rule specific to traversal of Workload Controller.
+     *
+     * <p>When a Workload Controller is traversed:
+     * <ul>
+     *     <li>Include all neighboring Namespaces
+     *     </li>
+     *     <li>When traversing from WorkloadController as a seed, ensure
+     *         we include Nodes (VMs and Hosts) in the supply chain.
+     *     </li>
+     * </ul>
+     * </p>
+     *
+     * @param <E> The type of {@link TopologyGraphEntity} in the graph.
+     */
+    private static class WorkloadControllerRule<E extends TopologyGraphEntity<E>> extends DefaultTraversalRule<E> {
+        @Override
+        public boolean isApplicable(@Nonnull final E entity, @Nonnull final TraversalMode traversalMode) {
+            return entity.getEntityType() == EntityType.WORKLOAD_CONTROLLER_VALUE;
+        }
+
+        @Override
+        protected Stream<E> getFilteredAggregators(@Nonnull E entity,
+                                                   @Nonnull TraversalMode traversalMode) {
+            if (traversalMode == TraversalMode.AGGREGATED_BY) {
+                // Treat Namespaces as aggregators (i.e., include in the traversal
+                // but do not keep traversing from them)
+                return Stream.concat(super.getFilteredProviders(entity, traversalMode)
+                        .filter(e -> e.getEntityType() == EntityType.NAMESPACE_VALUE),
+                    super.getFilteredAggregators(entity, traversalMode));
+            } else {
+                return super.getFilteredAggregators(entity, traversalMode);
+            }
+        }
+
+        @Override
+        protected Stream<E> getFilteredProviders(@Nonnull E entity,
+                                                 @Nonnull TraversalMode traversalMode) {
+            final Stream<E> allProviders = super.getFilteredProviders(entity, traversalMode);
+            if (traversalMode == TraversalMode.START) {
+                // Ensure that we pull in the nodes (VMs and PMs) associated
+                // with the Workload Controller through its pods when the Workload
+                // Controller is the seed
+                return Stream.concat(allProviders,
+                    super.getFilteredConsumers(entity, traversalMode)
+                        .filter(e -> e.getEntityType() == EntityType.CONTAINER_POD_VALUE)
+                        .flatMap(e -> super.getFilteredProviders(e, traversalMode)
+                            .filter(podProvider ->
+                                podProvider.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE ||
+                                    podProvider.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)));
+            } else {
+                return allProviders;
+            }
         }
     }
 }

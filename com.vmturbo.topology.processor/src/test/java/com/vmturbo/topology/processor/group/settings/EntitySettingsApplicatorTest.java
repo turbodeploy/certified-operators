@@ -562,8 +562,8 @@ public class EntitySettingsApplicatorTest {
         Mockito.when(identityProvider.generateTopologyId()).thenReturn(888L);
 
         final TopologyEntityDTO.Builder entity = new VirtualMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(VM_TEMPLATE, Collections.emptyMap(),
-                        Optional.empty(), false, identityProvider)
+                .createTopologyEntityFromTemplate(VM_TEMPLATE, Collections.emptyMap(), null, false,
+                        identityProvider)
                 .iterator().next();
         entity.setEnvironmentType(EnvironmentType.ON_PREM);
         final long entityId = entity.getOid();

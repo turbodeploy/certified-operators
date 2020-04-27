@@ -6,6 +6,7 @@ import java.util.concurrent.ExecutorService;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
+import com.vmturbo.components.api.server.IMessageSenderFactory;
 import com.vmturbo.components.api.server.KafkaMessageProducer;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
 
@@ -24,7 +25,7 @@ public class TopologyProcessorKafkaSender {
      */
     public static TopologyProcessorNotificationSender create(
             @Nonnull final ExecutorService threadPool,
-            @Nonnull final KafkaMessageProducer kafkaMessageProducer,
+            @Nonnull final IMessageSenderFactory kafkaMessageProducer,
             @Nonnull final Clock clock) {
         return new TopologyProcessorNotificationSender(threadPool, clock,
                 kafkaMessageProducer.messageSender(

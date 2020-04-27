@@ -91,6 +91,7 @@ public class CloudCostCalculatorTest {
     private static final Map<Long, EntityReservedInstanceCoverage> topologyRiCoverage = Maps.newHashMap();
 
     private static final NetworkConfig networkConfig = mock(NetworkConfig.class);
+    private static final long ACCOUNT_PRICING_DATA_OID = 15L;
 
     private final ComputeConfig computeConfig = new ComputeConfig(OSType.WINDOWS, Tenancy.DEFAULT,
             VMBillingType.RESERVED, 4, EntityDTO.LicenseModel.LICENSE_INCLUDED);
@@ -122,7 +123,9 @@ public class CloudCostCalculatorTest {
     private static final double GB_MONTH_PRICE_10 = 14.0;
     private static final double GB_MONTH_PRICE_20 = 26.0;
     private static final double GB_MONTH_PRICE_32 = 38.0;
+    private static final double MBPS_PRICE = 23.42;
     private static final long V_VOLUME_SIZE_IOPS = 17;
+    private static final long V_VOLUME_SIZE_MBPS = 23;
 
     private static final long REGION_ID = 1;
     private static final long AVAILABILITY_ZONE_ID = 3;
@@ -373,7 +376,7 @@ public class CloudCostCalculatorTest {
     public void testCalculateVolumeCostIOPS() {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0, false, null))
+                .setVolumeConfig(new VirtualVolumeConfig(V_VOLUME_SIZE_IOPS, 0, 0, false, null))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
         when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
@@ -385,6 +388,28 @@ public class CloudCostCalculatorTest {
         assertThat(journal.getTotalHourlyCost().getValue(),
             closeTo(IOPS_RANGE * IOPS_PRICE_RANGE_1 + (V_VOLUME_SIZE_IOPS - IOPS_RANGE)
                     * IOPS_PRICE, DELTA));
+    }
+
+    /**
+     * Test that volume cost calculation includes IO throughput pricing.
+     */
+    @Test
+    public void testCalculateVolumeCostMBPS() {
+        final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
+            .setType(EntityType.VIRTUAL_VOLUME_VALUE)
+            .setVolumeConfig(new VirtualVolumeConfig(0, 0, V_VOLUME_SIZE_MBPS, false, null))
+            .build(infoExtractor);
+        when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
+        when(topology.getOwner(VOLUME_ID)).thenReturn(Optional.of(businessAccount));
+        when(topology.getStorageTier(VOLUME_ID)).thenReturn(Optional.of(storageTier));
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0),
+            PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
+        CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID,
+            accountPricingData);
+        CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
+        final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(volume);
+        assertThat(journal.getTotalHourlyCost().getValue(),
+            closeTo(V_VOLUME_SIZE_MBPS * MBPS_PRICE, DELTA));
     }
 
     /**
@@ -458,7 +483,7 @@ public class CloudCostCalculatorTest {
             final long storageTierId) {
         final TestEntityClass volume = TestEntityClass.newBuilder(VOLUME_ID)
                 .setType(EntityType.VIRTUAL_VOLUME_VALUE)
-                .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024, isEphemeral,
+                .setVolumeConfig(new VirtualVolumeConfig(0, vVolSizeMb * 1024, 0, isEphemeral,
                     redundancyType))
                 .build(infoExtractor);
         when(topology.getConnectedRegion(VOLUME_ID)).thenReturn(Optional.of(region));
@@ -466,7 +491,8 @@ public class CloudCostCalculatorTest {
         final TestEntityClass storageTier = createStorageTier(storageTierId);
         when(topology.getStorageTier(VOLUME_ID))
             .thenReturn(Optional.of(storageTier));
-        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L);
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0),
+            PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         return cloudCostCalculator.calculateCost(volume);
@@ -493,7 +519,8 @@ public class CloudCostCalculatorTest {
         when(topology.getDatabaseTier(dbId)).thenReturn(Optional.of(databaseTier));
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
+            ACCOUNT_PRICING_DATA_OID);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
 
@@ -531,7 +558,8 @@ public class CloudCostCalculatorTest {
         when(topology.getDatabaseServerTier(dbId)).thenReturn(Optional.of(databaseServerTier));
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
-        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE, 15L);
+        AccountPricingData accountPricingData = new AccountPricingData(discountApplicator, PRICE_TABLE,
+            ACCOUNT_PRICING_DATA_OID);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
 
@@ -567,7 +595,7 @@ public class CloudCostCalculatorTest {
         // Set up CloudCostData
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         final AccountPricingData accountPricingData = new AccountPricingData(discountApplicator,
-                PRICE_TABLE, 15L);
+                PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
         final CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(
                 BUSINESS_ACCOUNT_ID, accountPricingData);
 
@@ -616,7 +644,7 @@ public class CloudCostCalculatorTest {
 
         final DiscountApplicator<TestEntityClass> discountApplicator = setupDiscountApplicator(0.0);
         final AccountPricingData accountPricingData = new AccountPricingData(discountApplicator,
-                PRICE_TABLE, 15L);
+                PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
         final CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(
                 BUSINESS_ACCOUNT_ID, accountPricingData);
         final CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
@@ -639,7 +667,8 @@ public class CloudCostCalculatorTest {
         final TestEntityClass noCostEntity = TestEntityClass.newBuilder(7)
             .setType(EntityType.NETWORK_VALUE)
             .build(infoExtractor);
-        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0), PRICE_TABLE, 15L);
+        AccountPricingData accountPricingData = new AccountPricingData(setupDiscountApplicator(0.0),
+            PRICE_TABLE, ACCOUNT_PRICING_DATA_OID);
         CloudCostData cloudCostData = createCloudCostDataWithAccountPricingTable(BUSINESS_ACCOUNT_ID, accountPricingData);
         CloudCostCalculator cloudCostCalculator = calculator(cloudCostData);
         final CostJournal<TestEntityClass> journal = cloudCostCalculator.calculateCost(noCostEntity);
@@ -693,7 +722,8 @@ public class CloudCostCalculatorTest {
                     .addCloudStoragePrice(StorageTierPrice.newBuilder()
                         .addPrices(price(Unit.MILLION_IOPS, IOPS_RANGE, IOPS_PRICE_RANGE_1
                             * CostProtoUtil.HOURS_IN_MONTH))
-                        .addPrices(price(Unit.MILLION_IOPS, IOPS_PRICE * CostProtoUtil.HOURS_IN_MONTH)))
+                        .addPrices(price(Unit.MILLION_IOPS, IOPS_PRICE * CostProtoUtil.HOURS_IN_MONTH))
+                        .addPrices(price(Unit.MBPS_MONTH, MBPS_PRICE * CostProtoUtil.HOURS_IN_MONTH)))
                     .addCloudStoragePrice(StorageTierPrice.newBuilder()
                         .addPrices(price(Unit.GB_MONTH, GB_RANGE, GB_PRICE_RANGE_1
                             * CostProtoUtil.HOURS_IN_MONTH))
