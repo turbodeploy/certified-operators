@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -24,7 +23,6 @@ import reactor.core.publisher.FluxSink;
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.ErrorReason;
 import com.vmturbo.auth.component.licensing.store.ILicenseStore;
-import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.licensing.LicenseManagerServiceGrpc.LicenseManagerServiceImplBase;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.AddLicensesResponse;
@@ -37,11 +35,7 @@ import com.vmturbo.common.protobuf.licensing.Licensing.RemoveLicenseResponse;
 import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesRequest;
 import com.vmturbo.common.protobuf.licensing.Licensing.ValidateLicensesResponse;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.licensing.utils.LicenseUtil;
-import com.vmturbo.notification.api.NotificationSender;
-import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
-import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -87,7 +81,6 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
             .withLabelNames("method")
             .build()
             .register();
-    private final NotificationSender notificationSender;
 
     // reference to the storage system used to persist the licenses.
     private ILicenseStore licenseStore;
@@ -97,21 +90,14 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
     private Flux<LicenseManagementEvent> eventFlux;
     private FluxSink<LicenseManagementEvent> eventFluxSink;
 
-    /**
-     * Constructor.
-     *
-     * @param licenseStore          license store.
-     * @param notificationSender    notification sender.
-     */
-    public LicenseManagerService(@Nonnull ILicenseStore licenseStore,
-            @Nonnull final NotificationSender notificationSender) {
+    public LicenseManagerService(@Nonnull ILicenseStore licenseStore) {
         this.licenseStore = licenseStore;
         // create the event flux
         eventFlux = Flux.create(emitter -> eventFluxSink = emitter);
         // start publishing immediately w/o waiting for a consumer to signal demand.
         // Future subscribers will pick up on future statuses
         eventFlux.publish().connect();
-        this.notificationSender = Objects.requireNonNull(notificationSender);
+
     }
 
     /**
@@ -292,7 +278,6 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
             // if any were store, fire a "license added" event.
             if (numStored > 0) {
                 publishEvent(LicenseManagementEventType.LICENSE_ADDED);
-                systemLicenseNotification("Added new licens.", "Successfully added new license");
             }
         }
     }
@@ -427,7 +412,6 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
                 RPC_ERROR_COUNT.labels("removeLicense").increment();
             }
             logger.info("Successfully removed license {}", uuid);
-            systemLicenseNotification("Removed license.", "Successfully removed license");
         }
     }
 
@@ -456,20 +440,4 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
             return eventType;
         }
     }
-
-    // Send notification
-    private void systemLicenseNotification(@Nonnull final String longDescription,
-            @Nonnull final String shortDescription) {
-        try {
-            notificationSender.sendNotification(
-                    Category.newBuilder().setLicense(SystemNotification.License.newBuilder().build())
-                            .build(),
-                    longDescription,
-                    shortDescription,
-                    Severity.CRITICAL);
-        } catch (CommunicationException | InterruptedException e) {
-            logger.error("Error publishing license notification", e);
-        }
-    }
-
 }

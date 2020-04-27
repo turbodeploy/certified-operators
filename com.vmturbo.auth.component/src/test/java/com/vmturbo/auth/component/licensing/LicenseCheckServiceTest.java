@@ -44,7 +44,6 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.mail.MailManager;
 import com.vmturbo.licensing.License;
-import com.vmturbo.notification.api.NotificationSender;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.State;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification;
 import com.vmturbo.notification.api.dto.SystemNotificationDTO.SystemNotification.Category;
@@ -108,7 +107,7 @@ public class LicenseCheckServiceTest {
                 searchServiceClient,
                 repository,
                 licenseSummaryIMessageSender,
-                new NotificationSender(systemNotificationIMessageSender, clock),
+                systemNotificationIMessageSender,
                 mailManager,
                 clock,
                 NUM_BEFORE_LICENSE_EXPIRATION_DAYS,
