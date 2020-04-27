@@ -157,7 +157,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
                                @Nonnull final SearchServiceBlockingStub searchServiceClient,
                                @Nonnull final RepositoryNotificationReceiver repositoryListener,
                                @Nonnull final IMessageSender<LicenseSummary> licenseSummarySender,
-                               @Nonnull final IMessageSender<SystemNotification> notificationSender,
+                               @Nonnull final NotificationSender notificationSender,
                                @Nonnull final MailManager mailManager,
                                @Nonnull final Clock clock,
                                final int numBeforeLicenseExpirationDays,
@@ -172,7 +172,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // create the license summary publisher
         licenseSummaryPublisher = new LicenseSummaryPublisher(licenseSummarySender);
 
-        this.notificationSender = new NotificationSender(Objects.requireNonNull(notificationSender), clock);
+        this.notificationSender = Objects.requireNonNull(notificationSender);
 
         this.clock = Objects.requireNonNull(clock);
 
