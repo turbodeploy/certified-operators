@@ -221,6 +221,11 @@ public class CommodityConverter {
                     comName, dto.getDisplayName(), maxThreshold, minThreshold);
         }
 
+        // Set resold flag
+        if (topologyCommSold.hasIsResold()) {
+            economyCommSoldSettings.setResold(topologyCommSold.getIsResold());
+        }
+
         // not mandatory (e.g. for access commodities)
         double maxQuantity = topologyCommSold.hasHistoricalUsed()
                 && topologyCommSold.getHistoricalUsed().hasMaxQuantity()

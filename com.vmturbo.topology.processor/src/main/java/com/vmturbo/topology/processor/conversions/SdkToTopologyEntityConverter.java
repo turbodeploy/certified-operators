@@ -73,6 +73,7 @@ import com.vmturbo.topology.processor.conversions.typespecific.StorageInfoMapper
 import com.vmturbo.topology.processor.conversions.typespecific.TypeSpecificInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualMachineInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualVolumeInfoMapper;
+import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
@@ -171,10 +172,12 @@ public class SdkToTopologyEntityConverter {
      * Convert one probe entity DTO to one topology entity DTO.
      *
      * @param entity probe entity DTO.
+     * @param resoldCommodityCache cache to look up which commodities are resold.
      * @return topology entity DTOs.
      */
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
-            @Nonnull final TopologyStitchingEntity entity) {
+            @Nonnull final TopologyStitchingEntity entity,
+            @Nonnull final ResoldCommodityCache resoldCommodityCache) {
         final CommonDTO.EntityDTOOrBuilder dto = entity.getEntityBuilder();
 
         final int entityType = type(dto);
@@ -196,6 +199,17 @@ public class SdkToTopologyEntityConverter {
                 if (commoditySold.accesses != null) {
                     builder.setAccesses(commoditySold.accesses.getOid());
                 }
+
+                // Set the "isResold" flag on the commodity based on information originally passed in the
+                // supply chain. "isResold" will be true if at least one discovering target marked it
+                // as resold. Note that we purposely ignore key. If we have a use case where we need
+                // to consider matching keys, we may need this flag on the actual CommoditySold in the SDK
+                // rather than on the supply chain.
+                entity.getDiscoveringTargetIds().forEach(targetId ->
+                    resoldCommodityCache.getIsResold(
+                        targetId, entityType, commoditySold.sold.getCommodityType().getNumber())
+                        .ifPresent(isResold -> builder.setIsResold(builder.getIsResold() || isResold)));
+
                 return builder.build();
             }).collect(Collectors.toList());
 
