@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord.StatValue;
@@ -443,7 +444,8 @@ public class ClusterStatsReader {
                                                 .setReserved(0.0f)
                                                 .setUnits(units == null ? "" : units.getUnits()));
             }
-            return resultBuilder.build();
+            return resultBuilder
+                        .setStatEpoch(StatEpoch.HISTORICAL).build();
         }
 
         public double getUtilization(@Nonnull String key) {
