@@ -1,5 +1,6 @@
 package com.vmturbo.notification.api;
 
+import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -27,9 +28,10 @@ public class NotificationApiConfig {
     private BaseKafkaProducerConfig baseKafkaProducerConfig;
 
     @Bean
-    public IMessageSender<SystemNotification> notificationMessageSender() {
-        return baseKafkaProducerConfig.kafkaMessageSender()
-                .messageSender(NotificationReceiver.NOTIFICATION_TOPIC);
+    public NotificationSender notificationMessageSender() {
+        return new NotificationSender(baseKafkaProducerConfig.kafkaMessageSender()
+                .messageSender(NotificationReceiver.NOTIFICATION_TOPIC),
+                Clock.systemUTC());
     }
 
     @Bean(destroyMethod = "shutdownNow")

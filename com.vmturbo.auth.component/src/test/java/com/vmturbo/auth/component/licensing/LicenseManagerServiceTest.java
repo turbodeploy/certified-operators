@@ -3,6 +3,7 @@ package com.vmturbo.auth.component.licensing;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -42,6 +43,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.licensing.License;
 import com.vmturbo.licensing.utils.LicenseDeserializer;
+import com.vmturbo.notification.api.NotificationSender;
 
 /**
  * LicenseManagerService tests
@@ -51,7 +53,8 @@ public class LicenseManagerServiceTest {
     // set up a license manager service backed by a map.
     MapKeyValueStore mapStore = new MapKeyValueStore();
     LicenseKVStore licenseKVStore = new LicenseKVStore(mapStore);
-    LicenseManagerService licenseManagerService = new LicenseManagerService(licenseKVStore);
+    LicenseManagerService licenseManagerService = new LicenseManagerService(licenseKVStore, mock(
+            NotificationSender.class));
 
     @Rule
     public GrpcTestServer testServer = GrpcTestServer.newServer(licenseManagerService);

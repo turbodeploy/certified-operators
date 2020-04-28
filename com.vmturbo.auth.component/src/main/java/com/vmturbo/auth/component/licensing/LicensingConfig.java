@@ -69,16 +69,13 @@ public class LicensingConfig {
                         LicenseSummaryPublisher::generateMessageKey);
     }
 
-/*
-    @Bean
-    public LicenseController licenseController() {
-        return new LicenseController(licenseStore());
-    }
-    */
-
+    /**
+     * License manager.
+     * @return License manager bean.
+     */
     @Bean
     public LicenseManagerService licenseManager() {
-        return new LicenseManagerService(licenseStore());
+        return new LicenseManagerService(licenseStore(), notificationApiConfig.notificationMessageSender());
     }
 
     @Bean
