@@ -288,7 +288,7 @@ public class PlacementPolicySysTest {
         ;
         topologyProcessor = TopologyProcessorClient.rpcAndNotification(
             componentTestRule.getCluster().getConnectionConfig("topology-processor"),
-            threadPool, tpMessageReceiver, tpTopologyReceiver, null, null);
+            threadPool, tpMessageReceiver, tpTopologyReceiver, null, null, null);
 
         projectedTopologyReceiver = kafkaMessageConsumer.messageReceiver(
                 MarketComponentNotificationReceiver.PROJECTED_TOPOLOGIES_TOPIC,

@@ -269,6 +269,21 @@ class LiveActions implements QueryableActionViews {
         }
     }
 
+    /**
+     * Delete actions given a set of ids.
+     *
+     * @param actionsToRemove Set of action ids
+     */
+    void deleteActionsById(@Nonnull final Set<Long> actionsToRemove) {
+        actionsLock.writeLock().lock();
+        try {
+            actionsToRemove.forEach(marketActions::remove);
+
+        } finally {
+                actionsLock.writeLock().unlock();
+            }
+    }
+
     private static void refreshAction(
             @Nonnull final Action action,
             @Nonnull final EntitiesAndSettingsSnapshot newEntitiesSnapshot) {

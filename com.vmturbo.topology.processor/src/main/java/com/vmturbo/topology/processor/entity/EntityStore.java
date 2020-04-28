@@ -1,5 +1,7 @@
 package com.vmturbo.topology.processor.entity;
 
+import static com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter.entityState;
+
 import java.time.Clock;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,6 +35,8 @@ import com.google.common.collect.Maps;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -42,6 +46,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -107,6 +112,11 @@ public class EntityStore {
     private final TargetStore targetStore;
 
     /**
+     * Used to send notifications.
+     */
+    private final TopologyProcessorNotificationSender sender;
+
+    /**
      * All the probe types which support converting layered over and consists of to connected to relationship.
      */
     private static final Set<SDKProbeType> SUPPORTED_CONNECTED_TO_PROBE_TYPES = ImmutableSet.of(
@@ -143,9 +153,11 @@ public class EntityStore {
 
     public EntityStore(@Nonnull final TargetStore targetStore,
                        @Nonnull final IdentityProvider identityProvider,
+                       @Nonnull final TopologyProcessorNotificationSender sender,
                        @Nonnull final Clock clock) {
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.sender = Objects.requireNonNull(sender);
         this.clock = Objects.requireNonNull(clock);
         targetStore.addListener(new TargetStoreListener() {
             @Override
@@ -634,8 +646,34 @@ public class EntityStore {
         if (discoveryType == DiscoveryType.FULL) {
             setFullDiscoveryEntities(targetId, messageId, entitiesById);
         } else if (discoveryType == DiscoveryType.INCREMENTAL) {
+            // Send partial entityDTOs of entity that changed state
+            sendEntitiesWithNewState(entitiesById);
             // cache the entities from incremental discovery response
             addIncrementalDiscoveryEntities(targetId, messageId, entitiesById);
+        }
+    }
+
+    private void sendEntitiesWithNewState(Map<Long, EntityDTO> entitiesById) {
+        Builder entitiesWithNewStateBuilder = EntitiesWithNewState.newBuilder();
+        for (Long entityOid: entitiesById.keySet()) {
+            EntityDTO entityDTO = entitiesById.get(entityOid);
+            if (entityDTO.getEntityType() == EntityType.PHYSICAL_MACHINE) {
+                entitiesWithNewStateBuilder.addTopologyEntity(TopologyEntityDTO.newBuilder()
+                    .setOid(entityOid)
+                    .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                    .setEntityState(entityState(entityDTO))
+                    .build());
+            }
+        }
+        if (entitiesWithNewStateBuilder.getTopologyEntityCount() > 0) {
+            entitiesWithNewStateBuilder.setStateChangeId(identityProvider.generateTopologyId());
+            EntitiesWithNewState entitiesWithNewStateMessage = entitiesWithNewStateBuilder.build();
+            try {
+                sender.onEntitiesWithNewState(entitiesWithNewStateMessage);
+            } catch (Exception e) {
+                logger.error("Problem occurred while sending entity state change message {}",
+                    entitiesWithNewStateMessage);
+            }
         }
     }
 

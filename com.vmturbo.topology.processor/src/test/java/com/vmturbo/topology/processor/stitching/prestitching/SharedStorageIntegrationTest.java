@@ -47,6 +47,7 @@ import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -89,8 +90,10 @@ public class SharedStorageIntegrationTest {
     private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
     private final ProbeStore probeStore = Mockito.mock(ProbeStore.class);
     private final TargetStore targetStore = Mockito.mock(TargetStore.class);
+    private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
     private final Clock entityClock = Mockito.mock(Clock.class);
-    private EntityStore entityStore = new EntityStore(targetStore, identityProvider, entityClock);
+    private EntityStore entityStore = new EntityStore(targetStore, identityProvider, sender,
+        entityClock);
     private CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
 
     private final DiskCapacityCalculator diskCapacityCalculator =

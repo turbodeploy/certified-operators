@@ -22,6 +22,7 @@ import com.vmturbo.action.orchestrator.stats.query.live.CurrentActionStatReader;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatTable;
 import com.vmturbo.action.orchestrator.stats.rollup.ActionStatsRollupConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
@@ -37,6 +38,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         ActionTranslationConfig.class,
         ActionStatsRollupConfig.class,
         ActionOrchestratorGlobalConfig.class,
+        TopologyProcessorConfig.class,
         UserSessionConfig.class})
 public class ActionStatsConfig {
 
@@ -57,6 +59,9 @@ public class ActionStatsConfig {
 
     @Autowired
     private ActionOrchestratorGlobalConfig globalConfig;
+
+    @Autowired
+    private TopologyProcessorConfig tpConfig;
 
     /**
      * Auto-wiring the action store config without an @Import
@@ -133,9 +138,13 @@ public class ActionStatsConfig {
             new DefaultBucketsFactory());
     }
 
+    /**
+     * Bean for {@link CurrentActionStatReader}.
+     * @return The {@link CurrentActionStatReader}.
+     */
     @Bean
     public CurrentActionStatReader currentActionStatReader() {
-        return new CurrentActionStatReader(globalConfig.realtimeTopologyContextId(),
+        return new CurrentActionStatReader(tpConfig.realtimeTopologyContextId(),
             actionStoreConfig.actionStorehouse(), userSessionConfig.userSessionContext());
     }
 

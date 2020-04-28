@@ -1349,6 +1349,17 @@ message AnalysisSummary {
     optional ActionPlanSummary action_plan_summary = 3;
 }
 
+// A message containing a list of entities that changed state and an id that can be compared with
+// topology ids
+message EntitiesWithNewState {
+    // The entities that changed state
+    repeated TopologyEntityDTO topology_entity = 1;
+
+    // This represent the same incremental id used for topologies. With this we can easily
+    // compare topologies that have been built after the events were detected
+    optional int64 state_change_id = 2;
+}
+
 // A request to assemble the current topology and broadcast it to all listeners for the topology.
 message TopologyBroadcastRequest {
     // Currently no properties.

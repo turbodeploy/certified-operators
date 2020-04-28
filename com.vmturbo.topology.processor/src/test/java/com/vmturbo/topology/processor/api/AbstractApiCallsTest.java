@@ -26,6 +26,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ActionExecutionServiceGrpc.ActionExecutionServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.client.IMessageReceiver;
@@ -91,10 +92,12 @@ public abstract class AbstractApiCallsTest {
                 integrationTestServer.getBean("planTopologyConnection");
         final IMessageReceiver<TopologySummary> topologySummaryReceiver =
                 integrationTestServer.getBean("topologySummaryConnection");
+        final IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver =
+            integrationTestServer.getBean("entitiesWithNewStateConnection");
         topologyProcessor =
                 TopologyProcessorClient.rpcAndNotification(integrationTestServer.connectionConfig(),
                         threadPool, notificationReceiver, liveTopologyReceiver,
-                        planTopologyReceiver, topologySummaryReceiver);
+                        planTopologyReceiver, topologySummaryReceiver, entitiesWithNewStateReceiver);
 
         actionExecutionService =
                 ActionExecutionServiceGrpc.newBlockingStub(grpcServer.getChannel());
