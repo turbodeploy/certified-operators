@@ -5,6 +5,7 @@ import java.io.InputStreamReader;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -27,6 +28,7 @@ import com.vmturbo.stitching.prestitching.SharedEntityDefaultPreStitchingOperati
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverterTest;
 import com.vmturbo.topology.processor.identity.IdentityProviderImpl;
+import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.StitchingResultBuilder;
@@ -96,8 +98,10 @@ public class SharedEntityDefaultPreStitchingOperationTest {
                 .setId("e806ea83d05a9d8ff24cf977d8f794797891fd21")
                 .setEntityType(EntityType.DESKTOP_POOL);
 
-        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(3)
-                .setTargetStore(Mockito.mock(TargetStore.class))
+        TargetStore targetStore = Mockito.mock(TargetStore.class);
+        Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
+
+        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(3, targetStore)
                 .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
         final StitchingEntityData stitchingEntityDataVm1 =
                 StitchingEntityData.newBuilder(virtualMachineDTO1)
@@ -147,6 +151,10 @@ public class SharedEntityDefaultPreStitchingOperationTest {
      */
     @Test
     public void testStitchingSharedEntities() {
+        final ResoldCommodityCache resoldCommodityCache = Mockito.mock(ResoldCommodityCache.class);
+        Mockito.when(resoldCommodityCache.getIsResold(Mockito.anyLong(),
+            Mockito.anyInt(), Mockito.anyInt())).thenReturn(Optional.empty());
+
         Assert.assertEquals(6, stitchingContext.size());
         final TopologyStitchingEntity sharedBusinessUserStitchingEntity1target1 =
                 stitchingContext.getEntity(sharedBusinessUserDTO1).get();
@@ -169,7 +177,7 @@ public class SharedEntityDefaultPreStitchingOperationTest {
         final StitchingEntity mergedBusinessUserStitchingEntity = stitchingEntities.get(0);
         final TopologyDTO.TopologyEntityDTO.Builder actualMergedBusinessUserDTO =
                 SdkToTopologyEntityConverter.newTopologyEntityDTO(
-                        (TopologyStitchingEntity)mergedBusinessUserStitchingEntity);
+                    (TopologyStitchingEntity)mergedBusinessUserStitchingEntity, resoldCommodityCache);
         Assert.assertEquals(2, mergedBusinessUserStitchingEntity.getEntityBuilder()
                 .getBusinessUserData()
                 .getSessionDataCount());

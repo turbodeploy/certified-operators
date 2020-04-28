@@ -3,6 +3,7 @@ package com.vmturbo.topology.processor.stitching.prestitching;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Collections;
 import java.util.stream.Stream;
 
 import org.junit.Before;
@@ -63,8 +64,10 @@ public class RemoveNonMarketEntitiesPreStitchingOperationTest {
 
     @Before
     public void setup() {
-        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(2)
-            .setTargetStore(Mockito.mock(TargetStore.class))
+        TargetStore targetStore = Mockito.mock(TargetStore.class);
+        Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
+
+        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(2, targetStore)
             .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
         stitchingContextBuider.addEntity(businessAccount,
                 ImmutableMap.of(businessAccount.getLocalId(), businessAccount));

@@ -1191,6 +1191,17 @@ message CommoditySoldDTO {
     // The thresholds (Ex. min/Max) for the commodity.
     optional Thresholds thresholds = 24;
 
+    // A resold commodity is designed to model situations in which the true source of supply for
+    // that resold commodity is further down the supply chain rather than directly through the entity
+    // providing the commodity. In these cases, the true supplier is responsible for setting the
+    // price of the resold commodity. For a real-life economic analogy, consider the case of buying
+    // a BigMac at McDonald's - the individual restaurant does not get to set the price. Instead,
+    // the price may be set by the franchise based on national or regional prices of its
+    // ingredients along with other factors. Useful in situations where an entity's direct provider
+    // represents more of a logical grouping of entities rather than a proper supplier of resources ie
+    // a Container buying from a ContainerPod.
+    optional bool is_resold = 25;
+
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
         // The type of commodity whose usage will be used as a factor.
