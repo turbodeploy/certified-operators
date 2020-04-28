@@ -42,12 +42,12 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -96,6 +96,7 @@ public class EntitySeverityCache {
     private final SeverityComparator severityComparator = new SeverityComparator();
     private final SupplyChainServiceBlockingStub supplyChainService;
     private final RepositoryServiceBlockingStub repositoryService;
+    private final boolean isCalculatingBreakdowns;
 
     /**
      * These are the entities that need to be retrieved underneath BusinessApp, BusinessTxn, and
@@ -126,11 +127,17 @@ public class EntitySeverityCache {
      *                           propagation.
      * @param repositoryService the service that provides entities by type used as the seeds in risk
      *                          propagation.
+     * @param isCalculatingBreakdowns true for instances that calculate severity breakdowns. When
+     *                                false, {@link #getSeverityBreakdown(long)} be empty and
+     *                                {@link #getSeverityCounts(List)} will not consider severity
+     *                                breakdowns.
      */
     public EntitySeverityCache(@Nonnull final SupplyChainServiceBlockingStub supplyChainService,
-                               @Nonnull final RepositoryServiceBlockingStub repositoryService) {
+                               @Nonnull final RepositoryServiceBlockingStub repositoryService,
+                               final boolean isCalculatingBreakdowns) {
         this.supplyChainService = supplyChainService;
         this.repositoryService = repositoryService;
+        this.isCalculatingBreakdowns = isCalculatingBreakdowns;
     }
 
     /**
@@ -145,8 +152,9 @@ public class EntitySeverityCache {
 
             visibleReadyActionViews(actionStore)
                 .forEach(this::handleActionSeverity);
-
-            calculateSeverityBreakdowns();
+            if (isCalculatingBreakdowns) {
+                calculateSeverityBreakdowns();
+            }
         }
     }
 

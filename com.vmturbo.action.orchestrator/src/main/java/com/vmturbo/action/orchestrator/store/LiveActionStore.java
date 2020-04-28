@@ -133,7 +133,7 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final UserSessionContext userSessionContext) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
-        this.severityCache = new EntitySeverityCache(supplyChainService, repositoryService);
+        this.severityCache = new EntitySeverityCache(supplyChainService, repositoryService, true);
         this.actionTargetSelector = actionTargetSelector;
         this.probeCapabilityCache = probeCapabilityCache;
         this.entitySettingsCache = entitySettingsCache;

@@ -80,7 +80,8 @@ public class EntitySeverityRpcServiceTest {
         severityServiceClient = EntitySeverityServiceGrpc.newBlockingStub(grpcServer.getChannel());
         severityCache = Mockito.spy(new EntitySeverityCache(
             SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel())));
+            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            true));
     }
 
     @Test

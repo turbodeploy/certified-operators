@@ -95,7 +95,8 @@ public class EntitySeverityCacheTest {
         IdentityGenerator.initPrefix(0);
         entitySeverityCache = new EntitySeverityCache(
             SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()));
+            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            true);
     }
 
     @Test
@@ -325,6 +326,34 @@ public class EntitySeverityCacheTest {
                 Severity.MINOR, 3,
                 Severity.MAJOR, 2,
                 Severity.NORMAL, 3));
+    }
+
+    /**
+     * When severity breakdown is disabled, getSeverityBreakdown should always return empty
+     * and getSeverityCounts should not consider severity breakdowns.
+     */
+    @Test
+    public void testSeverityBreakdownDisabled() {
+        entitySeverityCache = new EntitySeverityCache(
+            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            false);
+
+        SeverityBreakdownScenario severityBreakdownScenario = new SeverityBreakdownScenario(
+            actionStore, supplyChainServiceMole, repositoryServiceMole);
+
+        // trigger the recomputation of severity and severity breakdown
+        entitySeverityCache.refresh(actionStore);
+
+        // severity breakdowns are disabled, so there input that returns a breakdown in the above
+        // test should return empty map here.
+        Map<Optional<Severity>, Long> actualMap =
+            entitySeverityCache.getSeverityCounts(
+                Collections.singletonList(severityBreakdownScenario.service4Oid));
+        Assert.assertEquals(1, actualMap.size());
+        Assert.assertEquals(Long.valueOf(1L), actualMap.get(Optional.empty()));
+        Assert.assertEquals(Optional.empty(),
+            entitySeverityCache.getSeverityBreakdown(severityBreakdownScenario.service4Oid));
     }
 
     private void checkBothSupplyChainSeverityCountAndBreakdown(
