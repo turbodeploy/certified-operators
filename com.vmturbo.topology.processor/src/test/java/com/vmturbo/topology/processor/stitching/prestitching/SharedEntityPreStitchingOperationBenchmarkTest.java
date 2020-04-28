@@ -70,9 +70,11 @@ public class SharedEntityPreStitchingOperationBenchmarkTest {
     }
 
     private static void testBenchmark(final PreStitchingOperation preStitchingOperation) {
+        TargetStore targetStore = Mockito.mock(TargetStore.class);
+        Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
+
         final StitchingContext.Builder stitchingContextBuilder =
-                StitchingContext.newBuilder(TARGETS * SHARED_ENTITIES_PER_TARGET)
-                        .setTargetStore(Mockito.mock(TargetStore.class))
+                StitchingContext.newBuilder(TARGETS * SHARED_ENTITIES_PER_TARGET, targetStore)
                         .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
         final StitchingJournal<StitchingEntity> stitchingJournal = new StitchingJournal<>();
 

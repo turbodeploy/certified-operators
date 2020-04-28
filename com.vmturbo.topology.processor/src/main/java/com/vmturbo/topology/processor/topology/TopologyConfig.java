@@ -150,7 +150,7 @@ public class TopologyConfig {
     @Value("${maxQueuedPipelinesAllowed:1000}")
     private int maxQueuedPlanPipelinesAllowed;
 
-    @Value("${useReservationPipeline:false}")
+    @Value("${useReservationPipeline:true}")
     private boolean useReservationPipeline;
 
     @Bean

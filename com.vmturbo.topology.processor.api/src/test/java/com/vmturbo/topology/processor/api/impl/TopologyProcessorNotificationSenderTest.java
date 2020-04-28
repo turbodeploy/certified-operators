@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.api.impl;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nonnull;
 
@@ -11,10 +10,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.test.SenderReceiverPair;
-import com.vmturbo.topology.processor.api.ProbeInfo;
 import com.vmturbo.topology.processor.api.ProbeListener;
 import com.vmturbo.topology.processor.api.TargetListener;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
@@ -29,6 +28,7 @@ public class TopologyProcessorNotificationSenderTest {
     private SenderReceiverPair<Topology> liveTopologyReceiver;
     private SenderReceiverPair<Topology> planTopologyReceiver;
     private SenderReceiverPair<TopologySummary> topologySummaryReceiver;
+    private SenderReceiverPair<EntitiesWithNewState> entitiesWithNewStateReceiver;
     private ExecutorService threadPool;
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -53,7 +53,7 @@ public class TopologyProcessorNotificationSenderTest {
         final TopologyProcessorNotificationReceiver receiver =
                 new TopologyProcessorNotificationReceiver(notificationReceiver,
                         liveTopologyReceiver, planTopologyReceiver, topologySummaryReceiver,
-                        threadPool);
+                        entitiesWithNewStateReceiver, threadPool);
         checkNotification(receiver);
         checkLiveTopology(receiver);
         checkPlanTopology(receiver);
@@ -69,7 +69,8 @@ public class TopologyProcessorNotificationSenderTest {
     public void testNoNotifications() throws Exception {
         final TopologyProcessorNotificationReceiver receiver =
                 new TopologyProcessorNotificationReceiver(null, liveTopologyReceiver,
-                        planTopologyReceiver, topologySummaryReceiver, threadPool);
+                        planTopologyReceiver, topologySummaryReceiver, entitiesWithNewStateReceiver,
+                        threadPool);
         expectedException.expect(UnsupportedOperationException.class);
         checkNotification(receiver);
     }
@@ -84,7 +85,8 @@ public class TopologyProcessorNotificationSenderTest {
     public void testNoLiveTopology() throws Exception {
         final TopologyProcessorNotificationReceiver receiver =
                 new TopologyProcessorNotificationReceiver(notificationReceiver, null,
-                        planTopologyReceiver, topologySummaryReceiver, threadPool);
+                        planTopologyReceiver, topologySummaryReceiver, entitiesWithNewStateReceiver,
+                        threadPool);
         expectedException.expect(IllegalStateException.class);
         expectedException.expectMessage("no subscription");
         checkLiveTopology(receiver);
@@ -100,7 +102,8 @@ public class TopologyProcessorNotificationSenderTest {
     public void testNoPlanTopology() throws Exception {
         final TopologyProcessorNotificationReceiver receiver =
                 new TopologyProcessorNotificationReceiver(notificationReceiver,
-                        liveTopologyReceiver, null, topologySummaryReceiver, threadPool);
+                        liveTopologyReceiver, null, topologySummaryReceiver,
+                        entitiesWithNewStateReceiver, threadPool);
         expectedException.expect(IllegalStateException.class);
         expectedException.expectMessage("no subscription");
         checkPlanTopology(receiver);

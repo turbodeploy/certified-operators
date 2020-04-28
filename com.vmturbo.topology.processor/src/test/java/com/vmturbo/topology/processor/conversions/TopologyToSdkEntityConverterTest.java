@@ -30,6 +30,7 @@ import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.Entity;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -43,8 +44,10 @@ public class TopologyToSdkEntityConverterTest {
 
     private IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
 
+    private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
+
     private EntityStore entityStore = Mockito.spy(new EntityStore(targetStore, identityProvider,
-        Clock.systemUTC()));
+        sender, Clock.systemUTC()));
 
     /**
      * The class under test

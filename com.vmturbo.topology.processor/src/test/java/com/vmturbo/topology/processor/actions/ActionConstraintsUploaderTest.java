@@ -13,6 +13,7 @@ import static org.powermock.api.mockito.PowerMockito.when;
 
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,8 +79,10 @@ public class ActionConstraintsUploaderTest {
      */
     @Test
     public void testUploadActionConstraintInfo() {
-        StitchingContext stitchingContext = StitchingContext.newBuilder(0)
-            .setTargetStore(mock(TargetStore.class))
+        final TargetStore targetStore = mock(TargetStore.class);
+        when(targetStore.getAll()).thenReturn(Collections.emptyList());
+
+        StitchingContext stitchingContext = StitchingContext.newBuilder(0, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class)).build();
         actionConstraintsUploader.uploadActionConstraintInfo(stitchingContext);
         // ActionConstraintsServiceStub#uploadActionConstraintInfo is an asynchronous method.

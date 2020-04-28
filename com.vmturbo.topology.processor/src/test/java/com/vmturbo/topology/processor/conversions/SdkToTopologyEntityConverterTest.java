@@ -17,15 +17,20 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
+
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -52,7 +57,9 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.ProviderPolicy;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.TagValues;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
+import com.vmturbo.stitching.StitchingMergeInformation;
 import com.vmturbo.stitching.utilities.CommoditiesBought;
+import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
@@ -70,6 +77,17 @@ public class SdkToTopologyEntityConverterTest {
     private static final long APPLICATION_OID = 305L;
 
     private static final double DELTA = 1e-8;
+
+    private final ResoldCommodityCache resoldCommodityCache = Mockito.mock(ResoldCommodityCache.class);
+
+    /**
+     * Setup the tests.
+     */
+    @Before
+    public void setup() {
+        Mockito.when(resoldCommodityCache.getIsResold(Mockito.anyLong(),
+            Mockito.anyInt(), Mockito.anyInt())).thenReturn(Optional.empty());
+    }
 
     /**
      * Convert entities test.
@@ -367,7 +385,8 @@ public class SdkToTopologyEntityConverterTest {
         pmEntityDto.getCommoditiesSoldList().stream()
                 .map(CommodityDTO::toBuilder)
                 .forEach(commodity -> pmStitchingEntity.addCommoditySold(commodity, Optional.empty()));
-        final TopologyEntityDTO.Builder pmBuilder = SdkToTopologyEntityConverter.newTopologyEntityDTO(pmStitchingEntity);
+        final TopologyEntityDTO.Builder pmBuilder = SdkToTopologyEntityConverter.newTopologyEntityDTO(
+            pmStitchingEntity, resoldCommodityCache);
         assertEquals(2L, pmBuilder.getCommoditySoldListCount());
         assertFalse(pmBuilder.getCommoditySoldListList().stream()
                 .filter(commoditySold ->
@@ -415,7 +434,7 @@ public class SdkToTopologyEntityConverterTest {
         TopologyStitchingEntity stitchingEntity = new TopologyStitchingEntity(
             StitchingEntityData.newBuilder(builder).oid(1).build());
         final TopologyEntityDTO.Builder topologyDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity);
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity, resoldCommodityCache);
 
         assertEquals(1, topologyDTO.getEntityPropertyMapMap().size());
         assertEquals(value, topologyDTO.getEntityPropertyMapMap().get(name));
@@ -501,7 +520,7 @@ public class SdkToTopologyEntityConverterTest {
             .forEach(commSold -> vmStitchingEntity.addCommoditySold(commSold, Optional.empty()));
 
         final TopologyEntityDTO.Builder appTopologyDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(appStitchingEntity);
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(appStitchingEntity, resoldCommodityCache);
 
         Map<Integer, CommodityBoughtDTO> commodityBoughtMap =
             appTopologyDTO.getCommoditiesBoughtFromProvidersList().stream()
@@ -525,7 +544,7 @@ public class SdkToTopologyEntityConverterTest {
         assertEquals(appVStoragePeak, appVST.getPeak(), DELTA);
 
         final TopologyEntityDTO.Builder vmTopologyDTO =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(vmStitchingEntity);
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(vmStitchingEntity, resoldCommodityCache);
         Map<Integer, CommoditySoldDTO> commoditySoldMap =
             vmTopologyDTO.getCommoditySoldListList().stream()
                 .collect(Collectors.toMap(comm -> comm.getCommodityType().getType(),
@@ -549,7 +568,7 @@ public class SdkToTopologyEntityConverterTest {
             Optional.empty());
 
         final TopologyEntityDTO.Builder appTopologyDTO1 =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(appStitchingEntity);
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(appStitchingEntity, resoldCommodityCache);
         CommodityBoughtDTO appVCPU1 = appTopologyDTO1.getCommoditiesBoughtFromProvidersList()
             .stream()
             .filter(commoditiesBoughtFromProvider ->
@@ -587,9 +606,9 @@ public class SdkToTopologyEntityConverterTest {
         vm.addConnectedFrom(ConnectionType.AGGREGATED_BY_CONNECTION, reg);
 
         final TopologyEntityDTO.Builder vmTopologyEntityBuilder =
-                SdkToTopologyEntityConverter.newTopologyEntityDTO(vm);
+                SdkToTopologyEntityConverter.newTopologyEntityDTO(vm, resoldCommodityCache);
         final TopologyEntityDTO.Builder regTopologyEntityBuilder =
-                SdkToTopologyEntityConverter.newTopologyEntityDTO(reg);
+                SdkToTopologyEntityConverter.newTopologyEntityDTO(reg, resoldCommodityCache);
 
         assertEquals(1, vmTopologyEntityBuilder.getConnectedEntityListCount());
         assertEquals(regId, vmTopologyEntityBuilder.getConnectedEntityList(0).getConnectedEntityId());
@@ -612,7 +631,7 @@ public class SdkToTopologyEntityConverterTest {
         final TopologyStitchingEntity vv = getTopologyStitchingEntityForVirtualVolume(vvId, isVolumeDeletable);
 
         final TopologyEntityDTO.Builder vvTopologyEntityBuilder =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(vv);
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(vv, resoldCommodityCache);
 
         assertFalse(vvTopologyEntityBuilder.getAnalysisSettings().getDeletable());
     }
@@ -629,7 +648,7 @@ public class SdkToTopologyEntityConverterTest {
         final TopologyStitchingEntity vv = getTopologyStitchingEntityForVirtualVolume(vvId, isVolumeDeletable);
 
         final TopologyEntityDTO.Builder vvTopologyEntityBuilder =
-            SdkToTopologyEntityConverter.newTopologyEntityDTO(vv);
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(vv, resoldCommodityCache);
 
         assertTrue(vvTopologyEntityBuilder.getAnalysisSettings().getDeletable());
     }
@@ -658,6 +677,95 @@ public class SdkToTopologyEntityConverterTest {
     public void testTagConverterWithoutInputTags() {
         final Tags tags = SdkToTopologyEntityConverter.convertGroupTags(Collections.emptyMap());
         Assert.assertTrue(tags.getTagsMap().isEmpty());
+    }
+
+    /**
+     * Test that resold commodities get the correct value for their "is_resold" flag.
+     */
+    @Test
+    public void testResoldCommodities() {
+        EntityDTO.Builder pod = EntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setId("vm1")
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.VCPU))
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.VMEM).setKey("foo"))
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.VCPU_REQUEST));
+
+        final boolean isVcpuResold = true;
+        final boolean isVmemResold = false;
+
+        Mockito.when(resoldCommodityCache.getIsResold(Mockito.eq(1L),
+            Mockito.eq(EntityType.VIRTUAL_MACHINE_VALUE), Mockito.eq(CommodityType.VCPU_VALUE)))
+            .thenReturn(Optional.of(isVcpuResold));
+        Mockito.when(resoldCommodityCache.getIsResold(Mockito.eq(1L),
+            Mockito.eq(EntityType.VIRTUAL_MACHINE_VALUE), Mockito.eq(CommodityType.VMEM_VALUE)))
+            .thenReturn(Optional.of(isVmemResold));
+
+        final TopologyStitchingEntity podEntity =
+            new TopologyStitchingEntity(StitchingEntityData.newBuilder(pod)
+                .targetId(1L)
+                .build());
+        pod.getCommoditiesSoldBuilderList()
+            .forEach(commSold -> podEntity.addCommoditySold(commSold, Optional.empty()));
+        final TopologyDTO.TopologyEntityDTO.Builder result =
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(podEntity, resoldCommodityCache);
+
+        assertEquals(isVcpuResold, commSold(result, CommodityType.VCPU_VALUE).getIsResold());
+        assertEquals(isVmemResold, commSold(result, CommodityType.VMEM_VALUE).getIsResold());
+        assertFalse(commSold(result, CommodityType.VCPU_REQUEST_VALUE).hasIsResold());
+    }
+
+    /**
+     * For an entity discovered by multiple targets with differing values,
+     * test that if at least one of them is resold, the commodity is marked as resold.
+     * <p/>
+     * Note that it would be extremely unusual to have one target declare the value as
+     * resold and another not, but it's important to have a well-defined behavior in
+     * such a circumstance.
+     */
+    @Test
+    public void testResoldCommodityForMultipleTargets() {
+        EntityDTO.Builder pod = EntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE)
+            .setId("vm1")
+            .addCommoditiesSold(CommodityDTO.newBuilder()
+                .setCommodityType(CommodityType.VCPU));
+
+        Mockito.when(resoldCommodityCache.getIsResold(Mockito.eq(1L),
+            Mockito.eq(EntityType.VIRTUAL_MACHINE_VALUE), Mockito.eq(CommodityType.VCPU_VALUE)))
+            .thenReturn(Optional.of(false));
+        Mockito.when(resoldCommodityCache.getIsResold(Mockito.eq(2L),
+            Mockito.eq(EntityType.VIRTUAL_MACHINE_VALUE), Mockito.eq(CommodityType.VCPU_VALUE)))
+            .thenReturn(Optional.of(true));
+        Mockito.when(resoldCommodityCache.getIsResold(Mockito.eq(3L),
+            Mockito.eq(EntityType.VIRTUAL_MACHINE_VALUE), Mockito.eq(CommodityType.VCPU_VALUE)))
+            .thenReturn(Optional.of(false));
+
+        final TopologyStitchingEntity podEntity =
+            new TopologyStitchingEntity(StitchingEntityData.newBuilder(pod)
+                .targetId(1L)
+                .build());
+        podEntity.addMergeInformation(new StitchingMergeInformation(VM_OID, 2L, StitchingErrors.none()));
+        podEntity.addMergeInformation(new StitchingMergeInformation(VM_OID, 3L, StitchingErrors.none()));
+        podEntity.addMergeInformation(new StitchingMergeInformation(VM_OID, 4L, StitchingErrors.none()));
+
+        pod.getCommoditiesSoldBuilderList()
+            .forEach(commSold -> podEntity.addCommoditySold(commSold, Optional.empty()));
+        final TopologyDTO.TopologyEntityDTO.Builder result =
+            SdkToTopologyEntityConverter.newTopologyEntityDTO(podEntity, resoldCommodityCache);
+
+        assertEquals(true, commSold(result, CommodityType.VCPU_VALUE).getIsResold());
+    }
+
+    private static CommoditySoldDTO commSold(@Nonnull final TopologyDTO.TopologyEntityDTOOrBuilder entity,
+                                             final int commSoldType) {
+        return entity.getCommoditySoldListList().stream()
+            .filter(commSold -> commSold.getCommodityType().getType() == commSoldType)
+            .findFirst()
+            .get();
     }
 
     /**

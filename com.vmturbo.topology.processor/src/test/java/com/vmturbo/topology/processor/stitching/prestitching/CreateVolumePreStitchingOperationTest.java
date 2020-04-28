@@ -7,6 +7,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -133,9 +134,10 @@ public class CreateVolumePreStitchingOperationTest {
             new InputField("targetId", "targetId", Optional.empty())));
         final Target target = new Target(targetId1, probeStore, spec.toDto(), false);
         Mockito.doReturn(Optional.of(target)).when(targetStore).getTarget(targetId1);
+        Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
 
-        StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(3)
-            .setTargetStore(targetStore).setIdentityProvider(identityProvider);
+        StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(3, targetStore)
+            .setIdentityProvider(identityProvider);
 
         Map<String, StitchingEntityData> stitchingEntityDataMap = ImmutableMap.of(
             vmEntity1.getLocalId(), vmEntity1,

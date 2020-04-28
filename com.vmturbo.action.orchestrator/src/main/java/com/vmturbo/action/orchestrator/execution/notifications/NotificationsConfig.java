@@ -9,6 +9,7 @@ import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorApiConfig;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.store.ActionStoreConfig;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
@@ -21,6 +22,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClient;
     ActionOrchestratorGlobalConfig.class,
     ActionOrchestratorApiConfig.class,
     ActionExecutionConfig.class,
+    TopologyProcessorConfig.class,
     WorkflowConfig.class})
 public class NotificationsConfig {
 
@@ -38,6 +40,13 @@ public class NotificationsConfig {
     @Autowired
     private WorkflowConfig workflowConfig;
 
+    @Autowired
+    private TopologyProcessorConfig tpConfig;
+
+    /**
+     * Bean for {@link ActionExecutionListener}.
+     * @return The {@link ActionExecutionListener}.
+     */
     @Bean
     public ActionExecutionListener actionExecutionListener() {
         final ActionExecutionListener executionListener = new ActionStateUpdater(
@@ -46,9 +55,9 @@ public class NotificationsConfig {
             actionStoreConfig.actionHistory(),
             actionExecutionConfig.actionExecutor(),
             workflowConfig.workflowStore(),
-                globalConfig.realtimeTopologyContextId(),
+            tpConfig.realtimeTopologyContextId(),
                 actionExecutionConfig.failedCloudVMGroupProcessor());
-        globalConfig.topologyProcessor().addActionListener(executionListener);
+        tpConfig.topologyProcessor().addActionListener(executionListener);
         return executionListener;
     }
 

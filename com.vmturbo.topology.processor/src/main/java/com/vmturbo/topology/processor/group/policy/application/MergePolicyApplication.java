@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -26,6 +27,7 @@ import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory.PolicyEntities;
 
 /**
@@ -208,11 +210,17 @@ public class MergePolicyApplication extends PlacementPolicyApplication {
             throws GroupResolutionException {
         final Set<Long> oids = new HashSet<>();
         for (Grouping group : groups) {
-            final Set<Long> members = groupResolver.resolve(group, topologyGraph).getEntitiesOfType(type);
-            if (type == ApiEntityType.DATACENTER) {
-                oids.addAll(getPhysicalMachinesConsumeOnDatacenters(members));
+            final ResolvedGroup resolvedGroup = groupResolver.resolve(group, topologyGraph);
+            final boolean groupContainsDatacenters = group.getExpectedTypesList()
+                .stream()
+                .filter(MemberType::hasEntity)
+                .map(MemberType::getEntity)
+                .anyMatch(t -> t == EntityType.DATACENTER_VALUE);
+            if (groupContainsDatacenters && type == ApiEntityType.PHYSICAL_MACHINE) {
+                oids.addAll(getPhysicalMachinesConsumeOnDatacenters(
+                    resolvedGroup.getEntitiesOfType(ApiEntityType.DATACENTER)));
             } else {
-                oids.addAll(members);
+                oids.addAll(resolvedGroup.getEntitiesOfType(type));
             }
         }
         return oids;

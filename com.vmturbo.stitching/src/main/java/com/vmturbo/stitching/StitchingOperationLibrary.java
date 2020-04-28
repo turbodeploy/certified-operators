@@ -79,6 +79,10 @@ public class StitchingOperationLibrary {
             case ORCHESTRATOR:
                 return Collections.emptyList();
             case HYPERCONVERGED:
+                if (probeType.equals(SDKProbeType.INTERSIGHT_UCS.getProbeType())) {
+                    return Arrays.asList(new FabricChassisStitchingOperation(),
+                            new FabricPMStitchingOperation());
+                }
                 return Collections.emptyList();
             case PAAS:
                 if (probeType.equals(SDKProbeType.CLOUD_FOUNDRY.getProbeType())) {

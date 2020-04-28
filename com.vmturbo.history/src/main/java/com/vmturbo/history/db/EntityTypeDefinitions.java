@@ -58,7 +58,7 @@ public class EntityTypeDefinitions {
             APPLICATION_SPEND_ENTITY_TYPE,
             create(ApiEntityType.AVAILABILITY_ZONE),
             create(ApiEntityType.BUSINESS_ACCOUNT),
-            create(ApiEntityType.BUSINESS_APPLICATION, "business_app_stats", NON_ROLLUP_STATS),
+            create(ApiEntityType.BUSINESS_APPLICATION, "business_app_stats", STANDARD_STATS),
             create(ApiEntityType.BUSINESS_USER, "bu_stats", STANDARD_STATS),
             create(ApiEntityType.CHASSIS, "ch_stats", STANDARD_STATS),
             create(ApiEntityType.CLOUD_SERVICE, "service_spend", Spend, PersistEntity),

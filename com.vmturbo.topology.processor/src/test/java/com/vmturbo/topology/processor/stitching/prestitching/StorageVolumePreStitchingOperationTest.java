@@ -5,6 +5,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -101,8 +102,9 @@ public class StorageVolumePreStitchingOperationTest {
 
     @Before
     public void setup() {
-        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(4)
-            .setTargetStore(Mockito.mock(TargetStore.class))
+        TargetStore targetStore = Mockito.mock(TargetStore.class);
+        Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
+        StitchingContext.Builder stitchingContextBuider = StitchingContext.newBuilder(4, targetStore)
             .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
 
         stitchingContextBuider.addEntity(storageEntity1,

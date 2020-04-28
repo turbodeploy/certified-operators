@@ -38,20 +38,15 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
+
 import org.jooq.Condition;
 import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Table;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
-
-import io.grpc.Status;
-import io.grpc.stub.StreamObserver;
-
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
-import com.vmturbo.common.protobuf.stats.Stats;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
@@ -98,10 +93,10 @@ public class ClusterStatsReader {
     private static final Set<String> STATS_STORED_IN_TWO_RECORDS;
 
     private static final PaginationParameters DEFAULT_PAGINATION = PaginationParameters.newBuilder()
-            .setAscending(false)
-            .setCursor("0")
-            .setLimit(Integer.MAX_VALUE)
-            .build();
+                                                                        .setAscending(false)
+                                                                        .setCursor("0")
+                                                                        .setLimit(Integer.MAX_VALUE)
+                                                                        .build();
 
     static {
         final SortedSet<String> statsStoredInTwoRecords = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);

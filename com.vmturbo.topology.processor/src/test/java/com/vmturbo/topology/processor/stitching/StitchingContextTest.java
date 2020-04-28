@@ -10,6 +10,8 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.Map;
@@ -32,8 +34,9 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreator;
 
 public class StitchingContextTest {
-    private final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8)
-            .setTargetStore(Mockito.mock(TargetStore.class))
+    private final TargetStore targetStore = mock(TargetStore.class);
+
+    private final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8, targetStore)
             .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
     private StitchingContext stitchingContext;
 
@@ -51,6 +54,8 @@ public class StitchingContextTest {
 
     @Before
     public void setup() {
+        when(targetStore.getAll()).thenReturn(Collections.emptyList());
+
         //  2     4
         //  |     |
         //  1     3
@@ -174,8 +179,7 @@ public class StitchingContextTest {
     // TODO: Remove this test after adding shared storage support and eliminating collision resolution.
     @Test
     public void testConstructTopologyDuplicateOids() {
-        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8)
-            .setTargetStore(Mockito.mock(TargetStore.class))
+        final StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(8, targetStore)
             .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
 
         stitchingContextBuilder.addEntity(e1_1, target1Graph);
