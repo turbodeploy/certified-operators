@@ -1,14 +1,20 @@
 package com.vmturbo.integrations.intersight.licensing;
 
+import java.util.Comparator;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.cisco.intersight.client.JSON;
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
 import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseStateEnum;
+import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseTypeEnum;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.json.JSONObject;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.api.dto.license.ILicense.CountedEntity;
@@ -20,6 +26,7 @@ import com.vmturbo.licensing.utils.LicenseUtil;
  * Utility methods for working with Intersight Proxy Licenses
  */
 public class IntersightLicenseUtils {
+    private static final Logger logger = LogManager.getLogger();
 
     private IntersightLicenseUtils() {}
 
@@ -37,10 +44,37 @@ public class IntersightLicenseUtils {
      */
     public static boolean isIntersightLicense(LicenseDTO licenseDTO) {
         try {
-            return (IntersightLicenseEdition.valueOf(licenseDTO.getEdition()) != null);
+            return (IntersightProxyLicenseEdition.valueOf(licenseDTO.getEdition()) != null);
         } catch (IllegalArgumentException iae) {
             return false;
         }
+    }
+
+    /**
+     * Check if the intersight license is an active license. This would be determined by the license
+     * state. If the license state is in any of the INTERSIGHT_ACTIVE_LICENSE_STATES, the license is
+     * considered active.
+     * @param intersightLicense the intersight license info to check
+     * @return true, if the license was deemed active.
+     */
+    public static boolean isActiveIntersightLicense(@Nonnull LicenseLicenseInfo intersightLicense) {
+        return INTERSIGHT_ACTIVE_LICENSE_STATES.contains(intersightLicense.getLicenseState());
+    }
+
+    /**
+     * Check if the {@link LicenseDTO} is an "active" proxy license or not. It will be considered
+     * an active proxy license as long as it's both an intersight license and has a non-empty
+     * expiration date field.
+     * @param licenseDTO the license to check.
+     * @return true if the license is both a proxy license and has not expired.
+     */
+    public static boolean isActiveProxyLicense(LicenseDTO licenseDTO) {
+        // validate that it's an intersight proxy license
+        if (!isIntersightLicense(licenseDTO)) {
+            return false;
+        }
+        // validate the expiration date field
+        return !StringUtils.isBlank(licenseDTO.getExpirationDate());
     }
 
     /**
@@ -52,7 +86,7 @@ public class IntersightLicenseUtils {
      */
     public static LicenseDTO toProxyLicense(@Nonnull LicenseLicenseInfo intersightLicense) {
         // determine the IWO license edition to map to
-        IntersightLicenseEdition iwoEdition = IntersightLicenseEdition.fromIntersightLicenseType(intersightLicense.getLicenseType());
+        IntersightProxyLicenseEdition iwoEdition = IntersightProxyLicenseEdition.fromIntersightLicenseType(intersightLicense.getLicenseType());
 
         // We will not track license expiration for intersight licenses -- that is the job of the
         // smart licensing server. In XL, we will interpret the Intersight LicenseState as an
@@ -61,12 +95,41 @@ public class IntersightLicenseUtils {
         // "permanent license" date if the license is "active", and clear the date if it's not active.
         // This should result in immediate expired / non-expired treatment in XL, without the "about
         // to expire" logic ever kicking-in.
-        String expirationDate = INTERSIGHT_ACTIVE_LICENSE_STATES.contains(intersightLicense.getLicenseState())
-                ? ILicense.PERM_LIC : "";
+        String expirationDate = isActiveIntersightLicense(intersightLicense) ? ILicense.PERM_LIC : "";
+        return createProxyLicense(intersightLicense.getMoid(), expirationDate, iwoEdition);
+    }
 
+    /**
+     * utility function for creating an IWO LicenseLicenseInfo using JSON deserialization.
+     *
+     * @param json the JSON parser to use.
+     * @param moid desired license moid
+     * @param type desired license type
+     * @param state desired license state
+     * @return desired LicenseDTO
+     */
+    public static LicenseLicenseInfo createIwoLicense(JSON json, String moid, LicenseTypeEnum type, LicenseStateEnum state) {
+        JSONObject licenseJson = new JSONObject();
+        licenseJson.put("Moid", moid);
+        licenseJson.put("LicenseType", type.name());
+        licenseJson.put("LicenseState", state.name());
+        licenseJson.put("ObjectType", "license.LicenseInfo");
+        logger.info("new license json: "+ licenseJson.toString());
+        LicenseLicenseInfo newIwoLicenseInfo = json.deserialize(licenseJson.toString(), LicenseLicenseInfo.class);
+        return newIwoLicenseInfo;
+    }
+
+    /**
+     * Create a proxy license using the specified properties.
+     * @param moid the moid of the source license -- will be set as the external license key.
+     * @param expirationDate the expiration date of the proxy license
+     * @param iwoEdition the proxy license edition name
+     * @return the proxy {@link LicenseDTO}
+     */
+    public static LicenseDTO createProxyLicense(String moid, String expirationDate, IntersightProxyLicenseEdition iwoEdition) {
         License proxyLicense = new License();
         proxyLicense.setExternalLicense(true);
-        proxyLicense.setExternalLicenseKey(intersightLicense.getMoid());
+        proxyLicense.setExternalLicenseKey(moid);
         proxyLicense.setEmail("support@cisco.com");
         proxyLicense.setEdition(iwoEdition.name());
         // we don't know how many licensed entities there are in Intersight yet -- hopefully this
@@ -120,4 +183,40 @@ public class IntersightLicenseUtils {
         return true;
     }
 
+    /**
+     * Sort licenses so that the "best" license is the highest-ranked. The sorting will be based on
+     * the following criteria:
+     * <ul>
+     *     <li>Valid/active licenses are all ranked higher than invalid/expired licenses</li>
+     *     <li>Licenses with higher-tier editions are ranked higher than lower-tier editions.</li>
+     *     <li>final tie-breaker: order by moid<li>
+     * </ul>
+     */
+    public static class BestAvailableIntersightLicenseComparator implements Comparator<LicenseLicenseInfo> {
+
+        @Override
+        public int compare(final LicenseLicenseInfo a, final LicenseLicenseInfo b) {
+            if (a == null || b == null) {
+                throw new NullPointerException();
+            }
+
+            // if one license is active and the other is not, use this as the ranking
+            boolean isAActive = isActiveIntersightLicense(a);
+            boolean isBActive = isActiveIntersightLicense(b);
+            if (isAActive != isBActive) {
+                return isAActive ? 1 : -1;
+            }
+
+            // both licenses have the same validity. Let's compare license types
+            IntersightProxyLicenseEdition edition1 = IntersightProxyLicenseEdition.fromIntersightLicenseType(a.getLicenseType());
+            IntersightProxyLicenseEdition edition2 = IntersightProxyLicenseEdition.fromIntersightLicenseType(b.getLicenseType());
+            if (edition1.getTierNumber() != edition2.getTierNumber()) {
+                // higher-tiered license wins
+                return (edition1.getTierNumber() > edition2.getTierNumber()) ? 1 : -1;
+            }
+
+            // ok, same validity and tier -- let's tie-break using moids
+            return StringUtils.compare(a.getMoid(), b.getMoid());
+        }
+    }
 }

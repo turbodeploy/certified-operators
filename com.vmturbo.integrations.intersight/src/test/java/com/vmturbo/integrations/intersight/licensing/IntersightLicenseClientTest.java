@@ -8,6 +8,9 @@ import java.io.IOException;
 import java.util.List;
 
 import com.cisco.intersight.client.ApiException;
+import com.cisco.intersight.client.model.LicenseLicenseInfo;
+import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseStateEnum;
+import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseTypeEnum;
 import com.cisco.intersight.client.model.LicenseLicenseInfoList;
 
 import org.junit.Assert;
@@ -57,7 +60,23 @@ public class IntersightLicenseClientTest {
         // map it to a proxy license
         LicenseDTO mappedLicense = IntersightLicenseUtils.toProxyLicense(license);
         assertTrue(mappedLicense.hasExternalLicenseKey());
-        assertEquals(IntersightLicenseEdition.IWO_ESSENTIALS.name(), mappedLicense.getEdition());
+        assertEquals(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name(), mappedLicense.getEdition());
+    }
+
+
+    /**
+     * Test the utility function for creating LicenseLicenseInfo. It's here instead of
+     * IntersightLicenseUtilsTest because we're relying on the JSON parser from the license client.
+     */
+    @Ignore
+    @Test
+    public void testCreateIwoLicenseLicenseInfo() throws IOException {
+        LicenseLicenseInfo licenseInfo = IntersightLicenseUtils
+                .createIwoLicense(intersightLicenseClient.getApiClient().getJSON(), "1",
+                        LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.GRACEEXPIRED);
+        assertEquals("1", licenseInfo.getMoid());
+        assertEquals(LicenseStateEnum.GRACEEXPIRED, licenseInfo.getLicenseState());
+        assertEquals(LicenseTypeEnum.ESSENTIAL, licenseInfo.getLicenseState());
     }
 
     /**

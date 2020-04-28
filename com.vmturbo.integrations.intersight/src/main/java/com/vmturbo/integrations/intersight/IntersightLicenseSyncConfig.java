@@ -45,14 +45,21 @@ public class IntersightLicenseSyncConfig {
     @Value("${intersightLicenseSyncRetrySeconds:60}")
     private int intersightLicenseSyncRetrySeconds;
 
+    // if set to true, then the license sync service will install a fallback proxy license if no
+    // active licenses are found.
+    @Value("${intersightLicenseSyncUseFallbackLicense:true}")
+    private boolean intersightLicenseSyncUseFallbackLicense;
+
+    // turns the license sync on and off
     @Value("${intersightLicenseSyncEnabled:true}")
     private boolean intersightLicenseSyncEnabled;
 
+    // turns the license count sync on and off
     @Value("${intersightLicenseCountSyncEnabled:false}")
     private boolean intersightLicenseCountSyncEnabled;
 
     // the default query filter to use when retrieving the licenses for syncing
-    @Value("${intersightLicenseQueryFilter:LicenseType eq 'CWOM-Essential'}")
+    @Value("${intersightLicenseQueryFilter:#{null}}")
     private String intersightLicenseQueryFilter;
 
     @Bean
@@ -73,8 +80,8 @@ public class IntersightLicenseSyncConfig {
 
     @Bean
     public IntersightLicenseSyncService intersightLicenseSyncService() {
-        return new IntersightLicenseSyncService(intersightLicenseSyncEnabled, intersightLicenseClient(),
-                intersightLicenseSyncInitialDelaySeconds, intersightLicenseSyncIntervalSeconds,
+        return new IntersightLicenseSyncService(intersightLicenseSyncEnabled, intersightLicenseSyncUseFallbackLicense,
+                intersightLicenseClient(), intersightLicenseSyncInitialDelaySeconds, intersightLicenseSyncIntervalSeconds,
                 intersightLicenseSyncRetrySeconds, licenseManagerClient());
     }
 

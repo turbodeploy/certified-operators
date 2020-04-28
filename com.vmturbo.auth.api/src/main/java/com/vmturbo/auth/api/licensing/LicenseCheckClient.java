@@ -1,6 +1,6 @@
 package com.vmturbo.auth.api.licensing;
 
-import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.concurrent.ExecutorService;
 
 import javax.annotation.Nonnull;
@@ -211,6 +211,6 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
         }
 
         // both license summaries should have generation dates -- compare them.
-        return Instant.parse(before.getGenerationDate()).isBefore(Instant.parse(after.getGenerationDate()));
+        return OffsetDateTime.parse(before.getGenerationDate()).isBefore(OffsetDateTime.parse(after.getGenerationDate()));
     }
 }
