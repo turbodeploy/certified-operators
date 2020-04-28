@@ -1,16 +1,15 @@
 package com.vmturbo.integrations.intersight.licensing;
 
+import static com.vmturbo.integrations.intersight.licensing.IntersightLicenseTestUtils.createProxyLicense;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
 
-import com.cisco.intersight.client.model.LicenseLicenseInfo;
 import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseStateEnum;
 import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseTypeEnum;
 import com.google.common.collect.ImmutableList;
@@ -41,7 +40,7 @@ public class IntersightLicenseSyncServiceTest {
 
     private IntersightLicenseClient intersightLicenseClient = mock(IntersightLicenseClient.class);
 
-    private IntersightLicenseSyncService syncService = new IntersightLicenseSyncService(true, intersightLicenseClient, 0, 0, 0, licenseManagerClient);
+    private IntersightLicenseSyncService syncService = new IntersightLicenseSyncService(true, false, intersightLicenseClient, 0, 0, 0, licenseManagerClient);
 
     /**
      * set up the license manager client.
@@ -70,10 +69,7 @@ public class IntersightLicenseSyncServiceTest {
      */
     @Test
     public void testDiscoverLicenseEditsFirstLicense() {
-        LicenseLicenseInfo firstLicense = mock(LicenseLicenseInfo.class);
-        when(firstLicense.getMoid()).thenReturn("1");
-        when(firstLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ESSENTIAL);
-        when(firstLicense.getLicenseState()).thenReturn(LicenseStateEnum.COMPLIANCE);
+        LicenseDTO firstLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL,  LicenseStateEnum.COMPLIANCE);
 
         Pair<List<LicenseDTO>, List<LicenseDTO>> edits = syncService.discoverLicenseEdits(
                 Collections.emptyList(), ImmutableList.of(firstLicense));
@@ -89,7 +85,7 @@ public class IntersightLicenseSyncServiceTest {
     public void testDiscoverLicenseEditsSingleLicenseRemoved() {
         LicenseDTO onlyLicense = LicenseDTO.newBuilder()
                 .setExternalLicenseKey("1")
-                .setEdition(IntersightLicenseEdition.IWO_ESSENTIALS.name())
+                .setEdition(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name())
                 .build();
 
         Pair<List<LicenseDTO>, List<LicenseDTO>> edits = syncService.discoverLicenseEdits(
@@ -108,7 +104,7 @@ public class IntersightLicenseSyncServiceTest {
         LicenseDTO iwoLicense = LicenseDTO.newBuilder()
                 .setUuid("1")
                 .setExternalLicenseKey("1")
-                .setEdition(IntersightLicenseEdition.IWO_ESSENTIALS.name())
+                .setEdition(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name())
                 .build();
 
         LicenseDTO cwomLicense = LicenseDTO.newBuilder()
@@ -135,15 +131,12 @@ public class IntersightLicenseSyncServiceTest {
         LicenseDTO existingLicense = LicenseDTO.newBuilder()
                 .setUuid("1")
                 .setExternalLicenseKey("1")
-                .setEdition(IntersightLicenseEdition.IWO_ESSENTIALS.name())
+                .setEdition(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name())
                 .setExpirationDate(ILicense.PERM_LIC)
                 .build();
 
         // the license info with the same moid is now out of compliance
-        LicenseLicenseInfo updatedLicense = mock(LicenseLicenseInfo.class);
-        when(updatedLicense.getMoid()).thenReturn("1");
-        when(updatedLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ESSENTIAL);
-        when(updatedLicense.getLicenseState()).thenReturn(LicenseStateEnum.OUTOFCOMPLIANCE);
+        LicenseDTO updatedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.OUTOFCOMPLIANCE);
 
         Pair<List<LicenseDTO>, List<LicenseDTO>> edits = syncService.discoverLicenseEdits(
                 ImmutableList.of(existingLicense), ImmutableList.of(updatedLicense));
