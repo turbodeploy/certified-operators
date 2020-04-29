@@ -71,13 +71,25 @@ message CostDTO {
             optional CommoditySpecificationTO resource_type = 1;
             optional double min_capacity = 2;
             optional double max_capacity = 3;
+            optional bool check_min_capacity = 4;
         }
         // the dependency commodity and its base commodity and the max ratio between dependent
         // commodity's capacity and base commodity's capacity
-        message StorageResourceDependency {
-            required CommoditySpecificationTO base_resource_type = 1;
-            required CommoditySpecificationTO dependent_resource_type = 2;
-            required int32 ratio = 3;
+        message StorageResourceRatioDependency {
+            optional CommoditySpecificationTO base_resource_type = 1;
+            optional CommoditySpecificationTO dependent_resource_type = 2;
+            optional int32 ratio = 3;
+        }
+        // the dependency commodity, its base commodity, and the range relationship between
+        // dependent commodity's capacity and base commodity's capacity
+        message StorageResourceRangeDependency {
+            optional CommoditySpecificationTO base_resource_type = 1;
+            optional CommoditySpecificationTO dependent_resource_type = 2;
+            repeated RangeTuple range_tuple = 3;
+        }
+        message RangeTuple {
+            optional double base_max_capacity = 1; // base commodity amount upper bound
+            optional double dependent_max_capacity = 2; // dependent commodity max capacity
         }
         // the price information. Consists of multiple cost tuples representing a region and
         // business account.
@@ -96,7 +108,8 @@ message CostDTO {
         }
         repeated StorageResourceCost storage_resource_cost = 1; // a list of commodity's pricing information
         repeated StorageResourceLimitation storage_resource_limitation = 2;// a list of commodity's capacity limitation
-        repeated StorageResourceDependency storage_resource_dependency = 3; // a list of dependency information
+        repeated StorageResourceRatioDependency storage_resource_ratio_dependency = 3; // a list of ratio dependency information
+        repeated StorageResourceRangeDependency storage_resource_range_dependency = 4;// a list of range dependency information
     }
 
     // The DTOs used in XL to carry the pricing information and commodity dependency constraint for
