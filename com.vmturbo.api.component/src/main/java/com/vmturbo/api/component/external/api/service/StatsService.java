@@ -369,7 +369,7 @@ public class StatsService implements IStatsService {
                 .setLimit(paginationRequest.getLimit());
 
         // translate data request
-        final StatsFilter statsFilter = statsMapper.newPeriodStatsFilter(inputDto.getPeriod());
+        final StatsFilter statsFilter = statsMapper.newPeriodStatsFilter(inputDto.getPeriod(), true);
 
         // if there is no order-by in the pagination request
         // we use the first stat requested in statsFilter
