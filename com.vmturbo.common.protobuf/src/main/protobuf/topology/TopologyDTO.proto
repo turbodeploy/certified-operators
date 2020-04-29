@@ -1261,6 +1261,11 @@ message CommoditySoldDTO {
     // a Container buying from a ContainerPod.
     optional bool is_resold = 25;
 
+    // Whether min is a strict constraint. True when consumer must consume amount above min.
+    optional bool check_min_amount_for_consumer = 26 [default = false];
+
+    optional .common_dto.CommodityDTO.RangeDependency range_dependency = 27;
+
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
         // The type of commodity whose usage will be used as a factor.

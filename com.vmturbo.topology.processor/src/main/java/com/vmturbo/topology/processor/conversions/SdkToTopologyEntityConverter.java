@@ -778,6 +778,12 @@ public class SdkToTopologyEntityConverter {
         if (commDTO.hasMinAmountForConsumer()) {
             retCommSoldBuilder.setMinAmountForConsumer(commDTO.getMinAmountForConsumer());
         }
+        if (commDTO.hasCheckMinAmountForConsumer()) {
+            retCommSoldBuilder.setCheckMinAmountForConsumer(commDTO.getCheckMinAmountForConsumer());
+        }
+        if (commDTO.hasRangeDependency()) {
+            retCommSoldBuilder.setRangeDependency(commDTO.getRangeDependency());
+        }
         if (commDTO.hasRatioDependency()) {
             retCommSoldBuilder.setRatioDependency(TopologyDTO.CommoditySoldDTO.RatioDependency.newBuilder()
                 .setBaseCommodity(TopologyDTO.CommodityType.newBuilder()
@@ -793,7 +799,6 @@ public class SdkToTopologyEntityConverter {
                             .setLastPointTimestampMs(data.getLastPointTimestampMs())
                             .addAllPoint(data.getPointList()));
         }
-
         if (commDTO.getCommodityType() == CommodityDTO.CommodityType.VCPU && commDTO.hasVcpuData()) {
             VCpuData vCPUData = commDTO.getVcpuData();
             retCommSoldBuilder.setHotResizeInfo(HotResizeInfo.newBuilder()
