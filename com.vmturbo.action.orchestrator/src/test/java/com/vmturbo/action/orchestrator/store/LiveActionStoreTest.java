@@ -62,8 +62,13 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
+import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -139,13 +144,30 @@ public class LiveActionStoreTest {
 
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
+    private final SupplyChainServiceMole supplyChainServiceMole = spy(new SupplyChainServiceMole());
+
+    private final RepositoryServiceMole repositoryServiceMole = spy(new RepositoryServiceMole());
+
+    private final InvolvedEntitiesExpander involvedEntitiesExpander =
+        mock(InvolvedEntitiesExpander.class);
+
+    /**
+     * Grpc server for mocking services. The rule handles starting it and cleaning it up.
+     */
+    @Rule
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(
+        supplyChainServiceMole,
+        repositoryServiceMole);
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID,
-            null, null, targetSelector,
+            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            targetSelector,
             probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
-            actionTranslator, clock, userSessionContext);
+            actionTranslator, clock, userSessionContext, involvedEntitiesExpander);
 
         when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -273,9 +295,11 @@ public class LiveActionStoreTest {
         // methods in the original action, not in the spy.
         ActionStore actionStore = new LiveActionStore(
             new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
-            null, null,
+            SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+            RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-            actionsStatistician, actionTranslator, clock, userSessionContext);
+            actionsStatistician, actionTranslator, clock, userSessionContext,
+            involvedEntitiesExpander);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

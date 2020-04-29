@@ -932,60 +932,6 @@ public class SupplyChainFetcherFactoryTest {
     }
 
     /**
-     * Tests expanding scopes of entities like BusinessApplications.
-     * 0: is a region - expansion needed but not for this case (as we expand only arm entities)
-     * VM with oid 3
-     * DB with oid 4
-     * Volume with oid 5
-     * 12: is a business application (expansion needed)
-     * Service with oid 13
-     */
-    @Test
-    public void testExpandBusinessApplictionEntity() {
-        // Creating a Zone and Business Application for the search request
-        MinimalEntity zoneMinimalEntity = MinimalEntity.newBuilder()
-            .setOid(0L)
-            .setEntityType(ApiEntityType.AVAILABILITY_ZONE.typeNumber())
-            .build();
-        MinimalEntity bAppMinimalEntity = MinimalEntity.newBuilder()
-            .setOid(12L)
-            .setEntityType(ApiEntityType.BUSINESS_APPLICATION.typeNumber())
-            .build();
-
-        SearchRequest searchRequest = mock(SearchRequest.class);
-        when(searchRequest.getMinimalEntities()).thenReturn(Stream.of(
-            zoneMinimalEntity, bAppMinimalEntity));
-
-        when(repositoryApiBackend.newSearchRequest(any()))
-            .thenReturn(searchRequest);
-
-        when(groupExpander.getGroupWithMembers(any())).thenReturn(Optional.empty());
-        when(groupExpander.expandUuids(Sets.newHashSet("12"))).thenReturn(Sets.newHashSet(12L));
-
-        Map<Long, GetSupplyChainResponse> responseMap = ImmutableMap.of(
-            // Creating a Zone that can expand but should not be returned
-            0L, GetSupplyChainResponse.newBuilder()
-                .setSupplyChain(SupplyChain.newBuilder()
-                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_MACHINE, 0, 3L))
-                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.DATABASE, 0, 4L))
-                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.VIRTUAL_VOLUME, 0, 5L))
-                    .build())
-                .build(),
-            // Creating a Business Application that should expand and return the service with oid 13
-            12L, GetSupplyChainResponse.newBuilder()
-                .setSupplyChain(SupplyChain.newBuilder()
-                    .addSupplyChainNodes(createSupplyChainNode(ApiEntityType.SERVICE, 0, 13L))
-                    .build())
-                .build());
-        when(supplyChainServiceBackend.getSupplyChain(any())).thenAnswer(invocationOnMock ->
-            responseMap.get(invocationOnMock.getArgumentAt(0, GetSupplyChainRequest.class).getScope().getStartingEntityOid(0)));
-
-        // Using expandEntitiesForActionImpactPropagation that should expand expand the business application (oid 12) and filter out the zone (oid 0)
-        Set<Long> actual = supplyChainFetcherFactory.expandAggregatingAndActionPropagatingEntities(Arrays.asList(0L, 12L));
-        Assert.assertEquals(Collections.singleton(13L), actual);
-    }
-
-    /**
      * Test the case where we get the supply chain for resource group. For resource groups we should
      * only get the entities inside the resource group and their regions.
      *

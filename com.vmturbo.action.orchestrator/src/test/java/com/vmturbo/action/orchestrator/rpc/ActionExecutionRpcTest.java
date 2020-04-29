@@ -58,6 +58,7 @@ import com.vmturbo.action.orchestrator.store.EntitySeverityCache;
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
@@ -125,6 +126,9 @@ public class ActionExecutionRpcTest {
 
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
+    private final InvolvedEntitiesExpander involvedEntitiesExpander =
+        mock(InvolvedEntitiesExpander.class);
+
     private static final long ACTION_PLAN_ID = 2;
     private static final long TOPOLOGY_CONTEXT_ID = 3;
     private static final long ACTION_ID = 9999;
@@ -178,7 +182,7 @@ public class ActionExecutionRpcTest {
                 RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 actionTargetSelector, probeCapabilityCache,
                 entitySettingsCache, actionHistoryDao, statistician, actionTranslator,
-                clock, userSessionContext));
+                clock, userSessionContext, involvedEntitiesExpander));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -422,7 +426,8 @@ public class ActionExecutionRpcTest {
                 SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-                actionHistoryDao, statistician, actionTranslator, clock, userSessionContext));
+                actionHistoryDao, statistician, actionTranslator, clock, userSessionContext,
+                involvedEntitiesExpander));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

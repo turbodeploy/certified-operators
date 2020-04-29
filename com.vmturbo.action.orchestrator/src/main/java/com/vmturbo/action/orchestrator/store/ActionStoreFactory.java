@@ -53,6 +53,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
     private final SupplyChainServiceBlockingStub supplyChainService;
     private final RepositoryServiceBlockingStub repositoryService;
 
+    private final InvolvedEntitiesExpander involvedEntitiesExpander;
+
     /**
      * To create a new ActionStoreFactory, use the {@link #newBuilder()}.
      *
@@ -72,6 +74,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.userSessionContext = Objects.requireNonNull(builder.userSessionContext);
         this.supplyChainService = Objects.requireNonNull(builder.supplyChainService);
         this.repositoryService = Objects.requireNonNull(builder.repositoryService);
+        this.involvedEntitiesExpander = Objects.requireNonNull(builder.involvedEntitiesExpander);
     }
 
     /**
@@ -86,7 +89,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
             return new LiveActionStore(actionFactory, topologyContextId,
                 supplyChainService, repositoryService,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, clock, userSessionContext);
+                actionsStatistician, actionTranslator, clock, userSessionContext,
+                involvedEntitiesExpander);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 supplyChainService, repositoryService,
@@ -127,6 +131,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private UserSessionContext userSessionContext;
         private SupplyChainServiceBlockingStub supplyChainService;
         private RepositoryServiceBlockingStub repositoryService;
+        private InvolvedEntitiesExpander involvedEntitiesExpander;
 
         private Builder() {
         }
@@ -271,6 +276,17 @@ public class ActionStoreFactory implements IActionStoreFactory {
          */
         public Builder withRepositoryService(@Nonnull RepositoryServiceBlockingStub repositoryService) {
             this.repositoryService = repositoryService;
+            return this;
+        }
+
+        /**
+         * Sets the involvedEntitiesExpander on this builder.
+         *
+         * @param involvedEntitiesExpander the involvedEntitiesExpander.
+         * @return the same builder with the involvedEntitiesExpander set.
+         */
+        public Builder withInvolvedEntitiesExpander(@Nonnull InvolvedEntitiesExpander involvedEntitiesExpander) {
+            this.involvedEntitiesExpander = involvedEntitiesExpander;
             return this;
         }
 

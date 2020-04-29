@@ -144,6 +144,7 @@ public class ActionStoreConfig {
             .withUserSessionContext(userSessionConfig.userSessionContext())
             .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
             .withRepositoryService(RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
+            .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
             .build();
     }
 

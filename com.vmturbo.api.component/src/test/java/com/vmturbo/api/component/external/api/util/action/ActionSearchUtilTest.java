@@ -101,7 +101,7 @@ public class ActionSearchUtilTest {
         ApiId scopeId = Mockito.mock(ApiId.class);
         when(scopeId.oid()).thenReturn(BUSINESS_ACCOUNT_ID_1);
         when(groupExpander.expandOids(scope)).thenReturn(scope);
-        when(supplyChainFetcherFactory.expandAggregatingAndActionPropagatingEntities(scope)).thenReturn(scope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
 
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
 
@@ -114,7 +114,7 @@ public class ActionSearchUtilTest {
         }
 
         verify(supplyChainFetcherFactory, times(1))
-                .expandAggregatingAndActionPropagatingEntities(any());
+                .expandAggregatedEntities(any());
         verifyNoMoreInteractions(supplyChainFetcherFactory);
         verify(actionSpecMapper, times(1))
                 .createActionFilter(any(), any(), any());
@@ -126,7 +126,7 @@ public class ActionSearchUtilTest {
         when(scopeId.oid()).thenReturn(BILLING_FAMILY_ID);
         when(groupExpander.expandOids(Collections.singleton(BILLING_FAMILY_ID)))
                 .thenReturn(BUSINESS_ACCOUNTS);
-        when(supplyChainFetcherFactory.expandAggregatingAndActionPropagatingEntities(BUSINESS_ACCOUNTS))
+        when(supplyChainFetcherFactory.expandAggregatedEntities(BUSINESS_ACCOUNTS))
                 .thenReturn(BUSINESS_ACCOUNTS);
 
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
@@ -139,7 +139,7 @@ public class ActionSearchUtilTest {
         }
 
         verify(supplyChainFetcherFactory, times(1))
-                .expandAggregatingAndActionPropagatingEntities(any());
+                .expandAggregatedEntities(any());
         verifyNoMoreInteractions(supplyChainFetcherFactory);
         verify(actionSpecMapper, times(1))
                 .createActionFilter(any(), any(), any());

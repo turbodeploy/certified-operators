@@ -97,7 +97,7 @@ public class ActionSearchUtil {
             expandedScope = supplyChainFetcherFactory.expandScope(scope, inputDto.getRelatedEntityTypes());
         } else {
             // if there are no related entities, just get the aggregated entities, if they exist.
-            expandedScope = supplyChainFetcherFactory.expandAggregatingAndActionPropagatingEntities(scope);
+            expandedScope = supplyChainFetcherFactory.expandAggregatedEntities(scope);
         }
 
         if (!expandedScope.isEmpty()) {

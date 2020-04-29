@@ -56,6 +56,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -143,6 +144,9 @@ public class ActionExecutionSecureRpcTest {
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
     private final EntitiesAndSettingsSnapshotFactory snapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
+
+    private final InvolvedEntitiesExpander involvedEntitiesExpander =
+        mock(InvolvedEntitiesExpander.class);
 
     private final ActionsRpcService actionsRpcService =
         new ActionsRpcService(clock,
@@ -239,7 +243,8 @@ public class ActionExecutionSecureRpcTest {
             SupplyChainServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             RepositoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-            actionHistoryDao, actionsStatistician, actionTranslator, clock, userSessionContext));
+            actionHistoryDao, actionsStatistician, actionTranslator, clock, userSessionContext,
+            involvedEntitiesExpander));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.Grou
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ReasonCommodity;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 
 /**
@@ -53,13 +54,22 @@ class CombinedStatsBuckets {
 
     private final Predicate<ActionEntity> entityPredicate;
 
+    private final InvolvedEntityCalculation involvedEntityCalculation;
+
     /**
      * Intentionally private. Use: {@link CombinedStatsBucketsFactory}.
+     *
+     * @param entityPredicate predicate used for filtering enitites before we combine.
+     * @param groupByCriteria what we combine the buckets on
+     * @param involvedEntityCalculation indicates which involved entities to extract from
+     *                                  {@link SingleActionInfo#involvedEntities()}.
      */
     private CombinedStatsBuckets(@Nonnull final List<GroupBy> groupByCriteria,
-                                 @Nonnull final Predicate<ActionEntity> entityPredicate) {
+                                 @Nonnull final Predicate<ActionEntity> entityPredicate,
+                                 @Nonnull final InvolvedEntityCalculation involvedEntityCalculation) {
         this.groupBy = groupByCriteria;
         this.entityPredicate = entityPredicate;
+        this.involvedEntityCalculation = involvedEntityCalculation;
     }
 
     /**
@@ -83,7 +93,10 @@ class CombinedStatsBuckets {
                 bucketKey.reasonCommodityBaseType().ifPresent(bldr::setReasonCommodityBaseType);
                 bucketKey.businessAccountId().ifPresent(bldr::setBusinessAccountId);
                 bucketKey.resourceGroupId().ifPresent(bldr::setResourceGroupId);
-                return new CombinedStatsBucket(entityPredicate, bldr.build());
+                return new CombinedStatsBucket(
+                    entityPredicate,
+                    bldr.build(),
+                    involvedEntityCalculation);
             });
             bucket.add(actionInfo);
         }
@@ -313,6 +326,8 @@ class CombinedStatsBuckets {
 
         private final Predicate<ActionEntity> entityPredicate;
 
+        private final InvolvedEntityCalculation involvedEntityCalculation;
+
         private int       actionCount = 0;
 
         private Set<Long> involvedEntities = new HashSet<>();
@@ -322,13 +337,15 @@ class CombinedStatsBuckets {
         private double    investment = 0;
 
         CombinedStatsBucket(@Nonnull final Predicate<ActionEntity> entityPredicate,
-                            @Nonnull final StatGroup statGroup) {
+                            @Nonnull final StatGroup statGroup,
+                            @Nonnull final InvolvedEntityCalculation involvedEntityCalculation) {
             this.entityPredicate = Objects.requireNonNull(entityPredicate);
             this.statGroup = Objects.requireNonNull(statGroup);
+            this.involvedEntityCalculation = Objects.requireNonNull(involvedEntityCalculation);
         }
 
         public void add(@Nonnull final SingleActionInfo actionInfo) {
-            actionInfo.involvedEntities().stream()
+            actionInfo.involvedEntities().get(involvedEntityCalculation).stream()
                 .filter(entityPredicate)
                 .map(ActionEntity::getId)
                 .forEach(this.involvedEntities::add);
@@ -362,7 +379,10 @@ class CombinedStatsBuckets {
     static class CombinedStatsBucketsFactory {
         @Nonnull
         CombinedStatsBuckets bucketsForQuery(@Nonnull final QueryInfo query) {
-            return new CombinedStatsBuckets(query.query().getGroupByList(), query.entityPredicate());
+            return new CombinedStatsBuckets(
+                query.query().getGroupByList(),
+                query.entityPredicate(),
+                query.involvedEntityCalculation());
         }
     }
 }

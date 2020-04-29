@@ -99,28 +99,6 @@ public class EntitySeverityCache {
     private final boolean isCalculatingBreakdowns;
 
     /**
-     * These are the entities that need to be retrieved underneath BusinessApp, BusinessTxn, and
-     * Service.
-     * <pre>
-     * BApp -> BTxn -> Service -> AppComp -> Node
-     *                                       VirtualMachine  --> VDC ----> Host  --------
-     *                       DatabaseServer   \    \   \             ^                \
-     *                                          \    \   \___________/                v
-     *                                           \    -----> Volume   ------------->  Storage
-     *                                            \                                   ^
-     *                                             ----------------------------------/
-     * </pre>
-     */
-    private static final List<String> PROPAGATED_ENTITY_TYPES = Arrays.asList(
-        ApiEntityType.APPLICATION_COMPONENT.apiStr(),
-        ApiEntityType.VIRTUAL_MACHINE.apiStr(),
-        ApiEntityType.DATABASE_SERVER.apiStr(),
-        ApiEntityType.VIRTUAL_VOLUME.apiStr(),
-        ApiEntityType.STORAGE.apiStr(),
-        ApiEntityType.VIRTUAL_VOLUME.apiStr(),
-        ApiEntityType.PHYSICAL_MACHINE.apiStr());
-
-    /**
      * Constructs the EntitySeverityCache that uses grpc to calculation risk propagation.
      *
      * @param supplyChainService the service that provides supply chain info used in risk
@@ -233,7 +211,8 @@ public class EntitySeverityCache {
                 .setSeedOid(oid)
                 .setScope(SupplyChainScope.newBuilder()
                     .addStartingEntityOid(oid)
-                    .addAllEntityTypesToInclude(PROPAGATED_ENTITY_TYPES)
+                    .addAllEntityTypesToInclude(
+                        InvolvedEntitiesExpander.PROPAGATED_ARM_ENTITY_TYPES)
                     .build())
                 .build())
             .collect(Collectors.toList());

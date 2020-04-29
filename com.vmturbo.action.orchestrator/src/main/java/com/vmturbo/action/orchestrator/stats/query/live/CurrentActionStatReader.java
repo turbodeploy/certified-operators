@@ -27,16 +27,16 @@ import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.CombinedStatsBucketsFactory;
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStat;
-import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
-import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.EntityScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.ScopeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
@@ -60,8 +60,9 @@ public class CurrentActionStatReader {
 
     public CurrentActionStatReader(final long realtimeContextId,
                                    @Nonnull final ActionStorehouse actionStorehouse,
-                                   final UserSessionContext userSessionContext) {
-        this(new QueryInfoFactory(realtimeContextId, userSessionContext),
+                                   final UserSessionContext userSessionContext,
+                                   final InvolvedEntitiesExpander involvedEntitiesExpander) {
+        this(new QueryInfoFactory(realtimeContextId, userSessionContext, involvedEntitiesExpander),
             new CombinedStatsBucketsFactory(),
             actionStorehouse);
     }
@@ -157,6 +158,9 @@ public class CurrentActionStatReader {
         final Map<ScopeFilter.ScopeCase, List<QueryInfo>> queriesByScopeCase = queries.stream()
             .collect(Collectors.groupingBy(query -> query.query().getScopeFilter().getScopeCase()));
 
+        final Set<InvolvedEntityCalculation> involvedEntityCalculations = queries.stream()
+            .map(QueryInfo::involvedEntityCalculation)
+            .collect(Collectors.toSet());
         final Stream<ActionView> candidateActionViews;
         // If requested scope for all queries is based on entity IDs then get action views for
         // requested entities. Otherwise get all action views.
@@ -165,8 +169,13 @@ public class CurrentActionStatReader {
             // collect all involved entities into a set for all scopes in the queries first,
             // so actions are already deduplicated in getByEntity before returning
             Set<Long> allInvolvedEntities = queriesByScopeCase.get(ScopeCase.ENTITY_LIST).stream()
-                .flatMap(queryInfo ->
-                    queryInfo.query().getScopeFilter().getEntityList().getOidsList().stream())
+                // get the desired entities of the scope from QueryInfo
+                .map(QueryInfo::desiredEntities)
+                // get rid of all the ones that do not have desiredEntities
+                .filter(Objects::nonNull)
+                // we have a Stream<Stream<Long>> that we flatten into a Stream<Long>
+                .flatMap(Set::stream)
+                // get rid of all the duplicates by collapsing into a set
                 .collect(Collectors.toSet());
             candidateActionViews = actionViews.getByEntity(allInvolvedEntities);
         } else {
@@ -178,11 +187,16 @@ public class CurrentActionStatReader {
                 try {
                     // The main reason to construct this helper is to pre-calculate the involved
                     // entities, since we need them often.
-                    return Optional.of(ImmutableSingleActionInfo.builder()
-                        .action(actionView)
-                        .involvedEntities(Sets.newHashSet(ActionDTOUtil.getInvolvedEntities(
-                                actionView.getTranslationResultOrOriginal())))
-                        .build());
+                    ImmutableSingleActionInfo.Builder singleActionInfo =
+                        ImmutableSingleActionInfo.builder().action(actionView);
+                    for (InvolvedEntityCalculation involvedEntityCalculation : involvedEntityCalculations) {
+                        singleActionInfo.putInvolvedEntities(
+                            involvedEntityCalculation,
+                            Sets.newHashSet(ActionDTOUtil.getInvolvedEntities(
+                                actionView.getTranslationResultOrOriginal(),
+                                involvedEntityCalculation)));
+                    }
+                    return Optional.of(singleActionInfo.build());
                 } catch (UnsupportedActionException e) {
                     return Optional.<SingleActionInfo>empty();
                 }

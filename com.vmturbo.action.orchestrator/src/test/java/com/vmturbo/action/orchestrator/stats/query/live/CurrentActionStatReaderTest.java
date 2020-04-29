@@ -8,14 +8,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
@@ -27,7 +23,6 @@ import org.jooq.exception.DataAccessException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.ArgumentCaptor;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.ActionView;
@@ -35,7 +30,6 @@ import com.vmturbo.action.orchestrator.stats.query.live.CombinedStatsBuckets.Com
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
-import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -49,6 +43,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -185,12 +180,14 @@ public class CurrentActionStatReaderTest {
         when(queryInfo1.queryId()).thenReturn(query1.getQueryId());
         when(queryInfo1.topologyContextId()).thenReturn(context1);
         when(queryInfo1.query()).thenReturn(query1.getQuery());
+        when(queryInfo1.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
         when(queryInfoFactory.extractQueryInfo(query1)).thenReturn(queryInfo1);
 
         final QueryInfo queryInfo2 = mock(QueryInfo.class);
         when(queryInfo2.queryId()).thenReturn(query2.getQueryId());
         when(queryInfo2.topologyContextId()).thenReturn(context2);
         when(queryInfo2.query()).thenReturn(query2.getQuery());
+        when(queryInfo2.involvedEntityCalculation()).thenReturn(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
         when(queryInfoFactory.extractQueryInfo(query2)).thenReturn(queryInfo2);
 
         final CombinedStatsBuckets bucket1 = mock(CombinedStatsBuckets.class);
@@ -274,6 +271,8 @@ public class CurrentActionStatReaderTest {
             .entityPredicate(entity -> entity.getId() == 221L)
             .query(query1.getQuery())
             .actionGroupPredicate(action -> true)
+            .desiredEntities(ImmutableSet.of(221L))
+            .involvedEntityCalculation(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES)
             .build();
         when(queryInfoFactory.extractQueryInfo(query1)).thenReturn(queryInfo1);
 
@@ -283,6 +282,8 @@ public class CurrentActionStatReaderTest {
             .entityPredicate(entity -> entity.getId() == 222L)
             .query(query2.getQuery())
             .actionGroupPredicate(action -> true)
+            .desiredEntities(ImmutableSet.of(222L))
+            .involvedEntityCalculation(InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES)
             .build();
         when(queryInfoFactory.extractQueryInfo(query2)).thenReturn(queryInfo2);
 

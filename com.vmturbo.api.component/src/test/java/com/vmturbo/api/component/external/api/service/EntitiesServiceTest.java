@@ -547,7 +547,7 @@ public class EntitiesServiceTest {
         when(repositoryApi.entitiesRequest(Sets.newHashSet(Long.valueOf(VM_ID)))).thenReturn(minimalEntityVMRequest);
 
         Set<Long> scope = Collections.singleton(VM_ID);
-        when(supplyChainFetcherFactory.expandAggregatingAndActionPropagatingEntities(scope)).thenReturn(scope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
 
         // call the service
         final ActionPaginationRequest paginationRequest =
@@ -577,7 +577,7 @@ public class EntitiesServiceTest {
         when(repositoryApi.entitiesRequest(Sets.newHashSet(regionId))).thenReturn(minimalEntityRegionRequest);
 
         scope = Collections.singleton(regionId);
-        when(supplyChainFetcherFactory.expandAggregatingAndActionPropagatingEntities(scope)).thenReturn(scope);
+        when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
 
         final ActionApiDTO regionResult =
             service

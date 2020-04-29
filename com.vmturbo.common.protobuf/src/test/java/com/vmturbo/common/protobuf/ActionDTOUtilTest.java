@@ -22,7 +22,6 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
@@ -33,6 +32,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.Deactivate;
 import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.BuyRIExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Congestion;
@@ -52,8 +52,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
-import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -74,6 +74,12 @@ public class ActionDTOUtilTest {
     private static final long SOURCE_2 = 200L;
 
     private static final long DEST_2 = 201L;
+
+    private static final long COMPUTE_TIER_ID = 301L;
+
+    private static final long REGION_ID = 302L;
+
+    private static final long MASTER_ACCOUNT_ID = 303L;
 
     private static final Action action = Action.newBuilder()
         .setId(1L)
@@ -100,6 +106,56 @@ public class ActionDTOUtilTest {
             .build())
         .build();
 
+    private static final Action moveCompliance = Action.newBuilder()
+        .setId(1L)
+        .setDeprecatedImportance(1.0)
+        .setInfo(ActionInfo.newBuilder()
+            .setMove(Move.newBuilder()
+                .setTarget(createActionEntity(TARGET))
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSource(createActionEntity(SOURCE_1))
+                    .setDestination(createActionEntity(DEST_1))
+                    .build())
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSource(createActionEntity(SOURCE_2))
+                    .setDestination(createActionEntity(DEST_2))
+                    .build())
+                .build())
+            .build())
+        .setExplanation(Explanation.newBuilder()
+            .setMove(MoveExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setCompliance(Compliance.getDefaultInstance())
+                    .build())
+                .build())
+            .build())
+        .build();
+
+    private static final Action scaleAction = Action.newBuilder()
+        .setId(1L)
+        .setDeprecatedImportance(1.0)
+        .setInfo(ActionInfo.newBuilder()
+            .setScale(Scale.newBuilder()
+                .setTarget(createActionEntity(TARGET))
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSource(createActionEntity(SOURCE_1))
+                    .setDestination(createActionEntity(DEST_1))
+                    .build())
+                .addChanges(ChangeProvider.newBuilder()
+                    .setSource(createActionEntity(SOURCE_2))
+                    .setDestination(createActionEntity(DEST_2))
+                    .build())
+                .build())
+            .build())
+        .setExplanation(Explanation.newBuilder()
+            .setScale(ScaleExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setInitialPlacement(InitialPlacement.getDefaultInstance())
+                    .build())
+                .build())
+            .build())
+        .build();
+
     private static final Action deleteCloudStorageAction = Action.newBuilder()
         .setId(9L)
         .setDeprecatedImportance(1.0)
@@ -111,6 +167,21 @@ public class ActionDTOUtilTest {
             .build())
         .setExplanation(Explanation.newBuilder()
             .setDelete(DeleteExplanation.newBuilder().build())
+            .build())
+        .build();
+
+    private static final Action buyRIAction = Action.newBuilder()
+        .setId(1L)
+        .setDeprecatedImportance(1.0)
+        .setInfo(ActionInfo.newBuilder()
+            .setBuyRi(BuyRI.newBuilder()
+                .setComputeTier(createActionEntity(COMPUTE_TIER_ID))
+                .setRegion(createActionEntity(REGION_ID))
+                .setMasterAccount(createActionEntity(MASTER_ACCOUNT_ID))
+                .build())
+            .build())
+        .setExplanation(Explanation.newBuilder()
+            .setBuyRI(BuyRIExplanation.getDefaultInstance())
             .build())
         .build();
 
@@ -630,6 +701,54 @@ public class ActionDTOUtilTest {
         final ActionEntity entity = createActionEntity(1);
         final String result = ActionDTOUtil.buildEntityName(entity);
         assertEquals("{entity:1:displayName:}", result);
+    }
+
+    /**
+     * Verify that the involved entities of a (compound) Move action are computed correctly but
+     * are limited to target and source.
+     *
+     * @throws UnsupportedActionException should not be thrown.
+     */
+    @Test
+    public void testInvolvedEntitiesBuyRI() throws UnsupportedActionException {
+        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
+            buyRIAction, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        assertEquals(Sets.newHashSet(COMPUTE_TIER_ID, REGION_ID, MASTER_ACCOUNT_ID), involvedEntities);
+
+        involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
+            buyRIAction, InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
+        assertEquals("BuyRI is not picked up by ARM", Sets.newHashSet(), involvedEntities);
+    }
+
+    /**
+     * Verify that the involved entities of a (compound) Move action are computed correctly but
+     * are limited to target and source.
+     *
+     * @throws UnsupportedActionException should not be thrown.
+     */
+    @Test
+    public void testInvolvedEntitiesLimited() throws UnsupportedActionException {
+        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
+            action, InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
+        assertEquals(Sets.newHashSet(TARGET, SOURCE_1, SOURCE_2), involvedEntities);
+
+        involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
+            scaleAction, InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
+        assertEquals(Sets.newHashSet(TARGET, SOURCE_1, SOURCE_2), involvedEntities);
+    }
+
+
+    /**
+     * Verify that the involved entities of a (compound) Move action are computed correctly but
+     * are limited to target because it's a compliance move.
+     *
+     * @throws UnsupportedActionException should not be thrown.
+     */
+    @Test
+    public void testInvolvedEntitiesFromComplianceMoveLimited() throws UnsupportedActionException {
+        Set<Long> involvedEntities = ActionDTOUtil.getInvolvedEntityIds(
+            moveCompliance, InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
+        assertEquals(Sets.newHashSet(TARGET), involvedEntities);
     }
 
     private static ActionEntity createActionEntity(long id) {

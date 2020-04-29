@@ -6,7 +6,9 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyCollection;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -19,7 +21,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,17 +32,22 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.stubbing.Answer;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander.InvolvedEntitiesFilter;
 import com.vmturbo.action.orchestrator.store.LiveActions.QueryFilterFactory;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
@@ -49,6 +58,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter.InvolvedEntities;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -63,16 +73,33 @@ public class LiveActionsTest {
 
     private ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
 
-    private EntitiesAndSettingsSnapshot entitiesCache = mock(EntitiesAndSettingsSnapshot.class);
-
     private Clock clock = new MutableFixedClock(1_000_000);
 
     private final QueryFilterFactory queryFilterFactory = mock(QueryFilterFactory.class);
 
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
-    private LiveActions liveActions =
-        new LiveActions(actionHistoryDao, clock, queryFilterFactory, userSessionContext);
+    private final InvolvedEntitiesExpander involvedEntitiesExpander = mock(InvolvedEntitiesExpander.class);
+
+    private LiveActions liveActions;
+
+    /**
+     * Setup the test instance.
+     */
+    @Before
+    public void setup() {
+        liveActions = new LiveActions(
+            actionHistoryDao, clock, queryFilterFactory, userSessionContext,
+            involvedEntitiesExpander);
+        when(involvedEntitiesExpander.expandInvolvedEntitiesFilter(anyCollection())).thenAnswer(
+            (Answer<InvolvedEntitiesFilter>)invocationOnMock -> {
+                Set<Long> oids = new HashSet<>(
+                    (Collection<Long>)(invocationOnMock.getArguments()[0]));
+                return new InvolvedEntitiesFilter(
+                    oids, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+            }
+        );
+    }
 
     @Test
     public void testReplaceMarketActions() {
@@ -240,7 +267,7 @@ public class LiveActionsTest {
             .setEnvironmentType(EnvironmentType.ON_PREM)
             .build();
 
-        when(queryFilterFactory.newQueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE)).thenReturn(queryFilter);
+        when(queryFilterFactory.newQueryFilter(eq(actionQueryFilter), eq(LiveActionStore.VISIBILITY_PREDICATE), any(), any())).thenReturn(queryFilter);
 
         assertThat(liveActions.get(actionQueryFilter).collect(Collectors.toList()), containsInAnyOrder(action1));
     }
@@ -262,7 +289,7 @@ public class LiveActionsTest {
                 .addOids(ActionDTOUtil.getPrimaryEntity(action1.getRecommendation()).getId()))
             .build();
 
-        when(queryFilterFactory.newQueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE)).thenReturn(queryFilter);
+        when(queryFilterFactory.newQueryFilter(eq(actionQueryFilter), eq(LiveActionStore.VISIBILITY_PREDICATE), any(), any())).thenReturn(queryFilter);
 
         // We should only get action1 - action 2 shouldn't even be considered by the query filter.
         assertThat(liveActions.get(actionQueryFilter).collect(Collectors.toList()), containsInAnyOrder(action1));
@@ -321,8 +348,7 @@ public class LiveActionsTest {
         when(queryFilter.test(badLiveAction)).thenReturn(false);
         when(queryFilter.test(badHistoricalAction)).thenReturn(false);
         // The succeeded, failed, and late actions shouldn't reach the query filter.
-
-        when(queryFilterFactory.newQueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE)).thenReturn(queryFilter);
+        when(queryFilterFactory.newQueryFilter(eq(actionQueryFilter), eq(LiveActionStore.VISIBILITY_PREDICATE), any(), any())).thenReturn(queryFilter);
 
         assertThat(liveActions.get(actionQueryFilter).collect(Collectors.toList()),
             containsInAnyOrder(liveAction, historicalAction));
@@ -374,12 +400,52 @@ public class LiveActionsTest {
         when(queryFilter.test(badHistoricalAction)).thenReturn(false);
         // The entity with no desired involved entities shouldn't be considered by the filter.
 
-        when(queryFilterFactory.newQueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE)).thenReturn(queryFilter);
+        when(queryFilterFactory.newQueryFilter(eq(actionQueryFilter), eq(LiveActionStore.VISIBILITY_PREDICATE), any(), any())).thenReturn(queryFilter);
 
         List<ActionView> results = liveActions.get(actionQueryFilter).collect(Collectors.toList());
 
         assertThat(results, containsInAnyOrder(liveAction, historicalAction));
         verify(queryFilter, never()).test(noInvolvedEntitiesLiveAction);
+    }
+
+    /**
+     * Should consider expanded involved entities in target and source of action.
+     */
+    @Test
+    public void testExpandedInvolvedEntities() {
+        final Action moveActionInTarget = ActionOrchestratorTestUtils.actionFromRecommendation(
+            ActionOrchestratorTestUtils.createMoveRecommendation(1, 11, 21, 0, 31, 0),
+            1);
+        final Action moveActionInSource = ActionOrchestratorTestUtils.actionFromRecommendation(
+            ActionOrchestratorTestUtils.createMoveRecommendation(2, 12, 22, 0, 32, 0),
+            1);
+        final Action moveActionInDestination = ActionOrchestratorTestUtils.actionFromRecommendation(
+            ActionOrchestratorTestUtils.createMoveRecommendation(3, 13, 23, 0, 33, 0),
+            1);
+
+        liveActions = new LiveActions(
+            actionHistoryDao, clock, QueryFilter::new, userSessionContext,
+            involvedEntitiesExpander);
+        liveActions.replaceMarketActions(Stream.of(
+            moveActionInTarget, moveActionInSource, moveActionInDestination));
+
+        when(involvedEntitiesExpander.expandInvolvedEntitiesFilter(anyCollection())).thenReturn(
+            new InvolvedEntitiesFilter(ImmutableSet.of(11L, 22L, 33L),
+                InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS)
+        );
+
+        List<Long> actualActions = liveActions.get(ActionQueryFilter.newBuilder()
+            .setInvolvedEntities(InvolvedEntities.newBuilder()
+                .addOids(1L)
+                .build())
+            .buildPartial())
+            .map(ActionView::getId)
+            .collect(Collectors.toList());
+
+        // Action oid 3 should not be included because the expanded involved entity participates
+        // in the destination.
+        Assert.assertEquals(2, actualActions.size());
+        Assert.assertEquals(ImmutableSet.of(1L, 2L), ImmutableSet.copyOf(actualActions));
     }
 
     @Test
@@ -400,7 +466,7 @@ public class LiveActionsTest {
         final ActionQueryFilter actionQueryFilter = ActionQueryFilter.newBuilder()
                 .setEnvironmentType(EnvironmentType.ON_PREM)
                 .build();
-        when(queryFilterFactory.newQueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE)).thenReturn(queryFilter);
+        when(queryFilterFactory.newQueryFilter(eq(actionQueryFilter), eq(LiveActionStore.VISIBILITY_PREDICATE), any(), any())).thenReturn(queryFilter);
 
         // verify that a user with access to entities 0,1 and 2 can see both actions.
         when(userSessionContext.isUserScoped()).thenReturn(true);
@@ -545,7 +611,6 @@ public class LiveActionsTest {
         final Action move13Action = ActionOrchestratorTestUtils.actionFromRecommendation(
                 ActionOrchestratorTestUtils.createMoveRecommendation(2, 0, 1, 0, 3, 0),
                 1);
-
         liveActions.replaceMarketActions(Stream.of(move12Action, move13Action));
 
         Map<String, OidSet> cloudStaticOidSet = ImmutableMap.of(ApiEntityType.COMPUTE_TIER.apiStr(),

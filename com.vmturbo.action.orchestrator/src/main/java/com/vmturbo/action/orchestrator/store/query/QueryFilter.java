@@ -1,12 +1,15 @@
 package com.vmturbo.action.orchestrator.store.query;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -17,6 +20,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.ActionEnvironmentType;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 
 /**
@@ -26,9 +30,14 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 public class QueryFilter {
     private final ActionQueryFilter filter;
 
-    // If present, this is a set of the OIDs from the involved entities list in the
-    // ActionQueryFilter to support constant-time lookups.
-    private final Set<Long> involvedEntities;
+    /**
+     * If present, this is a set of the OIDs from the involved entities list in the
+     * ActionQueryFilter to support constant-time lookups.
+     */
+    @Nullable
+    private final Set<Long> entitiesRestriction;
+
+    private final InvolvedEntityCalculation involvedEntityCalculation;
 
     private final Predicate<ActionView> visibilityPredicate;
 
@@ -36,14 +45,36 @@ public class QueryFilter {
 
     /**
      * Create a new query filter.
-     * @param filter The filter to test against. If empty, all actions pass the filter.
+     *
+     * @param actionQueryFilter The filter to test against.
+     * @param visibilityPredicate The filter used for checking if action is visible.
+     */
+    public QueryFilter(final ActionQueryFilter actionQueryFilter, final Predicate<ActionView> visibilityPredicate) {
+        this(
+            actionQueryFilter,
+            visibilityPredicate,
+            actionQueryFilter.hasInvolvedEntities() ?
+                new HashSet<>(actionQueryFilter.getInvolvedEntities().getOidsList())
+                    : Collections.emptySet(),
+            InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+    }
+
+    /**
+     * Create a new query filter.
+     *
+     * @param filter The filter to test against.
+     * @param visibilityPredicate The filter used for checking if action is visible.
+     * @param entitiesRestriction the entities to search for participating in the action.
+     * @param involvedEntityCalculation How the entities must participate in the action.
      */
     public QueryFilter(@Nonnull final ActionQueryFilter filter,
-                       @Nonnull final Predicate<ActionView> visibilityPredicate) {
+                       @Nonnull final Predicate<ActionView> visibilityPredicate,
+                       @Nonnull Set<Long> entitiesRestriction,
+                       @Nonnull InvolvedEntityCalculation involvedEntityCalculation) {
         this.filter = filter;
         this.visibilityPredicate = visibilityPredicate;
-        this.involvedEntities = new HashSet<>(
-            filter.getInvolvedEntities().getOidsList());
+        this.entitiesRestriction = Objects.requireNonNull(entitiesRestriction);
+        this.involvedEntityCalculation = Objects.requireNonNull(involvedEntityCalculation);
     }
 
     /**
@@ -80,12 +111,13 @@ public class QueryFilter {
             try {
                 // Get the involved entity once.
                 List<ActionEntity> actionInvolvedEntities = ActionDTOUtil.getInvolvedEntities(
-                    actionView.getTranslationResultOrOriginal());
+                    actionView.getTranslationResultOrOriginal(), involvedEntityCalculation);
                 // If the caller specified an explicit list of OID to look for, we look in that
                 // list and ignore the specified list of entity types.
-                if (filter.getInvolvedEntities().getOidsCount() > 0) {
+                if (entitiesRestriction.size() > 0) {
                     final boolean containsInvolved = actionInvolvedEntities.stream()
-                        .anyMatch(actionInvolvedEntity -> this.involvedEntities.contains(actionInvolvedEntity.getId()));
+                        .anyMatch(actionInvolvedEntity ->
+                            this.entitiesRestriction.contains(actionInvolvedEntity.getId()));
                     if (!containsInvolved) {
                         return false;
                     }

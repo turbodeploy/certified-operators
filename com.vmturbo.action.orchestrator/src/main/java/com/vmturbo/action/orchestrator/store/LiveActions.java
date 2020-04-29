@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -40,6 +41,7 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander.InvolvedEntitiesFilter;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
@@ -52,6 +54,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.components.common.identity.OidSet;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -102,24 +105,30 @@ class LiveActions implements QueryableActionViews {
 
     private final UserSessionContext userSessionContext;
 
+    private final InvolvedEntitiesExpander involvedEntitiesExpander;
+
     LiveActions(@Nonnull final ActionHistoryDao actionHistoryDao,
                 @Nonnull final Clock clock,
-                @Nonnull final UserSessionContext userSessionContext) {
+                @Nonnull final UserSessionContext userSessionContext,
+                @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {
         this(actionHistoryDao,
             clock,
             QueryFilter::new,
-            userSessionContext);
+            userSessionContext,
+            involvedEntitiesExpander);
     }
 
     @VisibleForTesting
     LiveActions(@Nonnull final ActionHistoryDao actionHistoryDao,
                 @Nonnull final Clock clock,
                 @Nonnull QueryFilterFactory queryFilterFactory,
-                @Nonnull final UserSessionContext userSessionContext) {
+                @Nonnull final UserSessionContext userSessionContext,
+                @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
         this.clock = Objects.requireNonNull(clock);
         this.queryFilterFactory = Objects.requireNonNull(queryFilterFactory);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.involvedEntitiesExpander = Objects.requireNonNull(involvedEntitiesExpander);
     }
 
     /**
@@ -349,19 +358,33 @@ class LiveActions implements QueryableActionViews {
         //    large set!!)
         // 3) otherwise, the request is for the whole market and the user is NOT scoped -- fetch
         //    all entities without restriction.
-        final Optional<Set<Long>> entitiesRestriction = actionQueryFilter.hasInvolvedEntities()
-                ? Optional.of(Sets.newHashSet(actionQueryFilter.getInvolvedEntities().getOidsList()))
-                : userSessionContext.isUserScoped()
-                    ? Optional.of(userSessionContext.getUserAccessScope().accessibleOids().toSet())
-                    : Optional.empty();
+        InvolvedEntityCalculation involvedEntityCalculation = InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES;
+        final Set<Long> entitiesRestriction;
+        if (actionQueryFilter.hasInvolvedEntities()) {
+            final List<Long> oidsList = actionQueryFilter.getInvolvedEntities().getOidsList();
+            // If involved entities contains only ARM entities, it will be expanded.
+            // If it contains at least one non-arm entity, it will not be expanded.
+            InvolvedEntitiesFilter filter =
+                involvedEntitiesExpander.expandInvolvedEntitiesFilter(oidsList);
+            entitiesRestriction = filter.getEntities();
+            involvedEntityCalculation = filter.getCalculationType();
+        } else if (userSessionContext.isUserScoped()) {
+            entitiesRestriction = userSessionContext.getUserAccessScope().accessibleOids().toSet();
+        } else {
+            // null indicates to use this.getAll() later on and to not filter
+            // succeededOrFailedActionList by involved entities
+            entitiesRestriction = null;
+        }
 
         // The getAll() and getByEntity() methods re-acquire the lock, but we do it here just
         // to be defensive.
         actionsLock.readLock().lock();
         try {
-            currentActions = entitiesRestriction
-                .map(this::getByEntity)
-                .orElseGet(this::getAll);
+            if (entitiesRestriction != null) {
+                currentActions = this.getByEntity(entitiesRestriction);
+            } else {
+                currentActions = this.getAll();
+            }
         } finally {
             actionsLock.readLock().unlock();
         }
@@ -373,17 +396,19 @@ class LiveActions implements QueryableActionViews {
             final List<ActionView> succeededOrFailedActionList =
                 actionHistoryDao.getActionHistoryByDate(startDate, endDate);
             Stream<ActionView> historical = succeededOrFailedActionList.stream()
-                .filter(view -> entitiesRestriction
-                    .map(involvedEntities -> {
+                .filter(view -> {
+                    if (entitiesRestriction != null) {
                         try {
                             // include actions with ANY involved entities in the set.
                             return ActionDTOUtil.getInvolvedEntityIds(view.getRecommendation()).stream()
-                                    .anyMatch(involvedEntities::contains);
+                                .anyMatch(entitiesRestriction::contains);
                         } catch (UnsupportedActionException e) {
                             return false;
                         }
-                    }).orElse(true)
-                );
+                    } else {
+                        return true;
+                    }
+                });
             final Stream<ActionView> current = currentActions
                 .filter(action -> !isSucceededorFailed(action))
                 .filter(action -> endDate.compareTo(action.getRecommendationTime()) > 0);
@@ -394,7 +419,11 @@ class LiveActions implements QueryableActionViews {
         }
 
         final QueryFilter queryFilter =
-            queryFilterFactory.newQueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE);
+            queryFilterFactory.newQueryFilter(
+                actionQueryFilter,
+                LiveActionStore.VISIBILITY_PREDICATE,
+                entitiesRestriction != null ? entitiesRestriction : Collections.emptySet(),
+                involvedEntityCalculation);
         return candidateActionViews.filter(queryFilter::test);
     }
 
@@ -673,8 +702,10 @@ class LiveActions implements QueryableActionViews {
     @FunctionalInterface
     interface QueryFilterFactory {
 
-        QueryFilter newQueryFilter(@Nonnull final ActionQueryFilter actionQueryFilter,
-                                   @Nonnull final Predicate<ActionView> actionViewPredicate);
+        QueryFilter newQueryFilter(@Nonnull ActionQueryFilter filter,
+                                   @Nonnull Predicate<ActionView> visibilityPredicate,
+                                   @Nullable Set<Long> entitiesRestriction,
+                                   @Nonnull InvolvedEntityCalculation involvedEntityCalculation);
 
     }
 }

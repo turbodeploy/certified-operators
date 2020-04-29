@@ -118,6 +118,10 @@ public class LiveActionStore implements ActionStore {
      *
      * @param supplyChainService used for constructing the EntitySeverityCache.
      * @param repositoryService used for constructing the EntitySeverityCache.
+     * @param userSessionContext used for getting info about the user context when determining user
+     *                           scoping.
+     * @param involvedEntitiesExpander used for expanding entities and determining how involved
+     *                                 entities should be filtered.
      */
     public LiveActionStore(@Nonnull final IActionFactory actionFactory,
                            final long topologyContextId,
@@ -130,7 +134,8 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final LiveActionsStatistician liveActionsStatistician,
                            @Nonnull final ActionTranslator actionTranslator,
                            @Nonnull final Clock clock,
-                           @Nonnull final UserSessionContext userSessionContext) {
+                           @Nonnull final UserSessionContext userSessionContext,
+                           @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache(supplyChainService, repositoryService, true);
@@ -139,7 +144,9 @@ public class LiveActionStore implements ActionStore {
         this.entitySettingsCache = entitySettingsCache;
         this.actionHistoryDao = actionHistoryDao;
         this.clock = clock;
-        this.actions = new LiveActions(actionHistoryDao, clock, userSessionContext);
+        this.actions = new LiveActions(
+            actionHistoryDao, clock, userSessionContext,
+            involvedEntitiesExpander);
         this.actionsStatistician = Objects.requireNonNull(liveActionsStatistician);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);

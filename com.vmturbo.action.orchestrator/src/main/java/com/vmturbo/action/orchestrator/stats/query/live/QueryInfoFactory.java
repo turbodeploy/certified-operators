@@ -1,22 +1,28 @@
 package com.vmturbo.action.orchestrator.stats.query.live;
 
+import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander;
+import com.vmturbo.action.orchestrator.store.InvolvedEntitiesExpander.InvolvedEntitiesFilter;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ActionGroupFilter;
 import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter;
+import com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery.ScopeFilter.ScopeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.GetCurrentActionStatsRequest.SingleQuery;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 
@@ -25,15 +31,30 @@ import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
  * (i.e. a {@link com.vmturbo.common.protobuf.action.ActionDTO.CurrentActionStatsQuery}).
  */
 public class QueryInfoFactory {
+
     private static final Logger logger = LogManager.getLogger();
 
     private final long realtimeContextId;
 
     private final UserSessionContext userSessionContext;
 
-    public QueryInfoFactory(final long realtimeContextId, final UserSessionContext userSessionContext) {
+    private final InvolvedEntitiesExpander involvedEntitiesExpander;
+
+    /**
+     * Constructs a factory that creates {@link QueryInfo} using realtimeContextId,
+     * userSessionContext, and involvedEntitiesExpander.
+     *
+     * @param realtimeContextId the context id of real time.
+     * @param userSessionContext info related to the user session.
+     * @param involvedEntitiesExpander how involved entities should be expanded.
+     */
+    public QueryInfoFactory(
+            final long realtimeContextId,
+            final UserSessionContext userSessionContext,
+            @Nonnull InvolvedEntitiesExpander involvedEntitiesExpander) {
         this.realtimeContextId = realtimeContextId;
         this.userSessionContext = userSessionContext;
+        this.involvedEntitiesExpander = involvedEntitiesExpander;
     }
 
     /**
@@ -45,8 +66,25 @@ public class QueryInfoFactory {
      */
     @Nonnull
     QueryInfo extractQueryInfo(@Nonnull final SingleQuery query) {
+        final ImmutableQueryInfo.Builder immutableQueryInfo = ImmutableQueryInfo.builder();
+        final Set<Long> desiredEntities;
+        if (query.getQuery().hasScopeFilter()
+                && query.getQuery().getScopeFilter().getScopeCase() == ScopeCase.ENTITY_LIST
+                && query.getQuery().getScopeFilter().hasEntityList()) {
+            List<Long> oids = query.getQuery().getScopeFilter().getEntityList().getOidsList();
+            InvolvedEntitiesFilter filter =
+                involvedEntitiesExpander.expandInvolvedEntitiesFilter(oids);
+            desiredEntities = filter.getEntities();
+            immutableQueryInfo.involvedEntityCalculation(filter.getCalculationType());
+        } else {
+            desiredEntities = null;
+            immutableQueryInfo.involvedEntityCalculation(
+                InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
+        }
+        immutableQueryInfo.desiredEntities(desiredEntities);
+
         final Predicate<ActionEntity> entityPredicate = query.getQuery().hasScopeFilter() ?
-            createEntityPredicate(query.getQuery().getScopeFilter()) : entity -> true;
+            createEntityPredicate(query.getQuery().getScopeFilter(), desiredEntities) : entity -> true;
         final Predicate<SingleActionInfo> actionGroupPredicate = query.getQuery().hasActionGroupFilter() ?
             createActionGroupPredicate(query.getQuery().getActionGroupFilter()) : entity -> true;
 
@@ -58,8 +96,7 @@ public class QueryInfoFactory {
 
         }
 
-        return ImmutableQueryInfo.builder()
-            .queryId(query.getQueryId())
+        return immutableQueryInfo.queryId(query.getQueryId())
             .topologyContextId(topologyContextId)
             .entityPredicate(entityPredicate)
             .query(query.getQuery())
@@ -67,13 +104,20 @@ public class QueryInfoFactory {
             .build();
     }
 
+    /**
+     * Creates the entity predicate depending on the scopeFilter.getScopeCase().
+     *
+     * @param scopeFilter the scope filter to create the entity predicate from.
+     * @param desiredEntityIds is never null when scopeFilter.getScopeCase() == ENTITY_LIST
+     * @return the entity predicate.
+     */
     @Nonnull
-    private Predicate<ActionEntity> createEntityPredicate(@Nonnull final ScopeFilter scopeFilter) {
+    private Predicate<ActionEntity> createEntityPredicate(
+            @Nonnull final ScopeFilter scopeFilter,
+            @Nullable Set<Long> desiredEntityIds) {
         final Predicate<ActionEntity> entityPredicate;
         switch (scopeFilter.getScopeCase()) {
             case ENTITY_LIST:
-                final Set<Long> desiredEntityIds =
-                    Sets.newHashSet(scopeFilter.getEntityList().getOidsList());
                 entityPredicate = actionEntity -> desiredEntityIds.contains(actionEntity.getId());
                 break;
             case GLOBAL:

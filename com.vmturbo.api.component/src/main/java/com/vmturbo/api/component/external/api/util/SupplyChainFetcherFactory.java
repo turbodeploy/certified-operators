@@ -113,24 +113,6 @@ public class SupplyChainFetcherFactory {
             ApiEntityType.VIRTUAL_MACHINE,
             ApiEntityType.VIRTUAL_VOLUME);
 
-    private static final Set<ApiEntityType> SCOPE_EXPANSION_TYPES_FOR_RISK = ImmutableSet.of(
-            ApiEntityType.SERVICE,
-            ApiEntityType.APPLICATION,
-            ApiEntityType.APPLICATION_SERVER,
-            ApiEntityType.APPLICATION_COMPONENT,
-            ApiEntityType.DATABASE,
-            ApiEntityType.DATABASE_SERVER,
-            ApiEntityType.DATABASE_SERVER_TIER,
-            ApiEntityType.DATABASE_TIER,
-            ApiEntityType.CONTAINER,
-            ApiEntityType.CONTAINER_POD,
-            ApiEntityType.VIRTUAL_MACHINE,
-            ApiEntityType.VIRTUAL_VOLUME,
-            ApiEntityType.PHYSICAL_MACHINE,
-            ApiEntityType.SERVICE,
-            ApiEntityType.STORAGE
-    );
-
     /**
      * This maps aggregator entity types (such as region or datacenter), to
      * the set of types of the entities that we will get after their expansion.
@@ -145,15 +127,6 @@ public class SupplyChainFetcherFactory {
             ApiEntityType.BUSINESS_ACCOUNT, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
             ApiEntityType.AVAILABILITY_ZONE, SCOPE_EXPANSION_TYPES_FOR_CLOUD,
             ApiEntityType.VIRTUAL_DATACENTER, Collections.singleton(ApiEntityType.VIRTUAL_MACHINE));
-
-
-    private static final Map<ApiEntityType, Set<ApiEntityType>> ENTITY_TYPES_TO_EXPAND_FOR_ACTION_PROPAGATION =
-        ImmutableMap.of(
-            ApiEntityType.BUSINESS_APPLICATION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
-                ImmutableSet.of(ApiEntityType.BUSINESS_APPLICATION, ApiEntityType.BUSINESS_TRANSACTION)),
-            ApiEntityType.BUSINESS_TRANSACTION, Sets.union(SCOPE_EXPANSION_TYPES_FOR_RISK,
-                Collections.singleton(ApiEntityType.BUSINESS_TRANSACTION)),
-            ApiEntityType.SERVICE, SCOPE_EXPANSION_TYPES_FOR_RISK);
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -238,20 +211,6 @@ public class SupplyChainFetcherFactory {
      */
     public Set<Long> expandAggregatedEntities(Collection<Long> entityOidsToExpand) {
         return expandAggregatedEntities(entityOidsToExpand, ApiEntityType.ENTITY_TYPES_TO_EXPAND);
-    }
-
-    /**
-     * Calls the expand aggregate function with both {@link #ENTITY_TYPES_TO_EXPAND_FOR_ACTION_PROPAGATION}
-     * and {@link #ENTITY_TYPES_TO_EXPAND}.
-     *
-     * @param entityOidsToExpand the input set of ServiceEntity oids
-     * @return the input set with oids of aggregating entities substituted by their expansions.
-     */
-    public Set<Long> expandAggregatingAndActionPropagatingEntities(Collection<Long> entityOidsToExpand) {
-        Map<ApiEntityType, Set<ApiEntityType>> mergeEntityMap = new HashMap<>();
-        mergeEntityMap.putAll(ENTITY_TYPES_TO_EXPAND);
-        mergeEntityMap.putAll(ENTITY_TYPES_TO_EXPAND_FOR_ACTION_PROPAGATION);
-        return expandAggregatedEntities(entityOidsToExpand, mergeEntityMap);
     }
 
     /**
