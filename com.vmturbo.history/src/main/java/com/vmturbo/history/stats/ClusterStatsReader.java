@@ -32,10 +32,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
+import java.util.Stack;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
@@ -570,7 +570,7 @@ public class ClusterStatsReader {
                 new TreeMap<>(Comparator.reverseOrder());
 
         // list to hold projected stats, if required
-        private final Queue<StatSnapshot> projectedStatSnapshots = new LinkedList<>();
+        private final Stack<StatSnapshot> projectedStatSnapshots = new Stack<>();
 
         SingleClusterStats(long clusterId) {
             this.clusterId = clusterId;
