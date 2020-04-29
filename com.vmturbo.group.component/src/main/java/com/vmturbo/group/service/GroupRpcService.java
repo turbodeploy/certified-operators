@@ -11,6 +11,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -90,11 +91,21 @@ import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.group.stitching.StitchingGroup;
 import com.vmturbo.group.stitching.StitchingResult;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.proactivesupport.DataMetricHistogram;
 
 /**
  * Implementation of group component services.
  */
 public class GroupRpcService extends GroupServiceImplBase {
+
+    private static final DataMetricHistogram GROUPS_BY_ID_SIZE_COUNTER =
+            DataMetricHistogram.builder()
+                    .withName("group_rpc_get_groups_response_size")
+                    .withHelp("Number of groups requested to be loaded from Group RPC service within one request.")
+                    .withBuckets(1, 10, 100, 1000, 10000, 100000, 1000000)
+                    .build()
+                    .register();
+
 
     private final Logger logger = LogManager.getLogger();
 
@@ -110,9 +121,12 @@ public class GroupRpcService extends GroupServiceImplBase {
     private final TargetSearchServiceBlockingStub targetSearchService;
     private final DiscoveredSettingPoliciesUpdater settingPolicyUpdater;
     private final GrpcTransactionUtil grpcTransactionUtil;
+    private final GroupPermit groupRequestPermits;
+    private final long groupLoadTimeoutMs;
 
     /**
      * Constructs group gRPC service.
+     *
      * @param tempGroupCache temporary groups cache to store temp groups
      * @param searchServiceRpc search gRPC service client to resolve dynamic groups
      * @param userSessionContext user session context
@@ -121,6 +135,10 @@ public class GroupRpcService extends GroupServiceImplBase {
      * @param identityProvider identity provider to assign OIDs to user groups
      * @param targetSearchService target search service for dynamic groups
      * @param settingPolicyUpdater updater for the discovered setting policies
+     * @param groupLoadPermits size of group batch used to retrieve groups from the DB
+     * @param groupLoadTimeoutSec timeout to await for permits to load groups from DAO. If
+     *         this timeout expires, {@link #getGroupsByIds(IGroupStore, List, StreamObserver,
+     *         StopWatch, boolean)} will return a error.
      */
     public GroupRpcService(@Nonnull final TemporaryGroupCache tempGroupCache,
             @Nonnull final SearchServiceBlockingStub searchServiceRpc,
@@ -129,7 +147,8 @@ public class GroupRpcService extends GroupServiceImplBase {
             @Nonnull TransactionProvider transactionProvider,
             @Nonnull IdentityProvider identityProvider,
             @Nonnull TargetSearchServiceBlockingStub targetSearchService,
-            @Nonnull DiscoveredSettingPoliciesUpdater settingPolicyUpdater) {
+            @Nonnull DiscoveredSettingPoliciesUpdater settingPolicyUpdater,
+            int groupLoadPermits, long groupLoadTimeoutSec) {
         this.tempGroupCache = Objects.requireNonNull(tempGroupCache);
         this.searchServiceRpc = Objects.requireNonNull(searchServiceRpc);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
@@ -138,6 +157,16 @@ public class GroupRpcService extends GroupServiceImplBase {
         this.targetSearchService = Objects.requireNonNull(targetSearchService);
         this.settingPolicyUpdater = Objects.requireNonNull(settingPolicyUpdater);
         this.grpcTransactionUtil = new GrpcTransactionUtil(transactionProvider, logger);
+        if (groupLoadPermits <= 0) {
+            throw new IllegalArgumentException(
+                    "Group load permits size must be a positive value, found: " + groupLoadPermits);
+        }
+        this.groupRequestPermits = new GroupPermit(groupLoadPermits);
+        if (groupLoadTimeoutSec <= 0) {
+            throw new IllegalArgumentException(
+                    "Group load timeout must be a positive value, found: " + groupLoadTimeoutSec);
+        }
+        this.groupLoadTimeoutMs = groupLoadTimeoutSec * 1000;
     }
 
     @Override
@@ -165,9 +194,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             return;
         }
         grpcTransactionUtil.executeOperation(responseObserver, stores -> {
-            final Collection<Grouping> listOfGroups = getListOfGroups(stores.getGroupStore(), request);
-            listOfGroups.forEach(responseObserver::onNext);
-            responseObserver.onCompleted();
+            getListOfGroups(stores.getGroupStore(), request, responseObserver);
         });
     }
 
@@ -180,9 +207,9 @@ public class GroupRpcService extends GroupServiceImplBase {
         return groupStore.getGroupIds(filter.build());
     }
 
-    @Nonnull
-    private Collection<Grouping> getListOfGroups(@Nonnull IGroupStore groupStore,
-            GetGroupsRequest request) throws StoreOperationException {
+    private void getListOfGroups(@Nonnull IGroupStore groupStore, GetGroupsRequest request,
+            StreamObserver<Grouping> observer)
+            throws StoreOperationException, InterruptedException {
         final StopWatch stopWatch = new StopWatch("GetListOfGroups");
         stopWatch.start("replace group filter");
         final boolean resolveGroupBasedFilters =
@@ -200,22 +227,49 @@ public class GroupRpcService extends GroupServiceImplBase {
             }
         }
         stopWatch.stop();
-        stopWatch.start("get groups by ids");
-        final Collection<Grouping> filteredGroups = groupStore.getGroupsById(filteredIds);
-        stopWatch.stop();
-        stopWatch.start("replace group properties filter");
-        final Collection<Grouping> groupsResult;
-        if (resolveGroupBasedFilters) {
-            groupsResult = filteredGroups.stream()
-                    .map(group -> replaceGroupPropertiesWithGroupMembershipFilter(groupStore,
-                            group))
-                    .collect(Collectors.toSet());
-        } else {
-            groupsResult = filteredGroups;
+        GROUPS_BY_ID_SIZE_COUNTER.observe((double)filteredIds.size());
+        try {
+            getGroupsByIds(groupStore, filteredIds, observer, stopWatch, resolveGroupBasedFilters);
+        } catch (TimeoutException e) {
+            throw new StoreOperationException(Status.RESOURCE_EXHAUSTED,
+                    "Timed out while quering the DB for groups", e);
         }
-        stopWatch.stop();
+        observer.onCompleted();
         logger.debug(stopWatch::prettyPrint);
-        return groupsResult;
+    }
+
+    private void getGroupsByIds(@Nonnull IGroupStore groupStore, @Nonnull List<Long> oids,
+            @Nonnull StreamObserver<Grouping> observer, @Nonnull StopWatch stopWatch,
+            boolean resolveGroupBasedFilters) throws InterruptedException, TimeoutException {
+        logger.debug("Trying to load {} groups by OIDs", oids::size);
+        int processed = 0;
+        while (processed < oids.size()) {
+            stopWatch.start("Waiting for permits");
+            int permits = groupRequestPermits.acquire(oids.size() - processed, groupLoadTimeoutMs);
+            try {
+                stopWatch.stop();
+                logger.debug("Querying for the next {} groups starting from {}", permits, processed);
+                final List<Long> sublist = oids.subList(processed, processed + permits);
+                stopWatch.start("get groups by ids: " + permits);
+                final Collection<Grouping> filteredGroups = groupStore.getGroupsById(sublist);
+                stopWatch.stop();
+                stopWatch.start("replace group properties filter");
+                final Collection<Grouping> groupsResult;
+                if (resolveGroupBasedFilters) {
+                    groupsResult = filteredGroups.stream()
+                            .map(group -> replaceGroupPropertiesWithGroupMembershipFilter(groupStore,
+                                    group))
+                            .collect(Collectors.toSet());
+                } else {
+                    groupsResult = filteredGroups;
+                }
+                groupsResult.forEach(observer::onNext);
+                stopWatch.stop();
+                processed += permits;
+            } finally {
+                groupRequestPermits.release(permits);
+            }
+        }
     }
 
     private boolean userScopeFilter(long groupId, @Nonnull Set<Long> requestedIds,
@@ -1136,7 +1190,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                         () -> record.getDiscoveredSettingPoliciesList()
                                 .stream()
                                 .map(DiscoveredSettingPolicyInfo::getName)
-                                .collect(Collectors.joining(",")));
+                                .collect(Collectors.joining(",", "[", "]")));
                 settingPoliciesByTarget.put(targetId, record.getDiscoveredSettingPoliciesList());
             } else {
                 groupStitchingContext.addUndiscoveredTarget(targetId);
@@ -1190,6 +1244,84 @@ public class GroupRpcService extends GroupServiceImplBase {
                     settingPoliciesByTarget, allGroupsMap);
             responseObserver.onNext(StoreDiscoveredGroupsPoliciesSettingsResponse.getDefaultInstance());
             responseObserver.onCompleted();
+        }
+    }
+
+    /**
+     * Special case of semaphore. It is able to acquire any available permits, when requested
+     * permits is more the existing permits.
+     */
+    private static class GroupPermit {
+        private int permits;
+        private final Object lock = new Object();
+        private final Logger logger = LogManager.getLogger();
+
+        /**
+         * Consctucts semaphore with the initial value of permits.
+         * @param permits initial number of permits
+         */
+        GroupPermit(int permits) {
+            if (permits <= 0) {
+                throw new IllegalArgumentException("Number of permits must be positive");
+            }
+            logger.debug("Created a groups request semaphore with {} permits", permits);
+            this.permits = permits;
+        }
+
+        /**
+         * Acquire no more then a specified number of permits. If there is not enough permits
+         * in the pool (requested is larger then existing) all the existing permits are returned.
+         *
+         * @param requested requested number of permits to acquire
+         * @param timeoutMs timeout to await if no permits are available
+         * @return number of actually acquired permits
+         * @throws InterruptedException if current thread interrupted waiting for permits
+         * @throws TimeoutException if time is out when awaiting for any permits
+         */
+        public int acquire(int requested, long timeoutMs)
+                throws InterruptedException, TimeoutException {
+            if (requested <= 0) {
+                throw new IllegalArgumentException("Number of requested permits must be positive");
+            }
+            final long startTime = System.currentTimeMillis();
+            synchronized (lock) {
+                while (true) {
+                    if (permits > 0) {
+                        final int retVal = Math.min(permits, requested);
+                        permits -= retVal;
+                        logger.trace(
+                                "Successfully acquired {} permits. {} permits are still available",
+                                retVal, permits);
+                        return retVal;
+                    } else {
+                        final long timeToWait = timeoutMs + startTime - System.currentTimeMillis();
+                        logger.trace("No permits available. Waiting for {}ms...", timeToWait);
+                        if (timeToWait < 0) {
+                            throw new TimeoutException("Timed out while waiting for permits");
+                        }
+                        lock.wait(timeToWait);
+                    }
+                }
+            }
+        }
+
+        /**
+         * Releases the specified number of permits.
+         *
+         * @param permits number of permits to release
+         */
+        public void release(int permits) {
+            synchronized (lock) {
+                this.permits += permits;
+                lock.notifyAll();
+            }
+            logger.trace("Successfully released {} permits. Total available permits became {}",
+                    permits, this.permits);
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName() + "[" + permits + "]";
         }
     }
 }
