@@ -74,7 +74,7 @@ public class RepositoryComponentConfig {
      * a letter.
      * https://www.arangodb.com/docs/stable/data-modeling-naming-conventions-database-names.html
      */
-    private static final String DATABASE_NAME_PREFIX = "T";
+    public static final String DATABASE_NAME_PREFIX = "T";
 
     private final Logger logger = LogManager.getLogger(getClass());
 

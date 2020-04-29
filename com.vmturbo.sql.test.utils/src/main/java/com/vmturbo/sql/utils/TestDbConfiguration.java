@@ -11,6 +11,7 @@ import org.flywaydb.core.Flyway;
 import org.jooq.Configuration;
 import org.jooq.DSLContext;
 import org.jooq.SQLDialect;
+import org.jooq.Schema;
 import org.jooq.conf.MappedSchema;
 import org.jooq.conf.RenderMapping;
 import org.jooq.conf.Settings;
@@ -38,14 +39,15 @@ public class TestDbConfiguration {
     /**
      * Constructor.
      *
-     * @param originalSchemaName original schema name (which Jooq has generated sources
+     * @param originalSchema original schema (which Jooq has generated sources
      *         against)
+     * @param testSchemaName Name for the schema to use.
      * @param mariaDBProperties maria DB connection properties, if any.
      */
-    public TestDbConfiguration(@Nonnull String originalSchemaName,
+    public TestDbConfiguration(@Nonnull Schema originalSchema,
+            @Nonnull String testSchemaName,
             @Nullable String mariaDBProperties) {
-        testSchemaName = String.join("_", originalSchemaName, "test",
-                String.valueOf(Instant.now().toEpochMilli()));
+        this.testSchemaName = testSchemaName;
         dbUrl = createDbUrl(mariaDBProperties);
         final DataSource dataSource = dataSource(dbUrl);
         flyway = new Flyway();
@@ -57,7 +59,7 @@ public class TestDbConfiguration {
                 new TransactionAwareDataSourceProxy(lazyConnectionDataSourceProxy);
         final DataSourceConnectionProvider connectionProvider =
                 new DataSourceConnectionProvider(transactionAwareDataSourceProxy);
-        configuration = createConfiguration(connectionProvider, originalSchemaName, testSchemaName);
+        configuration = createConfiguration(connectionProvider, originalSchema.getName(), testSchemaName);
         this.dslContext = new DefaultDSLContext(configuration);
     }
 

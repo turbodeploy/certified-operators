@@ -154,11 +154,8 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
     @Bean
     @Override
     public DataSource dataSource() {
-        // If no db password specified, use root password by default.
-        DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
-                authRetryDelaySecs);
         String dbPassword = !Strings.isEmpty(historyDbPassword) ?
-                historyDbPassword : dbPasswordUtil.getSqlDbRootPassword();
+                historyDbPassword : dbPasswordUtil().getSqlDbRootPassword();
         return dataSourceConfig(dbSchemaName, historyDbUsername, dbPassword);
     }
 
@@ -190,7 +187,7 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
     }
 
     @Override
-    protected String getDbSchemaName() {
+    public String getDbSchemaName() {
         return dbSchemaName;
     }
 }

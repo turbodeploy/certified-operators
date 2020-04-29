@@ -12,6 +12,9 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 
+import io.grpc.Status.Code;
+import io.grpc.StatusRuntimeException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -133,6 +136,19 @@ public class RetriableOperation<T> {
     @Nonnull
     public RetriableOperation<T> retryOnException(@Nonnull final Predicate<Exception> exceptionPredicate) {
         this.exceptionPredicate = exceptionPredicate;
+        return this;
+    }
+
+    /**
+     * Configure the operation to retry on gRPC status runtime exception.
+     *
+     * @return The {@link RetriableOperation}, for method chaining.
+     */
+    @Nonnull
+    public RetriableOperation<T> retryOnUnavailable() {
+        this.exceptionPredicate = this.exceptionPredicate.or(e ->
+                (e instanceof StatusRuntimeException) &&
+                    ((StatusRuntimeException)e).getStatus().getCode() == Code.UNAVAILABLE);
         return this;
     }
 
