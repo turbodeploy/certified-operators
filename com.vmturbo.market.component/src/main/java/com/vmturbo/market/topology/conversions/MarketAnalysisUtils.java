@@ -170,7 +170,11 @@ public final class MarketAnalysisUtils {
                     CommodityDTO.CommodityType.Q32_VCPU_VALUE,
                     CommodityDTO.CommodityType.Q64_VCPU_VALUE,
                     CommodityDTO.CommodityType.QN_VCPU_VALUE,
-                    CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE);
+                    CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE,
+                    CommodityDTO.CommodityType.CPU_ALLOCATION_VALUE,
+                    CommodityDTO.CommodityType.MEM_ALLOCATION_VALUE,
+                    CommodityDTO.CommodityType.POOL_CPU_VALUE,
+                    CommodityDTO.CommodityType.POOL_MEM_VALUE);
 
     /**
      * Map of list of commodities that simulation of resize action based on historical value
