@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology;
 
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -200,6 +201,45 @@ public class EphemeralEntityEditorTest {
 
         editor.applyEdits(graph);
         assertThat(ephemeralBuilder.getCommoditySoldList(0), matchesHistory(sold2WithKey));
+    }
+
+    /**
+     * Test running {@link EphemeralEntityEditor} where the container has resizable=false
+     * and containerSpec has resizable=true. In this case we should not override the container
+     * setting with the container spec setting.
+     */
+    @Test
+    public void testDoNotOverrideEphemeralNotResizable() {
+        when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
+        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
+        when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
+
+        final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(COMM_1_TYPE))
+            .setIsResizeable(false);
+        ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
+
+        editor.applyEdits(graph);
+        assertThat(ephemeralBuilder.getCommoditySoldList(0).getIsResizeable(), is(false));
+    }
+
+    /**
+     * Test running {@link EphemeralEntityEditor} where the container has resizable=true
+     * and containerSpec has resizable=false SHOULD override the container's setting.
+     */
+    @Test
+    public void testOverridesEphemeralResizableTrue() {
+        when(graph.entitiesOfType(EntityType.CONTAINER_SPEC.getNumber())).thenReturn(Stream.of(containerSpec));
+        when(containerSpec.getAggregatedEntities()).thenReturn(Collections.singletonList(container));
+        when(containerSpec.soldCommoditiesByType()).thenReturn(persistentCommsSold);
+
+        final CommoditySoldDTO.Builder ephemeralCommSold = CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder().setType(COMM_2_TYPE).setKey("foo"))
+            .setIsResizeable(true);
+        ephemeralBuilder.addCommoditySoldList(ephemeralCommSold);
+
+        editor.applyEdits(graph);
+        assertThat(ephemeralBuilder.getCommoditySoldList(0).getIsResizeable(), is(false));
     }
 
     /**

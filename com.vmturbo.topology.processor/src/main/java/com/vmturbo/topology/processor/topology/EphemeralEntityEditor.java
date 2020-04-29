@@ -130,7 +130,9 @@ public class EphemeralEntityEditor {
                 // commodity, it will be set to resizable=false and the associated ephemeral
                 // entities should match this behavior.
                 if (persistentCommSold.hasIsResizeable()) {
-                    ephemeralCommSold.setIsResizeable(persistentCommSold.getIsResizeable());
+                    if (!ephemeralCommSold.hasIsResizeable() || ephemeralCommSold.getIsResizeable()) {
+                        ephemeralCommSold.setIsResizeable(persistentCommSold.getIsResizeable());
+                    }
                 }
 
                 // Copy over historical used and peak
