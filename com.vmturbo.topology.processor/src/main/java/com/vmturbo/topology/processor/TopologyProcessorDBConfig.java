@@ -46,7 +46,7 @@ public class TopologyProcessorDBConfig extends SQLDatabaseConfig {
     }
 
     @Override
-    protected String getDbSchemaName() {
+    public String getDbSchemaName() {
         return dbSchemaName;
     }
 }

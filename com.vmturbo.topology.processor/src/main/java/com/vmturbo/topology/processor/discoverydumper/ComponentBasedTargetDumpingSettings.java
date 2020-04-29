@@ -9,8 +9,8 @@ import javax.annotation.Nullable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.clustermgr.api.ComponentProperties;
-import com.vmturbo.components.common.BaseVmtComponent;
 
 /**
  * Discovery dump settings that obtain config values from the XL ClusterManager.
@@ -40,9 +40,21 @@ public class ComponentBasedTargetDumpingSettings implements TargetDumpingSetting
     // property values from most recent fetch
     private ComponentProperties componentProperties;
 
-    public ComponentBasedTargetDumpingSettings(String componentType, String componentId) {
+    private final ClusterMgrRestClient clusterMgrRestClient;
+
+    /**
+     * Create a new index.
+     *
+     * @param componentType The type of the component.
+     * @param componentId The id of the component.
+     * @param clusterMgrRestClient REST client to access component properties.
+     */
+    public ComponentBasedTargetDumpingSettings(@Nonnull final String componentType,
+            @Nonnull final String componentId,
+            @Nonnull final ClusterMgrRestClient clusterMgrRestClient) {
         this.componentType = componentType;
         this.componentId = componentId;
+        this.clusterMgrRestClient = clusterMgrRestClient;
     }
 
     @Override
@@ -71,8 +83,7 @@ public class ComponentBasedTargetDumpingSettings implements TargetDumpingSetting
      */
     @Override
     public void refreshSettings() {
-        this.componentProperties = BaseVmtComponent.getClusterMgrClient()
-            .getComponentLocalProperties(componentType);
+        this.componentProperties = clusterMgrRestClient.getComponentLocalProperties(componentType);
         this.lastFetchTime = System.currentTimeMillis();
     }
 

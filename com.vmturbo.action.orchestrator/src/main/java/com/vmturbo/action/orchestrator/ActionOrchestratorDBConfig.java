@@ -35,7 +35,7 @@ public class ActionOrchestratorDBConfig extends SQLDatabaseConfig {
     private String dbSchemaName;
 
     @Override
-    protected String getDbSchemaName() {
+    public String getDbSchemaName() {
         return dbSchemaName;
     }
 

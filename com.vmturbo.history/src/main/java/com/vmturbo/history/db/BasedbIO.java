@@ -10,7 +10,6 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.DriverManager;
-import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -59,6 +58,7 @@ import com.vmturbo.api.enums.Period;
 import com.vmturbo.api.enums.ReportOutputFormat;
 import com.vmturbo.api.enums.ReportType;
 import com.vmturbo.commons.Units;
+import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.tracing.Tracing;
 import com.vmturbo.components.api.tracing.Tracing.OptScope;
 import com.vmturbo.proactivesupport.DataMetricCounter;
@@ -343,7 +343,7 @@ public abstract class BasedbIO {
 
     public synchronized void setSchemaForTests(String testSchemaName) {
         mappedSchemaForTests = testSchemaName;
-        initContextSettings();
+        getDialect();
     }
 
     /**
@@ -405,8 +405,8 @@ public abstract class BasedbIO {
     }
 
     /** Cached JOOQ query builder instance. */
-    private DSLContext builder = null;
-    private Settings settings = null;
+    private final SetOnce<DSLContext> builder = new SetOnce<>();
+    private final SetOnce<Settings> settings = new SetOnce<>();
 
     /**
      * Return a new auto-committing database connection.  The connection is set
@@ -591,31 +591,39 @@ public abstract class BasedbIO {
      */
     public synchronized DSLContext JooqBuilder() {
         // Test and set later is safe here because we're synchronized.
-        if (builder == null) {
-            SQLDialect dialect = initContextSettings();
-
-            builder = DSL.using(dialect, settings);
-        }
-        return builder;
+        return builder.ensureSet(() -> {
+            SQLDialect dialect = getDialect();
+            return DSL.using(dialect, getSettings());
+        });
     }
 
-    private SQLDialect initContextSettings() {
-        SQLDialect dialect = SchemaUtil.SUPPORTED_ADAPTERS.get(getAdapter());
-        if (dialect == null)
-            throw new UnsupportedOperationException("Invalid SQL dialect");
-        settings = new Settings()
-            .withRenderFormatted(true)
-            // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL
-            // statement. For example, with false withRenderSchema, statement
-            // "SELECT * FROM vmtdb.entities" will be changed to "SELECT * FROM entities".
-            // And dynamically set schema name in the constructed JDBC connection URL to support
-            // multi-tenant database.
-            .withRenderSchema(false);
+    @Nonnull
+    private Settings getSettings() {
+        // ensureSet will not return a null, because the nested supplier does not return null.
+        return settings.ensureSet(() -> {
+            Settings settings = new Settings()
+                    .withRenderFormatted(true)
+                    // Set withRenderSchema to false to avoid rendering schema name in Jooq generated SQL
+                    // statement. For example, with false withRenderSchema, statement
+                    // "SELECT * FROM vmtdb.entities" will be changed to "SELECT * FROM entities".
+                    // And dynamically set schema name in the constructed JDBC connection URL to support
+                    // multi-tenant database.
+                    .withRenderSchema(false);
 
-        // set a schema mapping in order to support Unit tests:
-        if (mappedSchemaForTests != null) {
-            settings.withRenderMapping(new RenderMapping().withSchemata(new MappedSchema()
-                    .withInput("vmtdb").withOutput(mappedSchemaForTests)));
+            // set a schema mapping in order to support Unit tests:
+            if (mappedSchemaForTests != null) {
+                settings.withRenderMapping(new RenderMapping().withSchemata(new MappedSchema()
+                        .withInput("vmtdb").withOutput(mappedSchemaForTests)));
+            }
+
+            return settings;
+        });
+    }
+
+    private SQLDialect getDialect() {
+        SQLDialect dialect = SchemaUtil.SUPPORTED_ADAPTERS.get(getAdapter());
+        if (dialect == null) {
+            throw new UnsupportedOperationException("Invalid SQL dialect");
         }
         return dialect;
     }
@@ -638,7 +646,7 @@ public abstract class BasedbIO {
      * @return
      */
     public DSLContext using(Connection conn) {
-        return DSL.using(conn, settings);
+        return DSL.using(conn, getSettings());
     }
 
     /**

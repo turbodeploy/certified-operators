@@ -130,7 +130,7 @@ public class AuthDBConfig extends SQLDatabaseConfig {
     }
 
     @Override
-    protected String getDbSchemaName() {
+    public String getDbSchemaName() {
         return dbSchemaName;
     }
 

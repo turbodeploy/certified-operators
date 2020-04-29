@@ -84,10 +84,12 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
         LicenseCheckServiceBlockingStub client = LicenseCheckServiceGrpc.newBlockingStub(authChannel)
                 .withWaitForReady();
         logger.info("Requesting latest available license summary.");
-        GetLicenseSummaryResponse response = client.getLicenseSummary(Empty.getDefaultInstance());
-        if (response.hasLicenseSummary()) {
-            updateLicenseSummary(response.getLicenseSummary());
-        }
+        new Thread(() -> {
+            GetLicenseSummaryResponse response = client.getLicenseSummary(Empty.getDefaultInstance());
+            if (response.hasLicenseSummary()) {
+                updateLicenseSummary(response.getLicenseSummary());
+            }
+        }).start();
     }
 
     /**
