@@ -4,12 +4,15 @@ import static com.vmturbo.history.schema.abstraction.Tables.MKT_SNAPSHOTS_STATS;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.commons.lang3.StringUtils;
+import com.google.common.collect.Lists;
+
+import org.jooq.Condition;
 import org.jooq.Result;
 import org.jooq.SelectConditionStep;
 
@@ -48,22 +51,24 @@ public class PlanStatsReader {
             .selectFrom(MKT_SNAPSHOTS_STATS)
             .where(MKT_SNAPSHOTS_STATS.MKT_SNAPSHOT_ID.equal(topologyContextId));
 
-        final Set<Short> relatedEntityTypes = new HashSet<>();
-        // An empty list of commodity names means we're looking for all commodities.
-        // A non-empty list means we're looking for specific ones.
-        if (!commodityRequests.isEmpty()) {
-            final List<String> commodityNames = commodityRequests.stream()
-                .map(CommodityRequest::getCommodityName)
-                .filter(StringUtils::isNotEmpty)
-                .collect(Collectors.toList());
+        List<CommodityRequest> namedCommodityRequests = commodityRequests.stream()
+            .filter(CommodityRequest::hasCommodityName)
+            .collect(Collectors.toList());
+        // If there are any named commodities, then we consider only the named commodities.
+        // Otherwise, we do a search for all commodity names but possibly still filtered by related
+        // entity type.
+        if (namedCommodityRequests.isEmpty()) {
+            // An empty list of commodity names means we're looking for all commodities.
 
-            if (!commodityNames.isEmpty()) {
-                queryBuilder = queryBuilder.and(MKT_SNAPSHOTS_STATS.PROPERTY_TYPE.in(commodityNames));
-            }
+            // Respect any relatedEntityTypes defined globally for this request
+            final Set<Short> relatedEntityTypes =
+                globalFilter.getRelatedEntityTypeList().stream()
+                    .map(ApiEntityType::fromString)
+                    .map(ApiEntityType::typeNumber)
+                    .map(Integer::shortValue)
+                    .collect(Collectors.toCollection(HashSet::new));
 
-            //TODO: Review this when we analyze the STATS API endpoint. An argument can be made
-            // that we should be doing a separate query for each commodity request, so that each
-            // can have its own relatedEntityTypes defined and they won't interact with each other.
+            // Setting relatedEntityType in an unnamed commodity is another way to define it globally
             relatedEntityTypes.addAll(commodityRequests.stream()
                 .filter(CommodityRequest::hasRelatedEntityType)
                 .map(CommodityRequest::getRelatedEntityType)
@@ -71,20 +76,48 @@ public class PlanStatsReader {
                 .map(ApiEntityType::typeNumber)
                 .map(Integer::shortValue)
                 .collect(Collectors.toSet()));
+
+            if (!relatedEntityTypes.isEmpty()) {
+                queryBuilder = queryBuilder.and(MKT_SNAPSHOTS_STATS.ENTITY_TYPE.in(relatedEntityTypes));
+            }
+            return (Result<MktSnapshotsStatsRecord>)historydbIO.execute(queryBuilder);
+        }
+        // A non-empty list means we're looking for specific ones.
+        List<String> remainingCommodityNames = Lists.newArrayList();
+        Condition compoundCommodityCondition = null;
+        for (CommodityRequest commodityRequest : namedCommodityRequests) {
+            final String commodityName = commodityRequest.getCommodityName();
+            if (commodityRequest.hasRelatedEntityType()) {
+                // Create a separate condition for this commodity request.
+                // This is necessary because the caller has requested to limit the scope for
+                // this specific commodity request to only include the provided related entity
+                // type.
+                final short relatedType = Optional.of(commodityRequest.getRelatedEntityType())
+                    .map(ApiEntityType::fromString)
+                    .map(ApiEntityType::typeNumber)
+                    .map(Integer::shortValue)
+                    .get();
+                Condition currentCondition =
+                        MKT_SNAPSHOTS_STATS.PROPERTY_TYPE.eq(commodityName)
+                                .and(MKT_SNAPSHOTS_STATS.ENTITY_TYPE.eq(relatedType));
+
+                compoundCommodityCondition = compoundCommodityCondition == null
+                        ? currentCondition
+                        : compoundCommodityCondition.or(currentCondition);
+            } else {
+                remainingCommodityNames.add(commodityName);
+            }
         }
 
-        // Respect any relatedEntityTypes defined globally for this request
-        relatedEntityTypes.addAll(
-            globalFilter.getRelatedEntityTypeList().stream()
-                .map(ApiEntityType::fromString)
-                .map(ApiEntityType::typeNumber)
-                .map(Integer::shortValue)
-                .collect(Collectors.toSet()));
-
-        if (!relatedEntityTypes.isEmpty()) {
-            queryBuilder = queryBuilder.and(MKT_SNAPSHOTS_STATS.ENTITY_TYPE.in(relatedEntityTypes));
+        // Add any commodities not already handled by a sub-condition to the main condition
+        if (!remainingCommodityNames.isEmpty()) {
+            Condition remainingNamesCondition = MKT_SNAPSHOTS_STATS.PROPERTY_TYPE.in(remainingCommodityNames);
+            compoundCommodityCondition = compoundCommodityCondition == null
+                    ? remainingNamesCondition
+                    : compoundCommodityCondition.or(remainingNamesCondition);
         }
 
-        return (Result<MktSnapshotsStatsRecord>) historydbIO.execute(queryBuilder);
+        queryBuilder = queryBuilder.and(compoundCommodityCondition);
+        return (Result<MktSnapshotsStatsRecord>)historydbIO.execute(queryBuilder);
     }
 }
