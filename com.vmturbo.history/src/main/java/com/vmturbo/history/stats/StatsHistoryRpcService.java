@@ -99,6 +99,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.stats.StatsAccumulator;
@@ -986,6 +987,10 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     + topologyContextId, e);
         }
         for (MktSnapshotsStatsRecord statsDBRecord : dbSnapshotStatsRecords) {
+            String relatedEntityType = Optional.ofNullable(statsDBRecord.getEntityType())
+                .map(ApiEntityType::fromType)
+                .map(ApiEntityType::apiStr)
+                .orElse(null);
             StatsAccumulator statsValue = new StatsAccumulator();
             statsValue.record(statsDBRecord.getMinValue(), statsDBRecord.getAvgValue(),
                     statsDBRecord.getMaxValue());
@@ -995,7 +1000,7 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
                     statsDBRecord.getCapacity() == null ? null : statsDBRecord.getCapacity()
                             .floatValue(),
                     null /* effective capacity*/,
-                    null /* relatedEntityType */,
+                    relatedEntityType,
                     null /* producerId */,
                     statsValue.toStatValue(),
                     null /* commodityKey */,

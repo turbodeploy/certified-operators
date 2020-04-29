@@ -3,6 +3,8 @@ package com.vmturbo.history.stats;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertThat;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -112,7 +114,9 @@ public class PlanStatsAggregatorTest {
             PREFIX + "NumVMs", PREFIX + "NumStorages", PREFIX + "NumVMsPerStorage",
             PREFIX + "NumContainersPerStorage", PREFIX + "NumContainers",
             PREFIX + "NumContainerPods", PREFIX + "NumCPUs", PREFIX + "CPU",
-            PREFIX + "StorageAmount"));
+            // "currentStorageAmount" should appear twice: once with relatedEntityType storage
+            // and once with relatedEntityType disk array.
+            PREFIX + "StorageAmount", PREFIX + "StorageAmount"));
     }
 
     /**
@@ -140,10 +144,12 @@ public class PlanStatsAggregatorTest {
      */
     @Test
     public void testStorageRecord() {
-        MktSnapshotsStatsRecord storageStatsRecord = records.stream()
+        Collection<MktSnapshotsStatsRecord> storageStatsRecords = records.stream()
             .filter(rec -> rec.getPropertyType().contains("StorageAmount"))
-            .findFirst()
-            .get();
+            .filter(rec -> EntityType.STORAGE_VALUE == rec.getEntityType())
+            .collect(Collectors.toCollection(ArrayList::new));
+        Assert.assertEquals(1, storageStatsRecords.size());
+        MktSnapshotsStatsRecord storageStatsRecord = storageStatsRecords.iterator().next();
         Assert.assertEquals(CONTEXT_ID, (long)storageStatsRecord.getMktSnapshotId());
         // The aggregated capacity of both storage devices (but not the DiskArray)
         Assert.assertEquals(2000, storageStatsRecord.getCapacity(), 0);
