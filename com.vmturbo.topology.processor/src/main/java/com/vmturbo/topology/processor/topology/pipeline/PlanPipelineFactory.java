@@ -31,6 +31,7 @@ import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.CommoditiesEditor;
 import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
+import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
@@ -45,6 +46,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.CommoditiesEditSt
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ConstructTopologyFromStitchingContextStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EnvironmentTypeStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.EphemeralEntityHistoryStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtilizationStage;
@@ -119,6 +121,8 @@ public class PlanPipelineFactory {
 
     private final DemandOverriddenCommodityEditor demandOverriddenCommodityEditor;
 
+    private final EphemeralEntityEditor ephemeralEntityEditor;
+
     public PlanPipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                @Nonnull final PolicyManager policyManager,
                                @Nonnull final StitchingManager stitchingManager,
@@ -141,7 +145,8 @@ public class PlanPipelineFactory {
                                @Nonnull final CachedTopology constructTopologyStageCache,
                                @Nonnull HistoryAggregator historyAggregationStage,
                                @Nonnull DemandOverriddenCommodityEditor demandOverriddenCommodityEditor,
-                               @Nonnull final ConsistentScalingManager consistentScalingManager) {
+                               @Nonnull final ConsistentScalingManager consistentScalingManager,
+                               @Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -165,6 +170,7 @@ public class PlanPipelineFactory {
         this.constructTopologyStageCache = Objects.requireNonNull(constructTopologyStageCache);
         this.historyAggregator = Objects.requireNonNull(historyAggregationStage);
         this.demandOverriddenCommodityEditor = demandOverriddenCommodityEditor;
+        this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
     }
 
     /**
@@ -229,6 +235,7 @@ public class PlanPipelineFactory {
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
                 .addStage(new OverrideWorkLoadDemandStage(demandOverriddenCommodityEditor, searchResolver, groupServiceClient, changes))
+                .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new BroadcastStage(Collections.singletonList(topoBroadcastManager), matrix))
                 .build();
