@@ -496,7 +496,9 @@ public class UuidMapper implements RepositoryListener {
             } else if (isEntity()) {
                 result = Collections.singleton(oid);
             } else if (isGroup()) {
-                result = getCachedGroupInfo().get().getEntityIds();
+                result = getCachedGroupInfo().map(
+                        g -> filterEntitiesByCsp(g.getEntityIds(), statApiInputDTOList))
+                        .orElse(Collections.emptySet());
             } else if (isPlan()) {
                 final Set<Long> entitiesInPlanScope = getCachedPlanInfo().get().getPlanScopeIds();
                 result = filterEntitiesByCsp(entitiesInPlanScope, statApiInputDTOList);
@@ -868,11 +870,9 @@ public class UuidMapper implements RepositoryListener {
                         return Optional.empty();
                     }
 
-                    Set<Long> planScopeIds = Sets.newHashSet();
                     // Get all the entities in the Plan Scope
                     Set<MinimalEntity> minimalEntities = Sets.newHashSet();
                     planScope.getScopeEntriesList().stream().forEach(se -> {
-                        planScopeIds.add(se.getScopeObjectOid());
 
                         if (StringConstants.GROUP_TYPES.contains(se.getClassName())) {
                             final GetGroupResponse resp = groupServiceBlockingStub.getGroup(GroupID
@@ -895,6 +895,11 @@ public class UuidMapper implements RepositoryListener {
                                     ApiEntityType::fromMinimalEntity,
                                     Collectors.mapping(MinimalEntity::getOid,
                                             Collectors.toSet())));
+
+                    // Add all oids from minimalEntities as scope oid list, that includes members
+                    // of group, if the plan is scoped to a group (e.g of regions).
+                    Set<Long> planScopeIds = Sets.newHashSet();
+                    entityOidsByType.values().forEach(planScopeIds::addAll);
                     return Optional.of(new CachedPlanInfo(planInstance, planEnvType, planScopeIds,
                             entityOidsByType));
 

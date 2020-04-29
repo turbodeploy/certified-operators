@@ -44,7 +44,7 @@ import com.vmturbo.components.common.utils.EnvironmentUtils;
  * to support the V1 REST API, then we would simply add an additional DispatcherServlet.
  */
 @Configuration
-@Import({ApiSecurityConfig.class, HeaderApiSecurityConfig.class})
+@Import({ApiSecurityConfig.class, HeaderApiSecurityConfig.class, SamlApiSecurityConfig.class})
 public class ExternalApiConfig extends WebMvcConfigurerAdapter {
 
     /**
@@ -80,8 +80,9 @@ public class ExternalApiConfig extends WebMvcConfigurerAdapter {
                 // This is the versioned name of the REST API, and should be preferred going forward
                 // It is aligned with the V2 API in OpsManager, which has a base URL of /api/v2
                 "/api/v3/*",
-                // for SAML filters, see ApiSecurityConfig#samlFilter
-                "/vmturbo/saml/*",
+                // vmturbo is needed, so proxy server (e.g. nginx) knowS where to route our requests
+                // in integration environment.
+                "/vmturbo/saml2/*",
                 // We are also supporting /api as of OM-32218
                 "/api/*");
         urlListBuilder.addAll(urlList);

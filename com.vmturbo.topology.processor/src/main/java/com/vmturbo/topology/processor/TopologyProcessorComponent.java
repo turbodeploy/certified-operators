@@ -131,7 +131,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
         log.info("Adding MariaDB and Kafka producer health checks to the component health monitor.");
         getHealthMonitor().addHealthCheck(new MariaDBHealthMonitor(mariaHealthCheckIntervalSeconds,
             topologyProcessorDBConfig.dataSource()::getConnection));
-        getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.kafkaProducerHealthMonitor());
+        getHealthMonitor().addHealthCheck(topologyProcessorApiConfig.messageProducerHealthMonitor());
     }
 
     @Override

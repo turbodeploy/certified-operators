@@ -231,12 +231,7 @@ public class ConsulKeyValueStore implements KeyValueStore {
     private String fullKey(@Nonnull final String key) {
         final String fullKey =
                 new StringBuilder().append(namespace).append("/").append(key).toString();
-        try {
-            return UriUtils.encodeFragment(fullKey, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            logger.error(e); // Should never happen unless UTF-8 encoding support is somehow dropped
-            return "";
-        }
+        return UriUtils.encodeFragment(fullKey, "UTF-8");
     }
 
     private void validateNamespace(@Nonnull final String namespace) {

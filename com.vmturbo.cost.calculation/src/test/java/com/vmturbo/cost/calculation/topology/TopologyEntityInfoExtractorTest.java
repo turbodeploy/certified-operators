@@ -41,6 +41,7 @@ public class TopologyEntityInfoExtractorTest {
     private static final String VM_IP = "1.1.1.1";
     private static final float STORAGE_ACCESS_CAP = 5;
     private static final float STORAGE_AMOUNT_CAP = 6;
+    private static final float IO_THROUGHPUT_CAP = 8;
     private static final int COMPUTE_NUM_OF_COUPONS = 7;
     private static final double DELTA = 1e-10;
     private static final long DEFAULT_ID = 0;
@@ -85,7 +86,9 @@ public class TopologyEntityInfoExtractorTest {
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setVirtualVolume(VirtualVolumeInfo.newBuilder()
                 .setStorageAccessCapacity(STORAGE_ACCESS_CAP)
-                .setStorageAmountCapacity(STORAGE_AMOUNT_CAP).build()))
+                .setStorageAmountCapacity(STORAGE_AMOUNT_CAP)
+                .setIoThroughputCapacity(IO_THROUGHPUT_CAP)
+                .build()))
         .build();
 
     private static final TopologyEntityDTO EMPTY_VIRTUAL_VOLUME = TopologyEntityDTO.newBuilder()
@@ -217,6 +220,7 @@ public class TopologyEntityInfoExtractorTest {
         assertTrue(volumeConfig.isPresent());
         assertEquals(STORAGE_ACCESS_CAP, volumeConfig.get().getAccessCapacityMillionIops(), DELTA);
         assertEquals(STORAGE_AMOUNT_CAP / 1024, volumeConfig.get().getAmountCapacityGb(), DELTA);
+        assertEquals(IO_THROUGHPUT_CAP, volumeConfig.get().getIoThroughputCapacityMBps(), DELTA);
     }
 
     @Test

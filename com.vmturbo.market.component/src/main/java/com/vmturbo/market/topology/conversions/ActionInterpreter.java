@@ -98,7 +98,7 @@ public class ActionInterpreter {
     private final Map<Long, EconomyDTOs.TraderTO> oidToProjectedTraderTOMap;
     private final CloudEntityResizeTracker cert;
     private final TierExcluder tierExcluder;
-    private final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage;
+    private final ProjectedRICoverageCalculator projectedRICoverageCalculator;
     private static final Set<EntityState> evacuationEntityState =
         EnumSet.of(EntityState.MAINTENANCE, EntityState.FAILOVER);
     private final CommodityIndex commodityIndex;
@@ -107,7 +107,7 @@ public class ActionInterpreter {
                       @Nonnull final Map<Long, ShoppingListInfo> shoppingListOidToInfos,
                       @Nonnull final CloudTopologyConverter cloudTc, Map<Long, TopologyEntityDTO> originalTopology,
                       @Nonnull final Map<Long, EconomyDTOs.TraderTO> oidToTraderTOMap, CloudEntityResizeTracker cert,
-                      @Nonnull final Map<Long, EntityReservedInstanceCoverage> projectedRiCoverage,
+                      @Nonnull final ProjectedRICoverageCalculator projectedRICoverageCalculator,
                       @Nonnull final TierExcluder tierExcluder,
                       @Nonnull final CommodityIndex commodityIndex) {
         this.commodityConverter = commodityConverter;
@@ -116,7 +116,7 @@ public class ActionInterpreter {
         this.originalTopology = originalTopology;
         this.oidToProjectedTraderTOMap = oidToTraderTOMap;
         this.cert = cert;
-        this.projectedRiCoverage = projectedRiCoverage;
+        this.projectedRICoverageCalculator = projectedRICoverageCalculator;
         this.tierExcluder = tierExcluder;
         this.commodityIndex = commodityIndex;
     }
@@ -771,7 +771,7 @@ public class ActionInterpreter {
                 final double originalRICoverage = getTotalRiCoverage(
                         cloudTc.getRiCoverageForEntity(targetOid).orElse(null));
                 final double projectedRICoverage = getTotalRiCoverage(
-                        projectedRiCoverage.get(targetOid));
+                        projectedRICoverageCalculator.getProjectedRICoverageForEntity(targetOid));
                 generateTierAction = !areEqual(originalRICoverage, projectedRICoverage);
                 if (generateTierAction) {
                     logger.debug("Accounting action for {} (OID: {}). " +
@@ -1140,7 +1140,8 @@ public class ActionInterpreter {
     private boolean didRiCoverageIncrease(long entityId) {
         double projectedCouponsCovered = 0;
         double originalCouponsCovered = 0;
-        EntityReservedInstanceCoverage projectedCoverage = projectedRiCoverage.get(entityId);
+        EntityReservedInstanceCoverage projectedCoverage = projectedRICoverageCalculator
+            .getProjectedRICoverageForEntity(entityId);
         if (projectedCoverage != null && !projectedCoverage.getCouponsCoveredByRiMap().isEmpty()) {
             projectedCouponsCovered = projectedCoverage
                 .getCouponsCoveredByRiMap().values().stream().reduce(0.0, Double::sum);

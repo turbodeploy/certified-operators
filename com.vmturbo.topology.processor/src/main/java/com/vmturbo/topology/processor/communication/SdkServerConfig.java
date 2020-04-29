@@ -43,7 +43,8 @@ public class SdkServerConfig {
 
     @Bean
     public RemoteMediationServer remoteMediation() {
-        return new RemoteMediationServer(probeConfig.probeStore(), targetConfig.probePropertyStore());
+        return new RemoteMediationServer(probeConfig.probeStore(),
+            targetConfig.probePropertyStore(), new ProbeContainerChooserImpl(probeConfig.probeStore()));
     }
 
     /**

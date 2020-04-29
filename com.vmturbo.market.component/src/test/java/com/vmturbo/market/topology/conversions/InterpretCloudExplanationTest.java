@@ -83,6 +83,7 @@ public class InterpretCloudExplanationTest {
     // We mock the interpreting of move action. We are only interested in the explanation.
     private final Move interpretedMoveAction = ActionDTO.Move.newBuilder().setTarget(ActionEntity.newBuilder()
         .setId(500L).setType(EntityType.VIRTUAL_MACHINE_VALUE)).build();
+    private ProjectedRICoverageCalculator riCoverageCalculator;
     private final ActionTO move = ActionTO.newBuilder().setMove(
         MoveTO.newBuilder()
             .setShoppingListToMove(SL_TO_MOVE).setSource(MARKET_TIER1_OID)
@@ -109,10 +110,13 @@ public class InterpretCloudExplanationTest {
             .setEntityType(EntityType.COMPUTE_TIER_VALUE).build());
         when(cloudTc.getMarketTier(MARKET_TIER2_OID)).thenReturn(computeTier);
 
+        riCoverageCalculator = mock(ProjectedRICoverageCalculator.class);
+        when(riCoverageCalculator.getProjectedReservedInstanceCoverage()).thenReturn(projectedRiCoverage);
+
         // We create action interpreter as a spy because we want to mock the interpretation of the
         // move action, but we want to test the explanation.
         ai = spy(new ActionInterpreter(commodityConverter, shoppingListInfoMap,
-            cloudTc, originalTopology, oidToTraderTOMap, cert, projectedRiCoverage, tierExcluder,
+            cloudTc, originalTopology, oidToTraderTOMap, cert, riCoverageCalculator, tierExcluder,
             CommodityIndex.newFactory().newIndex()));
 
         initialCoverage = Optional.of(EntityReservedInstanceCoverage.newBuilder().setEntityId(VM1_OID)
@@ -172,7 +176,7 @@ public class InterpretCloudExplanationTest {
 
         // RI Coverage increases
         when(cloudTc.getRiCoverageForEntity(VM1_OID)).thenReturn(initialCoverage);
-        projectedRiCoverage.put(VM1_OID, projectedCoverage);
+        when(riCoverageCalculator.getProjectedRICoverageForEntity(VM1_OID)).thenReturn(projectedCoverage);
 
         Optional<Action> action = ai.interpretAction(move, projectedTopology, originalCloudTopology, projectedCosts, topologyCostCalculator);
 

@@ -13,6 +13,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.InitializationContent;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
+import com.vmturbo.topology.processor.communication.ProbeContainerChooserImpl;
 import com.vmturbo.topology.processor.communication.RemoteMediationServer;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 
@@ -24,8 +25,12 @@ public class TestRemoteMediationServer extends RemoteMediationServer {
     private final Semaphore closeSemaphore = new Semaphore(1);
     private final Semaphore transportSemaphore = new Semaphore(0);
 
+     /**
+     * Creates a new TestRemoteMediationServer.
+     * @param  probeStore contains the probes
+     */
     public TestRemoteMediationServer(ProbeStore probeStore) {
-        super(probeStore, null);
+        super(probeStore, null, new ProbeContainerChooserImpl(probeStore));
     }
 
     @Override

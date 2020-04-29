@@ -92,9 +92,7 @@ public class TopologyControllerTest {
             return new TopologyController(
                 scheduler(),
                 topologyHandler(),
-                entityStore(),
-                clock()
-            );
+                entityStore());
         }
 
         @Override
@@ -127,6 +125,7 @@ public class TopologyControllerTest {
         when(info.getEntityCount()).thenReturn(10L);
         when(info.getTopologyContextId()).thenReturn(1L);
         when(info.getTopologyId()).thenReturn(2L);
+        when(info.getSerializedTopologySizeBytes()).thenReturn(2L << 10);
         when(topologyHandler.broadcastLatestTopology(any(StitchingJournalFactory.class))).thenReturn(info);
 
         final MvcResult result = mockMvc.perform(post("/topology/send")
@@ -140,6 +139,8 @@ public class TopologyControllerTest {
         assertThat(response.numberOfEntities, is(10L));
         assertThat(response.topologyContextId, is(1L));
         assertThat(response.topologyId, is(2L));
+        assertThat(response.serializedTopologySizeBytes, is(2L << 10));
+        assertThat(response.serializedTopologySizeHumanReadable, is("2 KB"));
 
         Mockito.verify(scheduler).resetBroadcastSchedule();
     }

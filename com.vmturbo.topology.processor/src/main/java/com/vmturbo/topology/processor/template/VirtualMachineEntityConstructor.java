@@ -2,22 +2,17 @@ package com.vmturbo.topology.processor.template;
 
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Compute;
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Storage;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.addCommodityConstraints;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommodityBoughtDTO;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommoditySoldDTO;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getActiveCommoditiesWithKeysGroups;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getCommoditySoldConstraint;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
@@ -46,7 +41,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  *
  * <p>This class will also handle reservation virtual machine entity, the only difference between normal
  * virtual machine with reservation virtual machine is that reservation virtual machine entity only
- * buy provision commodity, all other commodity boght value will be set to zero. It use isReservationEntity
+ * buy provision commodity, all other commodity bought value will be set to zero. It use isReservationEntity
  * field to represent it is a reservation virtual machine or not.
  */
 public class VirtualMachineEntityConstructor extends TopologyEntityConstructor {
@@ -68,24 +63,23 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor {
 
     @Override
     public Collection<TopologyEntityDTO.Builder> createTopologyEntityFromTemplate(
-            @Nonnull final Template template,
-            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nonnull Optional<TopologyEntity.Builder> originalTopologyEntity, boolean isReplaced,
+            @Nonnull final Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
-        TopologyEntityDTO.Builder topologyEntityBuilder = super.createTopologyEntityFromTemplate(
-                template, topology, originalTopologyEntity, isReplaced, identityProvider).iterator()
-                        .next();
+        TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
+                template, originalTopologyEntity, isReplaced, identityProvider).iterator().next();
+        topologyEntityBuilder.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
 
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints =
                 sortAccessCommodityBought(getActiveCommoditiesWithKeysGroups(originalTopologyEntity));
         final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
             originalTopologyEntity);
-        final List<TemplateResource> computeTemplateResources =
-            TemplatesConverterUtils.getTemplateResources(template, Compute);
+        final List<TemplateResource> computeTemplateResources = getTemplateResources(template,
+                Compute);
         addComputeCommodities(topologyEntityBuilder, computeTemplateResources);
 
-        final List<TemplateResource> storageTemplateResources =
-            TemplatesConverterUtils.getTemplateResources(template, Storage);
+        final List<TemplateResource> storageTemplateResources = getTemplateResources(template,
+                Storage);
         addStorageCommodities(topologyEntityBuilder, storageTemplateResources);
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
         handleProviderIdForCommodityBought(topologyEntityBuilder);
@@ -135,8 +129,8 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor {
     private void addComputeCommodities(
             @Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
             @Nonnull List<TemplateResource> computeTemplateResources) {
-        final Map<String, String> fieldNameValueMap =
-            TemplatesConverterUtils.createFieldNameValueMap(computeTemplateResources);
+        final Map<String, String> fieldNameValueMap = createFieldNameValueMap(
+                computeTemplateResources);
         addComputeCommoditiesBought(topologyEntityBuilder, fieldNameValueMap);
         addComputeCommoditiesSold(topologyEntityBuilder, fieldNameValueMap);
     }
@@ -251,9 +245,9 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor {
 
         final double totalCpuSold = numOfCpu * cpuSpeed;
         CommoditySoldDTO cpuSoldCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.VCPU_VALUE, Optional.ofNullable(totalCpuSold));
+                createCommoditySoldDTO(CommodityDTO.CommodityType.VCPU_VALUE, totalCpuSold);
         CommoditySoldDTO memorySizeCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.VMEM_VALUE, Optional.ofNullable(memorySize));
+                createCommoditySoldDTO(CommodityDTO.CommodityType.VMEM_VALUE, memorySize);
         topologyEntityBuilder.addCommoditySoldList(cpuSoldCommodity);
         topologyEntityBuilder.addCommoditySoldList(memorySizeCommodity);
 
@@ -361,8 +355,8 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor {
     private List<CommodityBoughtDTO> addStorageCommoditiesBought(
             @Nonnull TemplateResource stTemplateSource,
             @Nonnull String type) {
-        final Map<String, String> fieldNameValueMap =
-            TemplatesConverterUtils.createFieldNameValueMap(Lists.newArrayList(stTemplateSource));
+        final Map<String, String> fieldNameValueMap = createFieldNameValueMap(
+                Lists.newArrayList(stTemplateSource));
 
         List<CommodityBoughtDTO> storageCommodityBought =
             addStorageCommoditiesBoughtST(fieldNameValueMap, type);
@@ -409,7 +403,8 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor {
             @Nonnull double totalDiskSize) {
         if (Double.isFinite(totalDiskSize)) {
             CommoditySoldDTO totalDiskSizeCommodity =
-                createCommoditySoldDTO(CommodityDTO.CommodityType.VSTORAGE_VALUE, Optional.ofNullable(totalDiskSize));
+                    createCommoditySoldDTO(CommodityDTO.CommodityType.VSTORAGE_VALUE,
+                            totalDiskSize);
             topologyEntityBuilder.addCommoditySoldList(totalDiskSizeCommodity);
         }
     }

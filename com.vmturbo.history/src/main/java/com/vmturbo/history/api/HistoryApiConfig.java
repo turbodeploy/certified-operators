@@ -4,16 +4,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
+import com.vmturbo.components.common.health.MessageProducerHealthMonitor;
 import com.vmturbo.history.component.api.HistoryComponentNotifications.HistoryComponentNotification;
 import com.vmturbo.history.component.api.impl.HistoryComponentNotificationReceiver;
 
@@ -48,7 +48,7 @@ public class HistoryApiConfig {
     }
 
     @Bean
-    public KafkaProducerHealthMonitor kafkaProducerHealthMonitor() {
-        return new KafkaProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
+    public MessageProducerHealthMonitor messageProducerHealthMonitor() {
+        return new MessageProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
     }
 }

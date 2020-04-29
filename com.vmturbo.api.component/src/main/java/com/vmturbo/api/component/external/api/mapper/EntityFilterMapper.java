@@ -74,6 +74,8 @@ public class EntityFilterMapper {
     public static final String ACCOUNT_OID = "BusinessAccount:oid:OWNS:1";
     /** Key of the criteria to query resource groups by ids. */
     public static final String MEMBER_OF_RESOURCE_GROUP_OID = "MemberOf:ResourceGroup:uuid";
+    /** Key of the criteria to query resource groups by names. */
+    public static final String MEMBER_OF_RESOURCE_GROUP_NAME = "MemberOf:ResourceGroup:displayName";
     /** Key of the criteria to query resource groups by ids. */
     public static final String OWNER_OF_RESOURCE_GROUP_OID = "OwnerOf:ResourceGroup:uuid";
     /** Key of the criteria to query billing families by ids. */
@@ -205,7 +207,7 @@ public class EntityFilterMapper {
         // This is reported as a JIRA issue OM-39039.
         final String operator = context.getFilter().getExpType();
         final boolean positiveMatch = isPositiveMatchingOperator(operator);
-        if (isRegexOperator(operator)) {
+        if (!context.isExactMatching()) {
             // regex match is required
             final PropertyFilter tagsFilter =
                 mapPropertyFilterForMultimapsRegex(StringConstants.TAGS_ATTR,
@@ -666,9 +668,10 @@ public class EntityFilterMapper {
                                             @Nonnull String firstToken) {
         final String currentToken = iterator.next();
 
+        final String operator = filter.getExpType();
         final SearchFilterContext filterContext =
                 new SearchFilterContext(filter, iterator, entityType, currentToken, firstToken,
-                        inputType.contains("s") || inputType.contains("#"));
+                        !isRegexOperator(operator));
         final Function<SearchFilterContext, List<SearchFilter>> filterApiDtoProcessor =
                         FILTER_TYPES_TO_PROCESSORS.get(currentToken);
 

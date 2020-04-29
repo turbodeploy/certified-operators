@@ -2,7 +2,6 @@ package com.vmturbo.topology.processor.communication;
 
 import java.time.Clock;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import javax.annotation.Nonnull;
 
@@ -14,11 +13,11 @@ import com.vmturbo.platform.sdk.common.MediationMessage.SetProperties;
 import com.vmturbo.platform.sdk.common.MediationMessage.TargetUpdateRequest;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
 import com.vmturbo.topology.processor.operation.IOperationMessageHandler;
-import com.vmturbo.topology.processor.operation.Operation;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.operation.validation.Validation;
 import com.vmturbo.topology.processor.probes.ProbeException;
+import com.vmturbo.topology.processor.targets.Target;
 
 /**
  * General interface of the remote mediation. All calls occur asynchronously and should return a
@@ -37,49 +36,49 @@ public interface RemoteMediation {
      * Sends discovery request. Method returns after request is sent. Result of the request
      * processing is reported to {@code responseHandler}.
      *
-     * @param probeId probe to perform request on
-     * @param targetId target to discover
+     * @param target target to perform request on
      * @param discoveryRequest discovery request data
      * @param responseHandler handler to accept discovery responses.
+     * @return the unique mediation message id for this discovery request
      * @throws ProbeException if probe requested does not exist.
      * @throws CommunicationException if some communication error occurred.
      * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void sendDiscoveryRequest(long probeId, long targetId,
+    int sendDiscoveryRequest(@Nonnull Target target,
                               @Nonnull DiscoveryRequest discoveryRequest,
-                    @Nonnull final IOperationMessageHandler<Discovery> responseHandler)
+                    @Nonnull IOperationMessageHandler<Discovery> responseHandler)
                     throws ProbeException, CommunicationException, InterruptedException;
 
     /**
      * Sends validation request. Method returns after request is sent. Result of the request
      * processing is reported to {@code responseHandler}.
      *
-     * @param probeId probe to perform request on
+     * @param target target to perform request on
      * @param validationRequest validation request data
      * @param responseHandler handler to accept validation responses.
      * @throws ProbeException if probe requested does not exist.
      * @throws CommunicationException if some communication error occurred
      * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void sendValidationRequest(final long probeId,
-                    @Nonnull final ValidationRequest validationRequest,
-                    @Nonnull final IOperationMessageHandler<Validation> responseHandler)
+    void sendValidationRequest(@Nonnull Target target,
+                    @Nonnull ValidationRequest validationRequest,
+                    @Nonnull IOperationMessageHandler<Validation> responseHandler)
                     throws InterruptedException, ProbeException, CommunicationException;
 
     /**
      * Sends action request. Method returns after request is sent. Result of the request
      * processing is reported to {@code responseHandler}.
      *
-     * @param probeId probe to perform request on
+     * @param target target to perform request on
      * @param actionRequest action request data
      * @param actionMessageHandler handler to accept action responses.
      * @throws ProbeException if probe requested does not exist.
      * @throws CommunicationException if some communication error occurred
      * @throws InterruptedException if thread is interrupted while sending request.
      */
-    void sendActionRequest(final long probeId,
-                           @Nonnull final ActionRequest actionRequest,
-                           @Nonnull final IOperationMessageHandler<Action> actionMessageHandler)
+    void sendActionRequest(@Nonnull Target target,
+                           @Nonnull ActionRequest actionRequest,
+                           @Nonnull IOperationMessageHandler<Action> actionMessageHandler)
             throws InterruptedException, ProbeException, CommunicationException;
 
     /**

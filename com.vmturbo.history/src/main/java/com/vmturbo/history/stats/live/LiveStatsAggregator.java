@@ -132,6 +132,8 @@ public class LiveStatsAggregator {
                     entityDTO.getOid(), CommodityType.STORAGE_AMOUNT.getNumber(), volume.getStorageAmountCapacity());
                 capacityCache.cacheCapacity(
                     entityDTO.getOid(), CommodityType.STORAGE_ACCESS.getNumber(), volume.getStorageAccessCapacity());
+                capacityCache.cacheCapacity(
+                    entityDTO.getOid(), CommodityType.IO_THROUGHPUT.getNumber(), volume.getIoThroughputCapacity());
             } else {
                 logger.warn("Capacity info is missing for volume {}", entityDTO.getOid());
             }

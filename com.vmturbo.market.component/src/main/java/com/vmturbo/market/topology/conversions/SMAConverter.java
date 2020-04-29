@@ -133,8 +133,8 @@ public class SMAConverter {
                         continue;
                     }
 
-                    destinationRIDiscountedMarketTierOid = converter
-                            .getRIDiscountedMarketTierIDFromRIData(riData, region);
+                    destinationRIDiscountedMarketTierOid = converter.getCloudTc()
+                        .getRIDiscountedMarketTierIDFromRIData(riData);
 
                 }
                 // Update the supplier of the compute shopping list of cloud VMs. Also add coupon

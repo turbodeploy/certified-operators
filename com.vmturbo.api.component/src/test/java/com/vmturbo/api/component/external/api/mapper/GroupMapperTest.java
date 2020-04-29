@@ -597,7 +597,7 @@ public class GroupMapperTest {
     @Test
     public void testVmsByClusterNameToSearchParameters() throws Exception {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE,
-                        filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByClusterName"));
+                        filterDTO(EntityFilterMapper.REGEX_MATCH, FOO, "vmsByClusterName"));
         List<SearchParameters> parameters =
                         entityFilterMapper.convertToSearchParameters(
                                         groupDto.getCriteriaList(), groupDto.getClassName(), null);
@@ -634,7 +634,7 @@ public class GroupMapperTest {
         // verify that we have rebuilt the original vmsByClusterName
         FilterApiDTO vmsByClusterNameFilter = filterApiDTOS.get(0);
         assertEquals("vmsByClusterName", vmsByClusterNameFilter.getFilterType());
-        assertEquals("EQ", vmsByClusterNameFilter.getExpType());
+        assertEquals("RXEQ", vmsByClusterNameFilter.getExpType());
         assertEquals(FOO, vmsByClusterNameFilter.getExpVal());
     }
 
@@ -645,7 +645,7 @@ public class GroupMapperTest {
     @Test
     public void testPMsByClusterNameToSearchParameters() throws OperationFailedException {
         GroupApiDTO groupDto = groupApiDTO(AND, ApiEntityType.PHYSICAL_MACHINE.apiStr(),
-                filterDTO(EntityFilterMapper.EQUAL, FOO, "pmsByClusterName"));
+                filterDTO(EntityFilterMapper.REGEX_MATCH, FOO, "pmsByClusterName"));
         List<SearchParameters> parameters =
                 entityFilterMapper.convertToSearchParameters(
                         groupDto.getCriteriaList(), groupDto.getClassName(), null);

@@ -41,11 +41,11 @@ public class Probes {
                         .setProbeCategory("category")
                         .setUiProbeCategory("ui-category")
                         .addTargetIdentifierField(FakeRemoteMediation.TGT_ID)
-                        .build();
+                        .addAccountDefinition(mandatoryField).build();
         defaultProbe = ProbeInfo.newBuilder(emptyProbe)
                         .setProbeType("probe-type-" + counter.getAndIncrement())
                         .setUiProbeCategory("ui-probe-type-" + counter.getAndIncrement())
-                        .addAccountDefinition(mandatoryField).build();
+                        .build();
         incrementalProbe =
             ProbeInfo.newBuilder(defaultProbe).setIncrementalRediscoveryIntervalSeconds(10).build();
     }

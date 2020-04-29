@@ -218,7 +218,7 @@ public class PlanProgressListenerTest {
     public void testGetOCPWithBuyRIAndOptimizeServicesPlanStatus() {
         PlanStatus planStatus1 = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
                 getPlanProgress(SUCCESS, SUCCESS).setAnalysisStatus(SUCCESS), true, SOURCE_TOPOLOGY_ID,
-                PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, null),
+                PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null, null).addActionPlanId(2),
                 true);
         Assert.assertEquals(SUCCEEDED, planStatus1);
         PlanStatus planStatus2 = PlanProgressListener.getOCPWithBuyRIPlanStatus(getPlan(
@@ -432,7 +432,7 @@ public class PlanProgressListenerTest {
         final PlanStatus planStatus = PlanProgressListener.getPlanStatusBasedOnPlanType(
                 getPlan(getPlanProgress(SUCCESS, SUCCESS).setAnalysisStatus(SUCCESS), true,
                         SOURCE_TOPOLOGY_ID, PROJECTED_TOPOLOGY_ID, ACTION_PLAN_ID, null,
-                        scenario));
+                        scenario).addActionPlanId(2));
         Assert.assertEquals(SUCCEEDED, planStatus);
     }
 

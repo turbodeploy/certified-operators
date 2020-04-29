@@ -5,13 +5,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
@@ -183,7 +183,7 @@ public class TemplateConverterFactory {
         List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
         for (int i = 0; i < additionCount; i++) {
-            result.addAll(generateTopologyEntityByType(template, topology, Optional.empty(),
+            result.addAll(generateTopologyEntityByType(template, topology, null,
                     isReservation, false));
         }
 
@@ -215,8 +215,7 @@ public class TemplateConverterFactory {
                     .forEach(consumer -> consumer.getTopologyEntityDtoBuilder()
                             .getAnalysisSettingsBuilder().setShopTogether(true));
 
-            result.addAll(generateTopologyEntityByType(template, topology, Optional.of(entity),
-                    false, true));
+            result.addAll(generateTopologyEntityByType(template, topology, entity, false, true));
         }
 
         return result;
@@ -226,7 +225,7 @@ public class TemplateConverterFactory {
     private Collection<TopologyEntityDTO.Builder> generateTopologyEntityByType(
             @Nonnull final Template template,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            Optional<TopologyEntity.Builder> originalTopologyEntity, final boolean isReservation,
+            @Nullable TopologyEntity.Builder originalTopologyEntity, final boolean isReservation,
             boolean isReplaced) throws TopologyEntityConstructorException {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
         final Map<Integer, TopologyEntityConstructor> converterMap = isReservation

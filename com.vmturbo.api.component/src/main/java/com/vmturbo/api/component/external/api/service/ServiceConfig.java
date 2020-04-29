@@ -14,12 +14,10 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
-import org.springframework.security.saml.userdetails.SAMLUserDetailsService;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.HeaderAuthenticationProvider;
-import com.vmturbo.api.component.external.api.SAML.SAMLCondition;
-import com.vmturbo.api.component.external.api.SAML.SAMLUserDetailsServiceImpl;
+import com.vmturbo.api.component.communication.SamlAuthenticationProvider;
 import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
@@ -48,8 +46,8 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStats
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
 import com.vmturbo.api.component.security.IntersightIdTokenVerifier;
+import com.vmturbo.api.component.security.SamlAuthenticationCondition;
 import com.vmturbo.api.enums.DeploymentMode;
-import com.vmturbo.api.serviceinterfaces.ISAMLService;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
 import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.auth.api.SpringSecurityConfig;
@@ -113,8 +111,11 @@ public class ServiceConfig {
     @Value("${samlEnabled:false}")
     private boolean samlEnabled;
 
-    @Value("${samlIdpMetadata:samlIdpMetadata}")
-    private String samlIdpMetadata;
+    @Value("${samlRegistrationId:simplesamlphp}")
+    private String samlRegistrationId;
+
+    @Value("${externalGroupTag:group}")
+    private String externalGroupTag;
 
     @Value("${cpuInfoCacheLifetimeHours}")
     private int cpuCatalogLifeHours;
@@ -229,19 +230,16 @@ public class ServiceConfig {
     }
 
     /**
-     * SAML service bean.
+     * SAML authentication provider bean.
      *
-     * @return SAML service bean.
+     * @return SAML authentication provider bean.
      */
     @Bean
-    public ISAMLService samlService() {
-        return new SAMLService(apiComponentType, communicationConfig.clusterMgr());
-    }
-
-    @Bean
-    @Conditional(SAMLCondition.class)
-    public SAMLUserDetailsService samlUserDetailsService() {
-        return new SAMLUserDetailsServiceImpl();
+    @Conditional(SamlAuthenticationCondition.class)
+    public SamlAuthenticationProvider samlAuthenticationProvider() {
+        return new SamlAuthenticationProvider(authConfig.getAuthHost(), authConfig.getAuthPort(),
+                authConfig.getAuthRoute(), communicationConfig.serviceRestTemplate(),
+                securityConfig.verifier(), targetStore(), externalGroupTag);
     }
 
     @Bean
@@ -629,7 +627,7 @@ public class ServiceConfig {
         return new UsersService(authConfig.getAuthHost(),
                                 authConfig.getAuthPort(),
                                 communicationConfig.serviceRestTemplate(),
-                                samlIdpMetadata,
+                                samlRegistrationId,
                                 samlEnabled,
                                 groupsService(),
                                 widgetSetsService());

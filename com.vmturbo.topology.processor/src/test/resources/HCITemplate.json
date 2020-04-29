@@ -30,20 +30,20 @@
       },
       "fields": [{
         "name": "powerSize",
-        "value": "1.0"
+        "value": ".1"
       }, {
         "name": "spaceSize",
-        "value": "1.0"
+        "value": ".2"
       }, {
         "name": "coolingSize",
-        "value": "1.0"
+        "value": ".3"
       }]
     }, {
       "category": {
         "name": "Storage"
       },
       "fields": [{
-        "name": "storageAmount",
+        "name": "diskSize",
         "value": "51200.0"
       }, {
         "name": "diskIops",

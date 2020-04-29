@@ -122,7 +122,8 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
         final long planId = actionsUpdated.getActionPlanInfo().hasMarket() ?
                 actionsUpdated.getActionPlanInfo().getMarket().getSourceTopologyInfo().getTopologyContextId()
                 : actionsUpdated.getActionPlanInfo().getBuyRi().getTopologyContextId();
-        logger.debug("Received action plan with {} for topology context ID {}", actionsUpdated.getActionPlanId(), planId);
+        logger.debug("Received action plan with ID {} for topology context ID {}",
+                actionsUpdated.getActionPlanId(), planId);
         if (planId != realtimeTopologyContextId) {
             try {
                 Optional<PlanInstance> planInstance = planDao.getPlanInstance(planId);
@@ -593,8 +594,14 @@ public class PlanProgressListener implements ActionsListener, RepositoryListener
             return commonNotificationsSuccessful ? PlanStatus.SUCCEEDED
                             : PlanStatus.WAITING_FOR_RESULT;
         } else if (isOCPOptimizeAndBuyRI) {
-            return analysisSuccessful && commonNotificationsSuccessful
-                   && costNotificationsSuccessful ? PlanStatus.SUCCEEDED
+            // We must account for both RI Buy, and Optimize Services action plans- only set
+            // PlanStatus == PlanStatus.SUCCEEDED after both action plans have completed
+            final int numActionPlans = 2;
+            return analysisSuccessful &&
+                    commonNotificationsSuccessful &&
+                    costNotificationsSuccessful &&
+                    plan.getActionPlanIdCount() == numActionPlans
+                    ? PlanStatus.SUCCEEDED
                                    : PlanStatus.WAITING_FOR_RESULT;
         } else if (isOCPOptimizeServices(plan)) {
             return analysisSuccessful && commonNotificationsSuccessful
