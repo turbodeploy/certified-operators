@@ -140,7 +140,7 @@ public class StatsConfig {
     @Value("${historyPaginationDefaultSortCommodity}")
     private String historyPaginationDefaultSortCommodity;
 
-    @Value("${maxAmountOfEntitiesPerGrpcMessage:200}")
+    @Value("{maxAmountOfEntitiesPerGrpcMessage:200}")
     private int maxAmountOfEntitiesPerGrpcMessage;
 
     @Value("${systemLoadRecordsPerChunk}")
