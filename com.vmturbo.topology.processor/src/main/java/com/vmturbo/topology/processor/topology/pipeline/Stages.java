@@ -98,6 +98,7 @@ import com.vmturbo.topology.processor.topology.ConstraintsEditor.ConstraintsEdit
 import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
+import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
@@ -1494,6 +1495,29 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             historicalEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo());
+            return Status.success();
+        }
+    }
+
+    /**
+     * Stages to copy historical values onto ephemeral entities (ie Containers) from
+     * their associated persistent entities (ie ContainerSpec)
+     */
+    public static class EphemeralEntityHistoryStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+        private final EphemeralEntityEditor ephemeralEntityEditor;
+
+        /**
+         * Create a new {@link EphemeralEntityHistoryStage}.
+         * @param ephemeralEntityEditor The {@link EphemeralEntityEditor} to be run in this stage.
+         */
+        public EphemeralEntityHistoryStage(@Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
+            this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
+        }
+
+        @Override
+        @Nonnull
+        public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
+            ephemeralEntityEditor.applyEdits(graph);
             return Status.success();
         }
     }

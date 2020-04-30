@@ -45,14 +45,13 @@ public class TemplateConverterFactory {
 
     private final IdentityProvider identityProvider;
 
-    private final Map<Integer, TopologyEntityConstructor> templateConverterMap = ImmutableMap.of(
+    private final Map<Integer, ITopologyEntityConstructor> templateConverterMap = ImmutableMap.of(
             EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(),
             EntityType.PHYSICAL_MACHINE_VALUE, new PhysicalMachineEntityConstructor(),
-            EntityType.HCI_PHYSICAL_MACHINE_VALUE, new HCIPhysicalMachineEntityConstructor(),
             EntityType.STORAGE_VALUE, new StorageEntityConstructor());
 
     // map used for creating reservation entities from template.
-    private final Map<Integer, TopologyEntityConstructor> reservationTemplateConvertMap = ImmutableMap
+    private final Map<Integer, ITopologyEntityConstructor> reservationTemplateConvertMap = ImmutableMap
             .of(EntityType.VIRTUAL_MACHINE_VALUE, new VirtualMachineEntityConstructor(true));
 
     public TemplateConverterFactory(@Nonnull TemplateServiceBlockingStub templateService,
@@ -183,7 +182,7 @@ public class TemplateConverterFactory {
         List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
         for (int i = 0; i < additionCount; i++) {
-            result.addAll(generateTopologyEntityByType(template, topology, null,
+            result.add(generateTopologyEntityByType(template, topology, null,
                     isReservation, false));
         }
 
@@ -196,39 +195,73 @@ public class TemplateConverterFactory {
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nonnull Collection<Long> replacedEntityOids)
             throws TopologyEntityConstructorException {
-        List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
-        for (Long entityOid : replacedEntityOids) {
+        List<TopologyEntity.Builder> entitiesToReplace = getEntitiesById(topology,
+                replacedEntityOids);
+        setShopTogether(entitiesToReplace);
+
+        if (template.getTemplateInfo().getEntityType() == EntityType.HCI_PHYSICAL_MACHINE_VALUE) {
+            return new HCIPhysicalMachineEntityConstructor(template, topology, entitiesToReplace,
+                    true, identityProvider).createTopologyEntitiesFromTemplate();
+        } else {
+            List<TopologyEntityDTO.Builder> result = new ArrayList<>();
+
+            for (TopologyEntity.Builder entity : entitiesToReplace) {
+                result.add(generateTopologyEntityByType(template, topology, entity, false, true));
+            }
+
+            return result;
+        }
+    }
+
+    /**
+     * Set shopTogether to true for all consumers of an entity to be replaced.
+     * VMs are the only entity types which do shop together. So we filter for
+     * VMs here.
+     *
+     * @param entitiesToReplace entities to replace
+     */
+    private static void setShopTogether(@Nonnull List<TopologyEntity.Builder> entitiesToReplace) {
+        for (TopologyEntity.Builder entity : entitiesToReplace) {
+            for (TopologyEntity consumer : entity.getConsumers()) {
+                if (consumer.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
+                    continue;
+                }
+
+                consumer.getTopologyEntityDtoBuilder().getAnalysisSettingsBuilder()
+                        .setShopTogether(true);
+            }
+        }
+    }
+
+    private static List<TopologyEntity.Builder> getEntitiesById(
+            @Nonnull Map<Long, TopologyEntity.Builder> topology, @Nonnull Collection<Long> oids)
+            throws TopologyEntityConstructorException {
+
+        List<TopologyEntity.Builder> result = new ArrayList<>();
+
+        for (Long entityOid : oids) {
             TopologyEntity.Builder entity = topology.get(entityOid);
 
             if (entity == null) {
-                logger.error("Error retrieving entity id {} from topology", entityOid);
-                continue;
+                throw new TopologyEntityConstructorException(
+                        "Error retrieving entity id " + entityOid + " from topology");
             }
 
-            // Set shopTogether to true for all consumers of an entity to be
-            // replaced.
-            // VMs are the only entity types which do shop together. So we
-            // filter for VMs here.
-            entity.getConsumers().stream()
-                    .filter(c -> c.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                    .forEach(consumer -> consumer.getTopologyEntityDtoBuilder()
-                            .getAnalysisSettingsBuilder().setShopTogether(true));
-
-            result.addAll(generateTopologyEntityByType(template, topology, entity, false, true));
+            result.add(entity);
         }
 
         return result;
     }
 
     @Nonnull
-    private Collection<TopologyEntityDTO.Builder> generateTopologyEntityByType(
+    private TopologyEntityDTO.Builder generateTopologyEntityByType(
             @Nonnull final Template template,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntity.Builder originalTopologyEntity, final boolean isReservation,
             boolean isReplaced) throws TopologyEntityConstructorException {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
-        final Map<Integer, TopologyEntityConstructor> converterMap = isReservation
+        final Map<Integer, ITopologyEntityConstructor> converterMap = isReservation
                 ? reservationTemplateConvertMap
                 : templateConverterMap;
         if (!converterMap.containsKey(templateEntityType)) {

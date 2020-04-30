@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 
+import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 
 /**
@@ -19,6 +20,9 @@ import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 public class ClusterMgrClientConfig {
     @Value("${clusterMgrHost}")
     private String clusterMgrHost;
+
+    @Value("${clusterMgrRoute:}")
+    private String clusterMgrRoute;
 
     @Value("${serverHttpPort}")
     private int clusterMgrPort;
@@ -42,5 +46,17 @@ public class ClusterMgrClientConfig {
         return ComponentGrpcServer.newChannelBuilder(clusterMgrHost, grpcPort)
             .keepAliveTime(grpcPingIntervalSeconds, TimeUnit.SECONDS)
             .build();
+    }
+
+    /**
+     * REST client to issue REST commands to cluster manager.
+     *
+     * @return The {@link ClusterMgrRestClient}.
+     */
+    @Bean
+    public ClusterMgrRestClient restClient() {
+        return ClusterMgrClient.createClient(ComponentApiConnectionConfig.newBuilder()
+                .setHostAndPort(clusterMgrHost, clusterMgrPort, clusterMgrRoute)
+                .build());
     }
 }

@@ -39,7 +39,7 @@ public class SamlApiSecurityConfig extends ApiSecurityConfig {
 
     private static final Logger logger = LogManager.getLogger();
 
-    private static final String SAML_REDIRECT_URL = "/app/index.html";
+    private static final String SAML_REDIRECT_URL = "/app/index.html#/view/main/home/Market/hybrid";
     private static final String BASE_URL = "/vmturbo";
     private static final String LOGIN_PROCESSING_URL = BASE_URL + "/saml2/sso/{registrationId}";
 
@@ -57,7 +57,7 @@ public class SamlApiSecurityConfig extends ApiSecurityConfig {
     private String samlRegistrationId;
 
     // SAML SP restriction tag, e.g. turbo
-    @Value("${samlSpEndityId}")
+    @Value("${samlSpEntityId}")
     private String samlSpEndityId;
 
     /**
@@ -132,7 +132,7 @@ public class SamlApiSecurityConfig extends ApiSecurityConfig {
         Saml2X509Credential idpVerificationCertificate =
                 Saml2X509CredentialsUtil.buildSaml2X509Credential(samlIdpCertificate);
         String acsUrlTemplate =
-                "{baseUrl}" + Saml2WebSsoAuthenticationFilter.DEFAULT_FILTER_PROCESSES_URI;
+                "https://{baseHost}" + LOGIN_PROCESSING_URL;
         return RelyingPartyRegistration.withRegistrationId(samlRegistrationId)
                 .providerDetails(c -> {
                     c.webSsoUrl(samlWebSsoEndpoint);

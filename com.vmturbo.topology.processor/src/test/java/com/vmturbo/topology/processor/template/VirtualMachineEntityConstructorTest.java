@@ -33,8 +33,8 @@ public class VirtualMachineEntityConstructorTest {
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor()
                 .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, false,
-                        identityProvider)
-                .iterator().next();
+                        identityProvider);
+
         assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(2, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(400.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
@@ -77,8 +77,7 @@ public class VirtualMachineEntityConstructorTest {
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor()
                 .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, topologyEntity, false,
-                        identityProvider)
-                .iterator().next();
+                        identityProvider);
 
         assertEquals(4, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(1,
@@ -124,8 +123,7 @@ public class VirtualMachineEntityConstructorTest {
 
         TopologyEntityDTO.Builder topologyEntityDTO = new VirtualMachineEntityConstructor(true)
                 .createTopologyEntityFromTemplate(VM_TEMPLATE, topology, null, false,
-                        identityProvider)
-                .iterator().next();
+                        identityProvider);
         assertEquals(3, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(2, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(400.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),

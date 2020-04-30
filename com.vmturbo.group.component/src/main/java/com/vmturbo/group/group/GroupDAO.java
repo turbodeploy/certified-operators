@@ -102,6 +102,7 @@ import com.vmturbo.group.db.tables.records.GroupingRecord;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricCounter;
+import com.vmturbo.proactivesupport.DataMetricHistogram;
 
 /**
  * DAO implementing {@link IGroupStore} - CRUD operations with groups.
@@ -130,6 +131,14 @@ public class GroupDAO implements IGroupStore {
             DataMetricCounter.builder()
                     .withName("group_store_duplicate_name_count")
                     .withHelp("Number of duplicate name attempts in operating the group store.")
+                    .build()
+                    .register();
+
+    private static final DataMetricHistogram GROUPS_BY_ID_SIZE_COUNTER =
+            DataMetricHistogram.builder()
+                    .withName("group_store_groups_by_id_request_size")
+                    .withHelp("Number of groups requested to be loaded from GroupStore within one request.")
+                    .withBuckets(1, 10, 100, 1000, 10000, 100000, 1000000)
                     .build()
                     .register();
 
@@ -503,6 +512,7 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     private Map<Long, GroupDTO.Grouping> getGroupInternal(@Nonnull Collection<Long> groupIds) {
+        GROUPS_BY_ID_SIZE_COUNTER.observe((double)groupIds.size());
         if (groupIds.isEmpty()) {
             return Collections.emptyMap();
         }

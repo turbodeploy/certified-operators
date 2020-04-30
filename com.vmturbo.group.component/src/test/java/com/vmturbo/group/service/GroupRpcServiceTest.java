@@ -198,7 +198,8 @@ public class GroupRpcServiceTest {
                 transactionProvider,
                 identityProvider,
                 targetSearchServiceRpc,
-                settingPolicyUpdater);
+                settingPolicyUpdater,
+                2, 120);
         when(temporaryGroupCache.getGrouping(anyLong())).thenReturn(Optional.empty());
         when(temporaryGroupCache.deleteGrouping(anyLong())).thenReturn(Optional.empty());
         MockitoAnnotations.initMocks(this);
@@ -226,11 +227,50 @@ public class GroupRpcServiceTest {
         Mockito.when(groupStoreDAO.getGroupIds(GroupFilters.newBuilder()
                 .addGroupFilter(genericGroupsRequest.getGroupFilter())
                 .build())).thenReturn(Collections.singleton(groupId));
+        @SuppressWarnings("unchecked")
         final StreamObserver<GroupDTO.Grouping> mockGroupingObserver =
                 Mockito.mock(StreamObserver.class);
         groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
         Mockito.verify(mockGroupingObserver).onNext(resultGroup);
         Mockito.verify(mockGroupingObserver).onCompleted();
+    }
+
+    /**
+     * Test {@link GroupRpcService#getGroups(GetGroupsRequest, StreamObserver)} and getting
+     * groups using chunks.
+     */
+    @Test
+    public void testGetGroupsByChunks() {
+        final long groupId1 = 1234L;
+        final Grouping resultGroup1 = Grouping.newBuilder().setId(groupId1).build();
+        groupStoreDAO.addGroup(resultGroup1);
+        final long groupId2 = 1235L;
+        final Grouping resultGroup2 = Grouping.newBuilder().setId(groupId2).build();
+        groupStoreDAO.addGroup(resultGroup2);
+        final long groupId3 = 1236L;
+        final Grouping resultGroup3 = Grouping.newBuilder().setId(groupId3).build();
+        groupStoreDAO.addGroup(resultGroup3);
+
+        final GetGroupsRequest genericGroupsRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .addId(groupId1)
+                        .addId(groupId2)
+                        .addId(groupId3)
+                        .build())
+                .build();
+        Mockito.when(groupStoreDAO.getGroupIds(GroupFilters.newBuilder()
+                .addGroupFilter(genericGroupsRequest.getGroupFilter())
+                .build())).thenReturn(Sets.newHashSet(groupId1, groupId2, groupId3));
+        @SuppressWarnings("unchecked")
+        final StreamObserver<GroupDTO.Grouping> mockGroupingObserver =
+                Mockito.mock(StreamObserver.class);
+        groupRpcService.getGroups(genericGroupsRequest, mockGroupingObserver);
+        final ArgumentCaptor<Grouping> captor = ArgumentCaptor.forClass(Grouping.class);
+        Mockito.verify(mockGroupingObserver, Mockito.times(3)).onNext(captor.capture());
+        Mockito.verify(mockGroupingObserver).onCompleted();
+        Assert.assertEquals(Sets.newHashSet(resultGroup1, resultGroup2, resultGroup3),
+                new HashSet<>(captor.getAllValues()));
+        Mockito.verify(groupStoreDAO, Mockito.times(2)).getGroupsById(Mockito.any());
     }
 
     /**

@@ -60,7 +60,7 @@ public class SQLDatabaseConfigTest {
         }
 
         @Override
-        protected String getDbSchemaName() {
+        public String getDbSchemaName() {
             return "vmtdb";
         }
     }

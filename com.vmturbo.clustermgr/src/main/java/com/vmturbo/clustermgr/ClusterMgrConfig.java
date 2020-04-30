@@ -57,6 +57,10 @@ import com.vmturbo.proactivesupport.DataCollectorFramework;
 @EnableWebMvc
 @Import({ComponentRegistrationConfig.class})
 public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
+    /**
+     * Instance ID property name.
+     */
+    public static final String INSTANCE_ID_NAME = "instanceID";
 
     @Value("${consul_host}")
     private String consulHost;
@@ -252,6 +256,9 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
             ConsulKeyValueStore.constructNamespacePrefix(consulNamespace, enableConsulNamespace));
     }
 
+    @Value("${aggregator.base.path:/tmp/datapoint}")
+    private String aggregatorBasePath;
+
     /**
      * The {@link DataAggregator} bean.
      *
@@ -259,7 +266,7 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
      */
     @Bean
     public DataAggregator dataAggregator() {
-        return new DataAggregator();
+        return new DataAggregator(aggregatorBasePath);
     }
 
     /**
@@ -357,10 +364,10 @@ public class ClusterMgrConfig extends WebMvcConfigurerAdapter {
         }
         instance.start(TimeUnit.SECONDS.toMillis(collectionIntervalUrgent),
                        TimeUnit.SECONDS.toMillis(collectionIntervalOffline));
-        String instanceID = consulService().getValueAsString("instanceID", "-");
+        String instanceID = consulService().getValueAsString(INSTANCE_ID_NAME, "-");
         if ("-".equals(instanceID)) {
             instanceID = UUID.randomUUID().toString();
-            consulService().putValue("instanceID", instanceID);
+            consulService().putValue(INSTANCE_ID_NAME, instanceID);
         }
         String customerID = getValue("customer_id", "CUSTOMER_ID");
         String accessKey = getValue("access_key", "AWS_ACCESS_KEY_ID");

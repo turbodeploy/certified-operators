@@ -43,27 +43,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  * entities should be unplaced. And also it will try to keep all commodity
  * constrains from the original topology entity.
  */
-public abstract class TopologyEntityConstructor {
-
-    /**
-     * Create topology entities from a template. It modifies the original entity
-     * with the reference to the new one.
-     *
-     * @param template template
-     * @param topology topology
-     * @param originalTopologyEntity original TopologyEntity
-     * @param isReplaced is replaced
-     * @param identityProvider identity provider
-     * @return topology entities
-     * @throws TopologyEntityConstructorException error creating topology
-     *             entities
-     */
-    @Nonnull
-    public abstract Collection<TopologyEntityDTO.Builder> createTopologyEntityFromTemplate(
-            @Nonnull Template template,
-            @Nullable Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
-            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException;
+public class TopologyEntityConstructor {
 
     /**
      * Create topology entities from a template. It modifies the original entity

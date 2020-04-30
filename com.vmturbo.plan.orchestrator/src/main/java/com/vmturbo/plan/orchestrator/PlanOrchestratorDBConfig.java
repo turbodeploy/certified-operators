@@ -64,7 +64,7 @@ public class PlanOrchestratorDBConfig extends SQLDatabaseConfig {
     }
 
     @Override
-    protected String getDbSchemaName() {
+    public String getDbSchemaName() {
         return dbSchemaName;
     }
 }

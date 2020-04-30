@@ -314,16 +314,8 @@ public class PlanStatsAggregator {
             final int entityType = entityDTO.getEntityType();
             for (TopologyDTO.CommoditySoldDTO commoditySoldDTO : entityDTO.getCommoditySoldListList()) {
                 final int commodityType = commoditySoldDTO.getCommodityType().getType();
-                if (commodityType == CommodityType.STORAGE_AMOUNT.getNumber()
-                    && EntityType.STORAGE.getNumber() != entityType) {
-                    // Storage commodity counts are expected to be the aggregation of all
-                    // StorageAmount sold by all storage devices. We don't want to double count the
-                    // StorageAmount sold by other entity types (e.g. DiskArrays).
-                    // TODO (OM-55121): Generalize this to aggregate each commodity per entity type.
-                    continue;
-                }
-                double used = commoditySoldDTO.getUsed();
-                double capacity = commoditySoldDTO.getCapacity();
+                final double used = commoditySoldDTO.getUsed();
+                final double capacity = commoditySoldDTO.getCapacity();
                 // Get the record representing the aggregation for this entityType/commodityType combo
                 final CommodityAggregation commodityAggregation = commodityAggregationTable.get(entityType, commodityType);
                 if (commodityAggregation == null) {

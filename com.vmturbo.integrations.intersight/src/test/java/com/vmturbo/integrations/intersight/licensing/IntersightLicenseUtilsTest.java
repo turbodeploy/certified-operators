@@ -1,10 +1,14 @@
 package com.vmturbo.integrations.intersight.licensing;
 
+import static com.vmturbo.integrations.intersight.licensing.IntersightLicenseTestUtils.createIwoLicense;
+import static com.vmturbo.integrations.intersight.licensing.IntersightLicenseTestUtils.createProxyLicense;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import java.util.Arrays;
+import java.util.List;
 
 import com.cisco.intersight.client.model.LicenseLicenseInfo;
 import com.cisco.intersight.client.model.LicenseLicenseInfo.LicenseStateEnum;
@@ -15,6 +19,7 @@ import org.junit.Test;
 
 import com.vmturbo.api.dto.license.ILicense;
 import com.vmturbo.common.protobuf.licensing.Licensing.LicenseDTO;
+import com.vmturbo.integrations.intersight.licensing.IntersightLicenseUtils.BestAvailableIntersightLicenseComparator;
 import com.vmturbo.licensing.utils.CWOMLicenseEdition;
 
 /**
@@ -27,7 +32,7 @@ public class IntersightLicenseUtilsTest {
      */
     @Test
     public void testIsIntersightLicense() {
-        for (IntersightLicenseEdition licenseEdition: IntersightLicenseEdition.values()) {
+        for (IntersightProxyLicenseEdition licenseEdition: IntersightProxyLicenseEdition.values()) {
             LicenseDTO license = LicenseDTO.newBuilder()
                     .setEdition(licenseEdition.name())
                     .build();
@@ -51,14 +56,9 @@ public class IntersightLicenseUtilsTest {
      */
     @Test
     public void testToProxyEssentialsLicense() {
-        LicenseLicenseInfo essentialsLicense = mock(LicenseLicenseInfo.class);
-        when(essentialsLicense.getMoid()).thenReturn("1");
-        when(essentialsLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ESSENTIAL);
-        when(essentialsLicense.getLicenseState()).thenReturn(LicenseStateEnum.COMPLIANCE);
-
-        LicenseDTO mappedLicense = IntersightLicenseUtils.toProxyLicense(essentialsLicense);
+        LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.COMPLIANCE);
         assertEquals("1", mappedLicense.getExternalLicenseKey());
-        assertEquals(IntersightLicenseEdition.IWO_ESSENTIALS.name(), mappedLicense.getEdition());
+        assertEquals(IntersightProxyLicenseEdition.IWO_ESSENTIALS.name(), mappedLicense.getEdition());
         assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
         assertTrue(CWOMLicenseEdition.CWOM_ESSENTIALS.getFeatures().containsAll(mappedLicense.getFeaturesList()));
     }
@@ -68,14 +68,9 @@ public class IntersightLicenseUtilsTest {
      */
     @Test
     public void testToProxyAdvantageLicense() {
-        LicenseLicenseInfo essentialsLicense = mock(LicenseLicenseInfo.class);
-        when(essentialsLicense.getMoid()).thenReturn("1");
-        when(essentialsLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ADVANTAGE);
-        when(essentialsLicense.getLicenseState()).thenReturn(LicenseStateEnum.COMPLIANCE);
-
-        LicenseDTO mappedLicense = IntersightLicenseUtils.toProxyLicense(essentialsLicense);
+        LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ADVANTAGE, LicenseStateEnum.COMPLIANCE);
         assertEquals("1", mappedLicense.getExternalLicenseKey());
-        assertEquals(IntersightLicenseEdition.IWO_ADVANTAGE.name(), mappedLicense.getEdition());
+        assertEquals(IntersightProxyLicenseEdition.IWO_ADVANTAGE.name(), mappedLicense.getEdition());
         assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
         assertTrue(CWOMLicenseEdition.CWOM_ADVANCED.getFeatures().containsAll(mappedLicense.getFeaturesList()));
     }
@@ -85,33 +80,21 @@ public class IntersightLicenseUtilsTest {
      */
     @Test
     public void testToProxyPremiereLicense() {
-        LicenseLicenseInfo essentialsLicense = mock(LicenseLicenseInfo.class);
-        when(essentialsLicense.getMoid()).thenReturn("1");
-        when(essentialsLicense.getLicenseType()).thenReturn(LicenseTypeEnum.PREMIER);
-        when(essentialsLicense.getLicenseState()).thenReturn(LicenseStateEnum.COMPLIANCE);
-
-        LicenseDTO mappedLicense = IntersightLicenseUtils.toProxyLicense(essentialsLicense);
+        LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.PREMIER, LicenseStateEnum.COMPLIANCE);
         assertEquals("1", mappedLicense.getExternalLicenseKey());
-        assertEquals(IntersightLicenseEdition.IWO_PREMIER.name(), mappedLicense.getEdition());
+        assertEquals(IntersightProxyLicenseEdition.IWO_PREMIER.name(), mappedLicense.getEdition());
         assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
         assertTrue(CWOMLicenseEdition.CWOM_PREMIER.getFeatures().containsAll(mappedLicense.getFeaturesList()));
     }
 
     /**
-     * Test NON-mapping of the intersight Base license. We don't treat this as an error -- YET. For
-     * now, we expect this to get mapped to an Essentials license. In the future, this may generate
-     * an error or map to a null license.
+     * Test mapping of the intersight Base license.
      */
     @Test
     public void testToProxyBaseLicense() {
-        LicenseLicenseInfo essentialsLicense = mock(LicenseLicenseInfo.class);
-        when(essentialsLicense.getMoid()).thenReturn("1");
-        when(essentialsLicense.getLicenseType()).thenReturn(LicenseTypeEnum.BASE);
-        when(essentialsLicense.getLicenseState()).thenReturn(LicenseStateEnum.COMPLIANCE);
-
-        LicenseDTO mappedLicense = IntersightLicenseUtils.toProxyLicense(essentialsLicense);
+        LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.BASE, LicenseStateEnum.COMPLIANCE);
         assertEquals("1", mappedLicense.getExternalLicenseKey());
-        assertEquals(IntersightLicenseEdition.IWO_ESSENTIALS.name(), mappedLicense.getEdition());
+        assertEquals(IntersightProxyLicenseEdition.IWO_BASE.name(), mappedLicense.getEdition());
         assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
     }
 
@@ -121,12 +104,7 @@ public class IntersightLicenseUtilsTest {
      */
     @Test
     public void testToProxyGracePeriodLicense() {
-        LicenseLicenseInfo essentialsLicense = mock(LicenseLicenseInfo.class);
-        when(essentialsLicense.getMoid()).thenReturn("1");
-        when(essentialsLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ESSENTIAL);
-        when(essentialsLicense.getLicenseState()).thenReturn(LicenseStateEnum.OUTOFCOMPLIANCE);
-
-        LicenseDTO mappedLicense = IntersightLicenseUtils.toProxyLicense(essentialsLicense);
+        LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.OUTOFCOMPLIANCE);
         assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
     }
 
@@ -135,12 +113,7 @@ public class IntersightLicenseUtilsTest {
      */
     @Test
     public void testToProxyOutOfGracePeriodLicense() {
-        LicenseLicenseInfo essentialsLicense = mock(LicenseLicenseInfo.class);
-        when(essentialsLicense.getMoid()).thenReturn("1");
-        when(essentialsLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ESSENTIAL);
-        when(essentialsLicense.getLicenseState()).thenReturn(LicenseStateEnum.GRACEEXPIRED);
-
-        LicenseDTO mappedLicense = IntersightLicenseUtils.toProxyLicense(essentialsLicense);
+        LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.GRACEEXPIRED);
         assertFalse(mappedLicense.getIsValid());
         assertTrue(StringUtils.isBlank(mappedLicense.getExpirationDate()));
     }
@@ -151,12 +124,7 @@ public class IntersightLicenseUtilsTest {
      */
     @Test
     public void testToProxyTrialPeriodLicense() {
-        LicenseLicenseInfo essentialsLicense = mock(LicenseLicenseInfo.class);
-        when(essentialsLicense.getMoid()).thenReturn("1");
-        when(essentialsLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ESSENTIAL);
-        when(essentialsLicense.getLicenseState()).thenReturn(LicenseStateEnum.TRIALPERIOD);
-
-        LicenseDTO mappedLicense = IntersightLicenseUtils.toProxyLicense(essentialsLicense);
+        LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.TRIALPERIOD);
         assertEquals(ILicense.PERM_LIC, mappedLicense.getExpirationDate());
     }
 
@@ -165,12 +133,7 @@ public class IntersightLicenseUtilsTest {
      */
     @Test
     public void testToProxyTrialExpiredLicense() {
-        LicenseLicenseInfo essentialsLicense = mock(LicenseLicenseInfo.class);
-        when(essentialsLicense.getMoid()).thenReturn("1");
-        when(essentialsLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ESSENTIAL);
-        when(essentialsLicense.getLicenseState()).thenReturn(LicenseStateEnum.TRIALEXPIRED);
-
-        LicenseDTO mappedLicense = IntersightLicenseUtils.toProxyLicense(essentialsLicense);
+        LicenseDTO mappedLicense = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.TRIALEXPIRED);
         assertEquals("1", mappedLicense.getExternalLicenseKey());
         assertFalse(mappedLicense.getIsValid());
         assertTrue(StringUtils.isBlank(mappedLicense.getExpirationDate()));
@@ -183,10 +146,7 @@ public class IntersightLicenseUtilsTest {
     public void testAreProxyLicensesEqual() {
         // license "A" is an "existing" license that has had an uuid assigned to it.
         // license "B" will be the same major license fields but no uuid yet.
-        LicenseLicenseInfo iwoLicenseA = mock(LicenseLicenseInfo.class);
-        when(iwoLicenseA.getMoid()).thenReturn("1");
-        when(iwoLicenseA.getLicenseType()).thenReturn(LicenseTypeEnum.ESSENTIAL);
-        when(iwoLicenseA.getLicenseState()).thenReturn(LicenseStateEnum.COMPLIANCE);
+        LicenseLicenseInfo iwoLicenseA = createIwoLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.GRACEEXPIRED);
         LicenseDTO licenseB = IntersightLicenseUtils.toProxyLicense(iwoLicenseA);
         LicenseDTO licenseA = licenseB.toBuilder()
                 .setUuid("1x0101010")
@@ -200,14 +160,11 @@ public class IntersightLicenseUtilsTest {
      */
     @Test
     public void testAreProxyLicensesEqualStateChanged() {
-        LicenseLicenseInfo iwoLicense = mock(LicenseLicenseInfo.class);
-        when(iwoLicense.getMoid()).thenReturn("1");
-        when(iwoLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ESSENTIAL);
-        when(iwoLicense.getLicenseState()).thenReturn(LicenseStateEnum.COMPLIANCE);
+        LicenseLicenseInfo iwoLicense = createIwoLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.COMPLIANCE);
         LicenseDTO licenseA = IntersightLicenseUtils.toProxyLicense(iwoLicense);
 
         when(iwoLicense.getLicenseState()).thenReturn(LicenseStateEnum.GRACEEXPIRED);
-        LicenseDTO licenseB = IntersightLicenseUtils.toProxyLicense(iwoLicense);
+        LicenseDTO licenseB = createProxyLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.GRACEEXPIRED);
 
         assertFalse(IntersightLicenseUtils.areProxyLicensesEqual(licenseA, licenseB));
     }
@@ -217,10 +174,7 @@ public class IntersightLicenseUtilsTest {
      */
     @Test
     public void testAreProxyLicensesEqualEditionChanged() {
-        LicenseLicenseInfo iwoLicense = mock(LicenseLicenseInfo.class);
-        when(iwoLicense.getMoid()).thenReturn("1");
-        when(iwoLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ESSENTIAL);
-        when(iwoLicense.getLicenseState()).thenReturn(LicenseStateEnum.COMPLIANCE);
+        LicenseLicenseInfo iwoLicense = createIwoLicense("1", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.COMPLIANCE);
         LicenseDTO licenseA = IntersightLicenseUtils.toProxyLicense(iwoLicense);
 
         when(iwoLicense.getLicenseType()).thenReturn(LicenseTypeEnum.ADVANTAGE);
@@ -228,4 +182,61 @@ public class IntersightLicenseUtilsTest {
 
         assertFalse(IntersightLicenseUtils.areProxyLicensesEqual(licenseA, licenseB));
     }
+
+    /**
+     * Verify that if there are multiple active IWO licenses, we can identify the best one.
+     */
+    @Test
+    public void testBestActiveLicenseComparatorByEdition() {
+        // create three active licenses. The "premier" is the best one and is in the middle.
+        LicenseLicenseInfo essential = createIwoLicense("1", LicenseTypeEnum.ESSENTIAL,LicenseStateEnum.COMPLIANCE);
+        LicenseLicenseInfo advantage = createIwoLicense("2", LicenseTypeEnum.ADVANTAGE,LicenseStateEnum.COMPLIANCE);
+        LicenseLicenseInfo premier = createIwoLicense("3", LicenseTypeEnum.PREMIER,LicenseStateEnum.COMPLIANCE);
+
+        List<LicenseLicenseInfo> licenses = Arrays.asList(advantage, premier, essential);
+        licenses.sort(new BestAvailableIntersightLicenseComparator());
+        // they should be in order of worst -> best editions
+        assertEquals("1", licenses.get(0).getMoid());
+        assertEquals("2", licenses.get(1).getMoid());
+        assertEquals("3", licenses.get(2).getMoid());
+    }
+
+    /**
+     * Verify that if there are two licenses with the same edition but different active states, the
+     * active one is higher in the list.
+     */
+    @Test
+    public void testBestActiveLicenseComparatorMixedStates() {
+        LicenseLicenseInfo inactivePremier = createIwoLicense("1", LicenseTypeEnum.PREMIER, LicenseStateEnum.GRACEEXPIRED);
+        LicenseLicenseInfo activePremier = createIwoLicense("2", LicenseTypeEnum.PREMIER, LicenseStateEnum.COMPLIANCE);
+        LicenseLicenseInfo activeEssential = createIwoLicense("3", LicenseTypeEnum.ESSENTIAL, LicenseStateEnum.COMPLIANCE);
+
+        List<LicenseLicenseInfo> licenses = Arrays.asList(activePremier, activeEssential, inactivePremier);
+        licenses.sort(new BestAvailableIntersightLicenseComparator());
+        // they should be in order of: inactive premier, active essential, active premier
+        assertEquals("1", licenses.get(0).getMoid());
+        assertEquals("3", licenses.get(1).getMoid());
+        assertEquals("2", licenses.get(2).getMoid());
+    }
+
+    /**
+     * Verify that if there are two licenses with the same edition and effective states, the moid determines
+     * order.
+     */
+    @Test
+    public void testBestActiveLicenseComparatorMoidCheck() {
+        // even though the states are different, they are all considered "active" and equal candidates
+        // for "best license available".
+        LicenseLicenseInfo license1 = createIwoLicense("1", LicenseTypeEnum.PREMIER, LicenseStateEnum.TRIALPERIOD);
+        LicenseLicenseInfo license2 = createIwoLicense("2", LicenseTypeEnum.PREMIER, LicenseStateEnum.COMPLIANCE);
+        LicenseLicenseInfo license3 = createIwoLicense("3", LicenseTypeEnum.PREMIER, LicenseStateEnum.OUTOFCOMPLIANCE);
+
+        List<LicenseLicenseInfo> licenses = Arrays.asList(license2, license3, license1);
+        licenses.sort(new BestAvailableIntersightLicenseComparator());
+        // they should be in order of: inactive premier, active essential, active premier
+        assertEquals("1", licenses.get(0).getMoid());
+        assertEquals("2", licenses.get(1).getMoid());
+        assertEquals("3", licenses.get(2).getMoid());
+    }
+
 }

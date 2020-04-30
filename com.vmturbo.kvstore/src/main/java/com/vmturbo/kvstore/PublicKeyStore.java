@@ -5,10 +5,14 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 /**
  * {@inheritDoc}
  */
 public class PublicKeyStore implements IPublicKeyStore {
+    private static final Logger logger = LogManager.getLogger();
     public static final String PUBLIC_KEY = "public_key";
     private final String namespace;
     private final ConsulKeyValueStore consulKeyValueStore;
@@ -61,6 +65,14 @@ public class PublicKeyStore implements IPublicKeyStore {
     @Override
     public Optional<String> getPublicKey(@Nonnull final String namespace) {
         return consulKeyValueStore.get(namespace);
+    }
+
+    /**
+     * USE WITH CAUTION - mainly for test idemnpotency.
+     */
+    public void removePublicKey() {
+        logger.warn("Removing public key at namespace {}", namespace);
+        consulKeyValueStore.removeKey(namespace);
     }
 
 }

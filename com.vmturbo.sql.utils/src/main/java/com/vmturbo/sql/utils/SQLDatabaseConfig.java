@@ -1,7 +1,6 @@
 package com.vmturbo.sql.utils;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Map;
@@ -41,7 +40,6 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
-import com.vmturbo.components.common.utils.EnvironmentUtils;
 
 /**
  * Configuration for interaction with database.
@@ -101,8 +99,12 @@ public abstract class SQLDatabaseConfig {
 
     private static final Logger logger = LogManager.getLogger();
 
-
-    protected abstract String getDbSchemaName();
+    /**
+     * Get the name of the database schema. Each component has its own schema.
+     *
+     * @return The name of the schema.
+     */
+    public abstract String getDbSchemaName();
 
     @Bean
     @Primary

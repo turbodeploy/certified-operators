@@ -30,6 +30,7 @@ import com.vmturbo.auth.api.AuthClientConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.clustermgr.api.ClusterMgrClient;
+import com.vmturbo.clustermgr.api.ClusterMgrClientConfig;
 import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -128,7 +129,8 @@ import com.vmturbo.topology.processor.api.util.ThinTargetCache;
         ActionOrchestratorClientConfig.class, PlanOrchestratorClientConfig.class,
         GroupClientConfig.class, HistoryClientConfig.class, NotificationClientConfig.class,
         RepositoryClientConfig.class, ReportingClientConfig.class, AuthClientConfig.class,
-        CostClientConfig.class, ApiComponentGlobalConfig.class})
+        CostClientConfig.class, ApiComponentGlobalConfig.class, ClusterMgrClientConfig.class,
+        UserSessionConfig.class, ApiWebsocketConfig.class})
 public class CommunicationConfig {
 
     @Autowired
@@ -155,15 +157,15 @@ public class CommunicationConfig {
     private ApiComponentGlobalConfig apiComponentGlobalConfig;
     @Autowired
     private UserSessionConfig userSessionConfig;
+
+    /**
+     * No explicit import to avoid circular dependency.
+     */
     @Autowired
     private MapperConfig mapperConfig;
 
-    @Value("${clustermgr_host}")
-    private String clusterMgrHost;
-    @Value("${clustermgr_port}")
-    private int clusterMgrPort;
-    @Value("${clustermgr_route:}")
-    private String clusterMgrRoute;
+    @Autowired
+    private ClusterMgrClientConfig clusterMgrClientConfig;
 
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
@@ -282,9 +284,7 @@ public class CommunicationConfig {
 
     @Bean
     public ClusterMgrRestClient clusterMgr() {
-        return ClusterMgrClient.createClient(ComponentApiConnectionConfig.newBuilder()
-                .setHostAndPort(clusterMgrHost, clusterMgrPort, clusterMgrRoute)
-                .build());
+        return clusterMgrClientConfig.restClient();
     }
 
     @Bean
