@@ -4,8 +4,6 @@ import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.Res
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Storage;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +42,8 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  * buy provision commodity, all other commodity bought value will be set to zero. It use isReservationEntity
  * field to represent it is a reservation virtual machine or not.
  */
-public class VirtualMachineEntityConstructor extends TopologyEntityConstructor {
+public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
+        implements ITopologyEntityConstructor {
 
     private static final String ZERO = "0";
     private static final String RDM = "RDM";
@@ -62,7 +61,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor {
     }
 
     @Override
-    public Collection<TopologyEntityDTO.Builder> createTopologyEntityFromTemplate(
+    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
@@ -83,7 +82,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor {
         addStorageCommodities(topologyEntityBuilder, storageTemplateResources);
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
         handleProviderIdForCommodityBought(topologyEntityBuilder);
-        return Collections.singletonList(topologyEntityBuilder);
+        return topologyEntityBuilder;
     }
 
     /**

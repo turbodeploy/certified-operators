@@ -8,7 +8,6 @@ import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityTy
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.EXTENT_VALUE;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -38,14 +37,15 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  * commodity sold, commodity bought, entity state, provider policy and consumer policy.
  * And also it will try to keep all commodity constrains from the original topology entity.
  */
-public class StorageEntityConstructor extends TopologyEntityConstructor {
+public class StorageEntityConstructor extends TopologyEntityConstructor
+        implements ITopologyEntityConstructor {
 
     private static final String ZERO = "0";
 
     static final String COMMODITY_KEY_PREFIX = "AddFromTemplate::";
 
     @Override
-    public Collection<TopologyEntityDTO.Builder> createTopologyEntityFromTemplate(
+    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template,
             @Nullable Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
@@ -87,7 +87,7 @@ public class StorageEntityConstructor extends TopologyEntityConstructor {
             topologyEntityBuilder.setTypeSpecificInfo(
                     originalTopologyEntity.getEntityBuilder().getTypeSpecificInfo());
         }
-        return Collections.singletonList(topologyEntityBuilder);
+        return topologyEntityBuilder;
     }
 
     /**
