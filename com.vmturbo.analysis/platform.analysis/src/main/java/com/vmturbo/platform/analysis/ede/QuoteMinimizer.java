@@ -192,6 +192,12 @@ public final class QuoteMinimizer {
 
         if (seller == shoppingList_.getSupplier()) {
             currentQuote_ = quote;
+            // if the bestQuote so far is the same as the one from the currentSupplier, update the bestSeller.
+            if (quote.getQuoteValue() == this.getTotalBestQuote()) {
+                logMessagesForAccept(seller, quote.getQuoteValues());
+                bestQuote_ = quote;
+                bestSeller_ = seller;
+            }
             if (logger.isTraceEnabled()) {
                 logger.trace("topology id = {}, shoppingList = {}, currentQuote = {}, currentSeller = {}"
                             , M2Utils.getTopologyId(economy_), shoppingList_,

@@ -244,6 +244,7 @@ public final class ProtobufToAnalysis {
         destination.setCapacityIncrement(source.getCapacityIncrement());
         destination.setUtilizationUpperBound(source.getUtilizationUpperBound());
         destination.setOrigUtilizationUpperBound(source.getUtilizationUpperBound());
+        destination.setResold(source.getResold());
         destination.setPriceFunction(priceFunction(source.getPriceFunction()));
         CostDTO costDTO = (entitySett.getQuoteFunction().hasRiskBased() == true) ?
                         entitySett.getQuoteFunction().getRiskBased().getCloudCost() : null;

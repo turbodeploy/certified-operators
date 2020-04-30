@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -49,6 +50,27 @@ public class PlacementUnitTest {
         pm2.getCommoditiesSold().get(0).setQuantity(50);
         sl.move(pm2);
         assertTrue(Double.isInfinite(Placement.computeCurrentQuote(economy, movableSlByMarket)));
+    }
+
+    /**
+     * Test the quote computation returns the current seller as the best provider even though there is a different
+     * provider got evaluated before and returned the same price.
+     */
+    @Test
+    public void testCurrentQuoteEqualsBestQuote() {
+        Economy economy = new Economy();
+        Trader vm = economy.addTrader(1, TraderState.ACTIVE, new Basket(TestUtils.VCPU),
+                new Basket(TestUtils.CPU));
+        Trader pm1 = TestUtils.createPM(economy, new ArrayList<>(), 100, 200, true);
+        Trader pm2 = TestUtils.createPM(economy, new ArrayList<>(), 100, 200, true);
+        List<Entry<ShoppingList, Market>> movableSlByMarket = economy.getMarketsAsBuyer(vm).entrySet()
+                .stream().collect(Collectors.toList());
+        ShoppingList sl = movableSlByMarket.get(0).getKey();
+        sl.setQuantity(0, 50);
+        sl.move(pm2);
+        pm2.getCommoditiesSold().get(0).setQuantity(50);
+        QuoteMinimizer q = Placement.initiateQuoteMinimizer(economy, Lists.newArrayList(pm1, pm2), sl, null, 0);
+        assertEquals(sl.getSupplier(), q.getBestSeller());
     }
 
     public void testGroupLeaderAlwaysMoves_ShopAlone() {
