@@ -275,8 +275,7 @@ public class ClusterStatsReader {
         final ClusterStatsQuery query =
                 new ClusterStatsQuery(getStatsTable(timeRange.map(TimeRange::getTimeFrame)
                                                              .orElse(TimeFrame.LATEST)),
-                                      timeRange.map(TimeRange::getStartTime).map(Timestamp::new),
-                                      timeRange.map(TimeRange::getEndTime).map(Timestamp::new),
+                                      startDate.map(Timestamp::new), endDate.map(Timestamp::new),
                                       requestedFields, clusterIds);
         final Result<? extends Record> results = historydbIO.execute(query.getQuery());
 
