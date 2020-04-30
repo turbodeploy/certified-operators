@@ -51,6 +51,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFac
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
+import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -58,6 +59,7 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.enums.ActionDetailLevel;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
@@ -171,6 +173,8 @@ public class ActionSpecMapperTest {
 
     private ActionSpecMapper mapper;
 
+    private PoliciesService policiesService = mock(PoliciesService.class);
+
     private PolicyDTOMoles.PolicyServiceMole policyMole = spy(new PolicyServiceMole());
 
     private SupplyChainProtoMoles.SupplyChainServiceMole supplyChainMole =
@@ -250,7 +254,7 @@ public class ActionSpecMapperTest {
                         Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
                         repositoryApi, mock(EntityAspectMapper.class), volumeAspectMapper,
                         REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper,
-                        supplyChainService);
+                        supplyChainService, policiesService);
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(emptyInputDto, scopeWithBuyRiActions))
@@ -259,7 +263,7 @@ public class ActionSpecMapperTest {
                 .thenReturn(buyRiOids);
 
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
-            serviceEntityMapper, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
+            serviceEntityMapper, policiesService, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
                 reservedInstanceUtilizationCoverageServiceBlockingStub, buyRiScopeHandler,
                 REAL_TIME_TOPOLOGY_CONTEXT_ID);
     }
@@ -513,6 +517,55 @@ public class ActionSpecMapperTest {
 
         assertEquals(ActionType.START, actionApiDTO.getActionType());
         assertEquals("default explanation", actionApiDTO.getRisk().getDescription());
+    }
+
+    /**
+     * Test map reconfigure action to ActionApiDTO with policy information populated.
+     */
+    @Test
+    public void testMapReconfigureWithPolicy() {
+        Map<Long, ApiPartialEntity> entitiesMap = new HashMap<>();
+        ApiPartialEntity entity = topologyEntityDTO("Test Entity", 3L, EntityType.VIRTUAL_MACHINE_VALUE);
+        entitiesMap.put(1L, entity);
+        long policyOid = 12345L;
+        String policyName = "Test";
+        Map<Long, Policy> policyMap = new HashMap();
+        Policy policy = Policy.newBuilder().setId(policyOid).setPolicyInfo(PolicyInfo.newBuilder().setName(policyName)).build();
+        policyMap.put(policyOid, policy);
+        List<PolicyApiDTO> policyApiDto = new ArrayList<>();
+        PolicyApiDTO policyDto = new PolicyApiDTO();
+        policyApiDto.add(policyDto);
+        policyDto.setUuid(String.valueOf(policyOid));
+        policyDto.setName(policyName);
+        policyDto.setDisplayName(policyName);
+        ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
+            policyMap, Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
+            Collections.emptyMap(), serviceEntityMapper, false, policyApiDto);
+
+        final ReasonCommodity placement =
+                        createReasonCommodity(CommodityDTO.CommodityType.SEGMENTATION_VALUE, String.valueOf(policyOid));
+        ActionInfo info =
+                    ActionInfo.newBuilder().setReconfigure(
+                            Reconfigure.newBuilder()
+                            .setTarget(ApiUtilsTest.createActionEntity(3))
+                            .setSource(ApiUtilsTest.createActionEntity(1))
+                            .build())
+                    .build();
+        Explanation reconfigure =
+                    Explanation.newBuilder()
+                            .setReconfigure(ReconfigureExplanation.newBuilder()
+                                    .addReconfigureCommodity(placement).build())
+                            .build();
+
+        Action reconf = Action.newBuilder().setInfo(info).setId(2222L).setExplanation(reconfigure)
+                .setDeprecatedImportance(1).build();
+        ActionApiDTO output = new ActionApiDTO();
+        mapper.populatePolicyForActionApiDto(reconf, output, context);
+
+        assertEquals(policyName, output.getPolicy().getDisplayName());
+        assertEquals(String.valueOf(policyOid), output.getPolicy().getUuid());
+
     }
 
     @Test
@@ -1160,7 +1213,12 @@ public class ActionSpecMapperTest {
         ActionDTO.ActionDecision decision = ActionDTO.ActionDecision.newBuilder()
                         .setDecisionTime(System.currentTimeMillis()).build();
         String expectedUpdateTime = DateTimeUtil.toString(decision.getDecisionTime());
-        final ActionSpec actionSpec = buildActionSpec(moveInfo, Explanation.newBuilder().build(),
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
+        final ActionSpec actionSpec = buildActionSpec(moveInfo, placement,
                 Optional.of(decision), Optional.empty());
 
         // Act
@@ -1303,7 +1361,12 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapReadyRecommendModeExecutable() throws Exception {
-        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
+        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), placement).toBuilder()
             // The action is in READY state, and in RECOMMEND mode.
                 .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.RECOMMEND)
@@ -1315,7 +1378,12 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapReadyRecommendModeNotExecutable() throws Exception {
-        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
+        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), placement).toBuilder()
                 .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.RECOMMEND)
             .setIsExecutable(false)
@@ -1327,7 +1395,12 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapReadyNotRecommendModeExecutable() throws Exception {
-        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
+        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), placement).toBuilder()
             // The action is in READY state, and in RECOMMEND mode.
                 .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
@@ -1339,7 +1412,12 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapReadyNotRecommendModeNotExecutable() throws Exception {
-        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
+        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), placement).toBuilder()
                 .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
             .setIsExecutable(false)
@@ -1351,7 +1429,12 @@ public class ActionSpecMapperTest {
 
     @Test
     public void testMapNotReadyRecommendModeExecutable() throws Exception {
-        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), Explanation.getDefaultInstance()).toBuilder()
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
+        final ActionSpec actionSpec = buildActionSpec(getHostMoveActionInfo(), placement).toBuilder()
                 .setActionState(ActionDTO.ActionState.QUEUED)
             .setActionMode(ActionMode.RECOMMEND)
             .build();
@@ -1541,7 +1624,7 @@ public class ActionSpecMapperTest {
         ActionSpecMappingContext context = new ActionSpecMappingContext(entitiesMap,
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
             Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), serviceEntityMapper, false);
+            Collections.emptyMap(), serviceEntityMapper, false, Collections.emptyList());
         context.getEntity(1L).get().setCostPrice(1.0f);
 
         String noTranslationNeeded = "Simple string";
@@ -1644,9 +1727,14 @@ public class ActionSpecMapperTest {
     @Test
     public void testActionExecutionNull() throws Exception {
         final ActionInfo actionInfo = getHostMoveActionInfo();
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
         final ActionSpec actionSpec = ActionSpec.newBuilder()
                 .setActionState(ActionDTO.ActionState.READY)
-                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .setRecommendation(buildAction(actionInfo, placement))
                 .build();
         final ActionExecutionAuditApiDTO executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
@@ -1670,10 +1758,15 @@ public class ActionSpecMapperTest {
                 .setProgressPercentage(progress)
                 .build();
         final ActionInfo actionInfo = getHostMoveActionInfo();
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
         ActionSpec actionSpec = ActionSpec.newBuilder()
                 .setExecutionStep(executionStepProgress)
                 .setActionState(ActionDTO.ActionState.IN_PROGRESS)
-                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .setRecommendation(buildAction(actionInfo, placement))
                 .build();
         ActionExecutionAuditApiDTO executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
@@ -1691,7 +1784,7 @@ public class ActionSpecMapperTest {
         actionSpec = ActionSpec.newBuilder()
                 .setExecutionStep(executionStepPre)
                 .setActionState(ActionDTO.ActionState.PRE_IN_PROGRESS)
-                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .setRecommendation(buildAction(actionInfo, placement))
                 .build();
         executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
@@ -1708,7 +1801,7 @@ public class ActionSpecMapperTest {
         actionSpec = ActionSpec.newBuilder()
                 .setExecutionStep(executionStepPost)
                 .setActionState(ActionDTO.ActionState.POST_IN_PROGRESS)
-                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .setRecommendation(buildAction(actionInfo, placement))
                 .build();
         executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
@@ -1733,10 +1826,15 @@ public class ActionSpecMapperTest {
                 .setProgressPercentage(progress)
                 .setCompletionTime(completionTime)
                 .build();
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
         final ActionSpec actionSpec = ActionSpec.newBuilder()
                 .setExecutionStep(executionStep)
                 .setActionState(ActionDTO.ActionState.SUCCEEDED)
-                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .setRecommendation(buildAction(actionInfo, placement))
                 .build();
         final ActionExecutionAuditApiDTO executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
@@ -1767,10 +1865,15 @@ public class ActionSpecMapperTest {
                 .setCompletionTime(completionTime)
                 .addAllErrors(messages)
                 .build();
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
         final ActionSpec actionSpec = ActionSpec.newBuilder()
                 .setExecutionStep(executionStepPost)
                 .setActionState(ActionDTO.ActionState.FAILED)
-                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .setRecommendation(buildAction(actionInfo, placement))
                 .build();
         final ActionExecutionAuditApiDTO executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
@@ -1794,10 +1897,15 @@ public class ActionSpecMapperTest {
         final ActionDTO.ExecutionStep executionStep = ActionDTO.ExecutionStep.newBuilder()
                 .setStartTime(MILLIS_2020_01_01_00_00_00)
                 .build();
+        Explanation placement = Explanation.newBuilder()
+                .setMove(MoveExplanation.newBuilder()
+                        .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setInitialPlacement(InitialPlacement.newBuilder())))
+                .build();
         final ActionSpec actionSpec = ActionSpec.newBuilder()
                 .setExecutionStep(executionStep)
                 .setActionState(ActionDTO.ActionState.QUEUED)
-                .setRecommendation(buildAction(actionInfo, Explanation.newBuilder().build()))
+                .setRecommendation(buildAction(actionInfo, placement))
                 .build();
         final ActionExecutionAuditApiDTO executionDto = mapper
                 .mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID, ActionDetailLevel.EXECUTION)
