@@ -47,7 +47,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -60,6 +59,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.commons.analysis.InvalidTopologyException;
+import com.vmturbo.commons.analysis.RawMaterialsMap;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.ReservedInstanceData;
@@ -79,6 +79,7 @@ import com.vmturbo.market.topology.conversions.TierExcluder.TierExcluderFactory;
 import com.vmturbo.market.topology.conversions.TopologyConverter;
 import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Deactivate;
+import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.ede.ReplayActions;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.ActionTO;
 import com.vmturbo.platform.analysis.protobuf.ActionDTOs.DeactivateTO;
@@ -1031,5 +1032,17 @@ public class TopologyEntitiesHandlerTest {
                         && !trader.getDebugInfoNeverUseInCode().startsWith("STORAGE"))
                         .map(TraderTO::getCliquesCount).collect(Collectors.toSet());
         assertEquals(Sets.newHashSet(0), otherCliqueCounts);
+    }
+
+    @Test
+    public void testPopulateRawMaterialsMap() {
+        Topology topology = new Topology();
+        TopologyEntitiesHandler.populateRawMaterialsMap(topology);
+        Economy e = (Economy) topology.getEconomy();
+        assertEquals(e.getModifiableRawCommodityMap().size(), RawMaterialsMap.rawMaterialsMap.size());
+        // check if the VMEM's rawMaterials are correctly stored
+        assertEquals(e.getRawMaterials(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).get().getMaterials().length,
+                 RawMaterialsMap.rawMaterialsMap.get(CommonDTO.CommodityDTO.CommodityType.VMEM_VALUE).size());
+
     }
 }
