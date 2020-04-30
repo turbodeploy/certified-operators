@@ -440,8 +440,6 @@ public class SearchService implements ISearchService {
         return paginationRequest.allResultsResponse(result);
     }
 
-    private static ExecutorService executor = Executors.newFixedThreadPool(3);
-
     /**
      * A general search given a filter - may be asked to search over ServiceEntities or Groups.
      *

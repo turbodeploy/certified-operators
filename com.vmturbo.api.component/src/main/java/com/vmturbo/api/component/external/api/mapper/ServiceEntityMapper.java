@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -24,23 +25,27 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entityaspect.CloudAspectApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
+import com.vmturbo.api.enums.AspectName;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
-import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CostCategory;
-import com.vmturbo.common.protobuf.cost.Cost.CostCategoryFilter;
+import com.vmturbo.common.protobuf.cost.Cost.CostSource;
 import com.vmturbo.common.protobuf.cost.Cost.EntityFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsRequest;
-import com.vmturbo.common.protobuf.cost.Cost.GetCloudCostStatsResponse;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity.RelatedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -48,13 +53,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformati
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 public class ServiceEntityMapper {
     private static final Collection<CostCategory> TEMPLATE_PRICE_CATEGORIES =
-                    ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE, CostCategory.ON_DEMAND_LICENSE);
+            ImmutableSet.of(CostCategory.ON_DEMAND_COMPUTE, CostCategory.ON_DEMAND_LICENSE);
 
     private final Logger logger = LogManager.getLogger();
 
@@ -116,7 +120,7 @@ public class ServiceEntityMapper {
     }
 
     /**
-     * Set displayName to UUID if the former is null or empty
+     * Set displayName to UUID if the former is null or empty.
      * @param apiDTO    DTO to update
      */
     private static void setNonEmptyDisplayName(final ServiceEntityApiDTO apiDTO) {
@@ -147,11 +151,9 @@ public class ServiceEntityMapper {
      * @param apiEntities The input collection of {@link ApiPartialEntity} that will be converted into DTOs.
      * @return A list of {@link ServiceEntityApiDTO}, in the order of the input API entities.
      */
-    public List<ServiceEntityApiDTO> toServiceEntityApiDTO(@Nonnull final Collection<ApiPartialEntity> apiEntities) {
-        final List<ServiceEntityApiDTO> retList = new ArrayList<>(apiEntities.size());
-        bulkMapToServiceEntityApiDTO(apiEntities,
-            (oid, convertedEntity) -> retList.add(convertedEntity));
-        return retList;
+    public List<ServiceEntityApiDTO> toServiceEntityApiDTO(
+            @Nonnull final Collection<ApiPartialEntity> apiEntities) {
+        return new ArrayList<>(toServiceEntityApiDTOMap(apiEntities).values());
     }
 
     /**
@@ -164,6 +166,7 @@ public class ServiceEntityMapper {
     public Map<Long, ServiceEntityApiDTO> toServiceEntityApiDTOMap(@Nonnull final Collection<ApiPartialEntity> apiEntities) {
         final Map<Long, ServiceEntityApiDTO> retMap = new HashMap<>(apiEntities.size());
         bulkMapToServiceEntityApiDTO(apiEntities, retMap::put);
+        setPriceValuesForEntityComponents(retMap);
         return retMap;
     }
 
@@ -190,7 +193,6 @@ public class ServiceEntityMapper {
         }
 
         final Map<Long, Integer> numVmsPerEntity = computeNrOfVmsPerEntity(numberOfVmEntities);
-        final Map<Long, Double> costPriceByEntity = computeCostPriceByEntity(costPriceEntities);
 
         apiEntities.forEach(apiEntity -> {
             // basic information
@@ -210,27 +212,12 @@ public class ServiceEntityMapper {
                     .collect(
                         Collectors.toMap(Entry::getKey, entry -> entry.getValue().getValuesList())));
 
-            Optional.ofNullable(numVmsPerEntity.get(apiEntity.getOid()))
-                .ifPresent(result::setNumRelatedVMs);
-
-            // template name
-            final Optional<RelatedEntity> primaryProvider = apiEntity.getProvidersList().stream()
-                .filter(provider -> provider.hasDisplayName() &&
-                    TopologyDTOUtil.isPrimaryTierEntityType(apiEntity.getEntityType(),
-                        provider.getEntityType()))
-                .findAny();
-            final Optional<RelatedEntity> backupPrimary = apiEntity.getConnectedToList().stream()
-                .filter(connected -> connected.hasDisplayName() &&
-                    TopologyDTOUtil.isPrimaryTierEntityType(apiEntity.getEntityType(),
-                        connected.getEntityType()))
-                .findAny();
-            backupPrimary.map(primaryProvider::orElse).ifPresent(provider -> {
+            Optional.ofNullable(numVmsPerEntity.get(apiEntity.getOid())).ifPresent(
+                    result::setNumRelatedVMs);
+            getTemplateProvider(apiEntity).ifPresent(p -> {
                 final TemplateApiDTO template = new TemplateApiDTO();
-                template.setUuid(Long.toString(provider.getOid()));
-                template.setPrice(Optional.ofNullable(costPriceByEntity.get(apiEntity.getOid()))
-                    .map(Double::floatValue)
-                    .orElse(0.0f));
-                template.setDisplayName(provider.getDisplayName());
+                template.setUuid(Long.toString(p.getOid()));
+                template.setDisplayName(p.getDisplayName());
                 result.setTemplate(template);
             });
 
@@ -324,32 +311,106 @@ public class ServiceEntityMapper {
     }
 
     /**
-     * Compute the cost price for the entities having the OIDs in the input list.
+     * Set prices for entity components, including the cost of the entity itself and its components,
+     * such as a template.
      *
-     * @param enityIDs The list of input entity IDs.
-     *
-     * @return The map of entity ID to cost price.
+     * @param entities map {@link ServiceEntityApiDTO#getUuid()} -> {@link ServiceEntityApiDTO}.
      */
     @Nonnull
-    public Map<Long, Double> computeCostPriceByEntity(Set<Long> enityIDs) {
-        if (enityIDs.isEmpty()) {
-            return Collections.emptyMap();
+    protected void setPriceValuesForEntityComponents(
+            final Map<Long, ServiceEntityApiDTO> entities) {
+        if (entities.isEmpty()) {
+            return;
+        }
+        costServiceBlockingStub.getCloudCostStats(GetCloudCostStatsRequest.newBuilder()
+                .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
+                        .setEntityFilter(
+                                EntityFilter.newBuilder().addAllEntityId(entities.keySet())))
+                .build()).getCloudStatRecordList().forEach(cloudCostStatRecord -> {
+            // On average, 1 or 2 stat record is expected per entity.
+            cloudCostStatRecord.getStatRecordsList().forEach(statRecord -> {
+                final ServiceEntityApiDTO serviceEntityApiDTO =
+                        entities.get(statRecord.getAssociatedEntityId());
+                if (serviceEntityApiDTO == null) {
+                    return;
+                }
+                final float price = statRecord.getValues().getAvg();
+                final Float costPrice = serviceEntityApiDTO.getCostPrice();
+                serviceEntityApiDTO.setCostPrice(costPrice != null ? costPrice + price : price);
+                if (TEMPLATE_PRICE_CATEGORIES.contains(statRecord.getCategory())
+                        && statRecord.getCostSource() == CostSource.ON_DEMAND_RATE) {
+                    final TemplateApiDTO template = serviceEntityApiDTO.getTemplate();
+                    if (template != null) {
+                        final Float templatePrice = template.getPrice();
+                        template.setPrice(templatePrice != null ? templatePrice + price : price);
+                    } else {
+                        final TemplateApiDTO templateApiDTO = new TemplateApiDTO();
+                        templateApiDTO.setPrice(price);
+                        serviceEntityApiDTO.setTemplate(templateApiDTO);
+                    }
+                }
+            });
+        });
+    }
+
+    /**
+     * Convert an entity with aspect using the aspect map.
+     *
+     * @param entity entity to convert
+     * @param aspects a map containing all aspects of all entities.
+     * @return service entity
+     */
+    private ServiceEntityApiDTO entityToSeWithAspect(final TopologyEntityDTO entity,
+            final Map<Long, Map<AspectName, EntityAspect>> aspects) {
+        final ServiceEntityApiDTO se = toServiceEntityApiDTO(entity);
+        if (aspects.containsKey(entity.getOid())) {
+            final Map<AspectName, EntityAspect> aspectMap = aspects.get(entity.getOid());
+
+            for (final EntityAspect aspect : aspectMap.values()) {
+                if (aspect instanceof CloudAspectApiDTO) {
+                    final BaseApiDTO cloudTemplate = ((CloudAspectApiDTO)aspect).getTemplate();
+                    if (cloudTemplate != null) {
+                        final TemplateApiDTO template = new TemplateApiDTO();
+                        template.setUuid(cloudTemplate.getUuid());
+                        template.setDisplayName(cloudTemplate.getDisplayName());
+                        se.setTemplate(template);
+                        break;
+                    }
+                }
+            }
+
+            se.setAspectsByName(aspectMap);
         }
 
-        // Do a multi-get to the cost service.
-        final EntityFilter entityFilter = EntityFilter.newBuilder()
-            .addAllEntityId(enityIDs)
-            .build();
-        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
-            .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()
-                .setEntityFilter(entityFilter))
-            .build();
-        final GetCloudCostStatsResponse response =
-            costServiceBlockingStub.getCloudCostStats(request);
-        return response.getCloudStatRecordList().stream()
-            .flatMap(record -> record.getStatRecordsList().stream())
-            .collect(Collectors.groupingBy(StatRecord::getAssociatedEntityId,
-                    Collectors.summingDouble(record -> record.getValues().getAvg())));
+        return se;
+    }
+
+    /**
+     * Return service entities with aspects.
+     *
+     * @param entities list of topology entities
+     * @param aspectMapper aspect mapper
+     * @param requestedAspects list of requested aspects. if null or empty, we will use all aspects
+     * @return a map of oid -> serviceEntity
+     * @throws ConversionException if conversion failed.
+     * @throws InterruptedException if interrupted
+     */
+    @Nonnull
+    public Map<Long, ServiceEntityApiDTO> entitiesWithAspects(
+            @Nonnull final List<TopologyEntityDTO> entities,
+            @Nonnull EntityAspectMapper aspectMapper, @Nullable Collection<String> requestedAspects)
+            throws ConversionException, InterruptedException {
+
+        // create a map of oid -> map of aspectName -> aspect
+        Map<Long, Map<AspectName, EntityAspect>> aspects =
+                aspectMapper.getAspectsByEntities(entities, requestedAspects);
+
+        // return a map of oid -> serviceEntity with aspect
+        final Map<Long, ServiceEntityApiDTO> serviceEntityApiDTOMap = entities.stream()
+                .collect(Collectors.toMap(TopologyEntityDTO::getOid,
+                        entity -> entityToSeWithAspect(entity, aspects)));
+        setPriceValuesForEntityComponents(serviceEntityApiDTOMap);
+        return serviceEntityApiDTOMap;
     }
 
     /**
@@ -434,8 +495,8 @@ public class ServiceEntityMapper {
     }
 
     private boolean shouldGetNumberOfVms(@Nonnull final ApiPartialEntity entity) {
-        return entity.getEntityType() == ApiEntityType.REGION.typeNumber() ||
-            entity.getEntityType() == ApiEntityType.AVAILABILITY_ZONE.typeNumber();
+        return entity.getEntityType() == ApiEntityType.REGION.typeNumber()
+                || entity.getEntityType() == ApiEntityType.AVAILABILITY_ZONE.typeNumber();
     }
 
     private boolean shouldGetCostPrice(@Nonnull final ApiPartialEntity entity) {
@@ -443,12 +504,10 @@ public class ServiceEntityMapper {
     }
 
     private static Optional<RelatedEntity> getTemplateProvider(final ApiPartialEntity entity) {
-        return Stream.concat(entity.getProvidersList().stream(), entity.getConnectedToList().stream())
-            .filter(connected -> connected.hasDisplayName() &&
-                TopologyDTOUtil.isPrimaryTierEntityType(entity.getEntityType(),
-                    connected.getEntityType()))
-            .findFirst();
-
+        return Stream.concat(entity.getProvidersList().stream(),
+                entity.getConnectedToList().stream()).filter(
+                relatedEntity -> relatedEntity.hasDisplayName()
+                        && TopologyDTOUtil.isPrimaryTierEntityType(entity.getEntityType(),
+                        relatedEntity.getEntityType())).findFirst();
     }
-
 }

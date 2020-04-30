@@ -2,8 +2,6 @@ package com.vmturbo.api.component.external.api;
 
 import static java.util.Arrays.asList;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -36,8 +34,6 @@ import com.vmturbo.api.component.security.SamlAuthenticationCondition;
 @EnableWebSecurity
 @EnableGlobalMethodSecurity(prePostEnabled = true)
 public class SamlApiSecurityConfig extends ApiSecurityConfig {
-
-    private static final Logger logger = LogManager.getLogger();
 
     private static final String SAML_REDIRECT_URL = "/app/index.html#/view/main/home/Market/hybrid";
     private static final String BASE_URL = "/vmturbo";
