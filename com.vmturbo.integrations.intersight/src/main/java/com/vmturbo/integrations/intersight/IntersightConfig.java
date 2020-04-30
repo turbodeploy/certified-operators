@@ -13,8 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import com.vmturbo.integrations.intersight.tasks.SyncTargetsTask;
-import com.vmturbo.mediation.connector.intersight.IntersightConnection;
+import com.vmturbo.integrations.intersight.targetsync.IntersightTargetSyncService;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 
 /**
@@ -22,41 +21,43 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
  */
 @Configuration
 @Import({
-    TopologyProcessorClientConfig.class,
+    TopologyProcessorClientConfig.class, IntersightConnectionConfig.class, IntersightLicenseSyncConfig.class
 })
 public class IntersightConfig {
 
-    @Value("${intersightHost:bordeaux.default}")
-    private String intersightHost;
+    @Autowired
+    private IntersightConnectionConfig intersightConnectionConfig;
 
-    @Value("${intersightPort:8443}")
-    private int intersightPort;
-
-    @Value("${intersightClientId}")
-    private String intersightClientId;
-
-    @Value("${intersightClientSecret}")
-    private String intersightClientSecret;
+    @Autowired
+    private IntersightLicenseSyncConfig intersightLicenseSyncConfig;
 
     @Value("${intersightHealthCheckIntervalSeconds:60}")
     private long intersightHealthCheckIntervalSeconds;
 
-    @Value("${intersightTargetsSyncIntervalSeconds:10}")
-    private long intersightTargetsSyncIntervalSeconds;
+    @Value("${intersightTargetSyncIntervalSeconds:20}")
+    private long intersightTargetSyncIntervalSeconds;
+
+    /**
+     * How long in seconds to hold off target status update since the target is created/modified
+     * in Intersight.  This is because the real target credentials sent out of band to the
+     * assist and stored as Kubernetes secrets will not show up on the probe container
+     * immediately due to the kubelet sync period (default 1m) and cache propagation delay.
+     * Premature target status update will give users incorrect target validation results.
+     *
+     * <p>Strictly speaking on target creation, we will not hold off updating to a
+     * validated/connected state, which will give the user a confirmation that the connection is
+     * good as soon as the credentials are propagated.  But we will hold off any update of
+     * validation failures.
+     *
+     * <p>For target modification, we will always hold off until this no update period is over,
+     * because we can't rule out the possibility that the user may have accidentally made a bad
+     * change and immediately reporting a good connection may give a wrong impression.
+     */
+    @Value("${intersightTargetSyncNoUpdateOnChangePeriodSeconds:180}")
+    private long intersightTargetSyncNoUpdateOnChangePeriodSeconds;
 
     @Autowired
     private TopologyProcessorClientConfig topologyProcessorClientConfig;
-
-    /**
-     * Construct and return a {@link IntersightConnection} to access the Intersight instance.
-     *
-     * @return a {@link IntersightConnection} to access the Intersight instance
-     */
-    @Bean
-    public IntersightConnection getIntersightConnection() {
-        return new IntersightConnection(intersightHost, intersightPort, intersightClientId,
-                intersightClientSecret);
-    }
 
     /**
      * Construct and return a {@link IntersightMonitor} to be set up to monitor this Intersight
@@ -66,7 +67,8 @@ public class IntersightConfig {
      */
     @Bean
     public IntersightMonitor getIntersightMonitor() {
-        return new IntersightMonitor(intersightHealthCheckIntervalSeconds, getIntersightConnection(),
+        return new IntersightMonitor(intersightHealthCheckIntervalSeconds,
+                intersightConnectionConfig.getIntersightConnection(),
                 topologyProcessorClientConfig.topologyProcessorRpcOnly());
     }
 
@@ -78,7 +80,7 @@ public class IntersightConfig {
     @Bean(destroyMethod = "shutdownNow")
     public ScheduledExecutorService syncTargetScheduler() {
         final ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat(
-                "intersight-targets-sync").build();
+                "intersight-target-sync-service").build();
         return Executors.newSingleThreadScheduledExecutor(threadFactory);
     }
 
@@ -86,9 +88,16 @@ public class IntersightConfig {
      * Entry point to schedule all integration tasks.
      */
     public void scheduleTasks() {
-        syncTargetScheduler().scheduleAtFixedRate(new SyncTargetsTask(getIntersightConnection(),
-                        topologyProcessorClientConfig.topologyProcessorRpcOnly()),
-                intersightTargetsSyncIntervalSeconds, intersightTargetsSyncIntervalSeconds,
+        syncTargetScheduler().scheduleAtFixedRate(
+                new IntersightTargetSyncService(
+                        intersightConnectionConfig.getIntersightConnection(),
+                        topologyProcessorClientConfig.topologyProcessorRpcOnly(),
+                        intersightTargetSyncNoUpdateOnChangePeriodSeconds),
+                intersightTargetSyncIntervalSeconds,
+                intersightTargetSyncIntervalSeconds,
                 TimeUnit.SECONDS);
+
+        intersightLicenseSyncConfig.intersightLicenseSyncService().start();
+        intersightLicenseSyncConfig.intersightLicenseCountUpdater().start();
     }
 }

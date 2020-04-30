@@ -57,6 +57,10 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -250,15 +254,37 @@ public class UuidMapperTest {
 
     @Test
     public void testPlanId() throws OperationFailedException {
+        final long scopeOid = 456L;
+        final MinimalEntity account = MinimalEntity.newBuilder()
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setOid(scopeOid)
+                .build();
+        final SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(account);
+        when(repositoryApi.entityRequest(scopeOid)).thenReturn(req);
+
+        PlanScope scope = PlanScope.newBuilder()
+                .addScopeEntries(PlanScopeEntry.newBuilder()
+                        .setScopeObjectOid(scopeOid)
+                        .build())
+                .build();
+        ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
+                .setScope(scope)
+                .build();
+        Scenario scenario = Scenario.newBuilder()
+                .setScenarioInfo(scenarioInfo)
+                .build();
+
+        final long planId = 123L;
         doReturn(OptionalPlanInstance.newBuilder()
             .setPlanInstance(PlanInstance.newBuilder()
-                .setPlanId(123)
-                .setStatus(PlanStatus.READY))
+                    .setPlanId(planId)
+                    .setStatus(PlanStatus.READY)
+                    .setScenario(scenario))
             .build()).when(planServiceMole).getPlan(PlanId.newBuilder()
-                .setPlanId(123)
+                .setPlanId(planId)
                 .build());
 
-        ApiId id = uuidMapper.fromUuid("123");
+        ApiId id = uuidMapper.fromUuid(String.valueOf(planId));
         assertTrue(id.isPlan());
         verify(planServiceMole, times(1)).getPlan(any());
 
@@ -298,11 +324,33 @@ public class UuidMapperTest {
         assertFalse(id.isPlan());
         verify(planServiceMole, times(1)).getPlan(any(), any());
 
+        final long scopeOid = 456L;
+        final MinimalEntity account = MinimalEntity.newBuilder()
+                .setEntityType(EntityType.BUSINESS_ACCOUNT_VALUE)
+                .setOid(scopeOid)
+                .build();
+        final SingleEntityRequest req = ApiTestUtils.mockSingleEntityRequest(account);
+        when(repositoryApi.entityRequest(scopeOid)).thenReturn(req);
+
+        PlanScope scope = PlanScope.newBuilder()
+                .addScopeEntries(PlanScopeEntry.newBuilder()
+                        .setScopeObjectOid(scopeOid)
+                        .build())
+                .build();
+        ScenarioInfo scenarioInfo = ScenarioInfo.newBuilder()
+                .setScope(scope)
+                .build();
+        Scenario scenario = Scenario.newBuilder()
+                .setScenarioInfo(scenarioInfo)
+                .build();
+
+
         doReturn(Optional.empty()).when(planServiceMole).getPlanError(plan);
         doReturn(OptionalPlanInstance.newBuilder()
-            .setPlanInstance(PlanInstance.newBuilder()
-                .setPlanId(123)
-                .setStatus(PlanStatus.READY))
+                .setPlanInstance(PlanInstance.newBuilder()
+                        .setPlanId(123)
+                        .setScenario(scenario)
+                        .setStatus(PlanStatus.READY))
             .build()).when(planServiceMole).getPlan(plan);
 
         // No caching of the error!

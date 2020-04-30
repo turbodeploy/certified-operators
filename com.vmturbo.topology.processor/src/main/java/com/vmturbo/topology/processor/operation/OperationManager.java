@@ -326,7 +326,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         insertControllableAndSuspendableState(actionId, actionType, controlAffectedEntities);
 
         logger.info("Sending action {} execution request to probe", actionId);
-        remoteMediationServer.sendActionRequest(target.getProbeId(),
+        remoteMediationServer.sendActionRequest(target,
                 request, messageHandler);
 
         logger.info("Beginning {}", action);
@@ -455,7 +455,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                         validation,
                         remoteMediationServer.getMessageHandlerExpirationClock(),
                         validationTimeoutMs);
-        remoteMediationServer.sendValidationRequest(target.getProbeId(),
+        remoteMediationServer.sendValidationRequest(target,
                 validationRequest,
                 validationMessageHandler);
 
@@ -554,7 +554,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         final long probeId;
         final DiscoveryRequest discoveryRequest;
         final DiscoveryMessageHandler discoveryMessageHandler;
-
+        final Target target;
         synchronized (this) {
             logger.info("Starting discovery for target: {} ({})", targetId, discoveryType);
             final Optional<Discovery> currentDiscovery = getInProgressDiscoveryForTarget(targetId, discoveryType);
@@ -563,7 +563,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 return currentDiscovery.get();
             }
 
-            final Target target = targetStore.getTarget(targetId)
+            target = targetStore.getTarget(targetId)
                     .orElseThrow(() -> new TargetNotFoundException(targetId));
             final String probeType = getProbeTypeWithCheck(target);
 
@@ -636,10 +636,11 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 operationStart(discovery);
                 targetOperationContexts.computeIfAbsent(targetId, k -> new TargetOperationContext())
                     .setCurrentDiscovery(discoveryType, discovery);
-                remoteMediationServer.sendDiscoveryRequest(probeId,
-                        targetId,
-                        discoveryRequest,
-                        discoveryMessageHandler);
+                // associate the mediation message id with the Discovery object which will be used
+                // while processing discovery responses
+                final int messageId = remoteMediationServer.sendDiscoveryRequest(target,
+                    discoveryRequest, discoveryMessageHandler);
+                discovery.setMediationMessageId(messageId);
             } catch (Exception ex) {
                 if (semaphore.isPresent()) {
                     semaphore.get().release();
@@ -868,13 +869,14 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
      * when there is already an in progress discovery for a target.
      *
      * @param targetId The id of the target to check for a pending discovery.
+     * @param discoveryType type of the discovery to check.
      * @return True if the target is associated with a pending discovery for the given
      *         discovery type, false otherwise.
      */
     @VisibleForTesting
-    public boolean hasPendingFullDiscovery(long targetId) {
+    public boolean hasPendingDiscovery(long targetId, DiscoveryType discoveryType) {
         return Optional.ofNullable(targetOperationContexts.get(targetId))
-            .map(TargetOperationContext::hasPendingFullDiscovery)
+            .map(targetOperationContext -> targetOperationContext.hasPendingDiscovery(discoveryType))
             .orElse(false);
     }
 
@@ -1008,7 +1010,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 targetId, response.getSerializedSize());
         logger.trace("{} discovery result from target {}: {}", discoveryType, targetId, response);
         if (!change) {
-            logger.info("No change since last discovery of target {}", targetId);
+            logger.info("No change since last {} discovery of target {}", discoveryType, targetId);
         }
 
         Optional<Semaphore> semaphore = Optional.ofNullable(probeOperationPermits.get(discovery.getProbeId()))
@@ -1028,9 +1030,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             () -> discoveryType);
 
         try {
-            // todo: remove the check "discoveryType == DiscoveryType.FULL" once caching
-            // incremental discovery results tasks are committed
-            if (success && change && discoveryType == DiscoveryType.FULL) {
+            if (success && change) {
                 // Ensure this target hasn't been deleted since the discovery began
                 final Optional<Target> target = targetStore.getTarget(targetId);
                 if (target.isPresent()) {
@@ -1039,40 +1039,49 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                         // the topological information will be inconsistent. (ie if the entities are placed in the
                         // entityStore but the discoveredGroupUploader throws an exception, the entity and group
                         // information will be inconsistent with each other because we do not roll back on failure.
-                        entityStore.entitiesDiscovered(discovery.getProbeId(), targetId, response.getEntityDTOList());
-                        discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
-                        discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(targetId,
-                            response.getEntityProfileList(), response.getDeploymentProfileList(),
+                        // these operations apply to all discovery types (FULL and INCREMENTAL for now)
+                        entityStore.entitiesDiscovered(discovery.getProbeId(), targetId,
+                            discovery.getMediationMessageId(), discoveryType,
                             response.getEntityDTOList());
-                        discoveredWorkflowUploader.setTargetWorkflows(targetId,
-                            response.getWorkflowList());
                         DISCOVERY_SIZE_SUMMARY.observe((double)response.getEntityDTOCount());
-                        derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
-                        discoveredCloudCostUploader.recordTargetCostData(targetId,
-                                targetStore.getProbeTypeForTarget(targetId), discovery,
-                            response.getNonMarketEntityDTOList(), response.getCostDTOList(),
-                            response.getPriceTable());
-                        if (response.hasDiscoveryContext()) {
-                            getTargetOperationContextOrLogError(targetId).ifPresent(
-                                targetOperationContext -> targetOperationContext
-                                    .setCurrentDiscoveryContext(response.getDiscoveryContext()));
-                        }
-                        systemNotificationProducer.sendSystemNotification(response.getNotificationList(), target.get());
+                        // dump discovery response if required
                         if (discoveryDumper != null) {
                             final Optional<ProbeInfo> probeInfo = probeStore.getProbe(discovery.getProbeId());
-                            String displayName = target.isPresent()
-                                ? target.get().getDisplayName()
-                                : "targetID-" + targetId;
+                            String displayName = target.map(Target::getDisplayName)
+                                .orElseGet(() -> "targetID-" + targetId);
                             String targetName = probeInfo.get().getProbeType() + "_" + displayName;
                             if (discovery.getUserInitiated()) {
                                 // make sure we have up-to-date settings if this is a user-initiated discovery
                                 targetDumpingSettings.refreshSettings();
                             }
-                            discoveryDumper.dumpDiscovery(targetName, discoveryType,
-                                response, new ArrayList<>());
+                            discoveryDumper.dumpDiscovery(targetName, discoveryType, response,
+                                new ArrayList<>());
                         }
-                        // Flows
-                        matrix.update(response.getFlowDTOList());
+                        // set discovery context
+                        if (response.hasDiscoveryContext()) {
+                            getTargetOperationContextOrLogError(targetId).ifPresent(
+                                targetOperationContext -> targetOperationContext
+                                    .setCurrentDiscoveryContext(response.getDiscoveryContext()));
+                        }
+                        // send notification from probe
+                        systemNotificationProducer.sendSystemNotification(response.getNotificationList(), target.get());
+
+                        // these operations only apply to FULL discovery response for now
+                        if (discoveryType == DiscoveryType.FULL) {
+                            discoveredGroupUploader.setTargetDiscoveredGroups(targetId, response.getDiscoveredGroupList());
+                            discoveredTemplateDeploymentProfileNotifier.recordTemplateDeploymentInfo(
+                                targetId, response.getEntityProfileList(), response.getDeploymentProfileList(),
+                                response.getEntityDTOList());
+                            discoveredWorkflowUploader.setTargetWorkflows(targetId,
+                                response.getWorkflowList());
+                            derivedTargetParser.instantiateDerivedTargets(targetId, response.getDerivedTargetList());
+                            discoveredCloudCostUploader.recordTargetCostData(targetId,
+                                targetStore.getProbeTypeForTarget(targetId), discovery,
+                                response.getNonMarketEntityDTOList(), response.getCostDTOList(),
+                                response.getPriceTable());
+                            // Flows
+                            matrix.update(response.getFlowDTOList());
+                        }
                     } catch (TargetNotFoundException e) {
                         final String message = "Failed to process " + discoveryType
                                 + " discovery for target "
@@ -1374,8 +1383,14 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             this.lastValidationResult = lastValidationResult;
         }
 
-        public synchronized boolean hasPendingFullDiscovery() {
-            return pendingFullDiscovery;
+        public synchronized boolean hasPendingDiscovery(DiscoveryType discoveryType) {
+            switch (discoveryType) {
+                case FULL:
+                    return pendingFullDiscovery;
+                case INCREMENTAL:
+                    return pendingIncrementalDiscovery;
+            }
+            return false;
         }
 
         public synchronized DiscoveryContextDTO getCurrentDiscoveryContext() {

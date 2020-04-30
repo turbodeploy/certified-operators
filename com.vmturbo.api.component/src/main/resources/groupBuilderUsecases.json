@@ -20,7 +20,7 @@
             {"inputType": "#", "elements": "commoditySoldList[type=VMem,capacity]", "filterCategory": "property", "filterType": "vmsByMem"},
             {"inputType": "*", "elements": "LogicalPool:displayName:PRODUCES:Storage:PRODUCES:1", "filterCategory": "entity", "filterType": "vmsByLogicalPoolName"},
             {"inputType": "*", "elements": "networks", "filterCategory": "property", "filterType": "vmsByNetwork"},
-            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "vmsByResourceGroupUuid", "loadOptions": true},
+            {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "vmsByResourceGroupName", "loadOptions": true},
             {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByAvailabilityZoneName"},
             {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByRegionName"}
         ]
@@ -96,7 +96,7 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag", "loadOptions": true},
             {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid", "loadOptions": true},
-            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "databaseByResourceGroupUuid", "loadOptions": true}
+            {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "databaseByResourceGroupName", "loadOptions": true}
         ]
     },
 
@@ -105,7 +105,7 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerByName"},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag", "loadOptions": true},
             {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid", "loadOptions": true},
-            {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "databaseServerByResourceGroupUuid", "loadOptions": true}
+            {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "databaseServerByResourceGroupName", "loadOptions": true}
         ]
     },
 
@@ -181,7 +181,7 @@
         {"inputType": "s", "elements": "Region:oid:AGGREGATES:VirtualVolume", "filterCategory": "entity", "filterType": "volumeByRegion", "loadOptions": true},
         {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider", "loadOptions": true},
         {"inputType": "*", "elements": "vendorId", "filterCategory": "property", "filterType": "volumeById"},
-        {"inputType": "s", "elements": "MemberOf:ResourceGroup:uuid", "filterCategory": "entity", "filterType": "volumeByResourceGroup", "loadOptions": true}
+        {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "volumeByResourceGroupName", "loadOptions": true}
       ]
     },
 
@@ -234,6 +234,24 @@
     "LoadBalancer" : {
       "criteria" : [
         {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "lbsByName"}
+      ]
+    },
+
+    "DesktopPool" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "desktopPoolByName"}
+      ]
+    },
+
+    "BusinessUser" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "businessUserByName"}
+      ]
+    },
+
+    "ViewPod" : {
+      "criteria" : [
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "viewPodByName"}
       ]
     }
 }

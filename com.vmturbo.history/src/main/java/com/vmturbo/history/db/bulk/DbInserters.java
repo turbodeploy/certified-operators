@@ -43,24 +43,23 @@ public class DbInserters {
      * @param <R> underlying record type
      */
     interface DbInserter<R extends Record> {
-        void insert(List<R> records, Connection conn) throws SQLException;
+        void insert(Table<R> table, List<R> records, Connection conn) throws SQLException;
     }
 
     /**
      * An DbInserter that inserts records via an INSERT statement with multiple inline VALUES
      * clauses.
      *
-     * @param table    table where records should be written
      * @param basedbIO DB utils
      * @param <R>      record type
      * @return an inserter configured to insert a batch fo records
      */
-    public static <R extends Record> DbInserter<R> valuesInserter(Table<R> table, BasedbIO basedbIO) {
+    public static <R extends Record> DbInserter<R> valuesInserter(BasedbIO basedbIO) {
 
-        return (records, conn) -> {
+        return (table, records, conn) -> {
             final List<Field<?>> fieldList = getFieldList(records);
-            final InsertValuesStepN<R> insert = basedbIO.using(conn).insertInto(table)
-                .columns(fieldList);
+            final InsertValuesStepN<R> insert = basedbIO.using(conn).insertInto(getInsertionTable(table))
+                    .columns(fieldList);
             records.forEach(r -> insert.values(getOrderedValuesArray(r, fieldList)));
             insert.execute();
         };
@@ -74,17 +73,16 @@ public class DbInserters {
      * an insert statement with multiple inline VALUES clauses. That could change with a different
      * choice of databae, or with soAftware upgrades, so the code will be retained.</p>
      *
-     * @param table    table to recieve records
      * @param basedbIO DB utils
      * @param <R>      record type
      * @return an inserter that will insert a batch of records
      */
-    public static <R extends Record> DbInserter<R> batchInserter(Table<R> table, BasedbIO basedbIO) {
-        return (records, conn) -> {
+    public static <R extends Record> DbInserter<R> batchInserter(BasedbIO basedbIO) {
+        return (table, records, conn) -> {
             List<Field<?>> fields = getFieldList(records);
-            final InsertValuesStepN<?> insert = basedbIO.using(conn).insertInto(table)
-                .columns(fields)
-                .values(new Object[fields.size()]); // null values serve as placeholders
+            final InsertValuesStepN<?> insert = basedbIO.using(conn).insertInto(getInsertionTable(table))
+                    .columns(fields)
+                    .values(new Object[fields.size()]); // null values serve as placeholders
             final BatchBindStep batch = basedbIO.using(conn).batch(insert);
             for (R record : records) {
                 batch.bind(getOrderedValuesArray(record, fields));
@@ -126,14 +124,12 @@ public class DbInserters {
      *     cases where an upsert can be used.</li>
      *
      * </ul>
-     * @param table    target table for insertions/updates
      * @param basedbIO DB utilites
      * @param <R>      table record type
      * @return inserter function to apply to record batches
      */
-    public static <R extends Record> DbInserter<R> simpleUpserter(
-            Table<R> table, BasedbIO basedbIO) {
-        return (records, conn) -> {
+    public static <R extends Record> DbInserter<R> simpleUpserter(BasedbIO basedbIO) {
+        return (table, records, conn) -> {
             final DSLContext ctx = basedbIO.using(conn);
             final Insert<R> upsert = getUpsertStatement(table, records, ctx);
             ctx.execute(upsert);
@@ -142,7 +138,7 @@ public class DbInserters {
     }
 
     private static <R extends Record> Insert<R> getUpsertStatement(Table<R> table, Collection<R> records, DSLContext ctx) {
-        final Insert<R> insert = (Insert<R>)ctx.insertInto(table).columns(table.fields());
+        final Insert<R> insert = (Insert<R>)ctx.insertInto(getInsertionTable(table));
         final Set<TableField<R, ?>> primaryKey = new HashSet<>(table.getPrimaryKey().getFields());
         records.forEach(r -> {
             // jOOQ's record state management really doesn't make sense for upserts. So to avoid
@@ -167,24 +163,16 @@ public class DbInserters {
      * <p>This inserter can only be used with record types that implement {@link UpdatableRecord}
      * interface.</p>
      *
-     * @param table    table to recieve records
      * @param basedbIO DB utils
      * @param <R>      record type
      * @return an inserter that will store a batch of records
-     * @throws IllegalArgumentException if the underlying record type is not updateable
      */
-    public static <R extends Record> DbInserter<R> batchStoreInserter(Table<R> table, BasedbIO basedbIO)
-        throws IllegalArgumentException {
-        if (table.newRecord() instanceof UpdatableRecord<?>) {
-            return (records, conn) -> {
-                @SuppressWarnings("checked")
-                final List<UpdatableRecord<?>> castRecords = (List<UpdatableRecord<?>>)records;
-                basedbIO.using(conn).batchStore(castRecords).execute();
-            };
-        } else {
-            throw new IllegalArgumentException(
-                "batchStoreInserter can only be used with Updateable record types");
-        }
+    public static <R extends Record> DbInserter<R> batchStoreInserter(BasedbIO basedbIO) {
+        return (table, records, conn) -> {
+            @SuppressWarnings("checked")
+            final List<UpdatableRecord<?>> castRecords = (List<UpdatableRecord<?>>)records;
+            basedbIO.using(conn).batchStore(castRecords).execute();
+        };
     }
 
     /**
@@ -202,5 +190,23 @@ public class DbInserters {
             values[i++] = record.get(field.getName());
         }
         return values;
+    }
+
+    /**
+     * Return a table whose primary name that of the table to be inserted into.
+     *
+     * <p>This is important for transient table, where the table object is an instance of the
+     * table it's patterned after, with an alias set to the transient name. That table, used in
+     * a jOOQ insert statement builder, would result in SQL like <code>INSERT INTO table AS transient...</code>
+     * whereas we need <code>INSERT INTO transient...</code>.</p>
+     *
+     * <p>The table object returned by this method should not be used for anything else, like checking
+     * field, etc.</p>
+     * @param table the transient table object
+     * @param <R> the type of the underlying records
+     * @return a correctly-named table object
+     */
+    private static <R extends Record> Table<R> getInsertionTable(Table<R> table) {
+        return (Table<R>)DSL.table(table.getName());
     }
 }

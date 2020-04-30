@@ -31,6 +31,9 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
 
+import io.prometheus.client.Counter;
+import io.prometheus.client.Histogram;
+
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -42,9 +45,6 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import io.prometheus.client.Counter;
-import io.prometheus.client.Histogram;
-
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
 
 /**
@@ -52,7 +52,7 @@ import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.Star
  * will be routed to the child {@link IMessageReceiver} instances, added in
  * {@link #messageReceiver(String, Deserializer)} calls.
  */
-public class KafkaMessageConsumer implements AutoCloseable {
+public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFactory {
     // OM-25600: Adding metrics to help understand producer and consumer behavior and configuration
     // needs as a result.
     static private Counter MESSAGES_RECEIVED_COUNT = Counter.build()
@@ -183,31 +183,27 @@ public class KafkaMessageConsumer implements AutoCloseable {
         }
     }
 
-    /**
-     * Creates message receiver for the specific topic. Kafka consumer will not subscribe to any
-     * topics until this method is called.
-     *
-     * @param topic topic to subscribe to
-     * @param deserializer function to deserialize the message from bytes
-     * @param <T> type of messages to receive
-     * @return message receiver implementation
-     * @throws IllegalStateException if the topic has been already subscribed to
-     */
+    @Override
     public <T> IMessageReceiver<T> messageReceiver(@Nonnull String topic,
             @Nonnull Deserializer<T> deserializer) {
         final String namespacedTopic = namespacePrefix + topic;
         return createMessageReceiver(namespacedTopic, deserializer);
     }
 
-    /**
-     * Creates a message receiver for a specific topic, with additional topic-specific settings
-     * configured.
-     *
-     * @param topicSettings the {@link TopicSettings} to use for this topic
-     * @param deserializer function to deserialize the message from bytes
-     * @param <T> type of messages to receive
-     * @return message receiver implementation
-     */
+    @Override
+    public <T> IMessageReceiver<T> messageReceiver(@Nonnull Collection<String> topics,
+                                                   @Nonnull Deserializer<T> deserializer) {
+        final Collection<IMessageReceiver<T>> receivers = new ArrayList<>();
+        synchronized (consumerLock) {
+            for (String topic : topics) {
+                final String namespaceTopic = namespacePrefix + topic;
+                receivers.add(createMessageReceiver(namespaceTopic, deserializer));
+            }
+        }
+        return new UmbrellaMessageReceiver<>(receivers);
+    }
+
+    @Override
     public <T> IMessageReceiver<T> messageReceiverWithSettings(@Nonnull TopicSettings topicSettings,
                                                    @Nonnull Deserializer<T> deserializer) {
         final String namespacedTopic = namespacePrefix + topicSettings.topic;
@@ -221,17 +217,7 @@ public class KafkaMessageConsumer implements AutoCloseable {
         }
     }
 
-    /**
-     * Creates message receiver for the specific topic. Kafka consumer will not subscribe to any
-     * topics until this method is called. Different topics specified here could be reported
-     * in parallel, while all the messages within a topic are only delivered sequentially.
-     *
-     * @param topicSettings topic to subscribe to, with setting overrides.
-     * @param deserializer function to deserialize the message from bytes
-     * @param <T> type of messages to receive
-     * @return message receiver implementation
-     * @throws IllegalStateException if the topic has been already subscribed to
-     */
+    @Override
     public <T> IMessageReceiver<T> messageReceiversWithSettings(
             @Nonnull Collection<TopicSettings> topicSettings,
             @Nonnull Deserializer<T> deserializer) {
@@ -242,29 +228,6 @@ public class KafkaMessageConsumer implements AutoCloseable {
             return messageReceiver(Collections2.transform(topicSettings, setting -> setting.topic),
                 deserializer);
         }
-    }
-
-    /**
-     * Creates message receiver for the specific topic. Kafka consumer will not subscribe to any
-     * topics until this method is called. Different topics specified here could be reported
-     * in parallel, while all the messages within a topic are only delivered sequentially.
-     *
-     * @param topics topic to subscribe to
-     * @param deserializer function to deserialize the message from bytes
-     * @param <T> type of messages to receive
-     * @return message receiver implementation
-     * @throws IllegalStateException if the topic has been already subscribed to
-     */
-    public <T> IMessageReceiver<T> messageReceiver(@Nonnull Collection<String> topics,
-            @Nonnull Deserializer<T> deserializer) {
-        final Collection<IMessageReceiver<T>> receivers = new ArrayList<>();
-        synchronized (consumerLock) {
-            for (String topic : topics) {
-                final String namespaceTopic = namespacePrefix + topic;
-                receivers.add(createMessageReceiver(namespaceTopic, deserializer));
-            }
-        }
-        return new UmbrellaMessageReceiver<>(receivers);
     }
 
     /**

@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Future;
 
 import javax.annotation.Nonnull;
@@ -63,6 +64,7 @@ import com.vmturbo.topology.processor.TestIdentityStore;
 import com.vmturbo.topology.processor.TestProbeStore;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
+import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.DiscoverAllResponse;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationDto;
 import com.vmturbo.topology.processor.api.impl.OperationRESTApi.OperationResponse;
@@ -96,12 +98,14 @@ import com.vmturbo.topology.processor.targets.CachingTargetStore;
 import com.vmturbo.topology.processor.targets.DerivedTargetParser;
 import com.vmturbo.topology.processor.targets.GroupScopeResolver;
 import com.vmturbo.topology.processor.targets.KvTargetDao;
+import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetDao;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetSpecAttributeExtractor;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
 import com.vmturbo.topology.processor.topology.TopologyHandler;
+import com.vmturbo.topology.processor.util.Probes;
 import com.vmturbo.topology.processor.workflow.DiscoveredWorkflowUploader;
 
 /**
@@ -277,7 +281,7 @@ public class OperationControllerTest {
     private final Gson gson = new Gson();
 
     private long probeId;
-    private long targetId;
+    private Target target;
 
     private MockMvc mockMvc;
     private OperationManager operationManager;
@@ -311,7 +315,7 @@ public class OperationControllerTest {
         targetStore = wac.getBean(TargetStore.class);
 
         probeId = addProbe("category", "type");
-        targetId = addTarget(probeId);
+        target = addTarget(probeId);
 
         Mockito.when(mockRemoteMediation.getMessageHandlerExpirationClock())
                         .thenReturn(Clock.systemUTC());
@@ -324,11 +328,10 @@ public class OperationControllerTest {
      */
     @Test
     public void testDiscoverSuccess() throws Exception {
-        final OperationResponse response = postDiscovery(targetId, HttpStatus.OK);
+        final OperationResponse response = postDiscovery(target.getId(), HttpStatus.OK);
 
         Mockito.verify(mockRemoteMediation).sendDiscoveryRequest(
-            Mockito.eq(probeId),
-            Mockito.eq(targetId),
+            Mockito.eq(target),
             Matchers.any(DiscoveryRequest.class),
             Matchers.any(OperationMessageHandler.class));
 
@@ -339,7 +342,7 @@ public class OperationControllerTest {
         Assert.assertEquals(OperationController.toEpochMillis(discovery.getStartTime()),
                         response.operation.getStartTime());
         Assert.assertEquals(Status.IN_PROGRESS, response.operation.getStatus());
-        Assert.assertEquals(targetId, (long)response.targetId);
+        Assert.assertEquals(target.getId(), (long)response.targetId);
     }
 
     /**
@@ -349,7 +352,7 @@ public class OperationControllerTest {
      */
     @Test
     public void testGetOngoingDiscoveryById() throws Exception {
-        final OperationResponse response = postDiscovery(targetId, HttpStatus.OK);
+        final OperationResponse response = postDiscovery(target.getId(), HttpStatus.OK);
         final OperationResponse operation = getDiscoveryById(response.operation.getId());
         Assert.assertTrue(response.isSuccess());
         Assert.assertTrue(operation.isSuccess());
@@ -363,8 +366,8 @@ public class OperationControllerTest {
      */
     @Test
     public void testDiscoverReturnsSameWhenInProgress() throws Exception {
-        final OperationResponse firstResponse = postDiscovery(targetId, HttpStatus.OK);
-        final OperationResponse secondResponse = postDiscovery(targetId, HttpStatus.OK);
+        final OperationResponse firstResponse = postDiscovery(target.getId(), HttpStatus.OK);
+        final OperationResponse secondResponse = postDiscovery(target.getId(), HttpStatus.OK);
 
         Assert.assertEquals(firstResponse.operation.getId(), secondResponse.operation.getId());
     }
@@ -376,18 +379,18 @@ public class OperationControllerTest {
      */
     @Test
     public void testGetDiscoveryByTarget() throws Exception {
-        final OperationResponse firstResponse = postDiscovery(targetId, HttpStatus.OK);
-        final OperationResponse byTargetResponse = getDiscoveryByTargetId(targetId);
+        final OperationResponse firstResponse = postDiscovery(target.getId(), HttpStatus.OK);
+        final OperationResponse byTargetResponse = getDiscoveryByTargetId(target.getId());
 
         assertOperationsEq(firstResponse.operation, byTargetResponse.operation);
 
         // Simulate the validation completing on the server.
         final Discovery actualDiscovery =
-            operationManager.getInProgressDiscoveryForTarget(targetId, DiscoveryType.FULL).get();
+            operationManager.getInProgressDiscoveryForTarget(target.getId(), DiscoveryType.FULL).get();
         OperationTestUtilities.waitForEvent(operationManager.notifyDiscoveryResult(
             actualDiscovery, DiscoveryResponse.getDefaultInstance()), Future::isDone);
 
-        final OperationResponse completeResponse = getDiscoveryByTargetId(targetId);
+        final OperationResponse completeResponse = getDiscoveryByTargetId(target.getId());
         Assert.assertEquals(Status.SUCCESS, completeResponse.operation.getStatus());
     }
 
@@ -401,13 +404,12 @@ public class OperationControllerTest {
         Mockito.doThrow(TargetNotFoundException.class)
                 .when(mockRemoteMediation)
                 .sendDiscoveryRequest(
-                        Matchers.anyLong(),
-                        Matchers.anyLong(),
+                        Matchers.any(Target.class),
                         Matchers.any(DiscoveryRequest.class),
                         Matchers.any(OperationMessageHandler.class)
                 );
 
-        final OperationResponse response = postDiscovery(targetId, HttpStatus.NOT_FOUND);
+        final OperationResponse response = postDiscovery(target.getId(), HttpStatus.NOT_FOUND);
         Assert.assertNull(response.operation);
     }
 
@@ -427,17 +429,17 @@ public class OperationControllerTest {
 
     @Test
     public void testDiscoveryResetsSchedule() throws Exception {
-        postDiscovery(targetId, HttpStatus.OK);
-        Mockito.verify(mockScheduler).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
+        postDiscovery(target.getId(), HttpStatus.OK);
+        Mockito.verify(mockScheduler).resetDiscoverySchedule(target.getId(), DiscoveryType.FULL);
     }
 
     @Test
     public void testDiscoveryScheduleNotResetWhenAlreadyInProgress() throws Exception {
-        postDiscovery(targetId, HttpStatus.OK);
-        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
+        postDiscovery(target.getId(), HttpStatus.OK);
+        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(target.getId(), DiscoveryType.FULL);
 
-        postDiscovery(targetId, HttpStatus.OK);
-        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
+        postDiscovery(target.getId(), HttpStatus.OK);
+        Mockito.verify(mockScheduler, Mockito.times(1)).resetDiscoverySchedule(target.getId(), DiscoveryType.FULL);
     }
 
     /**
@@ -447,25 +449,25 @@ public class OperationControllerTest {
      */
     @Test
     public void testDiscoverAll() throws Exception {
-        final long secondTargetId = addTarget(addProbe("second-category", "second-type"));
-        final long thirdTargetId = addTarget(addProbe("third-category", "third-type"));
+        final long secondTargetId = addTarget(addProbe("second-category", "second-type")).getId();
+        final long thirdTargetId = addTarget(addProbe("third-category", "third-type")).getId();
 
         final Map<Long, OperationResponse> discoveries = postDiscoverAll();
 
         Assert.assertEquals(3, discoveries.size());
-        Assert.assertTrue(discoveries.get(targetId).isSuccess());
+        Assert.assertTrue(discoveries.get(target.getId()).isSuccess());
         Assert.assertTrue(discoveries.get(secondTargetId).isSuccess());
         Assert.assertTrue(discoveries.get(thirdTargetId).isSuccess());
     }
 
     @Test
     public void testDiscoverAllResetsSchedule() throws Exception {
-        final long secondTargetId = addTarget(addProbe("second-category", "second-type"));
-        final long thirdTargetId = addTarget(addProbe("third-category", "third-type"));
+        final long secondTargetId = addTarget(addProbe("second-category", "second-type")).getId();
+        final long thirdTargetId = addTarget(addProbe("third-category", "third-type")).getId();
 
         postDiscoverAll();
 
-        Mockito.verify(mockScheduler).resetDiscoverySchedule(targetId, DiscoveryType.FULL);
+        Mockito.verify(mockScheduler).resetDiscoverySchedule(target.getId(), DiscoveryType.FULL);
         Mockito.verify(mockScheduler).resetDiscoverySchedule(secondTargetId, DiscoveryType.FULL);
         Mockito.verify(mockScheduler).resetDiscoverySchedule(thirdTargetId, DiscoveryType.FULL);
     }
@@ -477,9 +479,9 @@ public class OperationControllerTest {
      */
     @Test
     public void testGetOngoingDiscoveries() throws Exception {
-        final OperationResponse response = postDiscovery(targetId, HttpStatus.OK);
+        final OperationResponse response = postDiscovery(target.getId(), HttpStatus.OK);
         // Also request a validation, which shouldn't appear in the results
-        postValidation(targetId, HttpStatus.OK);
+        postValidation(target.getId(), HttpStatus.OK);
 
         final List<Discovery> ongoingDiscoveries = getAllDiscoveries();
 
@@ -498,26 +500,24 @@ public class OperationControllerTest {
         Mockito.doThrow(TargetNotFoundException.class)
                 .when(mockRemoteMediation)
                 .sendDiscoveryRequest(
-                    Matchers.eq(probeId),
-                    Matchers.anyLong(),
+                    Matchers.eq(target),
                     Matchers.any(DiscoveryRequest.class),
                     Matchers.any(OperationMessageHandler.class)
                 );
 
         final long secondProbeId = addProbe("second-category", "second-type");
-        final long secondTargetId = addTarget(secondProbeId);
-        Mockito.doNothing().when(mockRemoteMediation)
+        final Target secondTarget = addTarget(secondProbeId);
+        Mockito.doReturn(0).when(mockRemoteMediation)
                 .sendDiscoveryRequest(
-                        Matchers.eq(secondProbeId),
-                        Matchers.anyLong(),
+                        Matchers.eq(secondTarget),
                         Matchers.any(DiscoveryRequest.class),
                         Matchers.any(OperationMessageHandler.class)
                 );
 
         final Map<Long, OperationResponse> discoveries = postDiscoverAll();
         Assert.assertEquals(2, discoveries.size());
-        Assert.assertTrue(discoveries.get(secondTargetId).isSuccess());
-        Assert.assertEquals("Unable to initiate discovery (null)", discoveries.get(targetId).error);
+        Assert.assertTrue(discoveries.get(secondTarget.getId()).isSuccess());
+        Assert.assertEquals("Unable to initiate discovery (null)", discoveries.get(target.getId()).error);
     }
 
     /**
@@ -527,10 +527,10 @@ public class OperationControllerTest {
      */
     @Test
     public void testValidationSuccess() throws Exception {
-        final OperationResponse response = postValidation(targetId, HttpStatus.OK);
+        final OperationResponse response = postValidation(target.getId(), HttpStatus.OK);
 
         Mockito.verify(mockRemoteMediation).sendValidationRequest(
-                Mockito.eq(probeId),
+                Mockito.eq(target),
                 Matchers.any(ValidationRequest.class),
                 Matchers.any(OperationMessageHandler.class));
 
@@ -549,8 +549,8 @@ public class OperationControllerTest {
      */
     @Test
     public void testValidationReturnsSameWhenInProgress() throws Exception {
-        final OperationResponse firstResponse = postValidation(targetId, HttpStatus.OK);
-        final OperationResponse secondResponse = postValidation(targetId, HttpStatus.OK);
+        final OperationResponse firstResponse = postValidation(target.getId(), HttpStatus.OK);
+        final OperationResponse secondResponse = postValidation(target.getId(), HttpStatus.OK);
 
         assertOperationsEq(firstResponse.operation, secondResponse.operation);
     }
@@ -562,19 +562,19 @@ public class OperationControllerTest {
      */
     @Test
     public void testGetValidationByTarget() throws Exception {
-        final OperationResponse firstResponse = postValidation(targetId, HttpStatus.OK);
-        final OperationResponse byTargetResponse = getValidationByTargetId(targetId);
+        final OperationResponse firstResponse = postValidation(target.getId(), HttpStatus.OK);
+        final OperationResponse byTargetResponse = getValidationByTargetId(target.getId());
 
         assertOperationsEq(firstResponse.operation, byTargetResponse.operation);
 
         // Simulate the validation completing on the server.
-        final Validation actualValidation = operationManager.getInProgressValidationForTarget(targetId).get();
+        final Validation actualValidation = operationManager.getInProgressValidationForTarget(target.getId()).get();
         OperationTestUtilities.waitForEvent(operationManager.notifyValidationResult(
             actualValidation, ValidationResponse.getDefaultInstance()), Future::isDone);
 
-        final OperationResponse completeResponse = getValidationByTargetId(targetId);
+        final OperationResponse completeResponse = getValidationByTargetId(target.getId());
         Assert.assertEquals(Status.SUCCESS, completeResponse.operation.getStatus());
-        Assert.assertEquals(targetId, (long)completeResponse.targetId);
+        Assert.assertEquals(target.getId(), (long)completeResponse.targetId);
     }
 
     /**
@@ -587,12 +587,12 @@ public class OperationControllerTest {
         Mockito.doThrow(TargetNotFoundException.class)
                 .when(mockRemoteMediation)
                 .sendValidationRequest(
-                        Matchers.anyLong(),
+                        Matchers.any(Target.class),
                         Matchers.any(ValidationRequest.class),
                         Matchers.any(OperationMessageHandler.class)
                 );
 
-        final OperationResponse response = postValidation(targetId, HttpStatus.NOT_FOUND);
+        final OperationResponse response = postValidation(target.getId(), HttpStatus.NOT_FOUND);
         Assert.assertNull(response.operation);
     }
 
@@ -617,12 +617,12 @@ public class OperationControllerTest {
      */
     @Test
     public void testValidateAll() throws Exception {
-        final long secondTargetId = addTarget(addProbe("second-category", "second-type"));
-        final long thirdTargetId = addTarget(addProbe("third-category", "third-type"));
+        final long secondTargetId = addTarget(addProbe("second-category", "second-type")).getId();
+        final long thirdTargetId = addTarget(addProbe("third-category", "third-type")).getId();
 
         final Map<Long, OperationResponse> validations = postValidateAll();
         Assert.assertEquals(3, validations.size());
-        Assert.assertTrue(validations.get(targetId).isSuccess());
+        Assert.assertTrue(validations.get(target.getId()).isSuccess());
         Assert.assertTrue(validations.get(secondTargetId).isSuccess());
         Assert.assertTrue(validations.get(thirdTargetId).isSuccess());
     }
@@ -634,7 +634,7 @@ public class OperationControllerTest {
      */
     @Test
     public void testGetOngoingValidationById() throws Exception {
-        final OperationResponse response = postValidation(targetId, HttpStatus.OK);
+        final OperationResponse response = postValidation(target.getId(), HttpStatus.OK);
         final OperationResponse operation = getValidationById(response.operation.getId());
         Assert.assertTrue(response.isSuccess());
         Assert.assertTrue(operation.isSuccess());
@@ -648,9 +648,9 @@ public class OperationControllerTest {
      */
     @Test
     public void testGetOngoingValidations() throws Exception {
-        final OperationResponse response = postValidation(targetId, HttpStatus.OK);
+        final OperationResponse response = postValidation(target.getId(), HttpStatus.OK);
         // Also request a discovery, which shouldn't appear in the results
-        postDiscovery(targetId, HttpStatus.OK);
+        postDiscovery(target.getId(), HttpStatus.OK);
         final List<Validation> ongoingValidations = getAllValidations();
 
         Assert.assertEquals(1, ongoingValidations.size());
@@ -664,15 +664,16 @@ public class OperationControllerTest {
         final ProbeInfo probeInfo = ProbeInfo.newBuilder()
                 .setProbeCategory(probeCategory)
                 .setProbeType(probeType)
-                .addTargetIdentifierField("name")
+                .addTargetIdentifierField("targetId")
+                .addAccountDefinition(Probes.mandatoryField)
                 .build();
         probeStore.registerNewProbe(probeInfo, transport);
         return identityProvider.getProbeId(probeInfo);
     }
 
-    private long addTarget(final long probeId) throws Exception {
-        TargetSpec target = new TargetSpec(probeId, Collections.emptyList());
-        return targetStore.createTarget(target.toDto()).getId();
+    private Target addTarget(final long probeId) throws Exception {
+        TargetSpec target = new TargetSpec(probeId, Collections.singletonList(new InputField("targetId", "123", Optional.empty())));
+        return targetStore.createTarget(target.toDto());
     }
 
     private void assertOperationsEq(@Nonnull final OperationDto op1,

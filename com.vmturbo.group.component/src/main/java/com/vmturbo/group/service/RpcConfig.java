@@ -45,6 +45,12 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         TopologyProcessorClientConfig.class})
 public class RpcConfig {
 
+    @Value("${groupRetrievePermitsSize:300000}")
+    private int groupRetrievePermitsSize;
+
+    @Value("${groupLoadTimoutSec:30}")
+    private long groupLoadTimeoutSec;
+
     @Autowired
     private GroupComponentDBConfig databaseConfig;
 
@@ -109,7 +115,8 @@ public class RpcConfig {
                 repositoryClientConfig.searchServiceClient(),
                 userSessionConfig.userSessionContext(), groupStitchingManager(),
                 transactionProvider(), identityProviderConfig.identityProvider(),
-                targetSearchService(), settingsPoliciesUpdater());
+                targetSearchService(), settingsPoliciesUpdater(), groupRetrievePermitsSize,
+                groupLoadTimeoutSec);
     }
 
     /**

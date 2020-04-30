@@ -21,6 +21,7 @@ public class VirtualVolumeInfoMapperTest {
 
     private static final float STORAGE_ACCESS_CAPACITY = 1.1f;
     private static final float STORAGE_AMOUNT_CAPACITY = 2.2f;
+    private static final float STORAGE_THROUGHPUT_CAPACITY = 3.3f;
     public static final RedundancyType REDUNDANCY_TYPE = RedundancyType.RAGRS;
     private static final String SNAPSHOT_ID = "snap-1234";
 
@@ -31,6 +32,7 @@ public class VirtualVolumeInfoMapperTest {
                 .setVirtualVolumeData(VirtualVolumeData.newBuilder()
                         .setStorageAccessCapacity(STORAGE_ACCESS_CAPACITY)
                         .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
+                        .setIoThroughputCapacity(STORAGE_THROUGHPUT_CAPACITY)
                         .setRedundancyType(REDUNDANCY_TYPE)
                         .setSnapshotId(SNAPSHOT_ID)
                         .setAttachmentState(AttachmentState.ATTACHED)
@@ -40,6 +42,7 @@ public class VirtualVolumeInfoMapperTest {
                 .setVirtualVolume(VirtualVolumeInfo.newBuilder()
                         .setStorageAccessCapacity(STORAGE_ACCESS_CAPACITY)
                         .setStorageAmountCapacity(STORAGE_AMOUNT_CAPACITY)
+                        .setIoThroughputCapacity(STORAGE_THROUGHPUT_CAPACITY)
                         .setRedundancyType(REDUNDANCY_TYPE)
                         .setSnapshotId(SNAPSHOT_ID)
                         .setAttachmentState(AttachmentState.ATTACHED)

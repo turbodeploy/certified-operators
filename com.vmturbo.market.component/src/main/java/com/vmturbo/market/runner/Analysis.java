@@ -544,7 +544,7 @@ public class Analysis {
                         projectedEntities = converter.convertFromMarket(
                                 projectedTraderDTO,
                                 topologyDTOs,
-                                priceIndexMessage, topologyCostCalculator.getCloudCostData(),
+                                priceIndexMessage,
                                 reservedCapacityAnalysis,
                                 wastedFilesAnalysis);
                         final Set<Long> wastedStorageActionsVolumeIds = wastedFileActions.stream()
@@ -567,7 +567,8 @@ public class Analysis {
                                 cloudTopologyFactory.newCloudTopology(projectedEntities.values().stream()
                                         .filter(ProjectedTopologyEntity::hasEntity)
                                         .map(ProjectedTopologyEntity::getEntity));
-                        converter.addRICoverageToProjectedRICoverage(cloudCostData.getCurrentRiCoverage());
+                        converter.getProjectedRICoverageCalculator()
+                            .addRICoverageToProjectedRICoverage(cloudCostData.getCurrentRiCoverage());
                     }
 
                     // Invoke buy RI impact analysis after projected entity creation, but prior to
@@ -579,7 +580,7 @@ public class Analysis {
                     // Get it from TopologyConverter and pass it along to use for calculation of
                     // savings
                     projectedEntityCosts = topologyCostCalculator.calculateCosts(projectedCloudTopology,
-                            converter.getProjectedReservedInstanceCoverage());
+                            converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
                 }
 
                 // Create the action plan
@@ -647,13 +648,13 @@ public class Analysis {
         ActionLogger externalize = new ActionLogger();
         externalize.logActions(actions, config.isSMAOnly(), config.getMarketMode(),
             originalCloudTopology, projectedCloudTopology, cloudCostData,
-            converter.getProjectedReservedInstanceCoverage(),
+            converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
             converter.getConsistentScalingHelper());
         if (config.isM2withSMAActions()) {
             externalize.logSMAOutput(smaConverter.getSmaOutput(),
                 originalCloudTopology, projectedCloudTopology,
                 cloudCostData,
-                converter.getProjectedReservedInstanceCoverage(),
+                converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage(),
                 converter.getConsistentScalingHelper());
         }
     }
@@ -802,12 +803,13 @@ public class Analysis {
                                               topologyInfo,
                                               projectedCloudTopology,
                                               cloudCostData,
-                                              converter.getProjectedReservedInstanceCoverage());
+                                              converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage());
                 final Table<Long, Long, Double> entityBuyRICoverage =
                                     buyRIImpactAnalysis
                                                     .allocateCoverageFromBuyRIImpactAnalysis();
 
-                converter.addBuyRICoverageToProjectedRICoverage(entityBuyRICoverage);
+                converter.getProjectedRICoverageCalculator()
+                    .addBuyRICoverageToProjectedRICoverage(entityBuyRICoverage);
             } catch (Exception e) {
                 logger.error("Error executing buy RI impact analysis (Context ID={}, Topology ID={})",
                         topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), e);
@@ -907,7 +909,8 @@ public class Analysis {
      * @return {@link Map} of entity id and its projected RI coverage if analysis completed, else empty
      */
     public Optional<Map<Long, EntityReservedInstanceCoverage>> getProjectedEntityRiCoverage() {
-        return completed ? Optional.ofNullable(converter.getProjectedReservedInstanceCoverage()) : Optional.empty();
+        return completed ? Optional.of(
+            converter.getProjectedRICoverageCalculator().getProjectedReservedInstanceCoverage()) : Optional.empty();
     }
 
     /**

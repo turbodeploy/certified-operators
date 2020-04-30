@@ -11,6 +11,7 @@ import javax.annotation.concurrent.Immutable;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.common.protobuf.cluster.ComponentStatus;
 import com.vmturbo.components.api.ComponentGsonFactory;
 
 /**
@@ -116,6 +117,22 @@ public class BuildProperties {
 
     public boolean isDirty() {
         return dirty;
+    }
+
+    /**
+     * Return the protobuf representation of these properties.
+     *
+     * @return The {@link ComponentStatus.BuildProperties} protobuf with the properties set.
+     */
+    @Nonnull
+    public ComponentStatus.BuildProperties toProto() {
+        return ComponentStatus.BuildProperties.newBuilder()
+            .setBranch(branch)
+            .setVersion(version)
+            .setBuildTime(buildTime)
+            .setCommitId(shortCommitId)
+            .setIsDirty(dirty)
+            .build();
     }
 
     @Override

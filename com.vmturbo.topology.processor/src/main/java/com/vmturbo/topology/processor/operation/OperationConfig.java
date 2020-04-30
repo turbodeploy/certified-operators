@@ -99,7 +99,7 @@ public class OperationConfig {
     @Value("${actionTimeoutSeconds}")
     private long actionTimeoutSeconds;
 
-    @Value("${maxConcurrentTargetDiscoveriesPerProbeCount}")
+    @Value("${maxConcurrentTargetDiscoveriesPerProbeCount:10}")
     private int maxConcurrentTargetDiscoveriesPerProbeCount;
 
     @Value("${maxConcurrentTargetIncrementalDiscoveriesPerProbeCount:10}")
@@ -119,9 +119,7 @@ public class OperationConfig {
      */
     @Bean
     public NotificationSender notificationSender() {
-        return new NotificationSender(
-            notificationApiConfig.notificationMessageSender(),
-            Clock.systemUTC());
+        return notificationApiConfig.notificationMessageSender();
     }
 
     /**

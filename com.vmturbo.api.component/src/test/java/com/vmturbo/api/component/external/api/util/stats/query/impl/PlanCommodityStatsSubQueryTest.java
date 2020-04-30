@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,6 +28,7 @@ import com.google.common.collect.Lists;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
+import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.component.external.api.util.stats.StatsTestUtil;
 import com.vmturbo.api.component.external.api.util.stats.query.impl.PlanCommodityStatsSubQuery.RequestMapper;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -98,6 +100,10 @@ public class PlanCommodityStatsSubQueryTest {
         when(scope.oid()).thenReturn(SCOPE_ID);
 
         when(context.getInputScope()).thenReturn(scope);
+
+        final StatsQueryScope statsQueryScope = mock(StatsQueryScope.class);
+        when(context.getQueryScope()).thenReturn(statsQueryScope);
+        when(statsQueryScope.getGlobalScope()).thenReturn(Optional.empty());
 
         when(statsMapper.newPeriodStatsFilter(any())).thenReturn(FILTER);
 

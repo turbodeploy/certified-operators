@@ -17,13 +17,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.Test;
-
 import com.google.common.collect.Sets;
 
+import org.junit.Test;
+
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -33,6 +32,8 @@ import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 public class StatsQueryContextFactoryTest {
 
@@ -183,16 +184,20 @@ public class StatsQueryContextFactoryTest {
             .build();
 
         final ApiId apiId = mock(ApiId.class);
-        when(apiId.getPlanInstance()).thenReturn(Optional.of(planInstance));
+        final CachedPlanInfo planInfo = mock(CachedPlanInfo.class);
+        when(planInfo.getPlanInstance()).thenReturn(planInstance);
+        when(apiId.getCachedPlanInfo()).thenReturn(Optional.of(planInfo));
 
         final StatsQueryContext context = factory.newContext(apiId, expandedScope, inputDTO);
 
         assertThat(context.getPlanInstance(), is(Optional.of(planInstance)));
-        verify(apiId, times(1)).getPlanInstance();
+        verify(apiId, times(1)).getCachedPlanInfo();
+        verify(planInfo, times(1)).getPlanInstance();
 
         // Test caching
         assertThat(context.getPlanInstance(), is(Optional.of(planInstance)));
-        verify(apiId, times(1)).getPlanInstance();
+        verify(apiId, times(1)).getCachedPlanInfo();
+        verify(planInfo, times(1)).getPlanInstance();
     }
 
     @Test

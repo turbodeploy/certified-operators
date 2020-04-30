@@ -328,11 +328,6 @@ public class ConsulService {
     @Nonnull
     private String fullKey(@Nonnull final String key) {
         final String fullKey = consulNamespacePrefix + key;
-        try {
-            return UriUtils.encodeFragment(fullKey, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            logger.error(e); // Should never happen unless UTF-8 encoding support is somehow dropped
-            return "";
-        }
+        return UriUtils.encodeFragment(fullKey, "UTF-8");
     }
 }

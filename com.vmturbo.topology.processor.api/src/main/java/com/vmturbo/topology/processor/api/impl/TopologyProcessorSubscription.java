@@ -83,10 +83,33 @@ public class TopologyProcessorSubscription {
         }
     }
 
+    /**
+     * Contains the list of Topics.
+     */
     public enum Topic {
+        /**
+         * Notifications topic.
+         */
         Notifications,
+
+        /**
+         * LiveTopologies topic.
+         */
         LiveTopologies,
+
+        /**
+         * PlanTopologies topic.
+         */
         PlanTopologies,
-        TopologySummaries;
+
+        /**
+         * TopologySummaries topic.
+         */
+        TopologySummaries,
+
+        /**
+         * EntitiesWithNewState topic.
+         */
+        EntitiesWithNewState
     }
 }

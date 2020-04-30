@@ -26,6 +26,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ProvisionExplanation.ProvisionByDemandExplanation.CommodityMaxAmountAvailableEntry;
+import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -544,7 +547,29 @@ public class CombinedStatsBucketsTest {
             view -> {},
             Sets.newHashSet(ON_PREM_PM));
 
+        final SingleActionInfo pmTarget4 = actionInfo(
+            bldr -> {
+                bldr.setInfo(ActionInfo.newBuilder()
+                    .setProvision(Provision.newBuilder()
+                        .setEntityToClone(ON_PREM_VM)))
+                    .setExplanation(Explanation.newBuilder()
+                        .setProvision(ProvisionExplanation.newBuilder()
+                            .setProvisionByDemandExplanation(
+                                ProvisionByDemandExplanation.newBuilder()
+                                    .setBuyerId(1)
+                                    .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
+                                        .setCommodityBaseType(CommodityDTO.CommodityType.MEM_VALUE)
+                                        .setRequestedAmount(10).setMaxAmountAvailable(20))
+                                    .addCommodityMaxAmountAvailable(CommodityMaxAmountAvailableEntry.newBuilder()
+                                        .setCommodityBaseType(CommodityDTO.CommodityType.CPU_VALUE)
+                                        .setRequestedAmount(10).setMaxAmountAvailable(20)))
+                            .build()));
+            },
+            view -> {},
+            Sets.newHashSet(ON_PREM_VM));
+
         buckets.addActionInfo(pmTarget1);
+        buckets.addActionInfo(pmTarget4);
         // two actions of same explanation
         buckets.addActionInfo(pmTarget2);
         buckets.addActionInfo(pmTarget3);
@@ -554,18 +579,18 @@ public class CombinedStatsBucketsTest {
             CurrentActionStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
                     .setActionExplanation(getCommodityDisplayName(TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityDTO.CommodityType.MEM_VALUE).build()) + " congestion"))
-                .setActionCount(2)
-                .setEntityCount(1)
+                        .setType(CommodityDTO.CommodityType.MEM_VALUE).build()) + " Congestion"))
+                .setActionCount(3)
+                .setEntityCount(2)
                 .setSavings(0.0)
                 .setInvestments(0.0)
                 .build(),
             CurrentActionStat.newBuilder()
                 .setStatGroup(StatGroup.newBuilder()
                     .setActionExplanation(getCommodityDisplayName(TopologyDTO.CommodityType.newBuilder()
-                        .setType(CommodityDTO.CommodityType.CPU_VALUE).build()) + " congestion"))
-                .setActionCount(1)
-                .setEntityCount(1)
+                        .setType(CommodityDTO.CommodityType.CPU_VALUE).build()) + " Congestion"))
+                .setActionCount(2)
+                .setEntityCount(2)
                 .setSavings(0.0)
                 .setInvestments(0.0)
                 .build()));

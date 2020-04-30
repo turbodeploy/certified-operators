@@ -47,6 +47,7 @@ public class PartialEntityConverter {
                     .setDisplayName(repoGraphEntity.getDisplayName())
                     .setEntityType(repoGraphEntity.getEntityType())
                     .setEnvironmentType(repoGraphEntity.getEnvironmentType())
+                    .setEntityState(repoGraphEntity.getEntityState())
                     .addAllDiscoveringTargetIds(
                         repoGraphEntity.getDiscoveringTargetIds().collect(Collectors.toList())));
                 break;
@@ -152,6 +153,7 @@ public class PartialEntityConverter {
                     .setDisplayName(topoEntity.getDisplayName())
                     .setEntityType(topoEntity.getEntityType())
                     .setEnvironmentType(topoEntity.getEnvironmentType())
+                    .setEntityState(topoEntity.getEntityState())
                     .addAllDiscoveringTargetIds(
                         topoEntity.getOrigin().getDiscoveryOrigin().getDiscoveredTargetDataMap().keySet()));
                 break;

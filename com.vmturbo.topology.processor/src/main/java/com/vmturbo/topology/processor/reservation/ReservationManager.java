@@ -57,7 +57,7 @@ import com.vmturbo.topology.processor.reservation.ReservationValidator.Validatio
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
-import com.vmturbo.topology.processor.template.TemplatesNotFoundException;
+import com.vmturbo.topology.processor.template.TopologyEntityConstructorException;
 import com.vmturbo.topology.processor.topology.TopologyEditorException;
 
 /**
@@ -348,9 +348,9 @@ public class ReservationManager {
 
             return convertTopologyEntityPairWithInstance(reservationInstances, topologyEntityDTOBuilder,
                     topology);
-        } catch (TemplatesNotFoundException e) {
-            logger.error("Can not find template: " + reservationTemplate.getTemplateId() +
-            " and ignore the reservation templates.");
+        } catch (TopologyEntityConstructorException e) {
+            logger.error("Error constructing topology entity from template: "
+                    + reservationTemplate.getTemplateId() + ". Ignore the reservation templates.");
             return Collections.emptyList();
         }
     }
@@ -650,9 +650,9 @@ public class ReservationManager {
                     .clearReservationInstance()
                     .addAllReservationInstance(createdReservationInstances)
                     .build();
-        } catch (TopologyEditorException e) {
-            logger.error("Can not find template: " + reservationTemplate.getTemplateId() +
-                    " and ignore the reservation templates.");
+        } catch (TopologyEditorException | TopologyEntityConstructorException e) {
+            logger.error("Error constructing topology entity from template "
+                    + reservationTemplate.getTemplateId() + ". Ignore the reservation templates.");
         }
     }
 

@@ -172,6 +172,7 @@ public class TopologyEntitiesHandler {
         topology.setTopologyId(topologyInfo.getTopologyId());
 
         populateCommodityResizeDependencyMap(topology);
+        populateHistoryBasedResizeDependencyMap(topology);
         populateProducesDependencyMap(topology);
         populateRawMaterialsMap(topology);
         populateCommToAdjustOverheadInClone(topology, analysis);
@@ -404,6 +405,16 @@ public class TopologyEntitiesHandler {
             resizeDependencyMap.put(k, v.stream()
                     .map(TopologyEntitiesHandler::specToSpec)
                     .collect(Collectors.toList())));
+    }
+
+    /**
+     * Populates the commodity history based resize dependency skip map of a {@link Topology}.
+     *
+     * @param topology where to place the map
+     */
+    public static void populateHistoryBasedResizeDependencyMap(final @NonNull Topology topology) {
+        topology.getModifiableHistoryBasedResizeSkipDependency()
+            .putAll(MarketAnalysisUtils.HISTORY_BASED_RESIZE_DEPENDENCY_SKIP_MAP);
     }
 
     /**

@@ -9,9 +9,11 @@ import static com.vmturbo.common.protobuf.VirtualMachineProtoUtil.PROPERTY_SUPPO
 import static com.vmturbo.common.protobuf.VirtualMachineProtoUtil.PROPERTY_VM_VIRTUALIZATION_TYPE;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.Test;
@@ -133,5 +135,51 @@ public class VirtualMachineInfoMapperTest {
         assertEquals(OSType.WINDOWS_BYOL, windowsByol.getGuestOsType());
         final Builder linuxOS = VirtualMachineInfoMapper.parseGuestName("LINUX");
         assertEquals(OSType.LINUX, linuxOS.getGuestOsType());
+    }
+
+    /**
+     * Create an entity with VM related data for the purpose of testing dynamic memory.
+     *
+     * @param withMemory when true, the VM related data will include a memory object
+     * @param dynamic the value of the dynamic property of the memory object (when created)
+     * @return and entity DTO with VM related data
+     */
+    private EntityDTO createEntityDTO(boolean withMemory, boolean dynamic) {
+        EntityDTO.VirtualMachineRelatedData.Builder builder =
+                EntityDTO.VirtualMachineRelatedData.newBuilder();
+        if (withMemory) {
+            builder.setMemory(EntityDTO.MemoryData.newBuilder()
+                    .setId("memory")
+                    .setDynamic(dynamic)
+                    .build());
+        }
+        return EntityDTO.newBuilder()
+                .setVirtualMachineData(VirtualMachineData.getDefaultInstance())
+                .setId("vm")
+                .setEntityType(EntityDTO.EntityType.VIRTUAL_MACHINE)
+                .setVirtualMachineRelatedData(builder.build()).build();
+    }
+
+    private TypeSpecificInfo vmInfo(EntityDTO vm) {
+        return (new VirtualMachineInfoMapper())
+            .mapEntityDtoToTypeSpecificInfo(vm, Collections.emptyMap());
+    }
+
+    /**
+     * Verify that dynamic memory is converted properly.
+     */
+    @Test
+    public void testDynamicMemory() {
+        EntityDTO vmWithoutMemory = createEntityDTO(false, false);
+        TypeSpecificInfo result1 = vmInfo(vmWithoutMemory);
+        assertFalse(result1.getVirtualMachine().getDynamicMemory());
+
+        EntityDTO vmWithStaticMemory = createEntityDTO(true, false);
+        TypeSpecificInfo result2 = vmInfo(vmWithStaticMemory);
+        assertFalse(result2.getVirtualMachine().getDynamicMemory());
+
+        EntityDTO vmWithDynamicMemory = createEntityDTO(true, true);
+        TypeSpecificInfo result3 = vmInfo(vmWithDynamicMemory);
+        assertTrue(result3.getVirtualMachine().getDynamicMemory());
     }
 }

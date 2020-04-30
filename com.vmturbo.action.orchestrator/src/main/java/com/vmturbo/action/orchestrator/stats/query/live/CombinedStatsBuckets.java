@@ -1,7 +1,6 @@
 package com.vmturbo.action.orchestrator.stats.query.live;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -21,7 +20,6 @@ import org.immutables.value.Value;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.ExplanationComposer;
-import com.vmturbo.action.orchestrator.stats.query.live.ImmutableGroupByBucketKey.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
@@ -91,19 +89,129 @@ class CombinedStatsBuckets {
         }
     }
 
-    private Collection<GroupByBucketKey> groupByReasonCommodities(Builder keyBuilder,
-            Action action) {
-        if (groupBy.contains(GroupBy.REASON_COMMODITY)) {
-            final Set<ReasonCommodity> reasonCommodities =
-                    ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toSet());
-            if (!reasonCommodities.isEmpty()) {
-                return reasonCommodities.stream().map(rc -> {
-                    keyBuilder.reasonCommodityBaseType(rc.getCommodityType().getType());
-                    return keyBuilder.build();
-                }).collect(Collectors.toSet());
+    @Nonnull
+    private Collection<GroupByBucketKey> bucketKeysForAction(
+        @Nonnull final SingleActionInfo actionInfo) {
+        // When processing lots of actions creating all of these keys may be inefficient.
+        // If necessary we can consider a "faster" implementation, or recycling the keys.
+        final ImmutableGroupByBucketKey.Builder keyBuilder = ImmutableGroupByBucketKey.builder();
+        final ActionView actionView = actionInfo.action();
+        final ActionDTO.Action action = actionView.getTranslationResultOrOriginal();
+        if (groupBy.contains(GroupBy.ACTION_CATEGORY)) {
+            keyBuilder.category(actionView.getActionCategory());
+        }
+        if (groupBy.contains(GroupBy.ACTION_STATE)) {
+            keyBuilder.state(actionView.getState());
+        }
+        if (groupBy.contains(GroupBy.ACTION_TYPE)) {
+            keyBuilder.type(ActionDTOUtil.getActionInfoActionType(action));
+        }
+        if (groupBy.contains(GroupBy.COST_TYPE)) {
+            keyBuilder.costType(ActionDTOUtil.getActionCostTypeFromAction(action));
+        }
+        if (groupBy.contains(GroupBy.SEVERITY)) {
+            keyBuilder.severity(actionView.getActionSeverity());
+        }
+        if (groupBy.contains(GroupBy.TARGET_ENTITY_TYPE)) {
+            try {
+                keyBuilder.targetEntityType(ActionDTOUtil.getPrimaryEntity(action).getType());
+            } catch (UnsupportedActionException e) {
+                // This shouldn't really happen unless we add a new action type and forget
+                // to update the code.
+                logger.error("Failed to get primary entity of action with unsupported type: {}",
+                    e.getMessage());
             }
         }
-        return Collections.singleton(keyBuilder.build());
+        if (groupBy.contains(GroupBy.TARGET_ENTITY_ID)) {
+            try {
+                keyBuilder.targetEntityId(ActionDTOUtil.getPrimaryEntityId(action));
+            } catch (UnsupportedActionException e) {
+                logger.error("Failed to get the id of the primary entity of action: {}",
+                    e.getMessage());
+            }
+        }
+
+        if (groupBy.contains(GroupBy.BUSINESS_ACCOUNT_ID)) {
+            keyBuilder.businessAccountId(actionView.getAssociatedAccount()
+                // Use an explicit 0 for actions not associated with accounts.
+                .orElse(0L));
+        }
+
+        if (groupBy.contains(GroupBy.RESOURCE_GROUP_ID)) {
+            keyBuilder.resourceGroupId(
+                actionInfo.action().getAssociatedResourceGroupId().orElse(0L));
+        }
+
+        Set<ImmutableGroupByBucketKey> bucketKeys = new HashSet<>();
+        bucketKeys.add(keyBuilder.build());
+        bucketKeys = groupByReasonCommodities(bucketKeys, action);
+        bucketKeys = groupByActionExplanation(bucketKeys, action);
+
+        return bucketKeys.stream().collect(Collectors.toSet());
+    }
+
+    /**
+     * Group by reason commodities.
+     * Create a new bucket key for each combination of a reason commodity and an existing bucket key.
+     *
+     * @param bucketKeys existing bucket keys
+     * @param action the action to put into buckets
+     * @return a set of bucket keys
+     */
+    private Set<ImmutableGroupByBucketKey> groupByReasonCommodities(
+            @Nonnull final Set<ImmutableGroupByBucketKey> bucketKeys,
+            @Nonnull final Action action) {
+        if (!groupBy.contains(GroupBy.REASON_COMMODITY)) {
+            return bucketKeys;
+        }
+
+        final Set<ReasonCommodity> reasonCommodities =
+            ActionDTOUtil.getReasonCommodities(action).collect(Collectors.toSet());
+        if (reasonCommodities.isEmpty()) {
+            return bucketKeys;
+        }
+
+        final Set<ImmutableGroupByBucketKey> newBucketKeys =
+            new HashSet<>(bucketKeys.size() * reasonCommodities.size());
+        for (ImmutableGroupByBucketKey bucketKey : bucketKeys) {
+            for (ReasonCommodity reasonCommodity : reasonCommodities) {
+                newBucketKeys.add(bucketKey.withReasonCommodityBaseType(
+                    reasonCommodity.getCommodityType().getType()));
+            }
+        }
+
+        return newBucketKeys;
+    }
+
+    /**
+     * Group by reason commodities.
+     * Create a new bucket key for each combination of a short action explanation and an existing bucket key.
+     *
+     * @param bucketKeys existing bucket keys
+     * @param action the action to put into buckets
+     * @return a set of bucket keys
+     */
+    private Set<ImmutableGroupByBucketKey> groupByActionExplanation(
+            @Nonnull final Set<ImmutableGroupByBucketKey> bucketKeys,
+            @Nonnull final Action action) {
+        if (!groupBy.contains(GroupBy.ACTION_EXPLANATION)) {
+            return bucketKeys;
+        }
+
+        final Set<String> explanations = ExplanationComposer.composeShortExplanation(action);
+        if (explanations.isEmpty()) {
+            return bucketKeys;
+        }
+
+        final Set<ImmutableGroupByBucketKey> newBucketKeys =
+            new HashSet<>(bucketKeys.size() * explanations.size());
+        for (ImmutableGroupByBucketKey bucketKey : bucketKeys) {
+            for (String explanation : explanations) {
+                newBucketKeys.add(bucketKey.withExplanation(explanation));
+            }
+        }
+
+        return newBucketKeys;
     }
 
     /**
@@ -189,65 +297,6 @@ class CombinedStatsBuckets {
          * @return Value, or {@link Optional} if the requested group-by included the resource group.
          */
         Optional<Long> resourceGroupId();
-    }
-
-    @Nonnull
-    private Collection<GroupByBucketKey> bucketKeysForAction(
-            @Nonnull final SingleActionInfo actionInfo) {
-        // When processing lots of actions creating all of these keys may be inefficient.
-        // If necessary we can consider a "faster" implementation, or recycling the keys.
-        final ImmutableGroupByBucketKey.Builder keyBuilder = ImmutableGroupByBucketKey.builder();
-        final ActionView actionView = actionInfo.action();
-        final ActionDTO.Action action = actionView.getTranslationResultOrOriginal();
-        if (groupBy.contains(GroupBy.ACTION_CATEGORY)) {
-            keyBuilder.category(actionView.getActionCategory());
-        }
-        if (groupBy.contains(GroupBy.ACTION_EXPLANATION)) {
-            keyBuilder.explanation(ExplanationComposer.shortExplanation(action));
-        }
-        if (groupBy.contains(GroupBy.ACTION_STATE)) {
-            keyBuilder.state(actionView.getState());
-        }
-        if (groupBy.contains(GroupBy.ACTION_TYPE)) {
-            keyBuilder.type(ActionDTOUtil.getActionInfoActionType(action));
-        }
-        if (groupBy.contains(GroupBy.COST_TYPE)) {
-            keyBuilder.costType(ActionDTOUtil.getActionCostTypeFromAction(action));
-        }
-        if (groupBy.contains(GroupBy.SEVERITY)) {
-            keyBuilder.severity(actionView.getActionSeverity());
-        }
-        if (groupBy.contains(GroupBy.TARGET_ENTITY_TYPE)) {
-            try {
-                keyBuilder.targetEntityType(ActionDTOUtil.getPrimaryEntity(action).getType());
-            } catch (UnsupportedActionException e) {
-                // This shouldn't really happen unless we add a new action type and forget
-                // to update the code.
-                logger.error("Failed to get primary entity of action with unsupported type: {}",
-                    e.getMessage());
-            }
-        }
-        if (groupBy.contains(GroupBy.TARGET_ENTITY_ID)) {
-            try {
-                keyBuilder.targetEntityId(ActionDTOUtil.getPrimaryEntityId(action));
-            } catch (UnsupportedActionException e) {
-                logger.error("Failed to get the id of the primary entity of action: {}",
-                    e.getMessage());
-            }
-        }
-
-        if (groupBy.contains(GroupBy.BUSINESS_ACCOUNT_ID)) {
-            keyBuilder.businessAccountId(actionView.getAssociatedAccount()
-                // Use an explicit 0 for actions not associated with accounts.
-                .orElse(0L));
-        }
-
-        if (groupBy.contains(GroupBy.RESOURCE_GROUP_ID)) {
-            keyBuilder.resourceGroupId(
-                    actionInfo.action().getAssociatedResourceGroupId().orElse(0L));
-        }
-
-        return groupByReasonCommodities(keyBuilder, action);
     }
 
     /**

@@ -46,6 +46,7 @@ import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.RedundancyType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
@@ -56,6 +57,7 @@ import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.Database
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
+import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList.StorageTierPrice;
 import com.vmturbo.trax.Trax;
 import com.vmturbo.trax.TraxConfiguration.TraxContext;
 import com.vmturbo.trax.TraxNumber;
@@ -270,13 +272,20 @@ public class CloudCostCalculator<ENTITY_CLASS> {
                         // It may make sense to put price ranges into individual messages, so that instead
                         // of "repeated Price" we have "repeated TieredPrice". That way we don't need
                         // to do this grouping + sorting during calculation.
+                        final RedundancyType redundancyType = volumeConfig.getRedundancyType();
                         final Map<Price.Unit, List<Price>> pricesByUnit =
-                            createSortedStoragePriceMap(storageTierPrices);
+                            createSortedStoragePriceMap(storageTierPrices, redundancyType);
+                        final String redundancyTypeSuffix = redundancyType != null ?
+                            "(Redundancy type: " + redundancyType + ")" : "";
                         recordStorageRangePricesByUnit(pricesByUnit, journal, storageTier,
-                            trax(volumeConfig.getAccessCapacityMillionIops(), "access capacity million iops"),
-                            Unit.MILLION_IOPS);
+                            trax(volumeConfig.getAccessCapacityMillionIops(), "access capacity " +
+                                "million iops " + redundancyTypeSuffix), Unit.MILLION_IOPS);
                         recordStorageRangePricesByUnit(pricesByUnit, journal, storageTier,
-                            trax(volumeConfig.getAmountCapacityGb(), "capacity gb/month"), Unit.GB_MONTH);
+                            trax(volumeConfig.getIoThroughputCapacityMBps(), "throughput capacity in MiB/s"),
+                            Unit.MBPS_MONTH);
+                        recordStorageRangePricesByUnit(pricesByUnit, journal, storageTier,
+                            trax(volumeConfig.getAmountCapacityGb(), "capacity gb/month "
+                                + redundancyTypeSuffix), Unit.GB_MONTH);
                         recordRangePricesForMonth(pricesByUnit.get(Unit.MONTH),
                             volumeConfig.getAmountCapacityGb(), journal, storageTier);
                     } else {
@@ -340,11 +349,17 @@ public class CloudCostCalculator<ENTITY_CLASS> {
      * Helper function to sort the prices by units for future usage.
      *
      * @param  storageTierPrices contains prices to sort.
+     * @param volumeRedundancyType redundancy type of the volume for which the storage price map
+     *                             is being created, null if no redundancy type applicable
      * @return mapping between price unit to a list of prices for this unit.
      */
-    private Map<Price.Unit, List<Price>> createSortedStoragePriceMap(final StorageTierPriceList storageTierPrices) {
-        Map<Price.Unit, List<Price>> pricesByUnit =
+    private Map<Price.Unit, List<Price>> createSortedStoragePriceMap(final StorageTierPriceList storageTierPrices,
+                                                                     @Nullable final RedundancyType
+                                                                         volumeRedundancyType) {
+        final Map<Price.Unit, List<Price>> pricesByUnit =
             storageTierPrices.getCloudStoragePriceList().stream()
+                .filter(priceList -> redundancyTypeNotApplicable(volumeRedundancyType, priceList)
+                    || redundancyTypesMatch(volumeRedundancyType, priceList))
                 .flatMap(storageTierPrice -> storageTierPrice.getPricesList().stream())
                 .collect(Collectors.groupingBy(Price::getUnit));
         // Sort each price list by end range.
@@ -354,6 +369,17 @@ public class CloudCostCalculator<ENTITY_CLASS> {
             return Long.compare(endRange1, endRange2);
         }));
         return pricesByUnit;
+    }
+
+    private static boolean redundancyTypeNotApplicable(final RedundancyType volumeRedundancyType,
+                                                       final StorageTierPrice storageTierPrice) {
+        return volumeRedundancyType == null && !storageTierPrice.hasRedundancyType();
+    }
+
+    private static boolean redundancyTypesMatch(final RedundancyType volumeRedundancyType,
+                                                final StorageTierPrice storageTierPrice) {
+        return volumeRedundancyType != null && storageTierPrice.hasRedundancyType()
+            && volumeRedundancyType == storageTierPrice.getRedundancyType();
     }
 
     /**

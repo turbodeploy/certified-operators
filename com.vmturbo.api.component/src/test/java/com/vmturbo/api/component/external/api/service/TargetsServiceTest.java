@@ -91,11 +91,13 @@ import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -802,14 +804,14 @@ public class TargetsServiceTest {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
-        when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+        when(targetInfo.getStatus()).thenReturn(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
 
         when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
         TargetInfo validationInfo = targetsService.validateTargetSynchronously(targetId);
 
         Mockito.verify(topologyProcessor, times(2)).getTarget(targetId);
         org.junit.Assert.assertEquals(
-            TargetsService.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, validationInfo.getStatus());
+            StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, validationInfo.getStatus());
     }
 
     @Test
@@ -859,14 +861,14 @@ public class TargetsServiceTest {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getId()).thenReturn(targetId);
         when(targetInfo.getProbeId()).thenReturn(probeId);
-        when(targetInfo.getStatus()).thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+        when(targetInfo.getStatus()).thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
 
         when(topologyProcessor.getTarget(targetId)).thenReturn(targetInfo);
         TargetInfo discoveryInfo = targetsService.discoverTargetSynchronously(targetId);
 
         Mockito.verify(topologyProcessor, times(2)).getTarget(targetId);
         org.junit.Assert.assertEquals(
-                TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, discoveryInfo.getStatus());
+            StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, discoveryInfo.getStatus());
     }
 
     /**
@@ -1003,7 +1005,7 @@ public class TargetsServiceTest {
         final List<String> allowedValuesList = Lists.newArrayList("A", "B", "C");
         final AccountField allowedValuesField =
                 new AccountField(key, key + "-name", key + "-description", false, false,
-                        AccountFieldValueType.LIST, null, allowedValuesList, ".*");
+                        AccountFieldValueType.LIST, null, allowedValuesList, ".*", null);
         final ProbeInfo probeInfo =
                 createMockProbeInfo(1, "type1", "category1", allowedValuesField);
         final MvcResult result = mockMvc
@@ -1016,6 +1018,8 @@ public class TargetsServiceTest {
         final TargetApiDTO probe = resp.iterator().next();
         final List<InputFieldApiDTO> fields = probe.getInputFields();
         Assert.assertEquals(allowedValuesList, fields.get(0).getAllowedValues());
+        Assert.assertNull(fields.get(0).getDependencyKey());
+        Assert.assertNull(fields.get(0).getDependencyValue());
     }
 
     /**
@@ -1047,13 +1051,40 @@ public class TargetsServiceTest {
         }
     }
 
+    /**
+     * Tests that "dependencyField" is propagated from {@link ProbeInfo} to {@link TargetApiDTO}.
+     *
+     * @throws Exception on exceptions occur
+     */
+    @Test
+    public void testAccountValueFieldDependency() throws Exception {
+        final String key = "allowedValues";
+        final AccountField field =
+                new AccountField(key, key + "-name", key + "-description", false, false,
+                        AccountFieldValueType.LIST, null, null, ".*",
+                        Pair.create("field", "value"));
+        final ProbeInfo probeInfo =
+                createMockProbeInfo(1, "type1", "category1", field);
+        final MvcResult result = mockMvc
+                .perform(MockMvcRequestBuilders.get("/targets/specs")
+                        .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
+                .andExpect(MockMvcResultMatchers.status().isOk()).andReturn();
+        final List<TargetApiDTO> resp = Arrays.asList(GSON
+                .fromJson(result.getResponse().getContentAsString(), TargetApiDTO[].class));
+        Assert.assertEquals(1, resp.size());
+        final TargetApiDTO probe = resp.iterator().next();
+        final List<InputFieldApiDTO> fields = probe.getInputFields();
+        Assert.assertEquals("field", fields.get(0).getDependencyKey());
+        Assert.assertEquals("value", fields.get(0).getDependencyValue());
+    }
+
     // If no prior validation, discovery in progress should display as "Validating"
     // This is so that adding a target shows up as "Validating" in the UI.
     @Test
     public void testDiscoveryInProgressValidationStatusNoPriorValidation() throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getStatus())
-            .thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+            .thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
         when(targetInfo.getLastValidationTime()).thenReturn(null);
 
         org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
@@ -1065,7 +1096,7 @@ public class TargetsServiceTest {
     public void testDiscoveryInProgressValidationStatusWithPriorValidation() throws Exception {
         final TargetInfo targetInfo = Mockito.mock(TargetInfo.class);
         when(targetInfo.getStatus())
-            .thenReturn(TargetsService.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+            .thenReturn(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
         when(targetInfo.getLastValidationTime()).thenReturn(LocalDateTime.now());
 
         org.junit.Assert.assertEquals(TargetsService.UI_VALIDATING_STATUS,
@@ -1251,7 +1282,7 @@ public class TargetsServiceTest {
 
     private static AccountDefEntry createAccountDef(String key, AccountFieldValueType valueType) {
         return new AccountField(key, key + "-name", key + "-description", true, false, valueType,
-                null, Collections.emptyList(), ".*");
+                null, Collections.emptyList(), ".*", null);
     }
 
     /**

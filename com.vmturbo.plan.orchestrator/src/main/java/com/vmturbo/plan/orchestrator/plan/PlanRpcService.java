@@ -119,7 +119,8 @@ public class PlanRpcService extends PlanServiceImplBase {
             // save the user selected RI/Coupons included in the plan.
             PlanReservedInstanceClient planRIClient = new PlanReservedInstanceClient(
                          planRIService, reservedInstanceBoughtService, realtimeTopologyContextId);
-            planRIClient.savePlanIncludedCoupons(plan);
+            planRIClient.savePlanIncludedCoupons(plan, PlanRpcServiceUtil.getScopeSeedIds(plan,
+                    this.groupServiceClient, this.repositoryServiceClient));
             logger.info("Plan {} successfully created", plan.getPlanId());
         } catch (IntegrityException e) {
             logger.warn("Error creating a plan " + request, e);

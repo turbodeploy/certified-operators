@@ -19,11 +19,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
@@ -39,6 +40,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
  * Unit tests for {@link StorageEntityConstructor}.
@@ -129,13 +131,14 @@ public class StorageEntityConstructorTest {
     );
 
     @Test
-    public void testSTConvert() {
-        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.STORAGE_VALUE)
-            .setOid(10);
-        final TopologyEntityDTO.Builder topologyEntityDTO =
-            new StorageEntityConstructor().createTopologyEntityFromTemplate(ST_TEMPLATE, builder,
-                topology, null);
+    public void testSTConvert() throws Exception {
+        IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+        Mockito.when(identityProvider.generateTopologyId()).thenReturn(10L);
+
+        final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
+                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, null, false,
+                        identityProvider)
+                .iterator().next();
 
         // 6 commodities sold: storage latency, provisioned, amount, access and 2 DSPM_ACCESS
         assertEquals(6, topologyEntityDTO.getCommoditySoldListCount());
@@ -161,7 +164,7 @@ public class StorageEntityConstructorTest {
 
         // Verify Extent commodity sold by disk array
         assertEquals(COMMODITY_KEY_PREFIX + EntityType.DISK_ARRAY.name() +
-                COMMODITY_KEY_SEPARATOR + builder.getOid(),
+                COMMODITY_KEY_SEPARATOR + topologyEntityDTO.getOid(),
             getCommoditySold(topology.get(4L).getEntityBuilder().getCommoditySoldListList(),
                 EXTENT_VALUE).get().getCommodityType().getKey());
 
@@ -170,33 +173,35 @@ public class StorageEntityConstructorTest {
         assertEquals(1.0, getCommodityBoughtValue(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
             EXTENT_VALUE), epsilon);
         assertEquals(COMMODITY_KEY_PREFIX + EntityType.DISK_ARRAY.name() +
-            COMMODITY_KEY_SEPARATOR + builder.getOid(),
+                COMMODITY_KEY_SEPARATOR + topologyEntityDTO.getOid(),
             getCommodityBoughtKey(topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
                 EXTENT_VALUE));
         assertTrue(topologyEntityDTO.getCommoditiesBoughtFromProviders(0).getMovable());
     }
 
     @Test
-    public void testSTConvertWithConstraint() {
-        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.STORAGE_VALUE)
-            .setOid(10);
-        final TopologyEntityDTO.Builder topologyEntityDTO =
-            new StorageEntityConstructor().createTopologyEntityFromTemplate(ST_TEMPLATE, builder, topology,
-                TopologyEntityDTO.newBuilder()
-                    .setOid(10)
-                    .setEntityType(2)
-                    .addAllCommoditySoldList(stCommoditySold)
-                    .addAllCommoditiesBoughtFromProviders(stCommodityBoughtFromProvider)
-                    .build());
+    public void testSTConvertWithConstraint() throws Exception {
+        IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+        Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
+
+        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder().setOid(10)
+                .setEntityType(2)
+                .addAllCommoditySoldList(stCommoditySold)
+                .addAllCommoditiesBoughtFromProviders(stCommodityBoughtFromProvider);
+        TopologyEntity.Builder topologyEntity = TopologyEntity.newBuilder(builder);
+
+        final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
+                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, topologyEntity, false,
+                        identityProvider)
+                .iterator().next();
         // 7 commodities sold: storage latency, provisioned, amount and access
-        //     storage cluster commodity and two dspm access commodities
+        // storage cluster commodity and two dspm access commodities
         assertEquals(7, topologyEntityDTO.getCommoditySoldListCount());
-        assertEquals(3, topologyEntityDTO.getCommoditySoldListList().stream()
-            .filter(commoditySoldDTO ->
-                !commoditySoldDTO.getCommodityType().getKey().isEmpty())
-            .count());
+        assertEquals(3,
+                topologyEntityDTO.getCommoditySoldListList().stream().filter(
+                        commoditySoldDTO -> !commoditySoldDTO.getCommodityType().getKey().isEmpty())
+                        .count());
         assertEquals("123-extent", getCommodityBoughtKey(
-            topologyEntityDTO.getCommoditiesBoughtFromProvidersList(), EXTENT_VALUE));
+                topologyEntityDTO.getCommoditiesBoughtFromProvidersList(), EXTENT_VALUE));
     }
 }

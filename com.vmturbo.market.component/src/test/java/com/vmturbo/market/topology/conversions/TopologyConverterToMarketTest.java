@@ -1364,7 +1364,7 @@ public class TopologyConverterToMarketTest {
         return new double[]{resizedCapacitites[0][0], resizedCapacitites[1][0]};
     }
 
-    /*
+    /**
      * Test to check if given a CommodityType, we return the same CommSpec inside the Trader and in the economy.
      */
     @Test
@@ -1389,6 +1389,74 @@ public class TopologyConverterToMarketTest {
         CommoditySpecificationTO csTO = converter.getCommSpecForCommodity(mem);
         assertEquals(entityTO.getCommoditiesSold(0).getSpecification().getBaseType(), csTO.getBaseType());
         assertEquals(entityTO.getCommoditiesSold(0).getSpecification().getType(), csTO.getType());
+    }
+
+    /**
+     * Test driving commodity sold affects commodity bought movable in the cloud.
+     */
+    @Test
+    public void testCloudMovable() {
+        // VMEM is driving commodity sold for MEM bought.
+        final CommodityType vmem = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
+        final CommodityType mem = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.MEM_VALUE).build();
+        final TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.DATABASE_SERVER_VALUE)
+                .setOid(100)
+                .setEnvironmentType(EnvironmentType.CLOUD)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(vmem)
+                    .build())
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setScalable(false)
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(mem)
+                    ).setMovable(true))
+            .build();
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory);
+        Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
+        entityMap.put(entityDTO.getOid(), entityDTO);
+        final TraderTO entityTO = converter.convertToMarket(entityMap).iterator().next();
+
+        assertFalse(entityTO.getShoppingLists(0).getMovable());
+    }
+
+    /**
+     * Test driving commodity sold does not affect commodity bought movable on-prem.
+     */
+    @Test
+    public void testCloudMovableDoesNotAffectOnPrem() {
+        // VMEM is driving commodity sold for MEM bought.
+        final CommodityType vmem = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
+        final CommodityType mem = CommodityType.newBuilder()
+            .setType(CommodityDTO.CommodityType.MEM_VALUE).build();
+        final TopologyEntityDTO entityDTO = TopologyEntityDTO.newBuilder()
+                .setEntityType(EntityType.DATABASE_SERVER_VALUE)
+                .setOid(100)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(vmem)
+                    .build())
+                .addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                    .setScalable(false)
+                    .addCommodityBought(CommodityBoughtDTO.newBuilder()
+                        .setCommodityType(mem)
+                    ).setMovable(true))
+            .build();
+        final TopologyConverter converter = new TopologyConverter(REALTIME_TOPOLOGY_INFO, true,
+                MarketAnalysisUtils.QUOTE_FACTOR, MarketAnalysisUtils.LIVE_MARKET_MOVE_COST_FACTOR,
+                marketPriceTable, ccd, CommodityIndex.newFactory(), tierExcluderFactory,
+            consistentScalingHelperFactory);
+        Map<Long, TopologyEntityDTO> entityMap = new HashMap<>();
+        entityMap.put(entityDTO.getOid(), entityDTO);
+        final TraderTO entityTO = converter.convertToMarket(entityMap).iterator().next();
+
+        assertTrue(entityTO.getShoppingLists(0).getMovable());
     }
 
     /**

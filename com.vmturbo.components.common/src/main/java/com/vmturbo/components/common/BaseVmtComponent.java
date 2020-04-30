@@ -52,15 +52,13 @@ import org.springframework.web.context.support.AnnotationConfigWebApplicationCon
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
-import com.vmturbo.clustermgr.api.ClusterMgrClient;
-import com.vmturbo.clustermgr.api.ClusterMgrRestClient;
 import com.vmturbo.components.api.SetOnce;
-import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.health.ComponentStatusNotifier;
 import com.vmturbo.components.common.health.CompositeHealthMonitor;
-import com.vmturbo.components.common.health.ConsulHealthcheckRegistration;
 import com.vmturbo.components.common.health.HealthStatus;
 import com.vmturbo.components.common.health.HealthStatusProvider;
 import com.vmturbo.components.common.health.SimpleHealthStatus;
@@ -128,24 +126,6 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * The environment key for the port number for the Jetty instance for each component.
      */
     public static final String PROP_serverHttpPort = "serverHttpPort";
-
-    /**
-     * The environment key for the hostname to contact for the ClusterMgr API.
-     */
-    public static final String ENV_CLUSTERMGR_HOST = "clustermgr_host";
-    /**
-     * The environment key for the port number to contact for the ClusterMgr API.
-     */
-    public static final String ENV_CLUSTERMGR_PORT = "clustermgr_port";
-    /**
-     * The environment key for the route to contact for the ClusterMgr API.
-     */
-    public static final String ENV_CLUSTERMGR_ROUTE = "clustermgr_route";
-    /**
-     * The environment key for the value to delay when looping trying to contact
-     * ClusterMgr.
-     */
-    public static final String ENV_CLUSTERMGR_RETRY_S = "clustermgr_retry_delay_sec";
 
     // These keys/values are defined in global_defaults.properties files. During components startup,
     // if keys are in the OVERRIDABLE_ENV_PROPERTIES set and passed in from JVM environment,
@@ -235,7 +215,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     private ServletContext servletContext;
 
     @Autowired
-    private ConsulHealthcheckRegistration consulHealthcheckRegistration;
+    private ConsulRegistrationConfig consulRegistrationConfig;
 
     /**
      * Embed a component for monitoring dependency/subcomponent health.
@@ -377,6 +357,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
             try {
                 this.onStartComponent();
                 publishVersionInformation();
+                consulRegistrationConfig.componentStatusNotifier().ifPresent(ComponentStatusNotifier::notifyComponentStartup);
                 setStatus(ExecutionStatus.RUNNING);
             } catch (Exception e) {
                 logger.error("Error while trying to finish startup routine. Will shut down.", e);
@@ -393,7 +374,8 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     public final void stopComponent() {
         setStatus(ExecutionStatus.STOPPING);
         logger.info("Deregistering service: {}", instanceId);
-        consulHealthcheckRegistration.deregisterService();
+        consulRegistrationConfig.consulHealthcheckRegistration().deregisterService();
+        consulRegistrationConfig.componentStatusNotifier().ifPresent(ComponentStatusNotifier::notifyComponentShutdown);
         onStopComponent();
         ComponentGrpcServer.get().stop();
         JETTY_SERVER.getValue().ifPresent(server -> {
@@ -655,7 +637,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     @Nonnull
     protected static ConfigurableWebApplicationContext startServer(
-            @Nonnull ContextConfigurer contextConfigurer) {
+            @Nonnull ContextConfigurer contextConfigurer) throws Exception {
         logger.info("Starting web server with spring context");
         final int serverPort = EnvironmentUtils.parseOptionalIntegerFromEnv(PROP_serverHttpPort)
             .orElse(DEFAULT_SERVER_HTTP_PORT);
@@ -669,26 +651,18 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         final ServletContextHandler contextServer =
             new ServletContextHandler(ServletContextHandler.SESSIONS);
         final ConfigurableWebApplicationContext context;
-        try {
-            server.setHandler(contextServer);
-            context = contextConfigurer.configure(contextServer);
-            addMetricsServlet(contextServer);
-            server.start();
-            if (!context.isActive()) {
-                logger.error("Spring context failed to start. Shutting down.");
-                System.exit(1);
-            }
-
-            // The starting of the component should add the gRPC services defined in the spring
-            // context to the gRPC server.
-            ComponentGrpcServer.get().start(context.getEnvironment());
-            return context;
-        } catch (Exception e) {
-            logger.error("Web server failed to start. Shutting down.", e);
-            System.exit(1);
+        server.setHandler(contextServer);
+        context = contextConfigurer.configure(contextServer);
+        addMetricsServlet(contextServer);
+        server.start();
+        if (!context.isActive()) {
+            throw new IllegalStateException("Spring context failed to start.");
         }
-        // Could should never reach here
-        return null;
+
+        // The starting of the component should add the gRPC services defined in the spring
+        // context to the gRPC server.
+        ComponentGrpcServer.get().start(context.getEnvironment());
+        return context;
     }
 
     /**
@@ -701,19 +675,14 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Nonnull
     protected static ConfigurableWebApplicationContext startContext(
             @Nonnull ContextConfigurer contextConfigurer) {
-        return startServer(contextConfigurer);
-    }
-
-    public static ClusterMgrRestClient getClusterMgrClient() {
-        final String clusterMgrHost = EnvironmentUtils.requireEnvProperty(ENV_CLUSTERMGR_HOST);
-        final int clusterMgrPort = EnvironmentUtils.parseIntegerFromEnv(ENV_CLUSTERMGR_PORT);
-        final String clusterMgrRoute = EnvironmentUtils.getOptionalEnvProperty(ENV_CLUSTERMGR_ROUTE).orElse("");
-
-        logger.info("clustermgr_host: {}, clustermgr_port: {}", clusterMgrHost, clusterMgrPort);
-        return ClusterMgrClient.createClient(
-                ComponentApiConnectionConfig.newBuilder()
-                        .setHostAndPort(clusterMgrHost, clusterMgrPort, clusterMgrRoute)
-                        .build());
+        try {
+            return startServer(contextConfigurer);
+        } catch (Exception e) {
+            logger.error("Web server failed to start. Shutting down.", e);
+            System.exit(1);
+            // This shouldn't happen according to System.exit documentation.
+            throw new IllegalStateException("System.exit() returned normally");
+        }
     }
 
     @VisibleForTesting

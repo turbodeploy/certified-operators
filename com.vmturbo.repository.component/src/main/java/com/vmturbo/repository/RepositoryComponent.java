@@ -10,6 +10,9 @@ import java.util.zip.ZipOutputStream;
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import io.grpc.BindableService;
+import io.grpc.ServerInterceptor;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,8 +21,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
-import io.grpc.BindableService;
-import io.grpc.ServerInterceptor;
 import javaslang.circuitbreaker.CircuitBreakerConfig;
 import javaslang.circuitbreaker.CircuitBreakerRegistry;
 
@@ -47,6 +48,7 @@ import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.market.component.api.MarketComponent;
 import com.vmturbo.market.component.api.impl.MarketClientConfig;
 import com.vmturbo.market.component.api.impl.MarketSubscription;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.repository.controller.RepositorySecurityConfig;
 import com.vmturbo.repository.diagnostics.RepositoryDiagnosticsConfig;
 import com.vmturbo.repository.exception.GraphDatabaseExceptions.GraphDatabaseException;
@@ -78,6 +80,7 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
     ActionOrchestratorClientConfig.class,
     GroupClientConfig.class,
     MarketClientConfig.class,
+    PlanOrchestratorClientConfig.class,
     RepositorySecurityConfig.class,
     RepositoryProperties.class,
     SpringSecurityConfig.class,
@@ -139,7 +142,7 @@ public class RepositoryComponent extends BaseVmtComponent {
 
     @PostConstruct
     private void setup() {
-        getHealthMonitor().addHealthCheck(apiConfig.kafkaHealthMonitor());
+        getHealthMonitor().addHealthCheck(apiConfig.messageProducerHealthMonitor());
         // Temporarily force all Repository migrations to retry, in order to address some
         // observed issues with V_01_00_00__PURGE_ALL_LEGACY_PLANS not running successfully in
         // previous versions.

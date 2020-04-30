@@ -18,9 +18,9 @@ import com.vmturbo.api.enums.BusinessUnitType;
 import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.PricingIdentifier;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -73,11 +73,15 @@ public class BusinessAccountMapper {
                 entities.stream().map(TopologyEntityDTO::getOid).collect(Collectors.toSet());
 
         //if user is an observer and is scoped do not fetch cost;
-        boolean fetchCost = !(userSessionContext.isUserObserver() && userSessionContext.isUserScoped());
+        final boolean fetchCost = !(userSessionContext.isUserObserver() && userSessionContext.isUserScoped());
+        final boolean userScoped = userSessionContext.isUserScoped();
         final SupplementaryData supplementaryData =
                 supplementaryDataFactory.newSupplementaryData(accountIds, allAccounts, fetchCost );
         return entities.stream()
-                .map(entity -> buildDiscoveredBusinessUnitApiDTO(entity, supplementaryData))
+                .map(entity -> buildDiscoveredBusinessUnitApiDTO(entity,
+                        supplementaryData))
+                //when running as a scoped user. only fetch BAs which have workloads in the Supplychain.
+                .filter(businessUnitApiDTO -> !userScoped || businessUnitApiDTO.getMembersCount() > 0)
                 .collect(Collectors.toList());
     }
 

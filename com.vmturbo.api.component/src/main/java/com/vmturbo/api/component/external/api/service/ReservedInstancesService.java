@@ -20,7 +20,6 @@ import com.google.common.collect.Lists;
 import io.grpc.StatusRuntimeException;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
-import com.vmturbo.api.component.external.api.mapper.MarketMapper;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
@@ -186,25 +185,17 @@ public class ReservedInstancesService implements IReservedInstancesService {
         final Optional<Grouping> groupOptional = groupExpander.getGroup(scopeUuid);
 
         if (StatsUtils.isValidScopeForRIBoughtQuery(scope)) {
-            final Optional<PlanInstance> optPlan = scope.getPlanInstance();
             // Currently, the RIs within scope of a plan are not indexed within the cost component
             // by the plan ID/topology context ID. Instead, when the scope seed OIDs are sent to the
             // cost component, they are expanded. As part of this expansion, the billing families
             // linked to any accounts in scope are pulled in. This differs from realtime behavior in
             // that there is no scope expansion. This logic will be collapsed to a single
             // branch for both RT and plans
-            if (optPlan.isPresent()) { // This is a plan and the call passes in plan id
-                final PlanInstance plan = optPlan.get();
-                final Set<Long> scopeIds = MarketMapper.getPlanScopeIds(plan);
-                final long scopeId = scopeIds.iterator().next();
-                final int scopeEntityType = repositoryApi.entityRequest(scopeId)
-                        .getMinimalEntity()
-                        .orElseThrow(() -> new UnknownObjectException("Unknown scope id: " + scopeId))
-                        .getEntityType();
-
+            if (scope.isPlan()) { // This is a plan and the call passes in plan id
+                UuidMapper.CachedPlanInfo planInfo = scope.getCachedPlanInfo().get();
                 final GetPlanReservedInstanceBoughtRequest request =
                             GetPlanReservedInstanceBoughtRequest.newBuilder()
-                                .setPlanId(plan.getPlanId())
+                                    .setPlanId(planInfo.getPlanInstance().getPlanId())
                                 .build();
                 return planReservedInstanceService.getPlanReservedInstanceBought(request).getReservedInstanceBoughtsList();
             } else { // this is real-time or plans for which the call passes in the entity/group scope uuid rather than the plan id
@@ -219,7 +210,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
                 final GetReservedInstanceBoughtByFilterRequest.Builder requestBuilder =
                         GetReservedInstanceBoughtByFilterRequest.newBuilder();
 
-                List<Long> groupScopeMemberOids = new ArrayList<>();
                 // add any scope filters
                 scope.getScopeEntitiesByType().forEach((entityType, entityOids) -> {
                     switch (entityType) {
@@ -241,13 +231,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                             .addAllAccountId(entityOids)
                                             .build());
                             break;
-                        // Note that scope expansion will happen only for groups.  However, related business
-                        // accounts will only be pulled in for plans.
-                        case VIRTUAL_MACHINE:
-                        case DATABASE:
-                        case DATABASE_SERVER:
-                            groupScopeMemberOids.addAll(entityOids);
-                            break;
                         default:
                             // This is an unsupported scope type, therefore we'll ignore it
                             break;
@@ -260,22 +243,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
             }
         } else { // The call for groups is only made from plans.
             if (groupOptional.isPresent()) {
-                List<Long> groupScopeMemberOids = new ArrayList<>();
-                // add any scope filters
-                scope.getScopeEntitiesByType().forEach((entityType, entityOids) -> {
-                    switch (entityType) {
-                        // Note that scope expansion will happen only for groups.  However, related business
-                        // accounts will only be pulled in for plans.
-                        case VIRTUAL_MACHINE:
-                        case DATABASE:
-                        case DATABASE_SERVER:
-                            groupScopeMemberOids.addAll(entityOids);
-                            break;
-                        default:
-                            // This is an unsupported scope type, therefore we'll ignore it
-                            break;
-                    }
-                });
                 return reservedInstanceService.getReservedInstanceBoughtForScope(
                         GetReservedInstanceBoughtForScopeRequest.newBuilder()
                                 .addAllScopeSeedOids(scope.getScopeOids())
@@ -338,6 +305,7 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
         for (StatApiInputDTO statApiInputDTO : inputDto.getPeriod().getStatistics()) {
             // there should be a valid statistic requested
+            // TODO (OM-57608): Remove this assertion. 'name' is an optional field on the request!
             if (statApiInputDTO.getName() == null) {
                 throw new InvalidOperationException("Missing requested statistic name");
             }

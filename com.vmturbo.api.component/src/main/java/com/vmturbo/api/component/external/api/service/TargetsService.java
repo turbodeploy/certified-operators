@@ -63,8 +63,10 @@ import com.vmturbo.auth.api.licensing.LicenseFeature;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.AccountDefEntry;
@@ -81,24 +83,6 @@ import com.vmturbo.topology.processor.api.dto.InputField;
  * Service entry points to search the Repository.
  **/
 public class TargetsService implements ITargetsService {
-
-    /**
-     * Indicates that validation is still in progress by the topology processor.
-     */
-    @VisibleForTesting
-    static final String TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS = "Validation in progress";
-
-    /**
-     * Indicates that validation has successfully completed in the topology processor.
-     */
-    @VisibleForTesting
-    static final String TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS = "Validated";
-
-    /**
-     * Indicates that validation has successfully completed in the topology processor.
-     */
-    @VisibleForTesting
-    static final String TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS = "Discovery in progress";
 
     @VisibleForTesting
     static final String UI_VALIDATING_STATUS = "VALIDATING";
@@ -124,9 +108,9 @@ public class TargetsService implements ITargetsService {
     @VisibleForTesting
     static final Map<String, String> TARGET_STATUS_MAP =
             new ImmutableMap.Builder<String, String>()
-                    .put(TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, UI_VALIDATING_STATUS)
-                    .put(TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS, UI_VALIDATED_STATUS)
-                    .put(TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, UI_VALIDATING_STATUS)
+                    .put(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, UI_VALIDATING_STATUS)
+                    .put(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS, UI_VALIDATED_STATUS)
+                    .put(StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS, UI_VALIDATING_STATUS)
                     .build();
 
     /**
@@ -156,9 +140,10 @@ public class TargetsService implements ITargetsService {
      * Target status set that contains non-failed validation status from topology processor, including
      * "Validated", "Validation in progress" and "Discovery in progress".
      */
-    private static final Set<String> NON_VALIDATION_FAILED_STATUS_SET =
-        Sets.newHashSet(TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS, TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS,
-            TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+    private static final Set<String> NON_VALIDATION_FAILED_STATUS_SET = ImmutableSet.of(
+        StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS,
+        StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS,
+        StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
 
     private final Logger logger = LogManager.getLogger();
 
@@ -242,23 +227,34 @@ public class TargetsService implements ITargetsService {
     public List<TargetApiDTO> getTargets(@Nullable final EnvironmentType environmentType) {
         try {
             final Set<TargetInfo> targets = topologyProcessor.getAllTargets();
+            final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
             return targets.stream()
-                .filter(target -> environmentTypeFilter(target, environmentType))
+                .filter(target -> environmentTypeFilter(target, environmentType, probeMap))
                 .filter(target -> !target.isHidden())
-                .map(targetInfo -> createTargetDtoWithRelationships(targetInfo, targets))
+                .map(targetInfo -> createTargetDtoWithRelationships(targetInfo, targets, probeMap))
                 .collect(Collectors.toList());
         } catch (CommunicationException e) {
             throw new RuntimeException("Error getting targets list", e);
         }
     }
 
-    private boolean environmentTypeFilter(final TargetInfo target, EnvironmentType envType) {
+    /**
+     * Check if a target matches an environmentType.
+     *
+     * @param target target to check
+     * @param envType environment type
+     * @param probeMap map of probeInfo objects indexed by probeId
+     * @return true if target matches environmentType, false otherwise
+     */
+    private boolean environmentTypeFilter(final TargetInfo target, EnvironmentType envType, @Nonnull final Map<Long, ProbeInfo> probeMap) {
         try {
             if (envType == EnvironmentType.CLOUD || envType == EnvironmentType.ONPREM) {
                 // gather the other info for this target, based on the related probe
                 final long probeId = target.getProbeId();
-                final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
                 final ProbeInfo probeInfo = probeMap.get(probeId);
+                if (probeInfo == null) {
+                    return false;
+                }
                 boolean isPublicCloud = GroupMapper.CLOUD_ENVIRONMENT_PROBE_TYPES.contains(probeInfo.getType());
 
                 // return true if and only if isPublicCloud agrees with the parameter
@@ -293,7 +289,7 @@ public class TargetsService implements ITargetsService {
         long targetId = Long.valueOf(uuid);
         try {
             return createTargetDtoWithRelationships(
-                    topologyProcessor.getTarget(targetId), Collections.emptySet());
+                    topologyProcessor.getTarget(targetId), Collections.emptySet(), getProbeIdToProbeInfoMap());
         } catch (TopologyProcessorException e) {
             throw new UnknownObjectException(e);
         } catch (CommunicationException e) {
@@ -473,12 +469,12 @@ public class TargetsService implements ITargetsService {
                 // if validation is successful and this is the first target, listen to the results
                 // and send notification to UI
                 if (validatedTargetInfo != null &&
-                        TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(validatedTargetInfo.getStatus()) &&
+                        StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS.equals(validatedTargetInfo.getStatus()) &&
                         targetSizeBeforeValidation == 0) {
                     apiComponentTargetListener.triggerBroadcastAfterNextDiscovery();
                 }
                 return createTargetDtoWithRelationships(
-                        validatedTargetInfo, Collections.emptySet());
+                        validatedTargetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
             } catch (TopologyProcessorException e) {
                 throw new OperationFailedException(e);
             }
@@ -542,7 +538,7 @@ public class TargetsService implements ITargetsService {
             // There is no point in running a discovery when validation has just immediately failed.
             boolean shouldDiscover = rediscover != null && rediscover &&
                 result.map(targetDto -> targetDto.getStatus() != null &&
-                    targetDto.getStatus().equals(TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS))
+                    targetDto.getStatus().equals(StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_SUCCESS))
                 .orElse(true);
 
             if (shouldDiscover) {
@@ -550,10 +546,10 @@ public class TargetsService implements ITargetsService {
             }
 
             if (result.isPresent()) {
-                return createTargetDtoWithRelationships(result.get(), Collections.emptySet());
+                return createTargetDtoWithRelationships(result.get(), Collections.emptySet(), getProbeIdToProbeInfoMap());
             } else {
                 return createTargetDtoWithRelationships(
-                        topologyProcessor.getTarget(targetId), Collections.emptySet());
+                        topologyProcessor.getTarget(targetId), Collections.emptySet(), getProbeIdToProbeInfoMap());
             }
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -588,7 +584,7 @@ public class TargetsService implements ITargetsService {
                         "Target " + targetId + " cannot be changed through public APIs.");
             }
             topologyProcessor.modifyTarget(targetId, updatedTargetData);
-            return createTargetDtoWithRelationships(targetInfo, Collections.emptySet());
+            return createTargetDtoWithRelationships(targetInfo, Collections.emptySet(), getProbeIdToProbeInfoMap());
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
         } catch (TopologyProcessorException e) {
@@ -830,7 +826,7 @@ public class TargetsService implements ITargetsService {
         try {
             topologyProcessor.validateTarget(targetId);
             TargetInfo targetInfo = pollForTargetStatus(targetId, targetValidationTimeout,
-                targetValidationPollInterval, TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
+                targetValidationPollInterval, StringConstants.TOPOLOGY_PROCESSOR_VALIDATION_IN_PROGRESS);
             // If target status is not validated or in progress from topology processor, the target
             // validation fails. Send failed validation message to UI.
             if (!NON_VALIDATION_FAILED_STATUS_SET.contains(targetInfo.getStatus())) {
@@ -895,7 +891,7 @@ public class TargetsService implements ITargetsService {
 
         topologyProcessor.discoverTarget(targetId);
         return pollForTargetStatus(targetId, targetDiscoveryTimeout,
-                targetDiscoveryPollInterval, TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
+                targetDiscoveryPollInterval, StringConstants.TOPOLOGY_PROCESSOR_DISCOVERY_IN_PROGRESS);
     }
 
     /**
@@ -938,16 +934,19 @@ public class TargetsService implements ITargetsService {
      * @param targetInfo the {@link TargetInfo} structure returned from the Topology-Processor.
      * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
      * made an API call, otherwise an empty set.
+     * @param probeMap A map of probeInfo indexed by probeId.
      * @return a {@link TargetApiDTO} containing the target information and its derived targets
      * relationships.
      */
     private TargetApiDTO createTargetDtoWithRelationships(@Nonnull final TargetInfo targetInfo,
-                                                 @Nonnull final Set<TargetInfo> allTargetInfos) {
+                                                 @Nonnull final Set<TargetInfo> allTargetInfos,
+                                                 @Nonnull final Map<Long, ProbeInfo> probeMap) {
+
         try {
-            TargetApiDTO targetApiDTO = mapTargetInfoToDTO(targetInfo);
+            TargetApiDTO targetApiDTO = mapTargetInfoToDTO(targetInfo, probeMap);
             targetApiDTO.setDerivedTargets(
                 convertDerivedTargetInfosToDtos(targetInfo.getDerivedTargetIds().stream()
-                    .map(String::valueOf).collect(Collectors.toList()), allTargetInfos));
+                    .map(String::valueOf).collect(Collectors.toList()), allTargetInfos, probeMap));
             return targetApiDTO;
         } catch (CommunicationException e) {
             throw new CommunicationError(e);
@@ -961,12 +960,14 @@ public class TargetsService implements ITargetsService {
      * @param derivedTargetIds a List of derived target's ids that associated with a parent target.
      * @param allTargetInfos All targets in scope that returned from Topology-Processor in case we
      * made an API call, otherwise an empty set.
+     * @param probeMap A map of probeInfo objects indexed by probeId.
      * @return List of {@link TargetApiDTO}s containing the target information from their
      * {@link TargetInfo}s.
      */
     private List<TargetApiDTO> convertDerivedTargetInfosToDtos(
                                 @Nonnull final List<String> derivedTargetIds,
-                                @Nonnull final Set<TargetInfo> allTargetInfos) {
+                                @Nonnull final Set<TargetInfo> allTargetInfos,
+                                @Nonnull final Map<Long, ProbeInfo> probeMap) {
         if (derivedTargetIds.isEmpty()) {
             return Collections.emptyList();
         }
@@ -984,7 +985,7 @@ public class TargetsService implements ITargetsService {
                     logger.debug("Skip the conversion of a hidden derived target: {}", targetId);
                 } else {
                     try {
-                        derivedTargetsDtos.add(mapTargetInfoToDTO(targetInfo));
+                        derivedTargetsDtos.add(mapTargetInfoToDTO(targetInfo, probeMap));
                     } catch (CommunicationException e) {
                         throw new CommunicationError(e);
                     }
@@ -1004,11 +1005,13 @@ public class TargetsService implements ITargetsService {
      * are added to the result {@link TargetApiDTO} by mapProbeInfoToDTO().
      *
      * @param targetInfo the {@link TargetInfo} structure returned from the Topology-Processor
+     * @param probeMap a map of probeInfo indexed by probeId
      * @return a {@link TargetApiDTO} containing the target information from the given TargetInfo
      * @throws RuntimeException since you may not return a checked exception within a lambda
      *             expression
      */
-    private TargetApiDTO mapTargetInfoToDTO(@Nonnull final TargetInfo targetInfo)
+    private TargetApiDTO mapTargetInfoToDTO(@Nonnull final TargetInfo targetInfo,
+                                            @Nonnull final Map<Long, ProbeInfo> probeMap)
             throws CommunicationException {
         Objects.requireNonNull(targetInfo);
         final TargetApiDTO targetApiDTO = new TargetApiDTO();
@@ -1028,7 +1031,6 @@ public class TargetsService implements ITargetsService {
 
         // gather the other info for this target, based on the related probe
         final long probeId = targetInfo.getProbeId();
-        final Map<Long, ProbeInfo> probeMap = getProbeIdToProbeInfoMap();
         final ProbeInfo probeInfo = probeMap.get(probeId);
 
         // The probeInfo object of targets should always be present because it is stored in Consul
@@ -1098,6 +1100,12 @@ public class TargetsService implements ITargetsService {
         inputFieldDTO.setDescription(entry.getDescription());
         inputFieldDTO.setAllowedValues(entry.getAllowedValues());
         inputFieldDTO.setVerificationRegex(entry.getVerificationRegex());
+        if (entry.getDependencyField().isPresent()) {
+            final Pair<String, String> dependencyKey = entry.getDependencyField().get();
+            inputFieldDTO.setDependencyKey(dependencyKey.getFirst());
+            inputFieldDTO.setDependencyValue(dependencyKey.getSecond());
+        }
+
         return inputFieldDTO;
     }
 

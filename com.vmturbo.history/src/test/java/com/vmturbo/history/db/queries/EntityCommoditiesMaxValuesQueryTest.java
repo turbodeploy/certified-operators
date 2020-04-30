@@ -3,6 +3,8 @@ package com.vmturbo.history.db.queries;
 import static com.vmturbo.history.schema.abstraction.Tables.PM_STATS_BY_MONTH;
 import static com.vmturbo.history.schema.abstraction.Tables.VM_STATS_BY_MONTH;
 
+import com.google.common.collect.Lists;
+
 import org.jooq.ResultQuery;
 import org.jooq.Table;
 import org.junit.Before;
@@ -28,7 +30,7 @@ public class EntityCommoditiesMaxValuesQueryTest extends QueryTestBase {
      */
     @Test
     public void testVmStatsQuery() {
-        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(VM_STATS_BY_MONTH).getQuery();
+        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(VM_STATS_BY_MONTH, Lists.newArrayList("vCPU"), 90).getQuery();
         getQueryChecker(VM_STATS_BY_MONTH).check(query);
     }
 
@@ -40,7 +42,7 @@ public class EntityCommoditiesMaxValuesQueryTest extends QueryTestBase {
      */
     @Test
     public void testPmStatsQuery() {
-        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(PM_STATS_BY_MONTH).getQuery();
+        final ResultQuery<?> query = new EntityCommoditiesMaxValuesQuery(PM_STATS_BY_MONTH, Lists.newArrayList("CPU"), 90).getQuery();
         getQueryChecker(PM_STATS_BY_MONTH).check(query);
     }
 
@@ -55,6 +57,8 @@ public class EntityCommoditiesMaxValuesQueryTest extends QueryTestBase {
                         "max\\(" + tableName + ".max_value\\)")
                 .withTables(tableName)
                 .withConditions(
+                        tableName + ".snapshot_time >= TIMESTAMP '.*'",
+                        tableName + ".property_type IN (.*)",
                         tableName + ".property_subtype = 'used'",
                         tableName + ".relation = 0")
                 .withGroupByFields(

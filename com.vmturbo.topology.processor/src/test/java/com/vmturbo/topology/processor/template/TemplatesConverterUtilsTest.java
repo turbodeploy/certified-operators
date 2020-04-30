@@ -10,7 +10,6 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
@@ -24,6 +23,7 @@ import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.stitching.TopologyEntity.Builder;
 import com.vmturbo.topology.processor.topology.TopologyEntityUtils;
 
 public class TemplatesConverterUtilsTest {
@@ -35,10 +35,8 @@ public class TemplatesConverterUtilsTest {
     final TopologyEntity.Builder replacementHost =
         TopologyEntityUtils.topologyEntityBuilder(3L, EntityType.PHYSICAL_MACHINE, Collections.emptyList());
 
-    private final Map<Long, TopologyEntity.Builder> topology = ImmutableMap.of(
-        storage.getOid(), storage,
-        originalHost.getOid(), originalHost
-    );
+    private final Map<Long, Builder> topology = ImmutableMap.of(storage.getOid(), storage,
+            originalHost.getOid(), originalHost);
 
     @Before
     public void setup() {
@@ -66,7 +64,7 @@ public class TemplatesConverterUtilsTest {
         assertEquals(1, storage.getEntityBuilder().getCommoditySoldListCount());
 
         // Should add an extra DSPM commodity to the storage that accesses the replacementHost.
-        TemplatesConverterUtils.updateRelatedEntityAccesses(originalHost.getOid(),
+        TopologyEntityConstructor.updateRelatedEntityAccesses(originalHost.getOid(),
             replacementHost.getOid(), originalHost.getEntityBuilder().getCommoditySoldListList(), topology);
 
         assertEquals(2, storage.getEntityBuilder().getCommoditySoldListCount());
@@ -86,8 +84,8 @@ public class TemplatesConverterUtilsTest {
      */
     @Test
     public void testCreateCommoditySoldDTO() {
-        final CommoditySoldDTO soldDTO =
-                TemplatesConverterUtils.createCommoditySoldDTO(VSTORAGE_VALUE);
+        final CommoditySoldDTO soldDTO = TopologyEntityConstructor
+                .createCommoditySoldDTO(VSTORAGE_VALUE);
         assertFalse(soldDTO.getIsResizeable());
         assertTrue(soldDTO.getActive());
         // if capacity is not set, it will have default capacity.

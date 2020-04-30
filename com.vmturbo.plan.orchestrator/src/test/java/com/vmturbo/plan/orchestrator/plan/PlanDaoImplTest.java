@@ -48,14 +48,6 @@ import com.vmturbo.auth.api.auditing.AuditLogUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessException;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
-import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.cost.CostMoles.CostServiceMole;
-import com.vmturbo.common.protobuf.cost.CostMoles.PlanReservedInstanceServiceMole;
-import com.vmturbo.common.protobuf.cost.CostMoles.RIBuyContextFetchServiceMole;
-import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
-import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
-import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.CreatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -71,8 +63,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRe
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
-import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
@@ -113,21 +103,15 @@ public class PlanDaoImplTest {
     private RepositoryClient reposOkClient = mock(RepositoryClient.class);
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
-    private ActionsServiceMole actionsBackend = spy(ActionsServiceMole.class);
-    private StatsHistoryServiceMole statsBackend = spy(StatsHistoryServiceMole.class);
     private SettingServiceMole settingBackend = spy(SettingServiceMole.class);
     private SearchServiceMole searchBackend = spy(SearchServiceMole.class);
-    private RIBuyContextFetchServiceMole riBuyBackend = spy(RIBuyContextFetchServiceMole.class);
-    private PlanReservedInstanceServiceMole planRiBackend = spy(PlanReservedInstanceServiceMole.class);
-    private CostServiceMole costBackend = spy(CostServiceMole.class);
     private ScheduledExecutorService planCleanupExecutor = mock(ScheduledExecutorService.class);
 
     /**
      * gRPC server to mock out gRPC dependencies.
      */
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsBackend, statsBackend,
-        settingBackend, searchBackend, riBuyBackend, planRiBackend, costBackend);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingBackend, searchBackend);
 
     @Before
     public void setup() throws Exception {
@@ -137,14 +121,9 @@ public class PlanDaoImplTest {
                 .setResponseCode(RepositoryOperationResponseCode.OK)
                 .build());
 
-        planDao = new PlanDaoImpl(dsl, reposOkClient,
-            ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+        planDao = new PlanDaoImpl(dsl,
             grpcServer.getChannel(),
             userSessionContext, SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            RIBuyContextFetchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            PlanReservedInstanceServiceGrpc.newBlockingStub(grpcServer.getChannel()),
-            CostServiceGrpc.newBlockingStub(grpcServer.getChannel()),
             clock, planCleanupExecutor,
             1, TimeUnit.HOURS, 1, TimeUnit.HOURS);
     }

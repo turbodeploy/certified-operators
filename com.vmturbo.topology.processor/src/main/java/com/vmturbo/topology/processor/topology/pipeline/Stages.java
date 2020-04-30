@@ -19,6 +19,7 @@ import javax.annotation.Nullable;
 import com.google.common.base.Preconditions;
 import com.google.protobuf.AbstractMessage;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -97,6 +98,7 @@ import com.vmturbo.topology.processor.topology.ConstraintsEditor.ConstraintsEdit
 import com.vmturbo.topology.processor.topology.DemandOverriddenCommodityEditor;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector.InjectionSummary;
+import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
@@ -1241,7 +1243,7 @@ public class Stages {
 
         private final List<TopoBroadcastManager> broadcastManagers;
 
-        private final Map<ApiEntityType, MutableInt> counts = new HashMap<>();
+        private final Map<ApiEntityType, EntityCounter> counts = new HashMap<>();
 
         private final MatrixInterface matrix;
 
@@ -1305,10 +1307,12 @@ public class Stages {
                         .andStatus(Status.withWarnings("No entities broadcast."));
                 } else {
                     StringJoiner stringJoiner = new StringJoiner("\n");
-                    stringJoiner.add("Broadcast " + broadcastInfo.getEntityCount() + " entities.");
-                    counts.forEach((type, count) -> {
-                        stringJoiner.add(count + " of type " + type.apiStr());
-                    });
+                    stringJoiner.add("Broadcast " + broadcastInfo.getEntityCount() +
+                        " entities [" + FileUtils.byteCountToDisplaySize(
+                            broadcastInfo.getSerializedTopologySizeBytes()) + "]");
+                    counts.forEach((type, count) -> stringJoiner
+                        .add(count.getEntityCount() + " of type " + type.apiStr()
+                            + " [" + count.getHumanReadableSize() + "]"));
 
                     if (numEntitiesWithErrors.intValue() > 0) {
                         // There were some entities with stitching (or other pipeline) errors.
@@ -1336,8 +1340,6 @@ public class Stages {
                 .collect(Collectors.toList());
             for (Iterator<TopologyEntityDTO> it = topology; it.hasNext(); ) {
                 final TopologyEntityDTO entity = it.next();
-                counts.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),
-                        k -> new MutableInt(0)).increment();
                 for (TopologyBroadcast broadcast : broadcasts) {
                     try {
                         broadcast.append(entity);
@@ -1345,9 +1347,10 @@ public class Stages {
                         logger.error("Entity {} (name: {}, type: {}) failed to be" +
                             " broadcast because it's too large: {}", entity.getOid(),
                             entity.getDisplayName(), entity.getEntityType(), e.getMessage());
-                        continue;
                     }
                 }
+                counts.computeIfAbsent(ApiEntityType.fromType(entity.getEntityType()),
+                    k -> new EntityCounter()).count(entity);
             }
             // Export Matrix.
             matrix.exportMatrix(new MatrixExporter(broadcasts));
@@ -1355,18 +1358,18 @@ public class Stages {
             // TODO(MB): Add action merging/conversion extension.
             //
             // Do the accounting.
-            long resultSentCount = 0;
             for (TopologyBroadcast broadcast : broadcasts) {
                 final long sentCount = broadcast.finish();
-                resultSentCount = sentCount;
-
                 logger.info("Successfully sent {} entities within topology {} for context {} " +
                         "and broadcast of type {}. Type breakdown: {}", sentCount, topologyInfo.getTopologyId(),
                     topologyInfo.getTopologyContextId(), broadcast.getClass().getSimpleName(), counts);
             }
 
-            return new TopologyBroadcastInfo(resultSentCount, topologyInfo.getTopologyId(),
-                topologyInfo.getTopologyContextId());
+            return new TopologyBroadcastInfo(
+                counts.values().stream().mapToLong(EntityCounter::getEntityCount).sum(),
+                topologyInfo.getTopologyId(),
+                topologyInfo.getTopologyContextId(),
+                counts.values().stream().mapToLong(EntityCounter::getCumulativeSizeBytes).sum());
         }
     }
 
@@ -1492,6 +1495,29 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             historicalEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo());
+            return Status.success();
+        }
+    }
+
+    /**
+     * Stages to copy historical values onto ephemeral entities (ie Containers) from
+     * their associated persistent entities (ie ContainerSpec)
+     */
+    public static class EphemeralEntityHistoryStage extends PassthroughStage<TopologyGraph<TopologyEntity>> {
+        private final EphemeralEntityEditor ephemeralEntityEditor;
+
+        /**
+         * Create a new {@link EphemeralEntityHistoryStage}.
+         * @param ephemeralEntityEditor The {@link EphemeralEntityEditor} to be run in this stage.
+         */
+        public EphemeralEntityHistoryStage(@Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
+            this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
+        }
+
+        @Override
+        @Nonnull
+        public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
+            ephemeralEntityEditor.applyEdits(graph);
             return Status.success();
         }
     }
@@ -1660,6 +1686,64 @@ public class Stages {
         public void finish() throws IllegalStateException {
             sendChunk(0);
             component_ = null;
+        }
+    }
+
+    /**
+     * A counter to keep track of the number of entities together with their size.
+     */
+    static class EntityCounter {
+        /**
+         * The number of entities.
+         */
+        private long entityCount;
+
+        /**
+         * The cumulative size of the entities counted.
+         */
+        private long cumulativeSizeBytes;
+
+        public EntityCounter() {
+            entityCount = 0;
+            cumulativeSizeBytes = 0;
+        }
+
+        public void count(@Nonnull final TopologyEntityDTO entity) {
+            entityCount++;
+            cumulativeSizeBytes += entity.getSerializedSize();
+        }
+
+        /**
+         * Get the number of entities counted by this counter.
+         *
+         * @return the number of entities counted by this counter.
+         */
+        public long getEntityCount() {
+            return entityCount;
+        }
+
+        /**
+         * Get the cumulative (serialized) size in bytes of the entities counted by this counter.
+         *
+         * @return the cumulative (serialized) size in bytes of the entities counted by this counter.
+         */
+        public long getCumulativeSizeBytes() {
+            return cumulativeSizeBytes;
+        }
+
+        /**
+         * Get the cumulative (serialized) size in bytes of the entities counted by this counter
+         * formatted in a human readable format.
+         *
+         * @return The size in bytes in a human readable format.
+         */
+        public String getHumanReadableSize() {
+            return FileUtils.byteCountToDisplaySize(cumulativeSizeBytes);
+        }
+
+        @Override
+        public String toString() {
+            return Long.toString(entityCount) + "[" + getHumanReadableSize() + "]";
         }
     }
 }

@@ -51,26 +51,28 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
-import com.vmturbo.api.dto.action.ActionApiInputDTO;
+import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.market.MarketApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.enums.MergePolicyType;
 import com.vmturbo.api.enums.PolicyType;
-import com.vmturbo.api.exceptions.InvalidOperationException;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.exceptions.ConversionException;
+import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityPaginationRequest;
 import com.vmturbo.api.pagination.EntityPaginationRequest.EntityPaginationResponse;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
-import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
@@ -93,7 +95,9 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyEditResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.AtMostNPolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyRequest;
@@ -116,12 +120,12 @@ import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.search.Search.SearchEntitiesResponse;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.util.ThinTargetCache;
@@ -623,6 +627,66 @@ public class MarketsServiceTest {
     }
 
     /**
+     * Validate that {@link MarketsService#editPolicy(String, String, PolicyApiInputDTO)} returns a
+     * dto with values populated when editing a policy.
+     *
+     * @throws InterruptedException on exceptions occurred
+     * @throws ConversionException on exceptions occurred
+     * @throws OperationFailedException on exceptions occurred
+     */
+    @Test
+    public void validateExistenceOfBasicFieldsInEditPolicyResponse()
+            throws InterruptedException, ConversionException, OperationFailedException {
+        PolicyApiInputDTO policyApiInputDTO = new PolicyApiInputDTO();
+        policyApiInputDTO.setPolicyName("Policy1");
+        policyApiInputDTO.setType(PolicyType.AT_MOST_N);
+        policyApiInputDTO.setSellerUuid("5");
+        policyApiInputDTO.setBuyerUuid("8");
+        policyApiInputDTO.setCapacity(50);
+        policyApiInputDTO.setEnabled(true);
+        PolicyApiDTO responsePolicyApiDTO = new PolicyApiDTO();
+        responsePolicyApiDTO.setUuid("1");
+        responsePolicyApiDTO.setName("Policy1");
+        responsePolicyApiDTO.setDisplayName("Policy1");
+        responsePolicyApiDTO.setType(PolicyType.AT_MOST_N);
+        BaseApiDTO provider = new BaseApiDTO();
+        provider.setUuid("5");
+        responsePolicyApiDTO.setProviderGroup(provider);
+        BaseApiDTO consumer = new BaseApiDTO();
+        consumer.setUuid("8");
+        responsePolicyApiDTO.setConsumerGroup(consumer);
+        responsePolicyApiDTO.setCapacity(52); //changed value
+        responsePolicyApiDTO.setEnabled(true);
+
+        when(policyMapper.policyApiInputDtoToProto(policyApiInputDTO)).thenReturn(
+                PolicyInfo.newBuilder().build());
+        when(policiesBackend.editPolicy(any())).thenReturn(
+                PolicyEditResponse.newBuilder().setPolicy(Policy.newBuilder()
+                        .setId(1)
+                        .setPolicyInfo(PolicyInfo.newBuilder()
+                                .setName("Policy1")
+                                .setAtMostN(AtMostNPolicy.newBuilder()
+                                        .setCapacity((float)52)
+                                        .setConsumerGroupId(8)
+                                        .setProviderGroupId(5))
+                        )
+                ).build()
+        );
+        when(policiesService.toPolicyApiDTO(any())).thenReturn(responsePolicyApiDTO);
+
+        PolicyApiDTO result = marketsService.editPolicy("Market", "1", policyApiInputDTO);
+
+        assertEquals("1", result.getUuid());
+        assertEquals("Policy1", result.getName());
+        assertEquals("Policy1", result.getDisplayName());
+        assertEquals(PolicyType.AT_MOST_N, result.getType());
+        assertTrue(result.isEnabled());
+        assertEquals(52, result.getCapacity().intValue());
+        assertEquals("5", result.getProviderGroup().getUuid());
+        assertEquals("8", result.getConsumerGroup().getUuid());
+    }
+
+    /**
      * Test for {@link MarketsService#editPolicy(String, String, PolicyApiInputDTO)}.
      * When merge policy required hidden group.
      *
@@ -651,9 +715,28 @@ public class MarketsServiceTest {
                     .setUpdatedGroup(Grouping.newBuilder().setId(MERGE_GROUP_ID))
                     .build();
             doReturn(updateGroupResponse).when(groupBackend).updateGroup(updateGroupRequest);
+            final PolicyEditResponse policyEditResponse = PolicyEditResponse.newBuilder()
+                    .setPolicy(Policy.newBuilder()
+                            .setId(POLICY_ID)
+                            .setPolicyInfo(PolicyInfo.newBuilder()
+                                    .setMerge(MergePolicy.newBuilder()
+                                            .setMergeType(PolicyMapper.MERGE_TYPE_API_TO_PROTO.get(
+                                                            policyApiInputDTO.getMergeType()))
+                                            .addMergeGroupIds(MERGE_GROUP_ID)
+                                            .build())
+                                    .build())
+                            .build())
+                    .build();
+            doReturn(policyEditResponse).when(policiesBackend).editPolicy(any());
 
             // Act
-           marketsService.editPolicy(MARKET_UUID, Long.toString(POLICY_ID), policyApiInputDTO);
+            try {
+                marketsService.editPolicy(MARKET_UUID, Long.toString(POLICY_ID), policyApiInputDTO);
+            } catch (OperationFailedException e) {
+                // this should never happen
+                logger.error("OperationFailedException caught while editing policy", e);
+                fail("Editing policy failed");
+            }
         });
     }
 
@@ -744,8 +827,9 @@ public class MarketsServiceTest {
         final PlanInstance plan = PlanInstance.newBuilder(planDefault)
                 .setPlanId(REALTIME_PLAN_ID)
                 .build();
-
-        doReturn(Optional.of(plan)).when(mockApi).getPlanInstance();
+        final CachedPlanInfo planInfo = mock(CachedPlanInfo.class);
+        doReturn(plan).when(planInfo).getPlanInstance();
+        doReturn(Optional.of(planInfo)).when(mockApi).getCachedPlanInfo();
 
         final ArgumentCaptor<UpdatePlanRequest> argument = ArgumentCaptor.forClass(UpdatePlanRequest.class);
         doReturn(planDefault).when(planBackend).updatePlan(argument.capture());
@@ -772,8 +856,7 @@ public class MarketsServiceTest {
         //GIVEN
         final String planUuid = Long.toString(REALTIME_PLAN_ID);
         final ApiId mockApi = ApiTestUtils.mockPlanId(planUuid, uuidMapper);
-
-        doReturn(Optional.empty()).when(mockApi).getPlanInstance();
+        doReturn(Optional.empty()).when(mockApi).getCachedPlanInfo();
 
         //WHEN
         marketsService.renameMarket(planUuid, "");

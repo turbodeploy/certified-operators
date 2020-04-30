@@ -23,6 +23,7 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.Data;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.End;
@@ -66,6 +67,7 @@ public class TopologyProcessorNotificationSender
     private final IMessageSender<Topology> schedPlanTopologySender;
     private final IMessageSender<TopologyProcessorNotification> notificationSender;
     private final IMessageSender<TopologySummary> topologySummarySender;
+    private final IMessageSender<EntitiesWithNewState> entitiesWithNewStateSender;
     private final ExecutorService threadPool;
     private final Clock clock;
 
@@ -76,7 +78,8 @@ public class TopologyProcessorNotificationSender
             @Nonnull IMessageSender<Topology> userPlanTopologySender,
             @Nonnull IMessageSender<Topology> schedPlanTopologySender,
             @Nonnull IMessageSender<TopologyProcessorNotification> notificationSender,
-            @Nonnull IMessageSender<TopologySummary> topologySummarySender) {
+            @Nonnull IMessageSender<TopologySummary> topologySummarySender,
+            @Nonnull IMessageSender<EntitiesWithNewState> entitiesWithNewStateSender) {
         super();
         this.clock = Objects.requireNonNull(clock);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -85,6 +88,7 @@ public class TopologyProcessorNotificationSender
         this.schedPlanTopologySender = Objects.requireNonNull(schedPlanTopologySender);
         this.notificationSender = Objects.requireNonNull(notificationSender);
         this.topologySummarySender = Objects.requireNonNull(topologySummarySender);
+        this.entitiesWithNewStateSender = Objects.requireNonNull(entitiesWithNewStateSender);
 
         operationsListeners = new HashMap<>();
         operationsListeners.put(Validation.class,
@@ -227,6 +231,18 @@ public class TopologyProcessorNotificationSender
     public TopologyBroadcast broadcastScheduledPlanTopology(
             @Nonnull final TopologyInfo topologyInfo) {
         return new TopologyBroadcastImpl(schedPlanTopologySender, topologyInfo);
+    }
+
+    /**
+     * Sends a {@link EntitiesWithNewState} message.
+     *
+     * @param entitiesWithNewState the {@link EntitiesWithNewState} message
+     * @throws CommunicationException if an error occurs in the communication
+     * @throws InterruptedException if the operation is interrupted
+     */
+    @Nonnull
+    public void onEntitiesWithNewState(@Nonnull final EntitiesWithNewState entitiesWithNewState) throws CommunicationException, InterruptedException {
+        this.entitiesWithNewStateSender.sendMessage(entitiesWithNewState);
     }
 
     /**

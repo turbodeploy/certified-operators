@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.client.ApiClientException;
@@ -20,6 +21,7 @@ import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.topology.processor.api.ActionExecutionListener;
 import com.vmturbo.topology.processor.api.DiscoveryStatus;
 import com.vmturbo.topology.processor.api.EntitiesListener;
+import com.vmturbo.topology.processor.api.EntitiesWithNewStateListener;
 import com.vmturbo.topology.processor.api.ProbeListener;
 import com.vmturbo.topology.processor.api.TargetInfo;
 import com.vmturbo.topology.processor.api.TargetListener;
@@ -43,6 +45,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
     private final Set<ActionExecutionListener> actionListeners;
     private final Set<ProbeListener> probeListeners;
     private final Set<TopologySummaryListener> topologySummaryListeners;
+    private final Set<EntitiesWithNewStateListener> entitiesWithNewStateListeners;
 
     private <LISTENER_TYPE> void doWithListeners(@Nonnull final Set<LISTENER_TYPE> listeners,
                                  final Consumer<LISTENER_TYPE> command) {
@@ -62,6 +65,7 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
             @Nullable final IMessageReceiver<Topology> liveTopologyReceiver,
             @Nullable final IMessageReceiver<Topology> planTopologyReceiver,
             @Nullable final IMessageReceiver<TopologySummary> topologySummaryReceiver,
+            @Nullable final IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver,
             @Nonnull final ExecutorService threadPool) {
         super(messageReceiver, threadPool);
         this.liveTopoReceiver = new TopologyReceiver(liveTopologyReceiver, threadPool);
@@ -83,6 +87,12 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
             topologySummaryReceiver.addListener(this::onTopologySummary);
             topologySummaryListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
         }
+        if (entitiesWithNewStateReceiver == null) {
+            entitiesWithNewStateListeners = Collections.emptySet();
+        } else {
+            entitiesWithNewStateReceiver.addListener(this::onEntitiesWithNewStatedNotification);
+            entitiesWithNewStateListeners = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        }
     }
 
     private void onTopologySummary(@Nonnull final TopologySummary topologySummary,
@@ -92,6 +102,12 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
                 topologySummary.getTopologyInfo().getTopologyId(),
                 topologySummary.getTopologyInfo().getCreationTime());
         doWithListeners(topologySummaryListeners, l -> l.onTopologySummary(topologySummary));
+        commitCommand.run();
+    }
+
+    private void onEntitiesWithNewStatedNotification(final EntitiesWithNewState entitiesWithNewState, final Runnable commitCommand) {
+        getLogger().debug("EntitiesWithNewState message received{}", entitiesWithNewState);
+        doWithListeners(entitiesWithNewStateListeners, l -> l.onEntitiesWithNewState(entitiesWithNewState));
         commitCommand.run();
     }
 
@@ -223,5 +239,9 @@ class TopologyProcessorNotificationReceiver extends ComponentNotificationReceive
 
     public void addTopologySummaryListener(@Nonnull final TopologySummaryListener listener) {
         this.topologySummaryListeners.add(listener);
+    }
+
+    public void addEntitiesWithNewStateListener(@Nonnull final EntitiesWithNewStateListener listener) {
+        this.entitiesWithNewStateListeners.add(listener);
     }
 }

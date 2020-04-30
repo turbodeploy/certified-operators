@@ -1,7 +1,7 @@
 apiVersion: charts.helm.k8s.io/v1alpha1
 kind: Xl
 metadata:
-  name: xl-example
+  name: xl-release
 spec:
   # This configuration file is used for production.
   # Default values copied from <project_dir>/helm-charts/xl/values.yaml
@@ -18,7 +18,7 @@ spec:
   #  imageUsername: turbouser
   #  imagePassword: turbopassword
     repository: turbonomic
-    tag: 7.21.5-SNAPSHOT
+    tag: 7.22.0-SNAPSHOT
     externalIP: 10.0.2.15
     externalDbIP: 10.0.2.15
 

@@ -6,6 +6,7 @@ import javax.annotation.PreDestroy;
 
 import com.arangodb.ArangoDB;
 import com.arangodb.ArangoDBException;
+import com.arangodb.ArangoDatabase;
 import com.arangodb.Protocol;
 import com.arangodb.velocypack.VPackDeserializer;
 import com.arangodb.velocypack.VPackSerializer;
@@ -32,6 +33,8 @@ import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 import com.vmturbo.repository.graph.GraphDefinition;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseDriverBuilder;
 import com.vmturbo.repository.graph.driver.ArangoDatabaseFactory;
@@ -40,6 +43,7 @@ import com.vmturbo.repository.graph.executor.ArangoDBExecutor;
 import com.vmturbo.repository.graph.executor.GraphDBExecutor;
 import com.vmturbo.repository.graph.executor.ReactiveArangoDBExecutor;
 import com.vmturbo.repository.graph.executor.ReactiveGraphDBExecutor;
+import com.vmturbo.repository.listener.RepositoryPlanGarbageCollector;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.service.GraphDBService;
 import com.vmturbo.repository.service.SupplyChainService;
@@ -52,7 +56,7 @@ import com.vmturbo.topology.graph.supplychain.GlobalSupplyChainCalculator;
  * Spring configuration for repository component.
  */
 @Configuration
-@Import({RepositoryProperties.class, UserSessionConfig.class})
+@Import({RepositoryProperties.class, UserSessionConfig.class, PlanOrchestratorClientConfig.class})
 public class RepositoryComponentConfig {
 
     private static final String DOCUMENT_KEY_FIELD = "_key";
@@ -70,7 +74,7 @@ public class RepositoryComponentConfig {
      * a letter.
      * https://www.arangodb.com/docs/stable/data-modeling-naming-conventions-database-names.html
      */
-    private static final String DATABASE_NAME_PREFIX = "T";
+    public static final String DATABASE_NAME_PREFIX = "T";
 
     private final Logger logger = LogManager.getLogger(getClass());
 
@@ -107,12 +111,10 @@ public class RepositoryComponentConfig {
     @Autowired
     private UserSessionConfig userSessionConfig;
 
-    private final SetOnce<ArangoDB> arangoDB = new SetOnce<>();
+    @Autowired
+    private PlanOrchestratorClientConfig planOrchestratorClientConfig;
 
-    /**
-     * Boolean field to check if given database has been created or not.
-     */
-    private boolean databaseCreated = false;
+    private final SetOnce<ArangoDB> arangoDB = new SetOnce<>();
 
     /**
      * Store an object of type {@link TopologyDTO.Topology} into ArangoDB.
@@ -167,6 +169,17 @@ public class RepositoryComponentConfig {
     }
 
     /**
+     * Listener for plan deletion.
+     *
+     * @return The listener.
+     */
+    @Bean
+    public PlanGarbageDetector repositoryPlanGarbageDetector() {
+        final RepositoryPlanGarbageCollector collector = new RepositoryPlanGarbageCollector(topologyManager());
+        return planOrchestratorClientConfig.newPlanGarbageDetector(collector);
+    }
+
+    /**
      * Topology lifecycle manager.
      *
      * @return topology manager
@@ -202,7 +215,7 @@ public class RepositoryComponentConfig {
     @Bean
     public ArangoDatabaseFactory arangoDatabaseFactory() {
         return () -> {
-            ArangoDB db = this.arangoDB.ensureSet(() -> {
+            ArangoDB driver = this.arangoDB.ensureSet(() -> {
                 return new ArangoDB.Builder().host(repositoryProperties.getArangodb().getHost(),
                         repositoryProperties.getArangodb().getPort())
                         .registerSerializer(TopologyDTO.Topology.class, TOPOLOGY_VPACK_SERIALIZER)
@@ -214,35 +227,40 @@ public class RepositoryComponentConfig {
                         .useProtocol(Protocol.HTTP_VPACK)
                         .build();
             });
-            // Check databaseCreated first so that every time calling getArangoDriver(), we don't
-            // have to list all databases to see if the given database exists.
-            // We don't expect an Arango database deleted once repository component is running. If by
-            // accident a database is deleted, we have to restart repository component to recreate the
-            // database.
-            // TODO This can be improved by returning a queried ArangoDatabase (arangoDriver.db(databaseName))
-            // instead of arangoDriver (ArangoDB) in this method. If DB does not exist, catch the exception
-            // and recreate the DB so that we don't have to restart repository component to recreate the DB.
-            if (!databaseCreated) {
-                if (!db.getAccessibleDatabases().contains(getArangoDatabaseName())) {
-                    logger.info("Creating database {}.", getArangoDatabaseName());
-                    try {
-                        db.createDatabase(getArangoDatabaseName());
-                    } catch (ArangoDBException adbe) {
-                        // We will treat "duplicate name" errors as harmless -- this means someone
-                        // else may have already created our database.
-                        if (adbe.getErrorNum() == ArangoError.ERROR_ARANGO_DUPLICATE_NAME) {
-                            logger.info("Database {} already created.", getArangoDatabaseName());
-                        } else {
-                            // we'll re-throw the other errors.
-                            logger.error("Error when creating database {}.", getArangoDatabaseName());
-                            throw adbe;
-                        }
-                    }
-                }
-                databaseCreated = true;
+            ArangoDatabase db = driver.db(getArangoDatabaseName());
+            if (!db.exists()) {
+                logger.info("Arango DB {} does not exist. Creating database.", getArangoDatabaseName());
+                createDatabase(driver);
             }
-            return db;
+            // TODO: Ideally it would be good to return the created database from here instead of the driver.
+            // But since that is quite a big refactor, we are not doing it at the moment.
+            return driver;
         };
+    }
+
+    /**
+     * Create an {@link ArangoDatabase}.
+     * 
+     * @param driver the Arango driver.
+     */
+    private void createDatabase(ArangoDB driver) {
+        try {
+            if (driver.createDatabase(getArangoDatabaseName())) {
+                logger.info("Database {} successfully created.", getArangoDatabaseName());
+            } else {
+                throw new IllegalStateException("Could not create Arango DB. Arango createDatabase returned false.");
+            }
+        } catch (ArangoDBException adbe) {
+            // We will treat "duplicate name" errors as harmless -- this means someone
+            // else may have already created our database.
+            if (adbe.getErrorNum() == ArangoError.ERROR_ARANGO_DUPLICATE_NAME) {
+                logger.info("Database {} already created.", getArangoDatabaseName());
+            } else {
+                // we'll re-throw the other errors.
+                logger.error("Error when creating database {}.", getArangoDatabaseName());
+                throw adbe;
+            }
+        }
     }
 
     /**

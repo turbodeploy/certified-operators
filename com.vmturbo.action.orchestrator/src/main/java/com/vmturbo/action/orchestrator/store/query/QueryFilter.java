@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionQueryFilter;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -137,6 +138,22 @@ public class QueryFilter {
 
         if (!filterByCollection(filter.getCategoriesList(), actionView.getActionCategory())) {
             return false;
+        }
+
+        if (filter.hasCostType()) {
+            final double amount = actionView.getTranslationResultOrOriginal().getSavingsPerHour().getAmount();
+
+            if (filter.getCostType() == ActionCostType.ACTION_COST_TYPE_NONE) {
+                return amount == 0.0;
+            }
+
+            if (filter.getCostType() == ActionCostType.INVESTMENT) {
+                return amount < 0.0;
+            }
+
+            if (filter.getCostType() == ActionCostType.SAVINGS) {
+                return amount >= 0.0;
+            }
         }
 
         return true;

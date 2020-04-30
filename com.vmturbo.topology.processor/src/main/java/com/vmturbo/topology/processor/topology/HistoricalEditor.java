@@ -358,13 +358,20 @@ public class HistoricalEditor {
                                                     final @Nonnull HistoricalCommodityInfo oldCommInfo,
                                                     final @Nonnull HistoricalServiceEntityInfo histSeInfo,
                                                     final float used, final float peak, final long oid) {
-        float newUsed = 0;
-        float newPeak = 0;
+        // Initialize newUsed and newPeak to the current values.
+        float newUsed;
+        float newPeak;
         if (oldCommInfo.getHistoricalUsed() > 0) {
             newUsed = calculateSmoothedValue(true, used, oldCommInfo);
+        } else {
+            // History will begin from the current used value.
+            newUsed = used;
         }
         if (oldCommInfo.getHistoricalPeak() > 0) {
             newPeak = calculateSmoothedValue(false, peak, oldCommInfo);
+        } else {
+            // History will begin from the current peak value.
+            newPeak = peak;
         }
         if (!isPlan) {
             populateHistoricalCommodityInfo(newCommInfo,

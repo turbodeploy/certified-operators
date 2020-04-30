@@ -7,19 +7,13 @@ import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityTy
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.DSPM_ACCESS_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.EXTENT_VALUE;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.addCommodityConstraints;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommodityBoughtDTO;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommoditySoldDTO;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getActiveCommoditiesWithKeysGroups;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getCommoditySoldConstraint;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.updateRelatedEntityAccesses;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -27,7 +21,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.TemplateResource;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -35,43 +28,35 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
  * Create a TopologyEntityDTO from Storage Template. The new Topology Entity contains such as OID, displayName,
  * commodity sold, commodity bought, entity state, provider policy and consumer policy.
  * And also it will try to keep all commodity constrains from the original topology entity.
  */
-public class StorageEntityConstructor implements TopologyEntityConstructor {
+public class StorageEntityConstructor extends TopologyEntityConstructor {
 
     private static final String ZERO = "0";
 
     static final String COMMODITY_KEY_PREFIX = "AddFromTemplate::";
 
-    /**
-     * Create a TopologyEntityDTO from Storage Template.
-     *
-     * @param template {@link Template}
-     * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
-     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
-     *                 entities related to the entity being replaced may be updated to fix up relationships
-     *                 to point to the new entity along with the old entity.
-     * @param originalTopologyEntity the original topology entity which this template want to keep its
-     *                               commodity constrains. It could be null, if it is new adding template.
-     * @return {@link TopologyEntityDTO}.
-     */
     @Override
-    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
+    public Collection<TopologyEntityDTO.Builder> createTopologyEntityFromTemplate(
             @Nonnull final Template template,
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity) {
+            @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
+            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
+        TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
+                template, originalTopologyEntity, isReplaced, identityProvider).iterator().next();
+        topologyEntityBuilder.setEntityType(EntityType.STORAGE_VALUE);
+
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints;
         final Set<CommoditySoldDTO> commoditySoldConstraints;
-        if (originalTopologyEntity == null) {
+        if (originalTopologyEntity == null && topology != null) {
             // The case where a new storage is added from template.
             addExtentCommodityBought(topology, topologyEntityBuilder);
             commodityBoughtConstraints = Collections.emptyList();
@@ -83,10 +68,10 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
             addStorageCommoditiesBought(topologyEntityBuilder);
         }
 
-        final List<TemplateResource> storageTemplateResources =
-            TemplatesConverterUtils.getTemplateResources(template, Storage);
+        final List<TemplateResource> storageTemplateResources = getTemplateResources(template,
+                Storage);
         final Map<String, String> fieldNameValueMap =
-            TemplatesConverterUtils.createFieldNameValueMap(storageTemplateResources);
+                createFieldNameValueMap(storageTemplateResources);
         addStorageCommoditiesSold(topologyEntityBuilder, fieldNameValueMap);
 
         // shopRogether entities are not allowed to sell biclique commodities (why???), and storages need
@@ -95,10 +80,14 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
 
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
         if (originalTopologyEntity != null) {
-            updateRelatedEntityAccesses(originalTopologyEntity.getOid(), topologyEntityBuilder.getOid(),
-                commoditySoldConstraints, topology);
+            updateRelatedEntityAccesses(originalTopologyEntity.getOid(),
+                    topologyEntityBuilder.getOid(),
+                    commoditySoldConstraints, topology);
+
+            topologyEntityBuilder.setTypeSpecificInfo(
+                    originalTopologyEntity.getEntityBuilder().getTypeSpecificInfo());
         }
-        return topologyEntityBuilder;
+        return Collections.singletonList(topologyEntityBuilder);
     }
 
     /**
@@ -138,7 +127,7 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
         final String commodityKey = COMMODITY_KEY_PREFIX + EntityType.DISK_ARRAY.name() +
             COMMODITY_KEY_SEPARATOR + topologyEntityBuilder.getOid();
         final CommodityBoughtDTO extentCommodityBought =
-            createCommodityBoughtDTO(EXTENT_VALUE, Optional.of(commodityKey), 1);
+                createCommodityBoughtDTO(EXTENT_VALUE, commodityKey, 1);
         commoditiesBoughtGroup.addCommodityBought(extentCommodityBought);
         commoditiesBoughtGroup.setMovable(true);
         topologyEntityBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtGroup.build());
@@ -221,41 +210,5 @@ public class StorageEntityConstructor implements TopologyEntityConstructor {
                         topologyEntityBuilder.getOid()))));
 
         return commoditySoldConstraints;
-    }
-
-    /**
-     * Generate storage commodity sold and add to TopologyEntityDTO.
-     *
-     * @param topologyEntityBuilder builder of TopologyEntity.
-     * @param fieldNameValueMap a Map which key is template field name and value is field value.
-     */
-    private static void addStorageCommoditiesSold(@Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-                                                  @Nonnull Map<String, String> fieldNameValueMap) {
-        final double diskSize =
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.STORAGE_DISK_SIZE, ZERO));
-        final double diskIops =
-            Double.valueOf(fieldNameValueMap.getOrDefault(TemplateProtoUtil.STORAGE_DISK_IOPS, ZERO));
-
-        CommoditySoldDTO storageAmoutCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, Optional.ofNullable(diskSize));
-        CommoditySoldDTO storageAccessCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, Optional.ofNullable(diskIops));
-        // Since storage templates don't have a latency value, but VMs do buy a latency commodity,
-        // a sold commodity is added. Capacity is left unset - StorageLatencyPostStitchingOperation
-        // will set it to the default value from EntitySettingSpecs.LatencyCapacity.
-        CommoditySoldDTO storageLatencyCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_LATENCY_VALUE);
-        // Because we don't have access to settings at this time, we can't calculate capacities for
-        // provisioned commodities. By leaving capacities unset, they will be set later in the
-        // topology pipeline when settings are avaialble by the
-        // OverprovisionCapacityPostStitchingOperation.
-        CommoditySoldDTO storageProvisionedCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE);
-
-        topologyEntityBuilder
-            .addCommoditySoldList(storageAccessCommodity)
-            .addCommoditySoldList(storageAmoutCommodity)
-            .addCommoditySoldList(storageLatencyCommodity)
-            .addCommoditySoldList(storageProvisionedCommodity);
     }
 }

@@ -32,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -54,6 +55,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRe
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequestForHeadroomPlan;
 import com.vmturbo.common.protobuf.stats.Stats.CommodityHeadroom;
 import com.vmturbo.common.protobuf.stats.Stats.SaveClusterHeadroomRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
@@ -244,6 +246,18 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
         }
     }
 
+    @Override
+    public void onPlanDeleted(@Nonnull final PlanInstance plan) {
+        if (!PlanDTOUtil.isTerminalStatus(plan.getStatus())) {
+            // Got deleted while in progress, probably via user intervention via the
+            // command line/a manual gRPC call directly to the Plan Orchestrator.
+            logger.warn("Cluster headroom plan {} deleted while in progress.", plan);
+            if (onCompleteHandler != null) {
+                onCompleteHandler.accept(this);
+            }
+        }
+    }
+
     private void doHeadroomCalculation(@Nonnull final Map<Long, HeadroomEntity> entitiesById) {
         // Group headroom entities by cluster and entity type.
         final Map<Long, Map<Integer, List<HeadroomEntity>>> entityOidsByClusterAndType =
@@ -362,14 +376,15 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
 
         final Map<Long, Float> dailyVMGrowthPerCluster = new HashMap<>(clusterIds.size());
         for (final long clusterId : clusterIds) {
-            final ClusterStatsRequest vmCountRequest = ClusterStatsRequest.newBuilder()
-                .setClusterId(clusterId)
-                .setStats(StatsFilter.newBuilder()
-                    .setStartDate(calendar.getTimeInMillis())
-                    .setEndDate(currentTime)
-                    .addCommodityRequests(CommodityRequest.newBuilder()
-                        .setCommodityName(StringConstants.VM_NUM_VMS)))
-                .build();
+            final ClusterStatsRequestForHeadroomPlan vmCountRequest =
+                ClusterStatsRequestForHeadroomPlan.newBuilder()
+                    .setClusterId(clusterId)
+                    .setStats(StatsFilter.newBuilder()
+                        .setStartDate(calendar.getTimeInMillis())
+                        .setEndDate(currentTime)
+                        .addCommodityRequests(CommodityRequest.newBuilder()
+                            .setCommodityName(StringConstants.VM_NUM_VMS)))
+                    .build();
             final Iterator<StatSnapshot> snapshotIterator = statsHistoryService
                 .getClusterStatsForHeadroomPlan(vmCountRequest);
 

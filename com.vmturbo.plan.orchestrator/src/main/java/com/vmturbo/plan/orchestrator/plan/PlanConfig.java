@@ -18,31 +18,25 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
-import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.cost.BuyRIAnalysisServiceGrpc.BuyRIAnalysisServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
-import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
-import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
-import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.components.api.server.IMessageSender;
-import com.vmturbo.components.common.health.KafkaProducerHealthMonitor;
+import com.vmturbo.components.common.health.MessageProducerHealthMonitor;
 import com.vmturbo.cost.api.CostClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
@@ -115,15 +109,9 @@ public class PlanConfig {
     @Bean
     public PlanDao planDao() {
         return new PlanDaoImpl(dbConfig.dsl(),
-                repositoryClientConfig.repositoryClient(),
-                actionsRpcService(),
-                statsRpcService(),
                 groupClientConfig.groupChannel(),
                 userSessionConfig.userSessionContext(),
                 repositoryClientConfig.searchServiceClient(),
-                riBuyContextService(),
-                planReservedInstanceService(),
-                costService(),
                 globalConfig.clock(),
                 planCleanupExecutor(),
                 planTimeoutMins,
@@ -163,11 +151,6 @@ public class PlanConfig {
     }
 
     @Bean
-    public RIBuyContextFetchServiceBlockingStub riBuyContextService() {
-        return RIBuyContextFetchServiceGrpc.newBlockingStub(costClientConfig.costChannel());
-    }
-
-    @Bean
     public BuyRIAnalysisServiceBlockingStub buyRIService() {
         return BuyRIAnalysisServiceGrpc.newBlockingStub(costClientConfig.costChannel());
     }
@@ -193,17 +176,6 @@ public class PlanConfig {
     }
 
     /**
-     * Sends commands to the Plan Reserved Instance Service using gRPC.
-     *
-     * @return PlanReservedInstanceClient.
-     */
-    @Bean
-    public PlanReservedInstanceClient planReservedInstanceClient() {
-        return new PlanReservedInstanceClient(planReservedInstanceService(),
-                                              boughtRIService(), realtimeTopologyContextId);
-    }
-
-    /**
      * Grpc stub for the cost service.
      *
      * @return The {@link CostServiceBlockingStub}.
@@ -222,11 +194,6 @@ public class PlanConfig {
     @Bean
     public PlanServiceController planServiceController() {
         return new PlanServiceController(planService());
-    }
-
-    @Bean
-    public ActionsServiceBlockingStub actionsRpcService() {
-        return ActionsServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
     }
 
     @Bean
@@ -257,17 +224,8 @@ public class PlanConfig {
         return listener;
     }
 
-    /**
-     * Stats/history terms used interchangeably.
-     */
-
     @Bean
-    public StatsHistoryServiceBlockingStub statsRpcService() {
-        return StatsHistoryServiceGrpc.newBlockingStub(aoClientConfig.actionOrchestratorChannel());
-    }
-
-    @Bean
-    public IMessageSender<PlanInstance> notificationSender() {
+    public IMessageSender<PlanStatusNotification> notificationSender() {
         return kafkaProducerConfig.kafkaMessageSender()
                 .messageSender(PlanOrchestratorClientImpl.STATUS_CHANGED_TOPIC);
     }
@@ -280,8 +238,8 @@ public class PlanConfig {
     }
 
     @Bean
-    public KafkaProducerHealthMonitor kafkaHealthMonitor() {
-        return new KafkaProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
+    public MessageProducerHealthMonitor messageProducerHealthMonitor() {
+        return new MessageProducerHealthMonitor(kafkaProducerConfig.kafkaMessageSender());
     }
 
     @Bean(destroyMethod = "shutdownNow")

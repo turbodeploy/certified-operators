@@ -5,6 +5,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -16,6 +17,7 @@ import com.google.common.collect.Lists;
 import org.apache.commons.collections4.ListUtils;
 import org.immutables.value.Value;
 
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.StatsQueryScope;
@@ -142,13 +144,13 @@ public class StatsQueryContextFactory {
                                  @Nonnull final StatsQueryScope expandedScope,
                                  final long curTime,
                                  final boolean requestProjected) {
-            this.scope = scope;
-            this.requestedStats = requestedStats;
+            this.scope = Objects.requireNonNull(scope);
+            this.requestedStats = Objects.requireNonNull(requestedStats);
             this.curTime = curTime;
-            this.timeWindow = timeWindow;
-            this.userSessionContext = userSessionContext;
-            this.targets = targets;
-            this.queryScope = expandedScope;
+            this.timeWindow = Objects.requireNonNull(timeWindow);
+            this.userSessionContext = Objects.requireNonNull(userSessionContext);
+            this.targets = Objects.requireNonNull(targets);
+            this.queryScope = Objects.requireNonNull(expandedScope);
             this.requestProjected = requestProjected;
         }
 
@@ -221,7 +223,8 @@ public class StatsQueryContextFactory {
         @Nonnull
         public Optional<PlanInstance> getPlanInstance() {
             if (this.planInstance == null) {
-                this.planInstance = scope.getPlanInstance();
+                this.planInstance = scope.getCachedPlanInfo()
+                        .map(UuidMapper.CachedPlanInfo::getPlanInstance);
             }
             return this.planInstance;
         }

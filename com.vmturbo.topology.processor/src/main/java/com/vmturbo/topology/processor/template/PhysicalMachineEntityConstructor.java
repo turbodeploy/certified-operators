@@ -2,13 +2,9 @@ package com.vmturbo.topology.processor.template;
 
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Compute;
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Infrastructure;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.addCommodityConstraints;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommodityBoughtDTO;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.createCommoditySoldDTO;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getActiveCommoditiesWithKeysGroups;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.getCommoditySoldConstraint;
-import static com.vmturbo.topology.processor.template.TemplatesConverterUtils.updateRelatedEntityAccesses;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,7 +13,6 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -29,20 +24,20 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.PhysicalMachineInfo;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
  * Create a topologyEntityDTO from Physical Machine template. The new Topology Entity contains such as OID,
  * displayName, commodity sold, commodity bought, entity state, provider policy and consumer policy.
  * And also it will try to keep all commodity constrains from the original topology entity.
  */
-public class PhysicalMachineEntityConstructor implements TopologyEntityConstructor {
+public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor {
 
     private static final String ZERO = "0";
     private static final Logger logger = LogManager.getLogger();
@@ -55,43 +50,34 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
     public static final double BALLOONING_DEFAULT_CAPACITY = 1.0E9;
     public static final double SWAPPING_DEFAULT_CAPACITY = 5000.0;
 
-    /**
-     * Create a topologyEntityDTO from Physical Machine template. It mainly created Commodity bought
-     * and Commodity sold from template fields.
-     *
-     * @param topologyEntityBuilder builder of TopologyEntityDTO which could contains some setting already.
-     * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
-     *                 entities related to the entity being replaced may be updated to fix up relationships
-     *                 to point to the new entity along with the old entity.
-     * @param originalTopologyEntity the original topology entity which this template want to keep its
-     *                               commodity constrains. It could be null, if it is new adding template.
-     * @return {@link TopologyEntityDTO.Builder}
-     */
     @Override
-    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull final Template template,
-            @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-            @Nonnull final Map<Long, TopologyEntity.Builder> topology,
-            @Nullable final TopologyEntityDTOOrBuilder originalTopologyEntity) {
+    public Collection<Builder> createTopologyEntityFromTemplate(@Nonnull final Template template,
+            @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
+            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
+        TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
+                template, originalTopologyEntity, isReplaced, identityProvider).iterator().next();
+        topologyEntityBuilder.setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
+
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
-            originalTopologyEntity);
+                originalTopologyEntity);
         final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
-            originalTopologyEntity);
-        final Map<String, String> computeTemplateResources = TemplatesConverterUtils
-                .createFieldNameValueMap(TemplatesConverterUtils.getTemplateResources(template, Compute));
+                originalTopologyEntity);
+        final Map<String, String> computeTemplateResources = createFieldNameValueMap(
+                getTemplateResources(template, Compute));
         addComputeCommodities(topologyEntityBuilder, computeTemplateResources);
 
         // shopRogether entities are not allowed to sell biclique commodities (why???), and hosts need
         // to sell biclique commodities, so set shopTogether to false.
         topologyEntityBuilder.getAnalysisSettingsBuilder().setShopTogether(false);
 
-        final List<TemplateResource> infraTemplateResources =
-            TemplatesConverterUtils.getTemplateResources(template, Infrastructure);
+        final List<TemplateResource> infraTemplateResources = getTemplateResources(template,
+                Infrastructure);
         addInfraCommodities(topologyEntityBuilder, infraTemplateResources);
         addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
         if (originalTopologyEntity != null) {
-            updateRelatedEntityAccesses(originalTopologyEntity.getOid(), topologyEntityBuilder.getOid(),
-                commoditySoldConstraints, topology);
+            updateRelatedEntityAccesses(originalTopologyEntity.getOid(),
+                    topologyEntityBuilder.getOid(), commoditySoldConstraints, topology);
         }
 
         String templateName = template.hasTemplateInfo() && template.getTemplateInfo().hasName() ?
@@ -125,7 +111,7 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
         topologyEntityBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setPhysicalMachine(pmInfoBuilder));
 
-        return topologyEntityBuilder;
+        return Collections.singletonList(topologyEntityBuilder);
     }
 
     /**
@@ -168,9 +154,9 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_MEM_SIZE, ZERO));
 
         final CommoditySoldDTO cpuCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.CPU_VALUE, Optional.ofNullable(numOfCpu * cpuSpeed));
+            createCommoditySoldDTO(CommodityDTO.CommodityType.CPU_VALUE, numOfCpu * cpuSpeed);
         final CommoditySoldDTO  memCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.MEM_VALUE, Optional.ofNullable(memSize));
+            createCommoditySoldDTO(CommodityDTO.CommodityType.MEM_VALUE, memSize);
         topologyEntityBuilder
             .addCommoditySoldList(cpuCommodity)
             .addCommoditySoldList(memCommodity);
@@ -188,15 +174,15 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
 
         // QxVCPU. Note that 1,2,4,8,16 are the number of VCPUs.
         final CommoditySoldDTO q1VcpuCommodity =
-            createCommoditySoldDTO(CommodityType.Q1_VCPU_VALUE, Optional.ofNullable(QX_VCPU_BASE_COEFFICIENT * 1.0));
+            createCommoditySoldDTO(CommodityType.Q1_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 1.0);
         final CommoditySoldDTO q2VcpuCommodity =
-            createCommoditySoldDTO(CommodityType.Q2_VCPU_VALUE, Optional.ofNullable(QX_VCPU_BASE_COEFFICIENT * 2.0));
+            createCommoditySoldDTO(CommodityType.Q2_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 2.0);
         final CommoditySoldDTO q4VcpuCommodity =
-            createCommoditySoldDTO(CommodityType.Q4_VCPU_VALUE, Optional.ofNullable(QX_VCPU_BASE_COEFFICIENT * 4.0));
+            createCommoditySoldDTO(CommodityType.Q4_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 4.0);
         final CommoditySoldDTO q8VcpuCommodity =
-            createCommoditySoldDTO(CommodityType.Q8_VCPU_VALUE, Optional.ofNullable(QX_VCPU_BASE_COEFFICIENT * 8.0));
+            createCommoditySoldDTO(CommodityType.Q8_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 8.0);
         final CommoditySoldDTO q16VcpuCommodity =
-            createCommoditySoldDTO(CommodityType.Q16_VCPU_VALUE, Optional.ofNullable(QX_VCPU_BASE_COEFFICIENT * 16.0));
+            createCommoditySoldDTO(CommodityType.Q16_VCPU_VALUE, QX_VCPU_BASE_COEFFICIENT * 16.0);
         topologyEntityBuilder
             .addCommoditySoldList(q1VcpuCommodity)
             .addCommoditySoldList(q2VcpuCommodity)
@@ -219,9 +205,9 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
             fieldNameValueMap.getOrDefault(TemplateProtoUtil.PM_COMPUTE_NETWORK_THROUGHPUT_SIZE, ZERO));
 
         CommoditySoldDTO ioThroughputCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, Optional.ofNullable(ioThroughputSize));
+            createCommoditySoldDTO(CommodityDTO.CommodityType.IO_THROUGHPUT_VALUE, ioThroughputSize);
         CommoditySoldDTO networkCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, Optional.ofNullable(networkThroughputSize));
+            createCommoditySoldDTO(CommodityDTO.CommodityType.NET_THROUGHPUT_VALUE, networkThroughputSize);
         topologyEntityBuilder
             .addCommoditySoldList(ioThroughputCommodity)
             .addCommoditySoldList(networkCommodity);
@@ -236,14 +222,14 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
         @Nonnull final Builder topologyEntityBuilder) {
 
         final CommoditySoldDTO extent =
-            createCommoditySoldDTO(CommodityType.EXTENT_VALUE, Optional.ofNullable(Double.valueOf(MAX_LUN_LIMIT)));
+            createCommoditySoldDTO(CommodityType.EXTENT_VALUE, Double.valueOf(MAX_LUN_LIMIT));
         final CommoditySoldDTO ballooning =
             // TODO: set price weight field to -1.0 when it is introduced in CommoditySoldDTO
-            createCommoditySoldDTO(CommodityType.BALLOONING_VALUE, Optional.ofNullable(BALLOONING_DEFAULT_CAPACITY));
+            createCommoditySoldDTO(CommodityType.BALLOONING_VALUE, BALLOONING_DEFAULT_CAPACITY);
         final CommoditySoldDTO swapping =
-            createCommoditySoldDTO(CommodityType.SWAPPING_VALUE, Optional.ofNullable(SWAPPING_DEFAULT_CAPACITY));
+            createCommoditySoldDTO(CommodityType.SWAPPING_VALUE, SWAPPING_DEFAULT_CAPACITY);
         final CommoditySoldDTO hostLunAccess =
-            createCommoditySoldDTO(CommodityType.HOST_LUN_ACCESS_VALUE, Optional.ofNullable(Double.valueOf(MAX_LUN_LIMIT)));
+            createCommoditySoldDTO(CommodityType.HOST_LUN_ACCESS_VALUE, Double.valueOf(MAX_LUN_LIMIT));
 
         // TODO: Flows?????
 
@@ -263,8 +249,8 @@ public class PhysicalMachineEntityConstructor implements TopologyEntityConstruct
      */
     private static void addInfraCommodities(@Nonnull TopologyEntityDTO.Builder topologyEntityBuilder,
                                             @Nonnull List<TemplateResource> infraTemplateResources) {
-        final Map<String, String> fieldNameValueMap =
-            TemplatesConverterUtils.createFieldNameValueMap(infraTemplateResources);
+        final Map<String, String> fieldNameValueMap = createFieldNameValueMap(
+                infraTemplateResources);
         addInfraCommoditiesBought(topologyEntityBuilder, fieldNameValueMap);
     }
 

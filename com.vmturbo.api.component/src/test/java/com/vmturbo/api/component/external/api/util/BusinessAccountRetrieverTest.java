@@ -706,8 +706,11 @@ public class BusinessAccountRetrieverTest {
         final BusinessAccountMapper mapper = new BusinessAccountMapper(thinTargetCache, supplementaryDataFactory, userSessionContext );
         when(userSessionContext.isUserObserver()).thenReturn(true);
         when(userSessionContext.isUserScoped()).thenReturn(true);
-
-        List<BusinessUnitApiDTO> actualBusinessUnits = mapper.convert(Collections.singletonList(ACCOUNT), true);
+        // for scoped user we need atleast one connect workload entity.
+        TopologyEntityDTO businessAccount = ACCOUNT.toBuilder().setEntityType(ApiEntityType.BUSINESS_ACCOUNT.typeNumber())
+                .addConnectedEntityList(ConnectedEntity.newBuilder()
+                        .setConnectedEntityType(EntityType.VIRTUAL_MACHINE_VALUE)).build();
+        List<BusinessUnitApiDTO> actualBusinessUnits = mapper.convert(Collections.singletonList(businessAccount), true);
         Assert.assertEquals(1, actualBusinessUnits.size());
         BusinessUnitApiDTO actual = actualBusinessUnits.get(0);
         Assert.assertNull(actual.getCostPrice());

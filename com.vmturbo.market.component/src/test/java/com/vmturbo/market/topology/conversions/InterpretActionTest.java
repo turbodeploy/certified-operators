@@ -365,7 +365,7 @@ public class InterpretActionTest {
 
         final ActionInterpreter interpreter = new ActionInterpreter(mockCommodityConverter,
             slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
-            new CloudEntityResizeTracker(), Maps.newHashMap(), mock(TierExcluder.class),
+            new CloudEntityResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
             CommodityIndex.newFactory().newIndex());
 
         final long moveSrcId = businessUser.getCommoditiesBoughtFromProvidersList().get(0)
@@ -740,7 +740,7 @@ public class InterpretActionTest {
         when(mockedCommodityConverter.commodityIdToCommodityType(15)).thenReturn(mockedCommType);
         ActionInterpreter interpreter = new ActionInterpreter(mockedCommodityConverter,
                 slInfoMap, mockCloudTc, originalTopology, ImmutableMap.of(),
-                new CloudEntityResizeTracker(), Maps.newHashMap(), mock(TierExcluder.class),
+                new CloudEntityResizeTracker(), mock(ProjectedRICoverageCalculator.class), mock(TierExcluder.class),
                 CommodityIndex.newFactory().newIndex());
         // Assuming that 1 is the oid of trader created for m1.large x region and 2 is the oid
         // created for m1.medium x region

@@ -3,8 +3,10 @@ package com.vmturbo.components.api.server;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 import com.vmturbo.components.api.BaseKafkaConfig;
+import com.vmturbo.components.api.localbus.LocalBus;
 
 /**
  * Base configuration for Kafka notifications sender. This configuration should be imported from
@@ -30,16 +32,19 @@ public class BaseKafkaProducerConfig extends BaseKafkaConfig {
     @Value("${kafkaRecommendedRequestSizeBytes:126976}")
     private int recommendedRequestSizeBytes;
 
-
-
     /**
      * Kafka sender bean. only one instance is expected to exist in one component.
      *
      * @return kafka message sender.
      */
     @Bean
-    public KafkaMessageProducer kafkaMessageSender() {
-        return new KafkaMessageProducer(bootstrapServer(), kafkaNamespacePrefix(),
-            maxRequestSizeBytes, recommendedRequestSizeBytes);
+    @Lazy
+    public IMessageSenderFactory kafkaMessageSender() {
+        if (useLocalBus()) {
+            return LocalBus.getInstance();
+        } else {
+            return new KafkaMessageProducer(bootstrapServer(), kafkaNamespacePrefix(),
+                maxRequestSizeBytes, recommendedRequestSizeBytes);
+        }
     }
 }

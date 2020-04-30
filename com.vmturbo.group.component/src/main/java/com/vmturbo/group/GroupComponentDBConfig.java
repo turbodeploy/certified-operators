@@ -44,4 +44,9 @@ public class GroupComponentDBConfig extends SQLDatabaseConfig {
             groupComponentDbPassword : dbPasswordUtil.getSqlDbRootPassword();
         return dataSourceConfig(dbSchemaName, groupComponentDbUsername, dbPassword);
     }
+
+    @Override
+    public String getDbSchemaName() {
+        return dbSchemaName;
+    }
 }

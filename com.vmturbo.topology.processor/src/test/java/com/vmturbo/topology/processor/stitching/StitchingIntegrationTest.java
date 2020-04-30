@@ -26,6 +26,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -36,6 +37,7 @@ import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -66,7 +68,9 @@ public abstract class StitchingIntegrationTest {
     protected final ProbeStore probeStore = mock(ProbeStore.class);
     protected final TargetStore targetStore = mock(TargetStore.class);
     protected CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
-    protected EntityStore entityStore = new EntityStore(targetStore, identityProvider,
+    private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
+
+    protected EntityStore entityStore = new EntityStore(targetStore, identityProvider, sender,
             Clock.systemUTC());
     protected final DiskCapacityCalculator diskCapacityCalculator =
             mock(DiskCapacityCalculator.class);
@@ -112,8 +116,8 @@ public abstract class StitchingIntegrationTest {
                 .thenReturn(entities);
         // Pretend that any target exists
         when(targetStore.getTarget(anyLong())).thenReturn(Optional.of(Mockito.mock(Target.class)));
-        entityStore.entitiesDiscovered(probeId, targetId,
-                new ArrayList<>(entities.values()));
+        entityStore.entitiesDiscovered(probeId, targetId, 0, DiscoveryType.FULL,
+            new ArrayList<>(entities.values()));
     }
 
     protected List<Long> oidsFor(@Nonnull final Stream<String> displayNames,

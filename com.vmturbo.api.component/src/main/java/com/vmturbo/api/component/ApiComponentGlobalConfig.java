@@ -99,7 +99,13 @@ public class ApiComponentGlobalConfig extends WebMvcConfigurerAdapter {
             .excludePathPatterns("/health")
             // exclude "/" so that redirection from "/" to "/app/index.html" works
             // as defined in ExternalApiConfig
-            .excludePathPatterns("/");
+            .excludePathPatterns("/")
+            // Fix after upgrading to Spring 5.x, initialization and license installation pages failed to
+            // load due to they are blocked by license interceptor.
+            .excludePathPatterns("/assets/**")
+            .excludePathPatterns("/doc/**")
+            .excludePathPatterns("/widgetsets/**")
+            .excludePathPatterns("/app/**");
         registry.addInterceptor(devFreemiumInterceptor())
             .addPathPatterns("/actions/**")
             .addPathPatterns("/businessunits/**")

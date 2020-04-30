@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.vmturbo</groupId>
         <artifactId>Turbonomic-XL</artifactId>
-        <version>7.21.5-SNAPSHOT</version>
+        <version>7.22.0-SNAPSHOT</version>
         <relativePath>../build/pom.xml</relativePath>
     </parent>
 
@@ -18,9 +18,8 @@
             <artifactId>com.vmturbo.platform.sdk.probe</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.vmturbo</groupId>
-            <artifactId>com.vmturbo.mediation.hybrid.cloud.common</artifactId>
-            <version>${vmturbo.mt.branch.version}</version>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
         </dependency>
         <dependency>
             <groupId>commons-io</groupId>

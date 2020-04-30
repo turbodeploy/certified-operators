@@ -67,7 +67,7 @@ public class MarketComponent extends BaseVmtComponent {
     @PostConstruct
     private void setup() {
         // add kafka producer health check
-        getHealthMonitor().addHealthCheck(marketApiConfig.kafkaHealthMonitor());
+        getHealthMonitor().addHealthCheck(marketApiConfig.messageProducerHealthMonitor());
 
         // Configure Trax to randomly sample a certain number of calculations per day for
         // tracking and debugging purposes.

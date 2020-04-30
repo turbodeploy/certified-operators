@@ -33,6 +33,8 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.vmturbo.api.dto.user.UserApiDTO;
+import com.vmturbo.auth.api.auditing.AuditAction;
+import com.vmturbo.auth.api.auditing.AuditLog;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationToken;
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
@@ -210,6 +212,12 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         final PROVIDER provider = dto.getProvider() != null ? dto.getProvider() : PROVIDER.LOCAL;
         AuthUserDTO user = new AuthUserDTO(provider, username, null, remoteIpAddress, dto.getUuid(),
                                            token.getCompactRepresentation(), roles, dto.getScopeGroups());
+        AuditLog.newEntry(AuditAction.LOGIN,
+                "User logged in successfully", true)
+                .remoteClientIP(remoteIpAddress)
+                .targetName("AUTHORIZATION_SERVICE")
+                .actionInitiator(username)
+                .audit();
         return new UsernamePasswordAuthenticationToken(user, password, grantedAuths);
     }
 

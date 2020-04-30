@@ -46,7 +46,7 @@ public enum EntitySettingSpecs {
      * Move action automation mode for business user.
      */
     BusinessUserMove("businessUserMove", "Move", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.BUSINESS_USER), actionExecutionModeSetToRecommend(), true),
+            EnumSet.of(EntityType.BUSINESS_USER), actionExecutionModeSetToManual(), true),
 
     /**
      * Storage Move action automation mode.
@@ -165,7 +165,7 @@ public enum EntitySettingSpecs {
      */
     UseHypervisorMetricsForResizing("useHypervisorMetricsForResizing", "Use hypervisor VMEM for resize",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.VIRTUAL_MACHINE), new BooleanSettingDataType(false), true),
+            EnumSet.of(EntityType.VIRTUAL_MACHINE), new BooleanSettingDataType(true), true),
 
     /**
      * Suspend action automation mode.

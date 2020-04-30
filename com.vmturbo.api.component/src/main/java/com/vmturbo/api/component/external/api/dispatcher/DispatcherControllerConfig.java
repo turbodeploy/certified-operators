@@ -12,6 +12,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter
 
 import com.vmturbo.api.component.external.api.ApiSecurityConfig;
 import com.vmturbo.api.component.external.api.HeaderApiSecurityConfig;
+import com.vmturbo.api.component.external.api.SamlApiSecurityConfig;
 import com.vmturbo.api.component.external.api.logging.GlobalExceptionHandler;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.controller.ActionsController;
@@ -42,7 +43,6 @@ import com.vmturbo.api.controller.UsersController;
 import com.vmturbo.api.controller.WidgetSetsController;
 import com.vmturbo.api.controller.WorkflowsController;
 import com.vmturbo.api.external.controller.ProbesController;
-import com.vmturbo.api.external.controller.SAMLController;
 import com.vmturbo.api.internal.controller.ClusterController;
 import com.vmturbo.api.validators.TemplatesValidator;
 
@@ -63,7 +63,7 @@ import com.vmturbo.api.validators.TemplatesValidator;
 @Configuration
 @EnableWebMvc
 @EnableWebSecurity
-@Import({ApiSecurityConfig.class, SecurityChainProxyInvoker.class, HeaderApiSecurityConfig.class})
+@Import({ApiSecurityConfig.class, SecurityChainProxyInvoker.class, HeaderApiSecurityConfig.class, SamlApiSecurityConfig.class})
 // DO NOT import configurations outside the external.api.dispatcher package here, because
 // that will re-create the configuration's beans in the child context for the dispatcher servlet.
 // You will end up with multiple instances of the same beans, which could lead to tricky bugs.
@@ -235,10 +235,4 @@ public class DispatcherControllerConfig extends WebMvcConfigurerAdapter {
     public GlobalExceptionHandler globalExceptionHandler() {
         return new GlobalExceptionHandler();
     }
-
-    @Bean
-    public SAMLController samlController() {
-        return new SAMLController();
-    }
-
 }

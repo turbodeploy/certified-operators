@@ -1,5 +1,7 @@
 package com.vmturbo.sql.utils;
 
+import java.time.Instant;
+
 import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
@@ -45,7 +47,9 @@ public class DbConfigurationRule extends ExternalResource {
      * @param originalSchema original schema name
      */
     public DbConfigurationRule(@Nonnull Schema originalSchema) {
-        this.dbConfig = new TestDbConfiguration(originalSchema.getName(), "");
+        String testSchemaName = String.join("_", originalSchema.getName(), "test",
+                String.valueOf(Instant.now().toEpochMilli()));
+        this.dbConfig = new TestDbConfiguration(originalSchema, testSchemaName, "");
         this.schema = originalSchema;
     }
 

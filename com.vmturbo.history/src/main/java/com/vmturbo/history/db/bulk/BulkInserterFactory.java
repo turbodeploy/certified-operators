@@ -1,5 +1,8 @@
 package com.vmturbo.history.db.bulk;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -8,13 +11,18 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.exception.DataAccessException;
 
 import com.vmturbo.history.db.BasedbIO;
 import com.vmturbo.history.db.RecordTransformer;
+import com.vmturbo.history.db.VmtDbException;
 import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
 
 /**
@@ -57,6 +65,11 @@ import com.vmturbo.history.db.bulk.DbInserters.DbInserter;
  * </p>
  */
 public class BulkInserterFactory implements AutoCloseable {
+
+    /** part of the unique suffix appended to a table name to create a transient table. */
+    public static final String TRANSIENT_TABLE_SUFFIX = "__transient__";
+
+    private static Logger logger = LogManager.getLogger();
 
     // default configuraiton options for new inserters
     private final BulkInserterConfig defaultConfig;
@@ -102,8 +115,7 @@ public class BulkInserterFactory implements AutoCloseable {
             @Nonnull RecordTransformer<InT, OutT> recordTransformer,
             @Nonnull DbInserter<OutT> dbInserter) {
 
-        return getInserter(inTable, inTable, outTable,
-                recordTransformer, dbInserter, Optional.empty());
+        return getInserter(inTable, inTable, outTable, recordTransformer, dbInserter, Optional.empty());
     }
 
     /**
@@ -134,11 +146,98 @@ public class BulkInserterFactory implements AutoCloseable {
             BulkInserter<InT, OutT> inserter = (BulkInserter<InT, OutT>)inserters.get(key);
             if (inserter == null) {
                 inserter = new BulkInserter<>(
-                        basedbIO, key, inTable, outTable, config.orElse(defaultConfig),
+                        basedbIO, key, inTable, outTable,
+                        config.orElse(defaultConfig),
                         recordTransformer, dbInserter, executor);
                 inserters.put(key, inserter);
             }
             return inserter;
+        }
+    }
+
+    /**
+     * Create a new inserter for a transient table, created for the lifetime of this inserter,
+     * with the same column structure as the provided out-table.
+     *
+     * <p>The created table will have a new name like 'baseTable_transient_xxx', where baseTable is
+     * the name of the given out-table, and xxx is a time-based number. The inserter will work
+     * like the given out-table, but when the inserter is closed, the table will be dropped.</p>
+     *
+     * <p>These transient tables are unlike the "temporary" tables supported by MySQL; those would
+     * not work with this framework, because they are visible only to the connection from which
+     * they were created, and are dropped when that connection is closed.</p>
+     *
+     * <p>The <code>postTableCreateFunc</code> parameter can be used to create indexes and perform
+     * other necessary operations on the newly created table. By default, no indexes will be
+     * created for the transient table.</p>
+     *
+     * @param inTable             table for records that will be fed to this inserter
+     * @param outTable            table whose structure will be used to define the transient
+     *                            table, where records sent to this instance will actually be inserted
+     * @param recordTransformer   function to transform input records to database records
+     * @param dbInserter          {@link DbInserter} responsible for saving database records
+     * @param postTableCreateFunc function that is invoked after table creation
+     * @param <InT>               input record type
+     * @param <OutT>              output record type
+     * @return the existing or newly created inserter
+     * @throws SQLException if we encounter a database exception
+     * @throws VmtDbException if we have a DB connection problem
+     * @throws InstantiationException if we can't instantiate the transient jOOQ table
+     * @throws IllegalAccessException if we can't instantiate the transient jOOQ table
+     */
+    public <InT extends Record, OutT extends Record> BulkInserter<InT, OutT> getTransientInserter(
+            @Nonnull Table<InT> inTable,
+            @Nonnull Table<OutT> outTable,
+            @Nonnull RecordTransformer<InT, OutT> recordTransformer,
+            @Nonnull DbInserter<OutT> dbInserter,
+            @Nullable TableOperation<OutT> postTableCreateFunc)
+            throws SQLException, InstantiationException, VmtDbException, IllegalAccessException {
+        try (Connection conn = basedbIO.connection()) {
+            // create a jOOQ table object just like the out table but with a different name
+            // and no indexes
+            final String tableNamePrefix = outTable.getName() + TRANSIENT_TABLE_SUFFIX;
+            String transientTableName = tableNamePrefix + System.nanoTime();
+            Table<OutT> transientTable = outTable.getClass().newInstance().as(transientTableName);
+            // create that table in the database
+            basedbIO.using(conn).createTable(transientTable).columns(outTable.fields()).execute();
+            if (postTableCreateFunc != null) {
+                postTableCreateFunc.execute(transientTable);
+            }
+            return getInserter(transientTable, inTable, transientTable, recordTransformer, dbInserter,
+                    Optional.of(ImmutableBulkInserterConfig.copyOf(defaultConfig).withDropOnClose(true)));
+        } catch (SQLException | VmtDbException | InstantiationException | IllegalAccessException e) {
+            logger.error("Failed to create transient table based on {}", outTable.getName(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * Called during history component shutdown to check for any transient tables that may have
+     * been in use at the time of shutdown and deletes them.
+     *
+     * <p>The code that would normally drop these tables is unlikely to run due to the shutdown.</p>
+     *
+     * @param ctx {@link DSLContext} to use for DB operations
+     */
+    public static void cleanupTransientTables(DSLContext ctx) {
+        try {
+            final List<String> tables =
+                    ctx.fetch("SHOW TABLES LIKE '%" + TRANSIENT_TABLE_SUFFIX + "%'").stream()
+                            .map(r -> r.getValue(0, String.class))
+                            .collect(Collectors.toList());
+            for (final String table : tables) {
+                // Double-check - we really don't want to be deleting tables that we're not
+                // supposed to!
+                if (table.contains(TRANSIENT_TABLE_SUFFIX)) {
+                    logger.info("Dropping orphaned transient table {}", table);
+                    ctx.dropTable(table).execute();
+                } else {
+                    logger.error("Narrowly avoided dropping table {} - should not be possible",
+                            table);
+                }
+            }
+        } catch (DataAccessException e) {
+            logger.warn("Failed to clean up orphaned transient tables", e);
         }
     }
 
@@ -173,8 +272,8 @@ public class BulkInserterFactory implements AutoCloseable {
      */
     public BulkInserterFactoryStats getStats() {
         return new BulkInserterFactoryStats(inserters.values().stream()
-            .map(BulkInserter::getStats)
-            .collect(Collectors.toList()));
+                .map(BulkInserter::getStats)
+                .collect(Collectors.toList()));
     }
 
     /**
@@ -200,7 +299,7 @@ public class BulkInserterFactory implements AutoCloseable {
      */
     private static String getKeyLabel(Object key, Function<Object, String> nonTableLabeler) {
         return key instanceof Table<?> ? ((Table<?>)key).getName()
-            : nonTableLabeler.apply(key);
+                : nonTableLabeler.apply(key);
     }
 
     /**
@@ -226,5 +325,23 @@ public class BulkInserterFactory implements AutoCloseable {
         for (BulkInserter<?, ?> bulkInserter : inserters.values()) {
             bulkInserter.close(logger);
         }
+    }
+
+    /**
+     * Interface for a function that performs database operations on a jOOQ table, capable of
+     * throwing potential exceptions.
+     *
+     * @param <R> record type on which table is based
+     */
+    @FunctionalInterface
+    public interface TableOperation<R extends Record> {
+        /**
+         * Perofrm the table operation.
+         * @param table the table to operate on
+         * @throws SQLException if a database error occurs
+         * @throws DataAccessException if a database error occurs in jOOQ-based code
+         * @throws VmtDbException if a connection error occurs
+         */
+        void execute(Table<R> table) throws SQLException, DataAccessException, VmtDbException;
     }
 }

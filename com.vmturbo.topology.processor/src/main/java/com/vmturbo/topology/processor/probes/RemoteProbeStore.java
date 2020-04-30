@@ -94,7 +94,7 @@ public class RemoteProbeStore implements ProbeStore {
                     JsonFormat.parser().merge(probeInfoJson, probeInfoBuilder);
                     return probeInfoBuilder.build();
                 } catch (InvalidProtocolBufferException e){
-                    logger.error("Failed to load probe info from Consul.");
+                    logger.error("Failed to load probe info from Consul: {}", probeInfoJson, e);
                     return null;
                 }
             })

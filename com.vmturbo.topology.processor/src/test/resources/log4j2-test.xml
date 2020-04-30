@@ -9,7 +9,7 @@
     </Appenders>
 
     <Loggers>
-        <Logger name="com.vmturbo" level="trace" />
+        <Logger name="com.vmturbo" level="debug" />
         <Logger name="org.flywaydb.core" level="warn" />
         <Logger name="org.springframework" level="warn" />
         <Logger name="org.jooq" level="warn" />

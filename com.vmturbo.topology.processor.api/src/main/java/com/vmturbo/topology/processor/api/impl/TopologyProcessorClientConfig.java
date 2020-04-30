@@ -10,6 +10,10 @@ import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Channel;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -17,18 +21,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Lazy;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
-
-import io.grpc.Channel;
-
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
-import com.vmturbo.components.api.GrpcChannelFactory;
 import com.vmturbo.components.api.client.BaseKafkaConsumerConfig;
 import com.vmturbo.components.api.client.ComponentApiConnectionConfig;
 import com.vmturbo.components.api.client.IMessageReceiver;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings;
 import com.vmturbo.components.api.client.KafkaMessageConsumer.TopicSettings.StartFrom;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TopologyProcessorNotification;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
@@ -126,6 +127,18 @@ public class TopologyProcessorClientConfig {
                     TopologySummary::parseFrom));
     }
 
+    protected IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver(
+        @Nonnull final Optional<StartFrom> startFromOverride) {
+        return startFromOverride
+            .map(startFrom -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiverWithSettings(
+                    new TopicSettings(TopologyProcessorClient.ENTITIES_WITH_NEW_STATE, startFrom),
+                    EntitiesWithNewState::parseFrom))
+            .orElseGet(() -> baseKafkaConfig.kafkaConsumer()
+                .messageReceiver(TopologyProcessorClient.ENTITIES_WITH_NEW_STATE,
+                    EntitiesWithNewState::parseFrom));
+    }
+
     /**
      * This is a lazy bean prototype. It will subscribe on different topics based on the input
      * parameters. Everithing will be later collected by Spring to destroy automatically.
@@ -155,9 +168,13 @@ public class TopologyProcessorClientConfig {
             = subscriptionsByTopic.containsKey(Topic.TopologySummaries)
             ? topologySummaryReceiver(subscriptionsByTopic.get(Topic.TopologySummaries).getStartFrom())
             : null;
+        final IMessageReceiver<EntitiesWithNewState> entitiesWithNewStateReceiver
+            = subscriptionsByTopic.containsKey(Topic.EntitiesWithNewState)
+            ? entitiesWithNewStateReceiver(subscriptionsByTopic.get(Topic.EntitiesWithNewState).getStartFrom())
+            : null;
         return TopologyProcessorClient.rpcAndNotification(topologyProcessorClientConnectionConfig(),
             topologyProcessorClientThreadPool(), notificationsReceiver, liveReceiver,
-            planReceiver, summaryReceiver);
+            planReceiver, summaryReceiver, entitiesWithNewStateReceiver);
     }
 
     public TopologyProcessor topologyProcessorRpcOnly() {
@@ -173,7 +190,7 @@ public class TopologyProcessorClientConfig {
      */
     @Bean
     public Channel topologyProcessorChannel() {
-        return GrpcChannelFactory.newChannelBuilder(topologyProcessorHost, topologyProcessorRpcPort)
+        return ComponentGrpcServer.newChannelBuilder(topologyProcessorHost, topologyProcessorRpcPort)
                 .build();
     }
 }

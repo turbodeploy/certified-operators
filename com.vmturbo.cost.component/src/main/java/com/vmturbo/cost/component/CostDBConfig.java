@@ -44,4 +44,9 @@ public class CostDBConfig extends SQLDatabaseConfig {
             costDbPassword : dbPasswordUtil.getSqlDbRootPassword();
         return dataSourceConfig(dbSchemaName, costDbUsername, dbPassword);
     }
+
+    @Override
+    public String getDbSchemaName() {
+        return dbSchemaName;
+    }
 }

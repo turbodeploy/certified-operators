@@ -394,6 +394,8 @@ public class ArangoGraphDatabaseDriver implements GraphDatabaseDriver {
     @Override
     public void dropCollections() {
         arangoDatabase.getCollections().stream()
+            // Do not try to drop system collections - we won't be able to anyways.
+            .filter(collection -> !collection.getIsSystem())
             .map(CollectionEntity::getName)
             .filter(collection -> collection.contains(arangoCollectionNameSuffix))
             .map(arangoDatabase::collection)

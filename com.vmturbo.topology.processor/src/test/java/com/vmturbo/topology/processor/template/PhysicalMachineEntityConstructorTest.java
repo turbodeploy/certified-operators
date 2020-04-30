@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.template;
 
-import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommodityBoughtKey;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommodityBoughtValue;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySold;
 import static com.vmturbo.topology.processor.template.TemplateConverterTestUtil.getCommoditySoldValue;
@@ -16,10 +15,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.junit.Test;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
+import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
@@ -36,6 +36,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 public class PhysicalMachineEntityConstructorTest {
     private double epsilon = 1e-5;
@@ -130,13 +131,13 @@ public class PhysicalMachineEntityConstructorTest {
     private final Map<Long, TopologyEntity.Builder> topology = Collections.emptyMap();
 
     @Test
-    public void testPMConvert() {
-        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .setOid(1);
+    public void testPMConvert() throws Exception {
+        IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+        Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
+
         final TopologyEntityDTO.Builder topologyEntityDTO =
-            new PhysicalMachineEntityConstructor().createTopologyEntityFromTemplate(PM_TEMPLATE,
-                builder, topology, null);
+                new PhysicalMachineEntityConstructor().createTopologyEntityFromTemplate(PM_TEMPLATE,
+                        topology, null, false, identityProvider).iterator().next();
         assertEquals(15, topologyEntityDTO.getCommoditySoldListCount());
         assertEquals(1, topologyEntityDTO.getCommoditiesBoughtFromProvidersCount());
         assertEquals(200.0, getCommoditySoldValue(topologyEntityDTO.getCommoditySoldListList(),
@@ -184,25 +185,27 @@ public class PhysicalMachineEntityConstructorTest {
     }
 
     @Test
-    public void testPMConvertWithConstraint() {
-        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
-            .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
-            .setOid(1);
-        final TopologyEntityDTO.Builder topologyEntityDTO =
-            new PhysicalMachineEntityConstructor().createTopologyEntityFromTemplate(PM_TEMPLATE,
-                builder, topology,
-                TopologyEntityDTO.newBuilder()
-                    .setOid(1)
-                    .setEntityType(14)
-                    .addAllCommoditySoldList(pmCommoditySold)
-                    .addAllCommoditiesBoughtFromProviders(pmCommodityBoughtFromProvider)
-                    .build());
+    public void testPMConvertWithConstraint() throws Exception {
+        IdentityProvider identityProvider = Mockito.mock(IdentityProvider.class);
+        Mockito.when(identityProvider.generateTopologyId()).thenReturn(1L);
+
+        TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder().setOid(1)
+                .setEntityType(14).addAllCommoditySoldList(pmCommoditySold)
+                .addAllCommoditiesBoughtFromProviders(pmCommodityBoughtFromProvider);
+        TopologyEntity.Builder topologyEntity = TopologyEntity.newBuilder(builder);
+
+        final TopologyEntityDTO.Builder topologyEntityDTO = new PhysicalMachineEntityConstructor()
+                .createTopologyEntityFromTemplate(PM_TEMPLATE, topology, topologyEntity, false,
+                        identityProvider)
+                .iterator().next();
         assertEquals(19, topologyEntityDTO.getCommoditySoldListCount());
-        assertEquals(4, topologyEntityDTO.getCommoditySoldListList().stream()
-            .filter(commoditySoldDTO ->
-                !commoditySoldDTO.getCommodityType().getKey().isEmpty())
-            .count());
-        assertEquals("123-data-center", getCommodityBoughtKey(
-            topologyEntityDTO.getCommoditiesBoughtFromProvidersList(), CommodityType.DATACENTER_VALUE));
+        assertEquals(4,
+                topologyEntityDTO.getCommoditySoldListList().stream().filter(
+                        commoditySoldDTO -> !commoditySoldDTO.getCommodityType().getKey().isEmpty())
+                        .count());
+        assertEquals("123-data-center",
+                TemplateConverterTestUtil.getCommodityBoughtKey(
+                        topologyEntityDTO.getCommoditiesBoughtFromProvidersList(),
+                        CommodityType.DATACENTER_VALUE));
     }
 }

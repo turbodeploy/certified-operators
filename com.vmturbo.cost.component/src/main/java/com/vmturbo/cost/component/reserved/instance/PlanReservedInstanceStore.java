@@ -1,7 +1,6 @@
 package com.vmturbo.cost.component.reserved.instance;
 
 import static com.vmturbo.cost.component.db.Tables.RESERVED_INSTANCE_SPEC;
-import static org.jooq.impl.DSL.isoDayOfWeek;
 import static org.jooq.impl.DSL.sum;
 
 import java.math.BigDecimal;
@@ -15,6 +14,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import org.jooq.DSLContext;
+import org.jooq.Record1;
 import org.jooq.Record2;
 import org.jooq.Record3;
 import org.jooq.Result;
@@ -44,6 +44,20 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore {
     public PlanReservedInstanceStore(@Nonnull DSLContext dsl, @Nonnull IdentityProvider identityProvider,
         @Nonnull final ReservedInstanceCostCalculator reservedInstanceCostCalculator) {
         super(dsl, identityProvider, reservedInstanceCostCalculator);
+    }
+
+    /**
+     * Get the ids of plans with information in the store.
+     *
+     * @return Set of plan IDs.
+     */
+    @Nonnull
+    public Set<Long> getPlanIds() {
+        return getDsl().selectDistinct(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID)
+            .from(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
+            .fetch().stream()
+            .map(Record1::value1)
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -81,20 +95,20 @@ public class PlanReservedInstanceStore extends AbstractReservedInstanceStore {
      * Get the sum count of reserved instance bought by RI spec ID.
      *
      * @param planId plan ID.
-     * @return a Map which key is reservedInstance spec ID and value is the sum count of reserved instance bought
-     * which belong to this spec.
+     * @return a Map which key is reservedInstance spec ID (Long) and value is the sum count
+     * of reserved instance bought which belong to this spec.
      */
-    public Map<String, Long> getPlanReservedInstanceCountByRISpecIdMap(Long planId) {
+    public Map<Long, Long> getPlanReservedInstanceCountByRISpecIdMap(Long planId) {
         final Result<Record2<ReservedInstanceBoughtInfo, BigDecimal>> riCountMap =
                         getDsl().select(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_BOUGHT_INFO,
                                         (sum(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.COUNT)).as(RI_SUM_COUNT))
                                         .from(Tables.PLAN_RESERVED_INSTANCE_BOUGHT)
                                         .where(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.PLAN_ID.eq(planId))
                                         .groupBy(Tables.PLAN_RESERVED_INSTANCE_BOUGHT.RESERVED_INSTANCE_SPEC_ID).fetch();
-        final Map<String, Long> countsByTemplate = new HashMap<>();
+        final Map<Long, Long> countsByTemplate = new HashMap<>();
         for (Record2<ReservedInstanceBoughtInfo, BigDecimal> record : riCountMap) {
             final ReservedInstanceBoughtInfo riInfo = record.value1();
-            final String key = riInfo.getDisplayName();
+            final long key = riInfo.getReservedInstanceSpec();
             final long count = record.value2().longValue();
             countsByTemplate.compute(key, (k, v) -> v == null ? count : v + count);
         }

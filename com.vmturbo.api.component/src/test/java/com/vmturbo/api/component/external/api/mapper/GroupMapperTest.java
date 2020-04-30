@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -89,6 +90,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.GroupFilters;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.OptimizationMetadata;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.SelectionCriteriaCase;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -103,6 +105,7 @@ import com.vmturbo.common.protobuf.search.Search.ComparisonOperator;
 import com.vmturbo.common.protobuf.search.Search.GroupFilter;
 import com.vmturbo.common.protobuf.search.Search.LogicalOperator;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
+import com.vmturbo.common.protobuf.search.Search.PropertyFilter.MapFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.NumericFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchFilter;
@@ -186,13 +189,25 @@ public class GroupMapperTest {
             .setOid(3L)
             .setDisplayName("foo")
             .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityState(EntityState.POWERED_ON)
             .addDiscoveringTargetIds(AWS_TARGET.oid())
             .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.CLOUD)
             .build();
+
     private static final MinimalEntity VC_VM =  MinimalEntity.newBuilder()
             .setOid(4L)
             .setDisplayName("vm-1")
             .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityState(EntityState.POWERED_ON)
+            .addDiscoveringTargetIds(VC_TARGET.oid())
+            .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
+            .build();
+
+    private static final MinimalEntity VC_VM2 =  MinimalEntity.newBuilder()
+            .setOid(5L)
+            .setDisplayName("vm-2")
+            .setEntityType(ApiEntityType.VIRTUAL_MACHINE.typeNumber())
+            .setEntityState(EntityState.POWERED_ON)
             .addDiscoveringTargetIds(VC_TARGET.oid())
             .setEnvironmentType(EnvironmentTypeEnum.EnvironmentType.ON_PREM)
             .build();
@@ -581,7 +596,7 @@ public class GroupMapperTest {
     @Test
     public void testVmsByClusterNameToSearchParameters() throws Exception {
         GroupApiDTO groupDto = groupApiDTO(AND, VM_TYPE,
-                        filterDTO(EntityFilterMapper.EQUAL, FOO, "vmsByClusterName"));
+                        filterDTO(EntityFilterMapper.REGEX_MATCH, FOO, "vmsByClusterName"));
         List<SearchParameters> parameters =
                         entityFilterMapper.convertToSearchParameters(
                                         groupDto.getCriteriaList(), groupDto.getClassName(), null);
@@ -618,7 +633,7 @@ public class GroupMapperTest {
         // verify that we have rebuilt the original vmsByClusterName
         FilterApiDTO vmsByClusterNameFilter = filterApiDTOS.get(0);
         assertEquals("vmsByClusterName", vmsByClusterNameFilter.getFilterType());
-        assertEquals("EQ", vmsByClusterNameFilter.getExpType());
+        assertEquals("RXEQ", vmsByClusterNameFilter.getExpType());
         assertEquals(FOO, vmsByClusterNameFilter.getExpVal());
     }
 
@@ -629,7 +644,7 @@ public class GroupMapperTest {
     @Test
     public void testPMsByClusterNameToSearchParameters() throws OperationFailedException {
         GroupApiDTO groupDto = groupApiDTO(AND, ApiEntityType.PHYSICAL_MACHINE.apiStr(),
-                filterDTO(EntityFilterMapper.EQUAL, FOO, "pmsByClusterName"));
+                filterDTO(EntityFilterMapper.REGEX_MATCH, FOO, "pmsByClusterName"));
         List<SearchParameters> parameters =
                 entityFilterMapper.convertToSearchParameters(
                         groupDto.getCriteriaList(), groupDto.getClassName(), null);
@@ -693,6 +708,61 @@ public class GroupMapperTest {
         return inputDTO;
     }
 
+    /**
+     * Test that a single invalid group doesn't prevent the mapping of other valid groups.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testMapInvalidGroup() throws Exception {
+
+        final Grouping invalidGroup = Grouping.newBuilder().setId(77777L)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setDisplayName("not cool boy")
+                .setGroupFilters(GroupFilters.newBuilder()
+                    .addGroupFilter(GroupDTO.GroupFilter.newBuilder()
+                        // This filter is currently invalid because it's adding a "tags" property filter
+                        // without specifying that we are looking for a specific group type.
+                        .addPropertyFilters(PropertyFilter.newBuilder()
+                            .setPropertyName(SearchableProperties.TAGS_TYPE_PROPERTY_NAME)
+                            .setMapFilter(MapFilter.newBuilder()
+                                .setKey("foo")
+                                .addValues("bar"))))))
+            .build();
+        final Grouping validGroup = Grouping.newBuilder().setId(7L)
+            .setDefinition(GroupDefinition.newBuilder()
+                .setType(GroupType.REGULAR)
+                .setDisplayName("cool boy")
+                .setStaticGroupMembers(StaticMembers.newBuilder()))
+            .build();
+
+        when(groupExpander.getMembersForGroup(invalidGroup)).thenReturn(ImmutableGroupAndMembers
+            .builder().group(invalidGroup)
+            .members(Collections.emptyList())
+            .entities(Collections.emptyList())
+            .build());
+        when(groupExpander.getMembersForGroup(validGroup)).thenReturn(ImmutableGroupAndMembers
+            .builder().group(validGroup)
+            .members(Collections.emptyList())
+            .entities(Collections.emptyList())
+            .build());
+
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+
+        final Map<Long, GroupApiDTO> dto =
+            // The valid group is second in the order, so we make sure we continue processing
+            // after the invalid group.
+            groupMapper.groupsToGroupApiDto(Arrays.asList(invalidGroup, validGroup), false);
+
+        // Only the valid group got returned.
+        assertThat(dto.keySet(), containsInAnyOrder(validGroup.getId()));
+        // We don't do additional checks, because the job of this test isn't to check how the group
+        // is mapped, but THAT the group is mapped even if a previous group had mapping errors.
+        assertEquals("7", dto.get(validGroup.getId()).getUuid());
+    }
+
     @Test
     public void testMapComputeCluster() throws Exception {
 
@@ -717,7 +787,10 @@ public class GroupMapperTest {
                                         .getAllStaticMembers(computeCluster.getDefinition()))
                         .build());
 
-        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        final MinimalEntity entPM = MinimalEntity.newBuilder()
+                .setOid(10L)
+                .build();
+        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(entPM));
         when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
 
         final GroupApiDTO dto =
@@ -764,8 +837,12 @@ public class GroupMapperTest {
                                                                         .getDefinition()))
                                         .build());
 
-        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
-        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+        final MinimalEntity ent = MinimalEntity.newBuilder()
+                .setOid(10L)
+                .build();
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(ent));
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
 
         final GroupApiDTO dto = groupMapper.groupsToGroupApiDto(
                 Collections.singletonList(computeVirtualMachineCluster), false)
@@ -808,8 +885,12 @@ public class GroupMapperTest {
                                         .getAllStaticMembers(storageCluster.getDefinition()))
                         .build());
 
-        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
-        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+        final MinimalEntity ent = MinimalEntity.newBuilder()
+                .setOid(10L)
+                .build();
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(ent));
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
 
         final GroupApiDTO dto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(storageCluster), false)
@@ -835,6 +916,7 @@ public class GroupMapperTest {
         apiDTO.setDisplayName("foo");
         apiDTO.setGroupType(VM_TYPE);
         apiDTO.setScope(Lists.newArrayList(UuidMapper.UI_REAL_TIME_MARKET_STR));
+        apiDTO.setEnvironmentType(EnvironmentType.ONPREM);
 
         final SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
                         ImmutableMap.of(VM_TYPE, SupplyChainNode.newBuilder()
@@ -863,6 +945,7 @@ public class GroupMapperTest {
         apiDTO.setTemporary(true);
         apiDTO.setDisplayName("foo");
         apiDTO.setGroupType(VM_TYPE);
+        apiDTO.setEnvironmentType(EnvironmentType.ONPREM);
         apiDTO.setScope(Lists.newArrayList("1"));
 
         final SupplyChainNodeFetcherBuilder fetcherBuilder = ApiTestUtils.mockNodeFetcherBuilder(
@@ -911,6 +994,7 @@ public class GroupMapperTest {
         apiDTO.setDisplayName("foo");
         apiDTO.setGroupType(VM_TYPE);
         apiDTO.setScope(Lists.newArrayList("1"));
+        apiDTO.setEnvironmentType(EnvironmentType.ONPREM);
         // 7 should be in the scope, 6 is not in the scope, and foo is an illegal value.
         apiDTO.setMemberUuidList(Lists.newArrayList("7", "6", "foo"));
 
@@ -947,16 +1031,17 @@ public class GroupMapperTest {
                                                                                         .newBuilder()
                                                                                         .setEntity(10))
                                                                         .addMembers(1L))))
+                        .addExpectedTypes(MemberType.newBuilder().setGroup(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER))
                         .build();
 
         when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
                         .group(group).members(Collections.singleton(1L))
                         // Temp groups will never have different entity count, but we want to check the
                         // entity count gets set from the right field in GroupAndMembers.
-                        .entities(ImmutableList.of(1L, 2L)).build());
+                        .entities(ImmutableList.of(4L, 5L)).build());
 
-        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
-        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(VC_VM, VC_VM2));
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
 
         final GroupApiDTO mappedDto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
@@ -994,6 +1079,13 @@ public class GroupMapperTest {
                         .group(group).entities(GroupProtoUtil.getStaticMembers(group))
                         .members(GroupProtoUtil.getStaticMembers(group)).build());
         Mockito.when(targetCache.getAllTargets()).thenReturn(Collections.singletonList(AWS_TARGET));
+
+        final MinimalEntity ent = MinimalEntity.newBuilder()
+                .setOid(1L)
+                .build();
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(ent));
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
 
         final GroupApiDTO mappedDto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
@@ -1055,6 +1147,15 @@ public class GroupMapperTest {
                 ))
             .build();
 
+        List<MinimalEntity> entities = new ArrayList<>();
+        for (long i = 1; i <= 9; i++) {
+            entities.add(MinimalEntity.newBuilder()
+                    .setOid(i)
+                    .build());
+        }
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(entities);
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
+
         final MultiEntityRequest testRg = ApiTestUtils.mockMultiMinEntityReq(
                 Collections.singletonList(MinimalEntity.newBuilder()
                         .setOid(parentId)
@@ -1101,16 +1202,27 @@ public class GroupMapperTest {
                                                                                         .newBuilder()
                                                                                         .setEntity(ApiEntityType.VIRTUAL_MACHINE
                                                                                                         .typeNumber()))
-                                                                        .addMembers(1L))))
+                                                                        .addMembers(1L).addMembers(2L))))
                         .build();
 
         when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
-                        .group(group).entities(Collections.singleton(1L))
-                        .members(Collections.singleton(1L)).build());
+                        .group(group).entities(ImmutableSet.of(1L, 2L))
+                        .members(ImmutableSet.of(1L, 2L)).build());
+
+        final MinimalEntity ent1 = MinimalEntity.newBuilder()
+                .setOid(1L)
+                .setEntityState(EntityState.POWERED_ON)
+                .build();
+
+        final MinimalEntity ent2 = MinimalEntity.newBuilder()
+                .setOid(2L)
+                .setEntityState(EntityState.POWERED_OFF)
+                .build();
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(ent1, ent2));
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
 
         final int count = 1;
-        final SearchRequest countReq = ApiTestUtils.mockSearchIdReq(Collections.singleton(1L));
-        when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
 
         final GroupApiDTO mappedDto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
@@ -1119,15 +1231,6 @@ public class GroupMapperTest {
                         .next();
         assertThat(mappedDto.getUuid(), is("8"));
         assertThat(mappedDto.getActiveEntitiesCount(), is(count));
-
-        final ArgumentCaptor<SearchParameters> captor =
-                        ArgumentCaptor.forClass(SearchParameters.class);
-        verify(repositoryApi).newSearchRequest(captor.capture());
-        final SearchParameters params = captor.getValue();
-        assertThat(params.getStartingFilter(),
-                        is(SearchProtoUtil.idFilter(Collections.singleton(1L))));
-        assertThat(params.getSearchFilterList(), containsInAnyOrder(SearchProtoUtil
-                        .searchFilterProperty(SearchProtoUtil.stateFilter(UIEntityState.ACTIVE))));
     }
 
     @Test
@@ -1154,6 +1257,13 @@ public class GroupMapperTest {
         final SearchRequest countReq = ApiTestUtils.mockSearchIdReq(Collections.singleton(1L));
         when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
 
+        final MinimalEntity ent = MinimalEntity.newBuilder()
+                .setOid(1L)
+                .build();
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(ent));
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
+
         final GroupApiDTO mappedDto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
                         .values()
@@ -1164,7 +1274,7 @@ public class GroupMapperTest {
 
         final ArgumentCaptor<SearchParameters> captor =
                         ArgumentCaptor.forClass(SearchParameters.class);
-        verify(repositoryApi, Mockito.times(2)).newSearchRequest(captor.capture());
+        verify(repositoryApi, Mockito.times(1)).newSearchRequest(captor.capture());
         final SearchParameters params = captor.getValue();
         assertThat(params.getStartingFilter(),
                         is(SearchProtoUtil.entityTypeFilter(ApiEntityType.VIRTUAL_MACHINE)));
@@ -1177,7 +1287,9 @@ public class GroupMapperTest {
         final Grouping group = Grouping.newBuilder().setId(8L)
                         .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
                         .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
-                                        .setDisplayName("foo")
+                                        .setDisplayName("foo").setIsTemporary(true)
+                                        .setOptimizationMetadata(OptimizationMetadata.newBuilder()
+                                                        .setIsGlobalScope(true))
                                         .setStaticGroupMembers(StaticMembers.newBuilder()
                                                         .addMembersByType(StaticMembersByType
                                                                         .newBuilder()
@@ -1191,10 +1303,10 @@ public class GroupMapperTest {
                         .group(group).entities(Collections.singleton(1L))
                         .members(Collections.singleton(1L)).build());
 
-        final SearchRequest countReq = ApiTestUtils.mockSearchIdReq(Collections.singleton(1L));
-        when(countReq.getOids()).thenThrow(Status.INTERNAL.asRuntimeException());
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
 
-        when(repositoryApi.newSearchRequest(any())).thenReturn(countReq);
+        when(repositoryApi.newSearchRequest(any())).thenThrow(Status.INTERNAL.asRuntimeException());
 
         final GroupApiDTO mappedDto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
@@ -1219,12 +1331,15 @@ public class GroupMapperTest {
                                                                                         .newBuilder()
                                                                                         .setEntity(10))
                                                                         .addMembers(1L))))
+                        .addExpectedTypes(MemberType.newBuilder().setGroup(GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER))
                         .build();
 
         when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
                         .group(group).members(Collections.singleton(1L))
                         // Return a different entity set to make sure it gets used for the entity count.
-                        .entities(ImmutableSet.of(2L, 3L)).build());
+                        .entities(ImmutableSet.of(4L, 5L)).build());
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(VC_VM, VC_VM2));
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
 
         final GroupApiDTO mappedDto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
@@ -1312,8 +1427,15 @@ public class GroupMapperTest {
         when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
                         .group(group).members(members).entities(members).build());
 
-        MultiEntityRequest req1 = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
-        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req1);
+        final MinimalEntity entPM1 = MinimalEntity.newBuilder()
+                .setOid(10L)
+                .build();
+        final MinimalEntity entPM2 = MinimalEntity.newBuilder()
+                .setOid(20L)
+                .build();
+
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(entPM1, entPM2));
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
 
         final GroupApiDTO dto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
@@ -1346,6 +1468,9 @@ public class GroupMapperTest {
         final Set<Long> members = ImmutableSet.of(10L, 20L, 30L);
         when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
                         .group(group).members(members).entities(members).build());
+        final MultiEntityRequest req =
+                ApiTestUtils.mockMultiMinEntityReq(Collections.emptyList());
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);
 
         final GroupApiDTO dto =
                 groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
@@ -2138,6 +2263,9 @@ public class GroupMapperTest {
                 .entities(Arrays.asList(31L, 32L))
                 .members(Arrays.asList(31L, 32L))
                 .build();
+        final MultiEntityRequest req =
+                ApiTestUtils.mockMultiMinEntityReq(Collections.emptyList());
+        Mockito.when(repositoryApi.entitiesRequest(Mockito.any())).thenReturn(req);
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest("0", 2, true, "COST");
         Mockito.when(costServiceMole.getCloudCostStats(Mockito.any()))
@@ -2279,6 +2407,8 @@ public class GroupMapperTest {
                                         .setSeverity(Severity.CRITICAL))
                         )
                         .build()));
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList());
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
         final List<GroupApiDTO> resultPage = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
                 paginationRequest, null).getObjects();
@@ -2452,7 +2582,7 @@ public class GroupMapperTest {
         Assert.assertEquals(0,
                 groupMapper.toGroupApiDto(Collections.singletonList(groupAndMembers1), false, null,
                         EnvironmentType.CLOUD).getObjects().size());
-        Mockito.verify(repositoryApi, Mockito.never()).entitiesRequest(Mockito.any());
+        Mockito.verify(repositoryApi, Mockito.times(3)).entitiesRequest(Mockito.any());
     }
 
     /**
@@ -2499,6 +2629,42 @@ public class GroupMapperTest {
                 groupMapper.toGroupApiDto(requestedGroups, false, request, EnvironmentType.CLOUD);
         Assert.assertEquals(2, response4.getTotalCount());
         Assert.assertEquals(1, response4.getObjects().size());
+    }
+
+    @Test
+    public void testFilteringGroupInvalidEntities() throws Exception {
+        final Grouping group = Grouping.newBuilder().setId(8L)
+                .setOrigin(Origin.newBuilder().setUser(Origin.User.newBuilder()))
+                .setDefinition(GroupDefinition.newBuilder().setType(GroupType.REGULAR)
+                        .setDisplayName("foo").setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder().setEntity(10)).addMembers(1L).addMembers(2L))))
+                .build();
+
+        final MinimalEntity ent = MinimalEntity.newBuilder()
+                .setOid(1L)
+                .build();
+
+        when(groupExpander.getMembersForGroup(group)).thenReturn(ImmutableGroupAndMembers.builder()
+                .group(group).members(ImmutableSet.of(1L, 2L))
+                .entities(ImmutableSet.of(1L, 2L)).build());
+        MultiEntityRequest req = ApiTestUtils.mockMultiMinEntityReq(Arrays.asList(ent));
+        when(repositoryApi.entitiesRequest(anySet())).thenReturn(req);
+
+        final GroupApiDTO mappedDto =
+                groupMapper.groupsToGroupApiDto(Collections.singletonList(group), false)
+                        .values()
+                        .iterator()
+                        .next();
+
+        assertThat(mappedDto.getUuid(), is("8"));
+        assertThat(mappedDto.getIsStatic(), is(true));
+        assertThat(mappedDto.getEntitiesCount(), is(1));
+        assertThat(mappedDto.getMembersCount(), is(1));
+        assertThat(mappedDto.getMemberUuidList(), containsInAnyOrder("1"));
+        assertThat(mappedDto.getGroupType(), is(VM_TYPE));
+        assertThat(mappedDto.getEnvironmentType(), is(EnvironmentType.ONPREM));
+        assertThat(mappedDto.getClassName(), is("Group"));
     }
 
     private GroupAndMembers createGroup(@Nonnull Grouping grouping, Long... members) {

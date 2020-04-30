@@ -21,6 +21,7 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
@@ -217,7 +218,14 @@ public class ReservedInstanceBoughtRpcService extends ReservedInstanceBoughtServ
                 topologyContextId,
                 supplyChainServiceBlockingStub,
                 allBusinessAccountOidsInScope);
-
+        Set<Long> zoneIds = cloudScopeTuples.get(EntityType.AVAILABILITY_ZONE);
+        if (CollectionUtils.isNotEmpty(zoneIds) && scopeIdSet.equals(zoneIds)) {
+            // If there is a zone-based filter, don't add region also. For zone scopes,
+            // we need to return only zonal RIs, not zonal+regional.
+            Set<Long> regionIds = cloudScopeTuples.remove(EntityType.REGION);
+            logger.trace("Removed {} regions for {} zones from plan {} RI scope. Seeds: {}",
+                    regionIds, zoneIds, topologyContextId, scopeIds);
+        }
         final ReservedInstanceBoughtFilter riBoughtFilter = ReservedInstanceBoughtFilter.newBuilder()
                 .cloudScopeTuples(cloudScopeTuples)
                 .build();

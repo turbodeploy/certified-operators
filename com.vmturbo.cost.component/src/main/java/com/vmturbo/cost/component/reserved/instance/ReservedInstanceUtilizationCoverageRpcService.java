@@ -3,11 +3,11 @@ package com.vmturbo.cost.component.reserved.instance;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Function;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
@@ -131,10 +131,9 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                 }
             } else {
                 // Add projected RI Utilization point
-                statRecords.add(
                         projectedRICoverageStore.getReservedInstanceUtilizationStats(
-                            filter, request.getIncludeBuyRiUtilization(),
-                                request.getEndDate()));
+                                filter, request.getIncludeBuyRiUtilization(), request.getEndDate())
+                                .ifPresent(statRecords::add);
 
             }
             final GetReservedInstanceUtilizationStatsResponse response =
@@ -187,9 +186,9 @@ public class ReservedInstanceUtilizationCoverageRpcService extends ReservedInsta
                 }
             } else {
                 // Add projected RI Coverage point
-                statRecords.add(
-                    projectedRICoverageStore.getReservedInstanceCoverageStats(
-                            filter, request.getIncludeBuyRiCoverage(), request.getEndDate()));
+                projectedRICoverageStore.getReservedInstanceCoverageStats(
+                        filter, request.getIncludeBuyRiCoverage(), request.getEndDate())
+                        .ifPresent(statRecords::add);
             }
 
             final GetReservedInstanceCoverageStatsResponse response =

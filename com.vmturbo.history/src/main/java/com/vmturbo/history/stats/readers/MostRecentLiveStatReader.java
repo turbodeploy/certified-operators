@@ -15,6 +15,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import io.grpc.stub.ServerCallStreamObserver;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.Condition;
@@ -65,34 +66,38 @@ public class MostRecentLiveStatReader {
      * @param entityClassName whose tables the statistic should be retrieved from.
      * @param commodityType for which the most recent statistic is sought.
      * @param commodityKey of the commodity for which the most recent statistic is sought.
+     * @param streamObserver to check if client has cancelled the request.
      * @return Optional of GetMostRecentStatResponse.Builder or empty if no statistics are found.
      */
     @Nonnull
     public Optional<GetMostRecentStatResponse.Builder> getMostRecentStat(
-            @Nonnull final String entityClassName,
-            @Nonnull final String commodityType,
-            @Nonnull final String commodityKey) {
+        @Nonnull final String entityClassName,
+        @Nonnull final String commodityType,
+        @Nonnull final String commodityKey,
+        @Nullable final ServerCallStreamObserver streamObserver) {
 
         final EntityType entityType = EntityType.get(entityClassName);
-
         final List<Supplier<Optional<GetMostRecentStatResponse.Builder>>> orderedQueries = Arrays
                 .asList(
-                // 1. hourly table query
-                () -> retrieveMostRecentStat(createQuery(entityType.getHourTable().get(),
-                                commodityType, commodityKey), StatHistoricalEpoch.HOUR),
-                // 2. daily table query
-                () -> retrieveMostRecentStat(createQuery(entityType.getDayTable().get(), commodityType,
-                        commodityKey), StatHistoricalEpoch.DAY),
-                // 3. monthly table query
+                // 1. daily table query
+                () -> retrieveMostRecentStat(createQuery(entityType.getDayTable().get(),
+                    commodityType, commodityKey), StatHistoricalEpoch.DAY),
+                // 2. monthly table query
                 () -> retrieveMostRecentStat(createQuery(entityType.getMonthTable().get(),
                         commodityType, commodityKey), StatHistoricalEpoch.MONTH)
         );
-
-        return orderedQueries.stream()
-                .map(Supplier::get)
-                .filter(Optional::isPresent)
-                .findFirst()
-                .map(Optional::get);
+        for (final Supplier<Optional<GetMostRecentStatResponse.Builder>> query : orderedQueries) {
+            if (streamObserver != null && streamObserver.isCancelled()) {
+                logger.debug("Client cancelled GetMostRecentStat request for volume id: {}",
+                    commodityKey);
+                return Optional.empty();
+            }
+            final Optional<GetMostRecentStatResponse.Builder> result = query.get();
+            if (result.isPresent()) {
+                return result;
+            }
+        }
+        return Optional.empty();
     }
 
     private Optional<GetMostRecentStatResponse.Builder> retrieveMostRecentStat(
@@ -112,7 +117,7 @@ public class MostRecentLiveStatReader {
     @Nullable
     private Result<? extends Record> executeQuery(final Select<?> query) {
         try {
-            return historydbIO.execute(Style.FORCED, query);
+            return historydbIO.execute(Style.IMMEDIATE, query);
         } catch (VmtDbException e) {
             logger.error(String.format("Error executing most recent stat retrieval query for %s ",
                     query), e);

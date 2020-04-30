@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -22,6 +24,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import org.jooq.Record1;
 
 import com.google.common.collect.Maps;
 
@@ -59,6 +62,20 @@ public class ActionContextRIBuyStore {
         List<ActionContextRiBuyRecord> actionContextRiBuyRecords =
                 createActionContextRIBuys(actionToRecommendationMapping, topologyContextId);
         dsl.batchInsert(actionContextRiBuyRecords).execute();
+    }
+
+    /**
+     * Get the IDs of all topology contexts that have data.
+     *
+     * @return The set of topology context ids.
+     */
+    @Nonnull
+    public Set<Long> getContextsWithData() {
+        return dsl.selectDistinct(ACTION_CONTEXT_RI_BUY.PLAN_ID)
+            .from(ACTION_CONTEXT_RI_BUY)
+            .fetch().stream()
+            .map(Record1::value1)
+            .collect(Collectors.toSet());
     }
 
     /**

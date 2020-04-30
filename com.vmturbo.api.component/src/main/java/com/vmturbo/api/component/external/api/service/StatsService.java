@@ -1,14 +1,12 @@
 package com.vmturbo.api.component.external.api.service;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Iterator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -22,7 +20,6 @@ import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.math.NumberUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -38,21 +35,23 @@ import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
-import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
-import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IStatsService;
 import com.vmturbo.api.utils.EncodingUtil;
 import com.vmturbo.api.utils.UrlsHelp;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
-import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
+import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -62,7 +61,10 @@ import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc.PlanServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
+import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -350,170 +352,197 @@ public class StatsService implements IStatsService {
         return planEntityStatsFetcher.getPlanEntityStats(planInstance, inputDto, paginationRequest);
     }
 
-    private static boolean isUtilizationStatName(@Nonnull String name) {
-        return StringConstants.MEM.equalsIgnoreCase(name) || StringConstants.CPU.equalsIgnoreCase(name);
-    }
-
-    private static StatApiDTO getRelevantStatsRecord(@Nonnull EntityStatsApiDTO entityStatsApiDTO,
-                                                     @Nonnull String commodity) {
-        return entityStatsApiDTO.getStats().stream()
-                    .flatMap(s -> s.getStatistics().stream())
-                    .filter(s -> commodity.equalsIgnoreCase(s.getName()))
-                    .findAny()
-                    .orElseGet(() -> {
-                        logger.error("No stat name " + commodity + " found on record: " + entityStatsApiDTO);
-                        return new StatApiDTO();
-                    });
-    }
-
-    private static double getUtilization(@Nonnull StatApiDTO statsRecord) {
-        final double epsilon = 0.1;
-        if (statsRecord.getCapacity() == null || statsRecord.getCapacity().getAvg() == null
-                || statsRecord.getCapacity().getAvg() < epsilon) {
-            return 0.0;
-        }
-        if (statsRecord.getValues() == null || statsRecord.getValues().getAvg() == null) {
-            return 0.0;
-        }
-        return statsRecord.getValues().getAvg() / statsRecord.getCapacity().getAvg();
-    }
-
-    private static double getDefault(@Nonnull StatApiDTO statsRecord) {
-        if (statsRecord.getValues() == null || statsRecord.getValues().getAvg() == null) {
-            return 0.0;
-        }
-        return statsRecord.getValues().getAvg();
-    }
-
-    /**
-     * Get per-cluster stats, modelled as per-entity stats (where each cluster is an entity).
-     * This is a helper method to
-     * {@link StatsService#getStatsByUuidsQuery(StatScopesApiInputDTO, EntityStatsPaginationRequest)}.
-     */
     @Nonnull
     private EntityStatsPaginationResponse getClusterEntityStats(
                 @Nonnull final StatScopesApiInputDTO inputDto,
-                @Nonnull final EntityStatsPaginationRequest paginationRequest) {
-        // we are being asked for cluster stats -- we'll retrieve these from getClusterStats()
-        // without expanding the scopes.
-        logger.debug("Request is for cluster stats -- will not expand clusters");
+                @Nonnull final EntityStatsPaginationRequest paginationRequest)
+            throws Exception {
+        // translate pagination parameters
+        final PaginationParameters.Builder paginationParametersBuilder = PaginationParameters.newBuilder();
+        paginationRequest.getCursor()
+                .map(paginationParametersBuilder::setCursor)
+                .orElseGet(() -> paginationParametersBuilder.setCursor("0"));
+        paginationRequest.getOrderByStat().ifPresent(orderBy ->
+            setEntityStatsOrderByToPagination(paginationParametersBuilder, orderBy));
+        paginationParametersBuilder
+                .setAscending(paginationRequest.isAscending())
+                .setLimit(paginationRequest.getLimit());
 
-        // NOTE: if cluster stats are being requested, we expect that all uuids are clusters,
-        // since these stats are only relevant for clusters. If any non-clusters are detected,
-        // a warning will be logged and that entry will not be included in the results.
-        final Iterator<Grouping> groups;
+        // translate data request
+        final StatsFilter statsFilter = statsMapper.newPeriodStatsFilter(inputDto.getPeriod());
 
-        // if the input scope is "Market" and is asking for related entity type "cluster", then
-        // we'll find all clusters the user has access to and ask for stats on those.
-        // otherwise, the scope contains specific id's and we'll request stats for the groups
-        // specifically requested.
-        if (isMarketScoped(inputDto)) {
-            // a market scope request for cluster entity stats is only valid if the related entity
-            // type is set to cluster
-            if (!StringConstants.CLUSTER.equalsIgnoreCase(inputDto.getRelatedType())) {
-                throw new IllegalArgumentException("Request with invalid scope : " +
-                        (inputDto.getScopes().isEmpty() ? "empty" :  MarketMapper.MARKET));
+        // if there is no order-by in the pagination request
+        // we use the first stat requested in statsFilter
+        if (!paginationParametersBuilder.hasOrderBy()) {
+            statsFilter.getCommodityRequestsList().stream()
+                .filter(CommodityRequest::hasCommodityName)
+                .map(CommodityRequest::getCommodityName)
+                .findFirst()
+                .map(orderBy ->
+                        setEntityStatsOrderByToPagination(paginationParametersBuilder, orderBy))
+                .orElseThrow(() -> new IllegalArgumentException(
+                                        "Cluster stats request does not specify stats to be fetched"));
+        }
+
+        // create internal request builder
+        // add translation of data request
+        // add pagination parameters
+        final ClusterStatsRequest.Builder requestBuilder =
+                ClusterStatsRequest.newBuilder()
+                    .setStats(statsFilter)
+                    .setPaginationParams(paginationParametersBuilder);
+
+        // information about the scope of the call and the scope of the user
+        final boolean marketScoped = !UuidMapper.hasLimitedScope(inputDto.getScopes());
+        final boolean userScoped = userSessionContext.isUserScoped();
+
+        // if the scope is not the market, fetch cluster information
+        final Map<Long, GroupDefinition> clusters = new HashMap<>();
+        if (!marketScoped) {
+            // explicit scope: we bring the groups with all requested ids
+            // and ensure that they are either clusters or groups of clusters
+
+            // this variable holds the ids of the static members
+            // of all encountered groups of clusters
+            final Set<Long> idsOfMembers = new HashSet<>();
+            final Set<Long> explicitlyRequestedIds = new HashSet<>(inputDto.getScopes().stream()
+                                                                        .map(i -> Long.valueOf(i))
+                                                                        .collect(Collectors.toSet()));
+            // fetch related groups
+            groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
+                                        .setGroupFilter(GroupFilter.newBuilder()
+                                                            .addAllId(explicitlyRequestedIds))
+                                        .build())
+                .forEachRemaining(grouping -> {
+                    if (GroupProtoUtil.isCluster(grouping)) {
+                        clusters.put(grouping.getId(), grouping.getDefinition());
+                    } else if (GroupProtoUtil.isGroupOfClusters(grouping)) {
+                        idsOfMembers.addAll(GroupProtoUtil.getAllStaticMembers(
+                                                grouping.getDefinition()));
+                    } else {
+                        throw new IllegalArgumentException(
+                            "The group with id " + grouping.getId()
+                                    + " is neither a cluster nor a group of clusters");
+                    }
+                    explicitlyRequestedIds.remove(grouping.getId());
+                });
+
+            // if not all ids in the original scope have been found
+            // then throw an exception
+            if (!explicitlyRequestedIds.isEmpty()) {
+                throw new UnknownObjectException("Cannot find the group(s) with ids: "
+                                                        + explicitlyRequestedIds.toString());
             }
 
-            // unfortunately it doesn't seem like we can get all clusters in one fetch, so we have
-            // to fetch one type at a time.
-            // TODO: update the group retrieval to support multiple group types in the request.
-            final List<Grouping> allClusters = new ArrayList<>();
-            GroupProtoUtil.CLUSTER_GROUP_TYPES
-                    .stream()
-                    .map(type -> groupServiceRpc.getGroups(
-                                    GetGroupsRequest.newBuilder()
+            // if groups of clusters were found, bring their members
+            if (!idsOfMembers.isEmpty()) {
+                groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
                                             .setGroupFilter(GroupFilter.newBuilder()
-                                                    .setGroupType(type))
+                                                                .addAllId(idsOfMembers))
                                             .build())
-                    ).forEach(it -> {
-                it.forEachRemaining(allClusters::add);
-            });
-
-            groups = allClusters.iterator();
-
-        } else {
-            // get the specified groups by id
-            groups = groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
-                    .setGroupFilter(GroupFilter.newBuilder()
-                        .addAllId(inputDto.getScopes().stream()
-                            .map(Long::valueOf)
-                            .collect(Collectors.toList())))
-                    .build());
-        }
-
-        // request the cluster stats for each group
-        // TODO: We are fetching the cluster stats one-at-a-time here. We should consider
-        // batching the requests for better performance. See OM-33182.
-        final List<EntityStatsApiDTO> results = new ArrayList<>();
-        groups.forEachRemaining(group -> {
-            if (GroupProtoUtil.CLUSTER_GROUP_TYPES.contains(group.getDefinition().getType())) {
-                // verify the user has access to the cluster members. If any are inaccessible, this
-                // method will propagate an AccessDeniedException.
-                if (userSessionContext.isUserScoped() && group.getDefinition().hasStaticGroupMembers()) {
-                    UserScopeUtils.checkAccess(userSessionContext.getUserAccessScope(),
-                            GroupProtoUtil.getAllStaticMembers(group.getDefinition()));
-                }
-                final EntityStatsApiDTO statsDTO = new EntityStatsApiDTO();
-                final ApiId apiId = uuidMapper.fromOid(group.getId());
-                StatsMapper.populateEntityDataEntityStatsApiDTO(apiId, statsDTO);
-                statsDTO.setStats(new ArrayList<>());
-
-                // Call Stats service to retrieve cluster related stats.
-                final ClusterStatsRequest clusterStatsRequest =
-                        statsMapper.toClusterStatsRequest(apiId.uuid(), inputDto.getPeriod(), true);
-                final Iterator<StatSnapshot> statSnapshotIterator =
-                        statsServiceRpc.getClusterStats(clusterStatsRequest);
-                while (statSnapshotIterator.hasNext()) {
-                    statsDTO.getStats().add(statsMapper.toStatSnapshotApiDTO(statSnapshotIterator.next()));
-                }
-
-                results.add(statsDTO);
-            }
-        });
-        // did we get all the groups we expected?
-        if (results.size() != inputDto.getScopes().size()) {
-            logger.warn("Not all headroom stats were retrieved. {} scopes requested, {} stats received.",
-                    inputDto.getScopes().size(), results.size());
-        }
-
-        // sort according to pagination argument
-        final Function<EntityStatsApiDTO, Double> comparisonFunction;
-        if (paginationRequest.getOrderBy() == null
-                || StringUtils.isEmpty(paginationRequest.getOrderBy().name())) {
-            logger.warn("No order specified in cluster stats request");
-            comparisonFunction = s -> 0.0; // arbitrary order
-        } else {
-            final String orderByName = paginationRequest.getOrderByStat().orElse("");
-            if (isUtilizationStatName(orderByName)) {
-                comparisonFunction = s -> getUtilization(getRelevantStatsRecord(s, orderByName));
-            } else {
-                comparisonFunction = s -> getDefault(getRelevantStatsRecord(s, orderByName));
+                        .forEachRemaining(grouping -> {
+                            if (GroupProtoUtil.isCluster(grouping)) {
+                                clusters.put(grouping.getId(), grouping.getDefinition());
+                            } else {
+                                throw new IllegalArgumentException(
+                                    "The group with id " + grouping.getId() + " is not a cluster");
+                            }
+                        });
             }
         }
-        final Comparator<EntityStatsApiDTO> comparator;
-        if (paginationRequest.isAscending()) {
-            comparator = Comparator.comparing(comparisonFunction);
-        } else {
-            comparator = Comparator.comparing(comparisonFunction).reversed();
-        }
-        results.sort(comparator);
 
-        int startIdx = paginationRequest.getCursor()
-                            .map(cursor -> NumberUtils.toInt(cursor, 0))
-                            .orElse(0);
-        int endIdx = startIdx + paginationRequest.getLimit();
-
-        // check for pagination response:
-        // note we subtract one because if 0 items are remaining then this should be
-        // a final page response
-        if (endIdx >= (results.size() - 1)) {
-            return paginationRequest.finalPageResponse(results.subList(startIdx, results.size()),
-                                                       results.size());
-        } else {
-            return paginationRequest.nextPageResponse(results.subList(startIdx, endIdx),
-                                                      Integer.toString(endIdx), endIdx - startIdx);
+        // if the scope of the call is the whole market, but the user scope is limited,
+        // we fetch all the clusters that the user is allowed to access
+        // this set of clusters is going to be our scope in the internal call
+        if (userScoped && marketScoped) {
+            GroupProtoUtil.CLUSTER_GROUP_TYPES.stream()
+                .map(type -> groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
+                                                            .setGroupFilter(GroupFilter.newBuilder()
+                                                                                .setGroupType(type))
+                                                            .build()))
+                .forEach(it -> it.forEachRemaining(g -> clusters.put(g.getId(), g.getDefinition())));
         }
+
+        // if the scope is not the whole market, introduce scope to the request
+        if (!marketScoped || userScoped) {
+            requestBuilder.addAllClusterIds(clusters.keySet());
+        }
+
+        // run the service
+        final ClusterStatsResponse response;
+        try {
+            response = statsServiceRpc.getClusterStats(requestBuilder.build());
+        } catch (StatusRuntimeException e) {
+            throw ExceptionMapper.translateStatusException(e);
+        }
+
+        // if the scope was the market,
+        // now it is the time to fetch info about the relevant groups
+        if (marketScoped && !userScoped) {
+            groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
+                                        .setGroupFilter(GroupFilter.newBuilder()
+                                                            .addAllId(response.getSnapshotsList().stream()
+                                                                            .map(EntityStats::getOid)
+                                                                            .collect(Collectors.toSet())))
+                                                    .build())
+                    .forEachRemaining(g -> clusters.put(g.getId(), g.getDefinition()));
+        }
+
+        // construct the response
+        final PaginationResponse paginationResponse = response.getPaginationResponse();
+        final List<EntityStatsApiDTO> results =
+            response.getSnapshotsList().stream()
+                .map(entityStats -> {
+                        final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+                        final GroupDefinition cluster = clusters.get(entityStats.getOid());
+                        entityStatsApiDTO.setUuid(Long.toString(entityStats.getOid()));
+                        entityStatsApiDTO.setStats(entityStats.getStatSnapshotsList().stream()
+                                                        .limit(1)
+                                                        .map(statsMapper::toStatSnapshotApiDTO)
+                                                        .collect(Collectors.toList()));
+                        if (cluster != null) {
+                            entityStatsApiDTO.setDisplayName(cluster.getDisplayName());
+                            switch (cluster.getType()) {
+                                case COMPUTE_HOST_CLUSTER:
+                                    entityStatsApiDTO.setClassName(StringConstants.CLUSTER);
+                                    break;
+                                case COMPUTE_VIRTUAL_MACHINE_CLUSTER:
+                                    entityStatsApiDTO.setClassName(StringConstants.VIRTUAL_MACHINE_CLUSTER);
+                                    break;
+                                case STORAGE_CLUSTER:
+                                    entityStatsApiDTO.setClassName(StringConstants.STORAGE_CLUSTER);
+                                    break;
+                                default:
+                                    logger.error("Cluster stats contain entry about non-cluster");
+                            }
+                            entityStatsApiDTO.setEnvironmentType(
+                                    cluster.getType() == GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER
+                                            ? com.vmturbo.api.enums.EnvironmentType.HYBRID
+                                            : com.vmturbo.api.enums.EnvironmentType.ONPREM);
+                        } else {
+                            logger.error("Could not get information about cluster with id "
+                                                + entityStats.getOid());
+                            entityStatsApiDTO.setDisplayName(Long.toString(entityStats.getOid()));
+                        }
+                        return entityStatsApiDTO;
+                })
+                .collect(Collectors.toList());
+        if (paginationResponse.hasNextCursor()) {
+            return paginationRequest.nextPageResponse(results, paginationResponse.getNextCursor(),
+                                                      paginationResponse.getTotalRecordCount());
+        } else {
+            return paginationRequest.finalPageResponse(results, paginationResponse.getTotalRecordCount());
+        }
+    }
+
+    // this auxiliary function returns a dummy value
+    // the reason is that we want to use it in an Optional/map/orElse construct
+    private boolean setEntityStatsOrderByToPagination(@Nonnull PaginationParameters.Builder pagination,
+                                                      @Nonnull String orderBy) {
+        pagination.setOrderBy(OrderBy.newBuilder()
+                                .setEntityStats(EntityStatsOrderBy.newBuilder()
+                                                    .setStatName(orderBy)));
+        return true;
     }
 
     /**
@@ -559,7 +588,7 @@ public class StatsService implements IStatsService {
     private EntityStatsPaginationResponse getStatsByUuidsQueryInternal(
             @Nonnull StatScopesApiInputDTO inputDto,
             @Nonnull EntityStatsPaginationRequest paginationRequest)
-                throws OperationFailedException {
+                throws Exception {
         // All scopes must enter the magic gateway before they can proceed!
         inputDto.setScopes(magicScopeGateway.enter(inputDto.getScopes()));
 

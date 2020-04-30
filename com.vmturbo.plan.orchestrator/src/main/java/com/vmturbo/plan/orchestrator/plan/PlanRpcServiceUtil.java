@@ -1,5 +1,6 @@
 package com.vmturbo.plan.orchestrator.plan;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -18,6 +19,7 @@ import com.vmturbo.common.protobuf.cost.Cost.StartBuyRIAnalysisRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProviderSetting;
@@ -161,6 +163,32 @@ public class PlanRpcServiceUtil {
         }
 
         return scopeObjectByClass;
+    }
+
+    /**
+     * Gets ids of entities that are in scope of the plan. If it is a group, then the member ids of
+     * the group are returned.
+     *
+     * @param planInstance Instance of plan.
+     * @param groupClient Client to resolving group id into its member ids.
+     * @param repositoryClient Repo for looking up entity types.
+     * @return List of entity ids that are in plan scope.
+     */
+    static List<Long> getScopeSeedIds(@Nonnull PlanInstance planInstance,
+                                      @Nonnull GroupServiceBlockingStub groupClient,
+                                      @Nonnull final RepositoryServiceBlockingStub repositoryClient) {
+        if (!planInstance.hasScenario()) {
+            return Collections.emptyList();
+        }
+        List<PlanScopeEntry> planScopeEntries = planInstance.getScenario().getScenarioInfo()
+                .getScope().getScopeEntriesList();
+        Map<Integer, Set<Long>> typeToOids = getClassNameToOids(planScopeEntries, groupClient,
+                repositoryClient);
+        return typeToOids.values()
+                .stream()
+                .flatMap(Set::stream)
+                .map(Long.class::cast)
+                .collect(Collectors.toList());
     }
 
     /**

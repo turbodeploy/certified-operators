@@ -184,7 +184,8 @@ public class ReservedInstanceConfig {
      */
     @Bean
     public PlanReservedInstanceRpcService planReservedInstanceRpcService() {
-        return new PlanReservedInstanceRpcService(planReservedInstanceStore(), buyReservedInstanceStore());
+        return new PlanReservedInstanceRpcService(planReservedInstanceStore(),
+                buyReservedInstanceStore(), reservedInstanceSpecConfig.reservedInstanceSpecStore());
     }
 
     @Bean

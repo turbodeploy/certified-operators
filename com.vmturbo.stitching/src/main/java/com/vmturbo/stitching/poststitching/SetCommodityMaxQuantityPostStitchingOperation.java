@@ -1,6 +1,7 @@
 package com.vmturbo.stitching.poststitching;
 
 import java.time.Instant;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -18,9 +19,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetStatsDataRetentionSettingsRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
@@ -106,6 +109,23 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             GlobalSettingSpecs.StatsRetentionMonths.createSettingSpec()
                 .getNumericSettingValueType().getMax()) * (31 * 24 * 60 * 60);
 
+    private static final ImmutableMap<EntityType, ImmutableSet<Integer>> QUERY_MAP =
+        ImmutableMap.<EntityType, ImmutableSet<Integer>>builder()
+            .put(EntityType.APPLICATION_SERVER, ImmutableSet.of(CommodityType.HEAP_VALUE))
+            .put(EntityType.CONTAINER, ImmutableSet.of(CommodityType.VCPU_VALUE, CommodityType.VMEM_VALUE))
+            .put(EntityType.CONTAINER_POD, ImmutableSet.of(CommodityType.VCPU_VALUE, CommodityType.VMEM_VALUE))
+            .put(EntityType.DATABASE, ImmutableSet.of(CommodityType.VMEM_VALUE))
+            .put(EntityType.DATABASE_SERVER, ImmutableSet.of(CommodityType.DB_MEM_VALUE))
+            .put(EntityType.DISK_ARRAY, ImmutableSet.of(CommodityType.STORAGE_AMOUNT_VALUE))
+            .put(EntityType.IO_MODULE, ImmutableSet.of(CommodityType.NET_THROUGHPUT_VALUE))
+            .put(EntityType.LOGICAL_POOL, ImmutableSet.of(CommodityType.STORAGE_AMOUNT_VALUE))
+            .put(EntityType.STORAGE, ImmutableSet.of(CommodityType.STORAGE_AMOUNT_VALUE))
+            .put(EntityType.STORAGE_CONTROLLER, ImmutableSet.of(CommodityType.STORAGE_AMOUNT_VALUE))
+            .put(EntityType.SWITCH, ImmutableSet.of(CommodityType.NET_THROUGHPUT_VALUE))
+            .put(EntityType.VIRTUAL_MACHINE, ImmutableSet.of(CommodityType.VCPU_VALUE, CommodityType.VMEM_VALUE))
+            .build();
+
+
     /**
      * We exclude all the access commodities.
      */
@@ -148,17 +168,6 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             EntityType.DATABASE_SERVER,
             EntityType.DATABASE
             );
-
-    private static final List<Integer> interestedEntityTypesNumbers =
-        interestedEntityTypes
-            .stream()
-            .map(EntityType::getNumber)
-            .collect(Collectors.toList());
-
-    private static final GetEntityCommoditiesMaxValuesRequest request =
-        GetEntityCommoditiesMaxValuesRequest.newBuilder()
-            .addAllEntityTypes(interestedEntityTypesNumbers)
-            .build();
 
     private ScheduledExecutorService backgroundStatsLoadingExecutor =
             Executors.newSingleThreadScheduledExecutor(threadFactory());
@@ -210,27 +219,23 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
             final DataMetricTimer loadDurationTimer =
                 COMMODITY_MAX_VALUES_LOAD_TIME_SUMMARY.labels("initial").startTimer();
 
-            statsHistoryClient
-                .getEntityCommoditiesMaxValues(request)
-                    .forEachRemaining(entityCommodityMaxValues -> {
-                        entityCommodityMaxValues.getCommodityMaxValuesList()
-                            .forEach(commodityMaxValue -> {
-                                // There is not need for atomic put as no other
-                                // thread is mutating the map during initialization.
-                                entityCommodityToMaxQuantitiesMap.put(
-                                    createEntityCommodityKey(entityCommodityMaxValues.getOid(),
-                                        commodityMaxValue.getCommodityType()),
-                                        createCommodityMaxValue(ValueSource.DB, commodityMaxValue.getMaxValue()));
-                            });
-                    });
+            QUERY_MAP.forEach((entity, comms) -> {
+                GetEntityCommoditiesMaxValuesRequest request =
+                    GetEntityCommoditiesMaxValuesRequest.newBuilder()
+                    .setEntityType(entity.getNumber())
+                    .addAllCommodityTypes(comms)
+                    .build();
+                updateEntityCommodityToMaxQuantitiesMap(statsHistoryClient
+                    .getEntityCommoditiesMaxValues(request), false);
+
+            });
             double loadTime = loadDurationTimer.observe();
             logger.info("Stats retention period: {} secs. Size of maxValues map after initial load {}. Load time {} secs",
                 statsDaysRetentionSettingInSeconds,
                 entityCommodityToMaxQuantitiesMap.size(),
                 loadTime);
         } catch (StatusRuntimeException e) {
-            if (e.getCause() != null &&
-                    e.getStatus().getCode() == Status.Code.UNAVAILABLE) {
+            if (e.getStatus().getCode() == Status.Code.UNAVAILABLE) {
                 logger.error("Failed initializing max value map as history component is unavailable");
             }
             else {
@@ -279,40 +284,15 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
 
                 final DataMetricTimer loadDurationTimer =
                     COMMODITY_MAX_VALUES_LOAD_TIME_SUMMARY.labels("background").startTimer();
-
-                statsClient
-                    .getEntityCommoditiesMaxValues(request)
-                        .forEachRemaining(entityCommodityMaxValues -> {
-                            entityCommodityMaxValues.getCommodityMaxValuesList()
-                                .forEach(dbMaxValue -> {
-                                    EntityCommodityReference key =
-                                        createEntityCommodityKey(entityCommodityMaxValues.getOid(),
-                                            dbMaxValue.getCommodityType());
-                                    // Atomically set the values as the background thread may be concurrently mutating the map.
-                                    CommodityMaxValue currentMax =
-                                        entityCommodityToMaxQuantitiesMap
-                                            .compute(key, (k, currValue) -> {
-                                                if (currValue == null) {
-                                                    return createCommodityMaxValue(ValueSource.DB, dbMaxValue.getMaxValue());
-                                                } else {
-                                                    // If the existing value source is from DB, then overwrite it with the currently
-                                                    // fetched value. This is to age out old maxes as we are only interested in the
-                                                    // max value within the stats retention period.
-                                                    // If the existing value source is from TP, replace it with the one from DB, if
-                                                    //  (a) the value has been in the cache for too long i.e. beyond the retention period
-                                                    //          OR
-                                                    //  (b) tp_value < db_value.
-                                                    if (currValue.getValueSource() == ValueSource.DB
-                                                        || currValue.getAge() > statsDaysRetentionSettingInSeconds
-                                                        || (Double.compare(currValue.getMaxValue(), dbMaxValue.getMaxValue()) < 0)) {
-                                                        return createCommodityMaxValue(ValueSource.DB, dbMaxValue.getMaxValue());
-                                                    } else {
-                                                        return currValue;
-                                                    }
-                                                }
-                                            });
-                                });
-                        });
+                QUERY_MAP.forEach((entity, comms) -> {
+                    GetEntityCommoditiesMaxValuesRequest request =
+                        GetEntityCommoditiesMaxValuesRequest.newBuilder()
+                        .setEntityType(entity.getNumber())
+                        .addAllCommodityTypes(comms)
+                        .build();
+                    updateEntityCommodityToMaxQuantitiesMap(statsClient
+                        .getEntityCommoditiesMaxValues(request), true);
+                });
 
                 double loadTime = loadDurationTimer.observe();
                 logger.info("Size of maxValues map after background load: {}. Load time: {}",
@@ -406,6 +386,54 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
         // Because this operation makes the same change to lots of entities, recommend that no
         // context be added to changes in the journal.
         return FormatRecommendation.COMPACT;
+    }
+
+    private void updateEntityCommodityToMaxQuantitiesMap(Iterator<EntityCommoditiesMaxValues> commMaxValues, boolean atomic) {
+        if (!atomic) {
+            commMaxValues.forEachRemaining(entityCommodityMaxValues -> {
+                entityCommodityMaxValues.getCommodityMaxValuesList()
+                    .forEach(commodityMaxValue -> {
+                        // There is not need for atomic put as no other
+                        // thread is mutating the map during initialization.
+                        entityCommodityToMaxQuantitiesMap.put(
+                            createEntityCommodityKey(entityCommodityMaxValues.getOid(),
+                                commodityMaxValue.getCommodityType()),
+                                createCommodityMaxValue(ValueSource.DB, commodityMaxValue.getMaxValue()));
+                    });
+            });
+        } else {
+            commMaxValues.forEachRemaining(entityCommodityMaxValues -> {
+                entityCommodityMaxValues.getCommodityMaxValuesList()
+                    .forEach(dbMaxValue -> {
+                        EntityCommodityReference key =
+                            createEntityCommodityKey(entityCommodityMaxValues.getOid(),
+                                dbMaxValue.getCommodityType());
+                        // Atomically set the values as the background thread may be concurrently mutating the map.
+                        CommodityMaxValue currentMax =
+                            entityCommodityToMaxQuantitiesMap
+                                .compute(key, (k, currValue) -> {
+                                    if (currValue == null) {
+                                        return createCommodityMaxValue(ValueSource.DB, dbMaxValue.getMaxValue());
+                                    } else {
+                                        // If the existing value source is from DB, then overwrite it with the currently
+                                        // fetched value. This is to age out old maxes as we are only interested in the
+                                        // max value within the stats retention period.
+                                        // If the existing value source is from TP, replace it with the one from DB, if
+                                        //  (a) the value has been in the cache for too long i.e. beyond the retention period
+                                        //          OR
+                                        //  (b) tp_value < db_value.
+                                        if (currValue.getValueSource() == ValueSource.DB
+                                            || currValue.getAge() > statsDaysRetentionSettingInSeconds
+                                            || (Double.compare(currValue.getMaxValue(), dbMaxValue.getMaxValue()) < 0)) {
+                                            return createCommodityMaxValue(ValueSource.DB, dbMaxValue.getMaxValue());
+                                        } else {
+                                            return currValue;
+                                        }
+                                    }
+                                });
+                    });
+            });
+        }
     }
 
     private float calculateMapOccupancyPercentage(long commoditiesCount) {

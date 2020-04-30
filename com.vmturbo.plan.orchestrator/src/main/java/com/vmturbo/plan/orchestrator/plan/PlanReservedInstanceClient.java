@@ -7,6 +7,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.common.protobuf.cost.Cost.GetReservedInstanceBoughtByIdRequest;
@@ -30,6 +33,8 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
  *
  */
 public class PlanReservedInstanceClient {
+
+    private final Logger logger = LogManager.getLogger();
 
     // The plan reserved instance service client.
     private PlanReservedInstanceServiceBlockingStub planRIService;
@@ -59,20 +64,18 @@ public class PlanReservedInstanceClient {
      * by the user to be included in the plan.
      *
      * @param planInstance The plan instance.
+     * @param seedEntities OIDs of entities that are in the scope of this plan. If a group was
+     *                     chosen as scope, then we pass in the resolved group member OIDs here.
      */
-     public void savePlanIncludedCoupons(@Nonnull PlanInstance planInstance) {
-        ScenarioInfo scenarioInfo = planInstance.getScenario().getScenarioInfo();
-        List<Long> includedCouponOidsList = new ArrayList<>();
-        boolean includeAll = parsePlanIncludedCoupons(planInstance, includedCouponOidsList);
+     public void savePlanIncludedCoupons(@Nonnull PlanInstance planInstance,
+                                         @Nonnull final List<Long> seedEntities) {
+        List<Long> includedCouponOidList = new ArrayList<>();
+        boolean includeAll = parsePlanIncludedCoupons(planInstance, includedCouponOidList);
         Long topologyContextId = planInstance.getPlanId();
-        List<Long> seedEntities = new ArrayList<>();
-        List<PlanScopeEntry> planScopeEntries = scenarioInfo.getScope().getScopeEntriesList();
+        logger.trace("Seed IDs for plan {} are: {}", topologyContextId, seedEntities);
         // TODO:  One can only run OCP plan option 2 on groups at present, and it doesn't allow
         // the ability to select RIs to include.  But this could change, and we would need to add group
         // expansion here.
-        for (PlanScopeEntry scopeEntry : planScopeEntries) {
-            seedEntities.add(scopeEntry.getScopeObjectOid());
-        }
         // TODO:  If the Plan RI store won't have RIs when first run, then one would need to
         // get them from real-time as well.
         if (includeAll) { //include all RIs in scope.
@@ -82,7 +85,7 @@ public class PlanReservedInstanceClient {
                                     .addAllScopeSeedOids(seedEntities)
                                     .build()).getReservedInstanceBoughtList();
             insertPlanIncludedCoupons(allRiBought, topologyContextId);
-        } else if (!includedCouponOidsList.isEmpty()) {  //include the selected RIs in scope.
+        } else if (!includedCouponOidList.isEmpty()) {  //include the selected RIs in scope.
 
             final GetReservedInstanceBoughtByIdRequest.Builder requestBuilder =
                                                               GetReservedInstanceBoughtByIdRequest
@@ -90,13 +93,11 @@ public class PlanReservedInstanceClient {
             List<ReservedInstanceBought> riIncluded = riBoughtService
                             .getReservedInstanceBoughtById(requestBuilder
                                             .setRiFilter(RiFilter.newBuilder()
-                                                            .addAllRiId(includedCouponOidsList))
+                                                            .addAllRiId(includedCouponOidList))
                                             .build())
                             .getReservedInstanceBoughtList();
             insertPlanIncludedCoupons(riIncluded, topologyContextId);
-        } else { //Include no RIs; hence save none.
-            return;
-        }
+        } // else include no RIs; hence save none.
     }
 
     /**

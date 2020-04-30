@@ -1,13 +1,19 @@
 package com.vmturbo.clustermgr;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PreDestroy;
 import javax.servlet.Servlet;
+
+import io.grpc.BindableService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,14 +21,18 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
 
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationService;
 import com.vmturbo.clustermgr.kafka.KafkaConfigurationServiceConfig;
+import com.vmturbo.clustermgr.management.ComponentRegistrationConfig;
+import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.config.PropertiesLoader;
 
 /**
@@ -33,9 +43,11 @@ import com.vmturbo.components.common.config.PropertiesLoader;
  */
 @Configuration("theComponent")
 @Import({ClusterMgrConfig.class, SwaggerConfig.class, KafkaConfigurationServiceConfig.class})
-public class ClusterMgrMain {
+public class ClusterMgrMain implements ApplicationListener<ContextRefreshedEvent> {
 
-    private Logger log = LogManager.getLogger();
+    private static final Logger log = LogManager.getLogger();
+
+    private final AtomicBoolean started = new AtomicBoolean(false);
 
     @Value("${clustermgr.node_name}")
     private String nodeName;
@@ -48,6 +60,9 @@ public class ClusterMgrMain {
 
     @Autowired
     private KafkaConfigurationService kafkaConfigurationService;
+
+    @Autowired
+    private ComponentRegistrationConfig componentRegistrationConfig;
 
     private ExecutorService backgroundTaskRunner;
 
@@ -106,7 +121,13 @@ public class ClusterMgrMain {
                 logger.error("Spring context failed to start. Shutting down.");
                 System.exit(1);
             }
+
+            // The starting of the component should add the gRPC services defined in the spring
+            // context to the gRPC server.
+            ComponentGrpcServer.get().start(applicationContext.getEnvironment());
+
             applicationContext.getBean(ClusterMgrMain.class).run();
+
         } catch (Exception e) {
             logger.error("Web server failed to start. Shutting down.", e);
             System.exit(1);
@@ -146,12 +167,23 @@ public class ClusterMgrMain {
     @PreDestroy
     private void shutDown() {
         log.info("<<<<<<<  clustermgr shutting down");
+        ComponentGrpcServer.get().stop();
         // stop any background tasks
         synchronized (this) {
             if (backgroundTaskRunner != null) {
                 log.info("Stopping background tasks...");
                 backgroundTaskRunner.shutdownNow();
             }
+        }
+    }
+
+    @Override
+    public void onApplicationEvent(final ContextRefreshedEvent contextRefreshedEvent) {
+        if (started.compareAndSet(false, true)) {
+            final List<BindableService> services = new ArrayList<>();
+            services.add(clusterMgrConfig.logConfigurationService());
+            services.add(clusterMgrConfig.tracingConfigurationRpcService());
+            ComponentGrpcServer.get().addServices(services, Collections.emptyList());
         }
     }
 

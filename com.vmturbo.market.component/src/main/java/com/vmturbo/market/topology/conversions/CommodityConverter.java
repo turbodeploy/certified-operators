@@ -204,7 +204,7 @@ public class CommodityConverter {
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(resizable)
                         .setCapacityIncrement(topologyCommSold.getCapacityIncrement() * scalingFactor)
-                        .setCapacityUpperBound(capacity)
+                        .setCapacityUpperBound(capacity * scalingFactor)
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
                                 scale, dto))
@@ -213,12 +213,17 @@ public class CommodityConverter {
         // Set thresholds for the commodity sold (min/Max of VCPU/VMem for on-prem VMs).
         if (topologyCommSold.hasThresholds()) {
             final Thresholds threshold = topologyCommSold.getThresholds();
-            final float maxThreshold = Double.valueOf(threshold.getMax()).floatValue();
-            final float minThreshold = Double.valueOf(threshold.getMin()).floatValue();
+            final float maxThreshold = Double.valueOf(threshold.getMax()).floatValue() * scalingFactor;
+            final float minThreshold = Double.valueOf(threshold.getMin()).floatValue() * scalingFactor;
             economyCommSoldSettings.setCapacityUpperBound(maxThreshold);
             economyCommSoldSettings.setCapacityLowerBound(minThreshold);
             logger.debug("Thresholds for {} of entity {} is Max: {} min: {}",
                     comName, dto.getDisplayName(), maxThreshold, minThreshold);
+        }
+
+        // Set resold flag
+        if (topologyCommSold.hasIsResold()) {
+            economyCommSoldSettings.setResold(topologyCommSold.getIsResold());
         }
 
         // not mandatory (e.g. for access commodities)

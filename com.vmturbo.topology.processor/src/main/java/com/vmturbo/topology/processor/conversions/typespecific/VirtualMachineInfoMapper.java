@@ -7,6 +7,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.Lists;
 
+import com.vmturbo.platform.common.dto.CommonDTO;
 import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -60,9 +61,13 @@ public class VirtualMachineInfoMapper extends TypeSpecificInfoMapper {
                 }
             }
         }
-
         if (!vmData.getConnectedNetworkList().isEmpty()) {
             vmInfo.addAllConnectedNetworks(vmData.getConnectedNetworkList());
+        }
+        CommonDTO.EntityDTO.VirtualMachineRelatedData vmRelatedData =
+                sdkEntity.getVirtualMachineRelatedData();
+        if (vmRelatedData.hasMemory()) {
+            vmInfo.setDynamicMemory(vmRelatedData.getMemory().getDynamic());
         }
         final DriverInfo.Builder driverInfo = DriverInfo.newBuilder();
         final String hasEnaDriver =

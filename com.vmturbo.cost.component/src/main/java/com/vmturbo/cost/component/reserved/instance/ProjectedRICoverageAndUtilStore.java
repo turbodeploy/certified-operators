@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -189,18 +190,19 @@ public class ProjectedRICoverageAndUtilStore {
      * Gets the RI coverage for entities, filtered through {@code filter}, represented as a single
      * {@link ReservedInstanceStatsRecord}. The timestamp of the stats record will be the
      * current time + {@link #PROJECTED_STATS_TIME_IN_FUTURE_HOURS}.
+     * If there are no projected entities with RI Coverage, it returns an {@link Optional#empty()}.
      *
      * @param filter The filter, applied to entities within the projected {@link EntityReservedInstanceCoverage}
      *               data.
      * @param includeBuyRICoverage A flag indicating whether coverage from Buy RI instances should be
      *                             included in the returned stats record.
      * @param endDate                 time to be used for projectedStats.
-     * @return A {@link ReservedInstanceStatsRecord}, in which capacity represents the coverage capacity
+     * @return An {@link Optional}{@link ReservedInstanceStatsRecord}, in which capacity represents the coverage capacity
      * of entities within scope and the value of the record represented the covered amount (assumed
      * to be in coupons) of the entities within scope.
      */
     @Nonnull
-    public ReservedInstanceStatsRecord getReservedInstanceCoverageStats(
+    public Optional<ReservedInstanceStatsRecord> getReservedInstanceCoverageStats(
             @Nonnull ReservedInstanceCoverageFilter filter,
             boolean includeBuyRICoverage, final long endDate) {
 
@@ -229,10 +231,15 @@ public class ProjectedRICoverageAndUtilStore {
 
             entityCouponsCapTotal += entityRICoverage.getEntityCouponCapacity();
         }
+
+        if (entityCouponsCapTotal == 0) {
+            return Optional.empty();
+        }
+
         final long projectedTime = endDate != 0 ? endDate : clock.instant()
                 .plus(PROJECTED_STATS_TIME_IN_FUTURE_HOURS, ChronoUnit.HOURS).toEpochMilli();
-        return ReservedInstanceUtil.createRIStatsRecord((float)entityCouponsCapTotal,
-                (float)usedCouponsTotal, projectedTime);
+        return Optional.of(ReservedInstanceUtil.createRIStatsRecord((float)entityCouponsCapTotal,
+                (float)usedCouponsTotal, projectedTime));
     }
 
     /**
@@ -240,17 +247,18 @@ public class ProjectedRICoverageAndUtilStore {
      * determined by {@code filter}. RIs in scope are determined by converting the
      * {@link ReservedInstanceUtilizationFilter} to a {@link ReservedInstanceBoughtFilter} and querying
      * the {@link ReservedInstanceBoughtStore}.
+     * If there are no projected RIs, it returns an {@link Optional#empty()}.
      *
      * @param filter                  The {@link ReservedInstanceUtilizationFilter} instance, assumed to be applied to
      *                                all utilization records for a larger stats request.
      * @param includeBuyRIUtilization Indicates whether utilization of Buy RI instances should be included
      *                                in the returned stats record.
      * @param endDate                 time to be used for projectedStats.
-     * @return An instance of {@link ReservedInstanceStatsRecord}, in which the capacity is the coupon
+     * @return An instance of {@link Optional}{@link ReservedInstanceStatsRecord}, in which the capacity is the coupon
      * capacity of all RIs in scope and the value is the coverage amount used for all RIs in scope.
      */
     @Nonnull
-    public ReservedInstanceStatsRecord getReservedInstanceUtilizationStats(
+    public Optional<ReservedInstanceStatsRecord> getReservedInstanceUtilizationStats(
             @Nonnull ReservedInstanceUtilizationFilter filter,
             boolean includeBuyRIUtilization, long endDate) {
 
@@ -281,6 +289,10 @@ public class ProjectedRICoverageAndUtilStore {
                 .mapToLong(ReservedInstanceBoughtCoupons::getNumberOfCoupons)
                 .sum();
 
+        if (coverageCapacity == 0) {
+            return Optional.empty();
+        }
+
         synchronized (lockObject) {
             final double riInventoryCoverageUtilization =
                     riBoughtIdsInScope.isEmpty() ? 0.0 :
@@ -308,8 +320,8 @@ public class ProjectedRICoverageAndUtilStore {
 
             final double totalCoverageUtilization = riInventoryCoverageUtilization + buyRICoverageUtilization;
 
-            return ReservedInstanceUtil.createRIStatsRecord((float)coverageCapacity,
-                    (float)totalCoverageUtilization, projectedTime);
+            return Optional.of(ReservedInstanceUtil.createRIStatsRecord((float)coverageCapacity,
+                    (float)totalCoverageUtilization, projectedTime));
 
         }
     }

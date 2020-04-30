@@ -46,6 +46,7 @@ import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
 import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -70,6 +71,7 @@ import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.enums.PolicyType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
+import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
@@ -108,6 +110,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.group.PolicyDTO;
 import com.vmturbo.common.protobuf.group.PolicyDTO.Policy;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyDeleteResponse;
+import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyEditResponse;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyInfo.MergePolicy.MergeType;
 import com.vmturbo.common.protobuf.group.PolicyDTO.PolicyResponse;
@@ -621,7 +624,8 @@ public class MarketsService implements IMarketsService {
 
     @Override
     public PolicyApiDTO editPolicy(final String uuid, final String policyUuid,
-            PolicyApiInputDTO policyApiInputDTO) {
+            PolicyApiInputDTO policyApiInputDTO) throws ConversionException, InterruptedException,
+            OperationFailedException {
         try {
             if (mergePolicyHandler.isPolicyNeedsHiddenGroup(policyApiInputDTO)) {
                 // Update a hidden group to support the merge policy for entities that are not groups.
@@ -632,14 +636,17 @@ public class MarketsService implements IMarketsService {
                     .setPolicyId(Long.parseLong(policyUuid))
                     .setNewPolicyInfo(policyInfo)
                     .build();
-            policyRpcService.editPolicy(policyEditRequest);
+            PolicyEditResponse response = policyRpcService.editPolicy(policyEditRequest);
 
             final String details = String.format("Changed policy %s", policyInfo.getName());
             AuditLog.newEntry(AuditAction.CHANGE_POLICY,
                 details, true)
                 .targetName(policyInfo.getName())
                 .audit();
-            return new PolicyApiDTO();
+            if (!response.hasPolicy()) {
+                throw new OperationFailedException("Failed to fetch updated policy");
+            }
+            return policiesService.toPolicyApiDTO(response.getPolicy());
         } catch (RuntimeException e) {
             final String details = String.format("Changed policy with uuid: %s", policyUuid);
             AuditLog.newEntry(AuditAction.CHANGE_POLICY,
@@ -829,13 +836,13 @@ public class MarketsService implements IMarketsService {
 
         //marketUuid is interpreted as planUuid
         final ApiId planInstanceId = uuidMapper.fromUuid(marketUuid);
-        final Optional<PlanInstance> planInstanceOptional = planInstanceId.getPlanInstance();
+        final Optional<CachedPlanInfo> planInfoOptional = planInstanceId.getCachedPlanInfo();
 
-        if (!planInstanceOptional.isPresent()) {
+        if (!planInfoOptional.isPresent()) {
             throw new InvalidOperationException("Invalid market id: " + marketUuid);
         }
 
-        final PlanInstance planInstance = planInstanceOptional.get();
+        final PlanInstance planInstance = planInfoOptional.get().getPlanInstance();
 
         // verify the user can access the plan
         if (!PlanUtils.canCurrentUserAccessPlan(planInstance)) {

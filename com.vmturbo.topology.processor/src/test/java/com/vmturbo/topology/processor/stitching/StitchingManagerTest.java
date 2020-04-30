@@ -140,18 +140,20 @@ public class StitchingManagerTest {
         when(target.getDisplayName()).thenReturn("target");
         when(targetStore.getProbeTargets(eq(probeId)))
             .thenReturn(Collections.singletonList(target));
+        when(targetStore.getAll()).thenReturn(Collections.singletonList(target));
         when(probeStore.getProbeOrdering()).thenReturn(new StandardProbeOrdering(probeStore));
         when(probeStore.getProbe(probeId)).thenReturn(Optional.of(ProbeInfo.newBuilder()
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .setProbeType(SDKProbeType.VCENTER.getProbeType())
             .build()));
+        when(target.getProbeId()).thenReturn(20L);
+        when(target.getProbeInfo()).thenReturn(ProbeInfo.getDefaultInstance());
     }
 
     @Test
     public void testStitchAloneOperation()  {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsAlone("foo", "bar");
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5)
-            .setTargetStore(mock(TargetStore.class))
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class));
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
@@ -183,8 +185,7 @@ public class StitchingManagerTest {
         final StitchingOperation<?, ?> stitchingOperation = new StitchVmsByGuestName();
         when(stitchingOperationStore.getAllOperations())
             .thenReturn(Collections.singletonList(new ProbeStitchingOperation(probeId, stitchingOperation)));
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5)
-            .setTargetStore(mock(TargetStore.class))
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class));
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
@@ -213,8 +214,7 @@ public class StitchingManagerTest {
     public void testPreStitching() {
         when(preStitchingOperationLibrary.getPreStitchingOperations()).thenReturn(
             Collections.singletonList(new EntityScopePreStitchingOperation()));
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5)
-            .setTargetStore(Mockito.mock(TargetStore.class))
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(5, targetStore)
             .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
         entityData.values()
             .forEach(entity -> contextBuilder.addEntity(entity, entityData));
@@ -264,8 +264,7 @@ public class StitchingManagerTest {
 
     @Test
     public void testTargetsRecordedInJournal() {
-        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(0)
-            .setTargetStore(mock(TargetStore.class))
+        final StitchingContext.Builder contextBuilder = StitchingContext.newBuilder(0, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class));
         final StitchingContext stitchingContext = spy(contextBuilder.build());
         when(entityStore.constructStitchingContext()).thenReturn(stitchingContext);
@@ -331,7 +330,7 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public TopologicalChangelog stitch(@Nonnull Collection<StitchingPoint> stitchingPoints,
+        public TopologicalChangelog<StitchingEntity> stitch(@Nonnull Collection<StitchingPoint> stitchingPoints,
                                          @Nonnull StitchingChangesBuilder<StitchingEntity> result) {
             for (StitchingPoint stitchingPoint : stitchingPoints) {
                 final StitchingEntity internalEntity = stitchingPoint.getInternalEntity();
@@ -377,7 +376,7 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public TopologicalChangelog stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
+        public TopologicalChangelog<StitchingEntity> stitch(@Nonnull final Collection<StitchingPoint> stitchingPoints,
                                          @Nonnull StitchingChangesBuilder<StitchingEntity> result) {
             stitchingPoints.forEach(stitchingPoint -> {
                 stitchingPoint.getExternalMatches().forEach(result::queueEntityRemoval);
@@ -399,7 +398,7 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public TopologicalChangelog performOperation(@Nonnull Stream<StitchingEntity> entities,
+        public TopologicalChangelog<StitchingEntity> performOperation(@Nonnull Stream<StitchingEntity> entities,
                                                    @Nonnull StitchingChangesBuilder<StitchingEntity> resultBuilder) {
             entities.forEach(entity ->
                 resultBuilder.queueUpdateEntityAlone(entity,
@@ -419,7 +418,7 @@ public class StitchingManagerTest {
 
         @Nonnull
         @Override
-        public TopologicalChangelog performOperation(@Nonnull final Stream<TopologyEntity> entities,
+        public TopologicalChangelog<TopologyEntity> performOperation(@Nonnull final Stream<TopologyEntity> entities,
                                                    @Nonnull final EntitySettingsCollection settingsCollection,
                                                    @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
             entities.forEach(entity ->

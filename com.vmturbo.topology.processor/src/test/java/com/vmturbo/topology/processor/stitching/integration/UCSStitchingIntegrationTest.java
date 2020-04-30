@@ -18,21 +18,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import org.junit.Test;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 
+import org.junit.Test;
+
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommodityBoughtMetadata;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.CommoditySoldMetadata;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
@@ -95,6 +99,7 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
         final MergedEntityMetadata fabricMergeEntityMetadata =
                 MergedEntityMetadata.newBuilder().mergeMatchingMetadata(fabricMatchingMetadata)
                         .addAllCommoditiesBought(pmBoughtCommodityData)
+                        .addAllCommoditiesSoldMetadata(pmSoldCommodityData)
                         .build();
         return new ListStringToStringDataDrivenStitchingOperation(
                 new ListStringToStringStitchingMatchingMetaDataImpl(EntityType.PHYSICAL_MACHINE,
@@ -109,6 +114,9 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
         final Map<Long, EntityDTO> hypervisorEntities =
                 sdkDtosFromFile(getClass(), "protobuf/messages/cisco-vcenter_data.json.zip",
                         ucsEntities.size() + 1L);
+        final Map<String, EntityDTO> hypervisorHostsBeforeStitch = hypervisorEntities.values().stream()
+            .filter(entityDTO -> entityDTO.getEntityType() == EntityType.PHYSICAL_MACHINE)
+            .collect(Collectors.toMap(EntityDTO::getId, Function.identity()));
 
         addEntities(ucsEntities, ucsTargetId);
         addEntities(hypervisorEntities, vcTargetId);
@@ -218,6 +226,21 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
                     assertTrue(providerSubtree.stream()
                             .anyMatch(provider -> provider.getOid() == copiedProv)));
 
+            // check that the stitched host will only sell one CPU/MEM/IO_THROUGHPUT/NET_THROUGHPUT
+            // commodity with values from VC probe
+            Map<CommodityType, List<Builder>> hostSoldCommoditiesAfterStitching =
+                pm.getCommoditiesSold().collect(Collectors.groupingBy(Builder::getCommodityType));
+            Map<CommodityType, List<CommodityDTO>> vcHostSoldCommoditiesBeforeStitching =
+                hypervisorHostsBeforeStitch.get(pm.getLocalId()).getCommoditiesSoldList().stream()
+                    .collect(Collectors.groupingBy(CommodityDTO::getCommodityType));
+            pmSoldCommodityData.forEach(metadata -> {
+                CommodityType commodityType = metadata.getCommodityType();
+                assertEquals(1, hostSoldCommoditiesAfterStitching.get(commodityType).size());
+                assertEquals(vcHostSoldCommoditiesBeforeStitching.get(commodityType).get(0).getUsed(),
+                    hostSoldCommoditiesAfterStitching.get(commodityType).get(0).getUsed(), 0.0);
+                assertEquals(vcHostSoldCommoditiesBeforeStitching.get(commodityType).get(0).getCapacity(),
+                    hostSoldCommoditiesAfterStitching.get(commodityType).get(0).getCapacity(), 0.0);
+            });
         });
 
         final IStitchingJournal<TopologyEntity> postStitchingJournal = journal.childJournal(
@@ -247,4 +270,11 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
                     CommodityBoughtMetadata.newBuilder()
                             .addAllCommodityMetadata(ImmutableList.of(CommodityType.NET_THROUGHPUT))
                             .setProviderType(EntityType.IO_MODULE).build());
+
+    private static Collection<CommoditySoldMetadata> pmSoldCommodityData = ImmutableList.of(
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.CPU).setIgnoreIfPresent(true).build(),
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.MEM).setIgnoreIfPresent(true).build(),
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.IO_THROUGHPUT).setIgnoreIfPresent(true).build(),
+        CommoditySoldMetadata.newBuilder().setCommodityType(CommodityType.NET_THROUGHPUT).setIgnoreIfPresent(true).build()
+    );
  }

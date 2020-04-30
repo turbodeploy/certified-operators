@@ -205,18 +205,18 @@ public class MarketRunner {
     /**
      * Schedule a call to stop Analysis of a plan with a specific configuration.
      *
-     * @param planInstance describes this configuration of the plan being stopped
+     * @param planId The id of the plan to stop.
      */
-    public void stopAnalysis(PlanDTO.PlanInstance planInstance) {
+    public void stopAnalysis(final long planId) {
         synchronized (analysisMap) {
-            if (analysisMap.containsKey(planInstance.getPlanId())) {
+            if (analysisMap.containsKey(planId)) {
                 // call stopAnalysis that sets the forceStop boolean to true
-                logger.info("Performing forceStop on plan with id:" + planInstance.getPlanId());
-                analysisMap.get(planInstance.getPlanId()).cancelAnalysis();
+                logger.info("Performing forceStop on plan with id:" + planId);
+                analysisMap.get(planId).cancelAnalysis();
             } else {
                 // topology is not being processed so mark topologyId to be stopped when we receive topology
-                logger.info("Caching plan stop for plan with id:" + planInstance.getPlanId());
-                analysisStoppageSet.add(planInstance.getPlanId());
+                logger.info("Caching plan stop for plan with id:" + planId);
+                analysisStoppageSet.add(planId);
             }
         }
     }

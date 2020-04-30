@@ -82,8 +82,9 @@ public class ClusterStatsSubQuery implements StatsSubQuery {
             context.getInputScope().uuid(),
             context.newPeriodInputDto(requestedStats));
 
-        return Streams.stream(statsServiceRpc.getClusterStats(clusterStatsRequest))
-            .map(snapshot -> statsMapper.toStatSnapshotApiDTO(snapshot))
-            .collect(Collectors.toList());
+        return statsServiceRpc.getClusterStats(clusterStatsRequest).getSnapshotsList().stream()
+                    .flatMap(e -> e.getStatSnapshotsList().stream())
+                    .map(statsMapper::toStatSnapshotApiDTO)
+                    .collect(Collectors.toList());
     }
 }

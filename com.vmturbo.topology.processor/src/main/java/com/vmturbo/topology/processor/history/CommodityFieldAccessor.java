@@ -19,8 +19,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.HistoricalValues;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.UtilizationData;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
@@ -200,15 +198,22 @@ public class CommodityFieldAccessor implements ICommodityFieldAccessor {
     @Override
     public void applyInsufficientHistoricalDataPolicy(@Nonnull EntityCommodityReference field) {
         if (field.getProviderOid() == null) {
+            // Disable resize on comm sold (disables resize on-prem)
             getCommodityBuilder(soldBuilders, field, SOLD_BUILDER_EXTRACTOR)
                             .ifPresent(builder -> builder.setIsResizeable(false));
-            // We need to set the entity as not controllable as well.
+
+            // Disable scalable on all comm bought groupings (disables scaling actions in cloud)
+            // Note that this is currently safe to do because:
+            // 1. When there are multiple commodities bought in the corresponding comm bought for a
+            //    comm sold but only one has insufficient data, we want to do the "most conservative"
+            //    thing which is to disable scaling for the entire entity since we can't scale one
+            //    comm bought without scaling them all.
+            // 2. On all entities we scale today with multiple comm bought groupings, we only actually
+            //    generate scale actions on one of them, so disabling scaling on all of them is fine.
             Optional<TopologyEntity> entity = graph.getEntity(field.getEntityOid());
-            entity.ifPresent(e -> {
-                final Builder entityBuilder = e.getTopologyEntityDtoBuilder();
-                final AnalysisSettings.Builder settingsBuilder = entityBuilder.getAnalysisSettingsBuilder();
-                entityBuilder.setAnalysisSettings(settingsBuilder.setControllable(false).build());
-            });
+            entity.ifPresent(e -> e.getTopologyEntityDtoBuilder()
+                .getCommoditiesBoughtFromProvidersBuilderList().forEach(commBoughtGroup ->
+                    commBoughtGroup.setScalable(false)));
         }
         //TODO:implementation for BusinessUser use-case.
     }
