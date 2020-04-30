@@ -82,30 +82,9 @@ public class StatsService implements IStatsService {
     public static final String MARKET = "Market";
 
     /**
-     * Cloud target constant to match UI request, also used in test case
-     */
-    public static final String TARGET = "target";
-
-    /**
      * Cloud service constant to match UI request, also used in test cases
      */
     public static final String CLOUD_SERVICE = "cloudService";
-
-    /**
-     * Cloud service provider constant to match UI request, also used in test cases
-     */
-    public static final String CSP = "CSP";
-
-    private static final String COSTCOMPONENT = "costComponent";
-
-    // Internally generated stat name when stats period are not set.
-    private static final String CURRENT_COST_PRICE = "currentCostPrice";
-
-    private static final Set<String> NUM_WORKLOADS_STATS_SET = ImmutableSet.of(
-        StringConstants.NUM_WORKLOADS, "currentNumWorkloads",
-        StringConstants.NUM_VMS, "currentNumVMs",
-        StringConstants.NUM_DBS, "currentNumDBs",
-        StringConstants.NUM_DBSS, "currentNumDBSs");
 
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
@@ -155,8 +134,6 @@ public class StatsService implements IStatsService {
                     StringConstants.NUM_HOSTS,
                     StringConstants.HOST,
                     StringConstants.NUM_STORAGES);
-
-    private static final String STAT_FILTER_PREFIX = "current";
 
     /**
      * Map Entity types to be expanded to the RelatedEntityType to retrieve. For example,
