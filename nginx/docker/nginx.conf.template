@@ -169,7 +169,7 @@ http {
         rewrite ^/swagger(/external)?(.+)$ /swagger/external$2;
 
         # proxying default paths
-        location ~ ^(/$|/api|/app|/vmturbo/rest|/vmturbo/saml2) {
+        location ~ ^(/$|/api|/app|/vmturbo/rest|/vmturbo/saml2|/vmturbo/oauth2) {
             # we are using variables for the upstream servers instead of an upstream entry because
             # of the DNS caching problem -- only nginx plus will dynamically resolve the upstream
             # servers
