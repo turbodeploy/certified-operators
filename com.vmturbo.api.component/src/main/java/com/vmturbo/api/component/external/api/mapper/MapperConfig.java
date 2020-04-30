@@ -86,6 +86,7 @@ public class MapperConfig {
         return new ActionSpecMapper(
             actionSpecMappingContextFactory(),
             communicationConfig.serviceEntityMapper(),
+            serviceConfig.policiesService(),
             mapperConfig.reservedInstanceMapper(),
             communicationConfig.riBuyContextFetchStub(),
             communicationConfig.costServiceBlockingStub(),
@@ -106,7 +107,8 @@ public class MapperConfig {
             BuyReservedInstanceServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
             ReservedInstanceSpecServiceGrpc.newBlockingStub(costClientConfig.costChannel()),
             communicationConfig.serviceEntityMapper(),
-            communicationConfig.supplyChainRpcService());
+            communicationConfig.supplyChainRpcService(),
+            serviceConfig.policiesService());
     }
 
     @Bean

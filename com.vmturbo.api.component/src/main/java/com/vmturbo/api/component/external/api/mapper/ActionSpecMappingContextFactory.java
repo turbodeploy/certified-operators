@@ -30,10 +30,12 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
+import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.enums.AspectName;
@@ -98,6 +100,10 @@ public class ActionSpecMappingContextFactory {
 
     private final SupplyChainServiceBlockingStub supplyChainServiceClient;
 
+    private final PoliciesService policiesService;
+
+    private Collection<PolicyApiDTO> policyApiDto;
+
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
                                            @Nonnull ExecutorService executorService,
                                            @Nonnull RepositoryApi repositoryApi,
@@ -107,7 +113,8 @@ public class ActionSpecMappingContextFactory {
                                            @Nonnull BuyReservedInstanceServiceBlockingStub buyRIServiceClient,
                                            @Nonnull ReservedInstanceSpecServiceBlockingStub riSpecServiceClient,
                                            @Nonnull ServiceEntityMapper serviceEntityMapper,
-                                           @Nonnull SupplyChainServiceBlockingStub supplyChainServiceClient) {
+                                           @Nonnull SupplyChainServiceBlockingStub supplyChainServiceClient,
+                                           @Nonnull PoliciesService policiesService) {
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -118,6 +125,7 @@ public class ActionSpecMappingContextFactory {
         this.riSpecServiceClient = riSpecServiceClient;
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.supplyChainServiceClient = Objects.requireNonNull(supplyChainServiceClient);
+        this.policiesService = Objects.requireNonNull(policiesService);
     }
 
     /**
@@ -175,6 +183,7 @@ public class ActionSpecMappingContextFactory {
      *
      * @param actions list of actions
      * @param topologyContextId the context id of the topology
+     * @param policiesService the API service implementation of policy
      * @return ActionSpecMappingContext
      * @throws ExecutionException on failure getting entities
      * @throws InterruptedException if thread has been interrupted
@@ -185,6 +194,7 @@ public class ActionSpecMappingContextFactory {
             throws ExecutionException, InterruptedException, ConversionException {
 
         final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
+        Collection<PolicyApiDTO> policiesApiDto = policiesService.convertPolicyDTOCollection(policies.get().values());
         final Future<Map<Long, ApiPartialEntity>> entities = executorService.submit(() ->
             getEntities(actions, topologyContextId));
         Map<Long, ApiPartialEntity> entitiesById = entities.get();
@@ -247,7 +257,7 @@ public class ActionSpecMappingContextFactory {
         if (topologyContextId == realtimeTopologyContextId) {
             return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
                 Collections.emptyMap(), cloudAspects, Collections.emptyMap(), Collections.emptyMap(),
-                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false);
+                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false, policiesApiDto);
         }
 
         // fetch more info for plan actions
@@ -266,7 +276,7 @@ public class ActionSpecMappingContextFactory {
 
         return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
                 volumesAspectsByVM, cloudAspects, vmAspects, dbAspects,
-            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true);
+            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true, policiesApiDto);
     }
 
     /**
@@ -570,6 +580,8 @@ public class ActionSpecMappingContextFactory {
 
         private final boolean isPlan;
 
+        private final Map<String, PolicyApiDTO> policiesApiDto;
+
         ActionSpecMappingContext(@Nonnull Map<Long, ApiPartialEntity> topologyEntityDTOs,
                                  @Nonnull Map<Long, PolicyDTO.Policy> policies,
                                  @Nonnull Map<Long, ApiPartialEntity> entityIdToRegion,
@@ -581,7 +593,8 @@ public class ActionSpecMappingContextFactory {
                                          buyRIIdToRIBoughtandRISpec,
                                  @Nonnull Map<Long, ApiPartialEntity> oidToDatacenter,
                                  @Nonnull ServiceEntityMapper serviceEntityMapper,
-                                 final boolean isPlan) {
+                                 final boolean isPlan,
+                                 final Collection<PolicyApiDTO> policiesApiDto) {
             this.serviceEntityApiDTOs = topologyEntityDTOs.entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, entry ->
                     serviceEntityMapper.toServiceEntityApiDTO(entry.getValue())));
@@ -594,10 +607,16 @@ public class ActionSpecMappingContextFactory {
             this.buyRIIdToRIBoughtandRISpec = buyRIIdToRIBoughtandRISpec;
             this.oidToDatacenter = oidToDatacenter;
             this.isPlan = isPlan;
+            this.policiesApiDto = policiesApiDto.stream()
+                    .collect(Collectors.toMap(PolicyApiDTO::getUuid, Function.identity()));;
         }
 
         PolicyDTO.Policy getPolicy(long id) {
             return policies.get(id);
+        }
+
+        Map<String, PolicyApiDTO> getPolicyApiDtoMap() {
+            return policiesApiDto;
         }
 
         @Nonnull
