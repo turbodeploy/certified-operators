@@ -100,10 +100,10 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoRequest;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.TimeFrame;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParamsFactory;
 import com.vmturbo.components.common.stats.StatsAccumulator;
-import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.VmtDbException;
@@ -584,13 +584,18 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
     public void getClusterStats(@Nonnull Stats.ClusterStatsRequest request,
                                 @Nonnull StreamObserver<ClusterStatsResponse> responseObserver) {
         try {
-            responseObserver.onNext(clusterStatsReader.getStatsRecords(request));
-            responseObserver.onCompleted();
-        } catch (IllegalArgumentException e) {
-            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
+            for (ClusterStatsResponse responseChunk : clusterStatsReader.getStatsRecords(request)) {
+                try {
+                    responseObserver.onNext(responseChunk);
+                } catch (IllegalArgumentException e) {
+                    responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(e.getMessage()).asException());
+                }
+            }
         } catch (Throwable e) {
             responseObserver.onError(Status.INTERNAL.withDescription(e.getMessage()).asException());
         }
+        responseObserver.onCompleted();
+
     }
 
     /**

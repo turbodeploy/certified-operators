@@ -1,5 +1,7 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -7,7 +9,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Streams;
 
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
@@ -18,6 +19,8 @@ import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
+import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 
@@ -81,8 +84,18 @@ public class ClusterStatsSubQuery implements StatsSubQuery {
         final ClusterStatsRequest clusterStatsRequest = statsMapper.toClusterStatsRequest(
             context.getInputScope().uuid(),
             context.newPeriodInputDto(requestedStats));
+        final List<EntityStats> entityStatsList = new ArrayList<>();
 
-        return statsServiceRpc.getClusterStats(clusterStatsRequest).getSnapshotsList().stream()
+        Iterator<ClusterStatsResponse> response =
+            statsServiceRpc.getClusterStats(clusterStatsRequest);
+        while (response.hasNext()) {
+            ClusterStatsResponse chunk = response.next();
+            if (chunk.hasSnapshotsChunk()) {
+               entityStatsList.addAll(chunk.getSnapshotsChunk().getSnapshotsList());
+            }
+        }
+
+        return entityStatsList.stream()
                     .flatMap(e -> e.getStatSnapshotsList().stream())
                     .map(statsMapper::toStatSnapshotApiDTO)
                     .collect(Collectors.toList());

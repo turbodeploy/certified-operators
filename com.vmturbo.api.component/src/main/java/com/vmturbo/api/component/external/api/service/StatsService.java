@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -446,9 +448,19 @@ public class StatsService implements IStatsService {
         }
 
         // run the service
-        final ClusterStatsResponse response;
+        Optional<PaginationResponse> optionalPaginationResponse = Optional.empty();
+        final List<EntityStats> entityStatsList = new ArrayList<>();
         try {
-            response = statsServiceRpc.getClusterStats(requestBuilder.build());
+             Iterator<ClusterStatsResponse> response =
+                 statsServiceRpc.getClusterStats(requestBuilder.build());
+             while (response.hasNext()) {
+                 ClusterStatsResponse chunk = response.next();
+                 if (chunk.hasPaginationResponse()) {
+                     optionalPaginationResponse = Optional.of(chunk.getPaginationResponse());
+                 } else {
+                     entityStatsList.addAll(chunk.getSnapshotsChunk().getSnapshotsList());
+                 }
+             }
         } catch (StatusRuntimeException e) {
             throw ExceptionMapper.translateStatusException(e);
         }
@@ -458,7 +470,7 @@ public class StatsService implements IStatsService {
         if (marketScoped && !userScoped) {
             groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
                                         .setGroupFilter(GroupFilter.newBuilder()
-                                                            .addAllId(response.getSnapshotsList().stream()
+                                                            .addAllId(entityStatsList.stream()
                                                                             .map(EntityStats::getOid)
                                                                             .collect(Collectors.toSet())))
                                                     .build())
@@ -466,9 +478,8 @@ public class StatsService implements IStatsService {
         }
 
         // construct the response
-        final PaginationResponse paginationResponse = response.getPaginationResponse();
         final List<EntityStatsApiDTO> results =
-            response.getSnapshotsList().stream()
+            entityStatsList.stream()
                 .map(entityStats -> {
                         final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                         final GroupDefinition cluster = clusters.get(entityStats.getOid());
@@ -504,11 +515,12 @@ public class StatsService implements IStatsService {
                         return entityStatsApiDTO;
                 })
                 .collect(Collectors.toList());
-        if (paginationResponse.hasNextCursor()) {
+        if (optionalPaginationResponse.isPresent() && optionalPaginationResponse.get().hasNextCursor()) {
+            PaginationResponse paginationResponse = optionalPaginationResponse.get();
             return paginationRequest.nextPageResponse(results, paginationResponse.getNextCursor(),
                                                       paginationResponse.getTotalRecordCount());
         } else {
-            return paginationRequest.finalPageResponse(results, paginationResponse.getTotalRecordCount());
+            return paginationRequest.finalPageResponse(results, entityStatsList.size());
         }
     }
 
