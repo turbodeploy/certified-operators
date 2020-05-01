@@ -20,6 +20,7 @@ import com.google.common.collect.Lists;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.javatuples.Triplet;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -41,6 +42,7 @@ import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.EconomySettings;
+import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Ede;
@@ -423,8 +425,10 @@ public class TopologyEntitiesHandler {
      *
      * @param topology where to place the map
      */
-    private static void populateRawMaterialsMap(Topology topology) {
-        topology.getModifiableRawCommodityMap().putAll(RawMaterialsMap.rawMaterialsMap);
+    public static void populateRawMaterialsMap(Topology topology) {
+        for (Map.Entry<Integer, List<Triplet<Integer, Boolean, Boolean>>> entry : RawMaterialsMap.rawMaterialsMap.entrySet()) {
+            topology.getModifiableRawCommodityMap().put(entry.getKey(), new RawMaterials(entry.getValue()));
+        }
     }
 
     private static void populateCommToAdjustOverheadInClone(Topology topology, Analysis analysis) {
