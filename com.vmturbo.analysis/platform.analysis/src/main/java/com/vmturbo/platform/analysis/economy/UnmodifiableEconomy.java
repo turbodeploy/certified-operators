@@ -3,6 +3,7 @@ package com.vmturbo.platform.analysis.economy;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -175,9 +176,22 @@ public interface UnmodifiableEconomy {
                                                                           @NonNull @ReadOnly Trader trader);
 
     /**
-     * Returns an unmodifiable List of commodityType that are rawMaterials of a particular processed type
+     * Returns an unmodifiable array of commodityType that are rawMaterials of a particular processed type.
+     *
+     * @param processedCommodityType is the commodity to get the rawMaterials for.
+     * @return optional {@link RawMaterials}
      */
-    @NonNull @ReadOnly List<Integer> getRawMaterials(int processedCommodityType);
+    @ReadOnly
+    @NonNull Optional<RawMaterials> getRawMaterials(int processedCommodityType);
+
+    /**
+     * Returns rawMaterials of a particular processed type.
+     *
+     * @param processedCommodityType is the commodity to get the rawMaterials for.
+     * @return {@link RawMaterials} corresponding to the processedCommodityType
+     */
+    @ReadOnly
+    @NonNull RawMaterials getAllRawMaterials(int processedCommodityType);
 
     /**
      *
