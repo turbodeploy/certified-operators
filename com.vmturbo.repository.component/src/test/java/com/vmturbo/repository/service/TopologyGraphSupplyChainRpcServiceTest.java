@@ -1,6 +1,8 @@
 package com.vmturbo.repository.service;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -25,6 +27,7 @@ import org.mockito.Spy;
 
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsRequest;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetMultiSupplyChainsResponse;
@@ -37,11 +40,12 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainGroupB
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
@@ -71,6 +75,7 @@ public class TopologyGraphSupplyChainRpcServiceTest {
     private static final long REG_ID = 2L;
     private static final long ACC_ID = 3L;
     private static final long ONPREM_VM_ID = 4L;
+    private static final long ONPREM_IDLE_VM_ID = 7L;
     private static final long HYBRID_VM_ID = 5L;
     private static final long NON_EXISTENT_ID = 100L;
 
@@ -114,6 +119,14 @@ public class TopologyGraphSupplyChainRpcServiceTest {
                 .setOid(ONPREM_VM_ID)
                 .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
                 .setDisplayName("onpremvm")
+                    .setEntityState(EntityState.POWERED_ON)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .build(),
+            TopologyEntityDTO.newBuilder()
+                .setOid(ONPREM_IDLE_VM_ID)
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setDisplayName("inactiveOnPremVm")
+                .setEntityState(EntityState.POWERED_OFF)
                 .setEnvironmentType(EnvironmentType.ON_PREM)
                 .build(),
             TopologyEntityDTO.newBuilder()
@@ -148,6 +161,63 @@ public class TopologyGraphSupplyChainRpcServiceTest {
         Assert.assertEquals(1, responseObserver.getResults().size());
 
         assertCorrectnessOfSupplyChainResponse(responseObserver.getResults().get(0), true, true, false);
+    }
+
+    /**
+     * Test getting the global supply chain filtered by entity state.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testGlobalSupplyChainWithEntityState() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final SimpleStreamObserver<GetSupplyChainResponse> responseObserver =
+            new SimpleStreamObserver<>(latch);
+        service.getSupplyChain(GetSupplyChainRequest.newBuilder()
+            .setContextId(realTimeContextId)
+            .setScope(SupplyChainScope.newBuilder()
+                .addEntityStatesToInclude(EntityState.POWERED_OFF))
+            .build(), responseObserver);
+        latch.await();
+
+        Assert.assertFalse(responseObserver.isFailure());
+        Assert.assertEquals(1, responseObserver.getResults().size());
+
+        SupplyChain supplyChain = responseObserver.getResults().get(0).getSupplyChain();
+        assertThat(supplyChain.getSupplyChainNodesList().size(), is(1));
+        SupplyChainNode node = supplyChain.getSupplyChainNodes(0);
+        assertThat(node.getEntityType(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(node), containsInAnyOrder(ONPREM_IDLE_VM_ID));
+    }
+
+    /**
+     * Test getting a scoped supply chain filtered by entity state.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testScopedSupplyChainWithEntityState() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final SimpleStreamObserver<GetSupplyChainResponse> responseObserver =
+                new SimpleStreamObserver<>(latch);
+        service.getSupplyChain(GetSupplyChainRequest.newBuilder()
+                .setContextId(realTimeContextId)
+                .setScope(SupplyChainScope.newBuilder()
+                    .addStartingEntityOid(ONPREM_IDLE_VM_ID)
+                    .addStartingEntityOid(ONPREM_VM_ID)
+                    .addEntityStatesToInclude(EntityState.POWERED_OFF))
+                .build(), responseObserver);
+        latch.await();
+
+        Assert.assertFalse(responseObserver.isFailure());
+        Assert.assertEquals(1, responseObserver.getResults().size());
+
+        SupplyChain supplyChain = responseObserver.getResults().get(0).getSupplyChain();
+        assertThat(supplyChain.getSupplyChainNodesList().size(), is(1));
+        SupplyChainNode node = supplyChain.getSupplyChainNodes(0);
+        assertThat(node.getEntityType(), is(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
+        assertThat(RepositoryDTOUtil.getAllMemberOids(node), containsInAnyOrder(ONPREM_IDLE_VM_ID));
+
     }
 
     /**

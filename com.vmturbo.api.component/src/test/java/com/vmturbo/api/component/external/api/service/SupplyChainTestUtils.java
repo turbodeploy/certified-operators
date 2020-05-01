@@ -27,6 +27,7 @@ import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainEntryDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.enums.EntityDetailType;
+import com.vmturbo.api.enums.EntityState;
 import com.vmturbo.api.enums.EnvironmentType;
 
 public class SupplyChainTestUtils {
@@ -47,6 +48,8 @@ public class SupplyChainTestUtils {
             mock(SupplychainApiDTOFetcherBuilder.class);
         when(supplyChainFetcherOperationBuilderMock.entityTypes(anyListOf(String.class)))
             .thenReturn(supplyChainFetcherOperationBuilderMock);
+        when(supplyChainFetcherOperationBuilderMock.entityStates(anyListOf(EntityState.class)))
+                .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.topologyContextId(anyLong()))
             .thenReturn(supplyChainFetcherOperationBuilderMock);
         when(supplyChainFetcherOperationBuilderMock.addSeedUuids(anySetOf(String.class)))

@@ -6,12 +6,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.Sets;
 
 import io.grpc.stub.StreamObserver;
 
@@ -34,8 +37,9 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainStat;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceImplBase;
-import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -283,9 +287,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                     : SupplyChainScope.getDefaultInstance();
             final Optional<EnvironmentType> environmentType =
                     scope.hasEnvironmentType() ? Optional.of(scope.getEnvironmentType()) : Optional.empty();
-            final Collection<String> includedEntityTypes =
-                    scope.getEntityTypesToIncludeList() == null ? Collections.emptyList()
-                            : scope.getEntityTypesToIncludeList();
+            final Collection<String> includedEntityTypes = scope.getEntityTypesToIncludeList();
 
             // apply user scope as necessary.
             final EntityAccessScope userScope = userSessionContext.isUserScoped()
@@ -296,7 +298,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
             // taking into account required environment, user scope
             // and excluded types
             final Predicate<RepoGraphEntity> entityPredicate =
-                    getEntityFilter(environmentType, getExcludedTypes(request), userScope);
+                    getEntityFilter(scope, getExcludedTypes(request), userScope);
 
             if (scope.getStartingEntityOidCount() > 0) {
                 // this is a scoped supply chain request
@@ -309,9 +311,12 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
                         translateTypeNamesToTypeIds(includedEntityTypes), request.getFilterForDisplay(),
                         responseObserver);
             } else {
+                // We DON'T use the "entityPredicate" directly, because it captures some of the
+                // criteria we handle in optimized ways in the global supply chain request -
+                // most notably the environment type.
+
                 // this is a global supply chain request
-                getGlobalSupplyChain(includedEntityTypes, environmentType,
-                        request.getFilterForDisplay(), responseObserver);
+                getGlobalSupplyChain(scope, request.getFilterForDisplay(), responseObserver);
             }
         }
 
@@ -369,19 +374,33 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
          * same supply chain information ({@link SupplyChainNode} calculated over all the
          * ServiceEntities in the given topology context. If requested, restrict the supply chain
          * information to entities from a given list of entityTypes.
-         * @param entityTypesToIncludeList if given non-empty, then restrict supply chain nodes
-         *                                         returned to the entityTypes listed here
-         * @param environmentType possibly restrict results to one environment type
+         * @param supplyChainScope The scope for the supply chain call (note - we expect that the
+         *                        seed OIDs in the scope are empty).
          * @param filterForDisplay If set to true, then nodes for entity types that are in the supply
         *                         chain but not normally displayed in the supply chain UI will be
         *                         filtered out from the results.
          * @param responseObserver the gRPC response stream onto which each resulting SupplyChainNode is
          */
         private void getGlobalSupplyChain(
-                @Nonnull Collection<String> entityTypesToIncludeList,
-                @Nonnull final Optional<EnvironmentType> environmentType,
+                @Nonnull final SupplyChainScope supplyChainScope,
                 final boolean filterForDisplay,
                 @Nonnull final StreamObserver<GetSupplyChainResponse> responseObserver) {
+            final Collection<String> entityTypesToIncludeList = supplyChainScope.getEntityTypesToIncludeList();
+            final Optional<EnvironmentType> environmentType = supplyChainScope.hasEnvironmentType()
+                    ? Optional.of(supplyChainScope.getEnvironmentType()) : Optional.empty();
+
+            // The entity type and environment type filters are handled separately for the global
+            // supply chain for optimization purposes. All OTHER restrictions on the nodes to
+            // include fall under "additionalFilters". It is set only if other restrictions exist.
+            // That allows us to use the cached global supply chains for most requests.
+            final Optional<Predicate<RepoGraphEntity>> additionalFilters;
+            if (!supplyChainScope.getEntityStatesToIncludeList().isEmpty()) {
+                List<EntityState> states = supplyChainScope.getEntityStatesToIncludeList();
+                additionalFilters = Optional.of(e -> states.contains(e.getEntityState()));
+            } else {
+                additionalFilters = Optional.empty();
+            }
+
             // compute a predicate that filters out supply chain nodes from the final result of the
             // traversal, according to desired entity types. If no "desired" types are specified AND
             // filterForDisplay is true (which is the default case), then the default behavior will
@@ -414,7 +433,7 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
             GLOBAL_SUPPLY_CHAIN_DURATION_SUMMARY.startTimer().time(() -> {
                 final SupplyChain.Builder supplyChainBuilder = SupplyChain.newBuilder();
                 liveTopologyStore.getSourceTopology().ifPresent(realtimeTopology ->
-                        realtimeTopology.globalSupplyChainNodes(environmentType, entityTypesToSkip).values().stream()
+                        realtimeTopology.globalSupplyChainNodes(environmentType, additionalFilters, entityTypesToSkip).values().stream()
                                 .filter(filteringPredicate)
                                 .forEach(supplyChainBuilder::addSupplyChainNodes));
                 responseObserver.onNext(GetSupplyChainResponse.newBuilder()
@@ -457,29 +476,34 @@ public class TopologyGraphSupplyChainRpcService extends SupplyChainServiceImplBa
          * Calculate the entity predicate that should filter out entities
          * during a scoped supply chain traversal, given various parameters.
          *
-         * @param targetEnvType desired environment type, if there is one
+         * @param scope The scope for the supply chain query. Some parameters in the scope affect
+         *              resolution.
          * @param exclusionEntityTypes entity types to exclude
-         * @param scope returned entities should necessarily belong in this
+         * @param userScope returned entities should necessarily belong in this
          *              set, if this set is specified
          * @return the predicate that returns true iff an entity satisfies
          *         all the above requirements
          */
         private Predicate<RepoGraphEntity> getEntityFilter(
-                @Nonnull Optional<EnvironmentType> targetEnvType,
+                @Nonnull SupplyChainScope scope,
                 @Nonnull Collection<Integer> exclusionEntityTypes,
-                @Nonnull EntityAccessScope scope) {
+                @Nonnull EntityAccessScope userScope) {
             Predicate<RepoGraphEntity> predicateBuilder = e -> true;
-            if (targetEnvType.isPresent()) {
-                final EnvironmentType environmentType = targetEnvType.get();
+            if (scope.hasEnvironmentType()) {
+                final EnvironmentType environmentType = scope.getEnvironmentType();
                 predicateBuilder = predicateBuilder.and(e ->
                                         EnvironmentTypeUtil.match(environmentType, e.getEnvironmentType()));
+            }
+            if (!scope.getEntityStatesToIncludeList().isEmpty()) {
+                final Set<EntityState> stateList = Sets.newHashSet(scope.getEntityStatesToIncludeList());
+                predicateBuilder = predicateBuilder.and(e -> stateList.contains(e.getEntityState()));
             }
             if (!exclusionEntityTypes.isEmpty()) {
                 predicateBuilder = predicateBuilder.and(
                         e -> !exclusionEntityTypes.contains(e.getEntityType()));
             }
-            if (!scope.containsAll()) {
-                predicateBuilder = predicateBuilder.and(e -> scope.contains(e.getOid()));
+            if (!userScope.containsAll()) {
+                predicateBuilder = predicateBuilder.and(e -> userScope.contains(e.getOid()));
             }
             return predicateBuilder;
         }
