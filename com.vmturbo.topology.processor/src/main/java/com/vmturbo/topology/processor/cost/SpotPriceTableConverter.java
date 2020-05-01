@@ -109,7 +109,7 @@ public class SpotPriceTableConverter {
                 Level logLevel = existingPrice != null && price != null && existingPrice.getPriceAmount() != null
                                 && price.getPriceAmount() != null
                                 && existingPrice.getPriceAmount().getAmount() != price.getPriceAmount().getAmount()
-                                ? Level.DEBUG : Level.WARN;
+                                ? Level.WARN : Level.DEBUG;
                 logger.log(logLevel, "Spot price table reader: duplicate price for zone/region {},"
                                                 + " compute tier {}, OS {}: existing price - {}, new price - {}",
                                 zoneOrRegionOid, computeTierOid, osType, existingPrice, price);
