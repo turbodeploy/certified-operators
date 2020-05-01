@@ -15,8 +15,9 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.topology.graph.TestGraphEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -101,7 +102,7 @@ public class GlobalSupplyChainCalculatorTest {
     @Test
     public void testCalculateOnPremSupplyChain() {
         final Map<ApiEntityType, SupplyChainNode> nodesByType =
-            globalSupplyChainCalculator.getSupplyChainNodes(topology, EnvironmentType.ON_PREM,
+            globalSupplyChainCalculator.getSupplyChainNodes(topology, e -> EnvironmentTypeUtil.match(e.getEnvironmentType(), EnvironmentType.ON_PREM),
                     GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
 
         assertThat(nodesByType.keySet(), containsInAnyOrder(ApiEntityType.VIRTUAL_MACHINE,
@@ -141,7 +142,8 @@ public class GlobalSupplyChainCalculatorTest {
     @Test
     public void testCalculateCloudSupplyChain() {
         final Map<ApiEntityType, SupplyChainNode> nodesByType =
-                globalSupplyChainCalculator.getSupplyChainNodes(topology, EnvironmentType.CLOUD,
+                globalSupplyChainCalculator.getSupplyChainNodes(topology,
+                        e -> EnvironmentTypeUtil.match(e.getEnvironmentType(), EnvironmentType.CLOUD),
                         GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER);
 
         // Note that tiers are ignored
@@ -166,17 +168,6 @@ public class GlobalSupplyChainCalculatorTest {
     }
 
     /**
-     * Test proper calculation of hybrid global supply chain
-     */
-    @Test
-    public void testCalculateHybridSupplyChain() {
-        assertFullTopology(globalSupplyChainCalculator.getSupplyChainNodes(
-                                topology,
-                                EnvironmentType.HYBRID,
-                                GlobalSupplyChainCalculator.DEFAULT_ENTITY_TYPE_FILTER));
-    }
-
-    /**
      * Test proper calculation of global supply chain with no environment filtering.
      */
     @Test
@@ -194,7 +185,8 @@ public class GlobalSupplyChainCalculatorTest {
     @Test
     public void testCalculateCloudSupplyChainNoFilterForDisplay() {
         final Map<ApiEntityType, SupplyChainNode> nodesByType =
-                globalSupplyChainCalculator.getSupplyChainNodes(topology, EnvironmentType.CLOUD, type -> false);
+                globalSupplyChainCalculator.getSupplyChainNodes(topology,
+                        e -> EnvironmentTypeUtil.match(e.getEnvironmentType(), EnvironmentType.CLOUD), type -> false);
 
         // Verify that the compute tiers are included in this response
         assertThat(nodesByType.keySet(),

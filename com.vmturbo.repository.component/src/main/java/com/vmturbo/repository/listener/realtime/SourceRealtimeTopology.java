@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
+import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -101,6 +102,8 @@ public class SourceRealtimeTopology {
      * than the subsequent ones.
      *
      * @param optEnvType possibly restrict results to a specific environment type
+     * @param entityPredicate An optional predicate to apply to entities in the global supply chain.
+     *                        Note - if this is set, we do not use a cached supply chain.
      * @param entityTypesToSkip a predicate used to determine if an entity type should be skipped
      *                          during traversal or not.
      * @return (entity type) -> ({@link SupplyChainNode} for the entity type)
@@ -108,14 +111,30 @@ public class SourceRealtimeTopology {
     @Nonnull
     public synchronized Map<ApiEntityType, SupplyChainNode> globalSupplyChainNodes(
             @Nonnull final Optional<EnvironmentType> optEnvType,
+            @Nonnull final Optional<Predicate<RepoGraphEntity>> entityPredicate,
             @Nonnull final Predicate<Integer> entityTypesToSkip) {
         final EnvironmentType environmentType = optEnvType.orElse(EnvironmentType.HYBRID);
 
-        final SetOnce<Map<ApiEntityType, SupplyChainNode>> envTypeNodes =
-            globalSupplyChain.computeIfAbsent(environmentType, k -> new SetOnce<>());
+        final Predicate<EnvironmentType> environmentTypePredicate =
+                EnvironmentTypeUtil.matchingPredicate(environmentType);
+        if (entityPredicate.isPresent()) {
+            // Can't use a cached supply chain because there is a custom predicate on the entities.
+            Predicate<RepoGraphEntity> combinedPredicate  = e -> entityPredicate.get().test(e)
+                && environmentTypePredicate.test(e.getEnvironmentType());
+            return globalSupplyChainCalculator.getSupplyChainNodes(entityGraph,
+                    combinedPredicate,
+                    entityTypesToSkip);
+        } else {
+            // Use the cached supply chain for the environment.
+            final SetOnce<Map<ApiEntityType, SupplyChainNode>> envTypeNodes =
+                    globalSupplyChain.computeIfAbsent(environmentType, k -> new SetOnce<>());
+            return envTypeNodes.ensureSet(() ->
+                    globalSupplyChainCalculator.getSupplyChainNodes(entityGraph,
+                            e -> environmentTypePredicate.test(e.getEnvironmentType()),
+                            entityTypesToSkip));
+        }
 
-        return envTypeNodes.ensureSet(() ->
-            globalSupplyChainCalculator.getSupplyChainNodes(entityGraph, environmentType, entityTypesToSkip));
+
     }
 
     public void collectDiags(@Nonnull DiagnosticsAppender appender) throws DiagnosticsException {
