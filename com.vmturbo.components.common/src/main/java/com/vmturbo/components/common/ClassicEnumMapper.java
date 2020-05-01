@@ -132,6 +132,8 @@ public class ClassicEnumMapper {
             .put("Zone",                        CommodityType.ZONE)
             .put("KPI",                         CommodityType.KPI)
             .put("DTU",                         CommodityType.DTU)
+            .put("ConcurrentSession",           CommodityType.CONCURRENT_SESSION)
+            .put("ConcurrentWorker",            CommodityType.CONCURRENT_WORKER)
             .build();
 
     /**
@@ -234,6 +236,8 @@ public class ClassicEnumMapper {
         VMEM_REQUEST_QUOTA("VMemRequestQuota", "KB"),
         VSTORAGE("VStorage", "MB"),
         DTU("DTU", ""),
+        CONCURRENT_WORKER("ConcurrentWorker", ""),
+        CONCURRENT_SESSION("ConcurrentSession", ""),
         // Access Commodities
         CLUSTER("ClusterCommodity", ""),
         DATASTORE("DatastoreCommodity", ""),
