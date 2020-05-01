@@ -19,6 +19,7 @@ import static com.vmturbo.history.db.jooq.JooqUtils.getStringField;
 import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_BY_HOUR;
 import static com.vmturbo.history.schema.abstraction.Tables.CLUSTER_STATS_LATEST;
+import static com.vmturbo.history.stats.StatsHistoryRpcService.HEADROOM_STATS;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -226,7 +227,8 @@ public class ClusterStatsReader {
                                                 ? Optional.of(filter.getStartDate()) : Optional.empty();
         final Optional<Long> endDate = filter != null && filter.hasEndDate()
                                                 ? Optional.of(filter.getEndDate()) : Optional.empty();
-        if (startDate.orElse(now) > endDate.orElse(now)) {
+        if ((endDate.isPresent() && !startDate.isPresent())
+                || startDate.orElse(now) > endDate.orElse(now)) {
             throw new IllegalArgumentException("Invalid date range for retrieving cluster statistics.");
         }
         boolean oneDataPointRequested = !startDate.isPresent() && !endDate.isPresent();
@@ -256,11 +258,14 @@ public class ClusterStatsReader {
             requestedFields.add(MEM_HEADROOM);
             requestedFields.add(STORAGE_HEADROOM);
         }
+        final boolean headroomStatsRequested = requestedFields.isEmpty()
+                                                    || requestedFields.stream()
+                                                            .anyMatch(HEADROOM_STATS::contains);
 
         // decide whether to include projected stats
         // note that to calculate projected stats, we need to fetch the vm growth from the DB
         final boolean includeProjectedStats = request.getStats().getRequestProjectedHeadroom()
-                                                        && !oneDataPointRequested;
+                                                  && !oneDataPointRequested && headroomStatsRequested;
         if (includeProjectedStats && !requestedFields.isEmpty()) {
             requestedFields.add(VM_GROWTH);
         }
@@ -462,12 +467,9 @@ public class ClusterStatsReader {
             final StatSnapshot.Builder resultBuilder = StatSnapshot.newBuilder()
                                                             .setSnapshotDate(recordedOn.getTime());
 
-            // calculate total headroom
-            double totalHeadroomUsage = totalHeadroom(usages);
-            double totalHeadroomCapacity = totalHeadroom(capacities);
-            if (totalHeadroomUsage >= 0.0 && totalHeadroomCapacity >= 0.0) {
-                usages.put(TOTAL_HEADROOM, totalHeadroomUsage);
-                capacities.put(TOTAL_HEADROOM, totalHeadroomCapacity);
+            if (!usages.containsKey(TOTAL_HEADROOM) || !capacities.containsKey(TOTAL_HEADROOM)) {
+                // total headroom has not been calculated
+                calculateTotalHeadroom();
             }
 
             // usages and capacities
@@ -517,6 +519,20 @@ public class ClusterStatsReader {
         }
 
         /**
+         * Return total headroom utilization for this cluster and timestamp.
+         *
+         * @return the utilization
+         */
+        public double getTotalHeadroomUtilization() {
+            if (!usages.containsKey(TOTAL_HEADROOM) || !capacities.containsKey(TOTAL_HEADROOM)) {
+                // total headroom has not been calculated
+                calculateTotalHeadroom();
+            }
+
+            return getUtilization(TOTAL_HEADROOM);
+        }
+
+        /**
          * Return value of a stat for this cluster and timestamp.
          *
          * @param key the stat name
@@ -534,6 +550,15 @@ public class ClusterStatsReader {
          */
         public Double getVmGrowth() {
             return values.get(VM_GROWTH);
+        }
+
+        private void calculateTotalHeadroom() {
+            double totalHeadroomUsage = totalHeadroom(usages);
+            double totalHeadroomCapacity = totalHeadroom(capacities);
+            if (totalHeadroomUsage >= 0.0 && totalHeadroomCapacity >= 0.0) {
+                usages.put(TOTAL_HEADROOM, totalHeadroomUsage);
+                capacities.put(TOTAL_HEADROOM, totalHeadroomCapacity);
+            }
         }
 
         private static StatValue makeStatValue(double value) {
@@ -689,7 +714,10 @@ public class ClusterStatsReader {
          * @return function to be used by the comparator when sorting
          */
         public static Function<SingleClusterStats, Float> getComparisonFunction(@Nonnull String key) {
-            if (STATS_STORED_IN_TWO_RECORDS.contains(key)) {
+            if (TOTAL_HEADROOM.equalsIgnoreCase(key)) {
+                return s -> (float)(s.allStats.get(s.allStats.firstKey())
+                                            .getTotalHeadroomUtilization());
+            } else if (STATS_STORED_IN_TWO_RECORDS.contains(key)) {
                 return s -> (float)(s.allStats.get(s.allStats.firstKey()).getUtilization(key));
             } else {
                 return s -> (float)(s.allStats.get(s.allStats.firstKey()).getValue(key));
