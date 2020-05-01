@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -222,18 +221,21 @@ public class ClusterStatsReader {
         long now = System.currentTimeMillis();
 
         // extract and validate the request parameters
-        if (!request.hasStats()) {
-            throw new IllegalArgumentException("Cluster stats request is empty");
-        }
-        final StatsFilter filter = request.getStats();
-        final Optional<Long> startDate = filter.hasStartDate()
+        final StatsFilter filter = request.hasStats() ? request.getStats() : null;
+        final Optional<Long> startDate = filter != null && filter.hasStartDate()
                                                 ? Optional.of(filter.getStartDate()) : Optional.empty();
-        final Optional<Long> endDate = filter.hasEndDate()
+        final Optional<Long> endDate = filter != null && filter.hasEndDate()
                                                 ? Optional.of(filter.getEndDate()) : Optional.empty();
         if (startDate.orElse(now) > endDate.orElse(now)) {
             throw new IllegalArgumentException("Invalid date range for retrieving cluster statistics.");
         }
-        final Set<String> requestedFields = new HashSet<>(StatsUtils.collectCommodityNames(filter));
+        boolean oneDataPointRequested = !startDate.isPresent() && !endDate.isPresent();
+        final Set<String> requestedFields;
+        if (filter != null) {
+            requestedFields = new HashSet<>(StatsUtils.collectCommodityNames(filter));
+        } else {
+            requestedFields = Collections.emptySet();
+        }
         final Set<Long> clusterIds = request.getClusterIdsList().stream().collect(Collectors.toSet());
 
         // extract the pagination parameters
@@ -248,11 +250,18 @@ public class ClusterStatsReader {
             orderByField = INTERNAL_NAME;
         }
 
+        if ((orderByField.equalsIgnoreCase(TOTAL_HEADROOM) || requestedFields.contains(TOTAL_HEADROOM))
+                && !requestedFields.isEmpty()) {
+            requestedFields.add(CPU_HEADROOM);
+            requestedFields.add(MEM_HEADROOM);
+            requestedFields.add(STORAGE_HEADROOM);
+        }
+
         // decide whether to include projected stats
         // note that to calculate projected stats, we need to fetch the vm growth from the DB
         final boolean includeProjectedStats = request.getStats().getRequestProjectedHeadroom()
-                                                 && startDate.isPresent() && endDate.isPresent();
-        if (includeProjectedStats) {
+                                                        && !oneDataPointRequested;
+        if (includeProjectedStats && !requestedFields.isEmpty()) {
             requestedFields.add(VM_GROWTH);
         }
 
@@ -275,7 +284,8 @@ public class ClusterStatsReader {
         final ClusterStatsQuery query =
                 new ClusterStatsQuery(getStatsTable(timeRange.map(TimeRange::getTimeFrame)
                                                              .orElse(TimeFrame.LATEST)),
-                                      startDate.map(Timestamp::new), endDate.map(Timestamp::new),
+                                      timeRange.map(TimeRange::getStartTime).map(Timestamp::new),
+                                      timeRange.map(TimeRange::getEndTime).map(Timestamp::new),
                                       requestedFields, clusterIds);
         final Result<? extends Record> results = historydbIO.execute(query.getQuery());
 
@@ -302,9 +312,10 @@ public class ClusterStatsReader {
                                                  .apply(statsPerCluster.get(oid))),
                                   entityStatsPaginationParams);
         final PaginationResponse paginationResponse = paginatedStats.getPaginationResponse();
-        final List<EntityStats> entityStats = paginatedStats.getNextPageIds().stream()
-                                                    .map(id -> statsPerCluster.get(id).toEntityStats())
-                                                    .collect(Collectors.toList());
+        final List<EntityStats> entityStats =
+                paginatedStats.getNextPageIds().stream()
+                    .map(id -> statsPerCluster.get(id).toEntityStats(oneDataPointRequested))
+                    .collect(Collectors.toList());
 
         // return response
         return ClusterStatsResponse.newBuilder()
@@ -471,20 +482,6 @@ public class ClusterStatsReader {
                                                 .setValues(makeStatValue(usage))
                                                 .setCapacity(makeStatValue(capacity))
                                                 .setUnits(units == null ? "" : units.getUnits()));
-                capacities.remove(e.getKey());
-            }
-
-            // capacities without usages
-            // normally this set should be empty
-            for (Entry<String, Double> e : capacities.entrySet()) {
-                final CommodityTypeUnits units = ClassicEnumMapper.CommodityTypeUnits
-                                                        .fromStringIgnoreCase(e.getKey());
-                resultBuilder.addStatRecords(StatRecord.newBuilder()
-                                                    .setName(e.getKey())
-                                                    .setUsed(makeStatValue(0.0))
-                                                    .setValues(makeStatValue(0.0))
-                                                    .setCapacity(makeStatValue(e.getValue()))
-                                                    .setUnits(units == null ? "" : units.getUnits()));
             }
 
             // commodities that only have one value
@@ -633,8 +630,7 @@ public class ClusterStatsReader {
             for (int day = 1; day <= daysDifference; day++) {
                 StatSnapshot.Builder statSnapshotBuilder = StatSnapshot.newBuilder();
                 statSnapshotBuilder.setStatEpoch(StatEpoch.PROJECTED);
-                statSnapshotBuilder.setSnapshotDate(
-                        Math.min(endDate, latestRecordDate + day * millisPerDay));
+                statSnapshotBuilder.setSnapshotDate(latestRecordDate + day * millisPerDay);
 
                 // create projected headroom stats for each commodity.
                 final List<StatRecord> projectedStatRecords = new ArrayList<>(
@@ -661,9 +657,18 @@ public class ClusterStatsReader {
          *
          * @return the {@link EntityStats} translation
          */
-        public EntityStats toEntityStats() {
+        public EntityStats toEntityStats(boolean onlyOneDataPointRequested) {
             final EntityStats.Builder resultBuilder = EntityStats.newBuilder()
                                                             .setOid(clusterId);
+
+            if (onlyOneDataPointRequested) {
+                final SingleClusterSingleTimeStats mostRecent = allStats.get(allStats.firstKey());
+                if (mostRecent != null) {
+                    resultBuilder
+                        .addStatSnapshots(mostRecent.toStatSnapshot());
+                }
+                return resultBuilder.build();
+            }
 
             // projected stats go first
             projectedStatSnapshots.forEach(resultBuilder::addStatSnapshots);
