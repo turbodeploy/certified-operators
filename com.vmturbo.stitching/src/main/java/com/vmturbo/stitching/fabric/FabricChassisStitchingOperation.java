@@ -1,5 +1,7 @@
 package com.vmturbo.stitching.fabric;
 
+import java.util.Optional;
+
 import javax.annotation.Nonnull;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -37,6 +39,7 @@ public class FabricChassisStitchingOperation extends FabricStitchingOperation{
      *                      relationships made by the stitching operation should be noted
      *                      in these results.
      */
+    @Override
     protected void stitch(@Nonnull final StitchingPoint stitchingPoint,
                           @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         // The chassis discovered by the fabric probe
@@ -47,21 +50,24 @@ public class FabricChassisStitchingOperation extends FabricStitchingOperation{
         for (StitchingEntity hypervisorPM : stitchingPoint.getExternalMatches()) {
             // Find the datacenter discovered by the hypervisor probe by finding the provider
             // of the hypervisor datacenter
-           final StitchingEntity hypervisorDatacenter = hypervisorPM.getProviders().stream()
+            final Optional<StitchingEntity> hypervisorDatacenter = hypervisorPM.getProviders().stream()
                     .filter(entity -> entity.getEntityType() == EntityType.DATACENTER)
-                    .findFirst()
-                    .get();
+                    .findFirst();
+            if (!hypervisorDatacenter.isPresent())    {
+                logger.error("No datacenter provider present for host '{}'.", hypervisorPM.getDisplayName());
+                continue;
+            }
 
             logger.debug("Stitching Chassis {} with Physical Machine {}",
                     fabricChassis.getDisplayName(), hypervisorPM.getDisplayName());
             logger.debug("Replacing Datacenter {} with Chassis {}",
-                    hypervisorDatacenter.getDisplayName(), fabricChassis.getDisplayName());
+                    hypervisorDatacenter.get().getDisplayName(), fabricChassis.getDisplayName());
 
             resultBuilder
                     // Update the commodities bought on the hypervisorPM to buy from the
                     // fabric-probe discovered chassis
                     .queueChangeRelationships(hypervisorPM,
-                            toUpdate -> toUpdate.removeProvider(hypervisorDatacenter));
+                            toUpdate -> toUpdate.removeProvider(hypervisorDatacenter.get()));
         }
     }
 
