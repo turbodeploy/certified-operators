@@ -245,7 +245,6 @@ public class Stages {
             .register();
 
         private final StitchingManager stitchingManager;
-
         private final StitchingJournalFactory journalFactory;
 
         public StitchingStage(@Nonnull final StitchingManager stitchingManager,
