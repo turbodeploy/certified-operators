@@ -488,17 +488,15 @@ message GetEntityCommoditiesCapacityValuesRequest {
 
     required string commodityTypeName = 1;
 
-    repeated EntityToCommodity entityToCommoditySet = 2;
+    repeated EntityUuidAndType entityUuidAndTypeSet = 2;
 }
 
-// Mapping a entity to a commodity key
-message EntityToCommodity {
+// Entity uuid and type
+message EntityUuidAndType {
 
     required int64 entityUuid = 1;
 
     required int32 entityType = 2;
-
-    required string commodityTypeKey  = 3;
 }
 
 // Response of commodity capacity values

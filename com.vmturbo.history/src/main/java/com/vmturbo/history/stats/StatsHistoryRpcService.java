@@ -36,6 +36,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.Sets;
+import com.google.common.collect.Sets.SetView;
 import com.google.common.collect.Table.Cell;
 
 import io.grpc.Status;
@@ -66,7 +67,7 @@ import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroup;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityGroupList;
-import com.vmturbo.common.protobuf.stats.Stats.EntityToCommodity;
+import com.vmturbo.common.protobuf.stats.Stats.EntityUuidAndType;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetAuditLogDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.Stats.GetAveragedEntityStatsRequest;
@@ -1278,35 +1279,28 @@ public class StatsHistoryRpcService extends StatsHistoryServiceGrpc.StatsHistory
         GetEntityCommoditiesCapacityValuesRequest request,
         StreamObserver<GetEntityCommoditiesCapacityValuesResponse> responseObserver) {
         try {
-            final Set<Integer> uniqEntityTypes = request.getEntityToCommoditySetList().stream()
+            final Set<Integer> uniqEntityTypes = request.getEntityUuidAndTypeSetList().stream()
                 .map(entity -> entity.getEntityType()).collect(Collectors.toSet());
             for (Integer entityType : uniqEntityTypes) {
-                final Set<EntityToCommodity> entityToCommodities = request.getEntityToCommoditySetList().stream()
+                final Set<EntityUuidAndType> entityToCommodities = request.getEntityUuidAndTypeSetList().stream()
                     .filter(entity -> entity.getEntityType() == entityType).collect(Collectors.toSet());
-                final List<String> uuids = entityToCommodities.stream()
+                final Set<String> uuidsToGetCapacityFor = entityToCommodities.stream()
                     .map(entity -> String.valueOf(entity.getEntityUuid()))
-                    .collect(Collectors.toList());
-                Map<Long, Map<String, Set<String>>> uuidToComTypeToComKeys = new HashMap<>();
-                // This map is used for filtering the query results by the commodity keys as some of
-                // them can be null which can cause the response from the db to remove them.
-                entityToCommodities.forEach(entry -> {
-                    if (!uuidToComTypeToComKeys.containsKey(entry.getEntityUuid())) {
-                        uuidToComTypeToComKeys.put(entry.getEntityUuid(),
-                            new HashMap<String, Set<String>>() {{
-                                put(request.getCommodityTypeName(),
-                                    new HashSet<String>() {{
-                                        add(entry.getCommodityTypeKey());
-                                    }}
-                                );
-                            }});
-                    } else {
-                        uuidToComTypeToComKeys.get(entry.getEntityUuid())
-                            .get(entry.getEntityType()).add(entry.getCommodityTypeKey());
-                    }
-                });
-                historydbIO.getEntityCommoditiesCapacityValues(entityType, uuids, uuidToComTypeToComKeys,
-                    request.getCommodityTypeName()
-                ).forEach(responseObserver::onNext);
+                    .collect(Collectors.toSet());
+                // Get data from the daily table, if data for uuid is missing get it from the hourly table
+                final List<GetEntityCommoditiesCapacityValuesResponse> entityCommoditiesCapacityDayValues =
+                    historydbIO.getEntityCommoditiesCapacityValues(entityType, uuidsToGetCapacityFor,
+                        request.getCommodityTypeName(), TimeUnit.DAYS);
+                entityCommoditiesCapacityDayValues.forEach(responseObserver::onNext);
+                final SetView<String> entityUuidsWithoutDailyData =
+                    Sets.difference(uuidsToGetCapacityFor, entityCommoditiesCapacityDayValues.iterator().next()
+                    .getEntitiesToCommodityTypeCapacityList().stream()
+                    .map(x -> String.valueOf(x.getEntityUuid()))
+                    .collect(Collectors.toSet()));
+                final List<GetEntityCommoditiesCapacityValuesResponse> entityCommoditiesCapacityHourValues =
+                    historydbIO.getEntityCommoditiesCapacityValues(entityType, entityUuidsWithoutDailyData,
+                        request.getCommodityTypeName(), TimeUnit.HOURS);
+                entityCommoditiesCapacityHourValues.forEach(responseObserver::onNext);
             }
             responseObserver.onCompleted();
         } catch (VmtDbException | SQLException e) {

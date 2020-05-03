@@ -46,6 +46,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -1377,15 +1378,16 @@ public class HistorydbIO extends BasedbIO {
      * @param entityTypeNo for knowing the table to access
      * @param uuids of the entity record we want
      * @param commodityTypeName of the record we want
+     * @param retentionPeriod used to know which table should we query
      * @return a converted response ready for sending back
      * @throws VmtDbException in case of a db connection issue
      * @throws SQLException in case if issues executing the sql query
      */
     public List<GetEntityCommoditiesCapacityValuesResponse> getEntityCommoditiesCapacityValues(int entityTypeNo,
-               List<String> uuids, Map<Long,Map<String,Set<String>>> uuidToComTypeToComKey, String commodityTypeName)
+           Set<String> uuids, String commodityTypeName, TimeUnit retentionPeriod)
         throws VmtDbException, SQLException {
         final EntityType entityType = EntityType.fromSdkEntityType(entityTypeNo).orElse(null);
-        Optional<Table<?>> table = entityType != null ? entityType.getDayTable() : Optional.empty();
+        Optional<Table<?>> table = getTableByTimeUnit(entityType, retentionPeriod);
         if (table.isPresent()) {
             // Query for the max of the capacities from the last 7 days in the DB for
             // each commodity in each entity.
@@ -1394,7 +1396,7 @@ public class HistorydbIO extends BasedbIO {
                     uuids, commodityTypeName).getQuery();
                 Result<? extends Record> statsRecords = using(conn).fetch(query);
                 logger.debug("Number of records fetched for table {} = {}", table.get(), statsRecords.size());
-                return convertToEntityCommoditiesCapacityValues(table.get(), statsRecords, uuidToComTypeToComKey);
+                return convertToEntityCommoditiesCapacityValues(table.get(), statsRecords);
             }
         } else {
             logger.error("No monthly stats table for entityType: {}",
@@ -1403,8 +1405,22 @@ public class HistorydbIO extends BasedbIO {
         }
     }
 
+    private Optional<Table<?>> getTableByTimeUnit(final EntityType entityType, final TimeUnit retentionPeriod) {
+        return Optional.ofNullable(entityType)
+            .flatMap(eType -> {
+                switch (retentionPeriod) {
+                    case DAYS:
+                        return entityType.getDayTable();
+                    case HOURS:
+                        return entityType.getHourTable();
+                    default:
+                        return Optional.empty();
+                }
+            });
+    }
+
     private List<GetEntityCommoditiesCapacityValuesResponse> convertToEntityCommoditiesCapacityValues(
-        Table<?> tbl, final Result<? extends Record> statsRecords, Map<Long, Map<String, Set<String>>> uuidToComTypeToComKeys) {
+        Table<?> tbl, final Result<? extends Record> statsRecords) {
         final Builder responseBuilder = GetEntityCommoditiesCapacityValuesResponse.newBuilder();
         statsRecords.forEach(record -> {
             final Long uuid = Long.parseLong(record.getValue(getStringField(tbl, UUID)));
@@ -1412,17 +1428,14 @@ public class HistorydbIO extends BasedbIO {
             final String comTypeString = record.getValue(getStringField(tbl, PROPERTY_TYPE));
             final Integer comTypeInt = new Integer(UICommodityType.fromString(comTypeString).typeNumber());
             final Double maxCapacity = record.getValue(DSL.field(MAX_COLUMN_NAME, Double.class));
-            // filtering only the commodities with the correct key
-            if (uuidToComTypeToComKeys.get(uuid).get(comTypeString).contains(comKey)) {
-                responseBuilder.addEntitiesToCommodityTypeCapacity(
+            responseBuilder.addEntitiesToCommodityTypeCapacity(
                     EntityToCommodityTypeCapacity.newBuilder()
                         .setEntityUuid(uuid)
                         .setCommodityType(CommodityType.newBuilder()
                             .setType(comTypeInt)
                             .setKey(comKey).build())
                         .setCapacity(maxCapacity).build()
-                );
-            }
+            );
         });
         return Collections.singletonList(responseBuilder.build());
     }

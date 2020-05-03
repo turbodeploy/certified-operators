@@ -12,7 +12,7 @@ import static com.vmturbo.history.db.jooq.JooqUtils.getTimestampField;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
+import java.util.Set;
 
 import javax.annotation.Nonnull;
 
@@ -31,11 +31,13 @@ import com.vmturbo.history.db.QueryBase;
 public class EntityCommoditiesCapacityValuesQuery extends QueryBase {
 
     /**
-     * Create a new query.
+     * Creating a query to get the max capacity of an entity in the last 7 days.
      *
-     * @param table Entity
+     * @param table destination for the query
+     * @param uuids of the entities we want data on
+     * @param commodityType type of the commodity we want
      */
-    public EntityCommoditiesCapacityValuesQuery(@Nonnull Table<?> table, List<String> uuids,
+    public EntityCommoditiesCapacityValuesQuery(@Nonnull Table<?> table, Set<String> uuids,
                                                 String commodityType) {
         final Field<String> uuidField = getStringField(table, UUID);
         final Field<String> propertyTypeField = getStringField(table, PROPERTY_TYPE);

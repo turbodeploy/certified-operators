@@ -16,7 +16,7 @@ import org.apache.logging.log4j.Logger;
 import com.google.common.base.CaseFormat;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
-import com.vmturbo.common.protobuf.stats.Stats.EntityToCommodity;
+import com.vmturbo.common.protobuf.stats.Stats.EntityUuidAndType;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesCapacityValuesRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Builder;
@@ -97,7 +97,6 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
             @Nonnull final EntitySettingsCollection settingsCollection,
             @Nonnull final EntityChangesBuilder<TopologyEntity> resultBuilder) {
         Map<TopologyEntity, Set<Builder>> entitiesToUpdateCapacity = new HashMap<>();
-        Map<Long, TopologyEntity> oidToEntity = new HashMap<>();
         // iterate over entities and if the named setting exists for that entity, find all
         // sold commodities of the correct type and set their capacities according to the
         // value in the setting.
@@ -115,8 +114,6 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                         .getCommoditySoldListBuilderList().stream()
                         .filter(this::commodityTypeMatches)
                         .collect(Collectors.toSet()));
-                    // will be used to match the oid from the stats response to the entity
-                    oidToEntity.put(entity.getOid(), entity);
                 } else {
                     // Queueing and updating entities which we can determine locally their capacity value
                     resultBuilder.queueUpdateEntityAlone(entity,
@@ -129,32 +126,62 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 }
             }
         });
+        // filtering ut the entities without commodities
         final Map<TopologyEntity, Set<Builder>> entitySetMap = entitiesToUpdateCapacity.entrySet().stream()
             .filter(entityEntry -> !entityEntry.getValue().isEmpty())
             .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
+        // will be used to match the oid from the stats response to the entity
+        final Map<Long, TopologyEntity> oidToEntity = entitySetMap.keySet().stream()
+            .collect(Collectors.toMap(e -> e.getOid(), e -> e));
         if (!entitySetMap.isEmpty()) {
-            updateEntitiesFromDb(entitySetMap, resultBuilder, oidToEntity);
+            updateEntitiesFromDb(entitySetMap, resultBuilder, oidToEntity, settingsCollection);
         }
         return resultBuilder.build();
     }
 
     private void updateEntitiesFromDb(final Map<TopologyEntity, Set<Builder>> entitySetMap,
                                       final EntityChangesBuilder<TopologyEntity> resultBuilder,
-                                      final Map<Long, TopologyEntity> oidToEntity) {
+                                      final Map<Long, TopologyEntity> oidToEntities,
+                                      final EntitySettingsCollection settingsCollection) {
         final GetEntityCommoditiesCapacityValuesRequest.Builder requestBuilder = buildRequest(entitySetMap);
         // Getting the response from history component and queueing entity capacity update
         if (commodityStitchingOperationConfig.getStatsClient() != null) {
             commodityStitchingOperationConfig.getStatsClient().getEntityCommoditiesCapacityValues(requestBuilder.build())
                 .forEachRemaining(response -> {
-                    response.getEntitiesToCommodityTypeCapacityList().forEach(entityToCommodity ->
-                    resultBuilder.queueUpdateEntityAlone(oidToEntity.get(entityToCommodity.getEntityUuid()),
-                        entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
-                            .getCommoditySoldListBuilderList().stream()
-                            .filter(this::commodityTypeMatches)
-                            .forEach(commSold ->    // updating the capacity from the response
-                                commSold.setCapacity(entityToCommodity.getCapacity()))));
+                    response.getEntitiesToCommodityTypeCapacityList().forEach(entityToCommodity -> {
+                        resultBuilder.queueUpdateEntityAlone(oidToEntities.get(entityToCommodity.getEntityUuid()),
+                            entityToUpdate -> entityToUpdate.getTopologyEntityDtoBuilder()
+                                .getCommoditySoldListBuilderList().stream()
+                                .filter(this::commodityTypeMatches)
+                                .forEach(commSold ->    // updating the capacity from the response
+                                    commSold.setCapacity(entityToCommodity.getCapacity())
+                                ));
+                        oidToEntities.remove(entityToCommodity.getEntityUuid());
+                        }
+                    );
                 });
         }
+        // updating with the entities that did not return any data from the history component
+        // with max between the current capacity and the default policy values
+        oidToEntities.entrySet().forEach(oidToEntity -> {
+            final Optional<Setting> capacitySetting = settingsCollection
+                .getEntitySetting(oidToEntity.getKey(), capacitySettingName);
+            float policyCapacity = Float.MIN_VALUE;
+            if (capacitySetting.isPresent()) {
+                policyCapacity = settingsCollection.getEntitySetting(oidToEntity.getKey(), capacitySettingName)
+                    .get().getNumericSettingValue().getValue();
+            }
+            final double currentCapacity = oidToEntity.getValue().getTopologyEntityDtoBuilder()
+                .getCommoditySoldListBuilderList().get(0).getCapacity();
+            final float capacityValue = Math.max((float)currentCapacity, policyCapacity);
+            resultBuilder.queueUpdateEntityAlone(oidToEntity.getValue(), entityToUpdate ->
+                entityToUpdate.getTopologyEntityDtoBuilder()
+                .getCommoditySoldListBuilderList().stream()
+                .filter(this::commodityTypeMatches)
+                .forEach(commSold ->
+                    commSold.setCapacity(capacityValue)
+                ));
+        });
     }
 
     /**
@@ -171,15 +198,14 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
             GetEntityCommoditiesCapacityValuesRequest.newBuilder()
                 .setCommodityTypeName(CaseFormat.UPPER_UNDERSCORE.to(CaseFormat.UPPER_CAMEL,commodityType.name()));
 
-        final Set<Set<EntityToCommodity.Builder>> entityToCommoditySet = entitySetMap.entrySet().stream().map(
+        final Set<Set<EntityUuidAndType.Builder>> entityToCommoditySet = entitySetMap.entrySet().stream().map(
             entry -> entry.getValue().stream()
-                .map(commodity -> EntityToCommodity.newBuilder()
+                .map(commodity -> EntityUuidAndType.newBuilder()
                 .setEntityUuid(entry.getKey().getOid())
-                .setEntityType(entry.getKey().getEntityType())
-                .setCommodityTypeKey(String.valueOf(commodity.getCommodityType().getKey())))
+                .setEntityType(entry.getKey().getEntityType()))
                 .collect(Collectors.toSet())).collect(Collectors.toSet());
 
-        requestBuilder.addAllEntityToCommoditySet(
+        requestBuilder.addAllEntityUuidAndTypeSet(
             entityToCommoditySet.stream()
                 .flatMap(entry -> entry.stream()).map(entityToCommodity -> entityToCommodity.build())
                 .collect(Collectors.toSet()));
@@ -227,6 +253,7 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
 
     private double getCapacityValueToSet(EntitySettingsCollection settingsCollection,
                                          TopologyEntity entity) {
+        // updating the capacity according to the policies, first user policies and then default
         if (settingsCollection.hasUserPolicySettings(entity.getOid())) {
             final Optional<Setting> autoSetEntityUserSetting = settingsCollection
                 .getEntityUserSetting(entity, EntitySettingSpecs.getSettingByName(autoSetSettingName).get());
