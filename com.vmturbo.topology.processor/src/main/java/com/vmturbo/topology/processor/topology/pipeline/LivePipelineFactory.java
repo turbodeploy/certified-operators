@@ -250,6 +250,7 @@ public class LivePipelineFactory {
             @Nonnull final List<TopoBroadcastManager> managers) {
         final MatrixInterface mi = matrix.copy();
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
+                .addStage(new DCMappingStage(discoveredGroupUploader))
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new Stages.FlowGenerationStage(mi))
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
@@ -303,6 +304,7 @@ public class LivePipelineFactory {
             @Nonnull final StitchingJournalFactory journalFactory,
             @Nonnull final List<TopoBroadcastManager> managers) {
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
+                .addStage(new DCMappingStage(discoveredGroupUploader))
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new Stages.FlowGenerationStage(matrix))
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))

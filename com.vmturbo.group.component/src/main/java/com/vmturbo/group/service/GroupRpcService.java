@@ -29,6 +29,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.exception.DataAccessException;
+import org.springframework.jdbc.BadSqlGrammarException;
 import org.springframework.util.StopWatch;
 
 import com.vmturbo.auth.api.authorization.AuthorizationException.UserAccessScopeException;
@@ -419,7 +420,7 @@ public class GroupRpcService extends GroupServiceImplBase {
                     .addAllMemberId(members)
                     .build();
                 responseObserver.onNext(response);
-            } catch (StoreOperationException | UserAccessScopeException | DataAccessException e) {
+            } catch (StoreOperationException | RuntimeException e) {
                 // We don't want a failure to retrieve the members of one group to result in a failure
                 // to retrieve members of all groups.
                 // In the future it might be worth it to try to detect database connection issues
@@ -599,7 +600,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             @Nonnull StreamObserver<CreateGroupResponse> responseObserver)
             throws StoreOperationException {
         try {
-            validateCreateGroupRequest(request);
+            validateCreateGroupRequest(groupStore, request);
         } catch (InvalidGroupDefinitionException e) {
             logger.error("Group {} is not valid.", request.getGroupDefinition(), e);
             responseObserver.onError(
@@ -645,14 +646,12 @@ public class GroupRpcService extends GroupServiceImplBase {
             long groupOid = identityProvider.next();
             groupStore.createGroup(groupOid, request.getOrigin(), groupDef, expectedTypes,
                                     supportsMemberReverseLookup);
-                createdGroup = Grouping
-                                .newBuilder()
-                                .setId(groupOid)
-                                .setDefinition(groupDef)
-                                .addAllExpectedTypes(expectedTypes)
-                                .setSupportsMemberReverseLookup(supportsMemberReverseLookup)
-                                .build();
-
+            createdGroup = Grouping.newBuilder()
+                .setId(groupOid)
+                .setDefinition(groupDef)
+                .addAllExpectedTypes(expectedTypes)
+                .setSupportsMemberReverseLookup(supportsMemberReverseLookup)
+                .build();
         }
 
         responseObserver.onNext(CreateGroupResponse.newBuilder()
@@ -662,7 +661,8 @@ public class GroupRpcService extends GroupServiceImplBase {
 
     }
 
-    private void validateCreateGroupRequest(CreateGroupRequest request)
+    private void validateCreateGroupRequest(@Nonnull final IGroupStore groupStore,
+                                            @Nonnull final CreateGroupRequest request)
                     throws InvalidGroupDefinitionException {
         if (!request.hasGroupDefinition()) {
             throw new InvalidGroupDefinitionException("No group definition is present.");
@@ -672,7 +672,7 @@ public class GroupRpcService extends GroupServiceImplBase {
             throw new InvalidGroupDefinitionException("No origin definition is present.");
         }
 
-        validateGroupDefinition(request.getGroupDefinition());
+        validateGroupDefinition(groupStore, request.getGroupDefinition());
 
     }
 
@@ -708,7 +708,7 @@ public class GroupRpcService extends GroupServiceImplBase {
         final GroupDefinition groupDefinition = request.getNewDefinition();
 
         try {
-            validateGroupDefinition(groupDefinition);
+            validateGroupDefinition(groupStore, groupDefinition);
         } catch (InvalidGroupDefinitionException e) {
             logger.error("Group {} is not valid.", groupDefinition, e);
             responseObserver.onError(Status.INVALID_ARGUMENT
@@ -1071,8 +1071,9 @@ public class GroupRpcService extends GroupServiceImplBase {
     }
 
     @VisibleForTesting
-    void validateGroupDefinition(@Nonnull GroupDefinition groupDefinition)
-                    throws InvalidGroupDefinitionException {
+    void validateGroupDefinition(@Nonnull final IGroupStore groupStore,
+                                 @Nonnull GroupDefinition groupDefinition)
+                throws InvalidGroupDefinitionException {
 
         if (!groupDefinition.hasDisplayName()
                         || StringUtils.isEmpty(groupDefinition.getDisplayName())) {
@@ -1106,6 +1107,21 @@ public class GroupRpcService extends GroupServiceImplBase {
                 if (groupDefinition.getGroupFilters().getGroupFilterList().isEmpty()) {
                     throw new InvalidGroupDefinitionException(
                                     "No filter has been set for dynamic group of group.");
+                }
+                // If using a group filter, make sure the filter is valid. The most notable type
+                // of invalid group is a group with an invalid regex. This is tricky to validate,
+                // because MySQL has different REQEX validation criteria than Java's native regex.
+                // Instead, we check that running this group filter against the GroupStore produces
+                // some results (even if empty).
+                try {
+                    groupStore.getGroupIds(groupDefinition.getGroupFilters());
+                } catch (BadSqlGrammarException e) {
+                    // This is a particular exception that gets thrown if the regexes in the group
+                    // filter are invalid by MySQL standards.
+                    //
+                    // Other DataAccessExceptions (e.g. if there is an error connecting to the DB)
+                    // will propagate upwards, and won't lead to an INVALID_ARGUMENT return code.
+                    throw new InvalidGroupDefinitionException("Group filter invalid: " + e.getSQLException().getMessage());
                 }
                 break;
             case SELECTIONCRITERIA_NOT_SET:

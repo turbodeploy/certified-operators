@@ -639,10 +639,14 @@ public class StatsHistoryRpcServiceTest {
     @Test
     public void testClusterStats() throws Exception {
         final ClusterStatsRequest request = ClusterStatsRequest.getDefaultInstance();
-        final ClusterStatsResponse expectedResponse = ClusterStatsResponse.getDefaultInstance();
+        final ClusterStatsResponse responseChunk = ClusterStatsResponse.getDefaultInstance();
+        final List<ClusterStatsResponse> expectedResponse =
+            new ArrayList<>();
+        expectedResponse.add(responseChunk);
         when(mockClusterStatsReader.getStatsRecords(request)).thenReturn(expectedResponse);
 
-        assertEquals(expectedResponse, clientStub.getClusterStats(request));
+        assertEquals(responseChunk,
+            clientStub.getClusterStats(request).next());
         verify(mockClusterStatsReader).getStatsRecords(eq(request));
     }
 

@@ -26,6 +26,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.springframework.jdbc.BadSqlGrammarException;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -42,6 +43,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter;
 import com.vmturbo.common.protobuf.search.Search.PropertyFilter.StringFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.group.db.GroupComponent;
@@ -817,6 +819,39 @@ public class GroupDaoTest {
                 groupStore.getOwnersOfGroups(Arrays.asList(OID1, OID2), GroupType.RESOURCE));
 
         Assert.assertTrue(groupStore.getOwnersOfGroups(Collections.singletonList(OID3), null).isEmpty());
+    }
+
+    /**
+     * Test that the expected exception type is thrown when we resolve members of a a nested group
+     * with a bad regex.
+     *
+     * @throws StoreOperationException To satisfy compiler.
+     */
+    @Test
+    public void testGetMembersBadRegexException() throws StoreOperationException {
+        final GroupDefinition badGroupDef = GroupDefinition.newBuilder()
+                .setDisplayName("badGroup")
+                .setGroupFilters(GroupFilters.newBuilder()
+                    .addGroupFilter(GroupFilter.newBuilder()
+                        .addPropertyFilters(SearchProtoUtil.nameFilterRegex("*"))))
+                .build();
+        groupStore.createGroup(OID1, createUserOrigin(), badGroupDef,
+                Collections.singleton(MemberType.getDefaultInstance()), true);
+
+        expectedException.expect(BadSqlGrammarException.class);
+        groupStore.getMembers(Collections.singleton(OID1), false);
+    }
+
+    /**
+     * Test that the expected exception type is thrown when we resolve a group filter.
+     */
+    @Test
+    public void testGetGroupIdsBadRegexException() {
+        expectedException.expect(BadSqlGrammarException.class);
+        groupStore.getGroupIds(GroupFilters.newBuilder()
+            .addGroupFilter(GroupFilter.newBuilder()
+                    .addPropertyFilters(SearchProtoUtil.nameFilterRegex("*")))
+            .build());
     }
 
     /**

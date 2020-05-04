@@ -45,6 +45,7 @@ public class MigrationsConfig {
                 probeConfig.probeStore(), stitchingConfig.historyClient(),
                 identityProviderConfig.underlyingStore(),
                 identityProviderConfig.identityProvider(),
-                kvConfig.keyValueStore(), targetConfig.targetStore(), targetConfig.identityStore());
+                kvConfig.keyValueStore(), targetConfig.targetStore(), targetConfig.targetDao(),
+                targetConfig.identityStore());
     }
 }

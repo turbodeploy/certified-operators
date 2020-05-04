@@ -693,7 +693,6 @@ public class CostRpcServiceTest {
     public void testGetCloudCostStatsWithLatestWorkload() throws Exception {
         final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
                 .addCloudCostStatsQuery(CloudCostStatsQuery.newBuilder()).build();
-        //performEntityCostTest(request, 4);
 
         final StreamObserver<GetCloudCostStatsResponse> mockObserver =
                 mock(StreamObserver.class);
@@ -708,30 +707,25 @@ public class CostRpcServiceTest {
             .build())
         ).willReturn(snapshotToAccountExpensesMap);
 
-        final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
-        final GetCloudCostStatsResponse.Builder builder = GetCloudCostStatsResponse.newBuilder();
-        statRecordBuilder.setName(StringConstants.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
-        statRecordBuilder.setAssociatedEntityId(4L);
-        statRecordBuilder.setAssociatedEntityType(1);
-        statRecordBuilder.setCategory(CostCategory.ON_DEMAND_COMPUTE);
-        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
-
-        statValueBuilder.setAvg((float) ACCOUNT_EXPENSE1);
-
-        statValueBuilder.setTotal((float) ACCOUNT_EXPENSE1);
-        statValueBuilder.setMax((float) ACCOUNT_EXPENSE1);
-        statValueBuilder.setMin((float) ACCOUNT_EXPENSE1);
-
-        statRecordBuilder.setValues(statValueBuilder.build());
         final CloudCostStatRecord cloudStatRecord = CloudCostStatRecord.newBuilder()
                 .setSnapshotDate(TIME)
                 .setQueryId(0L)
-                .addStatRecords(statRecordBuilder.build())
+                .addStatRecords(CloudCostStatRecord.StatRecord.newBuilder()
+                        .setName(StringConstants.COST_PRICE)
+                        .setUnits("$/h")
+                        .setAssociatedEntityId(4L)
+                        .setAssociatedEntityType(1)
+                        .setCategory(CostCategory.ON_DEMAND_COMPUTE)
+                        .setCostSource(CostSource.ON_DEMAND_RATE)
+                        .setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                                .setAvg((float)ACCOUNT_EXPENSE1)
+                                .setTotal((float)ACCOUNT_EXPENSE1)
+                                .setMax((float)ACCOUNT_EXPENSE1)
+                                .setMin((float)ACCOUNT_EXPENSE1)))
                 .build();
-        builder.addCloudStatRecord(cloudStatRecord);
         costRpcService.getCloudCostStats(request, mockObserver);
-        verify(mockObserver).onNext(builder.build());
+        verify(mockObserver).onNext(
+                GetCloudCostStatsResponse.newBuilder().addCloudStatRecord(cloudStatRecord).build());
         verify(mockObserver).onCompleted();
     }
 
@@ -1130,22 +1124,18 @@ public class CostRpcServiceTest {
     }
 
     private CloudCostStatRecord.StatRecord.Builder getStatRecordBuilder(CostCategory costCategory) {
-        final CloudCostStatRecord.StatRecord.Builder statRecordBuilder = CloudCostStatRecord.StatRecord.newBuilder();
-        statRecordBuilder.setName(StringConstants.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
-        statRecordBuilder.setAssociatedEntityId(4L);
-        statRecordBuilder.setAssociatedEntityType(1);
-        statRecordBuilder.setCategory(costCategory);
-        CloudCostStatRecord.StatRecord.StatValue.Builder statValueBuilder = CloudCostStatRecord.StatRecord.StatValue.newBuilder();
-
-        statValueBuilder.setAvg((float) ACCOUNT_EXPENSE1);
-
-        statValueBuilder.setTotal((float) ACCOUNT_EXPENSE1);
-        statValueBuilder.setMax((float) ACCOUNT_EXPENSE1);
-        statValueBuilder.setMin((float) ACCOUNT_EXPENSE1);
-
-        statRecordBuilder.setValues(statValueBuilder.build());
-        return statRecordBuilder;
+        return CloudCostStatRecord.StatRecord.newBuilder()
+                .setName(StringConstants.COST_PRICE)
+                .setUnits("$/h")
+                .setAssociatedEntityId(4L)
+                .setAssociatedEntityType(1)
+                .setCategory(costCategory)
+                .setValues(CloudCostStatRecord.StatRecord.StatValue.newBuilder()
+                        .setAvg((float)ACCOUNT_EXPENSE1)
+                        .setTotal((float)ACCOUNT_EXPENSE1)
+                        .setMax((float)ACCOUNT_EXPENSE1)
+                        .setMin((float)ACCOUNT_EXPENSE1))
+                .setCostSource(CostSource.ON_DEMAND_RATE);
     }
 
     @Test
@@ -1379,22 +1369,21 @@ public class CostRpcServiceTest {
                 result);
     }
 
-    private Builder createStatRecord(final EntityCost entityCost, final ComponentCost componentCost) {
-        final Builder statRecordBuilder =
-                StatRecord.newBuilder();
-        statRecordBuilder.setName(StringConstants.COST_PRICE);
-        statRecordBuilder.setUnits("$/h");
-        statRecordBuilder.setAssociatedEntityId(entityCost.getAssociatedEntityId());
-        statRecordBuilder.setAssociatedEntityType(entityCost.getAssociatedEntityType());
-        statRecordBuilder.setCategory(componentCost.getCategory());
-        StatRecord.StatValue.Builder statValueBuilder =
-                StatRecord.StatValue.newBuilder();
-        statValueBuilder.setAvg((float)componentCost.getAmount().getAmount());
-        statValueBuilder.setTotal((float)componentCost.getAmount().getAmount());
-        statValueBuilder.setMax((float)componentCost.getAmount().getAmount());
-        statValueBuilder.setMin((float)componentCost.getAmount().getAmount());
-        statRecordBuilder.setValues(statValueBuilder.build());
-        return statRecordBuilder;
+    private Builder createStatRecord(final EntityCost entityCost,
+            final ComponentCost componentCost) {
+        final float amount = (float)componentCost.getAmount().getAmount();
+        return StatRecord.newBuilder()
+                .setName(StringConstants.COST_PRICE)
+                .setUnits("$/h")
+                .setAssociatedEntityId(entityCost.getAssociatedEntityId())
+                .setAssociatedEntityType(entityCost.getAssociatedEntityType())
+                .setCategory(componentCost.getCategory())
+                .setValues(StatRecord.StatValue.newBuilder()
+                        .setAvg(amount)
+                        .setTotal(amount)
+                        .setMax(amount)
+                        .setMin(amount))
+                .setCostSource(CostSource.ON_DEMAND_RATE);
     }
 
     /**

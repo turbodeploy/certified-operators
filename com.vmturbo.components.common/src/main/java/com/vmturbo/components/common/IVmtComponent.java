@@ -6,6 +6,7 @@ import java.util.zip.ZipOutputStream;
 
 import javax.annotation.Nonnull;
 
+import org.springframework.context.ApplicationContext;
 import org.springframework.core.env.Environment;
 
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -46,8 +47,10 @@ public interface IVmtComponent {
      * Initiate a transition to the {@code ExecutionStatus.STARTING} state.
      *
      * <p>Only valid in the {@code ExecutionStatus.NEW} state.
+     *
+     * @param applicationContext The constructed context of the component.
      */
-    void startComponent();
+    void startComponent(@Nonnull ApplicationContext applicationContext);
 
     /**
      * Initiate a transition to the {@code ExecutionStatus.STOPPING} state.

@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterators;
 
 import org.jooq.Condition;
 import org.jooq.Record;
@@ -56,6 +57,7 @@ import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsChunk;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
@@ -96,7 +98,7 @@ public class ClusterStatsReader {
      * These stats have two DB records per observation: one for usage and one for capacity.
      */
     private static final Set<String> STATS_STORED_IN_TWO_RECORDS;
-
+    private int maxAmountOfEntitiesPerGrpcMessage;
     private static final PaginationParameters DEFAULT_PAGINATION = PaginationParameters.newBuilder()
                                                                         .setAscending(false)
                                                                         .setCursor("0")
@@ -120,22 +122,23 @@ public class ClusterStatsReader {
 
     /**
      * Create a new instance.
-     *
      * @param historydbIO                        Access to some DB utilities
      * @param timeRangeFactory                   an instance of ClusterTimeRangeFactory used to
      *                                           determine time frame for query results
      * @param computedPropertiesProcessorFactory factory for processors tohandle computed properties
+     * @param maxAmountOfEntitiesPerGrpcMessage max amount of entities in a grpc chunk
      */
     ClusterStatsReader(HistorydbIO historydbIO, ClusterTimeRangeFactory timeRangeFactory,
-                       ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory) {
+                       ComputedPropertiesProcessorFactory computedPropertiesProcessorFactory, final int maxAmountOfEntitiesPerGrpcMessage) {
         this.historydbIO = historydbIO;
         this.timeRangeFactory = timeRangeFactory;
         this.computedPropertiesProcessorFactory = computedPropertiesProcessorFactory;
+        this.maxAmountOfEntitiesPerGrpcMessage = maxAmountOfEntitiesPerGrpcMessage;
     }
 
     /**
      * Obtain records from the appropriate cluster stats table to satisfy an API request.
-     * <p>
+     *
      * <p>Records are returned in a wrapper that provides uniform access to record data regardless
      * of the specific cluster_stats_* table from which the records were retrieved.</p>
      *
@@ -180,7 +183,7 @@ public class ClusterStatsReader {
 
     /**
      * Obtain records from the appropriate cluster stats table to satisfy an API request.
-     * <p>
+     *
      * <p>Records are returned in a wrapper that provides uniform access to record data regardless
      * of the specific cluster_stats_* table from which the records were retrieved.</p>
      *
@@ -218,7 +221,7 @@ public class ClusterStatsReader {
      * @throws VmtDbException when the query to the database fails
      */
     @Nonnull
-    public ClusterStatsResponse getStatsRecords(@Nonnull ClusterStatsRequest request) throws VmtDbException {
+    public List<ClusterStatsResponse> getStatsRecords(@Nonnull ClusterStatsRequest request) throws VmtDbException {
         long now = System.currentTimeMillis();
 
         // extract and validate the request parameters
@@ -322,11 +325,7 @@ public class ClusterStatsReader {
                     .map(id -> statsPerCluster.get(id).toEntityStats(oneDataPointRequested))
                     .collect(Collectors.toList());
 
-        // return response
-        return ClusterStatsResponse.newBuilder()
-                .setPaginationResponse(paginationResponse)
-                .addAllSnapshots(entityStats)
-                .build();
+        return createClusterStatsResponseList(entityStats, paginationResponse);
     }
 
     /**
@@ -578,6 +577,17 @@ public class ClusterStatsReader {
                                      map.getOrDefault(MEM_HEADROOM, -1.0)),
                             map.getOrDefault(STORAGE_HEADROOM, -1.0));
         }
+    }
+
+    private List<ClusterStatsResponse> createClusterStatsResponseList(@Nonnull List<EntityStats> entityStats,
+                                                                      @Nonnull PaginationResponse paginationResponse) {
+        List<ClusterStatsResponse> clusterStatsResponses = new ArrayList<>();
+        clusterStatsResponses.add(ClusterStatsResponse.newBuilder().setPaginationResponse(paginationResponse).build());
+        Iterators.partition(entityStats.iterator(), maxAmountOfEntitiesPerGrpcMessage)
+            .forEachRemaining(chunk -> clusterStatsResponses.add(ClusterStatsResponse.newBuilder()
+                .setSnapshotsChunk(EntityStatsChunk.newBuilder()
+                    .addAllSnapshots(chunk).build()).build()));
+        return clusterStatsResponses;
     }
 
     /**

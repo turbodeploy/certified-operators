@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.ExecutorService;
@@ -41,6 +42,7 @@ import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
@@ -54,6 +56,7 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
+import com.vmturbo.components.common.RequiresDataInitialization.InitializationException;
 import com.vmturbo.components.common.config.PropertiesLoader;
 import com.vmturbo.components.common.diagnostics.DiagnosticService;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
@@ -319,7 +322,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
      * {@inheritDoc}
      */
     @Override
-    public final void startComponent() {
+    public final void startComponent(@Nonnull final ApplicationContext applicationContext) {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 logger.info("Shutting down {} component.", getComponentName());
                 stopComponent();
@@ -355,6 +358,27 @@ public abstract class BaseVmtComponent implements IVmtComponent,
         final ExecutorService svc = Executors.newSingleThreadExecutor();
         svc.execute(() -> {
             try {
+                final Map<String, RequiresDataInitialization> reqInitialization =
+                        applicationContext.getBeansOfType(RequiresDataInitialization.class);
+                if (!reqInitialization.isEmpty()) {
+                    setStatus(ExecutionStatus.INITIALIZING_DATA);
+                    logger.info("Starting initializations for {} beans", reqInitialization.size());
+                    for (final Entry<String, RequiresDataInitialization> entry : reqInitialization.entrySet()) {
+                        try {
+                            logger.info("Running initialization for bean: {}", entry.getKey());
+                            entry.getValue().initialize();
+                        } catch (InitializationException e) {
+                            if (!e.isFatal()) {
+                                logger.error("Bean {} failed initialization with non-fatal error.",
+                                    entry.getKey(), e);
+                            } else {
+                                throw e;
+                            }
+                        }
+                    }
+                    logger.info("Finished running initializations for {} beans.", reqInitialization.size());
+                }
+
                 this.onStartComponent();
                 publishVersionInformation();
                 consulRegistrationConfig.componentStatusNotifier().ifPresent(ComponentStatusNotifier::notifyComponentStartup);
@@ -543,7 +567,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
     @Override
     public void onApplicationEvent(ContextRefreshedEvent event) {
         if (!startFired.getAndSet(true)) {
-            startComponent();
+            startComponent(event.getApplicationContext());
         }
     }
 

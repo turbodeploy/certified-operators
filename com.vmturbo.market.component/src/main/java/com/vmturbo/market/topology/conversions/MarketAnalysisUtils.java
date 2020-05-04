@@ -80,7 +80,9 @@ public final class MarketAnalysisUtils {
                                     CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE,
                                     CommodityDTO.CommodityType.VSTORAGE_VALUE,
                                     CommodityDTO.CommodityType.VCPU_REQUEST_VALUE,
-                                    CommodityDTO.CommodityType.VMEM_REQUEST_VALUE);
+                                    CommodityDTO.CommodityType.VMEM_REQUEST_VALUE,
+                                    CommodityDTO.CommodityType.VCPU_LIMIT_QUOTA_VALUE,
+                                    CommodityDTO.CommodityType.VMEM_LIMIT_QUOTA_VALUE);
 
     /**
      * Finite standard weighted price function is used for these commodities.

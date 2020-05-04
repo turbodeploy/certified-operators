@@ -1,7 +1,9 @@
 package com.vmturbo.api.component.external.api.service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,30 +84,9 @@ public class StatsService implements IStatsService {
     public static final String MARKET = "Market";
 
     /**
-     * Cloud target constant to match UI request, also used in test case
-     */
-    public static final String TARGET = "target";
-
-    /**
      * Cloud service constant to match UI request, also used in test cases
      */
     public static final String CLOUD_SERVICE = "cloudService";
-
-    /**
-     * Cloud service provider constant to match UI request, also used in test cases
-     */
-    public static final String CSP = "CSP";
-
-    private static final String COSTCOMPONENT = "costComponent";
-
-    // Internally generated stat name when stats period are not set.
-    private static final String CURRENT_COST_PRICE = "currentCostPrice";
-
-    private static final Set<String> NUM_WORKLOADS_STATS_SET = ImmutableSet.of(
-        StringConstants.NUM_WORKLOADS, "currentNumWorkloads",
-        StringConstants.NUM_VMS, "currentNumVMs",
-        StringConstants.NUM_DBS, "currentNumDBs",
-        StringConstants.NUM_DBSS, "currentNumDBSs");
 
     private static Logger logger = LogManager.getLogger(StatsService.class);
 
@@ -155,8 +136,6 @@ public class StatsService implements IStatsService {
                     StringConstants.NUM_HOSTS,
                     StringConstants.HOST,
                     StringConstants.NUM_STORAGES);
-
-    private static final String STAT_FILTER_PREFIX = "current";
 
     /**
      * Map Entity types to be expanded to the RelatedEntityType to retrieve. For example,
@@ -469,9 +448,19 @@ public class StatsService implements IStatsService {
         }
 
         // run the service
-        final ClusterStatsResponse response;
+        Optional<PaginationResponse> optionalPaginationResponse = Optional.empty();
+        final List<EntityStats> entityStatsList = new ArrayList<>();
         try {
-            response = statsServiceRpc.getClusterStats(requestBuilder.build());
+             Iterator<ClusterStatsResponse> response =
+                 statsServiceRpc.getClusterStats(requestBuilder.build());
+             while (response.hasNext()) {
+                 ClusterStatsResponse chunk = response.next();
+                 if (chunk.hasPaginationResponse()) {
+                     optionalPaginationResponse = Optional.of(chunk.getPaginationResponse());
+                 } else {
+                     entityStatsList.addAll(chunk.getSnapshotsChunk().getSnapshotsList());
+                 }
+             }
         } catch (StatusRuntimeException e) {
             throw ExceptionMapper.translateStatusException(e);
         }
@@ -481,7 +470,7 @@ public class StatsService implements IStatsService {
         if (marketScoped && !userScoped) {
             groupServiceRpc.getGroups(GetGroupsRequest.newBuilder()
                                         .setGroupFilter(GroupFilter.newBuilder()
-                                                            .addAllId(response.getSnapshotsList().stream()
+                                                            .addAllId(entityStatsList.stream()
                                                                             .map(EntityStats::getOid)
                                                                             .collect(Collectors.toSet())))
                                                     .build())
@@ -489,9 +478,8 @@ public class StatsService implements IStatsService {
         }
 
         // construct the response
-        final PaginationResponse paginationResponse = response.getPaginationResponse();
         final List<EntityStatsApiDTO> results =
-            response.getSnapshotsList().stream()
+            entityStatsList.stream()
                 .map(entityStats -> {
                         final EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
                         final GroupDefinition cluster = clusters.get(entityStats.getOid());
@@ -526,11 +514,12 @@ public class StatsService implements IStatsService {
                         return entityStatsApiDTO;
                 })
                 .collect(Collectors.toList());
-        if (paginationResponse.hasNextCursor()) {
+        if (optionalPaginationResponse.isPresent() && optionalPaginationResponse.get().hasNextCursor()) {
+            PaginationResponse paginationResponse = optionalPaginationResponse.get();
             return paginationRequest.nextPageResponse(results, paginationResponse.getNextCursor(),
                                                       paginationResponse.getTotalRecordCount());
         } else {
-            return paginationRequest.finalPageResponse(results, paginationResponse.getTotalRecordCount());
+            return paginationRequest.finalPageResponse(results, entityStatsList.size());
         }
     }
 

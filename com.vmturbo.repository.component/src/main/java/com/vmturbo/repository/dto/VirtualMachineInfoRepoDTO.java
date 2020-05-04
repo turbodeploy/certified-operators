@@ -18,6 +18,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Virtual
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualizationType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.LicenseModel;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualMachineData.VMBillingType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.Tenancy;
 
 /**
@@ -47,6 +48,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
 
     private VirtualizationType virtualizationType;
 
+    private VMBillingType billingType;
 
     public VirtualMachineInfoRepoDTO() {
         guestOsInfo = null;
@@ -58,6 +60,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         hasNVMeDriver = null;
         architecture = null;
         virtualizationType = null;
+        billingType = null;
     }
 
     @Override
@@ -87,6 +90,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
             vmInfo.getDriverInfo().getHasNvmeDriver() : null);
         setArchitecture(vmInfo.hasArchitecture() ? vmInfo.getArchitecture() : null);
         setVirtualizationType(vmInfo.hasVirtualizationType() ? vmInfo.getVirtualizationType() : null);
+        setBillingType(vmInfo.hasBillingType() ? vmInfo.getBillingType() : null);
         serviceEntityRepoDTO.setVirtualMachineInfoRepoDTO(this);
     }
 
@@ -139,6 +143,9 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         }
         if (getVirtualizationType() != null) {
             vmBuilder.setVirtualizationType(getVirtualizationType());
+        }
+        if (getBillingType() != null) {
+            vmBuilder.setBillingType(getBillingType());
         }
 
         return TypeSpecificInfo.newBuilder()
@@ -227,6 +234,14 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
         this.virtualizationType = virtualizationType;
     }
 
+    public VMBillingType getBillingType() {
+        return billingType;
+    }
+
+    public void setBillingType(VMBillingType billingType) {
+        this.billingType = billingType;
+    }
+
     @Override
     public boolean equals(final Object o) {
         if (this == o) return true;
@@ -241,13 +256,14 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 Objects.equals(hasNVMeDriver, that.hasNVMeDriver) &&
                 Objects.equals(hasEnaDriver, that.hasEnaDriver) &&
                 Objects.equals(architecture, that.architecture) &&
-                Objects.equals(virtualizationType, that.virtualizationType);
+                Objects.equals(virtualizationType, that.virtualizationType) &&
+                Objects.equals(billingType, that.billingType);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(guestOsInfo, tenancy, ipAddressInfoList, numCpus, licenseModel,
-            connectedNetworks, hasNVMeDriver, hasEnaDriver, architecture, virtualizationType);
+                connectedNetworks, hasNVMeDriver, hasEnaDriver, architecture, virtualizationType, billingType);
     }
 
     @Override
@@ -263,6 +279,7 @@ public class VirtualMachineInfoRepoDTO implements TypeSpecificInfoRepoDTO {
                 ", hasEnaDriver=" + hasEnaDriver +
                 ", architecture=" + architecture +
                 ", virtualizationType=" + virtualizationType +
+                ", billingType=" + billingType +
                 '}';
     }
 }

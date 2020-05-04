@@ -32,11 +32,13 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCoupons;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceStatsRecord;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceBoughtFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -108,11 +110,30 @@ public class ProjectedRICoverageAndUtilStore {
                     @Nonnull final TopologyInfo originalTopologyInfo,
                     @Nonnull final List<EntityReservedInstanceCoverage> entitiesRICoverage) {
         synchronized (lockObject) {
+
+            // Search the VMs that are BIDDING type to exclude them from the projected coverage capacity
+            final List<Long> entityIds = entitiesRICoverage.stream()
+                    .map(entity -> entity.getEntityId())
+                    .collect(Collectors.toList());
+            final Set<Long> biddingVmIds = repositoryClient
+                    .retrieveTopologyEntities(entityIds, originalTopologyInfo.getTopologyContextId())
+                    .filter(entity -> CommonDTO.EntityDTO.VirtualMachineData.VMBillingType.BIDDING ==
+                            entity.getTypeSpecificInfo().getVirtualMachine().getBillingType())
+                    .map(TopologyDTO.TopologyEntityDTO::getOid)
+                    .collect(Collectors.toSet());
+
             Objects.requireNonNull(originalTopologyInfo, "topology info must not be null");
             topologyContextId = originalTopologyInfo.getTopologyContextId();
             // Clear the coverage map before updating.
             projectedEntitiesRICoverage.clear();
             for (EntityReservedInstanceCoverage entityRICoverage : entitiesRICoverage) {
+
+                if (biddingVmIds.contains(entityRICoverage.getEntityId())) {
+                    logger.trace("Entity {} is Billing Type: BIDDING. Skipping it... ",
+                            entityRICoverage.getEntityId());
+                    continue;
+                }
+
                 projectedEntitiesRICoverage.put(entityRICoverage.getEntityId(), entityRICoverage);
             }
             //TODO: remove this logger or convert to debug

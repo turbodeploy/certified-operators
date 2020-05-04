@@ -37,6 +37,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
@@ -300,6 +301,24 @@ public class SupplyChainFetcherFactoryTest {
         Map<String, ServiceEntityApiDTO> serviceEntityApiDTOMap = supplychainEntryDTOs.iterator().next()
                 .getInstances();
         assertFalse(serviceEntityApiDTOMap.isEmpty());
+    }
+
+    /**
+     * Verify that the entity states filter is passed to the supply chain backend.
+     *
+     * @throws Exception To satisfy the compiler.
+     */
+    @Test
+    public void testSupplyChainWithEntityStates() throws Exception {
+        supplyChainFetcherFactory.newNodeFetcher()
+                .entityStates(Collections.singletonList(com.vmturbo.api.enums.EntityState.ACTIVE))
+                .fetch();
+
+        ArgumentCaptor<GetSupplyChainRequest> requestCaptor = ArgumentCaptor.forClass(GetSupplyChainRequest.class);
+        verify(supplyChainServiceBackend).getSupplyChain(requestCaptor.capture());
+        GetSupplyChainRequest req = requestCaptor.getValue();
+        assertThat(req.getScope().getEntityStatesToIncludeList(),
+                containsInAnyOrder(UIEntityState.ACTIVE.toEntityState()));
     }
 
     /**
