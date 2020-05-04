@@ -108,7 +108,7 @@ public class WrappedTarget {
     public boolean needsUpdate(@Nonnull final AssetService service) {
         Objects.requireNonNull(service);
         return !Objects.equals(getNewStatusEnum(service), service.getStatus())
-                || !Objects.equals(tpTargetInfo.getStatus(), service.getStatusErrorReason());
+                || !Objects.equals(getNewStatusErrorReason(service), service.getStatusErrorReason());
     }
 
     /**
@@ -125,5 +125,17 @@ public class WrappedTarget {
     public StatusEnum getNewStatusEnum(@Nonnull final AssetService service) {
         return isValidated() ? StatusEnum.CONNECTED : isInProgress() ?
                 Objects.requireNonNull(service).getStatus() : StatusEnum.NOTCONNECTED;
+    }
+
+    /**
+     * Return the new target status string if there is an error, or an empty string if no error.
+     *
+     * @param service the AssetService discovered from Intersight which contains the previously
+     *                reported status enum
+     * @return the newly computed status string if there is an error, or an empty string if no error
+     */
+    public String getNewStatusErrorReason(@Nonnull final AssetService service) {
+        return StatusEnum.CONNECTED.equals(getNewStatusEnum(Objects.requireNonNull(service)))
+                ? "" : tpTargetInfo.getStatus();
     }
 }
