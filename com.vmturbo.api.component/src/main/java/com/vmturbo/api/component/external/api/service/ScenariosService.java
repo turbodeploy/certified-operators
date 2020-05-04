@@ -4,16 +4,12 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.validation.Errors;
 
 import com.vmturbo.api.component.external.api.mapper.ScenarioMapper;
@@ -35,7 +31,6 @@ import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceBlock
  * Service implementation of Scenarios
  **/
 public class ScenariosService implements IScenariosService {
-    private static final Logger logger = LogManager.getLogger();
 
     private final ScenarioServiceBlockingStub scenarioService;
 

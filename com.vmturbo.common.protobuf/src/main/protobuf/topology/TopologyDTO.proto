@@ -1206,6 +1206,17 @@ message CommoditySoldDTO {
     // The thresholds (Ex. min/Max) for the commodity.
     optional Thresholds thresholds = 24;
 
+    // A resold commodity is designed to model situations in which the true source of supply for
+    // that resold commodity is further down the supply chain rather than directly through the entity
+    // providing the commodity. In these cases, the true supplier is responsible for setting the
+    // price of the resold commodity. For a real-life economic analogy, consider the case of buying
+    // a BigMac at McDonald's - the individual restaurant does not get to set the price. Instead,
+    // the price may be set by the franchise based on national or regional prices of its
+    // ingredients along with other factors. Useful in situations where an entity's direct provider
+    // represents more of a logical grouping of entities rather than a proper supplier of resources ie
+    // a Container buying from a ContainerPod.
+    optional bool is_resold = 25;
+
     // The max amount resource will be decided by another commodity's usage on the consumer
     message RatioDependency {
         // The type of commodity whose usage will be used as a factor.
@@ -1351,6 +1362,17 @@ message AnalysisSummary {
     optional ProjectedTopologyInfo projected_topology_info = 1;
     optional TopologyInfo source_topology_info = 2;
     optional ActionPlanSummary action_plan_summary = 3;
+}
+
+// A message containing a list of entities that changed state and an id that can be compared with
+// topology ids
+message EntitiesWithNewState {
+    // The entities that changed state
+    repeated TopologyEntityDTO topology_entity = 1;
+
+    // This represent the same incremental id used for topologies. With this we can easily
+    // compare topologies that have been built after the events were detected
+    optional int64 state_change_id = 2;
 }
 
 // A request to assemble the current topology and broadcast it to all listeners for the topology.

@@ -64,8 +64,6 @@ public class SchedulesService implements ISchedulesService {
         ZoneId.systemDefault());
     // 2038-01-19 03:14:07 UTC
     static final long MAX_TIME_TS = 2147483647000L;
-    private static final ZonedDateTime MAX_TIME = ZonedDateTime.ofInstant(
-        Instant.ofEpochMilli(MAX_TIME_TS), ZoneId.systemDefault());
 
     private final Logger logger = LogManager.getLogger();
 

@@ -78,6 +78,7 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader.UploadException;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
+import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
 import com.vmturbo.topology.processor.topology.PlanTopologyScopeEditor;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.TopologyEditor;
@@ -85,6 +86,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ChangeAppCommodityKeyOnVMAndAppStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.DummySettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.EphemeralEntityHistoryStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PlanScopingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
@@ -647,6 +649,23 @@ public class StagesTest {
         Assert.assertEquals(2, topoResult.getScopeSeedOidsCount());
         Assert.assertEquals(11111, topoResult.getScopeSeedOids(0));
         Assert.assertEquals(22222, topoResult.getScopeSeedOids(1));
+    }
+
+    /**
+     * Tests the ephemeral entity editor gets run by the stage.
+     *
+     * @throws PipelineStageException if something goes wrong.
+     */
+    @Test
+    public void testEphemeralEntityHistoryStage() throws PipelineStageException {
+        final EphemeralEntityEditor ephemeralEntityEditor = mock(EphemeralEntityEditor.class);
+        final EphemeralEntityHistoryStage eeHistoryStage =
+            new EphemeralEntityHistoryStage(ephemeralEntityEditor);
+        @SuppressWarnings("unchecked")
+        final TopologyGraph<TopologyEntity> topologyGraph = mock(TopologyGraph.class);
+
+        eeHistoryStage.passthrough(topologyGraph);
+        verify(ephemeralEntityEditor).applyEdits(topologyGraph);
     }
 
     private TopologyGraph<TopologyEntity> createTopologyGraph() {

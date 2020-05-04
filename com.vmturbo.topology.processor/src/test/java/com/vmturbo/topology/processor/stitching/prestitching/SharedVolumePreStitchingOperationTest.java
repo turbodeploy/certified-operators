@@ -6,6 +6,7 @@ import static org.junit.Assert.assertFalse;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -115,6 +116,8 @@ public class SharedVolumePreStitchingOperationTest {
     private void setupEntities(@Nonnull final EntityDTO.Builder... entities) {
         final long targetIncrement = 111L;
         final long lastUpdatedIncrement = 100L;
+        TargetStore targetStore = Mockito.mock(TargetStore.class);
+        Mockito.when(targetStore.getAll()).thenReturn(Collections.emptyList());
 
         long oid = 1L;
         long targetId = targetIncrement;
@@ -131,8 +134,7 @@ public class SharedVolumePreStitchingOperationTest {
             entityDataList.add(stitchingData);
         }
 
-        final StitchingContext.Builder builder = StitchingContext.newBuilder(entities.length)
-            .setTargetStore(Mockito.mock(TargetStore.class))
+        final StitchingContext.Builder builder = StitchingContext.newBuilder(entities.length, targetStore)
             .setIdentityProvider(Mockito.mock(IdentityProviderImpl.class));
         entityDataList.forEach(entity -> builder.addEntity(entity,
             ImmutableMap.of(entity.getLocalId(), entity)));

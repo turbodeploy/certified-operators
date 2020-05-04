@@ -35,8 +35,9 @@ import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
-import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.CommodityPostStitchingOperationConfig;
+import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
+import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -67,7 +68,9 @@ public abstract class StitchingIntegrationTest {
     protected final ProbeStore probeStore = mock(ProbeStore.class);
     protected final TargetStore targetStore = mock(TargetStore.class);
     protected CpuCapacityStore cpuCapacityStore = mock(CpuCapacityStore.class);
-    protected EntityStore entityStore = new EntityStore(targetStore, identityProvider,
+    private final TopologyProcessorNotificationSender sender = Mockito.mock(TopologyProcessorNotificationSender.class);
+
+    protected EntityStore entityStore = new EntityStore(targetStore, identityProvider, sender,
             Clock.systemUTC());
     protected final DiskCapacityCalculator diskCapacityCalculator =
             mock(DiskCapacityCalculator.class);

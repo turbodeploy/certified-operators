@@ -34,6 +34,7 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidator;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileNotifier;
 import com.vmturbo.topology.processor.topology.ApplicationCommodityKeyChanger;
 import com.vmturbo.topology.processor.topology.EnvironmentTypeInjector;
+import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
@@ -47,6 +48,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.ControllableStage
 import com.vmturbo.topology.processor.topology.pipeline.Stages.DummySettingsResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EntityValidationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.EnvironmentTypeStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.EphemeralEntityHistoryStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ExtractTopologyGraphStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.GraphCreationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoricalUtilizationStage;
@@ -134,6 +136,8 @@ public class LivePipelineFactory {
 
     private final ActionConstraintsUploader actionConstraintsUploader;
 
+    private final EphemeralEntityEditor ephemeralEntityEditor;
+
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
                                @Nonnull final PolicyManager policyManager,
                                @Nonnull final StitchingManager stitchingManager,
@@ -161,7 +165,8 @@ public class LivePipelineFactory {
                                @Nonnull HistoryAggregator historyAggregationStage,
                                @Nonnull final LicenseCheckClient licenseCheckClient,
                                @Nonnull final ConsistentScalingManager consistentScalingManager,
-                               @Nonnull final ActionConstraintsUploader actionConstraintsUploader) {
+                               @Nonnull final ActionConstraintsUploader actionConstraintsUploader,
+                               @Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
         this.stitchingManager = stitchingManager;
@@ -190,6 +195,7 @@ public class LivePipelineFactory {
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.consistentScalingManager = Objects.requireNonNull(consistentScalingManager);
         this.actionConstraintsUploader = actionConstraintsUploader;
+        this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
     }
 
     /**
@@ -244,6 +250,7 @@ public class LivePipelineFactory {
             @Nonnull final List<TopoBroadcastManager> managers) {
         final MatrixInterface mi = matrix.copy();
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
+                .addStage(new DCMappingStage(discoveredGroupUploader))
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new Stages.FlowGenerationStage(mi))
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))
@@ -272,6 +279,7 @@ public class LivePipelineFactory {
                 .addStage(new HistoryAggregationStage(historyAggregator, null, topologyInfo, null))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
+                .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new BroadcastStage(managers, mi))
                 .build();
@@ -296,6 +304,7 @@ public class LivePipelineFactory {
             @Nonnull final StitchingJournalFactory journalFactory,
             @Nonnull final List<TopoBroadcastManager> managers) {
         return TopologyPipeline.<EntityStore, TopologyBroadcastInfo>newBuilder(context)
+                .addStage(new DCMappingStage(discoveredGroupUploader))
                 .addStage(new StitchingStage(stitchingManager, journalFactory))
                 .addStage(new Stages.FlowGenerationStage(matrix))
                 .addStage(new StitchingGroupFixupStage(stitchingGroupFixer, discoveredGroupUploader))

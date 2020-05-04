@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
@@ -23,6 +24,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
  */
 @Configuration
 @Import({ActionOrchestratorGlobalConfig.class,
+        TopologyProcessorConfig.class,
         GroupClientConfig.class})
 public class ActionExecutionConfig {
 
@@ -32,6 +34,9 @@ public class ActionExecutionConfig {
     @Autowired
     private GroupClientConfig groupClientConfig;
 
+    @Autowired
+    private TopologyProcessorConfig tpConfig;
+
     @Value("${failedGroupUpdateDelaySeconds:10}")
     private int groupUpdateDelaySeconds;
 
@@ -40,7 +45,7 @@ public class ActionExecutionConfig {
 
     @Bean
     public ProbeCapabilityCache targetCapabilityCache() {
-        return new ProbeCapabilityCache(globalConfig.topologyProcessor(), actionCapabilitiesService());
+        return new ProbeCapabilityCache(tpConfig.topologyProcessor(), actionCapabilitiesService());
     }
 
     @Bean
@@ -57,7 +62,7 @@ public class ActionExecutionConfig {
      */
     @Bean
     public ProbeActionCapabilitiesServiceBlockingStub actionCapabilitiesService() {
-        return ProbeActionCapabilitiesServiceGrpc.newBlockingStub(globalConfig
+        return ProbeActionCapabilitiesServiceGrpc.newBlockingStub(tpConfig
                 .topologyProcessorChannel());
     }
 
@@ -66,15 +71,19 @@ public class ActionExecutionConfig {
         return new ActionConstraintStoreFactory();
     }
 
+    /**
+     * Bean for {@link ActionExecutor}.
+     * @return The {@link ActionExecutor}.
+     */
     @Bean
     public ActionExecutor actionExecutor() {
         final ActionExecutor executor =
-                new ActionExecutor(globalConfig.topologyProcessorChannel(),
+                new ActionExecutor(tpConfig.topologyProcessorChannel(),
                     globalConfig.actionOrchestratorClock(),
                     actionExecutionTimeoutMins,
                     TimeUnit.MINUTES);
 
-        globalConfig.topologyProcessor().addActionListener(executor);
+        tpConfig.topologyProcessor().addActionListener(executor);
 
         return executor;
     }
@@ -84,6 +93,6 @@ public class ActionExecutionConfig {
         return new ActionTargetSelector(targetCapabilityCache(),
                 actionConstraintStoreFactory(),
                 globalConfig.repositoryProcessorChannel(),
-                globalConfig.realtimeTopologyContextId());
+                tpConfig.realtimeTopologyContextId());
     }
 }

@@ -2,13 +2,17 @@ package com.vmturbo.market.topology.conversions;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.collect.Table;
 
@@ -113,7 +117,7 @@ public class CommodityConverterTest {
                         .getScaledCapacityStandardWeighted().getScale(),
                 (effectiveCapacityPercentage / 100.0) < 1.0f ? 1.0f :
                         (effectiveCapacityPercentage / 100.0), 0.001f);
-
+        assertFalse(cpuCommodityTO.getSettings().hasResold());
     }
 
     /**
@@ -265,5 +269,42 @@ public class CommodityConverterTest {
             checkSoldCommodityTO(to, SCALING_FACTOR, RAW_CAPACITY * SCALING_FACTOR,
                     0f);
         }
+    }
+
+    /**
+     * Test that the "isResold" flag gets correctly transferred to commSoldTO's when it
+     * is present on the input CommodityDTO.
+     */
+    @Test
+    public void testResoldCommodity() {
+        final TopologyEntityDTO originalTopologyEntityDTO = TopologyEntityDTO.newBuilder()
+            .setOid(PM_OID)
+            .setEntityType(EntityType.DESKTOP_POOL_VALUE)
+            .addCommoditySoldList(createSoldCommodity(HistoricalValues.getDefaultInstance(),
+                SCALING_FACTOR, CommodityDTO.CommodityType.VCPU, 95)
+                .toBuilder()
+                .setIsResold(false))
+            .addCommoditySoldList(createSoldCommodity(HistoricalValues.getDefaultInstance(),
+                SCALING_FACTOR, CommodityDTO.CommodityType.VMEM, 95)
+                .toBuilder()
+                .setIsResold(true))
+            .build();
+        final Collection<CommoditySoldTO> result =
+            converterToTest.commoditiesSoldList(originalTopologyEntityDTO);
+
+        // Assert
+        assertThat(result.size(), equalTo(2));
+        assertThat(commSoldOfType(result, CommodityDTO.CommodityType.VCPU)
+            .getSettings().getResold(), is(false));
+        assertThat(commSoldOfType(result, CommodityDTO.CommodityType.VMEM)
+            .getSettings().getResold(), is(true));
+    }
+
+    private CommoditySoldTO commSoldOfType(@Nonnull final Collection<CommoditySoldTO> commoditiesSold,
+                                           @Nonnull final CommodityDTO.CommodityType type) {
+        return commoditiesSold.stream()
+            .filter(commSold -> commSold.getSpecification().getDebugInfoNeverUseInCode().contains(type.name()))
+            .findFirst()
+            .get();
     }
 }

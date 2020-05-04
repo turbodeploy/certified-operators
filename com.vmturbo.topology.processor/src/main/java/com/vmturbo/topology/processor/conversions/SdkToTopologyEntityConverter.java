@@ -73,6 +73,7 @@ import com.vmturbo.topology.processor.conversions.typespecific.StorageInfoMapper
 import com.vmturbo.topology.processor.conversions.typespecific.TypeSpecificInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualMachineInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualVolumeInfoMapper;
+import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
 /**
@@ -176,10 +177,12 @@ public class SdkToTopologyEntityConverter {
      * Convert one probe entity DTO to one topology entity DTO.
      *
      * @param entity probe entity DTO.
+     * @param resoldCommodityCache cache to look up which commodities are resold.
      * @return topology entity DTOs.
      */
     public static TopologyDTO.TopologyEntityDTO.Builder newTopologyEntityDTO(
-            @Nonnull final TopologyStitchingEntity entity) {
+            @Nonnull final TopologyStitchingEntity entity,
+            @Nonnull final ResoldCommodityCache resoldCommodityCache) {
         final CommonDTO.EntityDTOOrBuilder dto = entity.getEntityBuilder();
 
         final int entityType = type(dto);
@@ -201,6 +204,17 @@ public class SdkToTopologyEntityConverter {
                 if (commoditySold.accesses != null) {
                     builder.setAccesses(commoditySold.accesses.getOid());
                 }
+
+                // Set the "isResold" flag on the commodity based on information originally passed in the
+                // supply chain. "isResold" will be true if at least one discovering target marked it
+                // as resold. Note that we purposely ignore key. If we have a use case where we need
+                // to consider matching keys, we may need this flag on the actual CommoditySold in the SDK
+                // rather than on the supply chain.
+                entity.getDiscoveringTargetIds().forEach(targetId ->
+                    resoldCommodityCache.getIsResold(
+                        targetId, entityType, commoditySold.sold.getCommodityType().getNumber())
+                        .ifPresent(isResold -> builder.setIsResold(builder.getIsResold() || isResold)));
+
                 return builder.build();
             }).collect(Collectors.toList());
 
@@ -571,6 +585,46 @@ public class SdkToTopologyEntityConverter {
         return retBuilder;
     }
 
+    /**
+     * Convert one probe entity DTO state to one topology entity DTO state.
+     *
+     * @param entityDTO probe entity DTO..
+     * @return topology entity DTO.
+     */
+    public static TopologyDTO.EntityState entityState(EntityDTOOrBuilder entityDTO) {
+        TopologyDTO.EntityState entityState = TopologyDTO.EntityState.UNKNOWN;
+
+        // retrieve entity state from dto
+        CommonDTO.EntityDTO.PowerState powerState = entityDTO.getPowerState();
+        switch (powerState) {
+            case POWERED_OFF:
+                entityState = TopologyDTO.EntityState.POWERED_OFF;
+                break;
+            case POWERED_ON:
+                entityState = TopologyDTO.EntityState.POWERED_ON;
+                break;
+            case SUSPENDED:
+                entityState = TopologyDTO.EntityState.SUSPENDED;
+                break;
+        }
+
+        // Handle some power states that are specific for PMs
+        if (entityDTO.getEntityType() == EntityType.PHYSICAL_MACHINE) {
+
+            // Some hypervisors (like VC) can have a PM in maintenance and failover at the same time.
+            // In this case, given that we want to show only a single state of the entity, we choose
+            // to show maintenance, as the stronger of the 2 states.
+            // So a server in maintenance will override a failover state.
+            if (entityDTO.getMaintenance()) {
+                entityState = EntityState.MAINTENANCE;
+            } else if (entityDTO.getPhysicalMachineData().getPmState().getFailover()) {
+                entityState = EntityState.FAILOVER;
+            }
+        }
+
+        return entityState;
+    }
+
     @VisibleForTesting
     static boolean isControllable(final boolean isControllable, final boolean isMonitored) {
         return isControllable && isMonitored;
@@ -632,40 +686,6 @@ public class SdkToTopologyEntityConverter {
                         .addAllConnectedEntityList(connectedToList);
 
         return result;
-    }
-
-    private static TopologyDTO.EntityState entityState(EntityDTOOrBuilder entityDTO) {
-        TopologyDTO.EntityState entityState = TopologyDTO.EntityState.UNKNOWN;
-
-        // retrieve entity state from dto
-        CommonDTO.EntityDTO.PowerState powerState = entityDTO.getPowerState();
-        switch (powerState) {
-            case POWERED_OFF:
-                entityState = TopologyDTO.EntityState.POWERED_OFF;
-                break;
-            case POWERED_ON:
-                entityState = TopologyDTO.EntityState.POWERED_ON;
-                break;
-            case SUSPENDED:
-                entityState = TopologyDTO.EntityState.SUSPENDED;
-                break;
-        }
-
-        // Handle some power states that are specific for PMs
-        if (entityDTO.getEntityType() == EntityType.PHYSICAL_MACHINE) {
-
-            // Some hypervisors (like VC) can have a PM in maintenance and failover at the same time.
-            // In this case, given that we want to show only a single state of the entity, we choose
-            // to show maintenance, as the stronger of the 2 states.
-            // So a server in maintenance will override a failover state.
-            if (entityDTO.getMaintenance()) {
-                entityState = EntityState.MAINTENANCE;
-            } else if (entityDTO.getPhysicalMachineData().getPmState().getFailover()) {
-                entityState = EntityState.FAILOVER;
-            }
-        }
-
-        return entityState;
     }
 
     private static TopologyDTO.CommodityBoughtDTO newCommodityBoughtDTO(

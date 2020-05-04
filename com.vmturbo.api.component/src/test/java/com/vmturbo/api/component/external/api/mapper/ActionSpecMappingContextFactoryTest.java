@@ -35,6 +35,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMappingContextFactory.ActionSpecMappingContext;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
+import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -84,6 +85,7 @@ public class ActionSpecMappingContextFactoryTest {
 
     private final CostServiceMole costServiceMole = Mockito.spy(new CostServiceMole());
 
+    private final PoliciesService policiesService = Mockito.mock(PoliciesService.class);
     /**
      * Test server for stubbed services.
      */
@@ -150,7 +152,7 @@ public class ActionSpecMappingContextFactoryTest {
                             777777,
                             buyRIServiceClient, riSpecService,
                             Mockito.mock(ServiceEntityMapper.class),
-                            supplyChainService);
+                            supplyChainService, policiesService);
 
         final Map<Long, Pair<ReservedInstanceBought, ReservedInstanceSpec>>
                 buyRIIdToRIBoughtandRISpec = actionSpecMappingContextFactory
@@ -257,7 +259,7 @@ public class ActionSpecMappingContextFactoryTest {
             777777,
             buyRIServiceClient, riSpecService,
             serviceEntityMapper,
-            supplyChainService);
+            supplyChainService, policiesService);
 
         long topologyContextId = 777777L;
         ActionSpecMappingContext result = null;
@@ -347,7 +349,8 @@ public class ActionSpecMappingContextFactoryTest {
                 BuyReservedInstanceServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
                 ReservedInstanceSpecServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
                 Mockito.mock(ServiceEntityMapper.class),
-                SupplyChainServiceGrpc.newBlockingStub(grpcTestServer.getChannel()));
+                SupplyChainServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+                policiesService);
 
         List<ApiPartialEntity> planPartialEntities = new ArrayList<>();
         planPartialEntities.add(ApiPartialEntity.newBuilder().setDisplayName("aws-EU (Paris)")

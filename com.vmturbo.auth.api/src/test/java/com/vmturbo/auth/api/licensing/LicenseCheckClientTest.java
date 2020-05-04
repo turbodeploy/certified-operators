@@ -51,6 +51,25 @@ public class LicenseCheckClientTest {
     }
 
     /**
+     * Test the license summary change detection method will still trigger when the generation date
+     * is newer even though the timezone may have changed the generation date timestamp offset.
+     */
+    @Test
+    public void testIsLicenseSummaryDifferentAndNewerTimezoneChange() {
+        //
+        LicenseSummary a = LicenseSummary.newBuilder()
+                .addAllFeature(ImmutableList.of("A", "B"))
+                .setGenerationDate("2020-04-08T10:32:40Z")
+                .build();
+        // the second summary has an earlier wall clock time but with the offset is a later timestamp
+        LicenseSummary b = LicenseSummary.newBuilder()
+                .addAllFeature(ImmutableList.of("A", "B"))
+                .setGenerationDate("2020-04-08T09:32:40-02:00")
+                .build();
+        assertTrue(LicenseCheckClient.isLicenseSummaryDifferentAndNewer(a, b));
+    }
+
+    /**
      * Test the license summary change detection method will NOT trigger when the generation date of
      * the incoming summary is older than the current last-seen summary even if there are other
      * changes to the summary.

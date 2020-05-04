@@ -50,6 +50,7 @@ import com.vmturbo.cost.component.db.tables.records.PlanProjectedEntityToReserve
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceCoverageRecord;
 import com.vmturbo.cost.component.db.tables.records.PlanProjectedReservedInstanceUtilizationRecord;
 import com.vmturbo.cost.component.reserved.instance.filter.PlanProjectedEntityReservedInstanceMappingFilter;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.repository.api.RepositoryListener;
@@ -203,6 +204,12 @@ public class PlanProjectedRICoverageAndUtilStore implements RepositoryListener {
             if (entity == null || entity.getEntityType() != EntityType.VIRTUAL_MACHINE_VALUE) {
                 logger.error("Updating projected RI coverage for an entity {} which is not found in "
                         + "topology with topologyContextId {}.", entityId, topologyContextId);
+                continue;
+            }
+
+            if (entity.getTypeSpecificInfo().getVirtualMachine()
+                    .getBillingType() == CommonDTO.EntityDTO.VirtualMachineData.VMBillingType.BIDDING) {
+                logger.trace("Entity {} is Billing Type: BIDDING. Skipping it... ", entity.getOid());
                 continue;
             }
 

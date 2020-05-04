@@ -27,6 +27,7 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
+import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.ApiUtilsTest;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -43,6 +44,9 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider.Builder;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
+import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
@@ -147,7 +151,8 @@ public class CompoundMoveTest {
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
                 Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
                 mock(EntityAspectMapper.class), mock(VirtualVolumeAspectMapper.class),
-                REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper, supplyChainService);
+                REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper,
+                supplyChainService, Mockito.mock(PoliciesService.class));
 
         CostServiceGrpc.CostServiceBlockingStub costServiceBlockingStub =
                 CostServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -157,6 +162,7 @@ public class CompoundMoveTest {
         mapper = new ActionSpecMapper(
                 actionSpecMappingContextFactory,
                 serviceEntityMapper,
+                mock(PoliciesService.class),
                 mock(ReservedInstanceMapper.class),
                 riBuyContextFetchServiceStub,
                 costServiceBlockingStub,
@@ -300,6 +306,9 @@ public class CompoundMoveTest {
                                 .addChanges(makeChange(s1, s1Type, d1, d1Type, r1))
                                 .build())
                             .build())
+                        .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+                            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setCompliance(Compliance.newBuilder().build()))))
                         .build();
     }
 
@@ -316,6 +325,9 @@ public class CompoundMoveTest {
                                 .addChanges(makeChange(s2, s2Type, d2, d2Type, null))
                                 .build())
                             .build())
+                        .setExplanation(Explanation.newBuilder().setMove(MoveExplanation.newBuilder()
+                            .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                                .setCompliance(Compliance.newBuilder().build()))))
                         .build();
     }
 

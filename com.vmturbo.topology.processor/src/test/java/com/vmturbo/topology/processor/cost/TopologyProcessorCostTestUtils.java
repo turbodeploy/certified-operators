@@ -1,7 +1,9 @@
 package com.vmturbo.topology.processor.cost;
 
 import static org.mockito.Mockito.mock;
+import static org.powermock.api.mockito.PowerMockito.when;
 
+import java.util.Collections;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
@@ -37,8 +39,10 @@ public class TopologyProcessorCostTestUtils {
     );
 
     public StitchingContext setupStitchingContext() {
-        StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(2)
-            .setTargetStore(mock(TargetStore.class))
+        final TargetStore targetStore = mock(TargetStore.class);
+        when(targetStore.getAll()).thenReturn(Collections.emptyList());
+
+        StitchingContext.Builder stitchingContextBuilder = StitchingContext.newBuilder(2, targetStore)
             .setIdentityProvider(mock(IdentityProviderImpl.class));
         stitchingContextBuilder.addEntity(ri1, localIdToEntityMap);
         stitchingContextBuilder.addEntity(ri2, localIdToEntityMap);

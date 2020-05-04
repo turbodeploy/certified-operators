@@ -119,9 +119,7 @@ public class OperationConfig {
      */
     @Bean
     public NotificationSender notificationSender() {
-        return new NotificationSender(
-            notificationApiConfig.notificationMessageSender(),
-            Clock.systemUTC());
+        return notificationApiConfig.notificationMessageSender();
     }
 
     /**

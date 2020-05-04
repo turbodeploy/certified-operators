@@ -17,7 +17,6 @@ import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.AspectName;
@@ -89,7 +88,8 @@ public class EntityAspectMapper {
                 desktopPoolAspectMapper,
                 masterImageEntityAspectMapper))
             .put(EntityType.VIRTUAL_VOLUME_VALUE, ImmutableList.of(
-                virtualVolumeAspectMapper))
+                virtualVolumeAspectMapper,
+                cloudAspectMapper))
             .put(EntityType.REGION_VALUE, ImmutableList.of(
                 regionAspectMapper))
             .build();
@@ -115,34 +115,6 @@ public class EntityAspectMapper {
         });
 
         return reverseMap;
-    }
-
-    /**
-     * Get a group of aspects specified by {@param mappers} for a given entity.
-     *
-     * @param entity the entity to get aspect for
-     * @param mappers the {@link IAspectMapper}s that should be applied to the entity in question
-     * @return all aspects mapped by aspect name
-     * @throws InterruptedException if thread has been interrupted
-     * @throws ConversionException if errors faced during converting data to API DTOs
-     */
-    @Nonnull
-    public Map<AspectName, EntityAspect> getAspectsByEntityUsingMappers(
-            @Nonnull TopologyEntityDTO entity, @Nullable List<IAspectMapper> mappers)
-            throws InterruptedException, ConversionException {
-        final Map<AspectName, EntityAspect> aspects = new HashMap<>();
-        if (!CollectionUtils.isEmpty(mappers)) {
-            for (IAspectMapper aspectMapper: mappers) {
-                EntityAspect entityAspect = aspectMapper.mapEntityToAspect(entity);
-                if (entityAspect != null) {
-                    final AspectName aspectName = aspectMapper.getAspectName();
-                    aspects.put(aspectName, entityAspect);
-                    logger.debug("Added aspect " + aspectName + " to " + entity.getEntityType()
-                            + " entity " + entity.getOid());
-                }
-            }
-        }
-        return aspects;
     }
 
     /**

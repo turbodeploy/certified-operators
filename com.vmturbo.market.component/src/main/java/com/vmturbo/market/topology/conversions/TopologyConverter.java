@@ -20,7 +20,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Joiner;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBasedTable;
 import com.google.common.collect.HashBiMap;
@@ -144,6 +143,15 @@ public class TopologyConverter {
         EntityType.COMPUTE_TIER_VALUE,
         EntityType.DATABASE_TIER_VALUE,
         EntityType.DATABASE_SERVER_TIER_VALUE
+    );
+
+    /**
+     * Entity types for which we generate SCALE type actions in the cloud.
+     */
+    private static final Set<Integer> CLOUD_SCALING_ENTITY_TYPES = ImmutableSet.of(
+        EntityType.VIRTUAL_MACHINE_VALUE,
+        EntityType.DATABASE_VALUE,
+        EntityType.DATABASE_SERVER_VALUE
     );
 
     private static final Logger logger = LogManager.getLogger();
@@ -2257,7 +2265,7 @@ public class TopologyConverter {
         }
 
         if (buyer.getEnvironmentType() == EnvironmentType.CLOUD
-                && buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                && CLOUD_SCALING_ENTITY_TYPES.contains(buyer.getEntityType())) {
             // Apply scalable from mediation to movable for cloud VMs.
             isMovable &= commBoughtGrouping.getScalable();
             // Apply EligibleForScale to movable for cloud VMs in realtime

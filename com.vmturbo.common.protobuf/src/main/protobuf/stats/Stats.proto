@@ -119,13 +119,21 @@ message ClusterStatsRequest {
     optional common.PaginationParameters pagination_params = 10;
 }
 
-// Response with cluster stats
-message ClusterStatsResponse {
+// Chunk containing a list of entity stats
+message EntityStatsChunk {
     // the stats snapshots requested grouped by cluster
     repeated EntityStats snapshots = 1;
+}
 
-    // The response containing the cursor to retrieve the next page of results.
-    optional common.PaginationResponse pagination_response = 10;
+// Response with cluster stats
+message ClusterStatsResponse {
+    oneof type {
+        // the stats snapshots requested grouped by cluster
+        EntityStatsChunk snapshots_chunk = 1;
+
+        // The response containing the cursor to retrieve the next page of results.
+        common.PaginationResponse pagination_response = 10;
+    }
 }
 
 // The stats filter represents the restrictions to apply to stats before returning them.
@@ -638,7 +646,7 @@ service StatsHistoryService {
     rpc GetEntityStats(GetEntityStatsRequest) returns (GetEntityStatsResponse);
 
     //Get stats filtered by certain options and average over all desired entities in the cluser.
-    rpc GetClusterStats(ClusterStatsRequest) returns (ClusterStatsResponse);
+    rpc GetClusterStats(ClusterStatsRequest) returns (stream ClusterStatsResponse);
 
     // Get cluster stats for headroom plan, e.g. number of VMs.
     rpc GetClusterStatsForHeadroomPlan(ClusterStatsRequestForHeadroomPlan) returns (stream StatSnapshot);

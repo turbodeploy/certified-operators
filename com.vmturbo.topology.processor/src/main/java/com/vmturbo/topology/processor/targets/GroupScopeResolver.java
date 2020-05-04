@@ -60,6 +60,7 @@ import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
+import com.vmturbo.topology.processor.entity.EntityNotFoundException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
@@ -397,12 +398,20 @@ public class GroupScopeResolver {
                 .getDiscoveredTargetDataMap().keySet().stream()
                 .findAny()
                 .flatMap(targetStore::getTargetDisplayName);
-            final Optional<String> localName = entityStore.chooseEntityDTO(scopedEntityDTO.getOid())
-                .getEntityPropertiesList().stream()
-                .filter(entityProperty -> SDKUtil.DEFAULT_NAMESPACE.equals(entityProperty.getNamespace()))
-                .filter(entityProperty -> SupplyChainConstants.LOCAL_NAME.equals(entityProperty.getName()))
-                .map(EntityProperty::getValue)
-                .findAny();
+            Optional<String> localName = Optional.empty();
+            try {
+                localName = entityStore.chooseEntityDTO(scopedEntityDTO.getOid())
+                    .getEntityPropertiesList().stream()
+                    .filter(entityProperty -> SDKUtil.DEFAULT_NAMESPACE.equals(entityProperty.getNamespace()))
+                    .filter(entityProperty -> SupplyChainConstants.LOCAL_NAME.equals(entityProperty.getName()))
+                    .map(EntityProperty::getValue)
+                    .findAny();
+            } catch (EntityNotFoundException e) {
+                logger.warn("Could not find entity {} for group scope.  "
+                    + "It may have been deleted.", scopedEntityDTO.getDisplayName());
+                logger.debug("Exception while processing GroupScope: {}",
+                    () -> e.getMessage(), () -> e);
+            }
             groupScopedEntities.add(new GroupScopedEntity(scopedEntityDTO, guestLoadOid,
                 targetAddress, localName));
         });

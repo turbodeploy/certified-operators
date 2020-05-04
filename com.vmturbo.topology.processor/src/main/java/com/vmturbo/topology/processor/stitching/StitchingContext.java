@@ -77,33 +77,46 @@ public class StitchingContext {
      */
     private final IdentityProvider identityProvider;
 
+    /**
+     * Cache in which we can lookup which commodities are resold commodities.
+     */
+    private final ResoldCommodityCache resoldCommodityCache;
+
     private static final Logger logger = LogManager.getLogger();
 
     /**
      * Create a new {@link StitchingContext}.
      *
      * @param stitchingGraph the graph of all entities to be stitched.
-     * @param  entitiesByEntityTypeAndTarget A map of EntityType ->
-     *                                       Map<TargetId, List<Entities of the given type discovered by that target>>
+     * @param entitiesByEntityTypeAndTarget A map of EntityType ->
+     *                                      Map<TargetId, List<Entities of the given type discovered by that target>>
+     * @param targetStore store of targets.
+     * @param identityProvider Identity provider to use to assign identities for entities created during stitching.
+     * @param resoldCommodityCache A cache for looking up which commodities are resold based on probe
+     *                             supply chains.
      */
     private StitchingContext(@Nonnull final TopologyStitchingGraph stitchingGraph,
                              @Nonnull final Map<EntityType, Map<Long, List<TopologyStitchingEntity>>> entitiesByEntityTypeAndTarget,
                              @Nonnull final TargetStore targetStore,
-                             @Nonnull final IdentityProvider identityProvider) {
+                             @Nonnull final IdentityProvider identityProvider,
+                             @Nonnull final ResoldCommodityCache resoldCommodityCache) {
         this.stitchingGraph = Objects.requireNonNull(stitchingGraph);
         this.entitiesByEntityTypeAndTarget = Objects.requireNonNull(entitiesByEntityTypeAndTarget);
         this.targetStore = Objects.requireNonNull(targetStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
+        this.resoldCommodityCache = Objects.requireNonNull(resoldCommodityCache);
     }
 
     /**
      * Create a new builder for constructing a {@link StitchingContext}.
      *
      * @param entityCount The number of entities to be added to the context when it is built.
+     * @param targetStore The targetStore to use when constructing the stitching context.
      * @return a new builder for constructing a {@link StitchingContext}.
      */
-    public static Builder newBuilder(int entityCount) {
-        return new Builder(entityCount);
+    public static Builder newBuilder(int entityCount,
+                                     @Nonnull final TargetStore targetStore) {
+        return new Builder(entityCount, targetStore);
     }
 
     /**
@@ -346,7 +359,7 @@ public class StitchingContext {
             .collect(Collectors.toMap(TopologyStitchingEntity::getOid,
                 stitchingEntity -> {
                     final TopologyEntityDTO.Builder builder =
-                        SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity)
+                        SdkToTopologyEntityConverter.newTopologyEntityDTO(stitchingEntity, resoldCommodityCache)
                             .setOrigin(Origin.newBuilder()
                                 .setDiscoveryOrigin(stitchingEntity.buildDiscoveryOrigin()));
                     return TopologyEntity.newBuilder(builder);
@@ -387,8 +400,12 @@ public class StitchingContext {
 
         private IdentityProvider identityProvider;
 
-        private Builder(final int entityCount) {
+        private ResoldCommodityCache resoldCommodityCache;
+
+        private Builder(final int entityCount, @Nonnull final TargetStore targetStore) {
             this.stitchingGraph = new TopologyStitchingGraph(entityCount);
+            this.targetStore = Objects.requireNonNull(targetStore);
+            this.resoldCommodityCache = new ResoldCommodityCache(targetStore);
             entitiesByEntityTypeAndTarget = new EnumMap<>(EntityType.class);
         }
 
@@ -397,13 +414,9 @@ public class StitchingContext {
             return this;
         }
 
-        public Builder setTargetStore(final TargetStore targetStore) {
-            this.targetStore = targetStore;
-            return this;
-        }
-
         public StitchingContext build() {
-            return new StitchingContext(stitchingGraph, entitiesByEntityTypeAndTarget, targetStore, identityProvider);
+            return new StitchingContext(stitchingGraph, entitiesByEntityTypeAndTarget, targetStore,
+                identityProvider, resoldCommodityCache);
         }
 
         /**

@@ -18,6 +18,8 @@ import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.execution.ActionExecutionConfig;
 import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
+import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
+import com.vmturbo.action.orchestrator.topology.TpEntitiesWithNewStateListener;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
@@ -40,6 +42,7 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
     ActionStatsConfig.class,
     ActionTranslationConfig.class,
     PlanOrchestratorClientConfig.class,
+    TopologyProcessorConfig.class,
     UserSessionConfig.class})
 public class ActionStoreConfig {
 
@@ -48,6 +51,9 @@ public class ActionStoreConfig {
 
     @Autowired
     private ActionOrchestratorGlobalConfig actionOrchestratorGlobalConfig;
+
+    @Autowired
+    private TopologyProcessorConfig tpConfig;
 
     @Autowired
     private RepositoryClientConfig repositoryClientConfig;
@@ -98,7 +104,7 @@ public class ActionStoreConfig {
         return new EntitiesAndSettingsSnapshotFactory(
             groupClientConfig.groupChannel(),
             repositoryClientConfig.repositoryChannel(),
-            actionOrchestratorGlobalConfig.realtimeTopologyContextId(),
+            tpConfig.realtimeTopologyContextId(),
             repositoryClientConfig.topologyAvailabilityTracker(),
             minsToWaitForTopology,
             TimeUnit.MINUTES);
@@ -132,7 +138,7 @@ public class ActionStoreConfig {
     public IActionStoreFactory actionStoreFactory() {
         return ActionStoreFactory.newBuilder()
             .withActionFactory(actionFactory())
-            .withRealtimeTopologyContextId(actionOrchestratorGlobalConfig.realtimeTopologyContextId())
+            .withRealtimeTopologyContextId(tpConfig.realtimeTopologyContextId())
             .withDatabaseDslContext(databaseConfig.dsl())
             .withActionHistoryDao(actionHistory())
             .withActionTargetSelector(actionExecutionConfig.actionTargetSelector())
@@ -164,8 +170,12 @@ public class ActionStoreConfig {
 
     @Bean
     public ActionStorehouse actionStorehouse() {
-        return new ActionStorehouse(actionStoreFactory(), automatedActionExecutor(),
-            actionStoreLoader(), actionModeCalculator());
+        ActionStorehouse actionStorehouse = new ActionStorehouse(actionStoreFactory(),
+            automatedActionExecutor(), actionStoreLoader(), actionModeCalculator());
+        tpConfig.topologyProcessor()
+            .addEntitiesWithNewStatesListener(new TpEntitiesWithNewStateListener(actionStorehouse,
+                tpConfig.realtimeTopologyContextId()));
+        return actionStorehouse;
     }
 
     /**

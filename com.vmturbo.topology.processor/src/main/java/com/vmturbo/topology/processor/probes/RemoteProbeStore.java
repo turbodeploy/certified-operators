@@ -25,6 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -39,7 +40,7 @@ import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
  * probes.
  */
 @ThreadSafe
-public class RemoteProbeStore implements ProbeStore {
+public class RemoteProbeStore implements ProbeStore, RequiresDataInitialization {
 
     @GuardedBy("dataLock")
     private final KeyValueStore keyValueStore;
@@ -83,10 +84,15 @@ public class RemoteProbeStore implements ProbeStore {
         identityProvider_ = Objects.requireNonNull(identityProvider);
         this.stitchingOperationStore = Objects.requireNonNull(stitchingOperationStore);
 
+        this.probeInfos = new HashMap<>();
+        this.probeOrdering = new StandardProbeOrdering(this);
+    }
+
+    @Override
+    public void initialize() {
+        this.probeInfos.clear();
         // Load ProbeInfo persisted in Consul.
         Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_KV_STORE_PREFIX);
-
-        this.probeInfos = new HashMap<>();
         persistedProbeInfos.values().stream()
             .map(probeInfoJson -> {
                 try {
@@ -113,7 +119,6 @@ public class RemoteProbeStore implements ProbeStore {
                             " Keeping first. Dropping: {}", probeId, probeInfo);
                 }
             });
-        this.probeOrdering = new StandardProbeOrdering(this);
     }
 
     /**

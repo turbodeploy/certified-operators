@@ -5,6 +5,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyList;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -45,12 +47,14 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.M
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.component.db.Tables;
 import com.vmturbo.cost.component.reserved.instance.filter.BuyReservedInstanceFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceCoverageFilter;
 import com.vmturbo.cost.component.reserved.instance.filter.ReservedInstanceUtilizationFilter;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.repository.api.RepositoryClient;
 
@@ -72,29 +76,55 @@ public class ProjectedRICoverageAndUtilStoreTest {
 
     private static final long VM_1_ID = 1L;
     private static final long VM_2_ID = 2L;
+    private static final long VM_BIDDING_ID = 11L;
     private static final long REGION_1_ID = 3L;
     private static final long ACCOUNT_ID = 11111L;
 
+    private static final TopologyDTO.TopologyEntityDTO VM_1 = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(VM_1_ID)
+            .build();
+    private static final TopologyDTO.TopologyEntityDTO VM_2 = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(VM_2_ID)
+            .build();
+    private static final TopologyDTO.TopologyEntityDTO VM_BIDDING = TopologyDTO.TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setOid(VM_BIDDING_ID)
+            .setTypeSpecificInfo(TopologyDTO.TypeSpecificInfo.newBuilder()
+                    .setVirtualMachine(
+                            TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.newBuilder()
+                                    .setBillingType(CommonDTO.EntityDTO.VirtualMachineData.VMBillingType.BIDDING)
+                    )
+            ).build();
+
     private static final EntityReservedInstanceCoverage ENTITY_RI_COVERAGE =
-        EntityReservedInstanceCoverage.newBuilder()
-                .setEntityId(VM_1_ID)
-                .setEntityCouponCapacity(200)
-                .putCouponsCoveredByRi(10L, 100.0)
-                .putCouponsCoveredByBuyRi(11L, 100.0)
-                .build();
+            EntityReservedInstanceCoverage.newBuilder()
+                    .setEntityId(VM_1_ID)
+                    .setEntityCouponCapacity(200)
+                    .putCouponsCoveredByRi(10L, 100.0)
+                    .putCouponsCoveredByBuyRi(11L, 100.0)
+                    .build();
     private static final EntityReservedInstanceCoverage SECOND_RI_COVERAGE =
-                    EntityReservedInstanceCoverage.newBuilder()
-                            .setEntityId(VM_2_ID)
-                            .setEntityCouponCapacity(100)
-                            .putCouponsCoveredByRi(4L, 50.0)
-                            .putCouponsCoveredByBuyRi(7L, 25.0).build();
+            EntityReservedInstanceCoverage.newBuilder()
+                    .setEntityId(VM_2_ID)
+                    .setEntityCouponCapacity(100)
+                    .putCouponsCoveredByRi(4L, 50.0)
+                    .putCouponsCoveredByBuyRi(7L, 25.0)
+                    .build();
+    private static final EntityReservedInstanceCoverage BIDDING_RI_COVERAGE =
+            EntityReservedInstanceCoverage.newBuilder()
+                    .setEntityId(VM_BIDDING_ID)
+                    .setEntityCouponCapacity(50)
+                    .putCouponsCoveredByRi(0L, 50.0)
+                    .build();
     private final TopologyInfo topoInfo =
-                    TopologyInfo.newBuilder().setTopologyContextId(realtimeTopologyContextId)
-                                    .setTopologyId(0L).build();
+            TopologyInfo.newBuilder().setTopologyContextId(realtimeTopologyContextId)
+                    .setTopologyId(0L).build();
     // The code should ignore the REGION Set
     private final Map<EntityType, Set<Long>> scopedOids =
-                    ImmutableMap.of(EntityType.VIRTUAL_MACHINE, ImmutableSet.of(VM_2_ID),
-                                    EntityType.REGION, ImmutableSet.of(REGION_1_ID));
+            ImmutableMap.of(EntityType.VIRTUAL_MACHINE, ImmutableSet.of(VM_2_ID),
+                    EntityType.REGION, ImmutableSet.of(REGION_1_ID));
 
     /**
      * Create an empty instance of ProjectedRICoverageAndUtilStore for each test.
@@ -119,6 +149,9 @@ public class ProjectedRICoverageAndUtilStoreTest {
      */
     @Test
     public void testUpdateAndGet() {
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1));
+
         store.updateProjectedRICoverage(topoInfo, Collections.singletonList(ENTITY_RI_COVERAGE));
         final Map<Long, EntityReservedInstanceCoverage> retCostMap = store.getAllProjectedEntitiesRICoverages();
         assertThat(retCostMap, is(ImmutableMap.of(ENTITY_RI_COVERAGE.getEntityId(), ENTITY_RI_COVERAGE)));
@@ -130,6 +163,9 @@ public class ProjectedRICoverageAndUtilStoreTest {
      */
     @Test
     public void testUpdateAndScopedGet() {
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1, VM_2));
+
         // Store a map with coverage for both VM_1_ID and VM_2_ID
         store.updateProjectedRICoverage(topoInfo,
                         Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
@@ -160,6 +196,8 @@ public class ProjectedRICoverageAndUtilStoreTest {
 
     @Test
     public void testGetReservedInstanceCoverageStats() {
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1, VM_2));
 
         // Store a map with coverage for both VM_1_ID and VM_2_ID
         store.updateProjectedRICoverage(topoInfo,
@@ -215,6 +253,9 @@ public class ProjectedRICoverageAndUtilStoreTest {
      */
     @Test
     public void testRegionAndAccountScopeFilterNonEmptyIntersection() {
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1, VM_2));
+
         store.updateProjectedRICoverage(topoInfo,
                 Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
         final ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter.newBuilder()
@@ -246,6 +287,9 @@ public class ProjectedRICoverageAndUtilStoreTest {
      */
     @Test
     public void testRegionAndAccountScopeFilterEmptyIntersection() {
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1, VM_2));
+
         store.updateProjectedRICoverage(topoInfo,
                 Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
         final ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter.newBuilder()
@@ -274,6 +318,9 @@ public class ProjectedRICoverageAndUtilStoreTest {
      */
     @Test
     public void testEmptyFilter() {
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1, VM_2));
+
         store.updateProjectedRICoverage(topoInfo,
                 Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
         final ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter.newBuilder()
@@ -297,6 +344,9 @@ public class ProjectedRICoverageAndUtilStoreTest {
      */
     @Test
     public void testEmptyEntityForScopes() {
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1, VM_2));
+
         store.updateProjectedRICoverage(topoInfo,
                 Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE));
         final ReservedInstanceCoverageFilter filter = ReservedInstanceCoverageFilter.newBuilder()
@@ -332,6 +382,8 @@ public class ProjectedRICoverageAndUtilStoreTest {
 
     @Test
     public void testGetReservedInstanceCoverageStatsWithBuyRI() {
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1, VM_2));
 
         // Store a map with coverage for both VM_1_ID and VM_2_ID
         store.updateProjectedRICoverage(topoInfo,
@@ -362,6 +414,25 @@ public class ProjectedRICoverageAndUtilStoreTest {
     }
 
     @Test
+    public void testUpdateProjectedRICoverageWithBiddingVM() {
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1, VM_2, VM_BIDDING));
+
+        // Store a map with coverage for VM_1_ID, VM_2_ID and VM_BIDDING_ID
+        store.updateProjectedRICoverage(topoInfo,
+                Arrays.asList(ENTITY_RI_COVERAGE, SECOND_RI_COVERAGE, BIDDING_RI_COVERAGE));
+
+        Map<Long, EntityReservedInstanceCoverage> map = store.getAllProjectedEntitiesRICoverages();
+        int totalCapacity = map.values().stream()
+                .mapToInt(EntityReservedInstanceCoverage::getEntityCouponCapacity)
+                .sum();
+
+        // Assertions: only VM_1 and VM_2 coupons are counted
+        assertThat(map.size(), equalTo(2));
+        assertThat(totalCapacity, equalTo(300));
+    }
+
+    @Test
     public void testGetReservedInstanceUtilizationStats() {
 
         final ReservedInstanceBought riCoveringVm2 = ReservedInstanceBought.newBuilder()
@@ -379,6 +450,10 @@ public class ProjectedRICoverageAndUtilStoreTest {
                         .addAllRegionId(scopeOids)
                         .build())
                 .build();
+
+        // setup entities topology
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1, VM_2));
 
         // setup RI bought store
         when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))
@@ -453,6 +528,10 @@ public class ProjectedRICoverageAndUtilStoreTest {
                         .addAllRegionId(scopeOids)
                         .build())
                 .build();
+
+        // setup entities topology
+        when(repositoryClient.retrieveTopologyEntities(anyList(), anyLong()))
+                .thenReturn(Stream.of(VM_1, VM_2));
 
         // setup RI bought store
         when(reservedInstanceBoughtStore.getReservedInstanceBoughtByFilter(any()))

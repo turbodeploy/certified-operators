@@ -69,6 +69,7 @@ import com.vmturbo.platform.sdk.common.PredefinedAccountDefinition;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.platform.sdk.common.util.SDKUtil;
+import com.vmturbo.topology.processor.entity.EntityNotFoundException;
 import com.vmturbo.topology.processor.entity.EntityStore;
 
 /**
@@ -438,6 +439,19 @@ public class GroupScopeResolverTest {
         // check that no exception is thrown when processing empty scope and property values count
         // after processing is 0
         assertEquals(0, retVal.get(0).getGroupScopePropertyValuesCount());
+    }
+
+    /**
+     * Make sure that if and entity is deleted from the entity store, but still in the repository,
+     * we fail gracefully.
+     *
+     * @throws Exception should never happen.
+     */
+    @Test
+    public void testGroupScopeEntityDeleted() throws Exception {
+        Mockito.when(entityStore.chooseEntityDTO(2))
+            .thenThrow(new EntityNotFoundException("Entity Not Found."));
+            acctDefEntryTester(groupScopeMissingNonMandatory, false, 0);
     }
 
     /**

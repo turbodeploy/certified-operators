@@ -26,6 +26,7 @@ import org.springframework.web.socket.server.standard.ServerEndpointExporter;
 import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -136,13 +137,26 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
         return new SenderReceiverPair<>();
     }
 
+    /**
+     * Creates a {@link SenderReceiverPair} to exchange {@link EntitiesWithNewState} messages.
+     * @return SenderReceiverPair the message pair
+     */
+    @Bean
+    public SenderReceiverPair<EntitiesWithNewState> entitiesWithNewStateConnection() {
+        return new SenderReceiverPair<>();
+    }
+
+    /**
+     * Creates a {@link TopologyProcessorNotificationSender}.
+     * @return {@link TopologyProcessorNotificationSender} the sender.
+     */
     @Bean
     public TopologyProcessorNotificationSender topologyProcessorNotificationSender() {
         final TopologyProcessorNotificationSender backend =
                 new TopologyProcessorNotificationSender(apiServerThreadPool(), clock(),
                         liveTopologyConnection(), planTopologyConnection(),
                         planTopologyConnection(), notificationsConnection(),
-                        topologySummaryConnection());
+                        topologySummaryConnection(), entitiesWithNewStateConnection());
         targetStore().addListener(backend);
         probeStore().addListener(backend);
         return backend;
@@ -234,7 +248,8 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public EntityStore entityRepository() {
-        return new EntityStore(targetStore(), identityProvider(), Clock.systemUTC());
+        return new EntityStore(targetStore(), identityProvider(),
+            topologyProcessorNotificationSender(), Clock.systemUTC());
     }
 
     @Bean

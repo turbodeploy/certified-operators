@@ -1,6 +1,8 @@
 package com.vmturbo.components.api.grpc;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -228,6 +230,11 @@ public class ComponentGrpcServer {
         }
     }
 
+    @Nonnull
+    public Collection<ServerServiceDefinition> getServiceDefinitions() {
+        return Collections.unmodifiableCollection(serviceDefinitions.values());
+    }
+
     /**
      * Stop the component's gRPC server. This method will block while the server shuts down
      * (completing/terminating existing calls).
@@ -284,14 +291,14 @@ public class ComponentGrpcServer {
             .withTracer(Tracing.tracer())
             .withStreaming()
             .build();
-        Preconditions.checkArgument(!StringUtils.isEmpty(host), "Host must be provided.");
-        Preconditions.checkArgument(port > 0, "Port must be a positive integer!");
 
         if (useInProcess()) {
             return InProcessChannelBuilder.forName(LOCAL_SERVER_NAME)
                 .maxInboundMessageSize(maxMessageSize)
                 .intercept(clientTracingInterceptor);
         } else {
+            Preconditions.checkArgument(!StringUtils.isEmpty(host), "Host must be provided.");
+            Preconditions.checkArgument(port > 0, "Port must be a positive integer!");
             return NettyChannelBuilder.forAddress(host, port)
                 .keepAliveWithoutCalls(true)
                 .keepAliveTime(DEFAULT_CHANNEL_KEEPALIVE_TIME_MIN, TimeUnit.MINUTES)

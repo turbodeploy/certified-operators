@@ -93,22 +93,6 @@ public class ComponentControllerTest {
                 new Gson().fromJson(result.getResponse().getContentAsString(), String.class));
     }
 
-    @Test
-    public void testPutState() throws Exception {
-
-        // Arrange
-        when(componentMock.getComponentStatus()).thenReturn(ExecutionStatus.RUNNING);
-        // Act
-        MvcResult result = mockMvc.perform(put(API_PREFIX + "/state")
-                .contentType(MediaType.TEXT_PLAIN)
-                .content(ExecutionStatus.PAUSED.toString())
-                .accept(MediaType.TEXT_PLAIN))
-                .andExpect(status().isOk())
-                .andReturn();
-        // Assert
-        verify(componentMock).pauseComponent();
-    }
-
     @Configuration
     @EnableWebMvc
     public static class TestConfiguration extends WebMvcConfigurerAdapter {

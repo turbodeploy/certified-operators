@@ -19,6 +19,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -134,7 +135,7 @@ public class LiveActionStoreTest {
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
 
     private SpyActionFactory spyActionFactory = spy(new SpyActionFactory());
-    private ActionStore actionStore;
+    private LiveActionStore actionStore;
 
     private LiveActionsStatistician actionsStatistician = mock(LiveActionsStatistician.class);
 
@@ -851,6 +852,65 @@ public class LiveActionStoreTest {
             is(updatedMove.getDeprecatedImportance()));
         assertThat(actionStore.getAction(move.getId()).get().getRecommendation().getExecutable(),
             is(updatedMove.getExecutable()));
+    }
+
+    /**
+     * Test a host going into maintenance. The live store contains actions to move a vm into host
+     * b. After that the host goes into maintenance and all the actions get cleared, until we get
+     * a topology that has been generated after the creation of the maintenance event.
+     */
+    @Test
+    public void testHostGoingIntoMaintenance() {
+        final ActionDTO.Action.Builder move = move(vm1, hostA, vmType, hostB, vmType)
+            // Initially the importance is 1 and executability is "false".
+            .setDeprecatedImportance(1)
+            .setExecutable(false);
+
+        final ActionPlan firstPlan = ActionPlan.newBuilder()
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyId(1))))
+            .setId(firstPlanId)
+            .addAction(move)
+            .build();
+
+        final EntitiesAndSettingsSnapshot snapshot =
+            entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
+                TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+
+        actionStore.populateRecommendedActions(firstPlan);
+
+        actionStore.clearActionsOnHosts(new HashSet<>(Collections.singletonList(hostB)), 3);
+        assertTrue(!actionStore.getAction(move.getId()).isPresent());
+
+        final ActionPlan secondPlan = ActionPlan.newBuilder()
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyId(2))))
+            .setId(firstPlanId)
+            .addAction(move)
+            .build();
+
+        actionStore.populateRecommendedActions(secondPlan);
+        assertTrue(!actionStore.getAction(move.getId()).isPresent());
+
+        final ActionPlan thirdPlan = ActionPlan.newBuilder()
+            .setInfo(ActionPlanInfo.newBuilder()
+                .setMarket(MarketActionPlanInfo.newBuilder()
+                    .setSourceTopologyInfo(TopologyInfo.newBuilder()
+                        .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                        .setTopologyId(4))))
+            .setId(firstPlanId)
+            .addAction(move)
+            .build();
+
+        actionStore.populateRecommendedActions(thirdPlan);
+        assertTrue(actionStore.getAction(move.getId()).isPresent());
     }
 
     @Test
