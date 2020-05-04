@@ -58,8 +58,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         GroupClientConfig.class, CostClientConfig.class, GlobalConfig.class})
 public class PlanConfig {
 
-    @Value("${planTimeoutMins:180}")
-    private int planTimeoutMins;
+    @Value("${planTimeoutMin:180}")
+    private int planTimeoutMin;
 
     @Value("${planCleanupIntervalMin:5}")
     private int planCleanupIntervalMin;
@@ -113,8 +113,7 @@ public class PlanConfig {
                 userSessionConfig.userSessionContext(),
                 repositoryClientConfig.searchServiceClient(),
                 globalConfig.clock(),
-                planCleanupExecutor(),
-                planTimeoutMins,
+                planCleanupExecutor(), planTimeoutMin,
                 TimeUnit.MINUTES,
                 planCleanupIntervalMin,
                 TimeUnit.MINUTES);
