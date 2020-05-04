@@ -40,7 +40,7 @@ import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
  * probes.
  */
 @ThreadSafe
-public class RemoteProbeStore implements ProbeStore, RequiresDataInitialization {
+public class RemoteProbeStore implements ProbeStore {
 
     @GuardedBy("dataLock")
     private final KeyValueStore keyValueStore;
