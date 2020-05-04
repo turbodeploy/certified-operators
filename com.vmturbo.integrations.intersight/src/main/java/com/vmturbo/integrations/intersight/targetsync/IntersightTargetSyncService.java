@@ -130,8 +130,7 @@ public class IntersightTargetSyncService implements Runnable {
                     IntersightDefaultQueryParameters.$at,
                     IntersightDefaultQueryParameters.$tags);
         } catch (ApiException e) {
-            logger.error("Error Getting Targets using Intersight API. Query Header {} ",
-                    e.getResponseHeaders());
+            logger.error("Error getting targets using Intersight API: {}", e.getResponseBody());
             throw e;
         }
 
