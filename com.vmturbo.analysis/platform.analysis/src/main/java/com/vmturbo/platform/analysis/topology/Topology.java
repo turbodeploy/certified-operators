@@ -21,6 +21,7 @@ import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommodityResizeSpecification;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -219,7 +220,7 @@ public final class Topology implements Serializable {
      *
      * @return A modifiable map from processed commodity to the raw commodities used by it.
      */
-    public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>>
+    public @NonNull Map<@NonNull Integer, @NonNull RawMaterials>
                                             getModifiableRawCommodityMap() {
         return economy_.getModifiableRawCommodityMap();
     }
