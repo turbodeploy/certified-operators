@@ -367,8 +367,10 @@ public class TimeRange {
                     if (requestsHeadroomStats(statsFilter) && (
                             timeFrame == TimeFrame.LATEST || timeFrame == TimeFrame.HOUR)) {
                         timeFrame = TimeFrame.DAY;
+                        if (startDate == endDate) {
+                            endDate = DateUtils.truncate(new Date(endDate), Calendar.DATE).getTime();
+                        }
                         startDate = DateUtils.truncate(new Date(startDate), Calendar.DATE).getTime();
-                        endDate = DateUtils.truncate(new Date(endDate), Calendar.DATE).getTime();
                     }
                     if (startDate == endDate) {
                         // equal timestamps, resolve to latest prior (or equal) timestamp in timeframe table
