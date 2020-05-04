@@ -363,8 +363,6 @@ defaultProperties:
         identityGeneratorPrefix: 3
         templateSpecFile: defaultTemplateSpec.json
         defaultTemplatesFile: defaultTemplates.json
-        # Config parameter to control the time out minutes for running plan.
-        planTimeoutMins: 60
         # Time-out for the CPU Info cache; this cache is updated very infrequently.
         cpuInfoCacheLifetimeHours: 8
         # If true, calculate headroom for all clusters in one plan instance.
