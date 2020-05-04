@@ -23,19 +23,22 @@ import static com.vmturbo.history.stats.StatsHistoryRpcService.HEADROOM_STATS;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
-import java.util.Stack;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
@@ -47,6 +50,7 @@ import javax.annotation.Nonnull;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 
+import org.apache.commons.lang.time.DateUtils;
 import org.jooq.Condition;
 import org.jooq.Record;
 import org.jooq.Result;
@@ -231,11 +235,12 @@ public class ClusterStatsReader {
         final Optional<Long> endDate = filter != null && filter.hasEndDate()
                                                 ? Optional.of(filter.getEndDate()) : Optional.empty();
         if ((endDate.isPresent() && !startDate.isPresent())
-                || startDate.orElse(now) > endDate.orElse(now)) {
+                || startDate.orElse(now) > Math.min(now, endDate.orElse(now))) {
             throw new IllegalArgumentException("Invalid date range for retrieving cluster statistics.");
         }
-        boolean oneDataPointRequested = !startDate.isPresent() && !endDate.isPresent();
+        final boolean oneDataPointRequested = !startDate.isPresent() && !endDate.isPresent();
         final Set<String> requestedFields;
+        final Set<String> additionalFieldsFetchedFromDB = new HashSet<>();
         if (filter != null) {
             requestedFields = new HashSet<>(StatsUtils.collectCommodityNames(filter));
         } else {
@@ -257,20 +262,33 @@ public class ClusterStatsReader {
 
         if ((orderByField.equalsIgnoreCase(TOTAL_HEADROOM) || requestedFields.contains(TOTAL_HEADROOM))
                 && !requestedFields.isEmpty()) {
-            requestedFields.add(CPU_HEADROOM);
-            requestedFields.add(MEM_HEADROOM);
-            requestedFields.add(STORAGE_HEADROOM);
+            if (requestedFields.add(CPU_HEADROOM)) {
+                additionalFieldsFetchedFromDB.add(CPU_HEADROOM);
+
+            }
+            if (requestedFields.add(MEM_HEADROOM)) {
+                additionalFieldsFetchedFromDB.add(MEM_HEADROOM);
+            }
+            if (requestedFields.add(STORAGE_HEADROOM)) {
+                additionalFieldsFetchedFromDB.add(STORAGE_HEADROOM);
+            }
         }
         final boolean headroomStatsRequested = requestedFields.isEmpty()
                                                     || requestedFields.stream()
                                                             .anyMatch(HEADROOM_STATS::contains);
+        final boolean totalHeadRoomRequested =  requestedFields.isEmpty()
+                                                    || requestedFields.stream()
+                                                             .anyMatch(s ->
+                                                                     s.equalsIgnoreCase(TOTAL_HEADROOM));
 
         // decide whether to include projected stats
         // note that to calculate projected stats, we need to fetch the vm growth from the DB
         final boolean includeProjectedStats = request.getStats().getRequestProjectedHeadroom()
                                                   && !oneDataPointRequested && headroomStatsRequested;
         if (includeProjectedStats && !requestedFields.isEmpty()) {
-            requestedFields.add(VM_GROWTH);
+            if (requestedFields.add(VM_GROWTH)) {
+                additionalFieldsFetchedFromDB.add(VM_GROWTH);
+            }
         }
 
         // decide time frame
@@ -289,12 +307,17 @@ public class ClusterStatsReader {
                                                     Optional.empty(), Optional.empty());
 
         // create query and run it
+        final Table<?> dbTable = getStatsTable(timeRange.map(TimeRange::getTimeFrame)
+                                                    .orElse(TimeFrame.LATEST));
+        final Optional<Long> startDateQuery;
+        if (headroomStatsRequested) {
+            startDateQuery = startDate.map(t -> DateUtils.truncate(new Date(t), Calendar.DATE).getTime());
+        } else {
+            startDateQuery = startDate;
+        }
         final ClusterStatsQuery query =
-                new ClusterStatsQuery(getStatsTable(timeRange.map(TimeRange::getTimeFrame)
-                                                             .orElse(TimeFrame.LATEST)),
-                                      timeRange.map(TimeRange::getStartTime).map(Timestamp::new),
-                                      timeRange.map(TimeRange::getEndTime).map(Timestamp::new),
-                                      requestedFields, clusterIds);
+                new ClusterStatsQuery(dbTable, startDateQuery.map(Timestamp::new),
+                                      endDate.map(Timestamp::new), requestedFields, clusterIds);
         final Result<? extends Record> results = historydbIO.execute(query.getQuery());
 
         // process query results
@@ -306,7 +329,8 @@ public class ClusterStatsReader {
 
         // add projections, if requested
         if (includeProjectedStats) {
-            statsPerCluster.values().forEach(s -> s.addProjectedStats(endDate.get()));
+            statsPerCluster.values().forEach(s ->
+                                        s.addProjectedStats(endDate.orElse(now), totalHeadRoomRequested));
         }
 
         // paginate
@@ -322,7 +346,9 @@ public class ClusterStatsReader {
         final PaginationResponse paginationResponse = paginatedStats.getPaginationResponse();
         final List<EntityStats> entityStats =
                 paginatedStats.getNextPageIds().stream()
-                    .map(id -> statsPerCluster.get(id).toEntityStats(oneDataPointRequested))
+                    .map(id -> statsPerCluster.get(id)
+                            .toEntityStats(oneDataPointRequested, additionalFieldsFetchedFromDB,
+                                           totalHeadRoomRequested))
                     .collect(Collectors.toList());
 
         return createClusterStatsResponseList(entityStats, paginationResponse);
@@ -460,15 +486,25 @@ public class ClusterStatsReader {
         /**
          * Convert to a {@link StatSnapshot} object.
          *
+         * @param omitStats do not include these stats in the result
+         * @param totalHeadroomRequested whether to include total headroom in the result
          * @return the {@link StatSnapshot} object
          */
-        public StatSnapshot toStatSnapshot() {
+        public StatSnapshot toStatSnapshot(@Nonnull Set<String> omitStats, boolean totalHeadroomRequested) {
             final StatSnapshot.Builder resultBuilder = StatSnapshot.newBuilder()
                                                             .setSnapshotDate(recordedOn.getTime());
 
-            if (!usages.containsKey(TOTAL_HEADROOM) || !capacities.containsKey(TOTAL_HEADROOM)) {
+            if (totalHeadroomRequested
+                    && (!usages.containsKey(TOTAL_HEADROOM) || !capacities.containsKey(TOTAL_HEADROOM))) {
                 // total headroom has not been calculated
                 calculateTotalHeadroom();
+            }
+
+            // remove stats to be omitted
+            if (!omitStats.isEmpty()) {
+                usages.keySet().removeIf(omitStats::contains);
+                capacities.keySet().removeIf(omitStats::contains);
+                values.keySet().removeIf(omitStats::contains);
             }
 
             // usages and capacities
@@ -552,12 +588,8 @@ public class ClusterStatsReader {
         }
 
         private void calculateTotalHeadroom() {
-            double totalHeadroomUsage = totalHeadroom(usages);
-            double totalHeadroomCapacity = totalHeadroom(capacities);
-            if (totalHeadroomUsage >= 0.0 && totalHeadroomCapacity >= 0.0) {
-                usages.put(TOTAL_HEADROOM, totalHeadroomUsage);
-                capacities.put(TOTAL_HEADROOM, totalHeadroomCapacity);
-            }
+            usages.put(TOTAL_HEADROOM, totalHeadroom(usages));
+            capacities.put(TOTAL_HEADROOM, totalHeadroom(capacities));
         }
 
         private static StatValue makeStatValue(double value) {
@@ -601,7 +633,7 @@ public class ClusterStatsReader {
                 new TreeMap<>(Comparator.reverseOrder());
 
         // list to hold projected stats, if required
-        private final Stack<StatSnapshot> projectedStatSnapshots = new Stack<>();
+        private final Queue<StatSnapshot> projectedStatSnapshots = new LinkedList<>();
 
         SingleClusterStats(long clusterId) {
             this.clusterId = clusterId;
@@ -629,8 +661,9 @@ public class ClusterStatsReader {
          * @param endDate end date of the original request.
          *                If the end date given here is older that the date of the latest record
          *                for the cluster, then no projected stats will be added
+         * @param totalHeadRoomRequested whether total headroom should be included in the result
          */
-        public void addProjectedStats(long endDate) {
+        public void addProjectedStats(long endDate, boolean totalHeadRoomRequested) {
             if (allStats.isEmpty()) {
                 return;
             }
@@ -651,7 +684,8 @@ public class ClusterStatsReader {
 
             // get the stats to be projected from the last record
             final List<StatRecord> headroomCommodityRecords =
-                latestRecord.toStatSnapshot().getStatRecordsList().stream()
+                latestRecord.toStatSnapshot(Collections.emptySet(), totalHeadRoomRequested)
+                        .getStatRecordsList().stream()
                     .filter(record -> CLUSTER_COMMODITY_STATS.contains(record.getName()))
                     .collect(Collectors.toList());
 
@@ -690,9 +724,14 @@ public class ClusterStatsReader {
         /**
          * Convert this to an {@link EntityStats} object.
          *
+         * @param onlyOneDataPointRequested keep only most recent snapshot per cluster and stat
+         * @param omitStats                 do not include these stats in the result
+         * @param totalHeadroomRequested    whether total headroom should be included in the result
          * @return the {@link EntityStats} translation
          */
-        public EntityStats toEntityStats(boolean onlyOneDataPointRequested) {
+        public EntityStats toEntityStats(boolean onlyOneDataPointRequested,
+                                         @Nonnull Set<String> omitStats,
+                                         boolean totalHeadroomRequested) {
             final EntityStats.Builder resultBuilder = EntityStats.newBuilder()
                                                             .setOid(clusterId);
 
@@ -700,7 +739,7 @@ public class ClusterStatsReader {
                 final SingleClusterSingleTimeStats mostRecent = allStats.get(allStats.firstKey());
                 if (mostRecent != null) {
                     resultBuilder
-                        .addStatSnapshots(mostRecent.toStatSnapshot());
+                        .addStatSnapshots(mostRecent.toStatSnapshot(omitStats, totalHeadroomRequested));
                 }
                 return resultBuilder.build();
             }
@@ -711,7 +750,8 @@ public class ClusterStatsReader {
             // add historical stats and return
             return resultBuilder
                         .addAllStatSnapshots(allStats.values().stream()
-                                                .map(SingleClusterSingleTimeStats::toStatSnapshot)
+                                                .map(s -> s.toStatSnapshot(omitStats,
+                                                                           totalHeadroomRequested))
                                                 .collect(Collectors.toList()))
                         .build();
         }

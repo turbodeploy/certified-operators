@@ -567,10 +567,7 @@ public class StatsServiceTest {
         clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
             .addSnapshots(EntityStats.newBuilder()
                                             .setOid(clusterId3)
-                                            .addStatSnapshots(STAT_SNAPSHOT))
-                        .setPaginationResponse(PaginationResponse.newBuilder()
-                                                    .setTotalRecordCount(3))
-                        .build();
+                                            .addStatSnapshots(STAT_SNAPSHOT).build()).build()).build());
         when(statsMapper.newPeriodStatsFilter(periodApiInputDTO, true)).thenReturn(statsFilter);
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
         statSnapshotApiDTO.setClassName(StringConstants.CLUSTER);
