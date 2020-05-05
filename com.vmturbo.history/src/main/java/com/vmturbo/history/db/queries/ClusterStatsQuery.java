@@ -42,9 +42,11 @@ public class ClusterStatsQuery extends QueryBase {
         startDate.ifPresent(t -> addConditions(recordedOn.ge(t)));
         endDate.ifPresent(t -> addConditions(recordedOn.le(t)));
 
-        addConditions(DSL.or(fields.stream()
-                                .map(propertyType::equalIgnoreCase)
-                                .collect(Collectors.toList())));
+        if (!fields.isEmpty()) {
+            addConditions(DSL.or(fields.stream()
+                                        .map(propertyType::equalIgnoreCase)
+                                        .collect(Collectors.toList())));
+        }
 
         if (!clusterIds.isEmpty()) {
             addConditions(id.in(clusterIds));
