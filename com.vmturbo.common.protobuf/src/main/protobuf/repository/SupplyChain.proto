@@ -124,9 +124,14 @@ message SupplyChainScope {
     // to entity types normally displayed in the supply chain are included.
     repeated string entity_types_to_include = 3;
 
+
     // Only include entities in a particular environment type in the supply chain.
     // If not set, return all entities regardless of environment type.
     optional .common.EnvironmentType environment_type = 4;
+
+    // Only include entities with the particular state.
+    // If not set, return entities with any state.
+    repeated .topology.EntityState entity_states_to_include = 5;
 }
 
 // Group By criteria for supply chain stats.

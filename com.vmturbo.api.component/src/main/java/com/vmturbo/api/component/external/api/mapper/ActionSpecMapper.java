@@ -50,6 +50,7 @@ import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotF
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchPaymentOptionException;
 import com.vmturbo.api.component.external.api.mapper.ReservedInstanceMapper.NotFoundMatchTenancyException;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -62,6 +63,7 @@ import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.reservedinstance.ReservedInstanceApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -128,6 +130,7 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -186,6 +189,8 @@ public class ActionSpecMapper {
 
     private final ServiceEntityMapper serviceEntityMapper;
 
+    private final PoliciesService policiesService;
+
     private final long realtimeTopologyContextId;
 
     private static final Logger logger = LogManager.getLogger();
@@ -218,6 +223,7 @@ public class ActionSpecMapper {
 
     public ActionSpecMapper(@Nonnull ActionSpecMappingContextFactory actionSpecMappingContextFactory,
                             @Nonnull final ServiceEntityMapper serviceEntityMapper,
+                            @Nonnull final PoliciesService policiesService,
                             @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
                             @Nullable final RIBuyContextFetchServiceGrpc.RIBuyContextFetchServiceBlockingStub riStub,
                             @Nonnull final CostServiceBlockingStub costServiceBlockingStub,
@@ -226,6 +232,7 @@ public class ActionSpecMapper {
                             final long realtimeTopologyContextId) {
         this.actionSpecMappingContextFactory = Objects.requireNonNull(actionSpecMappingContextFactory);
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
+        this.policiesService  = Objects.requireNonNull(policiesService);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
         this.costServiceBlockingStub = Objects.requireNonNull(costServiceBlockingStub);
@@ -552,7 +559,7 @@ public class ActionSpecMapper {
             default:
                 throw new UnsupportedActionException(recommendation);
         }
-
+        populatePolicyForActionApiDto(recommendation, actionApiDTO, context);
         // record the times for this action
         final String createTime = DateTimeUtil.toString(actionSpec.getRecommendationTime());
         actionApiDTO.setCreateTime(createTime);
@@ -1027,6 +1034,32 @@ public class ActionSpecMapper {
                 AspectName.CLOUD, cloudAspect));
             wrapperDto.getTarget().setAspectsByName(aspects);
         }
+    }
+
+    /**
+     * Set policy for ActionApiDTO if the reason commodity associates with a segmentation policy.
+     *
+     * @param action the action
+     * @param wrapperDto the actionApiDTO
+     * @param context ActionSpecMappingContext
+     */
+    protected void populatePolicyForActionApiDto(@Nonnull final ActionDTO.Action action,
+                                                 @Nonnull final ActionApiDTO wrapperDto,
+                                                 @Nonnull final ActionSpecMappingContext context) {
+        Map<String, PolicyApiDTO> policyApiDtoMap = context.getPolicyApiDtoMap();
+        if (policyApiDtoMap.isEmpty()) {
+            return;
+        }
+        ActionDTOUtil.getReasonCommodities(action)
+            .filter(c -> c.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE)
+            .forEach(comm -> {
+                if (comm.getCommodityType() != null && comm.getCommodityType().getKey() != null) {
+                    PolicyApiDTO policy = policyApiDtoMap.get(comm.getCommodityType().getKey());
+                    if (policy != null) {
+                        wrapperDto.setPolicy(policy);
+                    }
+                }
+            });
     }
 
     private String getReasonCommodities(List<ChangeProviderExplanation> changeProviderExplanations) {

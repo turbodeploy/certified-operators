@@ -1035,6 +1035,9 @@ message CloudCostStatRecord {
         // Stat value
         optional StatValue values = 7;
 
+        // Cost source
+        optional CostSource cost_source = 8;
+
         // Contains the detail value of stats record, such as, max, min, avg, total value.
         message StatValue {
             optional float max = 1;

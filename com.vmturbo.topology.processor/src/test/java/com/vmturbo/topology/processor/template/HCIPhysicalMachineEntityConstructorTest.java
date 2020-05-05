@@ -2,8 +2,11 @@ package com.vmturbo.topology.processor.template;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Type;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -14,7 +17,10 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.io.Files;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.Internal.EnumLiteMap;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
@@ -116,6 +122,12 @@ public class HCIPhysicalMachineEntityConstructorTest {
         TopologyEntity.Builder originalStorageBuilder = TopologyEntity
                 .newBuilder(loadTopologyEntityDTO("HCIStorage.json").toBuilder());
         originalHostBuilder.addConsumer(originalStorageBuilder);
+        TopologyEntity.Builder vmVMFS = TopologyEntity
+                .newBuilder(loadTopologyEntityDTO("VmVMFS.json").toBuilder());
+        originalHostBuilder.addConsumer(vmVMFS);
+        TopologyEntity.Builder vmVsan = TopologyEntity
+                .newBuilder(loadTopologyEntityDTO("VmVsan.json").toBuilder());
+        originalHostBuilder.addConsumer(vmVsan);
 
         Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(originalHostBuilder.getOid(), originalHostBuilder);
@@ -131,9 +143,9 @@ public class HCIPhysicalMachineEntityConstructorTest {
         }
 
         // Run test
-        Collection<Builder> result = new HCIPhysicalMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(template, topology, originalHostBuilder, true,
-                        IDENTITY_PROVIDER);
+        Collection<Builder> result = new HCIPhysicalMachineEntityConstructor(template, topology,
+                Collections.singletonList(originalHostBuilder), true, IDENTITY_PROVIDER)
+                        .createTopologyEntitiesFromTemplate();
 
         Assert.assertEquals(2, result.size());
         Builder newHost = result.stream()
@@ -185,6 +197,25 @@ public class HCIPhysicalMachineEntityConstructorTest {
                         provider.getEntityBuilder().getEdit().getReplaced().getReplacementId());
             }
         }
+    }
+
+    private List<TopologyEntityDTO> loadEntities()
+            throws IOException, InvalidProtocolBufferException {
+        List<TopologyEntityDTO> result = new ArrayList<>();
+
+        String entitiesStr = readResourceFileAsString("HCIPlanEntities.json");
+        Type listType = new TypeToken<List<Object>>() {
+        }.getType();
+        List<Object> entitiesObj = new Gson().fromJson(entitiesStr, listType);
+
+        for (Object o : entitiesObj) {
+            String str = new Gson().toJson(o);
+            TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder();
+            JsonFormat.parser().merge(str, builder);
+            result.add(builder.build());
+        }
+
+        return result;
     }
 
     private static void checkMissingSoldCommodity(@Nonnull Builder originalEntity,

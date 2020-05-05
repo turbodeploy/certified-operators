@@ -16,13 +16,50 @@ package com.vmturbo.components.common;
  *
  */
 public enum ExecutionStatus {
+    /**
+     * The initial component state.
+     */
     NEW,
+
+    /**
+     * A component is starting up.
+     */
     STARTING,
-    RUNNING,
-    PAUSED,
-    STOPPING,
+
+    /**
+     * Component is running data migrations.
+     */
     MIGRATING, // Running data migrations.
+
+    /**
+     * The component context is constructed. Certain parts of the components are running
+     * initialization code.
+     */
+    INITIALIZING_DATA,
+
+    /**
+     * The component finished startup, and is ready to serve requests.
+     */
+    RUNNING,
+
+    /**
+     * Component is paused (currently unused?).
+     */
+    PAUSED,
+
+    /**
+     * Component is shutting down.
+     */
+    STOPPING,
+
+    /**
+     * Component is terminated.
+     */
     TERMINATED,
+
+    /**
+     * Component startup failed (currently unused?).
+     */
     FAILED;
     // TODO: add legalNextState(nextState) to encode the above semantics
 }

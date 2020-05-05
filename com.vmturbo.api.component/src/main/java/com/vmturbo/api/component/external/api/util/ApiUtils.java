@@ -25,8 +25,6 @@ public class ApiUtils {
             " not implemented in Turbonomic XL";
     public static final String LOOPBACK = "127.0.0.1"; // assume it's IPv4 for now
     private static final String X_FORWARDED_FOR = "X-FORWARDED-FOR";
-    private static final String REMOTE_IP_ADDRESS = "RemoteIpAddress";
-    private static final int stringLength = "RemoteIpAddress: ".length();
 
     public static UnsupportedOperationException notImplementedInXL() {
         return new UnsupportedOperationException(NOT_IMPLEMENTED_MESSAGE);

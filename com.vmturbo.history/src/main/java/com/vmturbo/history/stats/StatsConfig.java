@@ -140,6 +140,9 @@ public class StatsConfig {
     @Value("${historyPaginationDefaultSortCommodity}")
     private String historyPaginationDefaultSortCommodity;
 
+    @Value("${maxAmountOfEntitiesPerGrpcMessage:200}")
+    private int maxAmountOfEntitiesPerGrpcMessage;
+
     @Value("${systemLoadRecordsPerChunk}")
     private int systemLoadRecordsPerChunk;
     @Value("${timeToWaitNetworkReadinessMs}")
@@ -323,7 +326,7 @@ public class StatsConfig {
     @Bean
     public ClusterStatsReader clusterStatsReader() {
         return new ClusterStatsReader(historyDbConfig.historyDbIO(), clusterTimeRangeFactory(),
-                computedPropertiesProcessorFactory());
+                computedPropertiesProcessorFactory(), maxAmountOfEntitiesPerGrpcMessage);
     }
 
     @Bean

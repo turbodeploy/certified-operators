@@ -8,9 +8,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -28,8 +25,6 @@ import com.vmturbo.common.protobuf.utils.StringConstants;
  * {@link StatSnapshotApiDTO} for use by the UI.
  */
 public class ActionCountsMapper {
-
-    private static final Logger logger = LogManager.getLogger();
 
     private final static String PROPERTY_NAME = "property";
 

@@ -43,6 +43,7 @@ public class EntityCostToStatRecordConverter {
             builder.setAssociatedEntityId(entityCost.getAssociatedEntityId());
             builder.setAssociatedEntityType(entityCost.getAssociatedEntityType());
             builder.setCategory(componentCost.getCategory());
+            builder.setCostSource(componentCost.getCostSource());
             builder.setName(StringConstants.COST_PRICE);
             builder.setUnits("$/h");
             builder.setValues(StatValue.newBuilder()

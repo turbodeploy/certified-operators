@@ -18,6 +18,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -101,6 +102,7 @@ import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChain
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStatsChunk;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
@@ -310,17 +312,19 @@ public class StatsServiceTest {
         when(groupServiceSpy.getGroups(any())).thenReturn(ImmutableList.of(cluster1, cluster2));
 
         // mock internal history gRPC call
-        final ClusterStatsResponse clusterStatsResponse =
-            ClusterStatsResponse.newBuilder()
+        final List<ClusterStatsResponse> clusterStatsResponse = new ArrayList<>();
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
+            .addSnapshots(EntityStats.newBuilder()
+                .setOid(clusterId1)
+                .addStatSnapshots(STAT_SNAPSHOT)).build()).build());
+
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
                 .addSnapshots(EntityStats.newBuilder()
-                                    .setOid(clusterId1)
-                                    .addStatSnapshots(STAT_SNAPSHOT))
-                .addSnapshots(EntityStats.newBuilder()
-                                    .setOid(clusterId2)
-                                    .addStatSnapshots(STAT_SNAPSHOT))
-                .setPaginationResponse(PaginationResponse.newBuilder()
-                                            .setTotalRecordCount(2))
-                .build();
+                    .setOid(clusterId2)
+                    .addStatSnapshots(STAT_SNAPSHOT))).build());
+
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setPaginationResponse(PaginationResponse.newBuilder()
+            .setTotalRecordCount(2)).build());
         when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest)).thenReturn(clusterStatsResponse);
 
         // call service
@@ -423,18 +427,20 @@ public class StatsServiceTest {
         when(groupServiceSpy.getGroups(any())).thenReturn(ImmutableList.of(cluster1, cluster2));
 
         // mock internal history gRPC call
-        final ClusterStatsResponse clusterStatsResponse =
-                ClusterStatsResponse.newBuilder()
-                    .addSnapshots(EntityStats.newBuilder()
+        final List<ClusterStatsResponse> clusterStatsResponse = new ArrayList<>();
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
+            .addSnapshots(EntityStats.newBuilder()
                                     .setOid(clusterId1)
-                                    .addStatSnapshots(STAT_SNAPSHOT))
-                    .addSnapshots(EntityStats.newBuilder()
+                                    .addStatSnapshots(STAT_SNAPSHOT).build())).build());
+
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
+            .addSnapshots(EntityStats.newBuilder()
                                     .setOid(clusterId2)
-                                    .addStatSnapshots(STAT_SNAPSHOT))
-                    .setPaginationResponse(PaginationResponse.newBuilder()
+                                    .addStatSnapshots(STAT_SNAPSHOT)).build()).build());
+
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setPaginationResponse(PaginationResponse.newBuilder()
                                                 .setTotalRecordCount(2)
-                                                .setNextCursor(nextCursor))
-                    .build();
+                                                .setNextCursor(nextCursor)).build());
         when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest)).thenReturn(clusterStatsResponse);
 
         // call service
@@ -549,20 +555,21 @@ public class StatsServiceTest {
                                                             .setStats(statsFilter)
                                                             .setPaginationParams(paginationParameters)
                                                             .build();
-        final ClusterStatsResponse clusterStatsResponse =
-                ClusterStatsResponse.newBuilder()
-                        .addSnapshots(EntityStats.newBuilder()
+        final List<ClusterStatsResponse> clusterStatsResponse = new ArrayList<>();
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
+            .addSnapshots(EntityStats.newBuilder()
                                             .setOid(clusterId1)
-                                            .addStatSnapshots(STAT_SNAPSHOT))
-                        .addSnapshots(EntityStats.newBuilder()
+                                            .addStatSnapshots(STAT_SNAPSHOT).build()).build()).build());
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
+            .addSnapshots(EntityStats.newBuilder()
                                             .setOid(clusterId2)
-                                            .addStatSnapshots(STAT_SNAPSHOT))
-                        .addSnapshots(EntityStats.newBuilder()
+                                            .addStatSnapshots(STAT_SNAPSHOT).build()).build()).build());
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
+            .addSnapshots(EntityStats.newBuilder()
                                             .setOid(clusterId3)
-                                            .addStatSnapshots(STAT_SNAPSHOT))
-                        .setPaginationResponse(PaginationResponse.newBuilder()
-                                                    .setTotalRecordCount(3))
-                        .build();
+                                            .addStatSnapshots(STAT_SNAPSHOT).build()).build()).build());
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setPaginationResponse(PaginationResponse.newBuilder()
+                                                    .setTotalRecordCount(3)).build());
         when(statsMapper.newPeriodStatsFilter(periodApiInputDTO)).thenReturn(statsFilter);
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
         statSnapshotApiDTO.setClassName(StringConstants.CLUSTER);
@@ -805,11 +812,11 @@ public class StatsServiceTest {
                                                             .build()));
 
         // mock internal history gRPC call
-        final ClusterStatsResponse clusterStatsResponse = ClusterStatsResponse.newBuilder()
-                                                            .addSnapshots(EntityStats.newBuilder()
-                                                                            .setOid(id)
-                                                                            .addStatSnapshots(STAT_SNAPSHOT))
-                                                            .build();
+        final List<ClusterStatsResponse> clusterStatsResponse = new ArrayList<>();
+
+        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setSnapshotsChunk(EntityStatsChunk.newBuilder()
+            .addSnapshots(EntityStats.newBuilder()
+                .setOid(id).addStatSnapshots(STAT_SNAPSHOT)).build()).build());
         when(statsHistoryServiceSpy.getClusterStats(clusterStatsRequest)).thenReturn(clusterStatsResponse);
 
         // mock mapping from internal output to external output

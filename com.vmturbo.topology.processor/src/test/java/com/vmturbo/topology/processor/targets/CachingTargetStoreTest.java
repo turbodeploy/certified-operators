@@ -311,6 +311,7 @@ public class CachingTargetStoreTest {
         when(targetDao.getAll()).thenReturn(Collections.singletonList(target));
         final CachingTargetStore newTargetStore = new CachingTargetStore(targetDao, probeStore,
             targetIdentityStore);
+        newTargetStore.initialize();
         newTargetStore.getTarget(0L).get();
     }
 

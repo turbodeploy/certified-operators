@@ -135,6 +135,7 @@ public class SupplyChainsService implements ISupplyChainsService {
                 .entityTypes(entityTypes)
                 .apiEnvironmentType(environmentType)
                 .entityDetailType(entityDetailType)
+                .entityStates(entityStates)
                 .aspectsToInclude(aspectNames)
                 .entityAspectMapper(entityAspectMapper)
                 .includeHealthSummary(includeHealthSummary);

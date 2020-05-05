@@ -18,6 +18,7 @@ import org.springframework.context.annotation.PropertySource;
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.HeaderAuthenticationProvider;
 import com.vmturbo.api.component.communication.SamlAuthenticationProvider;
+import com.vmturbo.api.component.external.api.CustomRequestAwareAuthenticationSuccessHandler;
 import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
@@ -46,6 +47,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStats
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
 import com.vmturbo.api.component.security.IntersightIdTokenVerifier;
+import com.vmturbo.api.component.security.OpenIdAuthenticationCondition;
 import com.vmturbo.api.component.security.SamlAuthenticationCondition;
 import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -399,15 +401,12 @@ public class ServiceConfig {
             communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
             communicationConfig.planReservedInstanceServiceBlockingStub(),
             communicationConfig.reservedInstanceSpecServiceBlockingStub(),
-            communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
             mapperConfig.reservedInstanceMapper(),
             communicationConfig.repositoryApi(),
             communicationConfig.groupExpander(),
             communicationConfig.planRpcService(),
             statsQueryExecutor(),
-            mapperConfig.uuidMapper(),
-            userSessionContext(),
-            communicationConfig.getRealtimeTopologyContextId());
+            mapperConfig.uuidMapper());
     }
 
     @Bean
@@ -847,4 +846,18 @@ public class ServiceConfig {
             websocketConfig.websocketHandler()
         );
     }
+
+    /**
+     * OpenID authentication provider bean.
+     *
+     * @return OpenID authentication provider bean.
+     */
+    @Bean
+    @Conditional(OpenIdAuthenticationCondition.class)
+    public CustomRequestAwareAuthenticationSuccessHandler customRequestAwareAuthenticationSuccessHandler() {
+        return new CustomRequestAwareAuthenticationSuccessHandler(authConfig.getAuthHost(), authConfig.getAuthPort(),
+                authConfig.getAuthRoute(), communicationConfig.serviceRestTemplate(),
+                securityConfig.verifier(), targetStore());
+    }
+
 }

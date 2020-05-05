@@ -2,9 +2,11 @@ package com.vmturbo.api.component.external.api.service;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 
@@ -70,6 +72,31 @@ public class PoliciesService implements IPoliciesService {
             // rethrow
             throw  e;
         }
+    }
+
+    /**
+     * Convert a collection of PolicyDTO.Policy to PolicyApiDTO with group information populated.
+     *
+     * @param policies the policies to be converted
+     * @return a collection of PolicyApiDTO
+     * @throws ConversionException if error faced converting objects to API DTOs
+     * @throws InterruptedException if current thread has been interrupted
+     */
+    public Collection<PolicyApiDTO> convertPolicyDTOCollection(Collection<PolicyDTO.Policy> policies)
+        throws ConversionException, InterruptedException {
+        final Set<Long> groupingIDS = new HashSet<>();
+        policies.forEach(p -> {
+            groupingIDS.addAll(GroupProtoUtil.getPolicyGroupIds(p));
+        });
+        Collection<Grouping> involvedGroups = Collections.emptyList();
+        if (!groupingIDS.isEmpty()) {
+            final Iterator<Grouping> iterator = groupService.getGroups(GetGroupsRequest.newBuilder()
+                .setGroupFilter(
+                    GroupFilter.newBuilder().addAllId(groupingIDS).setIncludeHidden(true))
+                .build());
+            involvedGroups = Lists.newArrayList(iterator);
+        }
+        return policyMapper.policyToApiDto(policies.stream().collect(Collectors.toList()), involvedGroups);
     }
 
     /**

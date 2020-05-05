@@ -86,28 +86,6 @@ public class GlobalSupplyChainCalculator {
      * Compute the global supply chain.
      *
      * @param topology the topology
-     * @param environmentType environment to filter entities against
-     * @param entityTypesToSkip A predicate used to determine if an entity type should be skipped
-     *                          during supply chain traversal or not.
-     * @param <E> The type of {@link TopologyGraphEntity} in the graph
-     * @return The {@link SupplyChainNode}s of the result,
-     *         grouped by entity type
-     */
-    @Nonnull
-    public <E extends TopologyGraphEntity<E>> Map<ApiEntityType, SupplyChainNode> getSupplyChainNodes(
-            @Nonnull TopologyGraph<E> topology, @Nonnull EnvironmentType environmentType,
-            @Nonnull Predicate<Integer> entityTypesToSkip) {
-        final Predicate<EnvironmentType> environmentTypePredicate =
-                EnvironmentTypeUtil.matchingPredicate(environmentType);
-        return getSupplyChainNodes(topology,
-                                   entity -> environmentTypePredicate.test(entity.getEnvironmentType()),
-                                   entityTypesToSkip);
-    }
-
-    /**
-     * Compute the global supply chain.
-     *
-     * @param topology the topology
      * @param entityFilter filter for the entities to be included in
      *                     the result
      * @param entityTypesToSkip predicate used to determine if an entity type should be skipped during

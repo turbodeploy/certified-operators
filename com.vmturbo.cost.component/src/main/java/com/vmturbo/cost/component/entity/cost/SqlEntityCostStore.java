@@ -238,6 +238,10 @@ public class SqlEntityCostStore implements EntityCostStore {
         final Field<Integer> entityType = getField(table, ENTITY_COST.ASSOCIATED_ENTITY_TYPE);
         final Field<Integer> costType = getField(table, ENTITY_COST.COST_TYPE);
         final Set<Field<?>> selectableFields = Sets.newHashSet(groupByFields);
+        if (table.equals(ENTITY_COST)) {
+            final Field<Integer> costSource = getField(table, ENTITY_COST.COST_SOURCE);
+            selectableFields.add(costSource);
+        }
         selectableFields.add(createdTimeField);
         selectableFields.add(entityType);
         selectableFields.add(costType);
@@ -318,12 +322,18 @@ public class SqlEntityCostStore implements EntityCostStore {
 
     @Nonnull
     private StatRecord mapToEntityCost(@Nonnull final Record item,
-                                        @Nonnull final Set<Field<?>> selectableFields) {
+            @Nonnull final Set<Field<?>> selectableFields) {
         final StatRecord.Builder statRecordBuilder = StatRecord.newBuilder();
         statRecordBuilder.setCategory(CostCategory.forNumber(item.get(ENTITY_COST.COST_TYPE)));
-        statRecordBuilder.setAssociatedEntityType(item.getValue(ENTITY_COST.ASSOCIATED_ENTITY_TYPE));
+        if (selectableFields.contains(ENTITY_COST.COST_SOURCE)) {
+            statRecordBuilder.setCostSource(
+                    CostSource.forNumber(item.get(ENTITY_COST.COST_SOURCE)));
+        }
+        statRecordBuilder.setAssociatedEntityType(
+                item.getValue(ENTITY_COST.ASSOCIATED_ENTITY_TYPE));
         if (selectableFields.contains(ENTITY_COST.ASSOCIATED_ENTITY_ID)) {
-            statRecordBuilder.setAssociatedEntityId(item.getValue(ENTITY_COST.ASSOCIATED_ENTITY_ID));
+            statRecordBuilder.setAssociatedEntityId(
+                    item.getValue(ENTITY_COST.ASSOCIATED_ENTITY_ID));
         }
 
         setStatRecordValues(statRecordBuilder, item.getValue("avg", Float.class),

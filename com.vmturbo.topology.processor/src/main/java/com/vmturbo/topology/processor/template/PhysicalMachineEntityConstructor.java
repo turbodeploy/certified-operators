@@ -3,11 +3,8 @@ package com.vmturbo.topology.processor.template;
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Compute;
 import static com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName.Infrastructure;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -37,7 +34,8 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  * displayName, commodity sold, commodity bought, entity state, provider policy and consumer policy.
  * And also it will try to keep all commodity constrains from the original topology entity.
  */
-public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor {
+public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
+        implements ITopologyEntityConstructor {
 
     private static final String ZERO = "0";
     private static final Logger logger = LogManager.getLogger();
@@ -51,7 +49,8 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor 
     public static final double SWAPPING_DEFAULT_CAPACITY = 5000.0;
 
     @Override
-    public Collection<Builder> createTopologyEntityFromTemplate(@Nonnull final Template template,
+    public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
+            @Nonnull final Template template,
             @Nullable Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
@@ -111,7 +110,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor 
         topologyEntityBuilder.setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
             .setPhysicalMachine(pmInfoBuilder));
 
-        return Collections.singletonList(topologyEntityBuilder);
+        return topologyEntityBuilder;
     }
 
     /**

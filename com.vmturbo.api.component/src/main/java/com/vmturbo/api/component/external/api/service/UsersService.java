@@ -77,10 +77,7 @@ public class UsersService implements IUsersService {
      * The HTTP accept header.
      */
     public static final List<MediaType> HTTP_ACCEPT = ImmutableList.of(MediaType.APPLICATION_JSON);
-    private static final String ENTITY_ID = "entityID";
     private static final String SAML_IDP_ENTITY_NAME = "SAML IDP entity name: ";
-    private static final String MD_NAMESPACE_URI = "urn:oasis:names:tc:SAML:2.0:metadata";
-    private static final String MD_SINGLE_LOGOUT_SERVICE = "SingleLogoutService";
     private static final String NOT_ASSIGNED = "Not assigned";
     private static final String PERMISSION_CHANGED = "Permission changed, current role is %s, scope is %s";
     private final Set<String> invalidScopes = new HashSet<>();
