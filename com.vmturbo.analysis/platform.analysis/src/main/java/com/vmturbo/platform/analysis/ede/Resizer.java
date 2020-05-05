@@ -88,7 +88,7 @@ public class Resizer {
                 }
                 IncomeStatement incomeStatement = incomeStatements.get(soldIndex);
                 CommoditySpecification resizedCommodity = basketSold.get(soldIndex);
-                boolean consistentResizing = seller.isInScalingGroup();
+                boolean consistentResizing = seller.isInScalingGroup(economy);
                 boolean engage = evaluateEngageCriteria(economy, seller, commoditySold,
                     incomeStatement);
                 /*
