@@ -5,6 +5,5 @@
     <category>Hypervisor</category>
     <version>1.0.0</version>
     <creation-mode>ANY</creation-mode>
-<!--    todo: uncomment this once all host maintenance tasks are done -->
-<!--    <incremental-rediscovery-interval-seconds>30</incremental-rediscovery-interval-seconds>-->
+    <incremental-rediscovery-interval-seconds>30</incremental-rediscovery-interval-seconds>
 </probe>
