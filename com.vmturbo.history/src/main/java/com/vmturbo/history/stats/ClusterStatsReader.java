@@ -494,9 +494,7 @@ public class ClusterStatsReader {
             final StatSnapshot.Builder resultBuilder = StatSnapshot.newBuilder()
                                                             .setSnapshotDate(recordedOn.getTime());
 
-            if (totalHeadroomRequested
-                    && (!usages.containsKey(TOTAL_HEADROOM) || !capacities.containsKey(TOTAL_HEADROOM))) {
-                // total headroom has not been calculated
+            if (totalHeadroomRequested) {
                 calculateTotalHeadroom();
             }
 
@@ -605,9 +603,9 @@ public class ClusterStatsReader {
         }
 
         private static double totalHeadroom(@Nonnull Map<String, Double> map) {
-            return Math.min(Math.min(map.getOrDefault(CPU_HEADROOM, -1.0),
-                                     map.getOrDefault(MEM_HEADROOM, -1.0)),
-                            map.getOrDefault(STORAGE_HEADROOM, -1.0));
+            return Math.min(Math.min(map.getOrDefault(CPU_HEADROOM, 0.0),
+                                     map.getOrDefault(MEM_HEADROOM, 0.0)),
+                            map.getOrDefault(STORAGE_HEADROOM, 0.0));
         }
     }
 
