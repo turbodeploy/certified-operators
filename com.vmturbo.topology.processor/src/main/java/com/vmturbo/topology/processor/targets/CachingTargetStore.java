@@ -27,7 +27,6 @@ import com.google.common.collect.Table;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.identity.store.IdentityStore;
@@ -49,8 +48,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Topolog
  * related to registering and deregistering derived targets.
  */
 @ThreadSafe
-public class CachingTargetStore implements TargetStore, ProbeStoreListener,
-        RequiresDataInitialization {
+public class CachingTargetStore implements TargetStore, ProbeStoreListener {
 
     private final Logger logger = LogManager.getLogger();
 
@@ -654,6 +652,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener,
             .flatMap(target -> probeStore.getProbe(target.getProbeId()))
             .flatMap(probeInfo -> Optional.ofNullable(ProbeCategory.create(probeInfo.getProbeCategory())));
     }
+
 
     @Override
     public void onProbeRegistered(final long probeId, final ProbeInfo probe) {

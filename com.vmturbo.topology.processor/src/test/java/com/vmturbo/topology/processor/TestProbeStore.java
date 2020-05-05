@@ -14,6 +14,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+
 import com.vmturbo.communication.ITransport;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
@@ -153,5 +154,9 @@ public class TestProbeStore implements ProbeStore {
             return;
         }
         probeInfos.put(probeId.get(), newProbeInfo);
+    }
+
+    @Override
+    public void initialize() throws InitializationException {
     }
 }

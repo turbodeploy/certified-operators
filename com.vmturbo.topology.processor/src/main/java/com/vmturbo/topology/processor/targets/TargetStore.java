@@ -7,6 +7,7 @@ import java.util.Set;
 
 import javax.annotation.Nonnull;
 
+import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
@@ -19,7 +20,7 @@ import com.vmturbo.topology.processor.topology.TopologyHandler;
 /**
  * Interface for CRUD operations on registered targets.
  */
-public interface TargetStore {
+public interface TargetStore extends RequiresDataInitialization {
 
     String TARGET_KV_STORE_PREFIX = "targets/";
 
