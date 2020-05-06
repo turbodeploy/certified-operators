@@ -424,17 +424,8 @@ public class RIStatsSubQueryTest {
      */
     @Test
     public void testCreateCoverageRequestServiceProviderScope() throws OperationFailedException {
-        final MultiEntityRequest multiEntityRequest = Mockito.mock(MultiEntityRequest.class);
-        Mockito.when(multiEntityRequest.getEntitiesWithConnections())
-                .thenReturn(SCOPE_ENTITIES.stream()
-                        .map(oid -> EntityWithConnections.newBuilder()
-                                .setOid(oid)
-                                .addConnectedEntities(ConnectedEntity.newBuilder()
-                                        .setConnectedEntityId(7L)
-                                        .setConnectedEntityType(EntityType.REGION_VALUE)
-                                        .setConnectionType(ConnectionType.OWNS_CONNECTION))
-                                .build()));
-        Mockito.when(repositoryApi.entitiesRequest(SCOPE_ENTITIES)).thenReturn(multiEntityRequest);
+        final Set<Long> regionIdsSet = ImmutableSet.of(7L);
+        Mockito.when(repositoryApi.expandServiceProvidersToRegions(SCOPE_ENTITIES)).thenReturn(regionIdsSet);
         Mockito.when(scope.getScopeTypes())
                 .thenReturn(Optional.of(Collections.singleton(ApiEntityType.SERVICE_PROVIDER)));
         final CachedGroupInfo cachedGroupInfo = Mockito.mock(CachedGroupInfo.class);

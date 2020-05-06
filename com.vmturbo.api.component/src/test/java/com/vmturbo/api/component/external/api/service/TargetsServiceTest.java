@@ -73,6 +73,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketHandler;
@@ -148,6 +149,8 @@ public class TargetsServiceTest {
 
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
+
     private MockMvc mockMvc;
 
     @Autowired
@@ -177,6 +180,7 @@ public class TargetsServiceTest {
                                                 Mockito.mock(PaginationMapper.class),
                                                 Mockito.mock(SupplyChainFetcherFactory.class),
                                                 Mockito.mock(GroupExpander.class),
+                                                serviceProviderExpander,
                                                 REALTIME_CONTEXT_ID);
         when(topologyProcessor.getProbe(Mockito.anyLong()))
                         .thenAnswer(new Answer<ProbeInfo>() {
@@ -1305,7 +1309,9 @@ public class TargetsServiceTest {
                 new ActionSearchUtil(actionRpcService(), actionSpecMapper(),
                                      Mockito.mock(PaginationMapper.class),
                                      Mockito.mock(SupplyChainFetcherFactory.class),
-                                     Mockito.mock(GroupExpander.class), REALTIME_CONTEXT_ID),
+                                     Mockito.mock(GroupExpander.class),
+                                     Mockito.mock(ServiceProviderExpander.class),
+                                     REALTIME_CONTEXT_ID),
                 REALTIME_CONTEXT_ID,
                 new ApiWebsocketHandler());
         }

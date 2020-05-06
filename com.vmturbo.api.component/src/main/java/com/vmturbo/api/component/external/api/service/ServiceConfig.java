@@ -197,7 +197,8 @@ public class ServiceConfig {
                                   communicationConfig.repositoryApi(),
                                   communicationConfig.getRealtimeTopologyContextId(),
                                   actionStatsQueryExecutor(),
-                                  mapperConfig.uuidMapper());
+                                  mapperConfig.uuidMapper(),
+                                  communicationConfig.serviceProviderExpander());
     }
 
     @Bean
@@ -332,7 +333,8 @@ public class ServiceConfig {
                 communicationConfig.thinTargetCache(),
                 entitySettingQueryExecutor(),
                 mapperConfig.groupFilterMapper(),
-                businessAccountRetriever());
+                businessAccountRetriever(),
+                communicationConfig.serviceProviderExpander());
     }
 
     @Bean
@@ -823,6 +825,7 @@ public class ServiceConfig {
             mapperConfig.paginationMapper(),
             communicationConfig.supplyChainFetcher(),
             communicationConfig.groupExpander(),
+            communicationConfig.serviceProviderExpander(),
             communicationConfig.getRealtimeTopologyContextId());
     }
 

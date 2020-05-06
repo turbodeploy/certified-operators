@@ -33,6 +33,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.StatsMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -77,6 +78,8 @@ public class ActionsService implements IActionsService {
 
     private final UuidMapper uuidMapper;
 
+    private final ServiceProviderExpander serviceProviderExpander;
+
     private final Logger log = LogManager.getLogger();
 
     public ActionsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
@@ -84,13 +87,15 @@ public class ActionsService implements IActionsService {
                           @Nonnull final RepositoryApi repositoryApi,
                           final long realtimeTopologyContextId,
                           @Nonnull final ActionStatsQueryExecutor actionStatsQueryExecutor,
-                          @Nonnull final UuidMapper uuidMapper) {
+                          @Nonnull final UuidMapper uuidMapper,
+                          @Nonnull final ServiceProviderExpander serviceProviderExpander) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.actionStatsQueryExecutor = Objects.requireNonNull(actionStatsQueryExecutor);
         this.uuidMapper = uuidMapper;
+        this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
     }
 
     @Override
@@ -195,7 +200,7 @@ public class ActionsService implements IActionsService {
         }
 
         try {
-            final Set<ApiId> scopes;
+            Set<ApiId> scopes;
             if (actionScopesApiInputDTO.getScopes() == null ||
                 !UuidMapper.hasLimitedScope(actionScopesApiInputDTO.getScopes())) {
                 scopes = Collections.singleton(uuidMapper.fromUuid(UuidMapper.UI_REAL_TIME_MARKET_STR));
@@ -213,6 +218,16 @@ public class ActionsService implements IActionsService {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
             }
+
+            // service providers do not have any stats, expand them to find the regions and get
+            // stats for regions. expandServiceProviders will return a set of all regions and original
+            // non serviceProvider scopes.
+            final Set<Long> expandedScopes = serviceProviderExpander.expand(scopes.stream()
+                    .map(ApiId::oid)
+                    .collect(Collectors.toSet()));
+            scopes = expandedScopes.stream()
+                    .map(uuidMapper::fromOid)
+                    .collect(Collectors.toSet());
 
             final Map<String, EntityStatsApiDTO> entityStatsByUuid = scopes.stream()
                 .collect(Collectors.toMap(ApiId::uuid, scope -> {
