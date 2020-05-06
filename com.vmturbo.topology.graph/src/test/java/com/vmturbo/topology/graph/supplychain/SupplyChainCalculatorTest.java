@@ -479,7 +479,8 @@ public class SupplyChainCalculatorTest {
                     .addProviderId(ST_ID),
                 TestGraphEntity.newBuilder(NAMESPACE_ID, ApiEntityType.NAMESPACE),
                 TestGraphEntity.newBuilder(WORKLOAD_CONTROLLER_ID, ApiEntityType.WORKLOAD_CONTROLLER)
-                    .addProviderId(NAMESPACE_ID),
+                    .addProviderId(NAMESPACE_ID)
+                    .addConnectedEntity(CONTAINER_SPEC_ID, ConnectionType.OWNS_CONNECTION),
                 TestGraphEntity.newBuilder(CONTAINER_POD_1_ID, ApiEntityType.CONTAINER_POD)
                     .addProviderId(VM_ID)
                     .addProviderId(WORKLOAD_CONTROLLER_ID),
@@ -493,7 +494,6 @@ public class SupplyChainCalculatorTest {
                     .addProviderId(CONTAINER_POD_2_ID)
                     .addConnectedEntity(CONTAINER_SPEC_ID, ConnectionType.AGGREGATED_BY_CONNECTION),
                 TestGraphEntity.newBuilder(CONTAINER_SPEC_ID, ApiEntityType.CONTAINER_SPEC)
-                    .addConnectedEntity(WORKLOAD_CONTROLLER_ID, ConnectionType.OWNS_CONNECTION)
             );
 
         // Ensure nodes are reachable from workload controller
@@ -515,6 +515,12 @@ public class SupplyChainCalculatorTest {
         supplychain = getSupplyChain(graph, CONTAINER_1_ID);
         final SupplyChainNode workloadControllerNode = supplychain.get(ApiEntityType.WORKLOAD_CONTROLLER.typeNumber());
         assertEquals(Collections.singleton(WORKLOAD_CONTROLLER_ID), getAllNodeIds(workloadControllerNode));
+
+        // Ensure when we start from a single pod seed we don't wind up incorrectly
+        // including other pods due to a loop through other relations.
+        supplychain = getSupplyChain(graph, CONTAINER_POD_1_ID);
+        final SupplyChainNode podNode = supplychain.get(ApiEntityType.CONTAINER_POD.typeNumber());
+        assertEquals(Collections.singleton(CONTAINER_POD_1_ID), getAllNodeIds(podNode));
     }
 
     /**

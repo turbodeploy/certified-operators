@@ -211,7 +211,10 @@ class ActionStatsMapper {
         costTypes.forEach(actionCostType -> {
             // We only want to return cost stats when investments/savings are non-zero, even
             // if they are explicitly set to zero.
-            if (actionCostType == ActionCostType.INVESTMENT) {
+            if (actionCostType == ActionCostType.ACTION_COST_TYPE_NONE) {
+                // There is no reason to inject costPrice stat, when it is not a SAVING or INVESTMENT action.
+                // But it is also not an error so we simply do nothing here.
+            } else if (actionCostType == ActionCostType.INVESTMENT) {
                 if (actionStat.getInvestments() > 0) {
                     retStats.add(newCostApiStat(groupByFilters,
                         numberToAPIStatValue((float) actionStat.getInvestments()),
@@ -225,7 +228,7 @@ class ActionStatsMapper {
                 }
             } else if (actionCostType == ActionCostType.SUPER_SAVING) {
                 // We don't currently support super-savings, but this is not an error.
-                logger.debug("Skipping action cost type: {}", actionCostType);
+                logger.debug("Skipping costPrice stat injection for action cost type: {}", actionCostType);
             } else {
                 logger.error("Action cost type: {} not supported for action stats queries.",
                     actionCostType);
