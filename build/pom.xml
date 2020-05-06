@@ -24,9 +24,6 @@
         <!-- MT Version com.vmturbo.ux -->
         <ux.mt.branch.version>7.22.1-SNAPSHOT</ux.mt.branch.version>
 
-        <!-- API Repository version, determines what version of the API definition to pull in -->
-        <com.vmturbo.api.version>3.1.0</com.vmturbo.api.version>
-
         <!--CPU Capacity Library Version-->
         <cpu.capacity.version>1.4.0</cpu.capacity.version>
 
@@ -2007,7 +2004,7 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.api</artifactId>
-                <version>${com.vmturbo.api.version}</version>
+                <version>${vmturbo.mt.branch.version}</version>
                 <exclusions>
                     <exclusion>
                         <groupId>org.slf4j</groupId>
