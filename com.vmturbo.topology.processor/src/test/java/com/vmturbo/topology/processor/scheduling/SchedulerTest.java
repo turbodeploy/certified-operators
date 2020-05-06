@@ -99,6 +99,7 @@ public class SchedulerTest {
         scheduler = new Scheduler(operationManager, targetStore, probeStore, topologyHandler,
             keyValueStore, journalFactory, fullDiscoveryExecutorSpy, incrementalDiscoveryExecutorSpy,
             broadcastExecutorSpy, expirationExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
+        scheduler.initialize();
     }
 
     @Test
@@ -421,7 +422,7 @@ public class SchedulerTest {
             targetStore, probeStore, topologyHandler, keyValueStore, journalFactory,
             fullDiscoveryExecutorSpy, incrementalDiscoveryExecutorSpy, broadcastExecutorSpy,
             expirationExecutorSpy, -1);
-
+        schedulerWithIllegalInitialInterval.initialize();
         assertEquals(
             Scheduler.FAILOVER_INITIAL_BROADCAST_INTERVAL_MINUTES,
             schedulerWithIllegalInitialInterval.getBroadcastSchedule().get().getScheduleInterval(TimeUnit.MINUTES)
@@ -437,7 +438,7 @@ public class SchedulerTest {
             topologyHandler, keyValueStore, journalFactory, fullDiscoveryExecutorSpy,
             incrementalDiscoveryExecutorSpy, broadcastExecutorSpy, expirationExecutorSpy,
             INITIAL_BROADCAST_INTERVAL_MINUTES);
-
+        scheduler.initialize();
         TopologyBroadcastSchedule schedule = scheduler.getBroadcastSchedule().get();
         assertEquals(TEST_SCHEDULE_MILLIS, schedule.getScheduleInterval(TimeUnit.MILLISECONDS));
     }
@@ -582,7 +583,7 @@ public class SchedulerTest {
             topologyHandler, keyValueStore, journalFactory, fullDiscoveryExecutorSpy,
             incrementalDiscoveryExecutorSpy, broadcastExecutorSpy, expirationExecutorSpy,
             INITIAL_BROADCAST_INTERVAL_MINUTES);
-
+        scheduler.initialize();
         TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).get();
         assertEquals(INITIAL_BROADCAST_INTERVAL_MINUTES, schedule.getScheduleInterval(TimeUnit.MINUTES));
         assertTrue(schedule.isSynchedToBroadcast());
@@ -599,8 +600,9 @@ public class SchedulerTest {
             topologyHandler, keyValueStore, journalFactory, fullDiscoveryExecutorSpy,
             incrementalDiscoveryExecutorSpy, broadcastExecutorSpy, expirationExecutorSpy,
             INITIAL_BROADCAST_INTERVAL_MINUTES);
-
+        scheduler.initialize();
         TargetDiscoverySchedule schedule = scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL).get();
+        scheduler.initialize();
         assertEquals(TEST_SCHEDULE_MILLIS, schedule.getScheduleInterval(TimeUnit.MILLISECONDS));
         assertFalse(schedule.isSynchedToBroadcast());
     }
@@ -614,7 +616,7 @@ public class SchedulerTest {
         scheduler = new Scheduler(operationManager, targetStore, probeStore, topologyHandler,
             keyValueStore, journalFactory, fullDiscoveryExecutorSpy, incrementalDiscoveryExecutorSpy,
             broadcastExecutorSpy, expirationExecutorSpy, INITIAL_BROADCAST_INTERVAL_MINUTES);
-
+        scheduler.initialize();
         // A schedule should be added that checks for timeouts based on the shortest timeout among
         // action, discovery, and validation operations.
         Mockito.verify(expirationExecutorSpy).scheduleAtFixedRate(any(), eq(10L), eq(10L), eq(TimeUnit.MILLISECONDS));

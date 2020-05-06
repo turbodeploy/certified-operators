@@ -21,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -63,7 +64,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Topolog
  * separate thread.
  */
 @ThreadSafe
-public class Scheduler implements TargetStoreListener, ProbeStoreListener {
+public class Scheduler implements TargetStoreListener, ProbeStoreListener, RequiresDataInitialization {
     private final Logger logger = LogManager.getLogger();
     // thread pool for scheduling full discoveries on.
     private final ScheduledExecutorService fullDiscoveryScheduleExecutor;
@@ -85,7 +86,9 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener {
     private final Gson gson = new Gson();
 
     private Optional<TopologyBroadcastSchedule> broadcastSchedule;
-    private final Schedule operationExpirationSchedule;
+    private Schedule operationExpirationSchedule;
+
+    private final long initialBroadcastIntervalMinutes;
 
     public static final long FAILOVER_INITIAL_BROADCAST_INTERVAL_MINUTES = 10;
     public static final String BROADCAST_SCHEDULE_KEY = "broadcast";
@@ -128,17 +131,12 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener {
         this.broadcastExecutor = Objects.requireNonNull(broadcastExecutor);
         this.expiredOperationExecutor = Objects.requireNonNull(expirationExecutor);
         this.scheduleStore = Objects.requireNonNull(scheduleStore);
+        this.initialBroadcastIntervalMinutes = initialBroadcastIntervalMinutes;
 
         discoveryTasks = new HashMap<>();
         broadcastSchedule = Optional.empty();
         probeStore.addListener(this);
         targetStore.addListener(this);
-
-        boolean requireSavedScheduleData = scheduleStore.containsKey(SCHEDULE_KEY_OFFSET);
-
-        initializeBroadcastSchedule(initialBroadcastIntervalMinutes, requireSavedScheduleData);
-        initializeDiscoverySchedules(requireSavedScheduleData);
-        operationExpirationSchedule = setupOperationExpirationCheck();
     }
 
     /**
@@ -1053,5 +1051,19 @@ public class Scheduler implements TargetStoreListener, ProbeStoreListener {
 
     private String scheduleKey(@Nonnull String key) {
         return SCHEDULE_KEY_OFFSET + key;
+    }
+
+    @Override
+    public void initialize() {
+        boolean requireSavedScheduleData = scheduleStore.containsKey(SCHEDULE_KEY_OFFSET);
+
+        initializeBroadcastSchedule(initialBroadcastIntervalMinutes, requireSavedScheduleData);
+        initializeDiscoverySchedules(requireSavedScheduleData);
+        operationExpirationSchedule = setupOperationExpirationCheck();
+    }
+
+    @Override
+    public int priority() {
+        return Math.min(targetStore.priority(), probeStore.priority()) - 1;
     }
 }

@@ -347,6 +347,14 @@ public class TraversalRulesLibrary<E extends TopologyGraphEntity<E>> {
         }
 
         @Override
+        protected Stream<E> getFilteredAggregatedEntities(@Nonnull E entity,
+                                                          @Nonnull TraversalMode traversalMode) {
+            return (traversalMode == TraversalMode.AGGREGATED_BY)
+                ? super.getFilteredAggregatedEntities(entity, traversalMode)
+                : Stream.empty();
+        }
+
+        @Override
         protected Stream<E> getFilteredProviders(@Nonnull E entity,
                                                  @Nonnull TraversalMode traversalMode) {
             final Stream<E> allProviders = super.getFilteredProviders(entity, traversalMode);

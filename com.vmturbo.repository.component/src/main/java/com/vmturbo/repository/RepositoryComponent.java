@@ -72,6 +72,7 @@ import com.vmturbo.topology.graph.supplychain.SupplyChainCalculator;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
 import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription;
+import com.vmturbo.topology.processor.api.impl.TopologyProcessorSubscription.Topic;
 
 @Configuration("theComponent")
 @Import({
@@ -284,6 +285,7 @@ public class RepositoryComponent extends BaseVmtComponent {
     @Bean
     public TopologyEntitiesListener topologyEntitiesListener() {
         return new TopologyEntitiesListener(repositoryComponentConfig.topologyManager(),
+                                            repositoryComponentConfig.liveTopologyStore(),
                                             apiConfig.repositoryNotificationSender());
     }
 
@@ -303,9 +305,13 @@ public class RepositoryComponent extends BaseVmtComponent {
             TopologyProcessorSubscription.forTopicWithStartFrom(
                 TopologyProcessorSubscription.Topic.LiveTopologies, StartFrom.BEGINNING),
             TopologyProcessorSubscription.forTopicWithStartFrom(
-                TopologyProcessorSubscription.Topic.TopologySummaries, StartFrom.BEGINNING));
+                TopologyProcessorSubscription.Topic.TopologySummaries, StartFrom.BEGINNING),
+            TopologyProcessorSubscription.forTopicWithStartFrom(
+                Topic.EntitiesWithNewState, StartFrom.BEGINNING));
         topologyProcessor.addLiveTopologyListener(topologyEntitiesListener());
         topologyProcessor.addTopologySummaryListener(topologyEntitiesListener());
+        topologyProcessor.addEntitiesWithNewStatesListener(topologyEntitiesListener());
+
         return topologyProcessor;
     }
 

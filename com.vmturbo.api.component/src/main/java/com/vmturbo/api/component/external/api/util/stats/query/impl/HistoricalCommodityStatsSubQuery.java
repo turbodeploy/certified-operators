@@ -137,7 +137,11 @@ public class HistoricalCommodityStatsSubQuery implements StatsSubQuery {
                             Long oid = Long.parseLong(commodityKey);
                             commodityOids.add(oid);
                         } catch (NumberFormatException e) {
-                            logger.error("Unable to get oid from statKey " + commodityKey + ".");
+                            // This is not an error because Storage commodities sold by on prem
+                            // Storage Controllers have keys with a different format.
+                            // Since this code will be removed as a part of OM-56401 we change it
+                            // to debug for now.
+                            logger.debug("Unable to get oid from statKey " + commodityKey + ".");
                         }
                     }
                 });

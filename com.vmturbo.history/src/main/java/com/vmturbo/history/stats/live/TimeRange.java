@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
+import org.apache.commons.lang.time.DateUtils;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Record1;
@@ -361,11 +362,17 @@ public class TimeRange {
                     // in daily and monthly tables
                     TimeFrame timeFrame = requiredTimeFrame.orElseGet(() ->
                             timeFrameCalculator.millis2TimeFrame(statsFilter.getStartDate()));
+                    long startDate = statsFilter.getStartDate();
+                    long endDate = statsFilter.getEndDate();
                     if (requestsHeadroomStats(statsFilter) && (
                             timeFrame == TimeFrame.LATEST || timeFrame == TimeFrame.HOUR)) {
                         timeFrame = TimeFrame.DAY;
+                        if (startDate == endDate) {
+                            endDate = DateUtils.truncate(new Date(endDate), Calendar.DATE).getTime();
+                        }
+                        startDate = DateUtils.truncate(new Date(startDate), Calendar.DATE).getTime();
                     }
-                    if (statsFilter.getStartDate() == statsFilter.getEndDate()) {
+                    if (startDate == endDate) {
                         // equal timestamps, resolve to latest prior (or equal) timestamp in timeframe table
                         final Timestamp latest = getMaxTimestamp(statsFilter.getStartDate(),
                                 clusterId, statsFilter, timeFrame);
@@ -377,8 +384,7 @@ public class TimeRange {
                     } else {
                         // both times given, but they're different
                         final List<Timestamp> available = getClusterTimestamps(timeFrame,
-                                statsFilter.getStartDate(), statsFilter.getEndDate(),
-                                clusterId, statsFilter);
+                            startDate, endDate, clusterId, statsFilter);
                         if (available.size() > 0) {
                             result = new TimeRange(
                                     available.get(0).getTime(), statsFilter.getEndDate(),

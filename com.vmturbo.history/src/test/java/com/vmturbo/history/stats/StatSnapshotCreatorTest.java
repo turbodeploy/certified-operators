@@ -75,6 +75,10 @@ public class StatSnapshotCreatorTest {
     private static final String COMMODITY_KEY = "commodityKey";
     private static final String TEST_RECORD_KEY = "testRecord";
     private static final float HIST_UTILIZATION_CAPACITY = 1500F;
+    private static final Double MIN_USED = 300D;
+    private static final Double AVG_USED = 500D;
+    private static final Double MAX_USED = 700D;
+    private static final Double DELTA = 0.0001D;
 
     private LiveStatsReader liveStatsReader = Mockito.mock(LiveStatsReader.class);
     private StatSnapshotCreator snapshotCreator = StatsConfig.createStatSnapshotCreator(liveStatsReader);
@@ -314,6 +318,63 @@ public class StatSnapshotCreatorTest {
                                                         .equals(value.getType())).findAny().get();
         Assert.assertEquals(400D, percentileValue.getUsage().getAvg(), 0.0001);
         Assert.assertEquals(capacity, percentileValue.getCapacity().getAvg(), 0.0001);
+    }
+
+    /**
+     * Test commodity percentile utilization for commodity sold.
+     */
+    @Test
+    public void testPercentileUtilizationCommoditySold() {
+        final String userRecordCommodityKey = "userRecordCommodityKey";
+        Mockito.when(liveStatsReader.getEntityDisplayNameForId(Mockito.eq(PRODUCER_OID)))
+            .thenReturn(PROVIDER_DISPLAY_NAME);
+        // arrange
+        final List<CommodityRequest> commodityRequests = Collections.singletonList(
+            CommodityRequest.newBuilder()
+                .setCommodityName(UICommodityType.IMAGE_CPU.apiStr())
+                .build());
+        final BuStatsLatestRecord usedRecord = new BuStatsLatestRecord();
+        usedRecord.setSnapshotTime(SNAPSHOT_TIME);
+        usedRecord.setPropertyType(UICommodityType.IMAGE_CPU.apiStr());
+        usedRecord.setPropertySubtype(StringConstants.PROPERTY_SUBTYPE_USED);
+        usedRecord.setRelation(COMMODITIES);
+        usedRecord.setCommodityKey(userRecordCommodityKey);
+        usedRecord.setAvgValue(AVG_USED);
+        usedRecord.setMinValue(MIN_USED);
+        usedRecord.setMaxValue(MAX_USED);
+        final double capacity = new Double(CAPACITY);
+        usedRecord.setCapacity(capacity);
+
+        final HistUtilizationRecord percentileRecord = new HistUtilizationRecord();
+        percentileRecord.setPropertyTypeId(UICommodityType.IMAGE_CPU.typeNumber());
+        percentileRecord.setUtilization(BigDecimal.valueOf(0.4D));
+        percentileRecord.setPropertySubtypeId(PropertySubType.Utilization.ordinal());
+        percentileRecord.setCapacity(capacity);
+        percentileRecord.setCommodityKey("percentileCommodityKey");
+        percentileRecord.setPropertySlot(0);
+        percentileRecord.setValueType(HistoryUtilizationType.Percentile.ordinal());
+        percentileRecord.setProducerOid(0L);
+
+        final List<StatSnapshot> statSnapshots =
+            snapshotCreator.createStatSnapshots(Arrays.asList(percentileRecord, usedRecord),
+                false, commodityRequests)
+                    .map(StatSnapshot.Builder::build)
+                    .collect(Collectors.toList());
+        Assert.assertEquals(1, statSnapshots.size());
+        Assert.assertEquals(1, statSnapshots.get(0).getStatRecordsList().size());
+
+        final StatRecord statRecord = statSnapshots.get(0).getStatRecords(0);
+        // Checks that stat record values take precedence on hist utilization values
+        Assert.assertThat(statRecord.getStatKey(), CoreMatchers.is(userRecordCommodityKey));
+        Assert.assertEquals(AVG_USED, statRecord.getUsed().getAvg(), DELTA);
+        final HistUtilizationValue percentileValue =
+            statRecord.getHistUtilizationValueList().stream()
+                .filter(value -> HistoryUtilizationType.Percentile
+                    .getApiParameterName()
+                    .equals(value.getType()))
+                .findAny().get();
+        Assert.assertEquals(400D, percentileValue.getUsage().getAvg(), DELTA);
+        Assert.assertEquals(capacity, percentileValue.getCapacity().getAvg(), DELTA);
     }
 
     /**

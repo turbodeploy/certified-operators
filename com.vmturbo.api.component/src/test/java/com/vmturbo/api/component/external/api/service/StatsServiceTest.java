@@ -299,7 +299,7 @@ public class StatsServiceTest {
                                                             .build();
 
         // mock mapping from API input to internal input
-        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO)).thenReturn(statsFilter);
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO, true)).thenReturn(statsFilter);
 
         // mock mapping from internal output to external output
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
@@ -332,7 +332,7 @@ public class StatsServiceTest {
                 statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         // mapping from external input to internal input happened
-        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO);
+        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO, true);
 
         // proper use of the history service
         verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
@@ -414,7 +414,7 @@ public class StatsServiceTest {
                                                             .build();
 
         // mock mapping from API input to internal input
-        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO)).thenReturn(statsFilter);
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO, true)).thenReturn(statsFilter);
 
         // mock mapping from internal output to external output
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
@@ -448,7 +448,7 @@ public class StatsServiceTest {
                 statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         // mapping from external input to internal input happened
-        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO);
+        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO, true);
 
         // proper use of the history service
         verify(statsHistoryServiceSpy).getClusterStats(clusterStatsRequest);
@@ -568,9 +568,7 @@ public class StatsServiceTest {
             .addSnapshots(EntityStats.newBuilder()
                                             .setOid(clusterId3)
                                             .addStatSnapshots(STAT_SNAPSHOT).build()).build()).build());
-        clusterStatsResponse.add(ClusterStatsResponse.newBuilder().setPaginationResponse(PaginationResponse.newBuilder()
-                                                    .setTotalRecordCount(3)).build());
-        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO)).thenReturn(statsFilter);
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO, true)).thenReturn(statsFilter);
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
         statSnapshotApiDTO.setClassName(StringConstants.CLUSTER);
         when(statsMapper.toStatSnapshotApiDTO(STAT_SNAPSHOT)).thenReturn(statSnapshotApiDTO);
@@ -581,7 +579,7 @@ public class StatsServiceTest {
                 statsService.getStatsByUuidsQuery(inputDto, paginationRequest);
 
         // mapping from external input to internal input happened
-        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO);
+        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO, true);
 
         // proper use of the group service
         verify(groupServiceSpy).getGroups(groupRequest);
@@ -659,7 +657,7 @@ public class StatsServiceTest {
         when(groupServiceSpy.getGroups(groupRequest)).thenReturn(groupResponse);
 
         // mock internal input mapping
-        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO))
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO, true))
                 .thenReturn(StatsFilter.getDefaultInstance());
 
         // call service
@@ -702,7 +700,7 @@ public class StatsServiceTest {
         when(groupServiceSpy.getGroups(groupRequest)).thenReturn(groupResponse);
 
         // mock internal input mapping
-        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO))
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO, true))
                 .thenReturn(StatsFilter.getDefaultInstance());
 
         // call service
@@ -794,7 +792,7 @@ public class StatsServiceTest {
                                                             .build();
 
         // mock mapping from API input to internal input
-        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO)).thenReturn(statsFilter);
+        when(statsMapper.newPeriodStatsFilter(periodApiInputDTO, true)).thenReturn(statsFilter);
 
 
         // mock internal group gRPC call
@@ -833,7 +831,7 @@ public class StatsServiceTest {
         verify(groupServiceSpy).getGroups(GetGroupsRequest.newBuilder()
                 .setGroupFilter(GroupFilter.newBuilder().addId(7)).build());
         // mapping from external input to internal input happened
-        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO);
+        verify(statsMapper).newPeriodStatsFilter(periodApiInputDTO, true);
         // internal history gRPC call happened
         verify(statsService).getStatsByUuidsQuery(inputDto, paginationRequest);
         // mapping from internal output to external output happened
