@@ -40,7 +40,7 @@
                                         <artifactItem>
                                             <groupId>com.vmturbo</groupId>
                                             <artifactId>com.vmturbo.api</artifactId>
-                                            <version>${vmturbo.mt.branch.version}</version>
+                                            <version>${com.vmturbo.api.version}</version>
                                             <type>jar</type>
                                             <outputDirectory>${project.build.directory}</outputDirectory>
                                             <includes>apidoc/**/*</includes>
