@@ -638,10 +638,19 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
         statApiDTO.setValue(statRecord.getValues().getAvg());
 
         final StatValueApiDTO statValueApiDTO = new StatValueApiDTO();
-        statValueApiDTO.setAvg(statRecord.getValues().getAvg());
-        statValueApiDTO.setMax(statRecord.getValues().getMax());
-        statValueApiDTO.setMin(statRecord.getValues().getMin());
-        statValueApiDTO.setTotal(statRecord.getValues().getTotal());
+        StatRecord.StatValue value = statRecord.getValues();
+        if (value.hasAvg()) {
+            statValueApiDTO.setAvg(value.getAvg());
+        }
+        if (value.hasMax()) {
+            statValueApiDTO.setMax(value.getMax());
+        }
+        if (value.hasMin()) {
+            statValueApiDTO.setMin(statRecord.getValues().getMin());
+        }
+        if (value.hasTotal()) {
+            statValueApiDTO.setTotal(statRecord.getValues().getTotal());
+        }
         statApiDTO.setValues(statValueApiDTO);
 
         return statApiDTO;

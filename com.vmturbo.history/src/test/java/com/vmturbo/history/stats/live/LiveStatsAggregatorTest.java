@@ -9,6 +9,7 @@ import static org.mockito.Matchers.anyLong;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -61,7 +62,7 @@ public class LiveStatsAggregatorTest {
         historydbIO = Mockito.mock(HistorydbIO.class);
         // we need these methods to work normally in order to construct records to be inserted
         Mockito.doCallRealMethod().when(historydbIO).initializeCommodityRecord(any(), anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), any(), any());
-        Mockito.doCallRealMethod().when(historydbIO).setCommodityValues(any(), anyDouble(), anyDouble(), any(), any());
+        Mockito.doCallRealMethod().when(historydbIO).setCommodityValues(any(), Optional.of(anyDouble()), Optional.of(anyDouble()), any(), any());
         Mockito.doCallRealMethod().when(historydbIO).getMarketStatsRecord(any(MarketStatsData.class), any(TopologyInfo.class));
         Mockito.doCallRealMethod().when(historydbIO).clipValue(anyDouble());
         Mockito.when(historydbIO.getEntityType(anyInt())).thenCallRealMethod();

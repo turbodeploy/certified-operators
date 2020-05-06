@@ -558,17 +558,23 @@ public class HistorydbIO extends BasedbIO {
      */
     public void setCommodityValues(
         @Nonnull String propertySubtype,
-        final double used,
-        final double peak,
+        @Nonnull final Optional<Double> used,
+        @Nonnull final Optional<Double> peak,
         @Nonnull Record record,
         @Nonnull Table<?> table) {
 
-        double clipped = clipValue(used);
-        double clippedPeak = clipValue(peak);
         record.set(getStringField(table, PROPERTY_SUBTYPE), propertySubtype);
-        record.set(getDoubleField(table, AVG_VALUE), clipped);
-        record.set(getDoubleField(table, MIN_VALUE), clipped);
-        record.set(getDoubleField(table, MAX_VALUE), Math.max(clipped, clippedPeak));
+
+        if (used.isPresent()) {
+            Double clipped = clipValue(used.get());
+            record.set(getDoubleField(table, AVG_VALUE), clipped);
+            record.set(getDoubleField(table, MIN_VALUE), clipped);
+        }
+
+        if (peak.isPresent()) {
+            Double clippedPeak = clipValue(peak.get());
+            record.set(getDoubleField(table, MAX_VALUE), clippedPeak);
+        }
     }
 
     /**
