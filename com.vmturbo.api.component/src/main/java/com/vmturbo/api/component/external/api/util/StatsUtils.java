@@ -3,6 +3,7 @@ package com.vmturbo.api.component.external.api.util;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -101,7 +102,15 @@ public class StatsUtils {
         if (scope.isCloudPlan()) {
             return true;
         }
-        return scope.getScopeTypes()
+        final Optional<Set<ApiEntityType>> scopeTypes = scope.getScopeTypes();
+
+        // This is the case where the user might query for an invalid oid. The scope types will not be
+        // present. However, the scope types are not present for a global scope as well, so we only return
+        // false from here if the market is not realtime (global scope)
+        if (!scope.isRealtimeMarket()  && !scopeTypes.isPresent()) {
+            return false;
+        }
+        return scopeTypes
                 // If this is scoped to a set of entity types, if any of the scope entity types
                 // are supported, RIs will be scoped through the supported types and non-supported
                 // types will be ignored
