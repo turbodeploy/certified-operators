@@ -134,15 +134,14 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
         final Map<Long, TopologyEntity> oidToEntity = entitySetMap.keySet().stream()
             .collect(Collectors.toMap(e -> e.getOid(), e -> e));
         if (!entitySetMap.isEmpty()) {
-            updateEntitiesFromDb(entitySetMap, resultBuilder, oidToEntity, settingsCollection);
+            updateEntitiesFromDb(entitySetMap, resultBuilder, oidToEntity);
         }
         return resultBuilder.build();
     }
 
     private void updateEntitiesFromDb(final Map<TopologyEntity, Set<Builder>> entitySetMap,
                                       final EntityChangesBuilder<TopologyEntity> resultBuilder,
-                                      final Map<Long, TopologyEntity> oidToEntities,
-                                      final EntitySettingsCollection settingsCollection) {
+                                      final Map<Long, TopologyEntity> oidToEntities) {
         final GetEntityCommoditiesCapacityValuesRequest.Builder requestBuilder = buildRequest(entitySetMap);
         // Getting the response from history component and queueing entity capacity update
         if (commodityStitchingOperationConfig.getStatsClient() != null) {
@@ -162,24 +161,16 @@ public class SetAutoSetCommodityCapacityPostStitchingOperation implements PostSt
                 });
         }
         // updating with the entities that did not return any data from the history component
-        // with max between the current capacity and the default policy values
+        // with the current used capacity
         oidToEntities.entrySet().forEach(oidToEntity -> {
-            final Optional<Setting> capacitySetting = settingsCollection
-                .getEntitySetting(oidToEntity.getKey(), capacitySettingName);
-            float policyCapacity = Float.MIN_VALUE;
-            if (capacitySetting.isPresent()) {
-                policyCapacity = settingsCollection.getEntitySetting(oidToEntity.getKey(), capacitySettingName)
-                    .get().getNumericSettingValue().getValue();
-            }
-            final double currentCapacity = oidToEntity.getValue().getTopologyEntityDtoBuilder()
-                .getCommoditySoldListBuilderList().get(0).getCapacity();
-            final float capacityValue = Math.max((float)currentCapacity, policyCapacity);
+            final double usedCapacity = oidToEntity.getValue().getTopologyEntityDtoBuilder()
+                .getCommoditySoldListBuilderList().get(0).getUsed();
             resultBuilder.queueUpdateEntityAlone(oidToEntity.getValue(), entityToUpdate ->
                 entityToUpdate.getTopologyEntityDtoBuilder()
                 .getCommoditySoldListBuilderList().stream()
                 .filter(this::commodityTypeMatches)
                 .forEach(commSold ->
-                    commSold.setCapacity(capacityValue)
+                    commSold.setCapacity(usedCapacity)
                 ));
         });
     }
