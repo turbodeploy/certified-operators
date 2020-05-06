@@ -151,8 +151,12 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             throws InterruptedException, ConversionException {
         EntityAspect aspect = mapEntitiesToAspect(entities);
 
-        return Optional.of(mapOneToManyAspects(entities, aspect).entrySet().stream()
-                .collect(Collectors.toMap(e -> Long.valueOf(e.getKey()), e -> e.getValue())));
+        if (aspect != null) {
+            return Optional.of(mapOneToManyAspects(entities, aspect).entrySet().stream()
+                    .collect(Collectors.toMap(e -> Long.valueOf(e.getKey()), e -> e.getValue())));
+        }
+
+        return Optional.empty();
     }
 
     /**
@@ -439,6 +443,24 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             .getFullEntities()
             .collect(Collectors.toList());
         return mapVirtualMachines(vms, topologyContextId);
+    }
+
+    /**
+     * Map Unattached Volumes.
+     *
+     * @param volumeIds - uuids of unattached volumes
+     * @param topologyContextId - context ID of topology
+     * @return virtual volume aspect by volume uuid
+     * @throws ConversionException if errors faced during converting data to API DTOs
+     * @throws InterruptedException if thread has been interrupted
+     */
+    public Optional<Map<Long, EntityAspect>> mapUnattachedVirtualVolumes(@Nonnull Set<Long> volumeIds,
+               final long topologyContextId) throws ConversionException, InterruptedException {
+        final List<TopologyEntityDTO> unattachedVolumes = repositoryApi.entitiesRequest(volumeIds)
+                .contextId(topologyContextId)
+                .getFullEntities()
+                .collect(Collectors.toList());
+        return mapEntityToAspectBatch(unattachedVolumes);
     }
 
     /**

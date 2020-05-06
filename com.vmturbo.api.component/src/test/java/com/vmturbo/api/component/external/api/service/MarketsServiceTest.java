@@ -53,6 +53,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.CachedPlanInfo;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -204,6 +205,8 @@ public class MarketsServiceTest {
 
     private SearchServiceMole searchBackend = spy(SearchServiceMole.class);
 
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
+
     /**
      * Test gRPC server to mock out gRPC dependencies.
      */
@@ -246,6 +249,7 @@ public class MarketsServiceTest {
             new ActionSearchUtil(actionsRpcService, actionSpecMapper, paginationMapper,
                                  Mockito.mock(SupplyChainFetcherFactory.class),
                                  Mockito.mock(GroupExpander.class),
+                                 serviceProviderExpander,
                                  REALTIME_CONTEXT_ID),
             REALTIME_CONTEXT_ID
         );

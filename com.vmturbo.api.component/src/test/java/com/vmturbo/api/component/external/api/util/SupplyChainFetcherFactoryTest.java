@@ -11,6 +11,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -49,6 +50,8 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.IAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
@@ -125,6 +128,8 @@ public class SupplyChainFetcherFactoryTest {
     private final SupplyChainTestUtils supplyChainTestUtils = new SupplyChainTestUtils();
 
     private final EntityAspectMapper entityAspectMapperMock = mock(EntityAspectMapper.class);
+
+    private final UuidMapper uuidMapper = mock(UuidMapper.class);
 
     private SupplyChainServiceGrpc.SupplyChainServiceBlockingStub supplyChainRpcService;
 

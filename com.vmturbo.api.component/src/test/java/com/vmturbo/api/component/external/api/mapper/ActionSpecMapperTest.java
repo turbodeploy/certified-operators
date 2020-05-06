@@ -9,7 +9,11 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySet;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -201,6 +205,8 @@ public class ActionSpecMapperTest {
 
     private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
+    private final VirtualVolumeAspectMapper virtualVolumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
+
     private final ActionApiInputDTO emptyInputDto = new ActionApiInputDTO();
     private final ApiId scopeWithBuyRiActions = mock(ApiId.class);
     private final Set<ActionDTO.ActionType> buyRiActionTypes = ImmutableSet.of(
@@ -228,8 +234,6 @@ public class ActionSpecMapperTest {
         SupplyChainServiceBlockingStub supplyChainService =
                 SupplyChainServiceGrpc.newBlockingStub(supplyChainGrpcServer.getChannel());
 
-        VirtualVolumeAspectMapper volumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
-
         final MultiEntityRequest emptyReq = ApiTestUtils.mockMultiEntityReqEmpty();
 
         final MultiEntityRequest datacenterReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
@@ -250,17 +254,27 @@ public class ActionSpecMapperTest {
                 reservedInstanceUtilizationCoverageServiceBlockingStub =
                 ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
         ActionSpecMappingContextFactory actionSpecMappingContextFactory =
-                new ActionSpecMappingContextFactory(policyService,
+                new ActionSpecMappingContextFactory(
+                        policyService,
                         Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
-                        repositoryApi, mock(EntityAspectMapper.class), volumeAspectMapper,
-                        REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper,
-                        supplyChainService, policiesService);
+                        repositoryApi,
+                        mock(EntityAspectMapper.class),
+                        virtualVolumeAspectMapper,
+                        REAL_TIME_TOPOLOGY_CONTEXT_ID,
+                        null,
+                        null,
+                        serviceEntityMapper,
+                        supplyChainService,
+                        policiesService);
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(emptyInputDto, scopeWithBuyRiActions))
                 .thenReturn(buyRiActionTypes);
         when(buyRiScopeHandler.extractBuyRiEntities(scopeWithBuyRiActions))
                 .thenReturn(buyRiOids);
+
+        when(virtualVolumeAspectMapper.mapVirtualMachines(anySetOf(Long.class), anyLong())).thenReturn(Collections.emptyMap());
+        when(virtualVolumeAspectMapper.mapUnattachedVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.empty());
 
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
             serviceEntityMapper, policiesService, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
