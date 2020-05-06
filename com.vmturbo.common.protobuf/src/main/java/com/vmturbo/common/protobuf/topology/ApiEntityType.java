@@ -150,6 +150,7 @@ public enum ApiEntityType {
     public static final Set<ApiEntityType> SCOPE_EXPANSION_TYPES_FOR_CLOUD = ImmutableSet.of(
             ApiEntityType.APPLICATION,
             ApiEntityType.APPLICATION_SERVER,
+            ApiEntityType.APPLICATION_COMPONENT,
             ApiEntityType.BUSINESS_APPLICATION,
             ApiEntityType.CONTAINER,
             ApiEntityType.CONTAINER_POD,

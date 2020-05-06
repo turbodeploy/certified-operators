@@ -19,7 +19,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.DiscoveredGroupsPoliciesSettings.UploadedGroup;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinitionOrBuilder;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
@@ -434,30 +433,5 @@ public class GroupProtoUtil {
                         SearchProtoUtil.stringPropertyFilterExact(SearchableProperties.OID,
                                 options))
                 .build();
-    }
-
-    /**
-     * Get the entity types from the entity filter.
-     *
-     * @param entityFilter the entity filter
-     * @return all the entity types of the filter
-     */
-    public static Set<ApiEntityType> getEntityTypesFromEntityFilter(EntityFilter entityFilter) {
-        // first try to get the entity types from the search parameters (criteria)
-        Set<ApiEntityType> entityTypes = entityFilter
-                .getSearchParametersCollection()
-                .getSearchParametersList()
-                .stream()
-                .map(SearchProtoUtil::getEntityTypeFromSearchParameters)
-                .filter(uiEntityType -> uiEntityType != ApiEntityType.UNKNOWN)
-                .collect(Collectors.toSet());
-
-        // if the search parameters have no entity types, get the type from the entity filter
-        if (entityTypes.isEmpty()) {
-            entityTypes = Collections.singleton(ApiEntityType.fromType(
-                    entityFilter.getEntityType()));
-        }
-
-        return entityTypes;
     }
 }
