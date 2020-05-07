@@ -114,7 +114,7 @@ public class SettingsServiceTest {
         statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         settingsService = spy(new SettingsService(settingServiceStub, statsServiceClient,
-                settingsMapper, settingsManagerMapping, settingsPoliciesService));
+                settingsMapper, settingsManagerMapping, settingsPoliciesService, false));
 
         when(settingRpcServiceSpy.searchSettingSpecs(any()))
                 .thenReturn(Collections.singletonList(vmSettingSpec));

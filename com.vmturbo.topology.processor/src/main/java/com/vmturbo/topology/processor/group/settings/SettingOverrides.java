@@ -26,8 +26,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingTo
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 
@@ -179,12 +179,20 @@ public class SettingOverrides {
                 // add this setting to the map, using the tiebreaker if there is a conflict
                 entitySettingOverrides.merge(setting.getSettingSpecName(), setting, (setting1, setting2) -> {
                     // use the tiebreaker if there is a conflict
-                    Setting winner = EntitySettingsResolver.SettingResolver.applyTiebreaker(setting1, setting2,
-                            settingSpecsToConsider);
+                    final TopologyProcessorSetting<?> topologyProcessorSetting1 =
+                            TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                                    Collections.singleton(setting1));
+                    final TopologyProcessorSetting<?> topologyProcessorSetting2 =
+                            TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                                    Collections.singleton(setting2));
+                    final TopologyProcessorSetting<?> winner =
+                            EntitySettingsResolver.SettingResolver.applyTiebreaker(
+                            topologyProcessorSetting1, topologyProcessorSetting2,
+                            settingSpecsToConsider).getFirst();
                     logger.trace("Plan override of max utilization settings for entity {}"
                             + " selected {}% from ({}%,{}%) for setting {}", oid,
                         winner, setting1, setting2, setting.getSettingSpecName());
-                    return winner;
+                    return TopologyProcessorSettingsConverter.toProtoSettings(winner).iterator().next();
                 });
             }
         }

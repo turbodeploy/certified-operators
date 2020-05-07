@@ -2,6 +2,7 @@ package com.vmturbo.group.schedule;
 
 import static com.vmturbo.group.db.Tables.SCHEDULE;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
+import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING_SCHEDULE_IDS;
 import static org.jooq.impl.DSL.deleteFrom;
 import static org.jooq.impl.DSL.trueCondition;
 
@@ -325,12 +326,7 @@ public class ScheduleStore implements DiagsRestorable {
                 if (existingRecord == null) {
                     throw new ScheduleNotFoundException(id);
                 }
-                // Verify no setting policies are assigned to this schedule
-                if (getAssignedSettingPolicyCount(context, id) > 0) {
-                    throw new ScheduleInUseDeleteException("Cannot delete schedule `" +
-                        existingRecord.getDisplayName() + "` because it is used in one or more " +
-                        "automation policies");
-                }
+                verifySchedulesAreNotUsedInPolicies(context, Collections.singleton(id));
 
                 final int modifiedRecords = existingRecord.delete();
                 if (modifiedRecords == 0) {
@@ -379,14 +375,7 @@ public class ScheduleStore implements DiagsRestorable {
                     throw new ScheduleNotFoundException("Schedules " + String.join(",", missingIds) +
                         " not found");
                 }
-
-                if (getAssignedSettingPolicyMultipleScheduleCount(context, ids) > 0) {
-                    final Set<String> usedIds = ids.stream()
-                        .map(String::valueOf)
-                        .collect(Collectors.toSet());
-                    throw new ScheduleInUseDeleteException("Cannot delete schedule records with ids: "
-                        + String.join(",", usedIds) + " because they are used by setting policies");
-                }
+                verifySchedulesAreNotUsedInPolicies(context, ids);
 
                 Lists.partition(existingIds, MAX_BATCH_SIZE).stream()
                     .forEach(batchToDelete -> context.batch(
@@ -462,19 +451,28 @@ public class ScheduleStore implements DiagsRestorable {
     }
 
     /**
-     * Get count of setting policies assigned to the specified schedule.
+     * Checks that schedules are not used in setting policies.
      *
      * @param context jooq DSL context
-     * @param scheduleId Schedule ID {@link Schedule} id which is assigned to to the SettingPolicy
-     * @return Number of assigned {@link com.vmturbo.group.db.tables.records.SettingPolicyRecord}
+     * @param scheduleIds Collection of schedule IDs
+     * @throws ScheduleInUseDeleteException if at least one schedule used as least in one policy
      */
-    private int getAssignedSettingPolicyCount(
-        @Nonnull final DSLContext context, @Nonnull final long scheduleId) {
-        return context
-            .selectCount()
-            .from(SETTING_POLICY)
-            .where(SETTING_POLICY.SCHEDULE_ID.eq(scheduleId))
-            .fetchOne(0, Integer.class);
+    private void verifySchedulesAreNotUsedInPolicies(@Nonnull final DSLContext context,
+            @Nonnull final Collection<Long> scheduleIds) throws ScheduleInUseDeleteException {
+        if (getAssignedSettingPoliciesCount(context, scheduleIds) > 0) {
+            throw new ScheduleInUseDeleteException(
+                    "Cannot delete schedule records with ids: " + String.join(",",
+                            scheduleIds.stream().map(String::valueOf).collect(Collectors.toSet()))
+                            + " because they are used as activation schedules by setting policies");
+        }
+
+        if (getUsedAsExecutionWindowsInPoliciesCount(context, scheduleIds) > 0) {
+            throw new ScheduleInUseDeleteException(
+                    "Cannot delete schedule records with ids: `" + String.join(",",
+                            scheduleIds.stream().map(String::valueOf).collect(Collectors.toSet()))
+                            + "` because they are used as execution windows by "
+                            + "setting policies");
+        }
     }
 
     /**
@@ -484,13 +482,28 @@ public class ScheduleStore implements DiagsRestorable {
      * @param scheduleIds Collection of schedule IDs
      * @return Number of assigned {@link com.vmturbo.group.db.tables.records.SettingPolicyRecord}
      * */
-    private int getAssignedSettingPolicyMultipleScheduleCount(
+    private int getAssignedSettingPoliciesCount(
         @Nonnull final DSLContext context, final Collection<Long> scheduleIds) {
         return context
             .selectCount()
             .from(SETTING_POLICY
             .where(SETTING_POLICY.SCHEDULE_ID.in(scheduleIds)))
             .fetchOne(0, Integer.class);
+    }
+
+    /**
+     * Return count of policies used this schedule as execution window.
+     *
+     * @param context jooq DSL context
+     * @param scheduleIds schedule ids
+     * @return count of policies
+     */
+    private int getUsedAsExecutionWindowsInPoliciesCount(@Nonnull final DSLContext context,
+            @Nonnull final Collection<Long> scheduleIds) {
+        return context.selectCount()
+                .from(SETTING_POLICY_SETTING_SCHEDULE_IDS)
+                .where(SETTING_POLICY_SETTING_SCHEDULE_IDS.EXECUTION_SCHEDULE_ID.in(scheduleIds))
+                .fetchOne(0, Integer.class);
     }
 
     /**

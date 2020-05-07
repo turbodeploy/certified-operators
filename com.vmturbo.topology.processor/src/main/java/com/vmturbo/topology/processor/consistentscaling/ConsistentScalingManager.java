@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.consistentscaling;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -39,6 +40,7 @@ import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
+import com.vmturbo.topology.processor.group.settings.TopologyProcessorSettingsConverter;
 
 /**
  * This manages the grouping of entities into consistent scaling groups.
@@ -112,7 +114,9 @@ public class ConsistentScalingManager {
                         .setStringSettingValue(StringSettingValue.newBuilder()
                             .setValue(groupName)).build();
                     SettingAndPolicyIdRecord settingAndPolicyIdRecord =
-                        new SettingAndPolicyIdRecord(setting, 0L, Type.USER, false);
+                        new SettingAndPolicyIdRecord(TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                                Collections.singletonList(setting)), 0L,
+                                Type.USER, false);
                     policies.put(EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
                         settingAndPolicyIdRecord);
                 });
