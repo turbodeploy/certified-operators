@@ -1,0 +1,142 @@
+#!/usr/bin/bash
+
+# Command-line utility to interact with voltron. Add
+# <xl workspace>/com.vmturbo.voltron/bin/voltron to your PATH, and try it out!
+#
+# To set up autocomplete, add the following to your .bashrc:
+# source <xl workspace>/com.vmturbo.voltron/bin/voltron setup_autocomplete
+#
+setup_autocomplete() {
+   compopt +o default
+   local cur prev
+
+   cur=${COMP_WORDS[COMP_CWORD]}
+   prev=${COMP_WORDS[COMP_CWORD-1]}
+
+   case ${COMP_CWORD} in
+     1)
+       COMPREPLY=($(compgen -W "grpc restore_topology restore_groups send_topology set_broadcast_interval help" -- ${cur}));;
+     2)
+       case ${prev} in
+            grpc)
+                COMPREPLY=($(compgen -W "ls call type parse help" -- ${cur}))
+                ;;
+            restore_topology)
+                compopt -o default;COMPREPLY=()
+                ;;
+            restore_groups)
+                compopt -o default;COMPREPLY=()
+                ;;
+            *)
+                COMPREPLY=()
+                ;;
+        esac
+        ;;
+     *)
+        COMPREPLY=()
+        ;;
+    esac
+}
+
+print_help() {
+   echo "No command specified."
+   echo "voltron grpc                   ...    ; Interact with Voltron's gRPC services."
+   echo "voltron restore_topology       ...    ; Load topology processor from a ZIP file."
+   echo "voltron restore_groups         ...    ; Load groups from a ZIP file."
+   echo "voltron send_topology          ...    ; Broadcast topology."
+   echo "voltron set_broadcast_interval ...    ; Set broadcast schedule."
+   echo "voltron help                   ...    ; Print this message"
+}
+
+set_broadcast_interval() {
+  if [ "$#" -lt 1 ]
+  then
+    echo "voltron set_broadcast_interval <interval in minutes>"
+  else
+    echo "Setting broadcast interval to $1"
+    curl -X POST --header 'Content-Type: application/json;charset=UTF-8' --header 'Accept: application/json' -d "{
+      \"intervalMinutes\": $1
+    }" http://localhost:8080/topology-processor/ScheduleService/setBroadcastSchedule
+  fi
+}
+
+send_topology() {
+  curl -X POST --header 'Content-Type: application/json' --header 'Accept: application/json' 'http://localhost:8080/topology-processor/topology/send'
+}
+
+restore_groups() {
+  if [ "$#" -lt 1 ]
+  then
+    echo "voltron restore_groups <path to topology processor ZIP file>"
+  else
+    pathToFile="$( cd "$( dirname "$1" )" && pwd )"
+    fileName=$(basename $1)
+    fullPath=${pathToFile}/${fileName}
+
+    echo "Restoring from: ${fullPath}"
+    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} 'http://localhost:8080/group/internal-state'
+  fi
+}
+
+
+restore_topology() {
+  if [ "$#" -lt 1 ]
+  then
+    echo "voltron restore_topology <path to topology processor ZIP file>"
+  else
+    pathToFile="$( cd "$( dirname "$1" )" && pwd )"
+    fileName=$(basename $1)
+    fullPath=${pathToFile}/${fileName}
+
+    echo "Restoring from: ${fullPath}"
+    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} 'http://localhost:8080/topology-processor/internal-state'
+  fi
+}
+
+
+if [ "$#" -lt 1 ]
+then
+   print_help
+fi
+
+case $1 in
+grpc)
+  command -v grpc_cli >/dev/null 2>&1 || { echo >&2 "Please install grpc_cli \(brew install grpc\)."; exit 1; }
+  if [ "$#" -lt 2 ]
+  then
+     echo "This is an alternative to grpc_cli <cmd> that automatically targets locally running voltron."
+     echo "No command specified"
+     echo "voltron grpc ls ...         ; List services"
+     echo "voltron grpc call ...       ; Call method"
+     echo "voltron grpc type ...       ; Print type"
+     echo "voltron grpc parse ...      ; Parse message"
+     echo "voltron grpc help ...       ; Print this message, or per-command usage"
+  else
+     case $2 in
+     ls)
+       grpc_cli ls localhost:9001 ${@:3};;
+     call)
+       grpc_cli call localhost:9001 ${@:3};;
+     type)
+       grpc_cli type localhost:9001 ${@:3};;
+     parse)
+       grpc_cli parse localhost:9001 ${@:3};;
+     help)
+       grpc_cli help ${@:3};;
+     esac
+  fi;;
+help)
+  print_help;;
+restore_topology)
+  restore_topology ${@:2};;
+restore_groups)
+  restore_groups ${@:2};;
+send_topology)
+  send_topology;;
+set_broadcast_interval)
+  set_broadcast_interval ${@:2};;
+setup_autocomplete)
+  complete -F setup_autocomplete voltron;;
+esac
+
+

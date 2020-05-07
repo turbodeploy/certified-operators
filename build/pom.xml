@@ -874,6 +874,8 @@
                 <module>../com.vmturbo.component.status.api</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
 
+                <module>../com.vmturbo.voltron</module>
+
                 <!-- Probe components. This should only include core mediation packages
                 and the mediation component. -->
                 <module>../com.vmturbo.mediation.probe.parent</module>
@@ -952,6 +954,8 @@
                 <module>../com.vmturbo.component.status.api</module>
                 <module>../com.vmturbo.system.notification.sender</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
+
+                <module>../com.vmturbo.voltron</module>
 
                 <!-- Modules on which we want to be sure that testCompile succeeds. -->
                 <module>../com.vmturbo.components.test.performance</module>
@@ -1049,6 +1053,8 @@
                 <module>../com.vmturbo.component.status.api</module>
                 <module>../com.vmturbo.system.notification.sender</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
+
+                <module>../com.vmturbo.voltron</module>
 
                 <!-- Probe components. These are ALL the probes. -->
                 <module>../com.vmturbo.mediation.probe.parent</module>
