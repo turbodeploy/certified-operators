@@ -282,6 +282,9 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
                     getConnectionsOfType(entityId, EntityType.AVAILABILITY_ZONE_VALUE);
 
             if (connectedAZs.size() == 0) {
+                if (entityDTO.get().getEntityType() != EntityType.AVAILABILITY_ZONE_VALUE) {
+                    logger.warn("Entity {} not connected to any availability zone!", entity.getOid());
+                }
                 return Optional.empty();
             } else if (connectedAZs.size() > 1) {
                 logger.warn("Entity {} connected to multiple availability zone: {}! Choosing the first.",
@@ -501,7 +504,7 @@ public class TopologyEntityCloudTopology implements CloudTopology<TopologyEntity
         billingFamilyGroups.forEach(group -> group.members()
                 .forEach(id -> billingFamilyGroupByBusinessAccountId.put(id, group)));
 
-        logger.debug("Created billing family reference map: {}",
+        logger.info("Created billing family reference map: {}",
                 billingFamilyGroupByBusinessAccountId);
         return billingFamilyGroupByBusinessAccountId;
     }

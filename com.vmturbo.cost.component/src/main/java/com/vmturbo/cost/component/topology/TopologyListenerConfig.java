@@ -109,15 +109,14 @@ public class TopologyListenerConfig {
     @Bean
     public LiveTopologyEntitiesListener liveTopologyEntitiesListener() {
         final LiveTopologyEntitiesListener entitiesListener =
-                new LiveTopologyEntitiesListener(
+                new LiveTopologyEntitiesListener(realtimeTopologyContextId,
                         computeTierDemandStatsConfig.riDemandStatsWriter(),
                         cloudTopologyFactory(), topologyCostCalculatorFactory(),
                         entityCostConfig.entityCostStore(),
                         reservedInstanceConfig.reservedInstanceCoverageUpload(),
                         costConfig.businessAccountHelper(),
                         costJournalRecorder(),
-                        buyRIAnalysisConfig.reservedInstanceAnalysisInvoker(),
-                        liveTopologyInfoTracker());
+                        buyRIAnalysisConfig.reservedInstanceAnalysisInvoker());
 
         topologyProcessorListenerConfig.topologyProcessor()
                 .addLiveTopologyListener(entitiesListener);
@@ -214,16 +213,5 @@ public class TopologyListenerConfig {
     @Bean
     public CostJournalRecorderController costJournalRecorderController() {
         return new CostJournalRecorderController(costJournalRecorder());
-    }
-
-    @Bean
-    public TopologyInfoTracker liveTopologyInfoTracker() {
-
-        final TopologyInfoTracker topologyInfoTracker = new TopologyInfoTracker(
-                TopologyInfoTracker.SUCCESSFUL_REALTIME_TOPOLOGY_SUMMARY_SELECTOR);
-
-        topologyProcessorListenerConfig.topologyProcessor()
-                .addTopologySummaryListener(topologyInfoTracker);
-        return topologyInfoTracker;
     }
 }

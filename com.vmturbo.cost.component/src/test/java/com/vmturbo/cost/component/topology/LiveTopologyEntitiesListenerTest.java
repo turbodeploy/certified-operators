@@ -2,7 +2,6 @@ package com.vmturbo.cost.component.topology;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,22 +33,14 @@ public class LiveTopologyEntitiesListenerTest {
         TopologyEntityCloudTopology cloudTopology = mock(TopologyEntityCloudTopology.class);
         when(cloudTopology.getEntities()).thenReturn(Collections.emptyMap());
         ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate = mock(ReservedInstanceCoverageUpdate.class);
-        TopologyInfoTracker topologyInfoTracker = mock(TopologyInfoTracker.class);
         LiveTopologyEntitiesListener liveTopologyEntitiesListener =
-            new LiveTopologyEntitiesListener(
-                    computeTierDemandStatsWriter,
-                    topologyCostCalculatorFactory,
-                    mock(TopologyCostCalculatorFactory.class),
-                    mock(EntityCostStore.class),
-                    reservedInstanceCoverageUpdate,
-                    mock(BusinessAccountHelper.class),
-                    mock(CostJournalRecorder.class),
-                    mock(ReservedInstanceAnalysisInvoker.class),
-                    topologyInfoTracker);
+            new LiveTopologyEntitiesListener(1L, computeTierDemandStatsWriter,
+                topologyCostCalculatorFactory, mock(TopologyCostCalculatorFactory.class),
+                mock(EntityCostStore.class), reservedInstanceCoverageUpdate, mock(BusinessAccountHelper.class),
+                mock(CostJournalRecorder.class), mock(ReservedInstanceAnalysisInvoker.class));
         RemoteIterator remoteIterator = mock(RemoteIterator.class);
         when(remoteIterator.hasNext()).thenReturn(false);
         when(topologyCostCalculatorFactory.newCloudTopology(1L, remoteIterator)).thenReturn(cloudTopology);
-        when(topologyInfoTracker.isLatestTopology(eq(topologyInfo))).thenReturn(true);
         liveTopologyEntitiesListener.onTopologyNotification(topologyInfo, remoteIterator);
         verify(topologyCostCalculatorFactory).newCloudTopology(1L, remoteIterator);
         verify(computeTierDemandStatsWriter, never()).calculateAndStoreRIDemandStats(any(), any(), anyBoolean());

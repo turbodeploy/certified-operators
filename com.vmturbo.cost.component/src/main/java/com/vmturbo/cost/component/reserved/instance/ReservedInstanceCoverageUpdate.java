@@ -157,12 +157,6 @@ public class ReservedInstanceCoverageUpdate {
         }
     }
 
-    public void skipCoverageUpdate(@Nonnull TopologyInfo topologyInfo) {
-
-        sendSourceEntityRICoverageNotification(topologyInfo, Status.FAIL);
-        riCoverageEntityCache.invalidate(topologyInfo.getTopologyId());
-    }
-
     /**
      * Generate a list of {@link ServiceEntityReservedInstanceCoverageRecord}, it will be stored into
      * reserved instance coverage tables.

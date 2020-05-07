@@ -1,6 +1,5 @@
 package com.vmturbo.cost.component.topology;
 
-import java.time.Instant;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -14,9 +13,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.chunking.RemoteIterator;
-import com.vmturbo.components.api.client.RemoteIteratorDrain;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
@@ -38,6 +35,8 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final Logger logger = LogManager.getLogger();
 
+    private final long realtimeTopologyContextId;
+
     private final ComputeTierDemandStatsWriter computeTierDemandStatsWriter;
 
     private final TopologyCostCalculatorFactory topologyCostCalculatorFactory;
@@ -54,19 +53,16 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
 
     private final ReservedInstanceAnalysisInvoker invoker;
 
-    private final TopologyInfoTracker liveTopologyInfoTracker;
-
-    private final Object topologyProcessorLock = new Object();
-
-    public LiveTopologyEntitiesListener(@Nonnull final ComputeTierDemandStatsWriter computeTierDemandStatsWriter,
+    public LiveTopologyEntitiesListener(final long realtimeTopologyContextId,
+                                        @Nonnull final ComputeTierDemandStatsWriter computeTierDemandStatsWriter,
                                         @Nonnull final TopologyEntityCloudTopologyFactory cloudTopologyFactory,
                                         @Nonnull final TopologyCostCalculatorFactory topologyCostCalculatorFactory,
                                         @Nonnull final EntityCostStore entityCostStore,
                                         @Nonnull final ReservedInstanceCoverageUpdate reservedInstanceCoverageUpdate,
                                         @Nonnull final BusinessAccountHelper businessAccountHelper,
                                         @Nonnull final CostJournalRecorder journalRecorder,
-                                        @Nonnull final ReservedInstanceAnalysisInvoker invoker,
-                                        @Nonnull final TopologyInfoTracker liveTopologyInfoTracker) {
+                                        @Nonnull final ReservedInstanceAnalysisInvoker invoker) {
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.computeTierDemandStatsWriter = Objects.requireNonNull(computeTierDemandStatsWriter);
         this.cloudTopologyFactory = cloudTopologyFactory;
         this.topologyCostCalculatorFactory = Objects.requireNonNull(topologyCostCalculatorFactory);
@@ -75,91 +71,55 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         this.businessAccountHelper = Objects.requireNonNull(businessAccountHelper);
         this.journalRecorder = Objects.requireNonNull(journalRecorder);
         this.invoker = Objects.requireNonNull(invoker);
-        this.liveTopologyInfoTracker = Objects.requireNonNull(liveTopologyInfoTracker);
     }
 
     @Override
     public void onTopologyNotification(@Nonnull final TopologyInfo topologyInfo,
                                        @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator) {
+
         final long topologyContextId = topologyInfo.getTopologyContextId();
-        final long topologyId = topologyInfo.getTopologyId();
-
-        if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
-
-            logger.info("Queuing topology for processing (Context ID={}, Topology ID={})",
-                    topologyContextId, topologyId);
-
-            // Block on processing the topology so that we only keep one cloud topology in memory
-            // concurrently.
-            synchronized (topologyProcessorLock) {
-                processLiveTopologyUpdate(topologyInfo, entityIterator);
-            }
-        } else {
-            logger.debug("Skipping plan topology broadcast (Topology Context Id={}, Topology ID={}, Creation Time={})",
-                    topologyContextId, topologyId, Instant.ofEpochMilli(topologyInfo.getCreationTime()));
-
-            RemoteIteratorDrain.drainIterator(
-                    entityIterator,
-                    TopologyDTOUtil.getSourceTopologyLabel(topologyInfo),
-                    false);
+        if (topologyContextId != realtimeTopologyContextId) {
+            logger.error("Received topology with wrong topologyContextId."
+                    + "Expected:{}, Received:{}", realtimeTopologyContextId,
+                    topologyContextId);
+            return;
         }
-    }
+        logger.info("Received live topology with topologyId: {}", topologyInfo.getTopologyId());
 
 
-    private void processLiveTopologyUpdate(@Nonnull final TopologyInfo topologyInfo,
-                                           @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator) {
-        final long topologyContextId = topologyInfo.getTopologyContextId();
-        final long topologyId = topologyInfo.getTopologyId();
+        final CloudTopology<TopologyEntityDTO> cloudTopology =
+                cloudTopologyFactory.newCloudTopology(topologyContextId, entityIterator);
 
-        // Once we start to process the topology, make sure it is the latest topology based on topology
-        // summary notifications. It is possible that while waiting on the topology processing lock,
-        // a subsequent topology broadcast occurs.
-        if (liveTopologyInfoTracker.isLatestTopology(topologyInfo)) {
-
-            logger.info("Processing live topology with topologyId: {}", topologyId);
-
-            final CloudTopology<TopologyEntityDTO> cloudTopology =
-                    cloudTopologyFactory.newCloudTopology(topologyContextId, entityIterator);
-
-            // if no Cloud entity, skip further processing
-            if (cloudTopology.size() > 0) {
-                // Store allocation demand in db
-                computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(topologyInfo, cloudTopology, false);
-                // Consumption demand in stored in db in CostComponentProjectedEntityTopologyListener
+        // if no Cloud entity, skip further processing
+        if (cloudTopology.size() > 0) {
+            // Store allocation demand in db
+            computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(topologyInfo, cloudTopology, false);
+            // Consumption demand in stored in db in CostComponentProjectedEntityTopologyListener
+            if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
                 storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
+            }
 
-                invoker.invokeRIBuyIfBusinessAccountsUpdated(businessAccountHelper.getAllBusinessAccounts());
+            invoker.invokeRIBuyIfBusinessAccountsUpdated(businessAccountHelper.getAllBusinessAccounts());
 
-                // update reserved instance coverage data. RI coverage must be updated
-                // before cost calculation to accurately reflect costs based on up-to-date
-                // RI coverage
-                reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo, cloudTopology);
+            // update reserved instance coverage data. RI coverage must be updated
+            // before cost calculation to accurately reflect costs based on up-to-date
+            // RI coverage
+            reservedInstanceCoverageUpdate.updateAllEntityRICoverageIntoDB(topologyInfo, cloudTopology);
 
-                final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo, cloudTopology);
-                final Map<Long, CostJournal<TopologyEntityDTO>> costs =
-                        topologyCostCalculator.calculateCosts(cloudTopology);
+            final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory.newCalculator(topologyInfo, cloudTopology);
+            final Map<Long, CostJournal<TopologyEntityDTO>> costs =
+                topologyCostCalculator.calculateCosts(cloudTopology);
 
-                journalRecorder.recordCostJournals(costs);
+            journalRecorder.recordCostJournals(costs);
 
-                try {
-                    entityCostStore.persistEntityCost(costs, cloudTopology, topologyInfo.getCreationTime());
-                } catch (DbException e) {
-                    logger.error("Failed to persist entity costs.", e);
-                }
-            } else {
-                logger.info("live topology with topologyId: {}  doesn't have Cloud entity, skip processing",
-                        topologyInfo.getTopologyId());
+            try {
+                entityCostStore.persistEntityCost(costs, cloudTopology, topologyInfo.getCreationTime());
+            } catch (DbException e) {
+                logger.error("Failed to persist entity costs.", e);
             }
         } else {
-            logger.warn("Skipping stale topology broadcast (Topology Context Id={}, Topology ID={}, Creation Time={})",
-                    topologyContextId, topologyId, Instant.ofEpochMilli(topologyInfo.getCreationTime()));
-
-            reservedInstanceCoverageUpdate.skipCoverageUpdate(topologyInfo);
-
-            RemoteIteratorDrain.drainIterator(
-                    entityIterator,
-                    TopologyDTOUtil.getSourceTopologyLabel(topologyInfo),
-                    false);
+            logger.info("live topology with topologyId: {}  doesn't have Cloud entity, skip processing",
+                    topologyInfo.getTopologyId());
         }
     }
 
@@ -176,7 +136,7 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
     }
 
     // get target Id, it should have only one target for a business account
-    private Collection<Long> getTargetId(@Nonnull final TopologyEntityDTO entityDTO) {
+    private Collection<Long> getTargetId(final TopologyEntityDTO entityDTO) {
         return entityDTO
                 .getOrigin()
                 .getDiscoveryOrigin()
