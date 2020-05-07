@@ -3,8 +3,10 @@ package com.vmturbo.cost.component.reserved.instance;
 import static com.vmturbo.cost.component.db.Tables.COMPUTE_TIER_TYPE_HOURLY_BY_WEEK;
 
 import java.math.BigDecimal;
+import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Collections;
+import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -105,28 +107,33 @@ public class ComputeTierDemandStatsWriter {
                                  boolean isProjectedTopology) {
 
         String topologyType = isProjectedTopology ? "Projected" : "Live";
-        logger.info("Calculating RI demands stats from {} topology {}",
-                topologyType, topologyInfo);
+        long topologyCreationTime = topologyInfo.getCreationTime();
+        String creationDateStr = new SimpleDateFormat("yyyy.MM.dd.HH.mm.ss")
+                .format(new Date(topologyCreationTime));
+        logger.info("Calculating RI demands stats from {} topology {} created at {}",
+                topologyType, topologyInfo, creationDateStr);
 
         final boolean isRealTimeTopology =
                 (topologyInfo.getTopologyType() == TopologyType.REALTIME);
         if (!isRealTimeTopology) {
-            logger.warn("Received non-realtime topology {}. Skipping");
+            logger.warn("Received non-realtime topology {}. Skipping", topologyInfo);
             return;
         }
-        long topologyCreationTime = topologyInfo.getCreationTime();
+
         calendar.setTimeInMillis(topologyCreationTime);
+
         int topologyForHour = calendar.get(Calendar.HOUR_OF_DAY);
         int topologyForDay = calendar.get(Calendar.DAY_OF_WEEK);
 
         if ((isProjectedTopology && lastProjectedTopologyProcessedHour == topologyForHour)
                 || (!isProjectedTopology && lastSourceTopologyProcessedHour == topologyForHour)) {
             logger.info("Already processed a topology for the hour: {}, day: {}." +
-                    " Skipping the {} topology: {} Last updated {}",
+                    " Skipping the {} topology: {} created at {}. Last updated {}",
                     topologyForHour,
                     topologyForDay,
                     topologyType,
                     topologyInfo,
+                    creationDateStr,
                     isProjectedTopology ? lastProjectedTopologyProcessedHour : lastSourceTopologyProcessedHour);
             return;
         }
@@ -139,10 +146,17 @@ public class ComputeTierDemandStatsWriter {
                 .isUpdatedInLastHour(Tables.COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.getName(),
                 isProjectedTopology ?
                 COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COUNT_FROM_SOURCE_TOPOLOGY.getName() :
-                COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COUNT_FROM_PROJECTED_TOPOLOGY.getName());
+                COMPUTE_TIER_TYPE_HOURLY_BY_WEEK.COUNT_FROM_PROJECTED_TOPOLOGY.getName(),
+                        calendar);
 
         if (isUpdatedInLastHour) {
-            logger.info("Table has already been updated for this hour. Skip Updating.");
+            logger.info("Table has already been updated for this hour for topology {}"
+                    + " created at {} . Skip Updating.", topologyInfo, creationDateStr);
+            if (isProjectedTopology) {
+                lastProjectedTopologyProcessedHour = topologyForHour;
+            } else {
+                lastSourceTopologyProcessedHour = topologyForHour;
+            }
             return;
         }
 
@@ -185,8 +199,8 @@ public class ComputeTierDemandStatsWriter {
         }
 
         logger.info("Successfully updated RI demand stats table with {} records"
-                        + " for hour: {} and day: {}",
-                statsRecordsToUpload.size(), topologyForHour, topologyForDay);
+                        + " for hour: {} and day: {} for topology created at {} ",
+                statsRecordsToUpload.size(), topologyForHour, topologyForDay, creationDateStr);
 
         if (isProjectedTopology) {
             lastProjectedTopologyProcessedHour = topologyForHour;
