@@ -46,7 +46,7 @@ public class HistoryAggregationConfig {
     @Value("${historyAggregationLoadingChunkSize}")
     private int historyAggregationLoadingChunkSize = 1000;
     @Value("${historyAggregationCalculationChunkSize}")
-    private int historyAggregationCalculationChunkSize = 10000;
+    private int historyAggregationCalculationChunkSize = 2000;
 
     @Value("${historyAggregation.percentileEnabled:true}")
     private boolean percentileEnabled = true;
