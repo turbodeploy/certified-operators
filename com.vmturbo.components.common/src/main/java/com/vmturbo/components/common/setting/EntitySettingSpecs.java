@@ -838,7 +838,7 @@ public enum EntitySettingSpecs {
             Collections.emptyList(),
             SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
-                    EntityType.DATABASE_SERVER, EntityType.DATABASE,
+                    EntityType.DATABASE_SERVER,
                     EntityType.APPLICATION_COMPONENT, EntityType.BUSINESS_TRANSACTION),
             numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 20.0f/*default*/),
             true),
@@ -854,7 +854,7 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
                     EntityType.BUSINESS_TRANSACTION, EntityType.DATABASE_SERVER,
-                    EntityType.DATABASE, EntityType.APPLICATION_COMPONENT),
+                    EntityType.APPLICATION_COMPONENT),
             new BooleanSettingDataType(true),
             true),
 
