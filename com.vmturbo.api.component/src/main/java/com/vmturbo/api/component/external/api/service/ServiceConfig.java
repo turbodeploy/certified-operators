@@ -158,6 +158,12 @@ public class ServiceConfig {
     private String apiPaginationDefaultSortCommodity;
 
     /**
+     * Feature flag. If it is true than ExecutionSchedule settings are not displayed in UI.
+     */
+    @Value("${hideExecutionScheduleSetting:true}")
+    private boolean hideExecutionScheduleSetting;
+
+    /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
     @Autowired
@@ -505,7 +511,7 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 mapperConfig.settingsMapper(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
-                settingsPoliciesService());
+                settingsPoliciesService(), hideExecutionScheduleSetting);
     }
 
     @Bean

@@ -38,6 +38,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
 
@@ -47,8 +48,7 @@ import com.vmturbo.group.group.IGroupStore;
  */
 @ThreadSafe
 public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
-
-    private final Map<SettingValueTypeCase, BiFunction<Setting, SettingSpec, Collection<String>>>
+    private final Map<SettingValueTypeCase, BiFunction<SettingPolicy, SettingSpec, Collection<String>>>
             settingProcessors;
     private final SettingSpecStore settingSpecStore;
     private final IGroupStore groupStore;
@@ -64,7 +64,7 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         this.settingSpecStore = Objects.requireNonNull(settingSpecStore);
         this.groupStore = Objects.requireNonNull(groupStore);
 
-        final Map<SettingValueTypeCase, BiFunction<Setting, SettingSpec, Collection<String>>>
+        final Map<SettingValueTypeCase, BiFunction<SettingPolicy, SettingSpec, Collection<String>>>
                 processors = new EnumMap<>(SettingValueTypeCase.class);
         processors.put(SettingValueTypeCase.BOOLEAN_SETTING_VALUE_TYPE,
                 this::processBooleanSetting);
@@ -173,6 +173,11 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         // We want to collect everything wrong with the input.
         final List<String> errors = new LinkedList<>();
 
+        final Set<String> settingsInPolicy = settingPolicyInfo.getSettingsList()
+                .stream()
+                .map(Setting::getSettingSpecName)
+                .collect(Collectors.toSet());
+
         final Map<Setting, Optional<SettingSpec>> referencedSpecs =
                 settingPolicyInfo.getSettingsList()
                         .stream()
@@ -206,17 +211,20 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                     }
                 }
 
-                final BiFunction<Setting, SettingSpec, Collection<String>> processor =
+                final BiFunction<SettingPolicy, SettingSpec, Collection<String>> processor =
                         settingProcessors.get(spec.getSettingValueTypeCase());
-                errors.addAll(processor.apply(setting, spec));
+                final SettingPolicy settingPolicy =
+                        new SettingPolicy(setting, settingsInPolicy);
+                errors.addAll(processor.apply(settingPolicy, spec));
             }
         });
         return errors;
     }
 
-    private Collection<String> processBooleanSetting(@Nonnull Setting setting,
+    private Collection<String> processBooleanSetting(@Nonnull SettingPolicy settingPolicy,
             @Nonnull SettingSpec settingSpec) {
-        final Optional<String> typeError = matchType(setting, ValueCase.BOOLEAN_SETTING_VALUE);
+        final Optional<String> typeError =
+                matchType(settingPolicy.getCurrentSetting(), ValueCase.BOOLEAN_SETTING_VALUE);
         if (typeError.isPresent()) {
             return Collections.singleton(typeError.get());
         } else {
@@ -224,8 +232,9 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         }
     }
 
-    private Collection<String> processNumericSetting(@Nonnull Setting setting,
+    private Collection<String> processNumericSetting(@Nonnull SettingPolicy settingPolicy,
             @Nonnull SettingSpec settingSpec) {
+        final Setting setting = settingPolicy.getCurrentSetting();
         final Optional<String> typeError = matchType(setting, ValueCase.NUMERIC_SETTING_VALUE);
         if (typeError.isPresent()) {
             return Collections.singleton(typeError.get());
@@ -244,8 +253,9 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         return errors;
     }
 
-    private Collection<String> processStringSetting(@Nonnull Setting setting,
+    private Collection<String> processStringSetting(@Nonnull SettingPolicy settingPolicy,
             @Nonnull SettingSpec settingSpec) {
+        final Setting setting = settingPolicy.getCurrentSetting();
         final Optional<String> typeError = matchType(setting, ValueCase.STRING_SETTING_VALUE);
         if (typeError.isPresent()) {
             return Collections.singleton(typeError.get());
@@ -260,8 +270,9 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         return Collections.emptySet();
     }
 
-    private Collection<String> processEnumSetting(@Nonnull Setting setting,
+    private Collection<String> processEnumSetting(@Nonnull SettingPolicy settingPolicy,
             @Nonnull SettingSpec settingSpec) {
+        final Setting setting = settingPolicy.getCurrentSetting();
         final Optional<String> typeError = matchType(setting, ValueCase.ENUM_SETTING_VALUE);
         if (typeError.isPresent()) {
             return Collections.singleton(typeError.get());
@@ -276,25 +287,56 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
     }
 
     /**
-     * Validate settings with {@link ValueCase.SORTED_SET_OF_OID_SETTING_VALUE}.
+     * Validate settings with {@link ValueCase#SORTED_SET_OF_OID_SETTING_VALUE}.
      * The list value of the setting should be sorted in natural order and
      * shouldn't contain any duplicate, which means it's strictly ordered.
      *
-     * @param setting the {@link Setting} to validate
+     * @param settingPolicy the {@link Setting} to validate
      * @param settingSpec the {@link SettingSpec} corresponds to the setting
      * @return a {@link Collection} of errors
      */
-    private Collection<String> processSortedSetOfOidSetting(@Nonnull Setting setting,
-                                                            @Nonnull SettingSpec settingSpec) {
-        final Optional<String> typeError = matchType(setting, ValueCase.SORTED_SET_OF_OID_SETTING_VALUE);
+    private Collection<String> processSortedSetOfOidSetting(@Nonnull SettingPolicy settingPolicy,
+            @Nonnull SettingSpec settingSpec) {
+        final Setting setting = settingPolicy.getCurrentSetting();
+        final Optional<String> typeError =
+                matchType(setting, ValueCase.SORTED_SET_OF_OID_SETTING_VALUE);
         if (typeError.isPresent()) {
             return Collections.singleton(typeError.get());
         }
-        final List<Long> value = setting.getSortedSetOfOidSettingValue().getOidsList();
-        if (!Ordering.natural().isStrictlyOrdered(value)) {
-            return Collections.singleton("Value " + value + " is not strictly ordered.");
+        final Collection<String> errors = new ArrayList<>();
+        if (EntitySettingSpecs.isExecutionScheduleSetting(setting.getSettingSpecName())) {
+            final Optional<String> validationErrors =
+                    validateExecutionScheduleSetting(settingPolicy);
+            validationErrors.ifPresent(errors::add);
+        } else {
+            final List<Long> value = setting.getSortedSetOfOidSettingValue().getOidsList();
+            if (!Ordering.natural().isStrictlyOrdered(value)) {
+                return Collections.singleton("Value " + value + " is not strictly ordered.");
+            }
         }
-        return Collections.emptySet();
+
+        return errors;
+    }
+
+    /**
+     * Check that current ExecutionSchedule setting has appropriate ActionMode setting in this
+     * policy.
+     *
+     * @param settingPolicy contains information about settings in policy
+     * @return if there is ActionMode setting for this ExecutionSchedule setting, other wise
+     * return error
+     */
+    private Optional<String> validateExecutionScheduleSetting(SettingPolicy settingPolicy) {
+        final String settingName = settingPolicy.getCurrentSetting().getSettingSpecName();
+        if (EntitySettingSpecs.isExecutionScheduleSetting(settingName)
+                && !settingPolicy.getSettingsInPolicy()
+                .contains(EntitySettingSpecs.getActionModeToExecutionScheduleSettings()
+                        .inverse()
+                        .get(settingName))) {
+            return Optional.of("There is no corresponding ActionMode setting for current "
+                    + "schedule setting " + settingName);
+        }
+        return Optional.empty();
     }
 
     private Optional<String> matchType(@Nonnull Setting setting, ValueCase valueCase) {
@@ -304,6 +346,39 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                             valueCase);
         } else {
             return Optional.empty();
+        }
+    }
+
+    /**
+     * Helper class contains full information about certain setting and list of names of all
+     * settings in policy.
+     */
+    private class SettingPolicy {
+        private final Setting currentSetting;
+        private final Collection<String> settingsInPolicy;
+
+        private SettingPolicy(@Nonnull Setting currentSetting,
+                @Nonnull Collection<String> settingsInPolicy) {
+            this.currentSetting = currentSetting;
+            this.settingsInPolicy = settingsInPolicy;
+        }
+
+        /**
+         * Get full information about current setting.
+         *
+         * @return {@link Setting}
+         */
+        public Setting getCurrentSetting() {
+            return currentSetting;
+        }
+
+        /**
+         * Returns all settings names existing in that setting policy.
+         *
+         * @return collection of all settings names existing in that setting policy.
+         */
+        public Collection<String> getSettingsInPolicy() {
+            return settingsInPolicy;
         }
     }
 }
