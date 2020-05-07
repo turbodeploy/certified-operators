@@ -822,7 +822,7 @@ public enum EntitySettingSpecs {
      * used value, and the ResponseTimeCapacity setting.
      * Used by Application and Database.
      */
-    AutoSetResponseTimeCapacity("autoSetResponseTimeCapacity", "Response Time (auto scaled range)",
+    AutoSetResponseTimeCapacity("autoSetResponseTimeCapacity", "Disable Response Time SLO",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.BUSINESS_APPLICATION, EntityType.APPLICATION_COMPONENT,
@@ -849,7 +849,7 @@ public enum EntitySettingSpecs {
      * used value, and the TransactionsCapacity setting.
      * Used by Application and Database.
      */
-    AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Transaction (auto scaled range)",
+    AutoSetTransactionsCapacity("autoSetTransactionsCapacity", "Disable Transaction SLO",
             Collections.emptyList(),
             SettingTiebreaker.BIGGER,
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
