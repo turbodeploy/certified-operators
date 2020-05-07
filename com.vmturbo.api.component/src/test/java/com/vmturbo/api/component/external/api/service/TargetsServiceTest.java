@@ -234,17 +234,18 @@ public class TargetsServiceTest {
         apiWebsocketHandler = new ApiWebsocketHandler();
     }
 
-    private ProbeInfo createMockProbeInfo(long probeId, String type, String category,
+    private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
             AccountDefEntry... entries) throws Exception {
-        return createMockProbeInfo(probeId, type, category, CreationMode.STAND_ALONE, entries);
+        return createMockProbeInfo(probeId, type, category, uiCategory, CreationMode.STAND_ALONE, entries);
     }
 
-    private ProbeInfo createMockProbeInfo(long probeId, String type, String category,
+    private ProbeInfo createMockProbeInfo(long probeId, String type, String category, String uiCategory,
             CreationMode creationMode, AccountDefEntry... entries) throws Exception {
         final ProbeInfo newProbeInfo = Mockito.mock(ProbeInfo.class);
         when(newProbeInfo.getId()).thenReturn(probeId);
         when(newProbeInfo.getType()).thenReturn(type);
         when(newProbeInfo.getCategory()).thenReturn(category);
+        when(newProbeInfo.getUICategory()).thenReturn(uiCategory);
         when(newProbeInfo.getAccountDefinitions()).thenReturn(Arrays.asList(entries));
         when(newProbeInfo.getCreationMode()).thenReturn(creationMode);
         if (entries.length > 0) {
@@ -291,8 +292,8 @@ public class TargetsServiceTest {
      */
     @Test
     public void getTarget() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category",
-                        createAccountDef("field1"), createAccountDef("field2"));
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory",
+                createAccountDef("field1"), createAccountDef("field2"));
         final TargetInfo target = createMockTargetInfo(probe.getId(), 3,
                         createAccountValue("field1", "value1"),
                         createAccountValue("field2", "value2"));
@@ -312,7 +313,7 @@ public class TargetsServiceTest {
      */
     @Test
     public void getTargetDisplayName() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category",
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory",
                 createAccountDef("address"));
         final TargetInfo target = createMockTargetInfo(probe.getId(), 3,
                 createAccountValue("address", "targetAddress"));
@@ -333,8 +334,8 @@ public class TargetsServiceTest {
      */
     @Test
     public void getTargetWithInvalidField() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category",
-                        createAccountDef("field1"), createAccountDef("field2"));
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory",
+                createAccountDef("field1"), createAccountDef("field2"));
         createMockTargetInfo(probe.getId(), 3,
                         createAccountValue("field1", "value1"),
                         createAccountValue("field3", "value2"));
@@ -355,7 +356,7 @@ public class TargetsServiceTest {
      */
     @Test
     public void getAbsentTarget() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory");
         createMockTargetInfo(probe.getId(), 3);
         final MvcResult result = mockMvc.perform(get("/targets/4").accept(MediaType
                 .APPLICATION_JSON_UTF8_VALUE))
@@ -388,7 +389,7 @@ public class TargetsServiceTest {
     }
 
     private void fetchAllTargets(boolean hybridFilterExists) throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory");
         final Collection<TargetInfo> targets = new ArrayList<>();
         targets.add(createMockTargetInfo(probe.getId(), 2));
         targets.add(createMockTargetInfo(probe.getId(), 3));
@@ -435,8 +436,8 @@ public class TargetsServiceTest {
         final long onPremProbeId = 2L;
         final long cloudTargetId = 3L;
         final long onPremTargetId = 4L;
-        createMockProbeInfo(cloudProbeId, SDKProbeType.AWS.getProbeType(), "dummy");
-        createMockProbeInfo(onPremProbeId, SDKProbeType.VCENTER.getProbeType(), "dummy");
+        createMockProbeInfo(cloudProbeId, SDKProbeType.AWS.getProbeType(), "dummy", "uiCategory");
+        createMockProbeInfo(onPremProbeId, SDKProbeType.VCENTER.getProbeType(), "dummy", "uiCategory");
         createMockTargetInfo(cloudProbeId, cloudTargetId);
         createMockTargetInfo(onPremProbeId, onPremTargetId);
 
@@ -457,7 +458,7 @@ public class TargetsServiceTest {
      */
     @Test
     public void testGetAllTargets_withDerivedTargetRelationships() throws Exception {
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory");
         final TargetInfo parentTargetInfo = createMockTargetInfo(probe.getId(), 2);
         final TargetInfo childTargetInfo1 = createMockTargetInfo(probe.getId(), 3);
         final TargetInfo childTargetInfo2 = createMockTargetInfo(probe.getId(), 4);
@@ -486,7 +487,7 @@ public class TargetsServiceTest {
     @Test
     public void testGetAllTargetsWithoutFilteredTargets() throws Exception {
         final int hiddenTargetsCount = 1;
-        final ProbeInfo probe = createMockProbeInfo(1, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(1, "type", "category", "uiCategory");
         final Collection<TargetInfo> targets = new ArrayList<>();
         targets.add(createMockTargetInfo(probe.getId(), 2));
         targets.add(createMockTargetInfo(probe.getId(), 3));
@@ -544,7 +545,7 @@ public class TargetsServiceTest {
     @Test
     public void testAddTarget() throws Exception {
         final long probeId = 1;
-        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", createAccountDef
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory", createAccountDef
                 ("key"));
         final TargetApiDTO targetDto = new TargetApiDTO();
         targetDto.setType(probe.getType());
@@ -579,7 +580,7 @@ public class TargetsServiceTest {
     @Test
     public void testAddFirstTarget() throws Exception {
         final long probeId = 1;
-        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", createAccountDef
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory", createAccountDef
                 ("key"));
         final TargetApiDTO targetDto = new TargetApiDTO();
         targetDto.setType(probe.getType());
@@ -604,7 +605,7 @@ public class TargetsServiceTest {
     @Test
     public void testAddSecondTarget() throws Exception {
         final long probeId = 1;
-        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", createAccountDef
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory", createAccountDef
                 ("key"));
         final TargetApiDTO targetDto = new TargetApiDTO();
         targetDto.setType(probe.getType());
@@ -649,7 +650,7 @@ public class TargetsServiceTest {
     public void testEditTarget() throws Exception {
         final long probeId = 1;
         final long targetId = 2;
-        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory");
         final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
 
         final TargetApiDTO targetDto = new TargetApiDTO();
@@ -682,7 +683,7 @@ public class TargetsServiceTest {
     public void testEditTarget_readOnlyTarget() throws Exception {
         final long probeId = 5;
         final long targetId = 10;
-        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(probeId, "type", "category", "uiCategory");
         final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
         when(targetInfo.isReadOnly()).thenReturn(true);
 
@@ -711,7 +712,7 @@ public class TargetsServiceTest {
     public void deleteExistingTarget() throws Exception {
         final long prpbeId = 1;
         final long targetId = 2;
-        final ProbeInfo probe = createMockProbeInfo(prpbeId, "type", "category");
+        final ProbeInfo probe = createMockProbeInfo(prpbeId, "type", "category", "uiCategory");
         final TargetInfo targetInfo = createMockTargetInfo(probe.getId(), targetId);
         final MvcResult result = mockMvc
                         .perform(MockMvcRequestBuilders.delete("/targets/" + targetId).accept(
@@ -882,14 +883,14 @@ public class TargetsServiceTest {
         final String field1 = "field11";
         final String field2 = "field22";
         final String field3 = "field3";
-        probesCollection.add(createMockProbeInfo(1, "type1", "category1",
-                        createAccountDef(field1), createAccountDef("field12")));
-        probesCollection.add(createMockProbeInfo(2, "type2", "category2",
-                        createAccountDef(field2), createAccountDef("field22")));
-        probesCollection.add(createMockProbeInfo(3, "type3", "category4",
-                        createAccountDef(field3)));
+        probesCollection.add(createMockProbeInfo(1, "type1", "category1", "uiCategory1",
+                createAccountDef(field1), createAccountDef("field12")));
+        probesCollection.add(createMockProbeInfo(2, "type2", "category2", "uiCategory2",
+                createAccountDef(field2), createAccountDef("field22")));
+        probesCollection.add(createMockProbeInfo(3, "type3", "category4", "uiCategory4",
+                createAccountDef(field3)));
         final Map<String, ProbeInfo> probeByType = probesCollection.stream().collect(
-                        Collectors.toMap(pr -> pr.getType(), pr -> pr));
+                Collectors.toMap(pr -> pr.getType(), pr -> pr));
 
         final MvcResult result = mockMvc
                         .perform(MockMvcRequestBuilders.get("/targets/specs").accept(
@@ -921,12 +922,14 @@ public class TargetsServiceTest {
         final String field1 = "field11";
         final String field2 = "field22";
         final String field3 = "field3";
-        probesCollection.add(createMockProbeInfo(1, "type1", "category1",
-                        createAccountDef(field1), createAccountDef("field12")));
+        probesCollection.add(createMockProbeInfo(1, "type1", "category1", "uiCategory1",
+                createAccountDef(field1), createAccountDef("field12")));
         probesCollection.add(createMockProbeInfo(2, "type2", ProbeCategory.BILLING.getCategory(),
-                        CreationMode.DERIVED, createAccountDef(field2), createAccountDef("field22")));
+                ProbeCategory.BILLING.getCategory(),
+                CreationMode.DERIVED, createAccountDef(field2), createAccountDef("field22")));
         probesCollection.add(createMockProbeInfo(3, "type3", ProbeCategory.STORAGE_BROWSING.getCategory(),
-                        CreationMode.DERIVED, createAccountDef(field3)));
+                ProbeCategory.STORAGE_BROWSING.getCategory(),
+                CreationMode.DERIVED, createAccountDef(field3)));
         final Map<String, ProbeInfo> probeByType = probesCollection.stream().collect(
                         Collectors.toMap(pr -> pr.getType(), pr -> pr));
 
@@ -953,7 +956,7 @@ public class TargetsServiceTest {
     @Test
     public void testGetProbeWrongIdentifyingFields() throws Exception {
         final ProbeInfo probe =
-                        createMockProbeInfo(1, "type1", "category1", createAccountDef("targetId"));
+                createMockProbeInfo(1, "type1", "category1", "uiCategory1", createAccountDef("targetId"));
         when(probe.getIdentifyingFields())
                         .thenReturn(Collections.singletonList("non-target-id"));
         final MvcResult result = mockMvc.perform(MockMvcRequestBuilders.get("/targets/specs")
@@ -973,10 +976,11 @@ public class TargetsServiceTest {
     @Test
     public void testProbeAccountValueTypes() throws Exception {
         final ProbeInfo probeInfo = createMockProbeInfo(1, "type1", "category1",
-                        createAccountDef("fieldStr", AccountFieldValueType.STRING),
-                        createAccountDef("fieldNum", AccountFieldValueType.NUMERIC),
-                        createAccountDef("fieldBool", AccountFieldValueType.BOOLEAN),
-                        createAccountDef("fieldGrp", AccountFieldValueType.GROUP_SCOPE));
+                "uiCategory1",
+                createAccountDef("fieldStr", AccountFieldValueType.STRING),
+                createAccountDef("fieldNum", AccountFieldValueType.NUMERIC),
+                createAccountDef("fieldBool", AccountFieldValueType.BOOLEAN),
+                createAccountDef("fieldGrp", AccountFieldValueType.GROUP_SCOPE));
         final MvcResult result = mockMvc
                         .perform(MockMvcRequestBuilders.get("/targets/specs")
                                         .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -1007,7 +1011,7 @@ public class TargetsServiceTest {
                 new AccountField(key, key + "-name", key + "-description", false, false,
                         AccountFieldValueType.LIST, null, allowedValuesList, ".*", null);
         final ProbeInfo probeInfo =
-                createMockProbeInfo(1, "type1", "category1", allowedValuesField);
+                createMockProbeInfo(1, "type1", "category1", "uiCategory1", allowedValuesField);
         final MvcResult result = mockMvc
                 .perform(MockMvcRequestBuilders.get("/targets/specs")
                         .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -1035,7 +1039,7 @@ public class TargetsServiceTest {
         for (AccountFieldValueType value : AccountFieldValueType.values()) {
             accountEntries[i++] = createAccountDef("field-" + value.name(), value);
         }
-        createMockProbeInfo(1, "type1", "category1", accountEntries);
+        createMockProbeInfo(1, "type1", "category1", "uiCategory1", accountEntries);
         final MvcResult result = mockMvc
                         .perform(MockMvcRequestBuilders.get("/targets/specs")
                                         .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -1064,7 +1068,7 @@ public class TargetsServiceTest {
                         AccountFieldValueType.LIST, null, null, ".*",
                         Pair.create("field", "value"));
         final ProbeInfo probeInfo =
-                createMockProbeInfo(1, "type1", "category1", field);
+                createMockProbeInfo(1, "type1", "category1", "uiCategory1", field);
         final MvcResult result = mockMvc
                 .perform(MockMvcRequestBuilders.get("/targets/specs")
                         .accept(MediaType.APPLICATION_JSON_UTF8_VALUE))
@@ -1110,7 +1114,7 @@ public class TargetsServiceTest {
         final long probeId = 1;
         final String isStorageBrowsingEnabled = "isStorageBrowsingEnabled";
         final String key = "key";
-        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", createAccountDef
+        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", "category", createAccountDef
             (key), createAccountDef(isStorageBrowsingEnabled));
         final TargetApiDTO targetDto = new TargetApiDTO();
         targetDto.setType(probe.getType());
@@ -1144,7 +1148,7 @@ public class TargetsServiceTest {
         final long probeId = 1;
         final String isStorageBrowsingEnabled = "isStorageBrowsingEnabled";
         final String key = "key";
-        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", createAccountDef
+        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", "category", createAccountDef
             (key), createAccountDef(isStorageBrowsingEnabled));
         final TargetApiDTO targetDto = new TargetApiDTO();
         targetDto.setType(probe.getType());
@@ -1177,7 +1181,7 @@ public class TargetsServiceTest {
         final long probeId = 1;
         final String isStorageBrowsingEnabled = "isStorageBrowsingEnabled";
         final String key = "key";
-        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", createAccountDef
+        final ProbeInfo probe = createMockProbeInfo(probeId, SDKProbeType.VCENTER.getProbeType(), "category", "category", createAccountDef
             (key), createAccountDef(isStorageBrowsingEnabled));
         final TargetApiDTO targetDto = new TargetApiDTO();
         targetDto.setType(probe.getType());
@@ -1216,7 +1220,7 @@ public class TargetsServiceTest {
     }
 
     private ProbeInfo createDefaultProbeInfo() throws Exception {
-        return createMockProbeInfo(1, "type1", "category1", createAccountDef("targetId"));
+        return createMockProbeInfo(1, "type1", "category1", "category1", createAccountDef("targetId"));
     }
 
     private InputFieldApiDTO inputField(String key, String value) {
@@ -1237,7 +1241,7 @@ public class TargetsServiceTest {
 
     private void assertEquals(ProbeInfo probe, TargetApiDTO dto) {
         Assert.assertEquals(probe.getType(), dto.getType());
-        Assert.assertEquals(probe.getCategory(), dto.getCategory());
+        Assert.assertEquals(probe.getUICategory(), dto.getCategory());
         Assert.assertEquals(probe.getAccountDefinitions().size(), dto.getInputFields().size());
         final Map<String, AccountDefEntry> defEntries = probe.getAccountDefinitions().stream()
                         .collect(Collectors.toMap(de -> de.getName(), de -> de));

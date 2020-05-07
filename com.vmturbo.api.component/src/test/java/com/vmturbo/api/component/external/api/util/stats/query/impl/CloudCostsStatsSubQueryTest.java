@@ -148,6 +148,7 @@ public class CloudCostsStatsSubQueryTest {
             .probeInfo(ImmutableThinProbeInfo.builder()
                     .oid(1L)
                     .category("Cloud")
+                    .uiCategory("Cloud")
                     .type(SDKProbeType.AZURE.getProbeType())
                     .build())
             .build();
@@ -159,6 +160,7 @@ public class CloudCostsStatsSubQueryTest {
             .probeInfo(ImmutableThinProbeInfo.builder()
                     .oid(2L)
                     .category("Cloud")
+                    .uiCategory("Cloud")
                     .type(SDKProbeType.AZURE_EA.getProbeType())
                     .build())
             .build();
