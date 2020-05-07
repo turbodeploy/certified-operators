@@ -187,8 +187,8 @@ defaultProperties:
             VAPPAccessCommodity
             VDCCommodity
             VMPMAccessCommodity
-            CONCURRENTWORKERCommodity
-            CONCURRENTSESSIONCommodity
+            ConcurrentWorker
+            ConcurrentSession
         retention.updateRetentionIntervalSeconds: 10
         statsWritersMaxPoolSize: 6
         systemLoadRecordsPerChunk: 500

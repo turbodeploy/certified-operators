@@ -307,8 +307,8 @@ public class IngestersConfig {
                 "VAPPAccessCommodity",
                 "VDCCommodity",
                 "VMPMAccessCommodity",
-                "CONCURRENTWORKERCommodity",
-                "CONCURRENTSESSIONCommodity"
+                "ConcurrentWorker",
+                "ConcurrentSession"
         });
     }
 
