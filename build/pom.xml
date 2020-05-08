@@ -309,6 +309,7 @@
         <profile>
             <id>cost</id>
             <modules>
+                <module>../com.vmturbo.cloud.commitment.analysis</module>
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.cost.calculation</module>
                 <module>../com.vmturbo.cost.component</module>
@@ -832,6 +833,7 @@
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
+                <module>../com.vmturbo.cloud.commitment.analysis</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.components</module>
@@ -911,6 +913,7 @@
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
+                <module>../com.vmturbo.cloud.commitment.analysis</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.components</module>
@@ -1009,6 +1012,7 @@
                 <module>../com.vmturbo.common.protobuf</module>
                 <module>../com.vmturbo.communication.matrix</module>
                 <module>../com.vmturbo.trax</module>
+                <module>../com.vmturbo.cloud.commitment.analysis</module>
                 <module>../com.vmturbo.clustermgr</module>
                 <module>../com.vmturbo.clustermgr.api</module>
                 <module>../com.vmturbo.consul</module>
