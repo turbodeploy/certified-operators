@@ -6,6 +6,7 @@ import static com.vmturbo.platform.sdk.common.util.SDKProbeType.AWS_COST;
 import static com.vmturbo.platform.sdk.common.util.SDKProbeType.AWS_LAMBDA;
 
 import java.io.StringReader;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -17,8 +18,6 @@ import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -175,7 +174,7 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
     protected MigrationProgressInfo doStartMigration() {
         logger.info("Starting migration.");
         // process all the AWS probes
-        BiMap<String, String> probeIdToProbeTypeMap = updateProbes(keyValueStore);
+        Map<String, String> probeIdToProbeTypeMap = updateProbes(keyValueStore);
         // process all AWS targets
         updateTargets(keyValueStore, probeIdToProbeTypeMap);
 
@@ -191,10 +190,10 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
      * @return map from probe ID to probe type
      */
     @Nullable
-    private BiMap<String, String> updateProbes(KeyValueStore keyValueStore) {
+    private Map<String, String> updateProbes(KeyValueStore keyValueStore) {
         logger.debug("Starting probe migration.");
         // map from probe ID to probe type
-        BiMap<String, String> probeIdToProbeTypeMap = HashBiMap.create();
+        Map<String, String> probeIdToProbeTypeMap = new HashMap<>();
         // get the JSON for all the previously stored probes
         final Map<String, String> persistedProbes =
             keyValueStore.getByPrefix(ProbeStore.PROBE_KV_STORE_PREFIX);
@@ -228,9 +227,8 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
      */
     @VisibleForTesting
     void processAwsProbe(final String probeId, final String probeType, JsonObject json,
-                                 BiMap<String, String> probeIdToProbeTypeMap) {
-        logger.debug("probeId={} probeType='{}' Starting probe migration.",
-            probeId, probeType);
+                         Map<String, String> probeIdToProbeTypeMap) {
+        logger.info("probeId={} probeType='{}' Starting probe migration.", probeId, probeType);
         // update bi map
         probeIdToProbeTypeMap.put(probeId, probeType);
         if (probeType.equals(AWS_BILLING.getProbeType())) {
@@ -373,7 +371,7 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
      * @param probeIdToProbeTypeMap bidirectional map from probe ID to probe type
      */
     private void updateTargets(KeyValueStore keyValueStore,
-                               BiMap<String, String> probeIdToProbeTypeMap) {
+                               Map<String, String> probeIdToProbeTypeMap) {
         logger.info("Starting target migration.");
         final Map<String, String> persistedTargets =
             keyValueStore.getByPrefix(TargetStore.TARGET_KV_STORE_PREFIX);
@@ -401,7 +399,7 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
      * @param probeIdToProbeTypeMap map from probe ID to probe type
      */
     private void processTarget(JsonObject secretFields, JsonObject targetInfoObject,
-                               String targetKey, BiMap<String, String> probeIdToProbeTypeMap) {
+                               String targetKey, Map<String, String> probeIdToProbeTypeMap) {
 
         Set<String> awsProbeIds = probeIdToProbeTypeMap.keySet();
         String targetId = targetInfoObject.get(FIELD_ID).getAsString();
@@ -414,7 +412,7 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
         }
         String probeType = probeIdToProbeTypeMap.get(probeId);
 
-        logger.debug("targetId={} probeType='{}' Starting target migration targetInfo={}.",
+        logger.info("targetId={} probeType='{}' Starting target migration targetInfo={}.",
             targetId, probeType, targetInfoObject.toString());
         processSpec(spec, targetKey, targetId, probeId, probeType);
 
@@ -501,10 +499,10 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
      * Remove AWS Billing Target from AWS Target's derived targets.
      *
      * @param persistedTargets consul
-     * @param probeIdToProbeTypeMap BiMap from probe ID to probe Type
+     * @param probeIdToProbeTypeMap map from probe ID to probe Type
      */
     private void awsBillingTargetNoLongerDerived(Map<String, String> persistedTargets,
-                                                 BiMap<String, String> probeIdToProbeTypeMap) {
+                                                 Map<String, String> probeIdToProbeTypeMap) {
         if (awsTargetKeys.size() == 0 || awsBillingTargetIds.size() == 0) {
             logger.trace("probeType='AWS' awsTargetKey.size()={} or awsBillingTargetId.size()={} == 0",
                 awsTargetKeys.size(), awsBillingTargetIds.size());
