@@ -42,6 +42,8 @@ import com.vmturbo.topology.processor.api.dto.InputField;
  */
 public class IntersightTargetSyncService implements Runnable {
     private static final Logger logger = LogManager.getLogger();
+    private static final String INTERSIGHT_TRACEID =
+            "x-starship-traceid";
 
     /**
      * The connection to access the Intersight instance.
@@ -130,8 +132,9 @@ public class IntersightTargetSyncService implements Runnable {
                     IntersightDefaultQueryParameters.$at,
                     IntersightDefaultQueryParameters.$tags);
         } catch (ApiException e) {
-            logger.error("Error Getting Targets using Intersight API. Query Header {} ",
-                    e.getResponseHeaders());
+            logger.error("Error Getting Targets using Intersight API. Query TraceId {} ",
+                    e.getResponseHeaders() != null ?
+                            e.getResponseHeaders().get(INTERSIGHT_TRACEID) : "Unknown");
             throw e;
         }
 

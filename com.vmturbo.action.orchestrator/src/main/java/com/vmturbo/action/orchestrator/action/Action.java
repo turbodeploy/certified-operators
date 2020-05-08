@@ -207,6 +207,8 @@ public class Action implements ActionView {
      */
     private final ActionCategory actionCategory;
 
+    private ActionSchedule schedule;
+
     /**
      * Create an action from a state object that was used to serialize the state of the action.
      *
@@ -227,6 +229,7 @@ public class Action implements ActionView {
         this.actionTranslation = savedState.actionTranslation;
         this.actionCategory = savedState.actionCategory;
         this.actionModeCalculator = actionModeCalculator;
+        this.schedule = savedState.schedule;
         if (savedState.getActionDetailData() != null) {
             // TODO: OM-48679 Initially actionDetailData will contain the action description.
             //  It was named this way instead of description since eventually we should store the
@@ -308,11 +311,12 @@ public class Action implements ActionView {
     @Override
     public String toString() {
         synchronized (recommendationLock) {
-            return "Action Id=" + getId() +
-                    ", Type=" + recommendation.getInfo().getActionTypeCase() +
-                    ", Mode=" + getMode() +
-                    ", State=" + getState() +
-                    ", Recommendation=" + recommendation;
+            return "Action Id=" + getId()
+                    + ", Type=" + recommendation.getInfo().getActionTypeCase()
+                    + ", Mode=" + getMode()
+                    + ", State=" + getState()
+                    + ", Recommendation=" + recommendation
+                    + ", Schedule=" + schedule;
         }
     }
 
@@ -378,7 +382,10 @@ public class Action implements ActionView {
     public void refreshAction(@Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot)
             throws UnsupportedActionException {
         synchronized (recommendationLock) {
-            actionMode = actionModeCalculator.calculateActionMode(this, entitiesSnapshot);
+            final ActionModeCalculator.ModeAndSchedule actionModeAndSchedule = actionModeCalculator
+                .calculateActionModeAndExecutionSchedule(this, entitiesSnapshot);
+            actionMode = actionModeAndSchedule.getMode();
+            schedule = actionModeAndSchedule.getSchedule();
             workflowSettingsForState = actionModeCalculator.calculateWorkflowSettings(recommendation, entitiesSnapshot);
 
             try {
@@ -549,6 +556,12 @@ public class Action implements ActionView {
     @Override
     public Optional<Long> getAssociatedResourceGroupId() {
         return associatedResourceGroupId;
+    }
+
+    @Nonnull
+    @Override
+    public Optional<ActionSchedule> getSchedule() {
+        return Optional.ofNullable(schedule);
     }
 
     /**
@@ -1056,6 +1069,11 @@ public class Action implements ActionView {
             return actionDetailData;
         }
 
+        @Nullable
+        public ActionSchedule getSchedule() {
+            return schedule;
+        }
+
         private final LocalDateTime recommendationTime;
 
         private final ActionDecision actionDecision;
@@ -1071,6 +1089,8 @@ public class Action implements ActionView {
         private final Long associatedResourceGroupId;
 
         private final byte[] actionDetailData;
+
+        private final ActionSchedule schedule;
 
         /**
          * We don't really need to save the category because it can be extracted from the
@@ -1091,6 +1111,7 @@ public class Action implements ActionView {
             this.associatedAccountId = action.getAssociatedAccount().orElse(null);
             this.associatedResourceGroupId = action.getAssociatedResourceGroupId().orElse(null);
             this.actionDetailData = action.getDescription().getBytes();
+            this.schedule = action.getSchedule().orElse(null);
         }
 
         public SerializationState(final long actionPlanId,
@@ -1115,6 +1136,7 @@ public class Action implements ActionView {
             this.associatedAccountId = associatedAccountId;
             this.associatedResourceGroupId = associatedResourceGroupId;
             this.actionDetailData = actionDetailData;
+            this.schedule = null;
         }
     }
 

@@ -58,7 +58,7 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
 
     private final EnvironmentType environmentType;
 
-    private final EntityState state;
+    private EntityState state;
     private final Map<String, List<String>> tags;
     private final Map<Integer, List<CommoditySoldDTO>> soldCommodities;
     private final Map<Long, PerTargetEntityInformation> discoveredTargetData;
@@ -316,11 +316,23 @@ public class RepoGraphEntity implements TopologyGraphEntity<RepoGraphEntity> {
         // Use the fastest available java instance to avoid using off-heap memory.
         final LZ4FastDecompressor decompressor = LZ4Factory.fastestJavaInstance().fastDecompressor();
         try {
-            return TopologyEntityDTO.parseFrom(decompressor.decompress(compressedEntityBytes, uncompressedLength));
+            TopologyEntityDTO.Builder bldr = TopologyEntityDTO.newBuilder();
+            bldr.mergeFrom(decompressor.decompress(compressedEntityBytes, uncompressedLength));
+            bldr.setEntityState(state);
+            return bldr.build();
         } catch (InvalidProtocolBufferException e) {
             logger.error("Failed to decompress entity {}. Error: {}", this.oid, e.getMessage());
             return getPartialTopologyEntity();
         }
+    }
+
+    /**
+     * Update entity's state. This field corresponds to {@link TopologyEntityDTO#getEntityState}
+     *
+     * @param state the {@link EntityState} for the entity.
+     */
+    public synchronized void setEntityState(EntityState state) {
+        this.state = state;
     }
 
     /**

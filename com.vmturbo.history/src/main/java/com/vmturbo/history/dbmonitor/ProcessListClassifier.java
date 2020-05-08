@@ -6,13 +6,10 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.annotation.Nullable;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.google.common.collect.ImmutableMap;
 
-import org.apache.commons.collections4.sequence.EditScript;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -113,7 +110,7 @@ class ProcessListClassifier {
      */
     static class ProcessListRecord {
         private String db;
-        private double timeMs;
+        private long time;
         private String command;
         private String state;
         private String info;
@@ -126,12 +123,12 @@ class ProcessListClassifier {
             this.db = db != null ? db : "?";
         }
 
-        public double getTimeMs() {
-            return timeMs;
+        public long getTime() {
+            return time;
         }
 
-        public void setTimeMs(final Double timeMs) {
-            this.timeMs = timeMs != null ? timeMs : 0.0;
+        public void setTime(final Long time) {
+            this.time = time != null ? time : 0L;
         }
 
         public String getCommand() {

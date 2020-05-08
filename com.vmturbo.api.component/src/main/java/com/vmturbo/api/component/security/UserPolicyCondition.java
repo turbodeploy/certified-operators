@@ -16,7 +16,7 @@ import org.springframework.core.type.AnnotatedTypeMetadata;
 public class UserPolicyCondition implements Condition {
 
     private static final Set<Condition> AUTHENTICATION_CONDITIONS =
-            ImmutableSet.of(new SamlAuthenticationCondition(), new HeaderAuthenticationCondition());
+            ImmutableSet.of(new OpenIdAuthenticationCondition(), new SamlAuthenticationCondition(), new HeaderAuthenticationCondition());
 
     /**
      * Determine if the header authentication and authorization bean should loaded.

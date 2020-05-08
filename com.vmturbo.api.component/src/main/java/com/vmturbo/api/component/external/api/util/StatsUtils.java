@@ -2,8 +2,8 @@ package com.vmturbo.api.component.external.api.util;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
@@ -16,8 +16,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.util.stats.query.impl.CloudCostsStatsSubQuery;
-import com.vmturbo.api.dto.statistic.StatApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatValueApiDTO;
 import com.vmturbo.auth.api.authorization.scoping.UserScopeUtils;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -104,7 +102,15 @@ public class StatsUtils {
         if (scope.isCloudPlan()) {
             return true;
         }
-        return scope.getScopeTypes()
+        final Optional<Set<ApiEntityType>> scopeTypes = scope.getScopeTypes();
+
+        // This is the case where the user might query for an invalid oid. The scope types will not be
+        // present. However, the scope types are not present for a global scope as well, so we only return
+        // false from here if the market is not realtime (global scope)
+        if (!scope.isRealtimeMarket()  && !scopeTypes.isPresent()) {
+            return false;
+        }
+        return scopeTypes
                 // If this is scoped to a set of entity types, if any of the scope entity types
                 // are supported, RIs will be scoped through the supported types and non-supported
                 // types will be ignored
@@ -136,19 +142,5 @@ public class StatsUtils {
         public int getPrecision() {
             return precision;
         }
-    }
-
-    /**
-     * Determines if any cloud cost stats stats are in list.
-     *
-     * @param statistics The list of stats to check
-     * @return true if costComponent relevant stats are in array
-     */
-    public static boolean containsCloudCostStats(List<StatApiInputDTO> statistics) {
-        if (statistics == null || statistics.isEmpty()) {
-            return false;
-        }
-        Set<String> costStatsSet = CloudCostsStatsSubQuery.COST_STATS_SET;
-        return statistics.stream().anyMatch(stat -> costStatsSet.contains(stat.getName()));
     }
 }

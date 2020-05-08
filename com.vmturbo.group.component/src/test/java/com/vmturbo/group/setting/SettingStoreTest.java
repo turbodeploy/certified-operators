@@ -28,6 +28,7 @@ import com.google.protobuf.ProtocolStringList;
 
 import io.grpc.Status;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
@@ -37,6 +38,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
 import com.vmturbo.common.protobuf.setting.SettingProto;
@@ -44,6 +49,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.ScopeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
@@ -58,12 +64,15 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.ProtobufMessageMatcher;
+import com.vmturbo.group.group.TestGroupGenerator;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.schedule.ScheduleStore;
 import com.vmturbo.group.schedule.ScheduleValidator;
@@ -98,6 +107,7 @@ public class SettingStoreTest {
     private SettingStore settingStore;
     private SettingSpecStore settingSpecStore;
     private ScheduleStore scheduleStore;
+    private GroupDAO groupStore;
     private final ScheduleValidator scheduleValidator = mock(ScheduleValidator.class);
 
     private final SettingPolicyInfo info = SettingPolicyInfo.newBuilder()
@@ -135,6 +145,7 @@ public class SettingStoreTest {
         settingStore =
                 new SettingStore(settingSpecStore, dbConfig.getDslContext(), settingPolicyValidator,
                         settingsUpdatesSender);
+        groupStore = new GroupDAO(dbConfig.getDslContext());
         scheduleStore = new ScheduleStore(dbConfig.getDslContext(), scheduleValidator,
             identityProviderSpy, settingStore);
     }
@@ -246,6 +257,82 @@ public class SettingStoreTest {
         assertEquals(policy, savedPolicy.get());
         assertTrue(savedPolicy.get().getInfo().hasScheduleId());
         assertEquals(scheduleId, savedPolicy.get().getInfo().getScheduleId());
+    }
+
+    /**
+     * Test creating setting policy with execution schedule window configured through
+     * ExecutionSchedule setting.
+     *
+     * @throws Exception it shouldn't happen
+     */
+    @Test
+    public void testCreateSettingPolicyWithExecutionSchedule() throws Exception {
+        final TestGroupGenerator groupGenerator = new TestGroupGenerator();
+        final Origin userOrigin = groupGenerator.createUserOrigin();
+        final GroupDefinition groupDefinition = groupGenerator.createGroupDefinition();
+        final long groupId = 23L;
+
+        // create group - policy scope
+        groupStore.createGroup(groupId, userOrigin, groupDefinition,
+                Collections.singleton(MemberType.newBuilder().setEntity(1).build()), false);
+
+        // create schedule - execution windows in policy
+        Schedule schedule1 = Schedule.newBuilder()
+                .setDisplayName("Test schedule1")
+                .setStartTime(1446760800000L)
+                .setEndTime(1446766200000L)
+                .setPerpetual(Perpetual.newBuilder().build())
+                .setTimezoneId("Test timezone")
+                .build();
+        final Schedule savedSchedule = scheduleStore.createSchedule(schedule1);
+
+        final Setting actionModeSetting = Setting.newBuilder()
+                .setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()).build())
+                .setSettingSpecName(
+                        EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+                .build();
+
+        final Setting executionScheduleSetting = Setting.newBuilder()
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                        .addAllOids(Collections.singletonList(savedSchedule.getId()))
+                        .build())
+                .setSettingSpecName(
+                        EntitySettingSpecs.ResizeVcpuDownInBetweenThresholdsExecutionSchedule.getSettingName())
+                .build();
+
+        final SettingPolicyInfo settingInfo = SettingPolicyInfo.newBuilder()
+                .setName("policy_1")
+                .setDisplayName("Policy 1")
+                .setEntityType(EntityType.VIRTUAL_MACHINE.getNumber())
+                .setEnabled(true)
+                .setScope(Scope.newBuilder().addGroups(groupId).build())
+                .addAllSettings(Arrays.asList(actionModeSetting, executionScheduleSetting))
+                .build();
+
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+                .setId(identityProviderSpy.next())
+                .setInfo(settingInfo)
+                .setSettingPolicyType(Type.USER)
+                .build();
+
+        settingStore.createSettingPolicies(dbConfig.getDslContext(),
+                Collections.singleton(settingPolicy));
+
+        final SettingPolicy policyFromDB = settingStore.getSettingPolicies(dbConfig.getDslContext(),
+                SettingPolicyFilter.newBuilder().build()).iterator().next();
+        final SettingPolicyInfo settingPolicyInfo = settingPolicy.getInfo();
+        final SettingPolicyInfo policyFromDBInfo = policyFromDB.getInfo();
+        Assert.assertEquals(settingPolicy.getId(), policyFromDB.getId());
+        Assert.assertEquals(settingPolicyInfo.getEntityType(), policyFromDBInfo.getEntityType());
+        Assert.assertEquals(settingPolicyInfo.getScope(), policyFromDBInfo.getScope());
+        Assert.assertTrue(CollectionUtils.isEqualCollection(settingPolicyInfo.getSettingsList(),
+                policyFromDBInfo.getSettingsList()));
+
+        final Optional<SettingPolicy> getCertainPolicy =
+                settingStore.getSettingPolicy(dbConfig.getDslContext(), policyFromDB.getId());
+        assertTrue(getCertainPolicy.isPresent());
+        assertEquals(policyFromDB, getCertainPolicy.get());
     }
 
     @Test

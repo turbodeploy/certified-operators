@@ -99,6 +99,8 @@ public class DiscoveredGroupUploader {
      */
     private final Map<Long, TargetDiscoveredData> dataByTarget = new HashMap<>();
 
+    private Map<Long, Long> hypervisorPM2datacenterOIDs;
+
     @VisibleForTesting
     DiscoveredGroupUploader(
             @Nonnull final GroupServiceStub groupServiceStub,
@@ -430,9 +432,9 @@ public class DiscoveredGroupUploader {
             logger.error("Topology map doesn't contain host {}", hosts.get().getMembers(0));
             return;
         }
-        final Optional<CommoditiesBoughtFromProvider> datacenterCommodity =
-                getDatacenterCommodityOfHost(host);
-        if (!datacenterCommodity.isPresent()) {
+        Long datacenterOid = getDatacenterOID(host);
+
+        if (datacenterOid == null) {
             final Optional<TopologyEntityDTO.CommoditiesBoughtFromProvider> chassisCommodity =
                 getChassisCommodityOfHost(host);
             if (!chassisCommodity.isPresent()) {
@@ -451,12 +453,12 @@ public class DiscoveredGroupUploader {
             }
             cluster.setDisplayName(chassis.getDisplayName() + "/" + cluster.getDisplayName());
             return;
-
         }
-        final TopologyEntity.Builder datacenter = topologyMap.get(datacenterCommodity.get().getProviderId());
+
+        final TopologyEntity.Builder datacenter = topologyMap.get(datacenterOid);
         if (datacenter == null) {
             logger.error("Topology map doesn't contain datacenter with OID {} for host (oid:{},displayName:{})",
-                    datacenterCommodity.get().getProviderId(), host.getOid(), host.getDisplayName());
+                            datacenterOid, host.getOid(), host.getDisplayName());
             return;
         }
         cluster.setDisplayName(datacenter.getDisplayName() + "/" + cluster.getDisplayName());
@@ -476,6 +478,44 @@ public class DiscoveredGroupUploader {
             .stream()
             .filter(commodityBundle -> commodityBundle.getProviderEntityType() == EntityType.CHASSIS_VALUE)
             .findFirst();
+    }
+
+    /**
+     * Get the datacenter OID for host.
+     * @param host  the host whose datacenter OID we want to get.
+     * @return datacenter OID
+     */
+    private Long getDatacenterOID(TopologyEntity.Builder host) {
+        final Optional<CommoditiesBoughtFromProvider> datacenterCommodities =
+                        getDatacenterCommodityOfHost(host);
+        if (datacenterCommodities.isPresent())  {
+            return datacenterCommodities.get().getProviderId();
+        }
+        //We try to get datacenter OID from the commodities bought by host, but they can be absent
+        //if the host got stitched with a chassis (the commodities bought from DC are removed then).
+        //In this case we use hypervisorPM2datacenterOIDs. We can't just rely on it as the single
+        //source either as it is filled only when both hypervisor and UCS targets are discovered.
+        return (hypervisorPM2datacenterOIDs == null) ? null
+                        : hypervisorPM2datacenterOIDs.get(host.getOid());
+    }
+
+    public void setPM2DCMap(Map<Long, Long> pm2dcMap)   {
+        this.hypervisorPM2datacenterOIDs = pm2dcMap;
+    }
+
+    /**
+     * Checks if a UCS target is present in the current {@link TargetStore} instance.
+     * @return true if a UCS target is present.
+     */
+    public boolean isUCSTargetPresent()  {
+        for (Target target : targetStore.getAll())  {
+            if (target.getProbeInfo().hasProbeType()
+                            && target.getProbeInfo().getProbeType().equals(
+                                            SDKProbeType.UCS.getProbeType()))   {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

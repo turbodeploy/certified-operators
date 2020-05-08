@@ -61,6 +61,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -229,6 +231,24 @@ public class RepositoryApi {
     }
 
     /**
+     * Expand the list of oids of service providers to the list of oids of the connected regions.
+     *
+     * @param serviceProviders set of service provider oids
+     * @return set of region oids
+     */
+    public Set<Long> expandServiceProvidersToRegions(@Nonnull final Set<Long> serviceProviders) {
+        return this.entitiesRequest(serviceProviders)
+                .getEntitiesWithConnections()
+                .flatMap(e -> e.getConnectedEntitiesList().stream())
+                .filter(ConnectedEntity::hasConnectedEntityId)
+                .filter(ConnectedEntity::hasConnectedEntityType)
+                .filter(c -> c.getConnectedEntityType() == EntityType.REGION_VALUE
+                        && c.getConnectionType() == ConnectionType.OWNS_CONNECTION)
+                .map(ConnectedEntity::getConnectedEntityId)
+                .collect(Collectors.toSet());
+    }
+
+    /**
      * Returns converted service entity DTOs.
      * Business users require another request to Repository in order to get all the required
      * data that's why business accounts in the repository response are just omited in this method.
@@ -357,18 +377,17 @@ public class RepositoryApi {
 
         @Nonnull
         Map<Long, ServiceEntityApiDTO> getSEMap(final long contextId,
-                                                @Nullable EntityAspectMapper aspectMapper,
-                                                @Nullable Collection<String> requestedAspects)
+                @Nullable final EntityAspectMapper aspectMapper,
+                @Nullable final Collection<String> requestedAspects)
                 throws InterruptedException, ConversionException {
             final Map<Long, ServiceEntityApiDTO> entities;
-            if (aspectMapper == null) {
-                entities = serviceEntityMapper.toServiceEntityApiDTOMap(getEntities()
-                        .collect(Collectors.toList()));
+            if (aspectMapper != null) {
+                entities = serviceEntityMapper.entitiesWithAspects(
+                        getFullEntities().collect(Collectors.toList()), aspectMapper,
+                        requestedAspects);
             } else {
-                List<TopologyEntityDTO> entityList = getFullEntities().collect(Collectors.toList());
-                entities = entitiesWithAspects(entityList, aspectMapper, requestedAspects);
-
-                setEntitiesCost(entities.values());
+                entities = serviceEntityMapper.toServiceEntityApiDTOMap(
+                        getEntities().collect(Collectors.toList()));
             }
             severityPopulator.populate(contextId, entities.values());
             return entities;
@@ -376,101 +395,10 @@ public class RepositoryApi {
 
         @Nonnull
         List<ServiceEntityApiDTO> getSEList(final long contextId,
-                @Nullable EntityAspectMapper aspectMapper,
-                @Nullable Collection<String> requestedAspects)
+                @Nullable final EntityAspectMapper aspectMapper,
+                @Nullable final Collection<String> requestedAspects)
                 throws ConversionException, InterruptedException {
-            final List<ServiceEntityApiDTO> entities;
-
-            if (aspectMapper == null) {
-                entities = getEntities()
-                        .map(serviceEntityMapper::toServiceEntityApiDTO)
-                        .collect(Collectors.toList());
-            } else {
-                List<TopologyEntityDTO> topologyEntities = getFullEntities().collect(Collectors.toList());
-                entities = entitiesWithAspects(topologyEntities, aspectMapper, requestedAspects).values().stream().collect(Collectors.toList());
-            }
-            severityPopulator.populate(contextId, entities);
-            return entities;
-
-        }
-
-        /**
-         * Convert an entity with aspect using the aspect map.
-         *
-         * @param entity entity to convert
-         * @param aspects a map containing all aspects of all entities.
-         * @return service entity
-         */
-        private ServiceEntityApiDTO entityToSeWithAspect(TopologyEntityDTO entity, Map<Long, Map<AspectName, EntityAspect>> aspects) {
-            final ServiceEntityApiDTO se = serviceEntityMapper.toServiceEntityApiDTO(entity);
-
-            if (aspects.containsKey(entity.getOid())) {
-                Map<AspectName, EntityAspect> aspectMap = aspects.get(entity.getOid());
-
-                for (EntityAspect aspect : aspectMap.values()) {
-                    if (aspect instanceof CloudAspectApiDTO) {
-                        BaseApiDTO cloudTemplate = ((CloudAspectApiDTO)aspect).getTemplate();
-                        if (cloudTemplate != null) {
-                            final TemplateApiDTO template = new TemplateApiDTO();
-                            template.setUuid(cloudTemplate.getUuid());
-                            template.setDisplayName(cloudTemplate.getDisplayName());
-                            se.setTemplate(template);
-                            break;
-                        }
-                    }
-                }
-
-                se.setAspectsByName(aspectMap);
-            }
-
-            return se;
-        }
-
-        /**
-         * Return service entities with aspects.
-         *
-         * @param entities list of topology entities
-         * @param aspectMapper aspect mapper
-         * @param requestedAspects list of requested aspects. if null or empty, we will use all aspects
-         * @return a map of oid -> serviceEntity
-         * @throws ConversionException if conversion failed.
-         * @throws InterruptedException if interrupted
-         */
-        @Nonnull
-        private Map<Long, ServiceEntityApiDTO> entitiesWithAspects(@Nonnull final List<TopologyEntityDTO> entities,
-              @Nonnull EntityAspectMapper aspectMapper,
-              @Nullable Collection<String> requestedAspects)
-                throws ConversionException, InterruptedException {
-
-            // create a map of oid -> map of aspectName -> aspect
-            Map<Long, Map<AspectName, EntityAspect>> aspects = aspectMapper.getAspectsByEntities(entities, requestedAspects);
-
-            // return a map of oid -> serviceEntity with aspect
-            return entities.stream().collect(Collectors.toMap(
-                    TopologyEntityDTO::getOid,
-                    entity -> entityToSeWithAspect(entity, aspects)
-                   ));
-        }
-
-        /**
-         * Set the cost price for entity from the input list, if available.
-         *
-         * @param entities The input list of service entities.
-         */
-        private void setEntitiesCost(Collection<ServiceEntityApiDTO> entities) {
-            Map<Long, Double>  entityCostMap = serviceEntityMapper.computeCostPriceByEntity(
-                    entities.stream()
-                        .map(entity -> Long.valueOf(entity.getUuid()))
-                        .collect(Collectors.toSet()));
-
-                for (ServiceEntityApiDTO entity : entities) {
-                    Double costPrice = entityCostMap.get(Long.valueOf(entity.getUuid()));
-                    if (costPrice == null) {
-                        entity.setCostPrice(0.0f);
-                    } else {
-                        entity.setCostPrice(costPrice.floatValue());
-                    }
-                }
+            return new ArrayList<>(getSEMap(contextId, aspectMapper, requestedAspects).values());
         }
     }
 

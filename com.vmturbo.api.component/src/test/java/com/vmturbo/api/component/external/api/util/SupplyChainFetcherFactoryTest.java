@@ -11,6 +11,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -37,6 +38,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableList;
@@ -48,6 +50,8 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.IAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
@@ -124,6 +128,8 @@ public class SupplyChainFetcherFactoryTest {
     private final SupplyChainTestUtils supplyChainTestUtils = new SupplyChainTestUtils();
 
     private final EntityAspectMapper entityAspectMapperMock = mock(EntityAspectMapper.class);
+
+    private final UuidMapper uuidMapper = mock(UuidMapper.class);
 
     private SupplyChainServiceGrpc.SupplyChainServiceBlockingStub supplyChainRpcService;
 
@@ -300,6 +306,24 @@ public class SupplyChainFetcherFactoryTest {
         Map<String, ServiceEntityApiDTO> serviceEntityApiDTOMap = supplychainEntryDTOs.iterator().next()
                 .getInstances();
         assertFalse(serviceEntityApiDTOMap.isEmpty());
+    }
+
+    /**
+     * Verify that the entity states filter is passed to the supply chain backend.
+     *
+     * @throws Exception To satisfy the compiler.
+     */
+    @Test
+    public void testSupplyChainWithEntityStates() throws Exception {
+        supplyChainFetcherFactory.newNodeFetcher()
+                .entityStates(Collections.singletonList(com.vmturbo.api.enums.EntityState.ACTIVE))
+                .fetch();
+
+        ArgumentCaptor<GetSupplyChainRequest> requestCaptor = ArgumentCaptor.forClass(GetSupplyChainRequest.class);
+        verify(supplyChainServiceBackend).getSupplyChain(requestCaptor.capture());
+        GetSupplyChainRequest req = requestCaptor.getValue();
+        assertThat(req.getScope().getEntityStatesToIncludeList(),
+                containsInAnyOrder(UIEntityState.ACTIVE.toEntityState()));
     }
 
     /**

@@ -17,6 +17,7 @@ import static org.mockito.Mockito.mock;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -43,8 +44,10 @@ import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.OrderBy.EntityStatsOrderBy;
 import com.vmturbo.common.protobuf.common.Pagination.PaginationParameters;
+import com.vmturbo.common.protobuf.common.Pagination.PaginationResponse;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.ClusterStatsResponse;
+import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter;
 import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.utils.StringConstants;
@@ -110,7 +113,8 @@ public class ClusterStatsReaderTest {
         final ComputedPropertiesProcessorFactory computedPropertiesFactory =
                 (statsFilter, recordsProcessor) ->
                         new ComputedPropertiesProcessor(statsFilter, recordsProcessor);
-        clusterStatsReader = new ClusterStatsReader(historydbIO, timeRangeFactory, computedPropertiesFactory);
+        clusterStatsReader = new ClusterStatsReader(historydbIO, timeRangeFactory,
+            computedPropertiesFactory, 500);
         System.out.println("Initializing DB - " + testDbName);
         HistorydbIO.setSharedInstance(historydbIO);
         historydbIO.setSchemaForTests(testDbName);
@@ -451,23 +455,32 @@ public class ClusterStatsReaderTest {
     public void testGetClustersEmptyScope() throws Exception {
         final ClusterStatsRequest request = constructTestInput(Collections.emptySet(), StringConstants.MEM,
                                                                false, 0, 100);
-        final ClusterStatsResponse response = clusterStatsReader.getStatsRecords(request);
+        final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
+        PaginationResponse paginationResponse = null;
+        List<EntityStats> entityStats = new ArrayList<>();
+        for (ClusterStatsResponse responseChunk : response) {
+            if (responseChunk.hasPaginationResponse()) {
+                paginationResponse = responseChunk.getPaginationResponse();
+            } else {
+                entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
+            }
+        }
 
-        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
-        Assert.assertEquals(4, response.getSnapshotsCount());
-        Assert.assertEquals(CLUSTER_ID_5, Long.toString(response.getSnapshots(0).getOid()));
-        Assert.assertEquals(CLUSTER_ID_3, Long.toString(response.getSnapshots(1).getOid()));
-        Assert.assertEquals(CLUSTER_ID_4, Long.toString(response.getSnapshots(2).getOid()));
-        Assert.assertEquals(CLUSTER_ID_6, Long.toString(response.getSnapshots(3).getOid()));
+        Assert.assertFalse(paginationResponse.hasNextCursor());
+        Assert.assertEquals(4, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_5, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(1).getOid()));
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(2).getOid()));
+        Assert.assertEquals(CLUSTER_ID_6, Long.toString(entityStats.get(3).getOid()));
         for (int i = 0; i < 4; i++) {
             Assert.assertEquals(StringConstants.MEM,
-                                response.getSnapshots(i).getStatSnapshots(0)
+                entityStats.get(i).getStatSnapshots(0)
                                         .getStatRecords(0).getName());
-            Assert.assertTrue(response.getSnapshots(i).getStatSnapshots(0)
+            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
                                       .getStatRecords(0).getCapacity().getAvg() > 0.0);
-            Assert.assertTrue(response.getSnapshots(i).getStatSnapshots(0)
+            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
                                       .getStatRecords(0).hasUsed());
-            Assert.assertEquals("KB", response.getSnapshots(i).getStatSnapshots(0)
+            Assert.assertEquals("KB", entityStats.get(i).getStatSnapshots(0)
                                                    .getStatRecords(0).getUnits());
         }
     }
@@ -484,17 +497,25 @@ public class ClusterStatsReaderTest {
         final ClusterStatsRequest request = constructTestInput(
                 ImmutableSet.of(Long.valueOf(CLUSTER_ID_3), Long.valueOf(CLUSTER_ID_5)),
                 StringConstants.CPU_HEADROOM, true, 0, 2);
-        final ClusterStatsResponse response = clusterStatsReader.getStatsRecords(request);
-
-        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
-        Assert.assertEquals(2, response.getSnapshotsCount());
-        Assert.assertEquals(CLUSTER_ID_3, Long.toString(response.getSnapshots(0).getOid()));
-        Assert.assertEquals(CLUSTER_ID_5, Long.toString(response.getSnapshots(1).getOid()));
+        final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
+        PaginationResponse paginationResponse = null;
+        List<EntityStats> entityStats = new ArrayList<>();
+        for (ClusterStatsResponse responseChunk : response) {
+            if (responseChunk.hasPaginationResponse()) {
+                paginationResponse = responseChunk.getPaginationResponse();
+            } else {
+                entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
+            }
+        }
+        Assert.assertFalse(paginationResponse.hasNextCursor());
+        Assert.assertEquals(2, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(CLUSTER_ID_5, Long.toString(entityStats.get(1).getOid()));
         for (int i = 0; i < 2; i++) {
             Assert.assertEquals(StringConstants.CPU_HEADROOM,
-                                response.getSnapshots(i).getStatSnapshots(0)
+                entityStats.get(i).getStatSnapshots(0)
                                         .getStatRecords(0).getName());
-            Assert.assertTrue(response.getSnapshots(i).getStatSnapshots(0)
+            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
                                 .getStatRecords(0).hasUsed());
         }
     }
@@ -511,17 +532,25 @@ public class ClusterStatsReaderTest {
         final ClusterStatsRequest request = constructTestInput(Collections.emptySet(),
                                                                StringConstants.NUM_CPUS, false,
                                                                1, 2);
-        final ClusterStatsResponse response = clusterStatsReader.getStatsRecords(request);
-
-        Assert.assertEquals("3", response.getPaginationResponse().getNextCursor());
-        Assert.assertEquals(2, response.getSnapshotsCount());
-        Assert.assertEquals(CLUSTER_ID_3, Long.toString(response.getSnapshots(0).getOid()));
-        Assert.assertEquals(CLUSTER_ID_4, Long.toString(response.getSnapshots(1).getOid()));
+        final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
+        PaginationResponse paginationResponse = null;
+        List<EntityStats> entityStats = new ArrayList<>();
+        for (ClusterStatsResponse responseChunk : response) {
+            if (responseChunk.hasPaginationResponse()) {
+                paginationResponse = responseChunk.getPaginationResponse();
+            } else {
+                entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
+            }
+        }
+        Assert.assertEquals("3", paginationResponse.getNextCursor());
+        Assert.assertEquals(2, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(1).getOid()));
         for (int i = 0; i < 2; i++) {
             Assert.assertEquals(StringConstants.NUM_CPUS,
-                                response.getSnapshots(i).getStatSnapshots(0)
+                entityStats.get(i).getStatSnapshots(0)
                                         .getStatRecords(0).getName());
-            Assert.assertTrue(response.getSnapshots(i).getStatSnapshots(0)
+            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
                                         .getStatRecords(0).hasUsed());
         }
     }
@@ -542,21 +571,46 @@ public class ClusterStatsReaderTest {
                                                 .setStats(StatsFilter.newBuilder()
                                                             .addCommodityRequests(commodityRequest))
                                                 .build();
-        final ClusterStatsResponse response = clusterStatsReader.getStatsRecords(request);
-
-        Assert.assertFalse(response.getPaginationResponse().hasNextCursor());
-        Assert.assertEquals(4, response.getSnapshotsCount());
-        Assert.assertEquals(CLUSTER_ID_6, Long.toString(response.getSnapshots(0).getOid()));
-        Assert.assertEquals(CLUSTER_ID_5, Long.toString(response.getSnapshots(1).getOid()));
-        Assert.assertEquals(CLUSTER_ID_4, Long.toString(response.getSnapshots(2).getOid()));
-        Assert.assertEquals(CLUSTER_ID_3, Long.toString(response.getSnapshots(3).getOid()));
+        final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
+        PaginationResponse paginationResponse = null;
+        List<EntityStats> entityStats = new ArrayList<>();
+        for (ClusterStatsResponse responseChunk : response) {
+            if (responseChunk.hasPaginationResponse()) {
+                paginationResponse = responseChunk.getPaginationResponse();
+            } else {
+                entityStats.addAll(responseChunk.getSnapshotsChunk().getSnapshotsList());
+            }
+        }
+        Assert.assertFalse(paginationResponse.hasNextCursor());
+        Assert.assertEquals(4, entityStats.size());
+        Assert.assertEquals(CLUSTER_ID_6, Long.toString(entityStats.get(0).getOid()));
+        Assert.assertEquals(CLUSTER_ID_5, Long.toString(entityStats.get(1).getOid()));
+        Assert.assertEquals(CLUSTER_ID_4, Long.toString(entityStats.get(2).getOid()));
+        Assert.assertEquals(CLUSTER_ID_3, Long.toString(entityStats.get(3).getOid()));
         for (int i = 0; i < 4; i++) {
             Assert.assertEquals(StringConstants.CPU_HEADROOM,
-                                response.getSnapshots(i).getStatSnapshots(0)
+                entityStats.get(i).getStatSnapshots(0)
                                         .getStatRecords(0).getName());
-            Assert.assertTrue(response.getSnapshots(i).getStatSnapshots(0)
+            Assert.assertTrue(entityStats.get(i).getStatSnapshots(0)
                                         .getStatRecords(0).hasUsed());
         }
+    }
+
+    /**
+     * Tests that createClusterStatsResponseList effectively chunks the entityStats and the
+     * pagination parameters.
+     *
+     * @throws Exception should not happen.
+     */
+    @Test
+    public void createClusterStatsResponseList() throws Exception {
+        final ClusterStatsRequest request = constructTestInput(Collections.emptySet(), StringConstants.MEM,
+            false, 0, 100);
+        final List<ClusterStatsResponse> response = clusterStatsReader.getStatsRecords(request);
+        Assert.assertEquals(1,
+            response.stream().filter(ClusterStatsResponse::hasPaginationResponse).count());
+        Assert.assertEquals(1,
+            response.stream().filter(ClusterStatsResponse::hasSnapshotsChunk).count());
     }
 
     private ClusterStatsRequest constructTestInput(@Nonnull Collection<Long> scope, @Nonnull String statName,

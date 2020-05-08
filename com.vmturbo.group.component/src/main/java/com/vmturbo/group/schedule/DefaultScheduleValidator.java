@@ -51,9 +51,8 @@ public class DefaultScheduleValidator implements ScheduleValidator {
 
         if (!errors.isEmpty()) {
             throw new InvalidItemException(
-                "Invalid schedule: " + schedule.getDisplayName() +
-                    System.lineSeparator() +
-                    StringUtils.join(errors, System.lineSeparator()));
+                    "Invalid schedule: " + schedule.getDisplayName() + System.lineSeparator()
+                            + StringUtils.join(errors, System.lineSeparator()));
         }
     }
 }

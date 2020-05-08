@@ -13,7 +13,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -116,21 +115,29 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
         this.derivedTargetIdsByParentId = new ConcurrentHashMap<>();
         this.parentTargetIdsByDerivedTargetId = new ConcurrentHashMap<>();
         this.targetSpecByParentTargetIdDerivedTargetId = HashBasedTable.create();
+        this.targetsById = new ConcurrentHashMap<>();
+    }
+
+    @Override
+    public void initialize() {
+        // Clear out any existing state. This is mainly necessary in cases where we forcefully
+        // initialize the store during Java migrations, and are re-initializing them afterward.
+        this.targetsById.clear();
+        this.derivedTargetIdsByParentId.clear();
+        this.parentTargetIdsByDerivedTargetId.clear();
+        this.targetSpecByParentTargetIdDerivedTargetId.clear();
 
         // Check the key-value store for targets backed up
         // by previous incarnations of the store.
         final List<Target> persistedTargets = this.targetDao.getAll();
-        this.targetsById = persistedTargets.stream()
-            .map(target -> {
-                // update data structures with parent - derived target relationship
-                target.getSpec().getDerivedTargetIdsList().forEach(derivedTargetId ->
+        persistedTargets.forEach(target -> {
+            target.getSpec().getDerivedTargetIdsList().forEach(derivedTargetId ->
                     addDerivedTargetParent(target.getId(), derivedTargetId,
-                        Optional.empty()));
-                logger.info("Restored existing target '{}' ({}) for probe {}.", target.getDisplayName(),
+                            Optional.empty()));
+            logger.info("Restored existing target '{}' ({}) for probe {}.", target.getDisplayName(),
                     target.getId(), target.getProbeId());
-                return target;
-            })
-            .collect(Collectors.toConcurrentMap(Target::getId, Function.identity()));
+            targetsById.put(target.getId(), target);
+        });
     }
 
     /**
@@ -645,6 +652,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
             .flatMap(target -> probeStore.getProbe(target.getProbeId()))
             .flatMap(probeInfo -> Optional.ofNullable(ProbeCategory.create(probeInfo.getProbeCategory())));
     }
+
 
     @Override
     public void onProbeRegistered(final long probeId, final ProbeInfo probe) {

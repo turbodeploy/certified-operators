@@ -14,8 +14,6 @@ import com.google.common.annotations.VisibleForTesting;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
 
@@ -58,8 +56,6 @@ import com.vmturbo.components.common.setting.SettingDTOUtil;
 
 @Component
 public class SettingsPoliciesService implements ISettingsPoliciesService {
-
-    private final Logger logger = LogManager.getLogger();
 
     private final SettingPolicyServiceBlockingStub settingPolicyService;
 

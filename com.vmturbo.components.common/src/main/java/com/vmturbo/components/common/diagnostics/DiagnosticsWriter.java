@@ -47,8 +47,8 @@ public class DiagnosticsWriter {
         try (DiagnosticsAppenderImpl appender = new DiagnosticsAppenderImpl(zipStream, zipEntry)) {
             diagnosable.collectDiags(appender);
         } catch (DiagnosticsException e) {
-            logger.error("Failed create dump for file " + diagnosable.getFileName() +
-                    ". Will continue with others.", e);
+            logger.error("Failed create dump for file " + diagnosable.getFileName()
+                    + ". Will continue with others.", e);
             errors.addAll(e.getErrors());
         } catch (IOException e) {
             logger.error("Failed dumping diags into file " + diagnosable.getFileName(), e);
@@ -71,8 +71,8 @@ public class DiagnosticsWriter {
             diagnosable.collectDiags(zipStream);
             zipStream.closeEntry();
         } catch (DiagnosticsException e) {
-            logger.error("Failed create dump for file " + diagnosable.getFileName() +
-                    ". Will continue with others.", e);
+            logger.error("Failed create dump for file " + diagnosable.getFileName()
+                    + ". Will continue with others.", e);
             errors.addAll(e.getErrors());
         } catch (IOException e) {
             logger.error("Failed dumping diags into file " + diagnosable.getFileName(), e);

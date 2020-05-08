@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
+import com.vmturbo.components.common.RequiresDataInitialization;
+import com.vmturbo.components.common.RequiresDataInitialization.InitializationException;
 import com.vmturbo.components.common.migration.AbstractMigration;
 import com.vmturbo.identity.exceptions.IdentifierConflictException;
 import com.vmturbo.identity.exceptions.IdentityStoreException;
@@ -64,6 +66,29 @@ public class V_01_00_03__Target_Oid_Replace_Ip_With_Address extends AbstractMigr
     @Override
     protected MigrationProgressInfo doStartMigration() {
         logger.info("Starting target OID migration.");
+
+        // Force initialization of the probe and target store (if applicable), so the non-migrated
+        // data is loaded from Consul into their local state.
+        if (probeStore instanceof RequiresDataInitialization) {
+            try {
+                ((RequiresDataInitialization)probeStore).initialize();
+            } catch (InitializationException e) {
+                String msg = "Failed to initialize probe store with error: " + e.getMessage();
+                logger.error("{}", msg, e);
+                return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
+            }
+        }
+
+        if (targetStore instanceof RequiresDataInitialization) {
+            try {
+                ((RequiresDataInitialization)targetStore).initialize();
+            } catch (InitializationException e) {
+                String msg = "Failed to initialize target store with error: " + e.getMessage();
+                logger.error("{}", msg, e);
+                return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
+            }
+        }
+
         // Get the set of all probes that use "address" as a target identifying field
         final Set<Long> relevantProbeTypes = probeStore.getProbes().entrySet().stream()
             .filter(entry -> entry.getValue().getTargetIdentifierFieldList()

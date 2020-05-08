@@ -78,13 +78,12 @@ public class DBMigrationsTest {
         final String key = file.getName();
         final String checksum = computeChecksum(file);
 
-        assertTrue("File " + key + " must have a recorded checksum. " +
-                   "Use " + checksum + " if you want to add it",
-                   checksums.containsKey(key));
+        assertTrue("File " + key + " must have a recorded checksum. " + "Use " + checksum
+                + " if you want to add it", checksums.containsKey(key));
 
-        assertEquals("The checksum for the file " + key + " does not match the one recorded. " +
-                         "Migration files must never change once published (pushed). Create a new migration file instead.",
-                     checksums.get(key), checksum);
+        assertEquals("The checksum for the file " + key + " does not match the one recorded. "
+                        + "Migration files must never change once published (pushed). Create a new migration file instead.",
+                checksums.get(key), checksum);
     }
 
     /**

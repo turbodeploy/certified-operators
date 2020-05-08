@@ -1,5 +1,6 @@
 package com.vmturbo.api.component.external.api.mapper;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -30,22 +31,23 @@ import com.google.common.collect.Sets;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
+import com.vmturbo.api.component.external.api.service.PoliciesService;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
+import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
+import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatFilterApiDTO;
 import com.vmturbo.api.enums.AspectName;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.auth.api.Pair;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionSpec;
 import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
+import com.vmturbo.common.protobuf.action.ActionDTO.Delete;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
@@ -98,6 +100,10 @@ public class ActionSpecMappingContextFactory {
 
     private final SupplyChainServiceBlockingStub supplyChainServiceClient;
 
+    private final PoliciesService policiesService;
+
+    private Collection<PolicyApiDTO> policyApiDto;
+
     public ActionSpecMappingContextFactory(@Nonnull PolicyServiceBlockingStub policyService,
                                            @Nonnull ExecutorService executorService,
                                            @Nonnull RepositoryApi repositoryApi,
@@ -107,7 +113,8 @@ public class ActionSpecMappingContextFactory {
                                            @Nonnull BuyReservedInstanceServiceBlockingStub buyRIServiceClient,
                                            @Nonnull ReservedInstanceSpecServiceBlockingStub riSpecServiceClient,
                                            @Nonnull ServiceEntityMapper serviceEntityMapper,
-                                           @Nonnull SupplyChainServiceBlockingStub supplyChainServiceClient) {
+                                           @Nonnull SupplyChainServiceBlockingStub supplyChainServiceClient,
+                                           @Nonnull PoliciesService policiesService) {
         this.policyService = Objects.requireNonNull(policyService);
         this.executorService = Objects.requireNonNull(executorService);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
@@ -118,6 +125,7 @@ public class ActionSpecMappingContextFactory {
         this.riSpecServiceClient = riSpecServiceClient;
         this.serviceEntityMapper = Objects.requireNonNull(serviceEntityMapper);
         this.supplyChainServiceClient = Objects.requireNonNull(supplyChainServiceClient);
+        this.policiesService = Objects.requireNonNull(policiesService);
     }
 
     /**
@@ -175,6 +183,7 @@ public class ActionSpecMappingContextFactory {
      *
      * @param actions list of actions
      * @param topologyContextId the context id of the topology
+     * @param policiesService the API service implementation of policy
      * @return ActionSpecMappingContext
      * @throws ExecutionException on failure getting entities
      * @throws InterruptedException if thread has been interrupted
@@ -185,6 +194,7 @@ public class ActionSpecMappingContextFactory {
             throws ExecutionException, InterruptedException, ConversionException {
 
         final Future<Map<Long, PolicyDTO.Policy>> policies = executorService.submit(this::getPolicies);
+        Collection<PolicyApiDTO> policiesApiDto = policiesService.convertPolicyDTOCollection(policies.get().values());
         final Future<Map<Long, ApiPartialEntity>> entities = executorService.submit(() ->
             getEntities(actions, topologyContextId));
         Map<Long, ApiPartialEntity> entitiesById = entities.get();
@@ -244,15 +254,14 @@ public class ActionSpecMappingContextFactory {
         final Map<Long, EntityAspect> cloudAspects = getEntityToAspectMapping(entitiesById.values(),
             Collections.emptySet(), Sets.newHashSet(EnvironmentType.CLOUD), AspectName.CLOUD);
 
+        // fetch all volume aspects
+        final Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByEntity = fetchVolumeAspects(actions, topologyContextId);
+
         if (topologyContextId == realtimeTopologyContextId) {
             return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
-                Collections.emptyMap(), cloudAspects, Collections.emptyMap(), Collections.emptyMap(),
-                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false);
+                volumesAspectsByEntity, cloudAspects, Collections.emptyMap(), Collections.emptyMap(),
+                buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, false, policiesApiDto);
         }
-
-        // fetch more info for plan actions
-        // fetch all volume aspects together first rather than fetch one by one to improve performance
-        Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByVM = fetchVolumeAspects(actions, topologyContextId);
 
         // fetch all vm aspects
         final Map<Long, EntityAspect> vmAspects = getEntityToAspectMapping(entitiesById.values(),
@@ -265,8 +274,8 @@ public class ActionSpecMappingContextFactory {
             Sets.newHashSet(EnvironmentType.CLOUD), AspectName.DATABASE);
 
         return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
-                volumesAspectsByVM, cloudAspects, vmAspects, dbAspects,
-            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true);
+            volumesAspectsByEntity, cloudAspects, vmAspects, dbAspects,
+            buyRIIdToRIBoughtandRISpec, datacenterById, serviceEntityMapper, true, policiesApiDto);
     }
 
     /**
@@ -493,52 +502,93 @@ public class ActionSpecMappingContextFactory {
      */
     private Map<Long, List<VirtualDiskApiDTO>> fetchVolumeAspects(@Nonnull List<Action> actions,
             long topologyContextId) throws InterruptedException, ConversionException {
-        Set<Long> involvedVmIds = getVMIdsToFetchVolumeAspects(actions);
-        Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByVM = volumeAspectMapper.mapVirtualMachines(
-            involvedVmIds, topologyContextId);
+        Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByEntity = new HashMap<>();
+        final Map<ApiEntityType, Set<Long>> involvedWorkloadIdsMap = getEntityIdsToFetchVolumeAspects(actions);
 
-        // add "beforePlan" filter to existing StorageAmount and add a new StorageAmount for after plan
-        volumesAspectsByVM.values().forEach(virtualDisks ->
-            virtualDisks.forEach(virtualDisk -> {
-                StatApiDTO newStorageAmount = new StatApiDTO();
-                for (StatApiDTO stat : virtualDisk.getStats()) {
-                    if (CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase().equals(stat.getName())) {
-                        // beforePlan filter so ui will show this number in the correct column
-                        StatFilterApiDTO beforePlanFilter = new StatFilterApiDTO();
-                        beforePlanFilter.setValue(StringConstants.BEFORE_PLAN);
-                        beforePlanFilter.setType(StringConstants.RESULTS_TYPE);
-                        stat.getFilters().add(beforePlanFilter);
-                        // todo: calculate new capacity for volume on new tier dynamically
-                        // based on old volume capacity and new tier constraints, or this
-                        // should be calculated from market side and returned in action?
-                        newStorageAmount.setName(stat.getName());
-                        newStorageAmount.setCapacity(stat.getCapacity());
-                        newStorageAmount.setValue(stat.getValue());
-                        newStorageAmount.setValues(stat.getValues());
-                        newStorageAmount.setUnits(stat.getUnits());
-                        break;
-                    }
-                }
-                virtualDisk.getStats().add(newStorageAmount);
-            })
-        );
-        return volumesAspectsByVM;
+        // retrieve volume aspects for move volume actions
+        final Set<Long> virtualMachinesOIDs = involvedWorkloadIdsMap.get(ApiEntityType.VIRTUAL_MACHINE);
+        if (!virtualMachinesOIDs.isEmpty()) {
+            volumesAspectsByEntity = volumeAspectMapper.mapVirtualMachines(virtualMachinesOIDs, topologyContextId);
+        }
+
+        // only process volumes aspects if we have them
+        if (!volumesAspectsByEntity.isEmpty()) {
+            // add "beforePlan" filter to existing StorageAmount and add a new StorageAmount for after plan
+            volumesAspectsByEntity.values().forEach(virtualDisks ->
+                    virtualDisks.forEach(virtualDisk -> {
+                        StatApiDTO newStorageAmount = new StatApiDTO();
+                        for (StatApiDTO stat : virtualDisk.getStats()) {
+                            if (CommodityTypeUnits.STORAGE_AMOUNT.getMixedCase().equals(stat.getName())) {
+                                // beforePlan filter so ui will show this number in the correct column
+                                StatFilterApiDTO beforePlanFilter = new StatFilterApiDTO();
+                                beforePlanFilter.setValue(StringConstants.BEFORE_PLAN);
+                                beforePlanFilter.setType(StringConstants.RESULTS_TYPE);
+                                stat.getFilters().add(beforePlanFilter);
+                                // todo: calculate new capacity for volume on new tier dynamically
+                                // based on old volume capacity and new tier constraints, or this
+                                // should be calculated from market side and returned in action?
+                                newStorageAmount.setName(stat.getName());
+                                newStorageAmount.setCapacity(stat.getCapacity());
+                                newStorageAmount.setValue(stat.getValue());
+                                newStorageAmount.setValues(stat.getValues());
+                                newStorageAmount.setUnits(stat.getUnits());
+                                break;
+                            }
+                        }
+                        virtualDisk.getStats().add(newStorageAmount);
+                    })
+            );
+        }
+
+        // retrieve volume aspects for delete volume actions
+        final Map<Long, List<VirtualDiskApiDTO>> aspectsByEntity = new HashMap<>(volumesAspectsByEntity);
+        final Set<Long> virtualVolumeOIDs = involvedWorkloadIdsMap.get(ApiEntityType.VIRTUAL_VOLUME);
+        if (!virtualVolumeOIDs.isEmpty()) {
+            final Optional<Map<Long, EntityAspect>> unattachedVolumeAspects = volumeAspectMapper
+                    .mapUnattachedVirtualVolumes(virtualVolumeOIDs, topologyContextId);
+            unattachedVolumeAspects.ifPresent(longEntityAspectMap -> longEntityAspectMap.forEach((id, aspect) -> {
+                List<VirtualDiskApiDTO> virtualDiskApiDTOS = Collections.unmodifiableList(((VirtualDisksAspectApiDTO)aspect).getVirtualDisks());
+                aspectsByEntity.put(id, virtualDiskApiDTOS);
+            }));
+        }
+
+        return aspectsByEntity;
     }
 
     /**
-     * Get the oids of the VMs which we need to fetch volume aspects for and set to the ActionApiDTO later.
+     * Get the oids of the entities which we need to fetch volume aspects for and set to the ActionApiDTO later.
+     *
+     * @param actions list of Move or Delete Volume actions
+     * @return enumeration map of ApiEntityType and set of oids of action targets
      */
-    private Set<Long> getVMIdsToFetchVolumeAspects(@Nonnull final List<Action> actions) {
-        return actions.stream()
-            .map(Action::getInfo)
-            .filter(actionInfo -> actionInfo.getActionTypeCase() == ActionTypeCase.MOVE)
-            .map(ActionInfo::getMove)
-            .filter(move -> move.getChangesList().stream().anyMatch(ChangeProvider::hasResource))
-            .map(Move::getTarget)
-            .filter(actionEntity -> actionEntity.getEnvironmentType() == EnvironmentType.CLOUD
-                && actionEntity.getType() == EntityType.VIRTUAL_MACHINE_VALUE)
-            .map(ActionEntity::getId)
-            .collect(Collectors.toSet());
+    private Map<ApiEntityType, Set<Long>> getEntityIdsToFetchVolumeAspects(@Nonnull final List<Action> actions) {
+        // action here could be volume MOVE or volume DELETE action
+        final Set<Long> vmIds = new HashSet<>();
+        final Set<Long> volumeIds = new HashSet<>();
+        actions.forEach(action -> {
+            ActionTypeCase actionTypeCase = action.getInfo().getActionTypeCase();
+            // volume moves
+            if (actionTypeCase.equals(ActionTypeCase.MOVE)) {
+                Move moveInfo = action.getInfo().getMove();
+                if (moveInfo.getTarget().getEnvironmentType() == EnvironmentType.CLOUD
+                        && moveInfo.getTarget().getType() == EntityType.VIRTUAL_MACHINE_VALUE) {
+                    vmIds.add(moveInfo.getTarget().getId());
+                }
+            }
+            // volume deletes
+            if (actionTypeCase.equals(ActionTypeCase.DELETE)) {
+                Delete deleteInfo = action.getInfo().getDelete();
+                if (deleteInfo.getTarget().getEnvironmentType().equals(EnvironmentType.CLOUD)
+                        && deleteInfo.getTarget().getType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                    volumeIds.add(deleteInfo.getTarget().getId());
+                }
+            }
+        });
+
+        final Map<ApiEntityType, Set<Long>> entityTypeToIdsMapping = new HashMap<ApiEntityType, Set<Long>>();
+        entityTypeToIdsMapping.put(ApiEntityType.VIRTUAL_MACHINE, vmIds);
+        entityTypeToIdsMapping.put(ApiEntityType.VIRTUAL_VOLUME, volumeIds);
+        return entityTypeToIdsMapping;
     }
 
     /**
@@ -556,7 +606,7 @@ public class ActionSpecMappingContextFactory {
 
         private final Map<Long, ApiPartialEntity> entityIdToRegion;
 
-        private final Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVM;
+        private final Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByEntity;
 
         private final Map<Long, EntityAspect> cloudAspects;
 
@@ -570,10 +620,12 @@ public class ActionSpecMappingContextFactory {
 
         private final boolean isPlan;
 
+        private final Map<String, PolicyApiDTO> policiesApiDto;
+
         ActionSpecMappingContext(@Nonnull Map<Long, ApiPartialEntity> topologyEntityDTOs,
                                  @Nonnull Map<Long, PolicyDTO.Policy> policies,
                                  @Nonnull Map<Long, ApiPartialEntity> entityIdToRegion,
-                                 @Nonnull Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByVM,
+                                 @Nonnull Map<Long, List<VirtualDiskApiDTO>> volumeAspectsByEntity,
                                  @Nonnull Map<Long, EntityAspect> cloudAspects,
                                  @Nonnull Map<Long, EntityAspect> vmAspects,
                                  @Nonnull Map<Long, EntityAspect> dbAspects,
@@ -581,23 +633,30 @@ public class ActionSpecMappingContextFactory {
                                          buyRIIdToRIBoughtandRISpec,
                                  @Nonnull Map<Long, ApiPartialEntity> oidToDatacenter,
                                  @Nonnull ServiceEntityMapper serviceEntityMapper,
-                                 final boolean isPlan) {
+                                 final boolean isPlan,
+                                 final Collection<PolicyApiDTO> policiesApiDto) {
             this.serviceEntityApiDTOs = topologyEntityDTOs.entrySet().stream()
                 .collect(Collectors.toMap(Entry::getKey, entry ->
                     serviceEntityMapper.toServiceEntityApiDTO(entry.getValue())));
             this.policies = Objects.requireNonNull(policies);
             this.entityIdToRegion = Objects.requireNonNull(entityIdToRegion);
-            this.volumeAspectsByVM = Objects.requireNonNull(volumeAspectsByVM);
+            this.volumeAspectsByEntity = Objects.requireNonNull(volumeAspectsByEntity);
             this.cloudAspects = Objects.requireNonNull(cloudAspects);
             this.vmAspects = Objects.requireNonNull(vmAspects);
             this.dbAspects = Objects.requireNonNull(dbAspects);
             this.buyRIIdToRIBoughtandRISpec = buyRIIdToRIBoughtandRISpec;
             this.oidToDatacenter = oidToDatacenter;
             this.isPlan = isPlan;
+            this.policiesApiDto = policiesApiDto.stream()
+                    .collect(Collectors.toMap(PolicyApiDTO::getUuid, Function.identity()));;
         }
 
         PolicyDTO.Policy getPolicy(long id) {
             return policies.get(id);
+        }
+
+        Map<String, PolicyApiDTO> getPolicyApiDtoMap() {
+            return policiesApiDto;
         }
 
         @Nonnull
@@ -615,8 +674,8 @@ public class ActionSpecMappingContextFactory {
             return entityIdToRegion.get(entityOid);
         }
 
-        List<VirtualDiskApiDTO> getVolumeAspects(@Nonnull Long vmId) {
-            return volumeAspectsByVM.getOrDefault(vmId, Collections.emptyList());
+        List<VirtualDiskApiDTO> getVolumeAspects(@Nonnull Long entityId) {
+            return volumeAspectsByEntity.getOrDefault(entityId, Collections.emptyList());
         }
 
         Optional<EntityAspect> getCloudAspect(@Nonnull Long entityId) {

@@ -6,6 +6,7 @@ import java.util.Map;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -105,15 +106,18 @@ public class SpotPriceTableConverter {
 
             final Price existingPrice = spotPriceByOsType.get(osType);
             if (spotPriceByOsType.containsKey(osType)) {
-                logger.warn("Spot price table reader: duplicate price for zone/region {}," +
-                                " compute tier {}, OS {}: existing price - {}, new price - {}",
-                        zoneOrRegionOid, computeTierOid, osType, existingPrice, price);
+                Level logLevel = existingPrice != null && price != null && existingPrice.getPriceAmount() != null
+                                && price.getPriceAmount() != null
+                                && existingPrice.getPriceAmount().getAmount() != price.getPriceAmount().getAmount()
+                                ? Level.WARN : Level.DEBUG;
+                logger.log(logLevel, "Spot price table reader: duplicate price for zone/region {},"
+                                                + " compute tier {}, OS {}: existing price - {}, new price - {}",
+                                zoneOrRegionOid, computeTierOid, osType, existingPrice, price);
                 continue;
             }
 
             spotPriceByOsType.put(osType, price);
         }
-
         return spotPriceMap;
     }
 

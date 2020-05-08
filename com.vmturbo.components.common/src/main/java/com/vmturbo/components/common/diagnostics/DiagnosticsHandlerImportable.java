@@ -92,8 +92,8 @@ public class DiagnosticsHandlerImportable extends DiagnosticsHandler implements
             @Nonnull Diags diagnostics) throws DiagnosticsException {
         logger.info("Importing string diagnostics from file {}", diagnostics.getName());
         if (diagnostics.getLines() == null) {
-            throw new DiagnosticsException("File " + diagnostics.getName() +
-                    " is expected to contain string data but does not");
+            throw new DiagnosticsException("File " + diagnostics.getName()
+                    + " is expected to contain string data but does not");
         }
         stringDiags.restoreDiags(diagnostics.getLines());
     }
@@ -102,8 +102,8 @@ public class DiagnosticsHandlerImportable extends DiagnosticsHandler implements
             @Nonnull Diags diagnostics) throws DiagnosticsException {
         logger.info("Importing binary diagnostics from file {}", diagnostics.getName());
         if (diagnostics.getBytes() == null) {
-            throw new DiagnosticsException("File " + diagnostics.getName() +
-                    " is expected to contain binary data but does not");
+            throw new DiagnosticsException("File " + diagnostics.getName()
+                    + " is expected to contain binary data but does not");
         }
         binaryDiags.restoreDiags(diagnostics.getBytes());
     }

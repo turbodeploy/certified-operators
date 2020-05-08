@@ -37,8 +37,9 @@ public class V1_20__RemoveVmResizeSetting implements JdbcMigration, MigrationChe
         try {
             connection.setAutoCommit(false);
             final ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT id, setting_policy_data " +
-                    "FROM setting_policy WHERE policy_type = 'user' or name = " + virtualMachineDefaults);
+                    .executeQuery("SELECT id, setting_policy_data "
+                            + "FROM setting_policy WHERE policy_type = 'user' or name = "
+                            + virtualMachineDefaults);
             while (rs.next()) {
                 final long oid = rs.getLong("id");
                 final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");

@@ -67,6 +67,7 @@ import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.components.common.diagnostics.DiagsZipReader;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
@@ -75,11 +76,12 @@ import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundExcep
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
-import com.vmturbo.group.db.tables.records.SettingPolicyGroupsRecord;
 import com.vmturbo.group.db.tables.records.GlobalSettingsRecord;
+import com.vmturbo.group.db.tables.records.SettingPolicyGroupsRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingOidsRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingRecord;
+import com.vmturbo.group.db.tables.records.SettingPolicySettingScheduleIdsRecord;
 import com.vmturbo.group.service.StoreOperationException;
 
 /**
@@ -495,29 +497,62 @@ public class SettingStore implements DiagsRestorable {
                 context.selectFrom(SETTING_POLICY_SETTING)
                         .where(SETTING_POLICY_SETTING.POLICY_ID.in(oids))
                         .fetch();
+
+        final Table<Long, String, List<Long>> oidsCollection =
+                getSettingsOidsFromSeparateTable(context, oids);
+
+        final Table<Long, String, List<Long>> executionSchedulesCollection =
+                getSettingsExecutionSchedulesFromSeparateTable(context, oids);
+
+        for (SettingPolicySettingRecord record : settingRecords) {
+            policySettings.computeIfAbsent(record.getPolicyId(), key -> new HashSet<>())
+                    .add(convertFromDb(record, oidsCollection, executionSchedulesCollection));
+        }
+        return Collections.unmodifiableMap(policySettings);
+    }
+
+    @Nonnull
+    private Table<Long, String, List<Long>> getSettingsOidsFromSeparateTable(
+            @Nonnull DSLContext context, @Nonnull Collection<Long> oids) {
         final List<SettingPolicySettingOidsRecord> oidsRecords =
                 context.selectFrom(Tables.SETTING_POLICY_SETTING_OIDS)
                         .where(Tables.SETTING_POLICY_SETTING_OIDS.POLICY_ID.in(oids))
                         .orderBy(Tables.SETTING_POLICY_SETTING_OIDS.OID_NUMBER)
                         .fetch();
         final Table<Long, String, List<Long>> oidsCollection = HashBasedTable.create();
-        for (SettingPolicySettingOidsRecord oidRecord: oidsRecords) {
-            final List<Long> existing =
-                    oidsCollection.get(oidRecord.getPolicyId(), oidRecord.getSettingName());
-            final List<Long> effectiveList;
-            if (existing == null) {
-                effectiveList = new ArrayList<>();
-                oidsCollection.put(oidRecord.getPolicyId(), oidRecord.getSettingName(), effectiveList);
-            } else {
-                effectiveList = existing;
-            }
-            effectiveList.add(oidRecord.getOid());
+        for (SettingPolicySettingOidsRecord oidRecord : oidsRecords) {
+            populateMultipleSettingValues(oidsCollection, oidRecord.getPolicyId(), oidRecord.getSettingName(),
+                    oidRecord.getOid());
         }
-        for (SettingPolicySettingRecord record : settingRecords) {
-            policySettings.computeIfAbsent(record.getPolicyId(), key -> new HashSet<>())
-                    .add(convertFromDb(record, oidsCollection));
+        return oidsCollection;
+    }
+
+    @Nonnull
+    private Table<Long, String, List<Long>> getSettingsExecutionSchedulesFromSeparateTable(
+            @Nonnull DSLContext context, @Nonnull Collection<Long> oids) {
+        final List<SettingPolicySettingScheduleIdsRecord> scheduleIdsRecords =
+                context.selectFrom(Tables.SETTING_POLICY_SETTING_SCHEDULE_IDS)
+                        .where(Tables.SETTING_POLICY_SETTING_SCHEDULE_IDS.POLICY_ID.in(oids))
+                        .fetch();
+        final Table<Long, String, List<Long>> scheduleIdsCollection = HashBasedTable.create();
+        for (SettingPolicySettingScheduleIdsRecord scheduleRecord : scheduleIdsRecords) {
+            populateMultipleSettingValues(scheduleIdsCollection, scheduleRecord.getPolicyId(),
+                    scheduleRecord.getSettingName(), scheduleRecord.getExecutionScheduleId());
         }
-        return Collections.unmodifiableMap(policySettings);
+        return scheduleIdsCollection;
+    }
+
+    private void populateMultipleSettingValues(@Nonnull Table<Long, String, List<Long>> collection,
+            @Nonnull Long policyId, @Nonnull String settingName, @Nonnull Long value) {
+        final List<Long> existing = collection.get(policyId, settingName);
+        final List<Long> effectiveList;
+        if (existing == null) {
+            effectiveList = new ArrayList<>();
+            collection.put(policyId, settingName, effectiveList);
+        } else {
+            effectiveList = existing;
+        }
+        effectiveList.add(value);
     }
 
     @Nonnull
@@ -566,26 +601,41 @@ public class SettingStore implements DiagsRestorable {
 
     @Nonnull
     private Setting convertFromDb(@Nonnull SettingPolicySettingRecord record,
-            @Nonnull Table<Long, String, List<Long>> oidListValues) throws StoreOperationException {
+            @Nonnull Table<Long, String, List<Long>> oidListValues,
+            @Nonnull Table<Long, String, List<Long>> scheduleValues) throws StoreOperationException {
+        final String settingName = record.getSettingName();
+        final Long policyId = record.getPolicyId();
         final ValueCase valueCase = Objects.requireNonNull(record.getSettingType(),
-                "Setting type not found for setting " + record.getSettingName() + " in policy " +
-                        record.getPolicyId());
+                "Setting type not found for setting " + settingName + " in policy " + policyId);
         final SettingValueConverter converter =
                 Objects.requireNonNull(SETTING_VALUE_CONVERTERS.get(valueCase),
-                        "Unexpected type found for setting " + record.getSettingName() +
-                                " in policy " + record.getPolicyId() + ": " + valueCase);
+                        "Unexpected type found for setting " + settingName + " in policy "
+                                + policyId + ": " + valueCase);
         try {
-            final List<Long> oidsValue =
-                    oidListValues.get(record.getPolicyId(), record.getSettingName());
+            final List<Long> multiplySettingValues =
+                    getAppropriateMultiplySettingValue(settingName, policyId, oidListValues,
+                            scheduleValues);
+
             return converter.fromDbValue(record.getSettingValue(),
-                    oidsValue == null ? Collections.emptyList() : oidsValue)
-                    .setSettingSpecName(record.getSettingName())
+                    multiplySettingValues == null ? Collections.emptyList() : multiplySettingValues)
+                    .setSettingSpecName(settingName)
                     .build();
         } catch (NumberFormatException e) {
             throw new StoreOperationException(Status.INTERNAL,
                     String.format("Failed to convert of setting %d-\"%s\" of type %s: %s",
-                            record.getPolicyId(), record.getSettingName(), valueCase,
+                            policyId, settingName, valueCase,
                             record.getSettingValue()), e);
+        }
+    }
+
+    @Nullable
+    private List<Long> getAppropriateMultiplySettingValue(@Nonnull String settingName,
+            @Nonnull Long policyId, @Nonnull Table<Long, String, List<Long>> oidListValues,
+            @Nonnull Table<Long, String, List<Long>> scheduleValues) {
+        if (EntitySettingSpecs.isExecutionScheduleSetting(settingName)) {
+            return scheduleValues.get(policyId, settingName);
+        } else {
+            return oidListValues.get(policyId, settingName);
         }
     }
 
@@ -1251,12 +1301,10 @@ public class SettingStore implements DiagsRestorable {
                     new SettingPolicySettingRecord(policyId, setting.getSettingSpecName(),
                             setting.getValueCase(), "-");
             result.add(mainRecord);
-            int counter = 0;
-            for (Long oid : setting.getSortedSetOfOidSettingValue().getOidsList()) {
-                final SettingPolicySettingOidsRecord record =
-                        new SettingPolicySettingOidsRecord(policyId, setting.getSettingSpecName(),
-                                counter++, oid);
-                result.add(record);
+            if (EntitySettingSpecs.isExecutionScheduleSetting(setting.getSettingSpecName())) {
+                addExecutionScheduleRecords(result, setting, policyId);
+            } else {
+                addOidsRecords(result, setting, policyId);
             }
             return result;
         }
@@ -1268,6 +1316,27 @@ public class SettingStore implements DiagsRestorable {
                     .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
                             .addAllOids(oidListValue)
                             .build());
+        }
+
+        private void addOidsRecords(@Nonnull List<TableRecord<?>> result, @Nonnull Setting setting,
+                long policyId) {
+            int counter = 0;
+            for (Long oid : setting.getSortedSetOfOidSettingValue().getOidsList()) {
+                final SettingPolicySettingOidsRecord record =
+                        new SettingPolicySettingOidsRecord(policyId, setting.getSettingSpecName(),
+                                counter++, oid);
+                result.add(record);
+            }
+        }
+
+        private void addExecutionScheduleRecords(@Nonnull List<TableRecord<?>> result,
+                @Nonnull Setting setting, long policyId) {
+            for (Long oid : setting.getSortedSetOfOidSettingValue().getOidsList()) {
+                final SettingPolicySettingScheduleIdsRecord record =
+                        new SettingPolicySettingScheduleIdsRecord(policyId,
+                                setting.getSettingSpecName(), oid);
+                result.add(record);
+            }
         }
     }
 }

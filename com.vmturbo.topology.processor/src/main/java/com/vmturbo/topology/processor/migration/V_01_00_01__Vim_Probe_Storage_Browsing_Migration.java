@@ -11,6 +11,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.common.Migration.MigrationProgressInfo;
 import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
+import com.vmturbo.components.common.RequiresDataInitialization;
+import com.vmturbo.components.common.RequiresDataInitialization.InitializationException;
 import com.vmturbo.components.common.migration.AbstractMigration;
 import com.vmturbo.components.common.migration.Migration;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -79,7 +81,6 @@ public class V_01_00_01__Vim_Probe_Storage_Browsing_Migration extends AbstractMi
     public V_01_00_01__Vim_Probe_Storage_Browsing_Migration(@Nonnull ProbeStore probeStore,
                                                             @Nonnull IdentityServiceUnderlyingStore identityInMemoryStore,
                                                             @Nonnull IdentityProvider identityProvider) {
-
         this.probeStore = Objects.requireNonNull(probeStore);
         this.identityInMemoryStore = Objects.requireNonNull(identityInMemoryStore);
         this.identityProvider = Objects.requireNonNull(identityProvider);
@@ -89,6 +90,18 @@ public class V_01_00_01__Vim_Probe_Storage_Browsing_Migration extends AbstractMi
     public MigrationProgressInfo doStartMigration() {
         // Update the probe metadata with the new account value.
         logger.info("Starting migration of vCenter account values.");
+
+        // Force initialization of the probe store, so the non-migrated
+        // data is loaded from Consul into its local state.
+        if (probeStore instanceof RequiresDataInitialization) {
+            try {
+                ((RequiresDataInitialization)probeStore).initialize();
+            } catch (InitializationException e) {
+                String msg = "Failed to initialize probe store with error: " + e.getMessage();
+                logger.error("{}", msg, e);
+                return updateMigrationProgress(MigrationStatus.FAILED, 0, msg);
+            }
+        }
 
         Optional<Long> probeId =
             probeStore.getProbeIdForType(SDKProbeType.VCENTER.getProbeType());

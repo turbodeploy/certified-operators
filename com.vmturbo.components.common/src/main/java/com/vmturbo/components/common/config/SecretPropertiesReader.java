@@ -121,8 +121,8 @@ public class SecretPropertiesReader extends YamlProcessor {
         final Properties result = new Properties();
         final Map<String, String> secretsMap = componentSecretKeyMap.get(componentType);
         if (secretsMap == null) {
-            logger.error("Found unknown component: {}. If it's a valid component, add it to " +
-                    "SecretPropertiesReader#componentCredentialKeyMap", componentType);
+            logger.error("Found unknown component: {}. If it's a valid component, add it to "
+                    + "SecretPropertiesReader#componentCredentialKeyMap", componentType);
             throw new UnknowComponentException("Found unknown component: " + componentType);
         }
         for (Map.Entry<String, String> secretEntry : secretsMap.entrySet()) {

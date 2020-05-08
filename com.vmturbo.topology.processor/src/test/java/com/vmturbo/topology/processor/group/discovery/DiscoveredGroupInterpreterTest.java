@@ -246,9 +246,16 @@ public class DiscoveredGroupInterpreterTest {
                 .setConstraintId("constraint")
                 .setConstraintName("name"))
             .setMemberList(MembersList.newBuilder().addMember("1").build())
-            .putTags("key", TagValues.newBuilder()
-                 .addAllValue(Arrays.asList("value1", "value2"))
-                 .build())
+            .addEntityProperties(CommonDTO.EntityDTO.EntityProperty.newBuilder()
+                .setNamespace("VCTAGS")
+                .setName("key")
+                .setValue("value1")
+                .build())
+            .addEntityProperties(CommonDTO.EntityDTO.EntityProperty.newBuilder()
+                .setNamespace("VCTAGS")
+                .setName("key")
+                .setValue("value2")
+                .build())
             .build();
         final GroupInterpretationContext context =
             new GroupInterpretationContext(TARGET_ID, Collections.singletonList(group));
@@ -662,6 +669,9 @@ public class DiscoveredGroupInterpreterTest {
                 .setDisplayName(DISPLAY_NAME)
                 .setGroupName("rg")
                 .setMemberList(MembersList.getDefaultInstance())
+                .putTags("key", TagValues.newBuilder()
+                    .addAllValue(Arrays.asList("value1", "value2"))
+                    .build())
                 .build();
         final Collection<InterpretedGroup> result =
                 converter.interpretSdkGroupList(Collections.singletonList(group), TARGET_ID);
@@ -672,6 +682,11 @@ public class DiscoveredGroupInterpreterTest {
         assertThat(rg.getGroupDefinition().get().getType(), is(GroupType.RESOURCE));
         assertThat(rg.getGroupDefinition().get().getDisplayName(), is(DISPLAY_NAME));
         assertThat(rg.getStaticMembers().size(), is(0));
+        assertEquals(1, rg.getGroupDefinition().get().getTags().getTagsCount());
+        final TagValuesDTO tagValuesDTO = rg.getGroupDefinition().get().getTags().getTagsOrThrow("key");
+        assertEquals(2, tagValuesDTO.getValuesCount());
+        final Set<String> tagValues = new HashSet<>(tagValuesDTO.getValuesList());
+        assertEquals(ImmutableSet.of("value1", "value2"), tagValues);
     }
 
     @Test

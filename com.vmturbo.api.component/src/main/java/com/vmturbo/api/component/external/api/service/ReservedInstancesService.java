@@ -38,7 +38,6 @@ import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest;
 import com.vmturbo.api.pagination.EntityStatsPaginationRequest.EntityStatsPaginationResponse;
 import com.vmturbo.api.serviceinterfaces.IReservedInstancesService;
-import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.common.protobuf.cost.Cost.AccountFilter;
 import com.vmturbo.common.protobuf.cost.Cost.AvailabilityZoneFilter;
 import com.vmturbo.common.protobuf.cost.Cost.GetPlanReservedInstanceBoughtRequest;
@@ -53,7 +52,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
 import com.vmturbo.common.protobuf.cost.PlanReservedInstanceServiceGrpc.PlanReservedInstanceServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceBoughtServiceGrpc.ReservedInstanceBoughtServiceBlockingStub;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceSpecServiceGrpc.ReservedInstanceSpecServiceBlockingStub;
-import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -68,8 +66,6 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     private final ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecService;
 
-    private final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService;
-
     private final ReservedInstanceMapper reservedInstanceMapper;
 
     private final RepositoryApi repositoryApi;
@@ -82,35 +78,25 @@ public class ReservedInstancesService implements IReservedInstancesService {
 
     private final UuidMapper uuidMapper;
 
-    private final UserSessionContext userSessionContext;
-
-    private final Long realtimeTopologyContextId;
-
     public ReservedInstancesService(
             @Nonnull final ReservedInstanceBoughtServiceBlockingStub reservedInstanceService,
             @Nonnull final PlanReservedInstanceServiceBlockingStub planReservedInstanceService,
             @Nonnull final ReservedInstanceSpecServiceBlockingStub reservedInstanceSpecService,
-            @Nonnull final ReservedInstanceUtilizationCoverageServiceBlockingStub riUtilizationCoverageService,
             @Nonnull final ReservedInstanceMapper reservedInstanceMapper,
             @Nonnull final RepositoryApi repositoryApi,
             @Nonnull final GroupExpander groupExpander,
             @Nonnull final PlanServiceBlockingStub planRpcService,
             @Nonnull final StatsQueryExecutor statsQueryExecutor,
-            @Nonnull final UuidMapper uuidMapper,
-            @Nonnull final UserSessionContext userSessionContext,
-            @Nonnull final Long realtimeTopologyContextId) {
+            @Nonnull final UuidMapper uuidMapper) {
         this.reservedInstanceService = Objects.requireNonNull(reservedInstanceService);
         this.planReservedInstanceService = Objects.requireNonNull(planReservedInstanceService);
         this.reservedInstanceSpecService = Objects.requireNonNull(reservedInstanceSpecService);
-        this.riUtilizationCoverageService = Objects.requireNonNull(riUtilizationCoverageService);
         this.reservedInstanceMapper = Objects.requireNonNull(reservedInstanceMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.groupExpander = Objects.requireNonNull(groupExpander);
         this.planRpcService = Objects.requireNonNull(planRpcService);
         this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
-        this.userSessionContext = Objects.requireNonNull(userSessionContext);
-        this.realtimeTopologyContextId = Objects.requireNonNull(realtimeTopologyContextId);
     }
 
     @Override
@@ -248,7 +234,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                 .addAllScopeSeedOids(scope.getScopeOids())
                                 .build()).getReservedInstanceBoughtList();
             } else {
-                return Collections.emptySet();
+                throw new IllegalArgumentException(String.format("%s is illegal argument. "
+                        + "Should be a valid numeric id.", scope.oid()));
             }
         }
     }

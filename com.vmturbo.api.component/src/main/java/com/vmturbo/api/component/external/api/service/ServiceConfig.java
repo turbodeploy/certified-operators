@@ -18,6 +18,7 @@ import org.springframework.context.annotation.PropertySource;
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.communication.HeaderAuthenticationProvider;
 import com.vmturbo.api.component.communication.SamlAuthenticationProvider;
+import com.vmturbo.api.component.external.api.CustomRequestAwareAuthenticationSuccessHandler;
 import com.vmturbo.api.component.external.api.listener.HttpSessionListener;
 import com.vmturbo.api.component.external.api.mapper.CloudTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.CpuInfoMapper;
@@ -46,6 +47,7 @@ import com.vmturbo.api.component.external.api.util.stats.query.impl.StorageStats
 import com.vmturbo.api.component.external.api.websocket.ApiWebsocketConfig;
 import com.vmturbo.api.component.security.HeaderAuthenticationCondition;
 import com.vmturbo.api.component.security.IntersightIdTokenVerifier;
+import com.vmturbo.api.component.security.OpenIdAuthenticationCondition;
 import com.vmturbo.api.component.security.SamlAuthenticationCondition;
 import com.vmturbo.api.enums.DeploymentMode;
 import com.vmturbo.api.serviceinterfaces.IWorkflowsService;
@@ -156,6 +158,12 @@ public class ServiceConfig {
     private String apiPaginationDefaultSortCommodity;
 
     /**
+     * Feature flag. If it is true than ExecutionSchedule settings are not displayed in UI.
+     */
+    @Value("${hideExecutionScheduleSetting:true}")
+    private boolean hideExecutionScheduleSetting;
+
+    /**
      * We allow autowiring between different configuration objects, but not for a bean.
      */
     @Autowired
@@ -195,7 +203,8 @@ public class ServiceConfig {
                                   communicationConfig.repositoryApi(),
                                   communicationConfig.getRealtimeTopologyContextId(),
                                   actionStatsQueryExecutor(),
-                                  mapperConfig.uuidMapper());
+                                  mapperConfig.uuidMapper(),
+                                  communicationConfig.serviceProviderExpander());
     }
 
     @Bean
@@ -330,7 +339,8 @@ public class ServiceConfig {
                 communicationConfig.thinTargetCache(),
                 entitySettingQueryExecutor(),
                 mapperConfig.groupFilterMapper(),
-                businessAccountRetriever());
+                businessAccountRetriever(),
+                communicationConfig.serviceProviderExpander());
     }
 
     @Bean
@@ -399,15 +409,12 @@ public class ServiceConfig {
             communicationConfig.reservedInstanceBoughtServiceBlockingStub(),
             communicationConfig.planReservedInstanceServiceBlockingStub(),
             communicationConfig.reservedInstanceSpecServiceBlockingStub(),
-            communicationConfig.reservedInstanceUtilizationCoverageServiceBlockingStub(),
             mapperConfig.reservedInstanceMapper(),
             communicationConfig.repositoryApi(),
             communicationConfig.groupExpander(),
             communicationConfig.planRpcService(),
             statsQueryExecutor(),
-            mapperConfig.uuidMapper(),
-            userSessionContext(),
-            communicationConfig.getRealtimeTopologyContextId());
+            mapperConfig.uuidMapper());
     }
 
     @Bean
@@ -504,7 +511,7 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 mapperConfig.settingsMapper(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
-                settingsPoliciesService());
+                settingsPoliciesService(), hideExecutionScheduleSetting);
     }
 
     @Bean
@@ -824,6 +831,7 @@ public class ServiceConfig {
             mapperConfig.paginationMapper(),
             communicationConfig.supplyChainFetcher(),
             communicationConfig.groupExpander(),
+            communicationConfig.serviceProviderExpander(),
             communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -847,4 +855,18 @@ public class ServiceConfig {
             websocketConfig.websocketHandler()
         );
     }
+
+    /**
+     * OpenID authentication provider bean.
+     *
+     * @return OpenID authentication provider bean.
+     */
+    @Bean
+    @Conditional(OpenIdAuthenticationCondition.class)
+    public CustomRequestAwareAuthenticationSuccessHandler customRequestAwareAuthenticationSuccessHandler() {
+        return new CustomRequestAwareAuthenticationSuccessHandler(authConfig.getAuthHost(), authConfig.getAuthPort(),
+                authConfig.getAuthRoute(), communicationConfig.serviceRestTemplate(),
+                securityConfig.verifier(), targetStore());
+    }
+
 }

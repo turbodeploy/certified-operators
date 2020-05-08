@@ -7,7 +7,7 @@
         <groupId>com.vmturbo</groupId>
         <artifactId>com.vmturbo.components</artifactId>
         <relativePath>../com.vmturbo.components/pom.xml</relativePath>
-        <version>7.22.0-SNAPSHOT</version>
+        <version>7.22.1-SNAPSHOT</version>
     </parent>
 
     <artifactId>com.vmturbo.api.component</artifactId>
@@ -234,7 +234,7 @@
                                 <artifactItem>
                                     <groupId>com.vmturbo</groupId>
                                     <artifactId>com.vmturbo.api</artifactId>
-                                    <version>${vmturbo.mt.branch.version}</version>
+                                    <version>${com.vmturbo.api.version}</version>
                                     <type>jar</type>
                                     <outputDirectory>${project.build.directory}</outputDirectory>
                                     <includes>apidoc/**/*</includes>
@@ -446,12 +446,35 @@
             <version>5.3.0.RELEASE</version>
         </dependency>
         <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-client</artifactId>
+            <version>5.3.0.RELEASE</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
+            <version>5.3.0.RELEASE</version>
+        </dependency>
+        <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-collections4</artifactId>
+        </dependency>
+        <!-- Excluding commons-collections 3.2.1 which is transitively introduced by
+          org.springframework.security:spring-security-saml2-service-provider:jar:5.3.0.RELEASE.
+          This library has security vulnerabilities.
+          See https://www.cvedetails.com/vulnerability-list/vendor_id-45/product_id-32731/version_id-187982/Apache-Commons-Collections-3.2.1.html
+          Note: We have verified basic SAML functions still works after removing this library.
+          Although further investigation might be needed.
+        -->
+        <dependency>
+            <groupId>commons-collections</groupId>
+            <artifactId>commons-collections</artifactId>
+            <version>3.2.1</version>
+            <scope>provided</scope>
         </dependency>
         <dependency>
             <!-- ical4j library is used for its support of recurring events.

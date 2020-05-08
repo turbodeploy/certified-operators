@@ -235,8 +235,8 @@ public class DefaultSettingPolicyCreator implements Runnable {
                     .stream()
                     .map(SettingPolicyInfo::getName)
                     .collect(Collectors.joining(", "));
-            logger.error("Interrupted creation of policies! The following default" +
-                    "policies have not been created: " + policiesList);
+            logger.error("Interrupted creation of policies! The following default"
+                    + "policies have not been created: " + policiesList);
         }
     }
 
@@ -262,8 +262,8 @@ public class DefaultSettingPolicyCreator implements Runnable {
                 // will have those settings in the MVP, and if we do have them we will need to come up with
                 // a list of possible entity types - we almost certainly can't use ALL EntityType values!
                 .filter(spec ->
-                        spec.getEntitySettingSpec().getEntitySettingScope().hasEntityTypeSet() &&
-                                spec.getEntitySettingSpec().getAllowGlobalDefault())
+                        spec.getEntitySettingSpec().getEntitySettingScope().hasEntityTypeSet()
+                                && spec.getEntitySettingSpec().getAllowGlobalDefault())
                 .forEach(spec -> spec.getEntitySettingSpec()
                         .getEntitySettingScope()
                         .getEntityTypeSet()
@@ -357,8 +357,8 @@ public class DefaultSettingPolicyCreator implements Runnable {
                 /*
                  * It is a error, if we have pre-defined settings wrongly configured.
                  */
-                throw new RuntimeException("Setting spec " + spec.getName() +
-                        " is not properly formatted - no value type set!");
+                throw new RuntimeException("Setting spec " + spec.getName()
+                        + " is not properly formatted - no value type set!");
             }
         }
         return retBuilder.build();

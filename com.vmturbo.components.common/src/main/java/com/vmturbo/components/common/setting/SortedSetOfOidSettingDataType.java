@@ -52,7 +52,7 @@ public class SortedSetOfOidSettingDataType extends AbstractSettingDataType<Set<L
     @Nullable
     @Override
     public Set<Long> getValue(@Nullable final Setting setting) {
-        return setting == null || !setting.hasSortedSetOfOidSettingValue() ? null :
-            ImmutableSet.copyOf(setting.getSortedSetOfOidSettingValue().getOidsList());
+        return setting == null || !setting.hasSortedSetOfOidSettingValue() ? null
+                : ImmutableSet.copyOf(setting.getSortedSetOfOidSettingValue().getOidsList());
     }
 }

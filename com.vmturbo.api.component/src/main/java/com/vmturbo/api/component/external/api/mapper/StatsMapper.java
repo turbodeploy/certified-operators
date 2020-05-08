@@ -31,7 +31,6 @@ import com.vmturbo.api.component.external.api.service.TargetsService;
 import com.vmturbo.api.component.external.api.util.StatsUtils;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.dto.BaseApiDTO;
-import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiInputDTO;
@@ -63,7 +62,6 @@ import com.vmturbo.common.protobuf.stats.Stats.GetEntityStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter;
 import com.vmturbo.common.protobuf.stats.Stats.GlobalFilter.Builder;
 import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsRequest;
-import com.vmturbo.common.protobuf.stats.Stats.ProjectedStatsRequest;
 import com.vmturbo.common.protobuf.stats.Stats.StatEpoch;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot.StatRecord;
@@ -611,7 +609,7 @@ public class StatsMapper {
      *        given statApiInput
      */
     @Nonnull
-    StatsFilter newPeriodStatsFilter(@Nullable final StatPeriodApiInputDTO statApiInput,
+    public StatsFilter newPeriodStatsFilter(@Nullable final StatPeriodApiInputDTO statApiInput,
                                              final boolean requestProjectedHeadroom) {
         final StatsFilter.Builder filterRequestBuilder = StatsFilter.newBuilder()
             .setRequestProjectedHeadroom(requestProjectedHeadroom);
@@ -708,32 +706,6 @@ public class StatsMapper {
             throw new IllegalArgumentException("Illegal statistic type [" + apiValue + "]");
         }
         return apiValue;
-    }
-
-    /**
-     * Create a request to fetch Projected Stats from the History Component.
-     *
-     * @param uuid a set of {@link ServiceEntityApiDTO} UUIDs to query
-     * @param inputDto parameters for the query, especially the requested stats
-     * @return a {@link ProjectedStatsRequest} protobuf which encapsulates the given uuid list
-     * and stats names to be queried.
-     */
-    @Nonnull
-    public ProjectedStatsRequest toProjectedStatsRequest(
-            @Nonnull final Set<Long> uuid,
-            @Nullable final StatPeriodApiInputDTO inputDto) {
-        ProjectedStatsRequest.Builder builder = ProjectedStatsRequest.newBuilder().addAllEntities(uuid);
-        Optional.ofNullable(inputDto)
-                .map(StatPeriodApiInputDTO::getStatistics)
-                .orElse(Collections.emptyList())
-                .forEach(statApiInputDTO -> {
-                    // If necessary we can add support for other parts of the StatPeriodApiInputDTO,
-                    // and extend the Projected Stats API to serve the additional functionality.
-                    if (statApiInputDTO.getName() != null) {
-                        builder.addCommodityName(statApiInputDTO.getName());
-                    }
-                });
-        return builder.build();
     }
 
     /**

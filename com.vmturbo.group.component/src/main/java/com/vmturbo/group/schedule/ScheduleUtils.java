@@ -72,12 +72,12 @@ public class ScheduleUtils {
     public static long calculateRemainingTimeActiveInMs(@Nonnull final Schedule.Builder schedule,
                                                 final long periodStartTime) throws ParseException {
         if (schedule.hasOneTime()) {
-            if (periodStartTime < schedule.getStartTime() ||
-                periodStartTime >= schedule.getEndTime()) {
+            if (periodStartTime < schedule.getStartTime()
+                    || periodStartTime >= schedule.getEndTime()) {
                 return 0L;
             }
-        } else if (periodStartTime < schedule.getStartTime() ||
-            !schedule.hasPerpetual() && periodStartTime > schedule.getLastDate()) {
+        } else if (periodStartTime < schedule.getStartTime()
+                || !schedule.hasPerpetual() && periodStartTime > schedule.getLastDate()) {
             return 0L;
         }
 
@@ -91,8 +91,8 @@ public class ScheduleUtils {
 
         if (recentOccurrence != null && recentOccurrence.getTime() <= periodStartTime) {
             final long expectedEndTime = recentOccurrence.getTime() + eventDuration;
-            final long endTime = Math.min(expectedEndTime, schedule.getLastDate() > 0L ?
-                schedule.getLastDate() : MAX_END_DATE);
+            final long endTime = Math.min(expectedEndTime,
+                    schedule.getLastDate() > 0L ? schedule.getLastDate() : MAX_END_DATE);
             return endTime - periodStartTime;
         }
         return 0L;
@@ -112,14 +112,17 @@ public class ScheduleUtils {
              * NOTE: this is copied over from OpsManager RecurringEventImpl
              */
             final long startTime = (long)((Math.ceil((periodStartTime + 1) / 1000.0)) * 1000);
-            final long recurStartTime = schedule.hasRecurrenceStart() ?
-                Math.max(schedule.getStartTime(), schedule.getRecurrenceStart().getRecurrenceStartTime())
-                : schedule.getStartTime();
+            final long recurStartTime =
+                    schedule.hasRecurrenceStart()
+                            ? Math.max(
+                                    schedule.getStartTime(),
+                                    schedule.getRecurrenceStart().getRecurrenceStartTime())
+                            : schedule.getStartTime();
             final TimeZone timeZone = TZ_REGISTRY.getTimeZone(schedule.getTimezoneId());
             final DateTime recurStartDateTime = new DateTime(
                 new java.util.Date(Math.max(recurStartTime, startTime)), timeZone);
-            final DateTime recurEndDateTime = schedule.hasPerpetual() ? MAX_END_DATE_TIME :
-                new DateTime(new java.util.Date(schedule.getLastDate()), timeZone);
+            final DateTime recurEndDateTime = schedule.hasPerpetual() ? MAX_END_DATE_TIME
+                    : new DateTime(new java.util.Date(schedule.getLastDate()), timeZone);
             final Recur recur = new Recur(schedule.getRecurRule());
             final DateList dates = recur.getDates(new DateTime(new java.util.Date(schedule.getStartTime()),
                     timeZone), recurStartDateTime, recurEndDateTime, Value.DATE_TIME, 1);

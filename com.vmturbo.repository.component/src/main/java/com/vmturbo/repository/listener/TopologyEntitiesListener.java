@@ -10,6 +10,7 @@ import com.arangodb.ArangoDBException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.Topology.DataSegment;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -21,22 +22,26 @@ import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.repository.RepositoryNotificationSender;
 import com.vmturbo.repository.SharedMetrics;
+import com.vmturbo.repository.listener.realtime.LiveTopologyStore;
 import com.vmturbo.repository.topology.TopologyID;
 import com.vmturbo.repository.topology.TopologyLifecycleManager;
 import com.vmturbo.repository.topology.TopologyLifecycleManager.TopologyCreator;
 import com.vmturbo.topology.processor.api.EntitiesListener;
+import com.vmturbo.topology.processor.api.EntitiesWithNewStateListener;
 import com.vmturbo.topology.processor.api.TopologySummaryListener;
 
 /**
  * Handler for entity information coming in from the Topology Processor. Only used to receive
  * live topology.
  */
-public class TopologyEntitiesListener implements EntitiesListener, TopologySummaryListener {
+public class TopologyEntitiesListener implements EntitiesListener, TopologySummaryListener,
+    EntitiesWithNewStateListener {
 
     private final Logger logger = LoggerFactory.getLogger(TopologyEntitiesListener.class);
 
     private final RepositoryNotificationSender notificationSender;
     private final TopologyLifecycleManager topologyManager;
+    private final LiveTopologyStore liveTopologyStore;
 
     private Object topologyInfoLock = new Object();
 
@@ -44,9 +49,11 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
     private TopologyInfo latestKnownRealtimeTopologyInfo = null;
 
     public TopologyEntitiesListener(@Nonnull final TopologyLifecycleManager topologyManager,
+                                    @Nonnull final LiveTopologyStore liveTopologyStore,
                                     @Nonnull final RepositoryNotificationSender sender) {
         this.notificationSender = Objects.requireNonNull(sender);
         this.topologyManager = Objects.requireNonNull(topologyManager);
+        this.liveTopologyStore = Objects.requireNonNull(liveTopologyStore);
     }
 
 
@@ -163,5 +170,10 @@ public class TopologyEntitiesListener implements EntitiesListener, TopologySumma
             }
             throw e;
         }
+    }
+
+    @Override
+    public void onEntitiesWithNewState(@Nonnull final EntitiesWithNewState entitiesWithNewState) {
+        liveTopologyStore.setEntityWithUpdatedState(entitiesWithNewState);
     }
 }

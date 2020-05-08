@@ -440,8 +440,6 @@ public class SearchService implements ISearchService {
         return paginationRequest.allResultsResponse(result);
     }
 
-    private static ExecutorService executor = Executors.newFixedThreadPool(3);
-
     /**
      * A general search given a filter - may be asked to search over ServiceEntities or Groups.
      *
@@ -1062,24 +1060,36 @@ public class SearchService implements ISearchService {
     private List<CriteriaOptionApiDTO> getResourceGroupsUUIDOptions()
             throws OperationFailedException, ConversionException, InterruptedException,
             InvalidOperationException {
-        return getGroupsOptions(GroupType.RESOURCE, false);
+        return getGroupsOptions(GroupType.RESOURCE);
     }
 
     @Nonnull
     private List<CriteriaOptionApiDTO> getResourceGroupsNameOptions()
             throws OperationFailedException, ConversionException, InterruptedException,
             InvalidOperationException {
-        return getGroupsOptions(GroupType.RESOURCE, true);
+        final List<GroupApiDTO> groups =
+                groupsService.getGroupsByType(GroupType.RESOURCE, null, Collections.emptyList());
+        // Collecting to set to filter duplicate group names.
+        // For example, two resourceGroups from two accounts may have the same name.
+        Set<String> groupNames = groups.stream().map(GroupApiDTO::getDisplayName).collect(Collectors.toSet());
+        final List<CriteriaOptionApiDTO> result = new ArrayList<>(groups.size());
+        for (String groupName : groupNames) {
+            final CriteriaOptionApiDTO option = new CriteriaOptionApiDTO();
+            option.setDisplayName(groupName);
+            option.setValue(groupName);
+            result.add(option);
+        }
+        return Collections.unmodifiableList(result);
     }
 
     @Nonnull
     private List<CriteriaOptionApiDTO> getBillingFamiliesOptions()
             throws OperationFailedException, ConversionException, InterruptedException,
             InvalidOperationException {
-        return getGroupsOptions(GroupType.BILLING_FAMILY, false);
+        return getGroupsOptions(GroupType.BILLING_FAMILY);
     }
 
-    private List<CriteriaOptionApiDTO> getGroupsOptions(GroupType groupType, boolean nameOption)
+    private List<CriteriaOptionApiDTO> getGroupsOptions(GroupType groupType)
             throws OperationFailedException, ConversionException, InterruptedException,
             InvalidOperationException {
         final List<GroupApiDTO> groups =
@@ -1088,7 +1098,7 @@ public class SearchService implements ISearchService {
         for (GroupApiDTO group : groups) {
             final CriteriaOptionApiDTO option = new CriteriaOptionApiDTO();
             option.setDisplayName(group.getDisplayName());
-            option.setValue(nameOption ? group.getDisplayName() : group.getUuid());
+            option.setValue(group.getUuid());
             result.add(option);
         }
         return Collections.unmodifiableList(result);

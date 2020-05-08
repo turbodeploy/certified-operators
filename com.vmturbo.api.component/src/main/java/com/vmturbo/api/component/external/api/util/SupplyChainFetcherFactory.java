@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import io.grpc.Status;
@@ -36,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -111,7 +113,8 @@ public class SupplyChainFetcherFactory {
             @Nonnull final RepositoryApi repositoryApi,
             @Nonnull final GroupExpander groupExpander,
             @Nonnull final EntityAspectMapper entityAspectMapper,
-            CostServiceBlockingStub costServiceBlockingStub, final long realtimeTopologyContextId) {
+            CostServiceBlockingStub costServiceBlockingStub,
+            final long realtimeTopologyContextId) {
         this.supplyChainRpcService = supplyChainService;
         this.severityRpcService = entitySeverityServiceBlockingStub;
         this.repositoryApi = repositoryApi;
@@ -236,6 +239,16 @@ public class SupplyChainFetcherFactory {
     }
 
     /**
+     * Expand service providers to regions.
+     *
+     * @param serviceProviderOids the input set of ServiceEntity oids
+     * @return the input set with oids of regions connected to the service providers
+     */
+    public Set<Long> expandServiceProviders(@Nonnull final Set<Long> serviceProviderOids) {
+        return this.repositoryApi.expandServiceProvidersToRegions(serviceProviderOids);
+    }
+
+    /**
      * A builder for a {@link SupplychainNodeFetcher} that returns the raw
      * {@link SupplyChainNode}s, arranged by entity type.
      */
@@ -249,6 +262,7 @@ public class SupplyChainFetcherFactory {
                         topologyContextId,
                         seedUuids,
                         entityTypes,
+                        entityStates,
                         environmentType,
                         supplyChainRpcService,
                         groupExpander,
@@ -265,7 +279,7 @@ public class SupplyChainFetcherFactory {
             try {
                 return
                     new SupplychainNodeFetcher(
-                            topologyContextId, seedUuids, entityTypes, environmentType,
+                            topologyContextId, seedUuids, entityTypes, entityStates, environmentType,
                             supplyChainRpcService, groupExpander, enforceUserScope, repositoryApi)
                         .fetchEntityIds();
             } catch (InterruptedException|ExecutionException|TimeoutException e) {
@@ -280,7 +294,7 @@ public class SupplyChainFetcherFactory {
             throws OperationFailedException {
             try {
                 return new SupplychainNodeFetcher(
-                    topologyContextId, seedUuids, entityTypes, environmentType,
+                    topologyContextId, seedUuids, entityTypes, entityStates, environmentType,
                     supplyChainRpcService, groupExpander, enforceUserScope, repositoryApi)
                     .fetchStats(groupBy);
             } catch (StatusRuntimeException e) {
@@ -366,7 +380,7 @@ public class SupplyChainFetcherFactory {
         public SupplychainApiDTO fetch() throws OperationFailedException, InterruptedException {
             try {
                 final SupplychainApiDTO dto = new SupplychainApiDTOFetcher(topologyContextId,
-                    seedUuids, entityTypes, environmentType, entityDetailType, aspectsToInclude,
+                    seedUuids, entityTypes, entityStates, environmentType, entityDetailType, aspectsToInclude,
                     includeHealthSummary, supplyChainRpcService, severityRpcService, repositoryApi,
                     groupExpander, entityAspectMapper, enforceUserScope, costServiceBlockingStub)
                     .fetch();
@@ -383,7 +397,7 @@ public class SupplyChainFetcherFactory {
             try {
                 return
                     new SupplychainApiDTOFetcher(
-                        topologyContextId, seedUuids, entityTypes, environmentType,
+                        topologyContextId, seedUuids, entityTypes, entityStates, environmentType,
                         entityDetailType, aspectsToInclude, includeHealthSummary,
                         supplyChainRpcService, severityRpcService, repositoryApi, groupExpander,
                         entityAspectMapper, enforceUserScope, costServiceBlockingStub)
@@ -400,7 +414,7 @@ public class SupplyChainFetcherFactory {
             throws OperationFailedException {
             try {
                 return new SupplychainApiDTOFetcher(
-                    topologyContextId, seedUuids, entityTypes, environmentType,
+                    topologyContextId, seedUuids, entityTypes, entityStates, environmentType,
                     entityDetailType, aspectsToInclude, includeHealthSummary, supplyChainRpcService,
                     severityRpcService, repositoryApi, groupExpander, entityAspectMapper,
                         enforceUserScope, costServiceBlockingStub)
@@ -433,6 +447,8 @@ public class SupplyChainFetcherFactory {
         protected final Set<String> seedUuids = Sets.newHashSet();
 
         protected final Set<String> entityTypes = Sets.newHashSet();
+
+        protected final Set<EntityState> entityStates = Sets.newHashSet();
 
         protected boolean enforceUserScope = true;
 
@@ -532,6 +548,27 @@ public class SupplyChainFetcherFactory {
         }
 
         /**
+         * A list of entity states to include in the answer - default is all states.
+         * 'null' or the empty list indicates no filtering; all entity states will be included.
+         *
+         * <p/>Note - entities that don't match the state will not be considered during supply
+         * chain traversal. Therefore, any entities connected to them will not be included (if they
+         * are not traversed to via some other entity with a matching state).
+         *
+         * @param entityStates a list of the entity states to be included in the result.
+         * @return the flow-style OperationBuilder for this SupplyChainFetcher
+         */
+        public B entityStates(@Nullable List<com.vmturbo.api.enums.EntityState> entityStates) {
+            if (entityStates != null) {
+                entityStates.stream()
+                    .map(state -> UIEntityState.fromString(state.name()))
+                    .map(UIEntityState::toEntityState)
+                    .forEach(this.entityStates::add);
+            }
+            return (B)this;
+        }
+
+        /**
          * Limit the response to service entities in this environment e.g. ON_PREM, CLOUD, HYBRID
          * - default is all environments.
          *
@@ -587,6 +624,8 @@ public class SupplyChainFetcherFactory {
 
         private final Set<String> entityTypes;
 
+        private final Set<EntityState> entityStates;
+
         private final Optional<EnvironmentTypeEnum.EnvironmentType> environmentType;
 
         private final SupplyChainServiceBlockingStub supplyChainRpcService;
@@ -600,6 +639,7 @@ public class SupplyChainFetcherFactory {
         private SupplychainFetcher(final long topologyContextId,
                                    @Nullable final Set<String> seedUuids,
                                    @Nullable final Set<String> entityTypes,
+                                   @Nullable final Set<EntityState> entityStates,
                                    @Nonnull final Optional<EnvironmentTypeEnum.EnvironmentType> environmentType,
                                    @Nonnull SupplyChainServiceBlockingStub supplyChainRpcService,
                                    @Nonnull GroupExpander groupExpander,
@@ -608,6 +648,7 @@ public class SupplyChainFetcherFactory {
             this.topologyContextId = topologyContextId;
             this.seedUuids = seedUuids;
             this.entityTypes = entityTypes;
+            this.entityStates = entityStates;
             this.environmentType = environmentType;
             this.supplyChainRpcService = supplyChainRpcService;
             this.groupExpander = groupExpander;
@@ -665,6 +706,10 @@ public class SupplyChainFetcherFactory {
             // If entityTypes is specified, include that in the request
             if (CollectionUtils.isNotEmpty(entityTypes)) {
                 scopeBuilder.addAllEntityTypesToInclude(entityTypes);
+            }
+
+            if (CollectionUtils.isNotEmpty(entityStates)) {
+                scopeBuilder.addAllEntityStatesToInclude(entityStates);
             }
 
             environmentType.ifPresent(scopeBuilder::setEnvironmentType);
@@ -964,12 +1009,13 @@ public class SupplyChainFetcherFactory {
         private SupplychainNodeFetcher(final long topologyContextId,
                                        @Nullable final Set<String> seedUuids,
                                        @Nullable final Set<String> entityTypes,
+                                       @Nullable final Set<EntityState> entityStates,
                                        @Nonnull final Optional<EnvironmentType> environmentType,
                                        @Nonnull final SupplyChainServiceBlockingStub supplyChainRpcService,
                                        @Nonnull final GroupExpander groupExpander,
                                        final boolean enforceUserScope,
                                        @Nonnull final RepositoryApi repositoryApi) {
-            super(topologyContextId, seedUuids, entityTypes, environmentType,
+            super(topologyContextId, seedUuids, entityTypes, entityStates, environmentType,
                     supplyChainRpcService, groupExpander, enforceUserScope, repositoryApi);
         }
 
@@ -1015,6 +1061,7 @@ public class SupplyChainFetcherFactory {
         private SupplychainApiDTOFetcher(final long topologyContextId,
                                          @Nullable final Set<String> seedUuids,
                                          @Nullable final Set<String> entityTypes,
+                                         @Nullable final Set<EntityState> entityStates,
                                          @Nonnull final Optional<EnvironmentType> environmentType,
                                          @Nullable final EntityDetailType entityDetailType,
                                          @Nullable final Collection<String> aspectsToInclude,
@@ -1026,7 +1073,7 @@ public class SupplyChainFetcherFactory {
                                          @Nullable final EntityAspectMapper entityAspectMapper,
                                          final boolean enforceUserScope,
                                          @Nonnull final CostServiceBlockingStub costServiceBlockingStub) {
-            super(topologyContextId, seedUuids, entityTypes, environmentType, supplyChainRpcService,
+            super(topologyContextId, seedUuids, entityTypes, entityStates, environmentType, supplyChainRpcService,
                     groupExpander, enforceUserScope, repositoryApi);
             this.entityDetailType = entityDetailType;
             this.aspectsToInclude = aspectsToInclude;

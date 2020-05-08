@@ -336,15 +336,7 @@ public abstract class AbstractRIStatsSubQuery implements StatsSubQuery {
      * @return the regions belonging to the service providers
      */
     protected Set<Long> translateServiceProvidersToRegions(final Set<Long> serviceProviders) {
-        return getRepositoryApi().entitiesRequest(serviceProviders)
-                .getEntitiesWithConnections()
-                .flatMap(e -> e.getConnectedEntitiesList().stream())
-                .filter(ConnectedEntity::hasConnectedEntityId)
-                .filter(ConnectedEntity::hasConnectedEntityType)
-                .filter(c -> c.getConnectedEntityType() == EntityType.REGION_VALUE &&
-                        c.getConnectionType() == ConnectionType.OWNS_CONNECTION)
-                .map(ConnectedEntity::getConnectedEntityId)
-                .collect(Collectors.toSet());
+        return getRepositoryApi().expandServiceProvidersToRegions(serviceProviders);
     }
 
     /**

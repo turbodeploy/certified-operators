@@ -54,6 +54,7 @@ import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ObjectsPage;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -128,11 +129,11 @@ import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingPoliciesResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetEntitySettingsRequest;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.group.api.GroupAndMembers;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -213,6 +214,8 @@ public class GroupsService implements IGroupsService {
 
     private final BusinessAccountRetriever businessAccountRetriever;
 
+    private final ServiceProviderExpander serviceProviderExpander;
+
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final GroupMapper groupMapper,
@@ -233,7 +236,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final ThinTargetCache thinTargetCache,
                   @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
                   @Nonnull final GroupFilterMapper groupFilterMapper,
-                  @Nonnull final BusinessAccountRetriever businessAccountRetriever) {
+                  @Nonnull final BusinessAccountRetriever businessAccountRetriever,
+                  @Nonnull final ServiceProviderExpander serviceProviderExpander) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -255,6 +259,7 @@ public class GroupsService implements IGroupsService {
         this.entitySettingQueryExecutor = entitySettingQueryExecutor;
         this.groupFilterMapper = Objects.requireNonNull(groupFilterMapper);
         this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
+        this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
     }
 
     /**
@@ -608,28 +613,32 @@ public class GroupsService implements IGroupsService {
     }
 
     @Override
-    public GroupApiDTO createGroup(GroupApiDTO inputDTO)
-            throws ConversionException, InterruptedException {
+    public GroupApiDTO createGroup(GroupApiDTO inputDTO) throws ConversionException,
+            InterruptedException, InvalidOperationException, OperationFailedException {
         String username = getUsername();
 
-        final GroupDefinition groupDefinition = groupMapper
-                        .toGroupDefinition(inputDTO);
-        final CreateGroupResponse resp = groupServiceRpc.createGroup(
-                        CreateGroupRequest
-                            .newBuilder()
+        final GroupDefinition groupDefinition = groupMapper.toGroupDefinition(inputDTO);
+        try {
+            final CreateGroupResponse resp = groupServiceRpc.createGroup(CreateGroupRequest.newBuilder()
                             .setGroupDefinition(groupDefinition)
-                            .setOrigin(GroupDTO.Origin.newBuilder()
-                                            .setUser(User.newBuilder()
-                                                         .setUsername(username)
-                                                     )
-                                       )
-                            .build()
-                            );
+                            .setOrigin(GroupDTO.Origin.newBuilder().setUser(User.newBuilder().setUsername(username)))
+                            .build());
 
-        return groupMapper.groupsToGroupApiDto(Collections.singletonList(resp.getGroup()), true)
-                .values()
-                .iterator()
-                .next();
+            return groupMapper.groupsToGroupApiDto(Collections.singletonList(resp.getGroup()), true)
+                    .values()
+                    .iterator()
+                    .next();
+        } catch (StatusRuntimeException e) {
+            if (e.getStatus().getCode() == Code.INVALID_ARGUMENT) {
+                // The full "message" has the status pre-pended. Use just the description, if
+                // available.
+                final String message = e.getStatus().getDescription() == null
+                        ? e.getMessage() : e.getStatus().getDescription();
+                throw new InvalidOperationException(message);
+            } else {
+                throw new OperationFailedException(e.getMessage());
+            }
+        }
     }
 
     @VisibleForTesting
@@ -1550,10 +1559,19 @@ public class GroupsService implements IGroupsService {
 
         // use seedUuids (entity + group) to find entities of related type using supply chain
         if (!seedUuids.isEmpty()) {
+
+            // expand service providers to regions, expandServiceProviders will return a set of all
+            // regions and original non serviceProvider scopes. if found an empty list then expand
+            // using supplychain
+            final Set<Long> expandedScopes = serviceProviderExpander.expand(seedUuids.stream()
+                    .map(Long::parseLong)
+                    .collect(Collectors.toSet()));
+            final Set<String> entityOrGroupsIds = expandedScopes.stream().map(s -> Long.toString(s)).collect(Collectors.toSet());
+
             final Map<String, SupplyChainNode> supplyChainForScope =
                 supplyChainFetcherFactory.newNodeFetcher()
                     .topologyContextId(realtimeTopologyContextId)
-                    .addSeedUuids(seedUuids)
+                    .addSeedUuids(entityOrGroupsIds)
                     .entityTypes(relatedEntityTypes)
                     .apiEnvironmentType(environmentType)
                     .fetch();
