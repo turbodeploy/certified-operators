@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -74,7 +75,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>>
         historyBasedResizeDependencySkipMap_ = new HashMap<>();
     // Map from raw processedCommodity -> rawCommodity
-    private final @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>> rawMaterial_ = new HashMap<>();
+    private final @NonNull Map<@NonNull Integer, @NonNull RawMaterials> rawMaterialMap_ = new HashMap<>();
     // a flag to indicate if analysis should stop immediately or not
     private volatile boolean forceStop = false;
     // The list of all Markets with at least one buyer that can move
@@ -187,9 +188,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     }
 
     @Pure
-    public @NonNull Map<@NonNull Integer, @NonNull List<@NonNull Integer>>
+    public @NonNull Map<@NonNull Integer, RawMaterials>
                                               getModifiableRawCommodityMap() {
-        return rawMaterial_;
+        return rawMaterialMap_;
     }
 
     @Override
@@ -319,9 +320,15 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
 
     @Override
     @Pure
-    public @NonNull @ReadOnly List<@NonNull Integer> getRawMaterials(@ReadOnly Economy this,
+    public @ReadOnly @NonNull Optional<RawMaterials> getRawMaterials(@ReadOnly Economy this,
                                                                      int processedCommodityType) {
-        return rawMaterial_.get(processedCommodityType);
+        return Optional.ofNullable(rawMaterialMap_.get(processedCommodityType));
+    }
+
+    @Pure
+    public @ReadOnly @NonNull RawMaterials getAllRawMaterials(@ReadOnly Economy this,
+                                                     int processedCommodityType) {
+        return rawMaterialMap_.get(processedCommodityType);
     }
 
     @Override
@@ -729,7 +736,7 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
         preferentialSls_.clear();
         commodityResizeDependency_.clear();
         historyBasedResizeDependencySkipMap_.clear();
-        rawMaterial_.clear();
+        rawMaterialMap_.clear();
         marketsForPlacement_.clear();
         forceStop = false;
     }

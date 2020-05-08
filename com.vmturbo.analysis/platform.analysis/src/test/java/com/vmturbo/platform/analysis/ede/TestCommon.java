@@ -6,19 +6,21 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
-
-import org.checkerframework.checker.nullness.qual.NonNull;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Lists;
+
+import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 import com.vmturbo.platform.analysis.topology.Topology;
 
 public class TestCommon {
@@ -79,13 +81,13 @@ public class TestCommon {
 
     public void createEconomy() throws NoSuchFieldException, IllegalAccessException {
         first = new Economy();
-        Map<Integer,List<Integer>> rawMap = first.getModifiableRawCommodityMap();
-        ArrayList<Integer> CPU_TYPE = new ArrayList<Integer>();
-        CPU_TYPE.add(new Integer(COMMODITY_TYPE_CPU));
-        rawMap.put(COMMODITY_TYPE_VCPU, CPU_TYPE);
-        ArrayList<Integer> MEM_TYPE = new ArrayList<Integer>();
-        MEM_TYPE.add(new Integer(COMMODITY_TYPE_MEM));
-        rawMap.put(COMMODITY_TYPE_VMEM, MEM_TYPE);
+        Map<Integer, RawMaterials> rawMap = first.getModifiableRawCommodityMap();
+        rawMap.put(COMMODITY_TYPE_VCPU,
+                new RawMaterials(Lists.newArrayList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                        .newBuilder().setCommodityType(COMMODITY_TYPE_CPU).build())));
+        rawMap.put(COMMODITY_TYPE_VMEM,
+                new RawMaterials(Lists.newArrayList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                        .newBuilder().setCommodityType(COMMODITY_TYPE_MEM).build())));
 
         vm = first.addTrader(TRADER_TYPE_VM, TraderState.ACTIVE, VMtoApp, PMtoVM, STtoVM, STtoVM);
         pm1 = first.addTrader(TRADER_TYPE_PM, TraderState.ACTIVE, PMtoVM);

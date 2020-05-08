@@ -7,9 +7,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import com.google.common.collect.Lists;
 
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Test;
@@ -20,10 +23,12 @@ import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.pricefunction.PriceFunction;
+import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.LegacyTopology;
 import com.vmturbo.platform.analysis.utility.ListTests;
@@ -108,8 +113,13 @@ public class LedgerTest {
             .setQuantity(1, 5).setPeakQuantity(1, 7).setMovable(true).move(pm);
 
         // populate rawMaterialMap
-        economy.getModifiableRawCommodityMap().put(V_CPU.getType(), Arrays.asList(CPU_ANY.getType()));
-        economy.getModifiableRawCommodityMap().put(V_MEM.getType(), Arrays.asList(MEM.getType()));
+        Map<Integer, RawMaterials> rawMap = economy.getModifiableRawCommodityMap();
+        rawMap.put(V_CPU.getType(),
+                new RawMaterials(Lists.newArrayList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                        .newBuilder().setCommodityType(CPU_ANY.getType()).build())));
+        rawMap.put(V_MEM.getType(),
+                new RawMaterials(Lists.newArrayList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                        .newBuilder().setCommodityType(MEM.getType()).build())));
 
         Ledger ledger = new Ledger(economy);
         // TODO: check expenses and revenues generated
@@ -605,7 +615,8 @@ public class LedgerTest {
                 .setCapacity(10);
 
         economy.getModifiableRawCommodityMap().put(vcpuSpec.getBaseType(),
-                        Arrays.asList(cpuSpec.getBaseType()));
+                new RawMaterials(Collections.singletonList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                        .newBuilder().setCommodityType(cpuSpec.getBaseType()).build())));
 
         buyer.getSettings().setMinDesiredUtil(0.6);
         buyer.getSettings().setMaxDesiredUtil(0.7);

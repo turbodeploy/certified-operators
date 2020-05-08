@@ -29,6 +29,7 @@ import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Context;
 import com.vmturbo.platform.analysis.economy.Context.BalanceAccount;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.RawMaterials;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderSettings;
@@ -519,12 +520,10 @@ public final class ProtobufToAnalysis {
      */
     public static void populateRawCommodityMap(@NonNull EndDiscoveredTopology source,
                                                             @NonNull Topology destination) {
-        Map<Integer, List<Integer>> rawCommodityMap = destination.getModifiableRawCommodityMap();
-        for (CommodityRawMaterialEntry entry : source.getRawMaterialEntryList()) {
-            int processedCommodityType = entry.getProcessedCommodityType();
-            List<Integer> rawCommodityTypes = entry.getRawCommodityTypeList();
-            rawCommodityMap.put(processedCommodityType, rawCommodityTypes);
-        }
+        Map<Integer, RawMaterials> rawCommodityMap = destination.getModifiableRawCommodityMap();
+        source.getRawMaterialEntryList().stream().forEach(entry ->
+            rawCommodityMap.put(entry.getProcessedCommodityType(), new RawMaterials(entry.getRawCommoditiesList()))
+        );
     }
 
     /**

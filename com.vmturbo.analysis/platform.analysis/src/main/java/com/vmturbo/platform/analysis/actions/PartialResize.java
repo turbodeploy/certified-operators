@@ -2,20 +2,20 @@ package com.vmturbo.platform.analysis.actions;
 
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.Trader;
-import com.vmturbo.platform.sdk.common.util.Pair;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class PartialResize {
     private final Resize resize_;
     private final boolean resizeDueToROI_;
-    private final CommoditySold rawMaterial_;
-    private final Trader supplier_;
+    private final Map<CommoditySold, Trader> rawMaterialsMap_ = new HashMap<>();
 
     public PartialResize(Resize resize, final boolean resizeDueToROI,
-                         Pair<CommoditySold, Trader> rawMaterialAndSupplier) {
+                         Map<CommoditySold, Trader> rawMaterialAndSupplier) {
         this.resize_ = resize;
         this.resizeDueToROI_ = resizeDueToROI;
-        this.rawMaterial_ = rawMaterialAndSupplier.getFirst();
-        this.supplier_ = rawMaterialAndSupplier.getSecond();
+        rawMaterialsMap_.putAll(rawMaterialAndSupplier);
     }
 
     public Resize getResize() {
@@ -26,11 +26,7 @@ public class PartialResize {
         return resizeDueToROI_;
     }
 
-    public CommoditySold getRawMaterial() {
-        return rawMaterial_;
-    }
-
-    public Trader getSupplier() {
-        return supplier_;
+    public Map<CommoditySold, Trader> getRawMaterials() {
+        return rawMaterialsMap_;
     }
 }

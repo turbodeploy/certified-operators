@@ -88,7 +88,12 @@ message EndDiscoveredTopology {
     // is the key and the processed (sold) commodity is the value.
     message CommodityRawMaterialEntry {
         required int32 processedCommodityType = 1;
-        repeated int32 rawCommodityType = 2;
+        repeated RawMaterial rawCommodities = 2;
+    }
+
+    message RawMaterial {
+        optional int32 commodityType = 1;
+        optional bool hasCoMaterial_ = 2 [default = false];
     }
 
     message ResizeProducesDependancyEntry {
