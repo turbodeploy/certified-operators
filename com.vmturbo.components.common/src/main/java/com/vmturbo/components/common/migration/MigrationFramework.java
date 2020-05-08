@@ -114,8 +114,8 @@ public class MigrationFramework {
                 migrationRecords.put(migrationName, migrationRecordBuilder);
                 MigrationProgressInfo migrationInfo;
                 if (!forcedMigration && migrationVersion.compareTo(currentDataVersion) <= 0 ) {
-                    String msg = "Skipping Migration: " + migrationVersion +
-                            " as it's version is <= current data version:" + currentDataVersion;
+                    String msg = "Skipping Migration: " + migrationVersion
+                            + " as it's version is <= current data version:" + currentDataVersion;
                     logger.info(msg);
                     migrationInfo = MigrationProgressInfo.newBuilder()
                                         .setCompletionPercentage(100)
@@ -194,8 +194,8 @@ public class MigrationFramework {
     private String getCurrentDataVersion(Collection<String> migrationNames) {
         String currentDataVersion = fetchDataVersion();
         if (currentDataVersion.isEmpty()) {
-            currentDataVersion = migrationNames.isEmpty() ? "" :
-                    extractVersionNumberFromMigrationName(new TreeSet<>(migrationNames).last());
+            currentDataVersion = migrationNames.isEmpty() ? ""
+                    : extractVersionNumberFromMigrationName(new TreeSet<>(migrationNames).last());
             if (currentDataVersion.isEmpty()) {
                 currentDataVersion = "00_00_00";
             }

@@ -72,19 +72,18 @@ public class V1_24__ParseSettingPolicyBlobs implements JdbcMigration {
             throws SQLException, InvalidProtocolBufferException {
         final ResultSet rs = connection.createStatement()
                 .executeQuery("SELECT id, setting_policy_data FROM setting_policy");
-        final PreparedStatement updatePolicy = connection.prepareStatement("UPDATE setting_policy" +
-                " SET name=?, display_name=?, entity_type=?, enabled=?, schedule_id=? WHERE id=?");
+        final PreparedStatement updatePolicy = connection.prepareStatement("UPDATE setting_policy"
+                + " SET name=?, display_name=?, entity_type=?, enabled=?, schedule_id=? WHERE id=?");
         final PreparedStatement groups = connection.prepareStatement(
-                "INSERT INTO setting_policy_groups" +
-                        " (group_id, setting_policy_id) values (?, ?)");
+                "INSERT INTO setting_policy_groups"
+                        + " (group_id, setting_policy_id) values (?, ?)");
         final PreparedStatement settings = connection.prepareStatement(
-                "INSERT INTO setting_policy_setting" +
-                        " (policy_id, setting_name, setting_type, setting_value)" +
-                        " VALUES (?, ?, ?, ?)");
+                "INSERT INTO setting_policy_setting"
+                        + " (policy_id, setting_name, setting_type, setting_value)"
+                        + " VALUES (?, ?, ?, ?)");
         final PreparedStatement settingsOids = connection.prepareStatement(
-                "INSERT INTO setting_policy_setting_oids" +
-                        " (policy_id, setting_name, oid_number, oid)" +
-                        " VALUES (?, ?, ?, ?)");
+                "INSERT INTO setting_policy_setting_oids"
+                        + " (policy_id, setting_name, oid_number, oid)" + " VALUES (?, ?, ?, ?)");
 
         final Set<Long> existingSchedules = existingScheduleIds(connection);
         final Set<Long> existingGroups = existingGroupIds(connection);
@@ -160,8 +159,8 @@ public class V1_24__ParseSettingPolicyBlobs implements JdbcMigration {
                     // Convert transaction capacity default value.
                     // Code is moved from V_01_00_03__Change_Default_Transactions_Capacity
                     if (setting.getSettingSpecName()
-                            .equals(EntitySettingSpecs.TransactionsCapacity.getSettingName()) &&
-                            setting.getNumericSettingValue().getValue() == DEFAULT_VALUE_OLD) {
+                            .equals(EntitySettingSpecs.TransactionsCapacity.getSettingName())
+                            && setting.getNumericSettingValue().getValue() == DEFAULT_VALUE_OLD) {
                         value = Float.toString(DEFAULT_VALUE_NEW);
                     } else {
                         value = Float.toString(setting.getNumericSettingValue().getValue());

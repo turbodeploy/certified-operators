@@ -140,14 +140,14 @@ public class StitchingGroup {
             }
             if (newMembersByType.isEmpty()) {
                 // If the new group is the same, it's a more benign warning.
-                logger.warn("Target {} is already registered in " +
-                    "the stitching group {}.", targetId, sourceId);
+                logger.warn("Target {} is already registered in " + "the stitching group {}.",
+                        targetId, sourceId);
             } else {
                 // If the new group is different, it's a bigger issue - the target uploaded two
                 // groups with different members! To play it safe we just keep the first.
-                logger.error("Target {} is already registered in " +
-                    "the stitching group {} with different members. Ignoring the new target. " +
-                    "Ignored members: {}", targetId, sourceId, newMembersByType);
+                logger.error("Target {} is already registered in "
+                        + "the stitching group {} with different members. Ignoring the new target. "
+                        + "Ignored members: {}", targetId, sourceId, newMembersByType);
                 // Return so that we don't modify the membersByType.
                 return;
             }
