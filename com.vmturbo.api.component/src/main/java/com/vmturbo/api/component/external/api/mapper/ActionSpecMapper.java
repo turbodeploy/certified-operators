@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -57,6 +58,7 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
+import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -593,7 +595,56 @@ public class ActionSpecMapper {
             actionApiDTO.setExecutionStatus(createActionExecutionAuditApiDTO(actionSpec));
         }
 
+        // add the action schedule details
+        if (actionSpec.hasActionSchedule()) {
+            actionApiDTO.setActionSchedule(createActionSchedule(actionSpec.getActionSchedule()));
+        }
+
         return actionApiDTO;
+    }
+
+    /**
+     * Creates the API schedule object associated to the action.
+     *
+     * @param actionSchedule The input protobuf object.
+     * @return The API schedule object.
+     */
+    private ActionScheduleApiDTO createActionSchedule(ActionSpec.ActionSchedule actionSchedule) {
+        ActionScheduleApiDTO apiDTO = new ActionScheduleApiDTO();
+        apiDTO.setUuid(String.valueOf(actionSchedule.getScheduleId()));
+        apiDTO.setDisplayName(actionSchedule.getScheduleDisplayName());
+        apiDTO.setTimeZone(actionSchedule.getScheduleTimezoneId());
+
+        if (actionSchedule.getExecutionWindowActionMode() == ActionDTO.ActionMode.MANUAL) {
+            apiDTO.setMode(ActionMode.MANUAL);
+            if (actionSchedule.hasAcceptingUser()) {
+                apiDTO.setAcceptedByUserForMaintenanceWindow(true);
+                apiDTO.setUserName(actionSchedule.getAcceptingUser());
+            } else {
+                apiDTO.setAcceptedByUserForMaintenanceWindow(false);
+            }
+        } else {
+            apiDTO.setAcceptedByUserForMaintenanceWindow(true);
+            apiDTO.setMode(ActionMode.AUTOMATIC);
+        }
+
+        if (actionSchedule.hasEndTimestamp()
+            && (!actionSchedule.hasStartTimestamp()
+            || actionSchedule.getEndTimestamp() < actionSchedule.getStartTimestamp()
+            || actionSchedule.getStartTimestamp() < System.currentTimeMillis())
+            && actionSchedule.getEndTimestamp() > System.currentTimeMillis()) {
+            apiDTO.setRemaingTimeActiveInMs(actionSchedule.getEndTimestamp() - System.currentTimeMillis());
+        }
+
+        if (actionSchedule.hasStartTimestamp()
+            && actionSchedule.getStartTimestamp() > System.currentTimeMillis()) {
+            apiDTO.setNextOccurrenceTimestamp(actionSchedule.getStartTimestamp());
+            final TimeZone tz = actionSchedule.getScheduleTimezoneId() != null
+                ? TimeZone.getTimeZone(actionSchedule.getScheduleTimezoneId()) : null;
+            apiDTO.setNextOccurrence(DateTimeUtil.toString(actionSchedule.getStartTimestamp(), tz));
+        }
+
+        return apiDTO;
     }
 
     /**

@@ -12,7 +12,6 @@ import static org.junit.Assert.assertTrue;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anySet;
 import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -28,7 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
@@ -61,6 +62,7 @@ import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
+import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -174,6 +176,11 @@ public class ActionSpecMapperTest {
     private static final String TARGET_VENDOR_ID = "qqq";
 
     private static final long MILLIS_2020_01_01_00_00_00 = 1577854800000L;
+
+    private static final String TIMEZONE_ID = "America/Toronto";
+    private static final long SCHEDULE_ID = 505L;
+    private static final String SCHEDULE_DISPLAY_NAME = "DailySchedule";
+    private static final String ACCEPTING_USER = "administrator";
 
     private ActionSpecMapper mapper;
 
@@ -386,6 +393,142 @@ public class ActionSpecMapperTest {
 
         // Validate that the importance value is 0
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
+    }
+
+    /**
+     * Test mapping of scheduled automated scale.
+     * @throws Exception in case of mapping error.
+     */
+    @Test
+    public void testMapScheduledScaleAutomated() throws Exception {
+        final ActionInfo scaleInfo = getScaleActionInfo();
+        final Explanation explanation = Explanation.newBuilder()
+            .setScale(ScaleExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setEfficiency(Efficiency.newBuilder()))
+                .build())
+            .build();
+
+        long scheduleStartTimestamp = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(2);
+        long scheduleEndTimestamp = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3);
+
+        ActionSpec.ActionSchedule schedule =
+            ActionDTO.ActionSpec.ActionSchedule.newBuilder()
+                .setScheduleTimezoneId(TIMEZONE_ID)
+                .setScheduleId(SCHEDULE_ID)
+                .setScheduleDisplayName(SCHEDULE_DISPLAY_NAME)
+                .setExecutionWindowActionMode(ActionMode.AUTOMATIC)
+                .setStartTimestamp(scheduleStartTimestamp)
+                .setEndTimestamp(scheduleEndTimestamp)
+                .build();
+
+        ActionSpec actionSpec = buildActionSpec(scaleInfo, explanation, Optional.empty(),
+            Optional.empty(), schedule);
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+            actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        assertNotNull(actionApiDTO.getActionSchedule());
+        ActionScheduleApiDTO actionScheduleApiDTO = actionApiDTO.getActionSchedule();
+        assertThat(actionScheduleApiDTO.getNextOccurrenceTimestamp(), is(scheduleStartTimestamp));
+        assertThat(actionScheduleApiDTO.getNextOccurrence(),
+            is(DateTimeUtil.toString(scheduleStartTimestamp, TimeZone.getTimeZone(TIMEZONE_ID))));
+        assertThat(actionScheduleApiDTO.getMode(), is(com.vmturbo.api.enums.ActionMode.AUTOMATIC));
+        assertThat(actionScheduleApiDTO.getUuid(), is(String.valueOf(SCHEDULE_ID)));
+        assertThat(actionScheduleApiDTO.getDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertNull(actionScheduleApiDTO.getRemaingTimeActiveInMs());
+        assertNull(actionScheduleApiDTO.getUserName());
+        assertTrue(actionScheduleApiDTO.isAcceptedByUserForMaintenanceWindow());
+    }
+
+    /**
+     * Test mapping of scheduled manual scale action which is accepted by user.
+     * @throws Exception in case of mapping error.
+     */
+    @Test
+    public void testMapScheduledScaleManualAccepted() throws Exception {
+        final ActionInfo scaleInfo = getScaleActionInfo();
+        final Explanation explanation = Explanation.newBuilder()
+            .setScale(ScaleExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setEfficiency(Efficiency.newBuilder()))
+                .build())
+            .build();
+
+        long scheduleStartTimestamp = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(2);
+        long scheduleEndTimestamp = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3);
+
+        ActionSpec.ActionSchedule schedule =
+            ActionDTO.ActionSpec.ActionSchedule.newBuilder()
+                .setScheduleTimezoneId(TIMEZONE_ID)
+                .setScheduleId(SCHEDULE_ID)
+                .setScheduleDisplayName(SCHEDULE_DISPLAY_NAME)
+                .setExecutionWindowActionMode(ActionMode.MANUAL)
+                .setStartTimestamp(scheduleStartTimestamp)
+                .setEndTimestamp(scheduleEndTimestamp)
+                .setAcceptingUser(ACCEPTING_USER)
+                .build();
+
+        ActionSpec actionSpec = buildActionSpec(scaleInfo, explanation, Optional.empty(),
+            Optional.empty(), schedule);
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+            actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        assertNotNull(actionApiDTO.getActionSchedule());
+        ActionScheduleApiDTO actionScheduleApiDTO = actionApiDTO.getActionSchedule();
+        assertThat(actionScheduleApiDTO.getNextOccurrenceTimestamp(), is(scheduleStartTimestamp));
+        assertThat(actionScheduleApiDTO.getNextOccurrence(),
+            is(DateTimeUtil.toString(scheduleStartTimestamp, TimeZone.getTimeZone(TIMEZONE_ID))));
+        assertThat(actionScheduleApiDTO.getMode(), is(com.vmturbo.api.enums.ActionMode.MANUAL));
+        assertThat(actionScheduleApiDTO.getUuid(), is(String.valueOf(SCHEDULE_ID)));
+        assertThat(actionScheduleApiDTO.getDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertNull(actionScheduleApiDTO.getRemaingTimeActiveInMs());
+        assertThat(actionScheduleApiDTO.getUserName(), is(ACCEPTING_USER));
+        assertTrue(actionScheduleApiDTO.isAcceptedByUserForMaintenanceWindow());
+    }
+
+    /**
+     * Test mapping of scheduled manual scale action which is in the window.
+     * @throws Exception in case of mapping error.
+     */
+    @Test
+    public void testMapScheduledScaleManualInWindow() throws Exception {
+        final ActionInfo scaleInfo = getScaleActionInfo();
+        final Explanation explanation = Explanation.newBuilder()
+            .setScale(ScaleExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setEfficiency(Efficiency.newBuilder()))
+                .build())
+            .build();
+
+        long scheduleEndTimestamp = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(1);
+
+        ActionSpec.ActionSchedule schedule =
+            ActionDTO.ActionSpec.ActionSchedule.newBuilder()
+                .setScheduleTimezoneId(TIMEZONE_ID)
+                .setScheduleId(SCHEDULE_ID)
+                .setScheduleDisplayName(SCHEDULE_DISPLAY_NAME)
+                .setExecutionWindowActionMode(ActionMode.MANUAL)
+                .setEndTimestamp(scheduleEndTimestamp)
+                .build();
+
+        ActionSpec actionSpec = buildActionSpec(scaleInfo, explanation, Optional.empty(),
+            Optional.empty(), schedule);
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+            actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        assertNotNull(actionApiDTO.getActionSchedule());
+        ActionScheduleApiDTO actionScheduleApiDTO = actionApiDTO.getActionSchedule();
+        assertNull(actionScheduleApiDTO.getNextOccurrenceTimestamp());
+        assertNull(actionScheduleApiDTO.getNextOccurrence());
+        assertThat(actionScheduleApiDTO.getMode(), is(com.vmturbo.api.enums.ActionMode.MANUAL));
+        assertThat(actionScheduleApiDTO.getUuid(), is(String.valueOf(SCHEDULE_ID)));
+        assertThat(actionScheduleApiDTO.getDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertTrue(actionScheduleApiDTO.getRemaingTimeActiveInMs() > 0);
+        assertNull(actionScheduleApiDTO.getUserName());
+        assertFalse(actionScheduleApiDTO.isAcceptedByUserForMaintenanceWindow());
     }
 
     /**
@@ -1233,7 +1376,7 @@ public class ActionSpecMapperTest {
                                 .setInitialPlacement(InitialPlacement.newBuilder())))
                 .build();
         final ActionSpec actionSpec = buildActionSpec(moveInfo, placement,
-                Optional.of(decision), Optional.empty());
+                Optional.of(decision), Optional.empty(), null);
 
         // Act
         ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -2078,15 +2221,17 @@ public class ActionSpecMapperTest {
     }
 
     private ActionSpec buildActionSpec(ActionInfo actionInfo, Explanation explanation) {
-        return buildActionSpec(actionInfo, explanation, Optional.empty(), Optional.empty());
+        return buildActionSpec(actionInfo, explanation, Optional.empty(), Optional.empty(), null);
     }
 
     private ActionSpec buildActionSpec(ActionInfo actionInfo, Explanation explanation,
-                                       Optional<ActionDTO.ActionDecision> decision, Optional<ActionDTO.ExecutionStep> executionStep) {
+                                       Optional<ActionDTO.ActionDecision> decision,
+                                       Optional<ActionDTO.ExecutionStep> executionStep,
+                                       ActionSpec.ActionSchedule schedule) {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
             .setRecommendationTime(System.currentTimeMillis())
             .setRecommendation(buildAction(actionInfo, explanation))
-                .setActionState(ActionDTO.ActionState.READY)
+            .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
             .setIsExecutable(true)
             .setExplanation(DEFAULT_EXPLANATION)
@@ -2094,9 +2239,12 @@ public class ActionSpecMapperTest {
 
         executionStep.ifPresent((builder::setExecutionStep));
         decision.ifPresent(builder::setDecision);
+
+        if (schedule != null) {
+            builder.setActionSchedule(schedule);
+        }
         return builder.build();
     }
-
     private Action buildAction(ActionInfo actionInfo, Explanation explanation) {
         return Action.newBuilder()
             .setDeprecatedImportance(0)
