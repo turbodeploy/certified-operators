@@ -62,8 +62,9 @@ public class DiagnosticsControllerImportable extends DiagnosticsController {
                 return new ResponseEntity<>(message, HttpStatus.OK);
             } catch (DiagnosticsException e) {
                 getLogger().error("Restoring component's state failed with errors", e);
-                final String errorMsg = "Restoration of state failed with errors:\n" +
-                        StringUtils.join(e.getErrors(), "\n");
+                final String errorMsg =
+                        "Restoration of state failed with errors:\n"
+                                + StringUtils.join(e.getErrors(), "\n");
                 return new ResponseEntity<>(errorMsg, HttpStatus.BAD_REQUEST);
             }
         } catch (IOException e) {

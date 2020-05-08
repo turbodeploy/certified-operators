@@ -119,20 +119,21 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
             // calculated here for user groups with static member groups. We determine expected
             // types based on real types of members.
             connection.createStatement()
-                    .execute("INSERT INTO group_expected_members_groups (group_id, group_type, direct_member) " +
-                            "SELECT DISTINCT gsg.parent_group_id, child.group_type, true" +
-                            "   FROM group_static_members_groups gsg" +
-                            "     LEFT JOIN grouping child ON (gsg.child_group_id = child.id)" +
-                            "     LEFT JOIN grouping parent ON (gsg.parent_group_id = parent.id)" +
-                            "   WHERE parent.origin_discovered_src_id IS NULL");
+                    .execute(
+                            "INSERT INTO group_expected_members_groups (group_id, group_type, direct_member) "
+                                    + "SELECT DISTINCT gsg.parent_group_id, child.group_type, true"
+                                    + "   FROM group_static_members_groups gsg"
+                                    + "     LEFT JOIN grouping child ON (gsg.child_group_id = child.id)"
+                                    + "     LEFT JOIN grouping parent ON (gsg.parent_group_id = parent.id)"
+                                    + "   WHERE parent.origin_discovered_src_id IS NULL");
             // Resolve transitive expected entity member types for nested groups - i.e. groups of groups
             connection.createStatement()
                     .execute(
-                            "INSERT INTO group_expected_members_entities (group_id, entity_type, direct_member) " +
-                                    "SELECT DISTINCT parent.id, sm.entity_type, false" +
-                                    "  FROM grouping parent JOIN group_static_members_groups gsg ON (parent.id = gsg.parent_group_id)" +
-                                    "    JOIN group_static_members_entities sm ON (sm.group_id = gsg.child_group_id) " +
-                                    "  WHERE parent.origin_discovered_src_id IS NULL");
+                            "INSERT INTO group_expected_members_entities (group_id, entity_type, direct_member) "
+                                    + "SELECT DISTINCT parent.id, sm.entity_type, false"
+                                    + "  FROM grouping parent JOIN group_static_members_groups gsg ON (parent.id = gsg.parent_group_id)"
+                                    + "    JOIN group_static_members_entities sm ON (sm.group_id = gsg.child_group_id) "
+                                    + "  WHERE parent.origin_discovered_src_id IS NULL");
             connection.commit();
         } catch (InvalidProtocolBufferException | SQLException e) {
             logger.warn("Failed performing migration", e);
@@ -182,8 +183,8 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
                 search.execute();
                 break;
             default:
-                logger.warn("Found a group without a selection criteria: " + oid +
-                        " will be converted to empty static group");
+                logger.warn("Found a group without a selection criteria: " + oid
+                        + " will be converted to empty static group");
         }
     }
 
@@ -236,8 +237,8 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
                                 GroupType.COMPUTE_VIRTUAL_MACHINE_CLUSTER));
                 break;
             default:
-                logger.warn("Found a nested group without a selection criteria: " + oid +
-                        " will be converted to empty static group");
+                logger.warn("Found a nested group without a selection criteria: " + oid
+                        + " will be converted to empty static group");
         }
     }
 
@@ -275,8 +276,8 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
             @Nonnull StaticGroupMembers staticMembers) throws SQLException {
         final Collection<Long> members = staticMembers.getStaticMemberOidsList();
         final PreparedStatement membersStmt = connection.prepareStatement(
-                "INSERT IGNORE INTO group_static_members_entities (group_id, entity_type, " +
-                    "entity_id) VALUES (?, ?, ?)");
+                "INSERT IGNORE INTO group_static_members_entities (group_id, entity_type, "
+                        + "entity_id) VALUES (?, ?, ?)");
         for (Long member : members) {
             membersStmt.setLong(1, oid);
             membersStmt.setInt(2, entityType);
@@ -290,8 +291,8 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
             @Nonnull StaticGroupMembers staticMembers) throws SQLException {
         final Collection<Long> members = staticMembers.getStaticMemberOidsList();
         final PreparedStatement membersStmt = connection.prepareStatement(
-                "INSERT IGNORE INTO group_static_members_groups (parent_group_id, child_group_id) " +
-                    "VALUES (?, ?)");
+                "INSERT IGNORE INTO group_static_members_groups (parent_group_id, child_group_id) "
+                        + "VALUES (?, ?)");
         for (Long member : members) {
             membersStmt.setLong(1, oid);
             membersStmt.setLong(2, member);
@@ -392,8 +393,8 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
                             final StoppingCondition.Builder stoppingCondition =
                                     searchFilter.getTraversalFilterBuilder()
                                             .getStoppingConditionBuilder();
-                            if (stoppingCondition.getStoppingConditionTypeCase() ==
-                                    StoppingConditionTypeCase.STOPPING_PROPERTY_FILTER) {
+                            if (stoppingCondition.getStoppingConditionTypeCase()
+                                    == StoppingConditionTypeCase.STOPPING_PROPERTY_FILTER) {
                                 propertyFilters.add(
                                         stoppingCondition.getStoppingPropertyFilterBuilder());
                             }
@@ -421,13 +422,13 @@ public class V1_14__MigrateDataToNewGroups implements JdbcMigration {
                         break;
                     case LIST_FILTER:
                         final ListFilter.Builder listFilter = nextFilter.getListFilterBuilder();
-                        if (listFilter.getListElementTypeCase() ==
-                                ListElementTypeCase.OBJECT_FILTER) {
+                        if (listFilter.getListElementTypeCase()
+                                == ListElementTypeCase.OBJECT_FILTER) {
                             listFilter.getObjectFilterBuilder()
                                     .getFiltersBuilderList()
                                     .forEach(propertyFilters::add);
-                        } else if (listFilter.getListElementTypeCase() ==
-                                ListElementTypeCase.STRING_FILTER) {
+                        } else if (listFilter.getListElementTypeCase()
+                                == ListElementTypeCase.STRING_FILTER) {
                             tryMigrateStringFilter(listFilter.getStringFilterBuilder());
                         }
                         break;

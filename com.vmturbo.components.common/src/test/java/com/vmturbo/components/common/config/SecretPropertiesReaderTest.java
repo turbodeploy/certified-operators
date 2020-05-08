@@ -97,8 +97,8 @@ public class SecretPropertiesReaderTest {
     @Test(expected = MissingSecretEntry.class)
     public void testReadIncompleteSecretFile() throws IOException {
         // act
-        SecretPropertiesReader.readSecretFile(componentType, secretsDir + File.separatorChar +
-                "sample_file_missing_part_of_secret");
+        SecretPropertiesReader.readSecretFile(componentType,
+                secretsDir + File.separatorChar + "sample_file_missing_part_of_secret");
     }
 
     /**
@@ -109,8 +109,8 @@ public class SecretPropertiesReaderTest {
     @Test(expected = UnknowComponentException.class)
     public void testReadSecretFileInUnknownComponent() throws IOException {
         // act
-        SecretPropertiesReader.readSecretFile("unknown", secretsDir + File.separatorChar +
-                "sample_file_missing_part_of_secret");
+        SecretPropertiesReader.readSecretFile("unknown",
+                secretsDir + File.separatorChar + "sample_file_missing_part_of_secret");
     }
 
     /**
@@ -120,7 +120,7 @@ public class SecretPropertiesReaderTest {
      */
     @Test(expected = FileNotFoundException.class)
     public void testReadMissingSecretFile() throws IOException {
-        SecretPropertiesReader.readSecretFile(componentType, secretsDir + File.separatorChar +
-                "non_existing_secret_file");
+        SecretPropertiesReader.readSecretFile(componentType,
+                secretsDir + File.separatorChar + "non_existing_secret_file");
     }
 }

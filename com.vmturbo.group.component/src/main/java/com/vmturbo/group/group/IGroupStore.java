@@ -219,8 +219,8 @@ public interface IGroupStore {
             this.targetIds = Objects.requireNonNull(targetIds);
             if (targetIds.isEmpty()) {
                 throw new IllegalArgumentException(
-                        "Target ids must not be empty for group " + groupDefinition +
-                                " with source id " + sourceIdentifier);
+                        "Target ids must not be empty for group " + groupDefinition
+                                + " with source id " + sourceIdentifier);
             }
             this.groupDefinition = Objects.requireNonNull(groupDefinition);
             this.sourceIdentifier = Objects.requireNonNull(sourceIdentifier);

@@ -208,9 +208,9 @@ public class GroupDAO implements IGroupStore {
                 .collect(Collectors.toList());
         if (!sameNameGroups.isEmpty()) {
             throw new StoreOperationException(Status.ALREADY_EXISTS,
-                    "Cannot create object with name " + groupPojo.getDisplayName() +
-                            " because an object with the same name and type (id: " +
-                            sameNameGroups + ") already exists.");
+                    "Cannot create object with name " + groupPojo.getDisplayName()
+                            + " because an object with the same name and type (id: "
+                            + sameNameGroups + ") already exists.");
         }
         context.newRecord(GROUPING, groupPojo).store();
         final Collection<TableRecord<?>> inserts = new ArrayList<>();
@@ -228,8 +228,8 @@ public class GroupDAO implements IGroupStore {
                 if (!PROPETY_FILTER_CONDITION_CREATORS.containsKey(
                         propertyFilter.getPropertyName())) {
                     throw new IllegalArgumentException(
-                            "Property filter " + propertyFilter.getPropertyName() +
-                                    " is not supported");
+                            "Property filter " + propertyFilter.getPropertyName()
+                                    + " is not supported");
                 }
                 final Function<PropertyFilter, Optional<Condition>> conditionCreator =
                     PROPETY_FILTER_CONDITION_CREATORS.get(propertyFilter.getPropertyName());
@@ -260,8 +260,8 @@ public class GroupDAO implements IGroupStore {
                 break;
             default:
                 throw new StoreOperationException(Status.INVALID_ARGUMENT,
-                        "Invalid origin " + origin.getCreationOriginCase() +
-                                " passed to create a group");
+                        "Invalid origin " + origin.getCreationOriginCase()
+                                + " passed to create a group");
         }
         return pojo;
     }
@@ -287,9 +287,9 @@ public class GroupDAO implements IGroupStore {
                 break;
             default:
                 throw new StoreOperationException(Status.INVALID_ARGUMENT,
-                        "Group " + groupDefinition.getDisplayName() +
-                                " does not have any recognized selection criteria (" +
-                                groupDefinition.getSelectionCriteriaCase() + ")");
+                        "Group " + groupDefinition.getDisplayName()
+                                + " does not have any recognized selection criteria ("
+                                + groupDefinition.getSelectionCriteriaCase() + ")");
         }
         if (groupDefinition.hasOptimizationMetadata()) {
             final OptimizationMetadata metadata = groupDefinition.getOptimizationMetadata();
@@ -302,8 +302,8 @@ public class GroupDAO implements IGroupStore {
     private Collection<TableRecord<?>> insertGroupDefinitionDependencies(
             @Nonnull DSLContext context, long groupId, @Nonnull GroupDefinition groupDefinition) {
         final Collection<TableRecord<?>> records = new ArrayList<>();
-        if (groupDefinition.getSelectionCriteriaCase() ==
-                SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
+        if (groupDefinition.getSelectionCriteriaCase()
+                == SelectionCriteriaCase.STATIC_GROUP_MEMBERS) {
             records.addAll(insertGroupStaticMembers(context, groupId,
                     groupDefinition.getStaticGroupMembers()));
         }
@@ -362,18 +362,17 @@ public class GroupDAO implements IGroupStore {
         if (!memberTypes.containsAll(directMembers)) {
             throw new StoreOperationException(Status.INVALID_ARGUMENT,
                     "Group " + groupId + " declared expected members  " + memberTypes.stream()
-                            .map(memberType -> memberType.hasGroup() ?
-                                    memberType.getGroup().toString() :
-                                    Integer.toString(memberType.getEntity()))
-                            .collect(Collectors.joining(",", "[", "]")) +
-                            " does not contain all the direct members: " +
-                            staticMembers.getMembersByTypeList()
-                                    .stream()
-                                    .map(StaticMembersByType::getType)
-                                    .map(memberType -> memberType.hasGroup() ?
-                                            memberType.getGroup().toString() :
-                                            Integer.toString(memberType.getEntity()))
-                                    .collect(Collectors.joining(",", "[", "]")));
+                            .map(memberType -> memberType.hasGroup() ? memberType.getGroup()
+                                    .toString() : Integer.toString(memberType.getEntity()))
+                            .collect(Collectors.joining(",", "[", "]"))
+                            + " does not contain all the direct members: "
+                            + staticMembers.getMembersByTypeList()
+                            .stream()
+                            .map(StaticMembersByType::getType)
+                            .map(memberType -> memberType.hasGroup()
+                                    ? memberType.getGroup().toString()
+                                    : Integer.toString(memberType.getEntity()))
+                            .collect(Collectors.joining(",", "[", "]")));
         }
         for (MemberType memberType : memberTypes) {
             final boolean directMember = directMembers.contains(memberType);
@@ -484,14 +483,14 @@ public class GroupDAO implements IGroupStore {
                         final GroupType realType = groupTypes.get(groupOid);
                         if (realType == null) {
                             throw new StoreOperationException(Status.INVALID_ARGUMENT,
-                                    "Wrong reference to an absent group from static members oid=" +
-                                            groupOid);
+                                    "Wrong reference to an absent group from static members oid="
+                                            + groupOid);
                         }
                         if (requested != realType) {
                             throw new StoreOperationException(Status.INVALID_ARGUMENT,
-                                    "Group definition contains reference to group " + groupOid +
-                                            " of type " + requested + " while its real type is " +
-                                            realType);
+                                    "Group definition contains reference to group " + groupOid
+                                            + " of type " + requested + " while its real type is "
+                                            + realType);
                         }
                     }
                 }
@@ -589,8 +588,8 @@ public class GroupDAO implements IGroupStore {
 
     @Nonnull
     private Optional<OptimizationMetadata> getOptimizationMetadata(@Nonnull Grouping grouping) {
-        if (grouping.getOptimizationIsGlobalScope() != null &&
-                grouping.getOptimizationEnvironmentType() != null) {
+        if (grouping.getOptimizationIsGlobalScope() != null
+                && grouping.getOptimizationEnvironmentType() != null) {
             final OptimizationMetadata.Builder metadataBuilder = OptimizationMetadata.newBuilder();
             if (grouping.getOptimizationEnvironmentType() != null) {
                 metadataBuilder.setEnvironmentType(grouping.getOptimizationEnvironmentType());
@@ -650,8 +649,8 @@ public class GroupDAO implements IGroupStore {
     @Nonnull
     private Map<Long, Origin> getGroupOrigin(@Nonnull Collection<Grouping> groups) {
         final Set<Long> discoveredGroups = groups.stream()
-                .filter(group -> group.getOriginSystemDescription() == null &&
-                        group.getOriginUserCreator() == null)
+                .filter(group -> group.getOriginSystemDescription() == null
+                        && group.getOriginUserCreator() == null)
                 .map(Grouping::getId)
                 .collect(Collectors.toSet());
         final Multimap<Long, Long> groupTargets = HashMultimap.create();
@@ -899,14 +898,14 @@ public class GroupDAO implements IGroupStore {
         }
         if (result.size() > 1) {
             throw new RuntimeException(
-                    "Unexpected query result size " + result.size() + " for group with id " +
-                            groupId + ". Must be PK violation");
+                    "Unexpected query result size " + result.size() + " for group with id "
+                            + groupId + ". Must be PK violation");
         }
         final Record3<String, String, String> record = result.get(0);
         if (record.value3() != null) {
             throw new StoreOperationException(Status.INVALID_ARGUMENT,
-                    "Attempt to modify immutable discovered group " + groupId + " display name " +
-                            groupDefinition.getDisplayName());
+                    "Attempt to modify immutable discovered group " + groupId + " display name "
+                            + groupDefinition.getDisplayName());
         }
         final int countWithTheSameName = context.selectCount()
                 .from(GROUPING)
@@ -917,9 +916,9 @@ public class GroupDAO implements IGroupStore {
                 .value1();
         if (countWithTheSameName > 0) {
             throw new StoreOperationException(Status.ALREADY_EXISTS,
-                    "Cannot create object with name " + groupDefinition.getDisplayName() +
-                            " because an object with the same name and type (id: " + groupId +
-                            ") already exists.");
+                    "Cannot create object with name " + groupDefinition.getDisplayName()
+                            + " because an object with the same name and type (id: " + groupId
+                            + ") already exists.");
         }
         validateStaticMembers(context,
                 Collections.singleton(groupDefinition.getStaticGroupMembers()),
@@ -1150,8 +1149,8 @@ public class GroupDAO implements IGroupStore {
     private static Condition createTagsSearchCondition(@Nonnull PropertyFilter propertyFilter) {
         if (!propertyFilter.hasMapFilter()) {
             throw new IllegalArgumentException(
-                    "MapFilter is expected for " + StringConstants.TAGS_ATTR + " filter: " +
-                            propertyFilter);
+                    "MapFilter is expected for " + StringConstants.TAGS_ATTR + " filter: "
+                            + propertyFilter);
         }
         final MapFilter filter = propertyFilter.getMapFilter();
         final Condition tagCondition;
@@ -1194,8 +1193,8 @@ public class GroupDAO implements IGroupStore {
             @Nonnull Field<Long> fieldToCheck) {
         if (!filter.hasStringFilter()) {
             throw new IllegalArgumentException(
-                    "String filter is expected for property " + filter.getPropertyName() + ": " +
-                            filter);
+                    "String filter is expected for property " + filter.getPropertyName() + ": "
+                            + filter);
         }
         final StringFilter stringFilter = filter.getStringFilter();
         if (stringFilter.getOptionsCount() == 0) {
@@ -1206,8 +1205,8 @@ public class GroupDAO implements IGroupStore {
         for (String option: stringFilter.getOptionsList()) {
             if (!NumberUtils.isDigits(option)) {
                 throw new IllegalArgumentException(
-                        "Illegal " + filter.getPropertyName() + " format \"" + option +
-                                "\" in filter: " + filter);
+                        "Illegal " + filter.getPropertyName() + " format \"" + option
+                                + "\" in filter: " + filter);
             }
             ids.add(Long.valueOf(option));
         }
@@ -1325,8 +1324,8 @@ public class GroupDAO implements IGroupStore {
         final Set<Long> groupsToIgnore =
                 getIgnoredDiscoveredGroups(context, Sets.union(newGroupOids, groupsToDelete));
         if (!groupsToIgnore.isEmpty()) {
-            logger.info("Following groups are ignored by update, as the related target has not been" +
-                    " discovered yet: " + groupsToIgnore);
+            logger.info("Following groups are ignored by update, as the related target has not been"
+                    + " discovered yet: " + groupsToIgnore);
         }
         cleanDiscoveredGroupsChildTables(context, groupsToIgnore);
         final Collection<TableRecord<?>> inserts = new ArrayList<>();
@@ -1406,8 +1405,8 @@ public class GroupDAO implements IGroupStore {
                 .where(GROUP_EXPECTED_MEMBERS_GROUPS.GROUP_ID.in(groupIds))
                 .execute();
         context.deleteFrom(GROUP_TAGS).where(GROUP_TAGS.GROUP_ID.in(groupIds)).execute();
-        final Condition targetCondition = groupsToIgnore.isEmpty() ? DSL.noCondition() :
-                GROUP_DISCOVER_TARGETS.GROUP_ID.notIn(groupsToIgnore);
+        final Condition targetCondition = groupsToIgnore.isEmpty() ? DSL.noCondition()
+                : GROUP_DISCOVER_TARGETS.GROUP_ID.notIn(groupsToIgnore);
         context.deleteFrom(GROUP_DISCOVER_TARGETS).where(targetCondition).execute();
     }
 
@@ -1499,12 +1498,12 @@ public class GroupDAO implements IGroupStore {
     @Nonnull
     private Map<Long, Set<Long>> getStaticGroupsForEntityInternal(
             @Nonnull Collection<Long> entityId, @Nonnull Collection<GroupType> groupTypes) {
-        final SelectConditionStep<Record2<Long, Long>> query = groupTypes.isEmpty() ?
-                dslContext.select(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID,
+        final SelectConditionStep<Record2<Long, Long>> query = groupTypes.isEmpty()
+                ? dslContext.select(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID,
                         GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID)
                         .from(GROUP_STATIC_MEMBERS_ENTITIES)
-                        .where(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID.in(entityId)) :
-                dslContext.select(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID,
+                        .where(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID.in(entityId))
+                : dslContext.select(GROUP_STATIC_MEMBERS_ENTITIES.ENTITY_ID,
                         GROUP_STATIC_MEMBERS_ENTITIES.GROUP_ID)
                         .from(GROUP_STATIC_MEMBERS_ENTITIES)
                         .join(GROUPING)

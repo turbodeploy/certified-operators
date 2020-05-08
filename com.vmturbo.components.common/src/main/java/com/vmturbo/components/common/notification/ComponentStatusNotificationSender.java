@@ -98,9 +98,11 @@ public class ComponentStatusNotificationSender extends ComponentNotificationSend
 
     @Override
     protected String describeMessage(@Nonnull final ComponentStatusNotification componentNotification) {
-        final ComponentIdentifier id = componentNotification.hasStartup() ?
-            componentNotification.getStartup().getComponentInfo().getId() :
-            componentNotification.getShutdown().getComponentId();
-        return ComponentStatusNotification.class.getSimpleName() + ":" + ComponentStatusProtoUtil.getComponentLogId(id);
+        final ComponentIdentifier id =
+                componentNotification.hasStartup()
+                        ? componentNotification.getStartup().getComponentInfo().getId()
+                        : componentNotification.getShutdown().getComponentId();
+        return ComponentStatusNotification.class.getSimpleName() + ":"
+                + ComponentStatusProtoUtil.getComponentLogId(id);
     }
 }

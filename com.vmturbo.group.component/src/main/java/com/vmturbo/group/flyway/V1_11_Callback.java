@@ -84,8 +84,7 @@ public class V1_11_Callback extends BaseFlywayCallback {
 
     private boolean checksumIsIncorrect(final Connection connection) throws SQLException {
         try (ResultSet result = connection.createStatement().executeQuery(GET_CHECKSUM_QUERY)) {
-            return result.next() &&
-                result.getInt(1) != V1_11_CORRECT_CHECKSUM;
+            return result.next() && result.getInt(1) != V1_11_CORRECT_CHECKSUM;
         }
     }
 

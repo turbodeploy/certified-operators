@@ -137,8 +137,8 @@ public class ScheduleStore implements DiagsRestorable {
             });
         } catch (DataAccessException e) {
             logger.error("Exception restoring schedule diags", e);
-            errors.add("Exception restoring schedule diags: " + e.getMessage() + ": " +
-                ExceptionUtils.getStackTrace(e));
+            errors.add("Exception restoring schedule diags: " + e.getMessage() + ": "
+                    + ExceptionUtils.getStackTrace(e));
         }
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);
@@ -230,8 +230,9 @@ public class ScheduleStore implements DiagsRestorable {
                     .where(SCHEDULE.DISPLAY_NAME.eq(schedule.getDisplayName()))
                     .fetchOne();
                 if (existingId != null) {
-                    throw new DuplicateNameException("Schedule with name `" + schedule.getDisplayName() +
-                        "` already exists.");
+                    throw new DuplicateNameException(
+                            "Schedule with name `" + schedule.getDisplayName()
+                                    + "` already exists.");
                 }
                 Schedule scheduleRecord = generateScheduleRecord(schedule);
                 context.newRecord(SCHEDULE, scheduleRecord).store();
@@ -282,8 +283,9 @@ public class ScheduleStore implements DiagsRestorable {
                     .and(SCHEDULE.ID.ne(id))
                     .fetchOne();
                 if (existingId != null) {
-                    throw new DuplicateNameException("Schedule with name `" + schedule.getDisplayName() +
-                        "` already exists.");
+                    throw new DuplicateNameException(
+                            "Schedule with name `" + schedule.getDisplayName()
+                                    + "` already exists.");
                 }
 
                 // Validate before saving
@@ -372,8 +374,8 @@ public class ScheduleStore implements DiagsRestorable {
                         .stream()
                         .map(String::valueOf)
                         .collect(Collectors.toSet());
-                    throw new ScheduleNotFoundException("Schedules " + String.join(",", missingIds) +
-                        " not found");
+                    throw new ScheduleNotFoundException(
+                            "Schedules " + String.join(",", missingIds) + " not found");
                 }
                 verifySchedulesAreNotUsedInPolicies(context, ids);
 
@@ -422,8 +424,8 @@ public class ScheduleStore implements DiagsRestorable {
                     throw new SettingPolicyNotFoundException(settingPolicyId);
                 } else {
                     if (Type.DISCOVERED == settingPolicy.get().getSettingPolicyType()) {
-                        throw new InvalidScheduleAssignmentException("Schedule cannot be assigned " +
-                            "to discovered setting policy");
+                        throw new InvalidScheduleAssignmentException(
+                                "Schedule cannot be assigned to discovered setting policy");
                     }
                 }
                 if (!getSchedule(scheduleId).isPresent()) {
@@ -594,13 +596,13 @@ public class ScheduleStore implements DiagsRestorable {
             scheduleMessage.getDisplayName(),
             new Timestamp(scheduleMessage.getStartTime()),
             new Timestamp(scheduleMessage.getEndTime()),
-            scheduleMessage.hasOneTime() || scheduleMessage.hasPerpetual() ?
-                null : new Timestamp(scheduleMessage.getLastDate()),
-            scheduleMessage.hasOneTime() ?
-                null : scheduleMessage.getRecurRule(),
+            scheduleMessage.hasOneTime() || scheduleMessage.hasPerpetual()
+                ? null : new Timestamp(scheduleMessage.getLastDate()),
+            scheduleMessage.hasOneTime()
+                ? null : scheduleMessage.getRecurRule(),
             scheduleMessage.getTimezoneId(),
-            scheduleMessage.hasRecurrenceStart() ?
-                new Timestamp(scheduleMessage.getRecurrenceStart().getRecurrenceStartTime()) : null
+            scheduleMessage.hasRecurrenceStart()
+                ? new Timestamp(scheduleMessage.getRecurrenceStart().getRecurrenceStartTime()) : null
         );
     }
 
@@ -615,10 +617,11 @@ public class ScheduleStore implements DiagsRestorable {
         recordToUpdate.setDisplayName(scheduleMessage.getDisplayName());
         recordToUpdate.setStartTime(new Timestamp(scheduleMessage.getStartTime()));
         recordToUpdate.setEndTime(new Timestamp(scheduleMessage.getEndTime()));
-        recordToUpdate.setLastDate(scheduleMessage.hasOneTime() || scheduleMessage.hasPerpetual() ?
-            null : new Timestamp(scheduleMessage.getLastDate()));
-        recordToUpdate.setRecurRule(scheduleMessage.hasOneTime() ?
-            null : scheduleMessage.getRecurRule());
+        recordToUpdate.setLastDate(
+                scheduleMessage.hasOneTime() || scheduleMessage.hasPerpetual() ? null
+                        : new Timestamp(scheduleMessage.getLastDate()));
+        recordToUpdate.setRecurRule(
+                scheduleMessage.hasOneTime() ? null : scheduleMessage.getRecurRule());
         recordToUpdate.setTimeZoneId(scheduleMessage.getTimezoneId());
         // UI may not send deferred schedule start time with every request so don't overwrite the
         // existing value

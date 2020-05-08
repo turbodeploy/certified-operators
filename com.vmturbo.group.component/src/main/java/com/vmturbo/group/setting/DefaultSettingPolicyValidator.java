@@ -119,8 +119,8 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                 errors.add("User setting policy must not have a targetId.");
             }
 
-            if (!settingPolicyInfo.hasScope() ||
-                    settingPolicyInfo.getScope().getGroupsCount() < 1) {
+            if (!settingPolicyInfo.hasScope()
+                    || settingPolicyInfo.getScope().getGroupsCount() < 1) {
                 // as of OM-44888, we are no longer making scopes required, and will not longer
                 // generate an error here.
             } else {
@@ -142,14 +142,14 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                                         .map(ApiEntityType::typeNumber)
                                         .collect(Collectors.toSet());
                         if (!groupExpectedMemberTypes.contains(policyEntityType)) {
-                            errors.add("Group " + group.getId() + " with entity type " +
-                                    groupExpectedMemberTypes + " does not match entity type " +
-                                    policyEntityType + " of the setting policy");
+                            errors.add("Group " + group.getId() + " with entity type "
+                                    + groupExpectedMemberTypes + " does not match entity type "
+                                    + policyEntityType + " of the setting policy");
                         }
                     }
                 } catch (DataAccessException e) {
-                    errors.add("Unable to fetch groups for setting policy due to exception: " +
-                            e.getMessage());
+                    errors.add("Unable to fetch groups for setting policy due to exception: "
+                            + e.getMessage());
                 }
             }
         } else {
@@ -160,10 +160,8 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         }
 
         if (!errors.isEmpty()) {
-            throw new InvalidItemException(
-                    "Invalid setting policy: " + settingPolicyInfo.getName() +
-                            System.lineSeparator() +
-                            StringUtils.join(errors, System.lineSeparator()));
+            throw new InvalidItemException("Invalid setting policy: " + settingPolicyInfo.getName()
+                    + System.lineSeparator() + StringUtils.join(errors, System.lineSeparator()));
         }
     }
 
@@ -192,8 +190,8 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                 final String name = setting.getSettingSpecName();
                 final SettingSpec spec = specOpt.get();
                 if (!spec.hasEntitySettingSpec()) {
-                    errors.add("Setting " + name + " is not an entity setting, " +
-                            "and can't be overwritten by a setting policy!");
+                    errors.add("Setting " + name + " is not an entity setting, "
+                            + "and can't be overwritten by a setting policy!");
                 } else {
                     // Make sure that the input policy info matches any
                     // entity type restrictions in the setting scope.
@@ -203,11 +201,10 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
                     if (scope.hasEntityTypeSet() && !scope.getEntityTypeSet()
                             .getEntityTypeList()
                             .contains(entityType)) {
-                        errors.add("Entity type " + entityType +
-                                " not supported by setting spec " + name +
-                                ". Must be one of: " +
-                                StringUtils.join(scope.getEntityTypeSet().getEntityTypeList(),
-                                        ", "));
+                        errors.add("Entity type " + entityType + " not supported by setting spec "
+                                + name + ". Must be one of: "
+                                + StringUtils.join(
+                                        scope.getEntityTypeSet().getEntityTypeList(), ", "));
                     }
                 }
 
@@ -243,12 +240,12 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         final float value = setting.getNumericSettingValue().getValue();
         final Collection<String> errors = new ArrayList<>(0);
         if (type.hasMin() && value < type.getMin()) {
-            errors.add("Value " + value + " for setting " + setting.getSettingSpecName() +
-                    " less than minimum!");
+            errors.add("Value " + value + " for setting " + setting.getSettingSpecName()
+                    + " less than minimum!");
         }
         if (type.hasMax() && value > type.getMax()) {
-            errors.add("Value " + value + " for setting " + setting.getSettingSpecName() +
-                    " more than maximum!");
+            errors.add("Value " + value + " for setting " + setting.getSettingSpecName()
+                    + " more than maximum!");
         }
         return errors;
     }
@@ -262,10 +259,10 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         }
         final StringSettingValueType type = settingSpec.getStringSettingValueType();
         final String value = setting.getStringSettingValue().getValue();
-        if (type.hasValidationRegex() &&
-                !Pattern.compile(type.getValidationRegex()).matcher(value).matches()) {
-            return Collections.singleton("Value " + value + " does not match validation regex " +
-                    type.getValidationRegex());
+        if (type.hasValidationRegex()
+                && !Pattern.compile(type.getValidationRegex()).matcher(value).matches()) {
+            return Collections.singleton("Value " + value + " does not match validation regex "
+                    + type.getValidationRegex());
         }
         return Collections.emptySet();
     }
@@ -280,8 +277,9 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
         final EnumSettingValueType type = settingSpec.getEnumSettingValueType();
         final String value = setting.getEnumSettingValue().getValue();
         if (!type.getEnumValuesList().contains(value)) {
-            return Collections.singleton("Value " + value + " is not in the allowable list: " +
-                    StringUtils.join(type.getEnumValuesList(), ", "));
+            return Collections.singleton(
+                    "Value " + value + " is not in the allowable list: " + StringUtils.join(
+                            type.getEnumValuesList(), ", "));
         }
         return Collections.emptySet();
     }
@@ -341,9 +339,8 @@ public class DefaultSettingPolicyValidator implements SettingPolicyValidator {
 
     private Optional<String> matchType(@Nonnull Setting setting, ValueCase valueCase) {
         if (setting.getValueCase() != valueCase) {
-            return Optional.of(
-                    "Mismatched value. Got " + setting.getValueCase() + " and expected " +
-                            valueCase);
+            return Optional.of("Mismatched value. Got " + setting.getValueCase() + " and expected "
+                    + valueCase);
         } else {
             return Optional.empty();
         }

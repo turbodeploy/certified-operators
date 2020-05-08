@@ -168,8 +168,8 @@ public class ProtobufMessageMatcher<T extends AbstractMessage> extends BaseMatch
                     .filter(descr -> descr.getName().equals(fieldName))
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Failed to find field " + fieldName + " in protobuf message " +
-                                    message.getFullName()));
+                            "Failed to find field " + fieldName + " in protobuf message "
+                                    + message.getFullName()));
             if (iterator.hasNext() && descriptor.getJavaType() == JavaType.MESSAGE) {
                 validatePath(descriptor.getMessageType(), iterator);
             }
