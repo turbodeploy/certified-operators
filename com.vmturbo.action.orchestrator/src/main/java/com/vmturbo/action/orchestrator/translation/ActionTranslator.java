@@ -291,6 +291,10 @@ public class ActionTranslator {
             specBuilder.setActionMode(actionView.getMode());
         }
 
+        if (actionView.getSchedule().isPresent()) {
+            specBuilder.setActionSchedule(actionView.getSchedule().get().getTranslation());
+        }
+
         // Compose pre-requisite description if action has any pre-requisite.
         if (!recommendationForDisplay.getPrerequisiteList().isEmpty()) {
             specBuilder.addAllPrerequisiteDescription(
