@@ -383,6 +383,7 @@ public class ServiceConfig {
                 planEntityStatsFetcher(),
                 communicationConfig.searchServiceBlockingStub(),
                 actionSearchUtil(),
+                entitySettingQueryExecutor(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 

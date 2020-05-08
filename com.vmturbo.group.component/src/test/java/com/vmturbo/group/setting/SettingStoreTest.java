@@ -1,16 +1,20 @@
 package com.vmturbo.group.setting;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -22,7 +26,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.protobuf.ProtocolStringList;
 
@@ -45,16 +51,19 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
 import com.vmturbo.common.protobuf.setting.SettingProto;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.ScopeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.Setting.ValueCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingCategoryPath.SettingCategoryPathNode;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
@@ -65,6 +74,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValue
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
@@ -77,6 +87,7 @@ import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.schedule.ScheduleStore;
 import com.vmturbo.group.schedule.ScheduleValidator;
 import com.vmturbo.group.service.StoreOperationException;
+import com.vmturbo.group.setting.SettingStore.SettingAdapter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
@@ -893,5 +904,164 @@ public class SettingStoreTest {
         SettingPolicyMatcher(@Nonnull SettingPolicy expected) {
             super(expected, Collections.singleton("info.settings"));
         }
+    }
+
+    /**
+     * Test the conversion of Setting protobuf object to values to be inserted into database.
+     */
+    @Test
+    public void testSettingProtobufToDbValues() {
+        String settingName = "Setting name";
+        Setting boolSetting = Setting.newBuilder()
+                .setSettingSpecName(settingName)
+                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true)
+                        .build())
+                .build();
+        verifyProtobufToDbValues(boolSetting);
+
+        Setting numericSetting = Setting.newBuilder()
+                .setSettingSpecName(settingName)
+                .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(100)
+                        .build())
+                .build();
+        verifyProtobufToDbValues(numericSetting);
+
+        Setting stringSetting = Setting.newBuilder()
+                .setSettingSpecName(settingName)
+                .setStringSettingValue(StringSettingValue.newBuilder().setValue("abc")
+                        .build())
+                .build();
+        verifyProtobufToDbValues(stringSetting);
+
+        Setting enumSetting = Setting.newBuilder()
+                .setSettingSpecName(settingName)
+                .setEnumSettingValue(EnumSettingValue.newBuilder().setValue("enum")
+                        .build())
+                .build();
+        verifyProtobufToDbValues(enumSetting);
+
+        List<Long> oidList = Arrays.asList(1L, 2L, 3L, 4L);
+        Setting oidListSetting = Setting.newBuilder()
+                .setSettingSpecName(settingName)
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                        .addAllOids(oidList)
+                        .build())
+                .build();
+        verifyProtobufToDbValues(oidListSetting);
+    }
+
+    private void verifyProtobufToDbValues(Setting setting) {
+        SettingAdapter adapter = new SettingAdapter(setting);
+        assertEquals(setting.getValueCase(), adapter.getSettingType());
+        assertEquals(setting.getSettingSpecName(), adapter.getSettingName());
+        switch (setting.getValueCase()) {
+            case BOOLEAN_SETTING_VALUE:
+                assertEquals(Boolean.toString(setting.getBooleanSettingValue().getValue()),
+                        adapter.getValue());
+                break;
+            case NUMERIC_SETTING_VALUE:
+                assertEquals(Float.toString(setting.getNumericSettingValue().getValue()),
+                        adapter.getValue());
+                break;
+            case STRING_SETTING_VALUE:
+                assertEquals(setting.getStringSettingValue().getValue(),
+                        adapter.getValue());
+                break;
+            case ENUM_SETTING_VALUE:
+                assertEquals(setting.getEnumSettingValue().getValue(),
+                        adapter.getValue());
+                break;
+            case SORTED_SET_OF_OID_SETTING_VALUE:
+                assertEquals(setting.getSortedSetOfOidSettingValue().getOidsList(),
+                        adapter.getOidList());
+                break;
+            default:
+                fail("unsupported setting value case: " + setting.getValueCase().name());
+        }
+    }
+
+    /**
+     * Test conversion of setting values in database to Setting protobuf object.
+     */
+    @Test
+    public void testDbValueToSettingProtobuf() {
+        String settingName = "Setting name";
+        List<Long> oidList = new ArrayList<>();
+        verifyDbToSettingProtobuf(settingName, ValueCase.BOOLEAN_SETTING_VALUE, "true", oidList);
+        verifyDbToSettingProtobuf(settingName, ValueCase.NUMERIC_SETTING_VALUE, "100", oidList);
+        verifyDbToSettingProtobuf(settingName, ValueCase.STRING_SETTING_VALUE, "abc", oidList);
+        verifyDbToSettingProtobuf(settingName, ValueCase.ENUM_SETTING_VALUE, "enum", oidList);
+        oidList.add(1L);
+        oidList.add(2L);
+        oidList.add(3L);
+        verifyDbToSettingProtobuf(settingName, ValueCase.SORTED_SET_OF_OID_SETTING_VALUE, "-", oidList);
+    }
+
+    private void verifyDbToSettingProtobuf(String settingName, ValueCase settingType,
+                                           String value, List<Long> oidListValue) {
+        SettingAdapter settingAdapter = new SettingAdapter(settingName, settingType, value, oidListValue);
+        Setting setting = settingAdapter.getSetting();
+        assertEquals(settingName, setting.getSettingSpecName());
+        assertEquals(settingType, setting.getValueCase());
+        switch (setting.getValueCase()) {
+            case BOOLEAN_SETTING_VALUE:
+                assertEquals(Boolean.valueOf(value),
+                        setting.getBooleanSettingValue().getValue());
+                break;
+            case NUMERIC_SETTING_VALUE:
+                assertEquals(Float.parseFloat(value),
+                        setting.getNumericSettingValue().getValue(), 0);
+                break;
+            case STRING_SETTING_VALUE:
+                assertEquals(value,
+                        setting.getStringSettingValue().getValue());
+                break;
+            case ENUM_SETTING_VALUE:
+                assertEquals(value,
+                        setting.getEnumSettingValue().getValue());
+                break;
+            case SORTED_SET_OF_OID_SETTING_VALUE:
+                assertEquals(oidListValue,
+                        setting.getSortedSetOfOidSettingValue().getOidsList());
+                break;
+            default:
+                fail("unsupported setting value case: " + setting.getValueCase().name());
+        }
+    }
+
+    /**
+     * Test setting store methods that save a setting for a VM of a plan, get the setting back
+     * by calling getPlanEntitySettings by providing plan ID and the VM ID, and delete the plan
+     * and verify the settings data for the plan is removed from database.
+     *
+     * @throws Exception
+     */
+    @Test
+    public void testSaveGetAndDeletePlanSettings() throws Exception {
+        final Setting setting = Setting.newBuilder()
+                .setSettingSpecName("maxObservationPeriodVirtualMachine")
+                .setNumericSettingValue(NumericSettingValue.getDefaultInstance())
+                .build();
+        final long planId = 1L;
+        final long vmId = 100L;
+        final Multimap<Long, Setting> entityToSettingMap = HashMultimap.create();
+        final Multimap<Setting, Long> settingToEntityMap = HashMultimap.create();
+        entityToSettingMap.put(vmId, setting);
+        settingToEntityMap.put(setting, vmId);
+        settingStore.savePlanEntitySettings(planId, entityToSettingMap, settingToEntityMap);
+
+        Map<Long, Collection<SettingToPolicyId>> settingsMap =
+                settingStore.getPlanEntitySettings(planId, Collections.singletonList(vmId));
+        Collection<SettingToPolicyId> settingToPolicyIds = settingsMap.get(vmId);
+        assertNotNull(settingToPolicyIds);
+        assertEquals(1, settingsMap.keySet().size());
+        assertEquals(vmId, settingsMap.keySet().stream().findFirst().get().longValue());
+        assertThat(settingStore.getContextsWithSettings(), containsInAnyOrder(planId));
+
+        settingStore.deletePlanSettings(planId);
+
+        settingsMap =
+                settingStore.getPlanEntitySettings(planId, Collections.singletonList(vmId));
+        assertEquals(0, settingsMap.keySet().size());
     }
 }

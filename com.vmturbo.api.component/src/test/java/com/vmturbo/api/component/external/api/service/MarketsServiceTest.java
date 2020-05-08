@@ -27,6 +27,7 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
@@ -207,6 +208,8 @@ public class MarketsServiceTest {
 
     private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
 
+    private EntitySettingQueryExecutor entitySettingQueryExecutor = mock(EntitySettingQueryExecutor.class);
+
     /**
      * Test gRPC server to mock out gRPC dependencies.
      */
@@ -251,6 +254,7 @@ public class MarketsServiceTest {
                                  Mockito.mock(GroupExpander.class),
                                  serviceProviderExpander,
                                  REALTIME_CONTEXT_ID),
+            entitySettingQueryExecutor,
             REALTIME_CONTEXT_ID
         );
 

@@ -465,10 +465,12 @@ public class GroupsService implements IGroupsService {
             // use the entitySettingQueryExecutor for now. We could probably optimize the call a bit
             // since we're only expecting a limited result, but since this is an "undocumented API"
             // right now, not going to worry about performance yet.
-            Optional<SettingApiDTO> optionalSetting = entitySettingQueryExecutor.getEntitySettings(
-                    uuidMapper.fromUuid(groupUuid),
-                    false,
-                    Collections.singleton(settingUuid))
+            Optional<SettingApiDTO> optionalSetting = entitySettingQueryExecutor
+                    .getEntitySettings(
+                            uuidMapper.fromUuid(groupUuid),
+                            false,
+                            Collections.singleton(settingUuid),
+                            null)
                     .stream()
                     .map(settingManager -> settingManager.getSettings())
                     .flatMap(List::stream)
@@ -500,7 +502,7 @@ public class GroupsService implements IGroupsService {
             return entitySettingQueryExecutor.getEntitySettings(
                     uuidMapper.fromUuid(groupUuid),
                     false,
-                    settingsManagerMapping.getSettingNamesForManagers(Collections.singleton(settingManagerUuid)))
+                    settingsManagerMapping.getSettingNamesForManagers(Collections.singleton(settingManagerUuid)), null)
                     .stream()
                         .map(SettingsManagerApiDTO::getSettings)
                         .flatMap(List::stream)

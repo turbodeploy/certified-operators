@@ -179,7 +179,7 @@ public class EntitySettingStoreTest {
 
     @Test
     public void testGetEntitySettings() throws Exception {
-        entitySettingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(realtimeContext, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
         when(mockSnapshotCache.getSnapshot(eq(topologyId))).thenReturn(Optional.of(mockSnapshot));
@@ -189,7 +189,7 @@ public class EntitySettingStoreTest {
 
         final Map<Long, Collection<SettingToPolicyId>> result =
             entitySettingStore.getEntitySettings(TopologySelection.newBuilder()
-                .setTopologyContextId(contextId)
+                .setTopologyContextId(realtimeContext)
                 .setTopologyId(topologyId)
                 .build(), settingsFilter);
 
@@ -233,7 +233,7 @@ public class EntitySettingStoreTest {
 
     @Test
     public void testGetEntitySettingsContextButNoId() throws Exception {
-        entitySettingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(realtimeContext, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
         when(mockSnapshotCache.getLatestSnapshot()).thenReturn(Optional.of(mockSnapshot));
@@ -243,39 +243,45 @@ public class EntitySettingStoreTest {
 
         final Map<Long, Collection<SettingToPolicyId>> result = entitySettingStore.getEntitySettings(
             TopologySelection.newBuilder()
-                .setTopologyContextId(contextId)
+                .setTopologyContextId(realtimeContext)
                 .build(), settingsFilter);
         verify(mockSnapshot).getFilteredSettings(eq(settingsFilter));
         assertEquals(expectedMap, result);
     }
 
-    @Test(expected = NoSettingsForTopologyException.class)
+    /**
+     * If the topology context Id is not main market, get the settings from database.
+     *
+     * @throws Exception any exception.
+     */
+    @Test
     public void testGetEntitySettingsContextNotFound() throws Exception {
         entitySettingStore.getEntitySettings(TopologySelection.newBuilder()
                 .setTopologyContextId(contextId)
                 .build(), settingsFilter);
+        verify(settingStore).getPlanEntitySettings(contextId, settingsFilter.getEntitiesList());
     }
 
     @Test(expected = NoSettingsForTopologyException.class)
     public void testGetEntitySettingsTopologyNotFound() throws Exception {
-        entitySettingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(realtimeContext, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
         when(mockSnapshotCache.getSnapshot(eq(topologyId + 1))).thenReturn(Optional.empty());
         entitySettingStore.getEntitySettings(TopologySelection.newBuilder()
-                .setTopologyContextId(contextId)
+                .setTopologyContextId(realtimeContext)
                 .setTopologyId(topologyId + 1)
                 .build(), settingsFilter);
     }
 
     @Test(expected = NoSettingsForTopologyException.class)
     public void testGetEntitySettingsNoLatestTopology() throws Exception {
-        entitySettingStore.storeEntitySettings(contextId, topologyId,
+        entitySettingStore.storeEntitySettings(realtimeContext, topologyId,
                 Stream.of(EntitySettings.getDefaultInstance()));
 
         when(mockSnapshotCache.getLatestSnapshot()).thenReturn(Optional.empty());
         entitySettingStore.getEntitySettings(TopologySelection.newBuilder()
-                .setTopologyContextId(contextId)
+                .setTopologyContextId(realtimeContext)
                 .build(), settingsFilter);
     }
 

@@ -1067,7 +1067,7 @@ public class EntitySettingsResolverTest {
 
         entitySettingsResolver.sendEntitySettings(info, Collections.singletonList(
                 createEntitySettings(entityOid1, Arrays.asList(setting2, setting1),
-                        Collections.singletonList(444444L))));
+                        Collections.singletonList(444444L))), null);
 
         verify(testSettingPolicyService).uploadEntitySettings(any(StreamObserver.class));
     }
@@ -1107,7 +1107,7 @@ public class EntitySettingsResolverTest {
 
         entitySettingsResolver.sendEntitySettings(info, Collections.singletonList(
                 createEntitySettings(entityOid1, Arrays.asList(setting2, setting1),
-                        Collections.singletonList(444444L))));
+                        Collections.singletonList(444444L))), null);
 
         verify(testSettingPolicyService, never()).updateSettingPolicy(any());
     }

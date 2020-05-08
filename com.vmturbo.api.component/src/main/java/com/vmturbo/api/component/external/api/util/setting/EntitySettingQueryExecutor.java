@@ -45,6 +45,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
+import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
@@ -113,7 +114,7 @@ public class EntitySettingQueryExecutor {
     @Nonnull
     public List<SettingsManagerApiDTO> getEntitySettings(@Nonnull final ApiId scope,
                                                          final boolean includePolicyBreakdown) {
-        return getEntitySettings(scope, includePolicyBreakdown, null);
+        return getEntitySettings(scope, includePolicyBreakdown, null, null);
     }
 
     /**
@@ -128,13 +129,15 @@ public class EntitySettingQueryExecutor {
      *                  the "dominant" setting value for each setting active on the group. The
      *                  dominant value is the one that applies to the most entities.
      * @param settingNames If specified, will only request the specified setting names.
+     * @param topologyContextId topology context Id
      * @return The settings active on this scope, represented as {@link SettingsManagerApiDTO}s,
      *          restricted to the specified managers.
      */
     @Nonnull
     public List<SettingsManagerApiDTO> getEntitySettings(@Nonnull final ApiId scope,
                                                          final boolean includePolicyBreakdown,
-                                                         @Nullable Collection<String> settingNames) {
+                                                         @Nullable Collection<String> settingNames,
+                                                         @Nullable final Long topologyContextId) {
         final Set<ApiEntityType> types = scope.getScopeTypes().isPresent() ?
                 scope.getScopeTypes().get() : Collections.emptySet();
         final Set<Long> oids;
@@ -144,18 +147,20 @@ public class EntitySettingQueryExecutor {
             oids = Collections.singleton(scope.oid());
         }
 
-        final GetEntitySettingsRequest request =
+        final GetEntitySettingsRequest.Builder request =
             GetEntitySettingsRequest.newBuilder()
-                .setSettingFilter(EntitySettingFilter.newBuilder()
-                    .addAllEntities(oids)
-                    .addAllSettingName(settingNames != null ? settingNames : Collections.emptyList())
-                    .build())
-                .setIncludeSettingPolicies(includePolicyBreakdown)
-                .build();
+                    .setSettingFilter(EntitySettingFilter.newBuilder()
+                            .addAllEntities(oids)
+                            .addAllSettingName(settingNames != null ? settingNames : Collections.emptyList())
+                            .build())
+                    .setIncludeSettingPolicies(includePolicyBreakdown);
+        if (topologyContextId != null) {
+            request.setTopologySelection(TopologySelection.newBuilder().setTopologyContextId(topologyContextId).build());
+        }
 
         // Get the settings active on the entities in the scope.
         final Map<String, List<EntitySettingGroup>> settingGroupsBySpecName =
-            SettingDTOUtil.flattenEntitySettings(settingPolicyService.getEntitySettings(request))
+            SettingDTOUtil.flattenEntitySettings(settingPolicyService.getEntitySettings(request.build()))
                 .collect(Collectors.groupingBy(grp -> grp.getSetting().getSettingSpecName()));
 
         final Map<String, SettingSpec> settingSpecs = getSettingSpecs(settingGroupsBySpecName.keySet());

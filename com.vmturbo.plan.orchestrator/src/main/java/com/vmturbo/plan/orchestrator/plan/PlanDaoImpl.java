@@ -51,6 +51,8 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
+import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse;
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingServiceGrpc;
@@ -106,6 +108,8 @@ public class PlanDaoImpl implements PlanDao {
 
     private final SettingServiceBlockingStub settingService;
 
+    private final SettingPolicyServiceBlockingStub settingPolicyService;
+
     private final Clock clock;
 
     private final UserSessionContext userSessionContext;
@@ -131,6 +135,7 @@ public class PlanDaoImpl implements PlanDao {
                        @Nonnull final TimeUnit cleanupIntervalUnit) {
         this.dsl = Objects.requireNonNull(dsl);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
+        this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.userSessionContext = userSessionContext;
         this.clock = clock;
         this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,

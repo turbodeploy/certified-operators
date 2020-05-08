@@ -62,6 +62,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationTrimSt
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScopeResolutionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsResolutionStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsUploadStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.StitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyAcquisitionStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.TopologyEditStage;
@@ -228,6 +229,7 @@ public class PlanPipelineFactory {
                 .addStage(new IgnoreConstraintsStage(context.getGroupResolver(), groupServiceClient, changes))
                 .addStage(new CommoditiesEditStage(commoditiesEditor, changes, scope))
                 .addStage(SettingsResolutionStage.plan(entitySettingsResolver, changes, consistentScalingManager))
+                .addStage(new SettingsUploadStage(entitySettingsResolver))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new PostStitchingStage(stitchingManager))
                 .addStage(new EntityValidationStage(entityValidator))

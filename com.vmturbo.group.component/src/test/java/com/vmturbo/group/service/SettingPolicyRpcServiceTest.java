@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -24,7 +25,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
-
+import com.google.protobuf.InvalidProtocolBufferException;
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
@@ -1094,7 +1095,7 @@ public class SettingPolicyRpcServiceTest {
     }
 
     @Test
-    public void testGetEntitySettingsEntityNotFound() throws NoSettingsForTopologyException {
+    public void testGetEntitySettingsEntityNotFound() throws NoSettingsForTopologyException, InvalidProtocolBufferException {
         final StreamObserver<GetEntitySettingsResponse> responseObserver =
                 (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
         final EntitySettingFilter settingsFilter = EntitySettingFilter.newBuilder()
@@ -1113,7 +1114,7 @@ public class SettingPolicyRpcServiceTest {
     }
 
     @Test
-    public void testGetEntitySettingsTopologyNotFound() throws NoSettingsForTopologyException {
+    public void testGetEntitySettingsTopologyNotFound() throws NoSettingsForTopologyException, InvalidProtocolBufferException {
         final StreamObserver<GetEntitySettingsResponse> responseObserver =
                 (StreamObserver<GetEntitySettingsResponse>)mock(StreamObserver.class);
         when(entitySettingStore.getEntitySettings(any(), any()))
@@ -1168,5 +1169,4 @@ public class SettingPolicyRpcServiceTest {
         assertThat(exceptionCaptor.getValue(),
             GrpcExceptionMatcher.hasCode(Code.INVALID_ARGUMENT).anyDescription());
     }
-
 }
