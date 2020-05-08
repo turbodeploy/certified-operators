@@ -295,7 +295,7 @@ defaultProperties:
         # If true, calculate headroom for all clusters in one plan instance.
         # If false, calculate headroom for restricted number of clusters in multiple plan instances.
         headroomCalculationForAllClusters: true
-      repository:
+    repository:
         repositorySearchPaginationDefaultLimit: 100
         repositorySearchPaginationMaxLimit: 500
         repositoryEntityStatsPaginationDefaultLimit: 100
