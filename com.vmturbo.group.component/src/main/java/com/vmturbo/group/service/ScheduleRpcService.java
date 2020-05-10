@@ -65,8 +65,8 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
     @Override
     public void getSchedules(final GetSchedulesRequest request,
                              final StreamObserver<Schedule> responseObserver) {
-        final long periodStartTime = request.hasRefTime() ? request.getRefTime() :
-            Instant.now().toEpochMilli();
+        final long periodStartTime =
+                request.hasRefTime() ? request.getRefTime() : Instant.now().toEpochMilli();
         final Set<Long> scheduleIds = Sets.newHashSet();
         if (!request.getOidList().isEmpty()) {
             scheduleIds.addAll(request.getOidList());
@@ -98,8 +98,8 @@ public class ScheduleRpcService extends ScheduleServiceImplBase {
             return;
         }
         GetScheduleResponse response = null;
-        final long periodStartTime = request.hasRefTime() ? request.getRefTime() :
-            Instant.now().toEpochMilli();
+        final long periodStartTime =
+                request.hasRefTime() ? request.getRefTime() : Instant.now().toEpochMilli();
         try {
             final Optional<Schedule> foundSchedule = scheduleStore.getSchedule(request.getOid());
             if (foundSchedule.isPresent()) {

@@ -66,6 +66,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ObjectsPage;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
@@ -220,6 +221,7 @@ public class GroupsServiceTest {
     private FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
     private FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
     private BusinessAccountRetriever businessAccountRetriever;
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
 
     @Rule
     public GrpcTestServer grpcServer =
@@ -242,6 +244,7 @@ public class GroupsServiceTest {
                 new ActionSearchUtil(
                         actionOrchestratorRpcService, actionSpecMapper,
                         paginationMapper, supplyChainFetcherFactory, groupExpander,
+                        serviceProviderExpander,
                         CONTEXT_ID);
         final SettingsMapper settingsMapper = mock(SettingsMapper.class);
         this.businessAccountRetriever = Mockito.mock(BusinessAccountRetriever.class);
@@ -266,7 +269,8 @@ public class GroupsServiceTest {
                 settingsMapper,
                 targetCache, entitySettingQueryExecutor,
                 groupFilterMapper,
-                businessAccountRetriever) {
+                businessAccountRetriever,
+                serviceProviderExpander) {
             @Override
             protected String getUsername() {
                 return "testUser";

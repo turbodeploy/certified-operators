@@ -5,11 +5,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
-
-import com.google.common.collect.ImmutableMap;
-
-import io.grpc.ManagedChannel;
 
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -20,6 +17,12 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+
+import io.grpc.ManagedChannel;
+
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.RepositoryRequestResult;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
@@ -44,10 +47,13 @@ import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -954,5 +960,27 @@ public class RepositoryApiTest {
         final BusinessUnitApiDTO buReturned =
                 repositoryResult.getBusinessAccounts().iterator().next();
         Assert.assertEquals("1", buReturned.getUuid());
+    }
+
+    /**
+     * Test expanding service providers to connected regions.
+     */
+    @Test
+    public void testExpandServiceProvidersToRegions() {
+        final RepositoryApi repositoryApi1 = Mockito.spy(repositoryApi);
+        final Set<Long> serviceProviders = ImmutableSet.of(1L, 2L);
+        final Set<Long> regionIdsSet = ImmutableSet.of(7L);
+        final MultiEntityRequest multiEntityRequest = Mockito.mock(MultiEntityRequest.class);
+        Mockito.when(multiEntityRequest.getEntitiesWithConnections())
+                .thenReturn(serviceProviders.stream()
+                        .map(oid -> EntityWithConnections.newBuilder()
+                                .setOid(oid)
+                                .addConnectedEntities(ConnectedEntity.newBuilder()
+                                        .setConnectedEntityId(7L)
+                                        .setConnectedEntityType(EntityType.REGION_VALUE)
+                                        .setConnectionType(ConnectionType.OWNS_CONNECTION))
+                                .build()));
+        Mockito.doReturn(multiEntityRequest).when(repositoryApi1).entitiesRequest(serviceProviders);
+        Assert.assertEquals(regionIdsSet, repositoryApi1.expandServiceProvidersToRegions(serviceProviders));
     }
 }

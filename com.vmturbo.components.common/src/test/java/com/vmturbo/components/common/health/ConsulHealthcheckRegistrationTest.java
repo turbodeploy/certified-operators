@@ -64,8 +64,8 @@ public class ConsulHealthcheckRegistrationTest {
         NewCheck expectedNewCheck = new NewCheck();
         expectedNewCheck.setId("service:" + expectedRandomizedId(instanceId));
         expectedNewCheck.setName("Service '" + componentType + "' check");
-        expectedNewCheck.setHttp("http://" + instanceIp + ':' + serverPort +
-            ComponentController.HEALTH_PATH);
+        expectedNewCheck.setHttp(
+                "http://" + instanceIp + ':' + serverPort + ComponentController.HEALTH_PATH);
         expectedNewCheck.setServiceId(expectedRandomizedId(instanceId));
         expectedNewCheck.setInterval("60s");
         expectedNewCheck.setDeregisterCriticalServiceAfter("60m");
@@ -109,8 +109,8 @@ public class ConsulHealthcheckRegistrationTest {
         NewCheck expectedNewCheck = new NewCheck();
         expectedNewCheck.setId("service:" + expectedRandomizedId(instanceId));
         expectedNewCheck.setName("Service '" + componentType + "' check");
-        expectedNewCheck.setHttp("http://" + localhostIp + ':' + serverPort +
-            ComponentController.HEALTH_PATH);
+        expectedNewCheck.setHttp(
+                "http://" + localhostIp + ':' + serverPort + ComponentController.HEALTH_PATH);
         expectedNewCheck.setServiceId(expectedRandomizedId(instanceId));
         expectedNewCheck.setInterval("60s");
         expectedNewCheck.setDeregisterCriticalServiceAfter("60m");

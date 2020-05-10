@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,8 +27,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.tag.Tag;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
-import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
@@ -664,10 +663,14 @@ public class SdkToTopologyEntityConverterTest {
         final Map<String, TagValues> tagsMap = new HashMap<>();
         tagsMap.put(tagName,
                 TagValues.newBuilder().addAllValue(Arrays.asList(tagValue1, tagValue2)).build());
-        final Tags tags = SdkToTopologyEntityConverter.convertGroupTags(tagsMap);
-        Assert.assertEquals(1, tags.getTagsMap().size());
+        CommonDTO.GroupDTO sdkGroup = CommonDTO.GroupDTO.newBuilder()
+            .putAllTags(tagsMap)
+            .build();
+        final Optional<Tag.Tags> tags = SdkToTopologyEntityConverter.convertGroupTags(sdkGroup);
+        Assert.assertTrue(tags.isPresent());
+        Assert.assertEquals(1, tags.get().getTagsMap().size());
         Assert.assertEquals(Arrays.asList(tagValue1, tagValue2),
-                tags.getTagsMap().get(tagName).getValuesList());
+            tags.get().getTagsMap().get(tagName).getValuesList());
     }
 
     /**
@@ -675,8 +678,9 @@ public class SdkToTopologyEntityConverterTest {
      */
     @Test
     public void testTagConverterWithoutInputTags() {
-        final Tags tags = SdkToTopologyEntityConverter.convertGroupTags(Collections.emptyMap());
-        Assert.assertTrue(tags.getTagsMap().isEmpty());
+        CommonDTO.GroupDTO sdkGroup = CommonDTO.GroupDTO.newBuilder().build();
+        final Optional<Tag.Tags> tags = SdkToTopologyEntityConverter.convertGroupTags(sdkGroup);
+        Assert.assertFalse(tags.isPresent());
     }
 
     /**

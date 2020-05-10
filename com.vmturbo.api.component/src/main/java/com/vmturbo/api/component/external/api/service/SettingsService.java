@@ -48,6 +48,7 @@ import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingReque
 import com.vmturbo.common.protobuf.stats.Stats.SetStatsDataRetentionSettingResponse;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 
 /**
@@ -81,17 +82,25 @@ public class SettingsService implements ISettingsService {
      */
     private static final String AUTOMATION_MANAGER = "automationmanager";
 
+    /**
+     * Temporary feature flag. If value is false then we don't sent ExecutionSchedule settings
+     * spec and as a result ExecutionSchedule settings are not displayed in UI.
+     */
+    private final boolean hideExecutionScheduleSettings;
+
 
     public SettingsService(@Nonnull final SettingServiceBlockingStub settingServiceBlockingStub,
                     @Nonnull final StatsHistoryServiceBlockingStub statsServiceClient,
                     @Nonnull final SettingsMapper settingsMapper,
                     @Nonnull final SettingsManagerMapping settingsManagerMapping,
-                    @Nonnull final SettingsPoliciesService settingsPoliciesService) {
+                    @Nonnull final SettingsPoliciesService settingsPoliciesService,
+                    final boolean hideExecutionScheduleSettings) {
         this.settingServiceBlockingStub = settingServiceBlockingStub;
         this.statsServiceClient = Objects.requireNonNull(statsServiceClient);
         this.settingsMapper = settingsMapper;
         this.settingsManagerMapping = settingsManagerMapping;
         this.settingsPoliciesService = settingsPoliciesService;
+        this.hideExecutionScheduleSettings = hideExecutionScheduleSettings;
     }
 
     @Override
@@ -285,6 +294,7 @@ public class SettingsService implements ISettingsService {
                 SearchSettingSpecsRequest.getDefaultInstance());
 
         final List<SettingSpec> specs = StreamSupport.stream(specIt.spliterator(), false)
+                .filter(this::isSupportedSettingSpec)
                 .filter(spec -> settingMatchEntityType(spec, entityType))
                 .collect(Collectors.toList());
         final List<SettingsManagerApiDTO> retMgrs;
@@ -299,6 +309,11 @@ public class SettingsService implements ISettingsService {
         }
 
         return isPlan ? settingsManagerMapping.convertToPlanSettingSpecs(retMgrs) : retMgrs;
+    }
+
+    private boolean isSupportedSettingSpec(@Nonnull SettingSpec settingSpec) {
+        return !hideExecutionScheduleSettings || !EntitySettingSpecs.isExecutionScheduleSetting(
+                settingSpec.getName());
     }
 
     @VisibleForTesting

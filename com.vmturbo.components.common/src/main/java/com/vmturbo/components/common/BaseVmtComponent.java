@@ -201,7 +201,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     // the max message size (in bytes) that the GRPC server for this component will accept. Default
     // value is 4194304 bytes (or 4 MB) which is the GRPC default behavior.
-    @Value("${server.grpcMaxMessageBytes:4194304}")
+    @Value("${server.grpcMaxMessageBytes:12000000}")
     private int grpcMaxMessageBytes;
 
     @Value("${enableMemoryMonitor:false}")

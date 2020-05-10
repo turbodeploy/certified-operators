@@ -16,6 +16,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -37,6 +38,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingVal
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValueType;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValueType;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.group.IGroupStore;
 
@@ -140,6 +142,88 @@ public class SettingPolicyValidatorTest {
             .setEntityType(10)
             .setScope(Scope.newBuilder().addGroups(GROUP_ID))
             .build(), Type.DEFAULT);
+    }
+
+    /**
+     * Test when we set ActionMode setting + associated ExecutionSchedule setting.
+     *
+     * @throws InvalidItemException it should not happen
+     */
+    @Test
+    public void testValidActionModeAndExecutionScheduleSettingsCombination()
+            throws InvalidItemException {
+        final String moveExecutionScheduleSettingName =
+                EntitySettingSpecs.MoveExecutionSchedule.getSettingName();
+        final String moveActionModeSettingName = EntitySettingSpecs.Move.getSettingName();
+        final String settingPolicyName = "testSettingPolicy";
+        when(specStore.getSettingSpec(eq(moveExecutionScheduleSettingName))).thenReturn(Optional.of(
+                SettingSpec.newBuilder()
+                        .setName(moveExecutionScheduleSettingName)
+                        .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
+                        .setSortedSetOfOidSettingValueType(
+                                SortedSetOfOidSettingValueType.getDefaultInstance())
+                        .build()));
+        when(specStore.getSettingSpec(eq(moveActionModeSettingName))).thenReturn(Optional.of(
+                SettingSpec.newBuilder()
+                        .setName(moveActionModeSettingName)
+                        .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
+                        .setEnumSettingValueType(EnumSettingValueType.newBuilder()
+                                .addAllEnumValues(Collections.singleton(ActionMode.MANUAL.name())))
+                        .build()));
+
+        final Setting actionModeSetting = Setting.newBuilder()
+                .setSettingSpecName(moveActionModeSettingName)
+                .setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()).build())
+                .build();
+        final Setting executionScheduleSetting = Setting.newBuilder()
+                .setSettingSpecName(moveExecutionScheduleSettingName)
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                        .addAllOids(Collections.singletonList(12L))
+                        .build())
+                .build();
+        final SettingPolicyInfo settingPolicyInfo = SettingPolicyInfo.newBuilder()
+                .setName(settingPolicyName)
+                .setEntityType(ENTITY_TYPE)
+                .addAllSettings(Arrays.asList(actionModeSetting, executionScheduleSetting))
+                .build();
+        validator.validateSettingPolicy(settingPolicyInfo, Type.USER);
+    }
+
+    /**
+     * We couldn't set executionSchedule setting without corresponding actionMode setting in
+     * setting policy.
+     *
+     * @throws InvalidItemException expected exception
+     */
+    @Test
+    public void testInvalidSettingCombination() throws InvalidItemException {
+        final String settingSpecName = EntitySettingSpecs.MoveExecutionSchedule.getSettingName();
+        final String settingPolicyName = "testSettingPolicy";
+
+        expectedException.expect(InvalidItemException.class);
+        expectedException.expectMessage(
+                "Invalid setting policy: " + settingPolicyName + System.lineSeparator()
+                        + "There is no corresponding ActionMode setting for current schedule setting "
+                        + settingSpecName);
+        when(specStore.getSettingSpec(eq(settingSpecName))).thenReturn(Optional.of(
+                SettingSpec.newBuilder()
+                        .setName(settingSpecName)
+                        .setEntitySettingSpec(EntitySettingSpec.getDefaultInstance())
+                        .setSortedSetOfOidSettingValueType(
+                                SortedSetOfOidSettingValueType.getDefaultInstance())
+                        .build()));
+        final Setting executionScheduleSetting = Setting.newBuilder()
+                .setSettingSpecName(settingSpecName)
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                        .addAllOids(Collections.singletonList(12L))
+                        .build())
+                .build();
+        validator.validateSettingPolicy(SettingPolicyInfo.newBuilder()
+                .setName(settingPolicyName)
+                .setEntityType(ENTITY_TYPE)
+                .addAllSettings(Collections.singletonList(executionScheduleSetting))
+                .build(), Type.USER);
     }
 
     @Test

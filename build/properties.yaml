@@ -29,7 +29,7 @@ defaultProperties:
         # Auth
         authRetryDelaySecs: 10
         # Consul Key/Value and Service Discovery Utility
-        kvStoreTimeoutSeconds: 120
+        kvStoreRetryIntervalMillis: 1000
         # Default stat retention times
         retention.numRetainedMinutes: 130
         # DB
@@ -55,8 +55,6 @@ defaultProperties:
         dbSchemaName: action
         entityTypeRetryIntervalMillis: 1000
         entityTypeMaxRetries: 6
-        # One entity should be approximately 0.01KB, we are aiming at keeping the grpc message size at 50KB
-        maxAmountOfEntitiesPerGrpcMessage: 5000
         maxLiveActionPlanAgeSeconds: 600
         failedGroupUpdateDelaySeconds: 10
         actionStatRollup.corePoolSize: 1
@@ -74,7 +72,6 @@ defaultProperties:
         # Should be long enough to accommodate any long-running actions (e.g. storage move of a huge disk).
         # 6 hrs by default.
         actionExecution.timeoutMins: 360
-        actionExecution.concurrentAutomatedActions: 5
     api:
         identityGeneratorPrefix: 5
         multipartConfigMaxFileSizeKb: 50
@@ -84,12 +81,11 @@ defaultProperties:
         targetDiscoveryTimeoutSeconds: 120
         targetDiscoveryPollIntervalSeconds: 2
         liveStatsRetrievalWindowSeconds: 60
-        publicVersionString: 7.21.0
+        publicVersionString: 7.22.0
         groupBuildUseCaseFile: groupBuilderUsecases.json
         settingManagersFile: settingManagers.json
         settingStyleFile: settingSpecStyle.json
         initialPlacementTimeoutSeconds: 600
-        samlEnabled: false
         externalApiSwaggerUri: /vmturbo/apidoc/**
         externalApiFileSystemBase: file:/swagger/
         cpuInfoCacheLifetimeHours: 8
@@ -97,20 +93,15 @@ defaultProperties:
     auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7
-        numBeforeLicenseExpirationDays: 2
     cost:
         identityGeneratorPrefix: 10
         turbonomic.ratecards.persistent.path: /home/turbonomic/data/
         # The normal interval to trigger buy RI analysis after first time run.
         normalBuyRIAnalysisIntervalHours: 336
         # the cost component will receive some large messages over grpc, so we will increase the max
-        # message size beyond the 4mb default.
-        server.grpcMaxMessageBytes: 12000000
         # DB properties
         dbSchemaName: cost
         persistEntityCostChunkSize: 1000
-        # Cache
-        riCoverageCacheExpireMinutes: 120
         # CurrentWeight for calculating the weighted_value in
         # instance_type_hourly_by_week table.
         # Value range from [0.0, 1.0]
@@ -119,17 +110,14 @@ defaultProperties:
         # which is one week of data.
         riMinimumDataPoints : 168
         # Number of records to commit in one batch.
-        reservedInstanceStatCleanup.corePoolSize: 1
-        # One thread per table - latest, hourly, daily, monthly for RI coverage and utilization
-        reservedInstanceStatCleanup.maxPoolSize: 8
-        reservedInstanceStatCleanup.threadKeepAliveMins: 1
-        reservedInstanceStatCleanup.executorQueueSize: 10
-        reservedInstanceStatCleanup.minTimeBetweenCleanupsMinutes: 60
-        # Schedule for the Reserved Instance tables scheduler
-        reservedInstanceStatCleanup.scheduler: 360000
         statsRecordsCommitBatchSize : 5000
         # Number of results to return when fetching lazily.
         statsRecordsQueryBatchSize : 5000
+        reservedInstanceStatCleanup.corePoolSize: 1
+        # One thread per table - latest, hourly, daily, monthly for RI coverage and utilization
+        reservedInstanceStatCleanup.maxPoolSize: 8
+        # Schedule for the Reserved Instance tables cleanup scheduler
+        reservedInstanceStatCleanup.scheduler: 360000
         retention.updateRetentionIntervalSeconds: 10
         projectedTopologyListenerTimeOut: 3600
     group:
@@ -140,6 +128,7 @@ defaultProperties:
         tempGroupExpirationTimeMins: 30
         dbSchemaName: group_component
     history:
+        writeTopologyChunkSize: 1000
         userName: vmtplatform
         requestHost: "%"
         dbSchemaName: vmtdb
@@ -158,7 +147,7 @@ defaultProperties:
         # list obtained from $legacy/com.vmturbo.components.common/src/main/java/com/vmturbo/components/common/ClassicEnumMapper.java
         # The commodities for which stats are not maintained/tracked in the DB.
         # These are typically access commodities.
-        ingest.excludedCommodities: >-
+        excludedCommodities: >-
             ApplicationCommodity
             CLUSTERCommodity
             DATACENTERCommodity
@@ -172,48 +161,11 @@ defaultProperties:
             VDCCommodity
             VMPMAccessCommodity
         retention.updateRetentionIntervalSeconds: 10
+        statsWritersMaxPoolSize: 6
         systemLoadRecordsPerChunk: 500
         timeToWaitNetworkReadinessMs: 10
         # 5-minutes timeout to send big data through GRPC procedure calls
         grpcReadingTimeoutMs: 300000
-
-        # number of BulkInserter batch inserts that can run concurrently
-        bulk.parallelBatchInserts: 8
-        # default insert batch size
-        bulk.batchSize: 1000
-        # maximum number of retry attempts for a failed batch insert, before abandoning it as a lost batch
-        bulk.maxBatchRetries: 10
-        # backoff period before final retry attempt; backoffs for prior retries are computed from this
-        bulk.maxRetryBackoffMsec: 60000
-        # maximum number of batches that can be submitted for execution at the same time by a single writer
-        bulk.maxPendingBatches: 8
-
-        # whether to commit DB operations at chunk boundaries when processing topologies
-        ingest.perChunkCommit: false
-
-        # how long to keep processing status in topology coordinator (4 hours = 14400 seconds)
-        ingest.topologyStatusRetentionSecs: 14400
-
-        # how long a received topology can sit around waiting to be processed before the listener
-        # times out and skips the topology
-        ingest.ingestionTimeoutSecs: 1200
-
-        # how long to wait for a snapshot to become eligible for hourly rollup processing, before
-        # the associated ingestions are forced into a resolved status to permit the rollups to
-        # proceed
-        ingest.hourlyRollupTimeoutSecs: 3600
-
-        # how long we can go without repartitioning the stats tables. The longer this doesn't happen,
-        # the higher the risk of running out of space on the database server.
-        # Normally this happens as a side-effect of daily/monthly rollups, but this is here as a safety
-        # valve
-        ingest.repartitioningTimeoutSecs: 7200
-
-        # max time processing loop will wait before checking for more work
-        ingest.processingLoopMaxSleepSecs: 60
-
-        # default max time allowed for a single writer to process a single chunk
-        ingest.defaultChunkTimeLimitMsec: 60000
 
         # timeouts for various execution "styles" used in HistorydbIO
         # 20 seconds
@@ -222,25 +174,16 @@ defaultProperties:
         executeTimeoutMsec.PATIENT: 60000
         # 2 minutes
         executeTimeoutMsec.FORCED: 120000
-
-        # The number of look back days for considering max used values.
-        maxUsedLookbackDays: 90
     market:
         identityGeneratorPrefix: 2
         # The maximum number of placement iterations the market should perform. Use to prevent ping-ponging VMs from
         # making analysis take too long. If this number is <= 0, uses the default set in the market analysis codebase.
         maxPlacementIterations: -1
-        # Whether quotes should be cached for reuse during SNM-enabled placement analysis.
-        # Setting to true can improve performance in some cases. Usually those cases involve a
-        # high number of biclique overlaps and volumes per VM.
-        useQuoteCacheDuringSNM: false
         # If entity utilization is below the lower watermark, Market could generate resize down actions.
         rightsizeLowerWatermark: 0.7
         # If entity utilization is above the upper watermark, Market could generate resize up actions.
         rightsizeUpperWatermark: 0.7
         # The maximum ratio of on-demand cost for the new template to current template of a vm for analysis engine to
-        # recommend to change to that template to utilize that RI.
-        discountedComputeCostFactor: 4.0
         # Quote Factor to be used by alleviate pressure plans.
         alleviatePressureQuoteFactor: 0.2
         # Suspension throttling configuration
@@ -249,16 +192,6 @@ defaultProperties:
         standardQuoteFactor: 0.68
         # Move cost factor for controlling aggressiveness of market in generating on-prem live market move actions.
         liveMarketMoveCostFactor: 0.05
-        # Determines if the market or the SMA (Stable Marriage Algorithm) library generates compute scaling action for cloud vms
-        # or runs market and generates SMA actions to the log file.
-        marketMode: M2Only
-    mediation.client:
-        silentRetryTime: 0
-        connRetryIntervalSeconds: 10
-        # Time in ms
-        websocket.pong.timeout: 120000
-        # this setting is for mediation-aws, mediation-awsbilling, and mediation-awscost
-        turbonomic.ratecards.persistent.path: /home/turbonomic/data/
     ml-datastore:
         influxdbHealthCheckIntervalSeconds: 60
         influxHost: influxdb
@@ -345,15 +278,9 @@ defaultProperties:
         clustersSupported: true
     plan-orchestrator:
         dbSchemaName: plan
-        # DEPRECATED in 7.21.1 - replaced with clusterRollupTime, whose value should be a time
-        # formatted as HH:MM[:SS] denoting time each day to compute cluster rollups
-        # -------
         # cron spec for running cluster rollup at 1AM daily = second (0-60) ,minute (0-59), hour(0-23),
         #     day of month(1-31), month(1-12), day of week(0-7, 7=sun)
         clusterRollupSchedule: "0 0 1 * * *"
-        # DEPRECATED in 7.21.1 - replaced with planDeletionTime, whose value should be a time
-        # formatted as HH:MM[:SS] denoting time each day to compute cluster rollups
-        # -------
         # Run plan deletion at 2AM everyday
         planDeletionSchedule: "0 0 2 * * *"
         # Config parameter to control the batch size for deleting old plans.
@@ -368,14 +295,6 @@ defaultProperties:
         # If true, calculate headroom for all clusters in one plan instance.
         # If false, calculate headroom for restricted number of clusters in multiple plan instances.
         headroomCalculationForAllClusters: true
-        # Number of analysis threads to start
-        numPlanAnalysisThreads: 5
-    reporting:
-        dbSchemaName: vmtdb
-        identityGeneratorPrefix: 8
-        scheduledReportsGenerationTime: 1
-        maxConnectRetryCount: 60
-        retryDelayInMilliSec: 10000
     repository:
         repositorySearchPaginationDefaultLimit: 100
         repositorySearchPaginationMaxLimit: 500
@@ -387,17 +306,17 @@ defaultProperties:
         repositoryRealtimeTopologyDropDelaySecs: 30
         numberOfExpectedRealtimeSourceDB: 2
         numberOfExpectedRealtimeProjectedDB: 2
-        repositoryMaxEntitiesPerChunk: 5
     topology-processor:
         # suppress inspection "UnusedProperty" for whole file
         identityGeneratorPrefix: 1
         # This should be in sync with the schema in the Topology Processor s pom.xml
         dbSchemaName: topology_processor
+        activateOrMoveInProgressRecordExpiredSeconds: 3600
         inProgressActionExpiredSeconds: 3600
         moveSucceedRecordExpiredSeconds: 1800
-        activateSucceedRecordExpiredSeconds: 14400
         resizeSucceedRecordExpiredSeconds: 14400
         scaleSucceedRecordExpiredSeconds: 21600
+        activateSucceedRecordExpiredSeconds: 14400
         # cloud probe discovery involves downloading some large files, so we are setting the discovery
         # timeout to 120 seconds, instead of using the default of 30 seconds.
         # several keep-alive messages are sent by the client during this interval to keep the connection open.
@@ -407,10 +326,6 @@ defaultProperties:
         minimumAccountExpensesUploadIntervalMins: 60
         minimumRIDataUploadIntervalMins: 5
         actionTimeoutSeconds: 30
-        # Max number of concurrent target full discoveries per probe.
-        maxConcurrentTargetDiscoveriesPerProbeCount: 5
-        # Max number of concurrent target incremental discoveries per probe.
-        maxConcurrentTargetIncrementalDiscoveriesPerProbeCount: 10
         # Urgent metrics are collected every 10 minutes, the offline every 3 days
         collectionIntervalUrgentSec: 600
         collectionIntervalOfflineSec: 259200
@@ -452,8 +367,6 @@ defaultProperties:
         # The interval hours that how long the new discovered entities can not be generated
         # resize down actions by Market.
         resizeDownWarmUpIntervalHours: 4
-        # Default timeout for async requests to topology processor.
-        asyncRestRequestTimeoutSeconds: 300
         # Whether or not to periodically collect changes for random entities during stitching
         # in the stitching journal. Use the journal-related parameters below to tune
         # how much information is collected.
@@ -491,31 +404,7 @@ defaultProperties:
         historyAggregationLoadingChunkSize: 1000
         # The chunk size for a task of aggregating commodity history values
         historyAggregationCalculationChunkSize: 2000
-        # The percentile buckets distribution per commodity type, should cover the range from 0 to 100.
-        # Currently allowed: VCPU VMEM IMAGE_CPU IMAGE_MEM IMAGE_STORAGE
-        # If not configured, 101 one-percent buckets will be used.
-        #historyAggregation.percentileBuckets.VCPU: 0,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,91,92,93,84,95,96,97,98,99,100
         # How often to checkpoint the percentile cache in the persistence store
         historyAggregation.percentileMaintenanceWindowHours: 24
-        # The maximum message size for serializing percentile blobs
-        # Typical size for 10 millions of commodities is 120mb
-        historyAggregation.grpcChannelMaxMessageSizeKb: 204800
-        # The timeout in seconds to history access streaming operations
-        historyAggregation.grpcStreamTimeoutSec: 300
-        # The chunk size for history access streaming operations
-        historyAggregation.blobReadWriteChunkSizeKb: 128
+        # Whether to enable consistent scaling
         consistentScalingEnabled: true
-        # How many timeslot-related commodities trigger background history loading vs synchronous
-        historyAggregation.backgroundLoadingThreshold: 5000
-        # How many background history loading retries are tolerated before stopping and sending up a notification
-        historyAggregation.backgroundLoadingRetries: 3
-        # How long a single background loading attempt is allowed to take before failing
-        historyAggregation.backgroundLoadingTimeoutMin: 60
-        # How often to expire the timeslot cached data going out of observation window
-        historyAggregation.timeslotMaintenanceWindowHours: 23
-        fullAzureEARIDiscovery: false
-        # Used to determine whether the plan Bought RIs (newly recommended RI purchases) should be fed to the market,
-        # and the market should perform analysis on them, or if the Buy RI Impact Analysis should be performed.
-        # BUY_RI_IMPACT_ANALYSIS is evaluated to true if either it's OCP with RI Buy only, or it's OCP with RI Buy + Market Optimization,
-        # and allowBoughtRiInAnalysis is false.
-        allowBoughtRiInAnalysis: true

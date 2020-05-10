@@ -76,6 +76,7 @@ public class TopologyEntitiesListenerExceptionTest {
     public void setUp() throws Exception {
         topologyEntitiesListener = new TopologyEntitiesListener(
                 topologyManager,
+                liveTopologyStore,
                 notificationSender);
 
         // Simulates one chunk and then an exception

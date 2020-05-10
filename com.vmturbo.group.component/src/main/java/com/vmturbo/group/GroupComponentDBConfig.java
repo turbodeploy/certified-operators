@@ -40,8 +40,9 @@ public class GroupComponentDBConfig extends SQLDatabaseConfig {
         // If no db password specified, use root password by default.
         DBPasswordUtil dbPasswordUtil = new DBPasswordUtil(authHost, authPort, authRoute,
             authRetryDelaySecs);
-        String dbPassword = !Strings.isEmpty(groupComponentDbPassword) ?
-            groupComponentDbPassword : dbPasswordUtil.getSqlDbRootPassword();
+        String dbPassword = !Strings.isEmpty(groupComponentDbPassword)
+                ? groupComponentDbPassword
+                : dbPasswordUtil.getSqlDbRootPassword();
         return dataSourceConfig(dbSchemaName, groupComponentDbUsername, dbPassword);
     }
 

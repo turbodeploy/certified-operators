@@ -998,7 +998,7 @@ public class Stages {
             // This method does a sync call to Group Component.
             // If GC has trouble, the topology broadcast would be delayed.
             entitySettingsResolver.sendEntitySettings(getContext().getTopologyInfo(),
-                input.getEntitySettings());
+                input.getEntitySettings(), input.getTopologyGraph());
             return Status.success();
         }
 

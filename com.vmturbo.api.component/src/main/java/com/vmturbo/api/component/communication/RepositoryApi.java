@@ -61,6 +61,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEnt
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntityBatch;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -226,6 +228,24 @@ public class RepositoryApi {
         }
         severityPopulator.populate(realtimeTopologyContextId, seList);
         return new RepositoryRequestResult(buList, seList);
+    }
+
+    /**
+     * Expand the list of oids of service providers to the list of oids of the connected regions.
+     *
+     * @param serviceProviders set of service provider oids
+     * @return set of region oids
+     */
+    public Set<Long> expandServiceProvidersToRegions(@Nonnull final Set<Long> serviceProviders) {
+        return this.entitiesRequest(serviceProviders)
+                .getEntitiesWithConnections()
+                .flatMap(e -> e.getConnectedEntitiesList().stream())
+                .filter(ConnectedEntity::hasConnectedEntityId)
+                .filter(ConnectedEntity::hasConnectedEntityType)
+                .filter(c -> c.getConnectedEntityType() == EntityType.REGION_VALUE
+                        && c.getConnectionType() == ConnectionType.OWNS_CONNECTION)
+                .map(ConnectedEntity::getConnectedEntityId)
+                .collect(Collectors.toSet());
     }
 
     /**

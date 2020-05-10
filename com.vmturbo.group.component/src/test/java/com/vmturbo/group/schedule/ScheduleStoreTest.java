@@ -32,17 +32,25 @@ import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
+import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.OneTime;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Perpetual;
 import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.RecurrenceStart;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.DuplicateNameException;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemActionException.InvalidScheduleAssignmentException;
@@ -50,7 +58,9 @@ import com.vmturbo.group.common.ItemDeleteException.ScheduleInUseDeleteException
 import com.vmturbo.group.common.ItemNotFoundException.ScheduleNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.db.GroupComponent;
+import com.vmturbo.group.group.GroupDAO;
 import com.vmturbo.group.group.IGroupStore;
+import com.vmturbo.group.group.TestGroupGenerator;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.FileBasedSettingsSpecStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
@@ -58,6 +68,7 @@ import com.vmturbo.group.setting.SettingPolicyValidator;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
 import com.vmturbo.group.setting.SettingsUpdatesSender;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
@@ -100,7 +111,7 @@ public class ScheduleStoreTest {
     private final IdentityProvider identityProvider = new IdentityProvider(0);
     private SettingPolicyValidator settingPolicyValidator = mock(SettingPolicyValidator.class);
     private SettingsUpdatesSender settingsUpdatesSender = mock(SettingsUpdatesSender.class);
-    private IGroupStore groupStore = mock(IGroupStore.class);
+    private IGroupStore groupStore;
 
     private final Schedule oneTimeSchedule = Schedule.newBuilder()
         .setDisplayName(DISPLAY_NAME)
@@ -154,6 +165,7 @@ public class ScheduleStoreTest {
         settingStore = new SettingStore(settingSpecStore, dslContextSpy, settingPolicyValidator,
                 settingsUpdatesSender);
         scheduleStore = new ScheduleStore(dslContextSpy, scheduleValidator, identityProvider, settingStore);
+        groupStore = new GroupDAO(dslContextSpy);
     }
 
     /**
@@ -434,6 +446,52 @@ public class ScheduleStoreTest {
         scheduleStore.assignScheduleToSettingPolicy(USER_POLICY.getId(), schedule.getId());
         // deletion should not be allowed
         thrown.expect(ScheduleInUseDeleteException.class);
+        scheduleStore.deleteSchedule(schedule.getId());
+    }
+
+    /**
+     * Test that we shouldn't delete schedule if it used as execution window in any setting
+     * policies.
+     *
+     * @throws Exception If test throws any exceptions
+     */
+    @Test
+    public void testDeleteScheduleUsedAsExecutionWindow() throws Exception {
+        Schedule schedule = scheduleStore.createSchedule(testScheduleWithLastDate);
+        final TestGroupGenerator groupGenerator = new TestGroupGenerator();
+        final Origin userOrigin = groupGenerator.createUserOrigin();
+        final GroupDefinition groupDefinition = groupGenerator.createGroupDefinition();
+        final Long groupId = 23L;
+        groupStore.createGroup(groupId, userOrigin, groupDefinition,
+                Collections.singleton(MemberType.newBuilder().setEntity(1).build()), false);
+
+        final Setting actionModeSetting = Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+                .setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()).build())
+                .build();
+
+        final Setting executionScheduleSetting = Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.MoveExecutionSchedule.getSettingName())
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                        .addAllOids(Collections.singletonList(schedule.getId()))
+                        .build())
+                .build();
+
+        final SettingPolicy settingPolicy = SettingPolicy.newBuilder()
+                .setSettingPolicyType(Type.USER)
+                .setInfo(SettingPolicyInfo.newBuilder()
+                        .setName("testPolicy")
+                        .setEntityType(EntityType.VIRTUAL_MACHINE.getValue())
+                        .setScope(Scope.newBuilder().addGroups(groupId).build())
+                        .addAllSettings(Arrays.asList(actionModeSetting, executionScheduleSetting))
+                        .build())
+                .build();
+        settingStore.createSettingPolicies(dbConfig.getDslContext(),
+                Collections.singleton(settingPolicy));
+
+        thrown.expect(ScheduleInUseDeleteException.class);
+        // deletion should not be allowed
         scheduleStore.deleteSchedule(schedule.getId());
     }
 

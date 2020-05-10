@@ -3,11 +3,15 @@ package com.vmturbo.api.component.external.api.mapper;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 
@@ -117,6 +121,8 @@ public class CompoundMoveTest {
 
     private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
+    private final VirtualVolumeAspectMapper virtualVolumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
+
     @Before
     public void setup() throws Exception {
         final List<PolicyResponse> policyResponses = ImmutableList.of(
@@ -148,9 +154,12 @@ public class CompoundMoveTest {
         final SearchRequest emptySearchReq = ApiTestUtils.mockEmptySearchReq();
         when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
 
+        when(virtualVolumeAspectMapper.mapVirtualMachines(anySetOf(Long.class), anyLong())).thenReturn(Collections.emptyMap());
+        when(virtualVolumeAspectMapper.mapUnattachedVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.empty());
+
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
                 Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
-                mock(EntityAspectMapper.class), mock(VirtualVolumeAspectMapper.class),
+                mock(EntityAspectMapper.class), virtualVolumeAspectMapper,
                 REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper,
                 supplyChainService, Mockito.mock(PoliciesService.class));
 
@@ -159,6 +168,7 @@ public class CompoundMoveTest {
         ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
                 reservedInstanceUtilizationCoverageServiceBlockingStub =
                 ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
         mapper = new ActionSpecMapper(
                 actionSpecMappingContextFactory,
                 serviceEntityMapper,

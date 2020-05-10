@@ -166,9 +166,9 @@ public class ConfigMapPropertiesReader extends YamlProcessor {
             return null;
         }
         if (!(subMap instanceof Map)) {
-            throw new MapValueExpected("Map<String, Object> for key " +
-                propertiesKey + " was expected, not: " + subMap.getClass().getCanonicalName() +
-                "=" + subMap);
+            throw new MapValueExpected(
+                    "Map<String, Object> for key " + propertiesKey + " was expected, not: "
+                            + subMap.getClass().getCanonicalName() + "=" + subMap);
         }
         @SuppressWarnings("unchecked")
         final Map<String, Object> answer = (Map<String, Object>)subMap;

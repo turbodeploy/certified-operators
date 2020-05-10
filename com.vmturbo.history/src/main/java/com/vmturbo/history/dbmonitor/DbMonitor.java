@@ -9,7 +9,6 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder.ListMultimapBuilder;
 
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
@@ -82,7 +81,7 @@ public class DbMonitor {
     }
 
     private void logConnections() {
-        final String sql = "SELECT db, command, time_ms, state, info FROM information_schema.processlist";
+        final String sql = "SELECT db, command, time, state, info FROM information_schema.processlist";
         try {
             final List<ProcessListRecord> records = dsl.fetch(sql).into(ProcessListRecord.class);
             if (records == null) {
@@ -110,8 +109,8 @@ public class DbMonitor {
     }
 
     private String summarize(List<ProcessListRecord> records) {
-        final double totmsec = records.stream()
-                .collect(Collectors.summingDouble(ProcessListRecord::getTimeMs));
+        final long totsec = records.stream()
+                .collect(Collectors.summingLong(ProcessListRecord::getTime));
         String info = records.stream()
                 .map(r -> !Strings.isNullOrEmpty(r.getInfo()) ? r.getTrimmedInfo(30)
                         : !Strings.isNullOrEmpty(r.getState()) ? r.getState()
@@ -124,18 +123,16 @@ public class DbMonitor {
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse("-");
-        return String.format("(%d)[%s/%s]: %s",
-                records.size(), command, formatMsec(Math.round(totmsec)), info);
+        return String.format("(%d)[%s/%s]: %s", records.size(), command, formatSec(totsec), info);
     }
 
-    private static String formatMsec(long msec) {
-        final long msecs = msec % 1000;
-        final long secs = (msec / 1000) % 60;
-        final long mins = (msec / (60 * 1000)) % 60;
-        final long hrs = (msec / (60 * 60 * 1000)) % 24;
-        final long days = msec / (24 * 60 * 60 * 1000);
-        return days > 0 ? String.format("%d:%02d:%02d:%02d.%03d", days, hrs, mins, secs, msecs)
-                : hrs > 0 ? String.format("%d:%02d:%02d.%03d", hrs, mins, secs, msecs)
-                : String.format("%d:%02d.%03d", mins, secs, msecs);
+    private static String formatSec(long sec) {
+        final long secs = sec % 60;
+        final long mins = (sec / 60) % 60;
+        final long hrs = (sec / (60 * 60)) % 24;
+        final long days = sec / (24 * 60 * 60);
+        return days > 0 ? String.format("%d:%02d:%02d:%02d", days, hrs, mins, secs)
+                : hrs > 0 ? String.format("%d:%02d:%02d", hrs, mins, secs)
+                : String.format("%d:%02d", mins, secs);
     }
 }
