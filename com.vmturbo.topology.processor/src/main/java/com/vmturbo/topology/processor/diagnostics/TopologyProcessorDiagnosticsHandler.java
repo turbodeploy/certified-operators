@@ -4,13 +4,16 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -56,7 +59,9 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.cost.PriceTableUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.entity.EntityStore.TargetIncrementalEntities;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
+import com.vmturbo.topology.processor.entity.IncrementalEntityByMessageDTO;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader.TargetDiscoveredData;
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
@@ -198,6 +203,20 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                     .map(ientity -> GSON.toJson(ientity, IdentifiedEntityDTO.class))
                     .iterator();
             diagsWriter.writeZipEntry("Entities" + targetSuffix, objectsToWrite);
+            Optional<TargetIncrementalEntities> incrementalEntities =  entityStore.getIncrementalEntities(id);
+            if (incrementalEntities.isPresent()) {
+                // Incremental Entities
+                LinkedHashMap<Integer, Collection<EntityDTO>> entitiesByMessageId = incrementalEntities.get()
+                    .getEntitiesByMessageId();
+                final List<String> entitiesToWrite = new ArrayList<>();
+                for (Map.Entry<Integer, Collection<EntityDTO>> entityByMessageId : entitiesByMessageId.entrySet()) {
+                    for (EntityDTO entityDTO : entityByMessageId.getValue()) {
+                        entitiesToWrite.add(IncrementalEntityByMessageDTO
+                            .toJson(new IncrementalEntityByMessageDTO(entityByMessageId.getKey(), entityDTO)));
+                    }
+                }
+                diagsWriter.writeZipEntry("IncrementalEntities" + targetSuffix, entitiesToWrite.iterator());
+            }
 
             //Discovered Groups
             diagsWriter.writeZipEntry("DiscoveredGroupsAndPolicies" + targetSuffix, discoveredGroups
