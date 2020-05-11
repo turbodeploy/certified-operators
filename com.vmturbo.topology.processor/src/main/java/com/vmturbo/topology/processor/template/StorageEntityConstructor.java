@@ -46,13 +46,12 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
 
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull final Template template,
-            @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nonnull final Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
-                template, originalTopologyEntity, isReplaced, identityProvider).iterator().next();
-        topologyEntityBuilder.setEntityType(EntityType.STORAGE_VALUE);
+                template, originalTopologyEntity, isReplaced, identityProvider,
+                EntityType.STORAGE_VALUE);
 
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints;
         final Set<CommoditySoldDTO> commoditySoldConstraints;
@@ -72,7 +71,7 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
                 Storage);
         final Map<String, String> fieldNameValueMap =
                 createFieldNameValueMap(storageTemplateResources);
-        addStorageCommoditiesSold(topologyEntityBuilder, fieldNameValueMap);
+        addStorageCommoditiesSold(topologyEntityBuilder, fieldNameValueMap, false);
 
         // shopRogether entities are not allowed to sell biclique commodities (why???), and storages need
         // to sell biclique commodities, so set shopTogether to false.
