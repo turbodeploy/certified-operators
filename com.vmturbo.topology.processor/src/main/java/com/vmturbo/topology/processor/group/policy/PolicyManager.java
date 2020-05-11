@@ -15,17 +15,20 @@ import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import io.grpc.StatusRuntimeException;
 
+import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.mutable.MutableInt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.GroupProtoUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
+import com.vmturbo.common.protobuf.group.GroupDTO.GetMembersRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
@@ -43,13 +46,17 @@ import com.vmturbo.common.protobuf.plan.ReservationServiceGrpc.ReservationServic
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ReservationConstraintInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.PolicyChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
+import com.vmturbo.topology.processor.group.policy.application.BindToGroupPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PlacementPolicy;
 import com.vmturbo.topology.processor.group.policy.application.PolicyApplicator;
 import com.vmturbo.topology.processor.group.policy.application.PolicyFactory;
@@ -191,6 +198,10 @@ public class PolicyManager {
             final List<PlacementPolicy> policiesToApply =
                 new ArrayList<>(reservationResults.getReservationPolicies());
 
+            // Bind sources (consumers) to destinations (providers) in case of migration
+            getMigrationPolicies(changes)
+                .forEach(policiesToApply::add);
+
             getServerPolicies(changes, livePolicies, groupsById, reservationResults)
                 .forEach(policiesToApply::add);
 
@@ -215,6 +226,84 @@ public class PolicyManager {
 
             return results;
         }
+    }
+
+    /**
+     * Create a {@link Grouping} from a list of {@link MigrationReference} and a given type.
+     * The resulting {@link Grouping} is never submitted to the group component, nor persisted elsewhere.
+     *
+     * @param entities a list of {@link MigrationReference} from which a single group is created
+     * @param destinationEntityType the type of the group to be created
+     * @return a {@link Grouping} to be used for creating a {@link PlacementPolicy}
+     */
+    private Grouping getStaticMigrationGroup(
+            @Nonnull final List<MigrationReference> entities, int destinationEntityType) {
+        boolean areGroups = true;
+        Map<Boolean, Set<Long>> areGroupsToSourceOids = entities.stream()
+                .collect(Collectors.groupingBy(aSource -> aSource.hasGroupType(),
+                        Collectors.mapping(MigrationReference::getOid, Collectors.toSet())));
+
+        Set<Long> groupMemberOids = Sets.newHashSet();
+        if (CollectionUtils.isNotEmpty(areGroupsToSourceOids.get(areGroups))) {
+            // Add the members of expanded groups
+            groupServiceBlockingStub.getMembers(GetMembersRequest.newBuilder()
+                    .addAllId(areGroupsToSourceOids.get(areGroups))
+                    .build())
+                    .forEachRemaining(sourceGroup -> groupMemberOids.addAll(sourceGroup.getMemberIdList()));
+        }
+        if (CollectionUtils.isNotEmpty(areGroupsToSourceOids.get(!areGroups))) {
+            // Add individual entities
+            groupMemberOids.addAll(areGroupsToSourceOids.get(!areGroups));
+        }
+        return ReservationPolicyFactory.generateStaticGroup(
+                areGroupsToSourceOids.get(!areGroups),
+                destinationEntityType);
+    }
+
+    /**
+     * Create groups corresponding to the source and destination arguments of the {@param MigrateObjectApiDTO}, and add
+     * cloud migration policies and {@link ScenarioChange.SettingOverride}s. To facilitate a cloud migration using
+     * segmentation commodities, create source and destination groupings (unregistered with the group component) with
+     * which to create a BindToGroupPolicy. This will enforce constraints that bind the consumers (workloads) to the set
+     * provider(s) (regions).
+     *
+     * @param topologyMigration the object symbolizing an entity/group to migrate
+     * @return a list of {@link ScenarioChange} corresponding to the requested cloud migration plan
+     */
+    @VisibleForTesting
+    public PlacementPolicy enableTopologyMigration(
+            @Nonnull final TopologyMigration topologyMigration) {
+        final int destinationEntityType = topologyMigration.getDestinationEntityType().equals(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
+                ? EntityType.VIRTUAL_MACHINE_VALUE
+                : EntityType.DATABASE_SERVER_VALUE;
+        final Grouping source = getStaticMigrationGroup(topologyMigration.getSourceList(), destinationEntityType);
+        final long sourceId = source.getId();
+
+        final Grouping destination = getStaticMigrationGroup(topologyMigration.getDestinationList(), EntityType.REGION_VALUE);
+        final long destinationId = destination.getId();
+
+        final Policy bindToGroupPolicy = ReservationPolicyFactory.generateBindToGroupPolicy(destinationId, sourceId);
+        return new BindToGroupPolicy(bindToGroupPolicy,
+                new PolicyFactory.PolicyEntities(source),
+                new PolicyFactory.PolicyEntities(destination));
+    }
+
+    /**
+     * Given a list of {@link ScenarioChange}s, identify those associated with cloud migrations, and generate
+     * {@link BindToGroupPolicy} objects to enable them in the plan market.
+     *
+     * @param scenarioChanges the current list of {@link ScenarioChange} objects generated in ScenarioMapper
+     * @return additional {@link ScenarioChange}s that should be applied in the current plan context
+     */
+    @VisibleForTesting
+    List<PlacementPolicy> getMigrationPolicies(@Nonnull final List<ScenarioChange> scenarioChanges) {
+        List<PlacementPolicy> placementPolicies = Lists.newArrayList();
+        for (ScenarioChange change : scenarioChanges) {
+            if (change.hasTopologyMigration()) {
+                placementPolicies.add(enableTopologyMigration(change.getTopologyMigration()));
+            }
+        }
+        return placementPolicies;
     }
 
     /**

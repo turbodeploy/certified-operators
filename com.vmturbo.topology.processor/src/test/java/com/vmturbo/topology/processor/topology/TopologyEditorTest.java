@@ -37,6 +37,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
@@ -45,6 +46,8 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -62,9 +65,9 @@ import com.vmturbo.commons.analysis.AnalysisUtil;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
-import com.vmturbo.topology.processor.group.GroupResolutionException;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
@@ -273,6 +276,96 @@ public class TopologyEditorTest {
     }
 
     /**
+     * Test migrating entities in a plan.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testTopologyMigrationVMClone() throws Exception {
+        final long migrationSourceGroupId = 11;
+        final long migrationDestinationGroupId = 12;
+        final MigrationReference migrationSourceGroup = MigrationReference.newBuilder()
+                .setOid(migrationSourceGroupId)
+                .setGroupType(CommonDTOREST.GroupDTO.GroupType.REGULAR.getValue()).build();
+        final MigrationReference migrationDestinationGroup = MigrationReference.newBuilder()
+                .setOid(migrationDestinationGroupId)
+                .setEntityType(EntityType.REGION_VALUE).build();
+        final long pmId = 2;
+        final long pmCloneId = 200;
+        final long vmId = 3;
+        final long vmCloneId = 300;
+        final ScenarioChange migrateVm = ScenarioChange.newBuilder()
+                .setTopologyMigration(TopologyMigration.newBuilder()
+                        .addSource(migrationSourceGroup)
+                        .addDestination(migrationDestinationGroup)
+                        .setDestinationEntityType(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
+                        .build())
+                .build();
+
+        final Grouping sourceGroup = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.newBuilder().setStaticGroupMembers(
+                        GroupDTO.StaticMembers.newBuilder().addMembersByType(
+                                GroupDTO.StaticMembers.StaticMembersByType.newBuilder().addMembers(vmId).build()
+                        ).build()
+                ))
+                .setId(migrationSourceGroupId)
+                .build();
+        final Grouping destinationGroup = Grouping.newBuilder()
+                .setDefinition(GroupDefinition.getDefaultInstance())
+                .setId(migrationDestinationGroupId)
+                .build();
+        final TopologyEntity.Builder pmEntity = TopologyEntityUtils
+                .topologyEntity(pmId, 0, 0, "PM", EntityType.PHYSICAL_MACHINE);
+        // Volumes/Storages
+        final long vv1Id = 4;
+        final long vv1CloneId = 400;
+        final long s1Id = 5;
+        final long s1CloneId = 500;
+        final long vv2Id = 6;
+        final long vv2CloneId = 600;
+        final long s2Id = 7;
+        final long s2CloneId = 700;
+        final TopologyEntity.Builder storageEntity1 = TopologyEntityUtils
+                .topologyEntity(s1Id, 0, 0, "S1", EntityType.STORAGE);
+        final TopologyEntity.Builder volumeEntity1 = TopologyEntityUtils
+                .topologyEntity(vv1Id, 0, 0, "VV1", EntityType.VIRTUAL_VOLUME, s1Id);
+        final TopologyEntity.Builder storageEntity2 = TopologyEntityUtils
+                .topologyEntity(s2Id, 0, 0, "S2", EntityType.STORAGE);
+        final TopologyEntity.Builder volumeEntity2 = TopologyEntityUtils
+                .topologyEntity(vv2Id, 0, 0, "VV2", EntityType.VIRTUAL_VOLUME, s2Id);
+
+        final TopologyEntity.Builder vmEntity = TopologyEntityUtils
+                .topologyEntity(vmId, 0, 0, "VM", EntityType.VIRTUAL_MACHINE, pmId, vv1Id, vv2Id);
+        vmEntity.addProvider(pmEntity);
+
+        final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
+        topology.put(pmId, pmEntity);
+        topology.put(vmId, vmEntity);
+        topology.put(vv1Id, volumeEntity1);
+        topology.put(s1Id, storageEntity1);
+        topology.put(vv2Id, volumeEntity2);
+        topology.put(s2Id, storageEntity2);
+
+        when(groupServiceSpy.getGroups(any())).thenReturn(Lists.newArrayList(sourceGroup, destinationGroup));
+        when(groupResolver.resolve(eq(sourceGroup), isA(TopologyGraph.class)))
+                .thenReturn(resolvedGroup(sourceGroup, ApiEntityType.VIRTUAL_MACHINE, vmId));
+        when(identityProvider.getCloneId(any(TopologyEntityDTO.class)))
+                .thenReturn(vmCloneId, pmCloneId, vv1CloneId, s1CloneId, vv2CloneId, s2CloneId);
+
+        assertEquals(6, topology.size());
+        topologyEditor.editTopology(topology, Lists.newArrayList(migrateVm), topologyInfo, groupResolver);
+
+        assertEquals(12, topology.size());
+        assertTrue(topology.containsKey(vmId));
+        assertTrue(topology.containsKey(vmCloneId));
+        assertTrue(topology.containsKey(pmId));
+        assertTrue(topology.containsKey(pmCloneId));
+
+        assertTrue(topology.containsKey(s1CloneId));
+        assertTrue(topology.containsKey(s2CloneId));
+    }
+
+    /**
      * Test adding entities in a plan.
      *
      * @throws Exception To satisfy compiler.
@@ -286,15 +379,15 @@ public class TopologyEditorTest {
         topologyEditor.editTopology(topology, changes, topologyInfo, groupResolver);
 
         List<TopologyEntity.Builder> clones = topology.values().stream()
-                        .filter(entity -> entity.getOid() != vm.getOid())
-                        .filter(entity -> entity.getEntityType() == vm.getEntityType())
-                        .collect(Collectors.toList());
+                .filter(entity -> entity.getOid() != vm.getOid())
+                .filter(entity -> entity.getEntityType() == vm.getEntityType())
+                .collect(Collectors.toList());
         clones.remove(vm);
         assertEquals(NUM_CLONES, clones.size());
 
         // Verify display names are (e.g.) "VM - Clone #123"
         List<String> names = clones.stream().map(TopologyEntity.Builder::getDisplayName)
-                        .collect(Collectors.toList());
+                .collect(Collectors.toList());
         names.sort(String::compareTo);
         IntStream.range(0, NUM_CLONES).forEach(i -> {
             assertEquals(names.get(i), vm.getDisplayName() + " - Clone #" + i);
@@ -303,26 +396,26 @@ public class TopologyEditorTest {
         TopologyEntityDTO.Builder oneClone = clones.get(0).getEntityBuilder();
         // clones are unplaced - all provider IDs are negative
         boolean allNegative = oneClone.getCommoditiesBoughtFromProvidersList()
-                        .stream()
-                        .map(CommoditiesBoughtFromProvider::getProviderId)
-                        .allMatch(key -> key < 0);
+                .stream()
+                .map(CommoditiesBoughtFromProvider::getProviderId)
+                .allMatch(key -> key < 0);
         assertTrue(allNegative);
 
         // "oldProviders" entry in EntityPropertyMap captures the right placement
         @SuppressWarnings("unchecked")
         Map<String, Double> oldProviders = new Gson().fromJson(
-            oneClone.getEntityPropertyMapMap().get("oldProviders"), Map.class);
+                oneClone.getEntityPropertyMapMap().get("oldProviders"), Map.class);
         Map<Long, Long> oldProvidersMap = oldProviders.entrySet().stream().collect(
-            Collectors.toMap(e -> Long.decode(e.getKey()), e -> e.getValue().longValue()));
+                Collectors.toMap(e -> Long.decode(e.getKey()), e -> e.getValue().longValue()));
         for (CommoditiesBoughtFromProvider cloneCommBought :
                 oneClone.getCommoditiesBoughtFromProvidersList()) {
             long oldProvider = oldProvidersMap.get(cloneCommBought.getProviderId());
             CommoditiesBoughtFromProvider vmCommBought =
-                vm.getEntityBuilder().getCommoditiesBoughtFromProvidersList().stream()
-                    .filter(bought -> bought.getProviderId() == oldProvider)
-                    .findAny().get();
+                    vm.getEntityBuilder().getCommoditiesBoughtFromProvidersList().stream()
+                            .filter(bought -> bought.getProviderId() == oldProvider)
+                            .findAny().get();
             assertEquals(cloneCommBought.getCommodityBoughtList(),
-                vmCommBought.getCommodityBoughtList());
+                    vmCommBought.getCommodityBoughtList());
         }
         // Assert that the commodity sold usages are the same.
         assertEquals(vm.getEntityBuilder().getCommoditySoldListList(), oneClone.getCommoditySoldListList());

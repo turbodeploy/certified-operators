@@ -37,6 +37,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.BooleanUtils;
@@ -60,6 +61,7 @@ import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.IncludedCouponsApiDTO;
 import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
 import com.vmturbo.api.dto.scenario.MaxUtilizationApiDTO;
+import com.vmturbo.api.dto.scenario.MigrateObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RelievePressureObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
@@ -70,11 +72,11 @@ import com.vmturbo.api.dto.scenario.UtilizationApiDTO;
 import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
+import com.vmturbo.api.enums.DestinationEntityType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
-import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
@@ -104,11 +106,15 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProv
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
+import com.vmturbo.common.protobuf.PlanDTOUtil;
 import com.vmturbo.common.protobuf.search.CloudType;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -119,6 +125,7 @@ import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
@@ -265,7 +272,6 @@ public class ScenarioMapper {
         getScope(dto.getScope()).ifPresent(infoBuilder::setScope);
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
-
         return infoBuilder.build();
     }
 
@@ -1106,7 +1112,8 @@ public class ScenarioMapper {
 
     @Nonnull
     private List<ScenarioChange> getTopologyChanges(final TopologyChangesApiDTO topoChanges,
-                                           @Nonnull final Set<Long> templateIds) {
+                                                    @Nonnull final Set<Long> templateIds)
+            throws IllegalArgumentException {
         if (topoChanges == null) {
             return Collections.emptyList();
         }
@@ -1122,10 +1129,14 @@ public class ScenarioMapper {
         CollectionUtils.emptyIfNull(topoChanges.getReplaceList())
             .forEach(change -> changes.add(mapTopologyReplace(change)));
 
-        if (!CollectionUtils.isEmpty(topoChanges.getMigrateList())) {
-            logger.warn("Skipping {} migration changes.",
-                    topoChanges.getMigrateList().size());
+        List<MigrateObjectApiDTO> migrateObjects = topoChanges.getMigrateList();
+        if (CollectionUtils.isNotEmpty(migrateObjects)) {
+            // 1. Set shopTogether to true (all market)
+            changes.add(getShopTogetherChange());
+            // 2. Create the migration change
+            changes.add(getTopologyMigrationChange(migrateObjects));
         }
+
         return changes.build();
     }
 
@@ -1200,6 +1211,83 @@ public class ScenarioMapper {
             .setTopologyAddition(additionBuilder)
             .build());
         return changes;
+    }
+
+    /**
+     * Create a {@link ScenarioChange.SettingOverride} forcing members of the source group to shopTogether with
+     * their corresponding storages. This guarantees that we don't end up with cloud compute resources attached to
+     * on-prem storages.
+     *
+     * @return a {@link ScenarioChange} representing the shopTogether {@link ScenarioChange.SettingOverride}
+     */
+    private static ScenarioChange getShopTogetherChange() {
+        return ScenarioChange.newBuilder()
+                .setSettingOverride(
+                        ScenarioChange.SettingOverride.newBuilder()
+                                .setSetting(
+                                        Setting.newBuilder()
+                                                .setSettingSpecName(EntitySettingSpecs.ShopTogether.getSettingName())
+                                                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true).build())
+                                                .build())
+                                .build()).build();
+    }
+
+    /**
+     * Convert a {@link BaseApiDTO} to a {@link MigrationReference}.
+     *
+     * @param baseApiDTO either a source or destination of a {@link MigrateObjectApiDTO}
+     * @return a {@link MigrationReference} object converted from the {@param baseApiDTO}
+     * @throws IllegalArgumentException when the {@param baseApiDTO} className cannot be converted
+     */
+    private static MigrationReference getMigrationReferenceFromBaseApiDTO(BaseApiDTO baseApiDTO)
+            throws IllegalArgumentException {
+        long oid = Long.valueOf(baseApiDTO.getUuid());
+        MigrationReference.Builder referenceBuilder = MigrationReference.newBuilder()
+                .setOid(oid);
+        String className = baseApiDTO.getClassName();
+        EntityType entityType = ApiEntityType.fromString(className).sdkType();
+        if (!entityType.equals(EntityType.UNKNOWN)) {
+            referenceBuilder.setEntityType(entityType.getNumber());
+        } else {
+            final GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
+            if (groupType == null) {
+                throw new IllegalArgumentException(
+                        String.format("BaseApiDTO with OID: %s has className: %s which is not a valid entityType or groupType. Failed to convert to MigrationReference",
+                                oid, className));
+            }
+            referenceBuilder.setGroupType(groupType.getNumber());
+        }
+        return referenceBuilder.build();
+    }
+
+    /**
+     * Create the {@link TopologyMigration} corresponding to a particular {@link MigrateObjectApiDTO}.
+     *
+     * @param migrateObjects the list of {@link MigrateObjectApiDTO} object from which the scenario is being created
+     * @return a {@link ScenarioChange} symbolizing the cloud migration
+     * @throws IllegalArgumentException when either a source or destination className cannot be converted
+     */
+    public static ScenarioChange getTopologyMigrationChange(final List<MigrateObjectApiDTO> migrateObjects)
+            throws IllegalArgumentException {
+            Set<MigrationReference> sources = Sets.newHashSet();
+            Set<MigrationReference> destinations = Sets.newHashSet();
+            migrateObjects.forEach(migrateObject -> {
+                sources.add(getMigrationReferenceFromBaseApiDTO(migrateObject.getSource()));
+                destinations.add(getMigrationReferenceFromBaseApiDTO(migrateObject.getDestination()));
+            });
+
+            MigrateObjectApiDTO firstMigrateObject = migrateObjects.get(0);
+            final TopologyMigration.Builder migrationBuilder = TopologyMigration.newBuilder()
+                .addAllSource(sources)
+                .addAllDestination(destinations)
+                .setDestinationEntityType(firstMigrateObject.getDestinationEntityType() == DestinationEntityType.VirtualMachine
+                        ? TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE
+                        : TopologyMigration.DestinationEntityType.DATABASE_SERVER)
+                .setRemoveNonMigratingWorkloads(firstMigrateObject.getRemoveNonMigratingWorkloads());
+
+            return ScenarioChange.newBuilder()
+                    .setTopologyMigration(migrationBuilder)
+                    .build();
     }
 
     @VisibleForTesting
@@ -1556,6 +1644,9 @@ public class ScenarioMapper {
                 case TOPOLOGY_REPLACE:
                     buildApiTopologyReplace(change.getTopologyReplace(), outputChanges, context);
                     break;
+                case TOPOLOGY_MIGRATION:
+                    buildApiTopologyMigration(change.getTopologyMigration(), outputChanges, context);
+                    break;
                 default:
             }
         });
@@ -1668,6 +1759,65 @@ public class ScenarioMapper {
             logger.error("Error handling policy change");
             logger.error(policyChange, e);
         }
+    }
+
+    /**
+     * Build a list of {@link MigrateObjectApiDTO} mapped from a single {@link TopologyMigration} object, and add it
+     * to {@param outputChanges} migrateList.
+     *
+     * @param migration a {@link TopologyMigration} object whose data should be mapped to a list of {@link MigrateObjectApiDTO}
+     * @param outputChanges the {@link TopologyChangesApiDTO} object on which migrateList should be populated
+     * @param context a {@link ScenarioChangeMappingContext} holding a cache of entities and groups
+     */
+    private void buildApiTopologyMigration(@Nonnull final TopologyMigration migration,
+                                           @Nonnull final TopologyChangesApiDTO outputChanges,
+                                           @Nonnull final ScenarioChangeMappingContext context) {
+        final List<MigrateObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(
+                outputChanges.getMigrateList(),
+                new ArrayList<>());
+        List<MigrationReference> sources = migration.getSourceList();
+        List<MigrationReference> destinations = migration.getDestinationList();
+        // Default value is true
+        boolean removeNonMigratingWorkloads = true;
+        // Make VM the default (somewhat arbitrary, but more common)
+        DestinationEntityType destinationEntityType = migration.hasDestinationEntityType() && migration.getDestinationEntityType() == TopologyMigration.DestinationEntityType.DATABASE_SERVER
+                ? DestinationEntityType.DatabaseServer
+                : DestinationEntityType.VirtualMachine;
+        if (migration.hasRemoveNonMigratingWorkloads()) {
+            removeNonMigratingWorkloads = migration.getRemoveNonMigratingWorkloads();
+        }
+
+        for (int sourceNum = 0; sourceNum < sources.size(); sourceNum++) {
+            final MigrateObjectApiDTO changeApiDTO = new MigrateObjectApiDTO();
+            MigrationReference source = sources.get(sourceNum);
+            MigrationReference destination = destinations.get(Math.min(sourceNum, destinations.size() - 1));
+            switch (source.getTypeCase()) {
+                case ENTITY_TYPE:
+                case GROUP_TYPE:
+                    changeApiDTO.setSource(context.dtoForId(source.getOid()));
+                    break;
+                case TYPE_NOT_SET:
+                    logger.error("Unset source entity type in topology migration- source: {}, migration: {}",
+                            source, migration);
+                    return;
+            }
+            switch (destination.getTypeCase()) {
+                case ENTITY_TYPE:
+                case GROUP_TYPE:
+                    changeApiDTO.setDestination(context.dtoForId(destination.getOid()));
+                    break;
+                case TYPE_NOT_SET:
+                    logger.error("Unset destination entity type in topology migration- destination: {}, migration: {}",
+                            destination, migration);
+                    return;
+            }
+            // this is the default value- we do not support projection in migration plans
+            changeApiDTO.setProjectionDay(0);
+            changeApiDTO.setRemoveNonMigratingWorkloads(removeNonMigratingWorkloads);
+            changeApiDTO.setDestinationEntityType(destinationEntityType);
+            changeApiDTOs.add(changeApiDTO);
+        }
+        outputChanges.setMigrateList(changeApiDTOs);
     }
 
     /**

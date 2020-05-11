@@ -88,7 +88,7 @@ public class ReservationPolicyFactory {
             @Nonnull final Set<Long> consumers) {
         final Grouping pmProviderGroup = generateProviderGroup(graph, constraints);
         final Grouping consumerGroup = generateConsumerGroup(consumers);
-        final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
+        final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup.getId(), consumerGroup.getId());
         return new BindToGroupPolicy(bindToGroupPolicyPM, new PolicyEntities(
                 consumerGroup, Collections.emptySet()), new PolicyEntities(pmProviderGroup));
     }
@@ -100,7 +100,7 @@ public class ReservationPolicyFactory {
         // when we support different template types for reservation, we should generate generic provider group
         final Grouping pmProviderGroup = generateProviderGroup(graph, constraints);
         final Grouping consumerGroup = generateConsumerGroup(reservation);
-        final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup, consumerGroup);
+        final Policy bindToGroupPolicyPM = generateBindToGroupPolicy(pmProviderGroup.getId(), consumerGroup.getId());
         return new BindToGroupPolicy(bindToGroupPolicyPM, new PolicyEntities(
                 consumerGroup, Collections.emptySet()), new PolicyEntities(pmProviderGroup));
     }
@@ -290,14 +290,14 @@ public class ReservationPolicyFactory {
     }
 
     /**
-     * Generate a static group for provider and consumer of BindToGroup policy.
+     * Generate a static group for provider and consumer of BindToGroup policy. This group will not be registered with
+     * the group component or persisted in the database. This is a feature.
      *
      * @param members a set of ids of group members.
      * @param entityType entity type of group.
      * @return {@link Grouping}.
      */
-    private Grouping generateStaticGroup(@Nonnull final Set<Long> members, final int entityType) {
-        //TODO (mahdi) this group is super weird. It does not a saved in group component
+    public static Grouping generateStaticGroup(@Nonnull final Set<Long> members, final int entityType) {
         final Grouping staticGroup = Grouping.newBuilder()
                 .setId(IdentityGenerator.next())
                 .addExpectedTypes(MemberType.newBuilder().setEntity(entityType))
@@ -314,15 +314,23 @@ public class ReservationPolicyFactory {
         return staticGroup;
     }
 
-    private Policy generateBindToGroupPolicy(@Nonnull final Grouping providerGroup,
-                                             @Nonnull final Grouping consumerGroup) {
+    /**
+     * Generate a {@link BindToGroupPolicy} associating provider and consumer groups represented by
+     * {@param providerGroupId} and {@param consumerGroupId}.
+     *
+     * @param providerGroupId the ID of a provider {@link Grouping}
+     * @param consumerGroupId the ID of a consumer {@link Grouping}
+     * @return a BindToGroup {@link Policy} definition
+     */
+    public static Policy generateBindToGroupPolicy(final long providerGroupId,
+                                                   final long consumerGroupId) {
         final Policy bindToGroupPolicy = Policy.newBuilder()
                 .setId(IdentityGenerator.next())
                 .setPolicyInfo(PolicyInfo.newBuilder()
                     .setEnabled(true)
                     .setBindToGroup(PolicyInfo.BindToGroupPolicy.newBuilder()
-                            .setConsumerGroupId(consumerGroup.getId())
-                            .setProviderGroupId(providerGroup.getId())))
+                            .setConsumerGroupId(consumerGroupId)
+                            .setProviderGroupId(providerGroupId)))
                 .build();
         return bindToGroupPolicy;
     }

@@ -16,6 +16,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 
 /**
@@ -76,7 +77,7 @@ public class PlanDTOUtil {
 
     /**
      * Return the OIDs of groups involved in a {@link ScenarioChange}. This will include groups
-     * referred to in topology addition / removal / replace / settings, max utilization and
+     * referred to in topology addition / migration / removal / replace / settings, max utilization and
      * utilization changes.
      *
      * @param scenarioChange The target {@link ScenarioChange}.
@@ -87,6 +88,18 @@ public class PlanDTOUtil {
         final ImmutableSet.Builder<Long> groupBuilder = ImmutableSet.builder();
         if (scenarioChange.hasTopologyAddition() && scenarioChange.getTopologyAddition().hasGroupId()) {
             groupBuilder.add(scenarioChange.getTopologyAddition().getGroupId());
+        } else if (scenarioChange.hasTopologyMigration()) {
+            TopologyMigration topologyMigration = scenarioChange.getTopologyMigration();
+            if (!topologyMigration.getSourceList().isEmpty()) {
+                topologyMigration.getSourceList().stream()
+                        .filter(TopologyMigration.MigrationReference::hasGroupType)
+                        .forEach(migrationEntity -> groupBuilder.add(migrationEntity.getOid()));
+            }
+            if (!topologyMigration.getDestinationList().isEmpty()) {
+                topologyMigration.getDestinationList().stream()
+                        .filter(TopologyMigration.MigrationReference::hasGroupType)
+                        .forEach(migrationEntity -> groupBuilder.add(migrationEntity.getOid()));
+            }
         } else if (scenarioChange.hasTopologyRemoval() && scenarioChange.getTopologyRemoval().hasGroupId()) {
             groupBuilder.add(scenarioChange.getTopologyRemoval().getGroupId());
         } else if (scenarioChange.hasTopologyReplace() && scenarioChange.getTopologyReplace().hasRemoveGroupId()) {
@@ -152,6 +165,20 @@ public class PlanDTOUtil {
         if (scenarioChange.hasTopologyReplace()) {
             if (scenarioChange.getTopologyReplace().hasRemoveEntityId()) {
                 entitiesBuilder.add(scenarioChange.getTopologyReplace().getRemoveEntityId());
+            }
+        }
+
+        if (scenarioChange.hasTopologyMigration()) {
+            TopologyMigration topologyMigration = scenarioChange.getTopologyMigration();
+            if (!topologyMigration.getSourceList().isEmpty()) {
+                topologyMigration.getSourceList().stream()
+                        .filter(TopologyMigration.MigrationReference::hasEntityType)
+                        .forEach(source -> entitiesBuilder.add(source.getOid()));
+            }
+            if (!topologyMigration.getDestinationList().isEmpty()) {
+                topologyMigration.getDestinationList().stream()
+                        .filter(TopologyMigration.MigrationReference::hasEntityType)
+                        .forEach(destination -> entitiesBuilder.add(destination.getOid()));
             }
         }
 

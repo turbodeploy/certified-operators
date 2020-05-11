@@ -62,6 +62,7 @@ import com.vmturbo.api.dto.scenario.AddObjectApiDTO;
 import com.vmturbo.api.dto.scenario.ConfigChangesApiDTO;
 import com.vmturbo.api.dto.scenario.LoadChangesApiDTO;
 import com.vmturbo.api.dto.scenario.MaxUtilizationApiDTO;
+import com.vmturbo.api.dto.scenario.MigrateObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RelievePressureObjectApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveConstraintApiDTO;
 import com.vmturbo.api.dto.scenario.RemoveObjectApiDTO;
@@ -74,6 +75,7 @@ import com.vmturbo.api.dto.setting.SettingApiDTO;
 import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
+import com.vmturbo.api.enums.DestinationEntityType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -172,11 +174,11 @@ public class ScenarioMapperTest {
 
     @Test
     public void testAdditionChange() throws OperationFailedException {
-        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         AddObjectApiDTO dto = new AddObjectApiDTO();
         dto.setProjectionDays(Collections.singletonList(2));
         dto.setTarget(entity(1));
         dto.setCount(6);
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         topoChanges.setAddList(Collections.singletonList(dto));
 
         ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioApiDTO(topoChanges));
@@ -189,6 +191,58 @@ public class ScenarioMapperTest {
         assertEquals(6, addition.getAdditionCount());
         assertEquals(1, addition.getEntityId());
         assertEquals(Collections.singletonList(2), addition.getChangeApplicationDaysList());
+    }
+
+    /**
+     * Tests mapping {@link TopologyChangesApiDTO} into {@link ScenarioApiDTO}.
+     *
+     * @throws OperationFailedException when an operation fails
+     */
+    @Test
+    public void testMigrationChange() throws OperationFailedException {
+        long sourceVmOid = 1;
+        BaseApiDTO source = new BaseApiDTO();
+        source.setUuid(String.valueOf(sourceVmOid));
+        source.setDisplayName("theVMs");
+        source.setClassName("VirtualMachine");
+
+        long destinationOid = 2;
+        BaseApiDTO destination = new BaseApiDTO();
+        destination.setUuid(String.valueOf(destinationOid));
+        destination.setDisplayName("theRegion");
+        destination.setClassName("Region");
+
+        MigrateObjectApiDTO dto = new MigrateObjectApiDTO();
+        dto.setSource(source);
+        dto.setDestination(destination);
+        dto.setDestinationEntityType(DestinationEntityType.VirtualMachine);
+        dto.setRemoveNonMigratingWorkloads(true);
+        dto.setProjectionDay(0);
+
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+        topoChanges.setMigrateList(Collections.singletonList(dto));
+
+        final String name = "aScenario";
+        ScenarioApiDTO scenarioApiDTO = scenarioApiDTO(topoChanges);
+        scenarioApiDTO.setType("CloudMigration");
+        ScenarioInfo info = getScenarioInfo(name, scenarioApiDTO);
+        assertEquals(name, info.getName());
+
+        assertEquals(2, info.getChangesCount());
+        List<ScenarioChange> changes = info.getChangesList();
+
+        SettingOverride settingOverride = changes.get(0).getSettingOverride();
+        assertEquals(EntitySettingSpecs.ShopTogether.getSettingName(), settingOverride
+                .getSetting()
+                .getSettingSpecName());
+        assertEquals(false, settingOverride.hasEntityType());
+        assertEquals(false, settingOverride.hasGroupOid());
+
+        assertEquals(DetailsCase.TOPOLOGY_MIGRATION, changes.get(1).getDetailsCase());
+        ScenarioChange.TopologyMigration migration = changes.get(1).getTopologyMigration();
+        assertEquals(sourceVmOid, migration.getSourceList().get(0).getOid());
+        assertEquals(destinationOid, migration.getDestinationList().get(0).getOid());
+        assertEquals(ScenarioChange.TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE, migration.getDestinationEntityType());
     }
 
     /**

@@ -73,6 +73,7 @@ message ScenarioChange {
         TopologyAddition topology_addition = 15;
         TopologyRemoval topology_removal = 16;
         TopologyReplace topology_replace = 17;
+        TopologyMigration topology_migration = 18;
 
         SettingOverride setting_override = 21;
         PlanChanges plan_changes = 22;
@@ -211,6 +212,37 @@ message ScenarioChange {
             int64 entity_id = 16;
             int64 template_id = 17;
             int64 group_id = 18;
+        }
+    }
+
+    // A change to supply or demand made by migrating an entity in the topology
+    message TopologyMigration {
+        optional bool remove_non_migrating_workloads = 2 [default = true];
+        // The source group
+        repeated MigrationReference source = 3;
+        // The destination group
+        repeated MigrationReference destination = 4;
+        // EntityType to migrate to
+        // - vm -> vm (migration_entity_type = VM)
+        // - dbs -> vm (migration_entity_type = VM)
+        // - dbs -> dbs (migration_entity_type = DB)
+        required DestinationEntityType destination_entity_type = 5;
+
+        enum DestinationEntityType {
+            // Virtual Machine group
+            VIRTUAL_MACHINE = 0;
+
+            // Database Server group
+            DATABASE_SERVER = 1;
+        }
+
+        message MigrationReference {
+            optional int64 oid = 1;
+            oneof type {
+                int32 group_type = 2;
+                int32 entity_type = 3;
+            }
+
         }
     }
 

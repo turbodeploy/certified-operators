@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -19,8 +20,11 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.collections4.SetUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -32,6 +36,7 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -85,6 +90,29 @@ public class TopologyEditor {
     }
 
     /**
+     * Recursively get provider OIDs corresponding to a given consumer entity in {@param topology}, including the
+     * input {@param consumer}. If {@param consumer} is null, returns an empty set.
+     *
+     * @param consumer the entity OID for which to recursively get providers
+     * @param topology a map of OID to {@link TopologyEntity.Builder} representing a topological graph
+     * @return a set of all recursively computed providers, along with the input {@param consumer}
+     */
+    @Nonnull
+    public static Set<Long> getProvidersRecursive(
+            Long consumer,
+            @Nonnull final Map<Long, TopologyEntity.Builder> topology) {
+        Set<Long> providers = Sets.newHashSet();
+        if (Objects.isNull(consumer)) {
+            return providers;
+        }
+        providers.add(consumer);
+        for (Long providerOid : topology.get(consumer).getProviderIds()) {
+            providers.addAll(getProvidersRecursive(providerOid, topology));
+        }
+        return providers;
+    }
+
+    /**
      * Apply a set of changes to a topology. The method will edit the
      * input topology in-place.
      *
@@ -98,7 +126,6 @@ public class TopologyEditor {
                              @Nonnull final List<ScenarioChange> changes,
                              @Nonnull final TopologyInfo topologyInfo,
                              @Nonnull final GroupResolver groupResolver) throws GroupResolutionException {
-
         // Set shopTogether to false for all entities if it's not a alleviate pressure plan,
         // so SNM is not performed by default.
         // 1. For full scope custom plan,
@@ -172,6 +199,39 @@ public class TopologyEditor {
                     logger.warn("Unimplemented handling for topology addition with {}",
                             addition.getAdditionTypeCase());
                 }
+            } else if (change.hasTopologyMigration()) {
+                // also consider on-prem migration use case
+                Set<Long> entitiesToMigrate = Sets.newHashSet();
+                boolean areGroups = true;
+                final List<TopologyMigration.MigrationReference> migratingEntities =
+                        change.getTopologyMigration().getSourceList();
+
+                Map<Boolean, Set<Long>> areGroupsToSourceOids = migratingEntities.stream()
+                        .collect(Collectors.groupingBy(aSource -> aSource.hasGroupType(),
+                                Collectors.mapping(TopologyMigration.MigrationReference::getOid, Collectors.toSet())));
+
+                if (CollectionUtils.isNotEmpty(areGroupsToSourceOids.get(areGroups))) {
+                    // Add the members of expanded groups
+                    for (Long groupOid : areGroupsToSourceOids.get(areGroups)) {
+                        entitiesToMigrate.addAll(
+                                groupResolver.resolve(groupIdToGroupMap.get(groupOid), topologyGraph)
+                                        .getAllEntities());
+                    }
+                }
+                if (CollectionUtils.isNotEmpty(areGroupsToSourceOids.get(!areGroups))) {
+                    // Add individual entities
+                    entitiesToMigrate.addAll(areGroupsToSourceOids.get(!areGroups));
+                }
+                // This is a map of <entity OID to copy> to <number of copies to create>. In this case, each OID will be
+                // mapped to the value 1 because we only ever want to create a single copy of each source entity to
+                // simulate a cloud migration.
+                final Map<Long, Long> additions = entitiesToMigrate.stream()
+                        .flatMap(entityToMigrate ->
+                                // recursively get providers- get volumes associated with VMs, and storages associated with
+                                // volumes to render the Storage Tier Mapping table in plan results
+                                getProvidersRecursive(entityToMigrate, topology).stream())
+                        .collect(Collectors.toMap(Function.identity(), d -> 1L));
+                entityAdditions.putAll(additions);
             } else if (change.hasTopologyRemoval()) {
                 final TopologyRemoval removal = change.getTopologyRemoval();
                 int targetType = removal.getTargetEntityType();
