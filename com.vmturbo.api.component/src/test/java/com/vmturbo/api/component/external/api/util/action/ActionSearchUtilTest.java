@@ -2,6 +2,7 @@ package com.vmturbo.api.component.external.api.util.action;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -25,6 +26,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.exceptions.OperationFailedException;
@@ -64,6 +66,8 @@ public class ActionSearchUtilTest {
     @Mock
     ActionPaginationRequest paginationRequest;
 
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
+
     private static final long TOPOLOGY_ID = 1111L;
     private static final long RESOURCE_GROUP_ID = 111L;
     private static final long BILLING_FAMILY_ID = 222L;
@@ -78,7 +82,8 @@ public class ActionSearchUtilTest {
         actionOrchestratorRpc = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         actionSearchUtil = new ActionSearchUtil(actionOrchestratorRpc, actionSpecMapper,
-                paginationMapper, supplyChainFetcherFactory, groupExpander, TOPOLOGY_ID);
+                paginationMapper, supplyChainFetcherFactory, groupExpander,
+                serviceProviderExpander, TOPOLOGY_ID);
 
         Mockito.doReturn(FilteredActionResponse.newBuilder().build()).when(actionsServiceRpc)
                 .getAllActions(any(FilteredActionRequest.class));
@@ -102,9 +107,9 @@ public class ActionSearchUtilTest {
         when(scopeId.oid()).thenReturn(BUSINESS_ACCOUNT_ID_1);
         when(groupExpander.expandOids(scope)).thenReturn(scope);
         when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
+        when(serviceProviderExpander.expand(scope)).thenReturn(scope);
 
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
-
 
         try {
             actionSearchUtil.getActionsByScope(scopeId, inputDto, paginationRequest);
@@ -115,7 +120,6 @@ public class ActionSearchUtilTest {
 
         verify(supplyChainFetcherFactory, times(1))
                 .expandAggregatedEntities(any());
-        verifyNoMoreInteractions(supplyChainFetcherFactory);
         verify(actionSpecMapper, times(1))
                 .createActionFilter(any(), any(), any());
     }
@@ -128,6 +132,7 @@ public class ActionSearchUtilTest {
                 .thenReturn(BUSINESS_ACCOUNTS);
         when(supplyChainFetcherFactory.expandAggregatedEntities(BUSINESS_ACCOUNTS))
                 .thenReturn(BUSINESS_ACCOUNTS);
+        when(serviceProviderExpander.expand(BUSINESS_ACCOUNTS)).thenReturn(BUSINESS_ACCOUNTS);
 
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
 
@@ -140,7 +145,6 @@ public class ActionSearchUtilTest {
 
         verify(supplyChainFetcherFactory, times(1))
                 .expandAggregatedEntities(any());
-        verifyNoMoreInteractions(supplyChainFetcherFactory);
         verify(actionSpecMapper, times(1))
                 .createActionFilter(any(), any(), any());
     }
@@ -198,6 +202,7 @@ public class ActionSearchUtilTest {
         when(supplyChainFetcherFactory.expandScope(scope,
                 Collections.singletonList(EntityType.VIRTUAL_MACHINE.name())))
                 .thenReturn(scope);
+        when(serviceProviderExpander.expand(scope)).thenReturn(scope);
 
         ActionApiInputDTO inputDto = Mockito.mock(ActionApiInputDTO.class);
         when(inputDto.getRelatedEntityTypes())
@@ -212,7 +217,6 @@ public class ActionSearchUtilTest {
 
         verify(supplyChainFetcherFactory, times(1))
                 .expandScope(any(), any());
-        verifyNoMoreInteractions(supplyChainFetcherFactory);
         verify(actionSpecMapper, times(1))
                 .createActionFilter(any(), any(), any());
     }

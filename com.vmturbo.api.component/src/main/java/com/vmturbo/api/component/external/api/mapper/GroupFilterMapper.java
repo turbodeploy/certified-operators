@@ -346,8 +346,8 @@ public class GroupFilterMapper {
             filterApiDTO.setFilterType(filterType);
             return Optional.of(filterApiDTO);
         } else {
-            logger.error("Cannot find the associated filter type for {} of {} group type.",
-                            groupType);
+            logger.error("Cannot find the associated filter type for property `{}` of group "
+                    + "type `{}`.", propertyName, groupType);
             return Optional.empty();
         }
     }

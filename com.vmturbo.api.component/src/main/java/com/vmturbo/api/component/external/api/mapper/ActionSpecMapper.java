@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -57,10 +58,12 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
+import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.action.RIBuyActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
+import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -584,32 +587,79 @@ public class ActionSpecMapper {
             }
         }
 
-        // update actionApiDTO with more info for plan actions
-        if (topologyContextId != realtimeTopologyContextId) {
-            addMoreInfoToActionApiDTOForPlan(actionApiDTO, context, recommendation);
-        }
+        // update actionApiDTO with more info for realtime or plan actions
+        addMoreInfoToActionApiDTO(actionApiDTO, context, recommendation);
 
         // add the Execution status
         if (ActionDetailLevel.EXECUTION == detailLevel) {
             actionApiDTO.setExecutionStatus(createActionExecutionAuditApiDTO(actionSpec));
         }
 
+        // add the action schedule details
+        if (actionSpec.hasActionSchedule()) {
+            actionApiDTO.setActionSchedule(createActionSchedule(actionSpec.getActionSchedule()));
+        }
+
         return actionApiDTO;
     }
 
     /**
-     * Update the given ActionApiDTO with more info for plan actions, such as aspects, template,
+     * Creates the API schedule object associated to the action.
+     *
+     * @param actionSchedule The input protobuf object.
+     * @return The API schedule object.
+     */
+    private ActionScheduleApiDTO createActionSchedule(ActionSpec.ActionSchedule actionSchedule) {
+        ActionScheduleApiDTO apiDTO = new ActionScheduleApiDTO();
+        apiDTO.setUuid(String.valueOf(actionSchedule.getScheduleId()));
+        apiDTO.setDisplayName(actionSchedule.getScheduleDisplayName());
+        apiDTO.setTimeZone(actionSchedule.getScheduleTimezoneId());
+
+        if (actionSchedule.getExecutionWindowActionMode() == ActionDTO.ActionMode.MANUAL) {
+            apiDTO.setMode(ActionMode.MANUAL);
+            if (actionSchedule.hasAcceptingUser()) {
+                apiDTO.setAcceptedByUserForMaintenanceWindow(true);
+                apiDTO.setUserName(actionSchedule.getAcceptingUser());
+            } else {
+                apiDTO.setAcceptedByUserForMaintenanceWindow(false);
+            }
+        } else {
+            apiDTO.setAcceptedByUserForMaintenanceWindow(true);
+            apiDTO.setMode(ActionMode.AUTOMATIC);
+        }
+
+        if (actionSchedule.hasEndTimestamp()
+            && (!actionSchedule.hasStartTimestamp()
+            || actionSchedule.getEndTimestamp() < actionSchedule.getStartTimestamp()
+            || actionSchedule.getStartTimestamp() < System.currentTimeMillis())
+            && actionSchedule.getEndTimestamp() > System.currentTimeMillis()) {
+            apiDTO.setRemaingTimeActiveInMs(actionSchedule.getEndTimestamp() - System.currentTimeMillis());
+        }
+
+        if (actionSchedule.hasStartTimestamp()
+            && actionSchedule.getStartTimestamp() > System.currentTimeMillis()) {
+            apiDTO.setNextOccurrenceTimestamp(actionSchedule.getStartTimestamp());
+            final TimeZone tz = actionSchedule.getScheduleTimezoneId() != null
+                ? TimeZone.getTimeZone(actionSchedule.getScheduleTimezoneId()) : null;
+            apiDTO.setNextOccurrence(DateTimeUtil.toString(actionSchedule.getStartTimestamp(), tz));
+        }
+
+        return apiDTO;
+    }
+
+    /**
+     * Update the given ActionApiDTO with more info for actions, such as aspects, template,
      * location, etc.
      *
-     * @param actionApiDTO the plan ActionApiDTO to add more info to
+     * @param actionApiDTO the ActionApiDTO to add more info to
      * @param context the ActionSpecMappingContext
      * @param action action info
      * @throws UnsupportedActionException if the action type of the {@link ActionSpec}
      * is not supported.
      */
-    private void addMoreInfoToActionApiDTOForPlan(@Nonnull ActionApiDTO actionApiDTO,
-                                                  @Nonnull ActionSpecMappingContext context,
-                                                  @Nonnull ActionDTO.Action action)
+    private void addMoreInfoToActionApiDTO(@Nonnull ActionApiDTO actionApiDTO,
+                                           @Nonnull ActionSpecMappingContext context,
+                                           @Nonnull ActionDTO.Action action)
                 throws UnsupportedActionException {
         final ServiceEntityApiDTO targetEntity = actionApiDTO.getTarget();
         final ServiceEntityApiDTO newEntity = actionApiDTO.getNewEntity();
@@ -625,6 +675,19 @@ public class ActionSpecMapper {
         context.getDBAspect(targetEntityId).map(dbAspect -> aspects.put(
             AspectName.DATABASE, dbAspect));
         targetEntity.setAspectsByName(aspects);
+
+        // add volume aspects if delete volume action
+        if (newEntity == null && targetEntity.getClassName().equals(ApiEntityType.VIRTUAL_VOLUME.apiStr())
+                && actionApiDTO.getActionType().equals(ActionType.DELETE)) {
+            List<VirtualDiskApiDTO> volumeAspectsList = context.getVolumeAspects(targetEntityId);
+            if (!volumeAspectsList.isEmpty()) {
+                Map<AspectName, EntityAspect> aspectMap = new HashMap<>();
+                VirtualDisksAspectApiDTO virtualDisksAspectApiDTO = new VirtualDisksAspectApiDTO();
+                virtualDisksAspectApiDTO.setVirtualDisks(volumeAspectsList);
+                aspectMap.put(AspectName.VIRTUAL_VOLUME, virtualDisksAspectApiDTO);
+                actionApiDTO.getTarget().setAspectsByName(aspectMap);
+            }
+        }
 
         // add more info for cloud actions
         if (newEntity != null && CLOUD_ACTIONS_TIER_VALUES.contains(newEntity.getClassName())) {

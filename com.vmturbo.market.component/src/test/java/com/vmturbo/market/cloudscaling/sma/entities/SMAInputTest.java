@@ -139,6 +139,30 @@ public class SMAInputTest {
         )
         .build();
 
+    // create VM that is not controllable
+    TopologyEntityDTO vm3Dto = TopologyEntityDTO.newBuilder()
+            .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+            .setEntityState(EntityState.POWERED_ON)
+            .setOid(vm3Id)
+            .setDisplayName(vm3Name)
+            .setEnvironmentType(EnvironmentType.CLOUD)
+            .setAnalysisSettings(
+                    AnalysisSettings.newBuilder()
+                            .setIsEligibleForScale(true)
+                            .setControllable(false)
+                            .build())
+            .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setVirtualMachine(
+                            VirtualMachineInfo.newBuilder()
+                                    .setBillingType(VMBillingType.ONDEMAND)
+                                    .setTenancy(Tenancy.DEFAULT)
+                                    .setGuestOsInfo(OS.newBuilder()
+                                            .setGuestOsType(osType)
+                                            .setGuestOsName(osType.name()))
+                    )
+            )
+            .build();
+
     // create a compute tier that is t2.micro
     TopologyEntityDTO ct1Dto = TopologyEntityDTO.newBuilder()
         .setEntityType(EntityType.COMPUTE_TIER_VALUE)
@@ -301,7 +325,7 @@ public class SMAInputTest {
     public void testNonScalableVMCoveredByRI() {
 
         // create cloudTopology
-        final List<TopologyEntityDTO> dtos = Arrays.asList(vm1Dto, vm2Dto, ct1Dto, regionDto,
+        final List<TopologyEntityDTO> dtos = Arrays.asList(vm1Dto, vm2Dto, vm3Dto, ct1Dto, regionDto,
             zoneDto, accountDto);
         CloudTopology<TopologyEntityDTO> cloudTopology = spy(defaultFactory.newCloudTopology(dtos.stream()));
 
@@ -342,6 +366,10 @@ public class SMAInputTest {
         SMAInput.processVirtualMachine(vm1Dto, cloudTopology, cloudCostData, consistentScalingHelper,
             cspFromRegion, smaContextToVMs, riBoughtIdToCouponsUsed, regionIdToOsTypeToContexts,
             contextToBusinessAccountIds, contextToOSTypes);
+
+        SMAInput.processVirtualMachine(vm3Dto, cloudTopology, cloudCostData, consistentScalingHelper,
+                cspFromRegion, smaContextToVMs, riBoughtIdToCouponsUsed, regionIdToOsTypeToContexts,
+                contextToBusinessAccountIds, contextToOSTypes);
 
         Assert.assertTrue(smaContextToVMs.size() == 0);
         Assert.assertTrue(riBoughtIdToCouponsUsed.size() == 1);

@@ -35,8 +35,8 @@ import com.vmturbo.group.identity.IdentityProvider;
  */
 public class V1_18__MigrateSchedules implements JdbcMigration {
     private static final String INSERT_SCHEDULE_SQL =
-        "INSERT INTO schedule (id, display_name, start_time, end_time, last_date, recur_rule, time_zone_id) " +
-            "VALUES (?,?,?,?,?,?,?)";
+            "INSERT INTO schedule (id, display_name, start_time, end_time, last_date, recur_rule, time_zone_id) "
+                    + "VALUES (?,?,?,?,?,?,?)";
     private static final String INSERT_SETTING_POLICY_SCHEDULE =
         "INSERT INTO setting_policy_schedule (setting_policy_id, schedule_id) VALUES (?,?)";
 
@@ -110,9 +110,10 @@ public class V1_18__MigrateSchedules implements JdbcMigration {
             //id
             schedulePrepStmt.setLong(1, nextScheduleId);
             // display name
-            schedulePrepStmt.setString(2, settingPolicyInfo.hasDisplayName() ?
-                settingPolicyInfo.getDisplayName() + " Schedule"
-                : settingPolicyInfo.getName() + " Schedule");
+            schedulePrepStmt.setString(2,
+                    settingPolicyInfo.hasDisplayName()
+                            ? settingPolicyInfo.getDisplayName() + " Schedule"
+                            : settingPolicyInfo.getName() + " Schedule");
             // start time
             schedulePrepStmt.setTimestamp(3, new Timestamp(scheduleInfo.getStartTime()));
             // end time

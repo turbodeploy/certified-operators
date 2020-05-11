@@ -335,8 +335,8 @@ public class XlSdkEngine implements ISdkEngine {
         public void createProbeJar(@Nonnull SdkProbe probe) throws Exception {
             if (this.probe != null) {
                 throw new IllegalStateException(
-                        "Probe is already set to value " + this.probe.getType() +
-                                " while trying to add probe " + probe.getType());
+                        "Probe is already set to value " + this.probe.getType()
+                                + " while trying to add probe " + probe.getType());
             }
             this.probe = Objects.requireNonNull(probe);
             ProbeCompiler.configureProbe(probeHome, probe);

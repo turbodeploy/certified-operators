@@ -97,9 +97,9 @@ public class GroupStitchingManager {
         for (Long targetId : getTargetsSorted(stitchingContext.getTargetIdToProbeType())) {
             for (UploadedGroup group : targetsToGroups.get(targetId)) {
                 final GroupIdProvider idProvider =
-                        (group.getDefinition().getType() == GroupType.RESOURCE ||
-                                group.getDefinition().getType() == GroupType.BILLING_FAMILY) ?
-                                crossTargetIdProvider : targetLocalIdProvider;
+                        (group.getDefinition().getType() == GroupType.RESOURCE
+                                || group.getDefinition().getType() == GroupType.BILLING_FAMILY)
+                                ? crossTargetIdProvider : targetLocalIdProvider;
                 final String stitchKey = idProvider.getStitchingKey(targetId, group);
                 final StitchingGroup foundGroup = stitchingGroups.get(stitchKey);
                 if (foundGroup != null) {

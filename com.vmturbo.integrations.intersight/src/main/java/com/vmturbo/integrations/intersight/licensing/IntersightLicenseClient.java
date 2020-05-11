@@ -26,6 +26,9 @@ public class IntersightLicenseClient {
 
     private static final Logger logger = LogManager.getLogger();
 
+    private static final String INTERSIGHT_TRACEID =
+            "x-starship-traceid";
+
     /**
      * Set of retryable http codes. We'll retry on the following:
      * 429 (Too many requests): The Intersight API has quotas and may send this as a return code if
@@ -112,8 +115,9 @@ public class IntersightLicenseClient {
                     IntersightDefaultQueryParameters.$at,
                     IntersightDefaultQueryParameters.$tags);
         } catch (ApiException e) {
-            logger.error("Error Getting License using Intersight API. Query Header {} ",
-                    e.getResponseHeaders());
+            logger.error("Error Getting License using Intersight API. Query TraceId {} ",
+                    e.getResponseHeaders() != null ?
+                            e.getResponseHeaders().get(INTERSIGHT_TRACEID) : "Unknown");
             throw e;
         }
         return licenseList;

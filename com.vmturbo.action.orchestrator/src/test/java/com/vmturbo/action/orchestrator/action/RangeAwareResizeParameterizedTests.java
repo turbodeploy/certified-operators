@@ -292,7 +292,8 @@ public class RangeAwareResizeParameterizedTests {
         Action action = new Action(recommendation, 1l, actionModeCalculator);
         action.getActionTranslation().setPassthroughTranslationSuccess();
         when(entitySettingsCache.getSettingsForEntity(7L)).thenReturn(rangeAwareSettingsForEntity);
-        ActionMode actualMode = actionModeCalculator.calculateActionMode(action, entitySettingsCache);
-        assertEquals(expectedActionMode, actualMode);
+        ActionModeCalculator.ModeAndSchedule actualMode = actionModeCalculator.calculateActionModeAndExecutionSchedule(action,
+            entitySettingsCache);
+        assertEquals(expectedActionMode, actualMode.getMode());
     }
 }

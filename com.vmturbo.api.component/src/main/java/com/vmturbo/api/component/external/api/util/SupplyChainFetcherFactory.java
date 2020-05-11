@@ -23,7 +23,6 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import io.grpc.Status;
@@ -36,6 +35,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.EnvironmentTypeMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
+import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.supplychain.SupplychainApiDTO;
@@ -150,7 +150,8 @@ public class SupplyChainFetcherFactory {
             @Nonnull final RepositoryApi repositoryApi,
             @Nonnull final GroupExpander groupExpander,
             @Nonnull final EntityAspectMapper entityAspectMapper,
-            CostServiceBlockingStub costServiceBlockingStub, final long realtimeTopologyContextId) {
+            CostServiceBlockingStub costServiceBlockingStub,
+            final long realtimeTopologyContextId) {
         this.supplyChainRpcService = supplyChainService;
         this.severityRpcService = entitySeverityServiceBlockingStub;
         this.repositoryApi = repositoryApi;
@@ -286,6 +287,16 @@ public class SupplyChainFetcherFactory {
             }
         }
         return expandedEntityOids;
+    }
+
+    /**
+     * Expand service providers to regions.
+     *
+     * @param serviceProviderOids the input set of ServiceEntity oids
+     * @return the input set with oids of regions connected to the service providers
+     */
+    public Set<Long> expandServiceProviders(@Nonnull final Set<Long> serviceProviderOids) {
+        return this.repositoryApi.expandServiceProvidersToRegions(serviceProviderOids);
     }
 
     /**

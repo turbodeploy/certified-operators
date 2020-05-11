@@ -24,19 +24,24 @@ import static com.vmturbo.components.common.setting.EntitySettingSpecs.ResizeVme
 import static com.vmturbo.components.common.setting.EntitySettingSpecs.SuspendActionWorkflow;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
@@ -52,6 +57,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityAttribute;
@@ -173,8 +179,9 @@ public class ActionModeCalculator {
                     .build();
 
     /**
-     * Get the action mode for a particular action. The action mode is determined by the
-     * settings for the action, or, if the settings are not available, by the system defaults of
+     * Get the action mode and execution schedule for a particular action. The both of these are
+     * determined by the settings for the action, or, if the settings are not available, by the
+     * system defaults of
      * the relevant automation settings.
      *
      * @param action The action to calculate action mode for.
@@ -182,56 +189,58 @@ public class ActionModeCalculator {
      *                            be null.
      *                            TODO (roman, Aug 7 2018): Can we make this non-null? The cache
      *                            should exist as a spring object and be injected appropriately.
-     * @return The {@link ActionMode} to use for the action.
+     * @return The {@link ActionMode} and {@link ActionSchedule} to use for the action.
      */
     @Nonnull
-    ActionMode calculateActionMode(@Nonnull final ActionView action,
+    ModeAndSchedule calculateActionModeAndExecutionSchedule(@Nonnull final ActionView action,
                                    @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
-        return calculateWorkflowActionMode(action, entitiesCache)
-            .orElseGet(() -> {
-                ActionMode supportingLevelActionMode =
-                    calculateActionModeFromSupportingLevel(action, entitiesCache);
-                if (action.getRecommendation().getPrerequisiteList().isEmpty()) {
-                    return supportingLevelActionMode;
-                } else {
-                    return ActionMode.RECOMMEND.compareTo(supportingLevelActionMode) < 0 ?
-                        ActionMode.RECOMMEND : supportingLevelActionMode;
-                }
-            });
+        Optional<ActionMode> workflowMode = calculateWorkflowActionMode(action, entitiesCache);
+
+        if (workflowMode.isPresent()) {
+            return ModeAndSchedule.of(workflowMode.get());
+        } else {
+            ModeAndSchedule supportingLevelActionModeAndSchedule =
+                calculateActionModeFromSupportingLevel(action, entitiesCache);
+            if (action.getRecommendation().getPrerequisiteList().isEmpty()) {
+                return supportingLevelActionModeAndSchedule;
+            } else {
+                return ModeAndSchedule.of(ActionMode.RECOMMEND.compareTo(supportingLevelActionModeAndSchedule.getMode()) < 0
+                    ? ActionMode.RECOMMEND : supportingLevelActionModeAndSchedule.getMode());
+            }
+        }
     }
 
     /**
-     * Calculate action mode based on support level from probe.
+     * Calculate action mode and execution schedule based on support level from probe and target
+     * entity settings.
      *
      * @param action an action
      * @param entitiesCache a nullable entitis and settings snapshot
-     * @return the action mode
+     * @return the action mode and execution schedule
      */
     @Nonnull
-    private ActionMode calculateActionModeFromSupportingLevel(
+    private ModeAndSchedule calculateActionModeFromSupportingLevel(
             @Nonnull final ActionView action,
             @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
         switch (action.getRecommendation().getSupportingLevel()) {
             case UNSUPPORTED:
             case UNKNOWN:
-                return ActionMode.DISABLED;
+                return ModeAndSchedule.of(ActionMode.DISABLED);
             case SHOW_ONLY:
                 final ActionMode mode = getNonWorkflowActionMode(
-                    action, entitiesCache);
-                return (mode.getNumber() > ActionMode.RECOMMEND_VALUE)
-                    ? ActionMode.RECOMMEND
-                    : mode;
+                    action, entitiesCache).getMode();
+                return ModeAndSchedule.of((mode.getNumber() > ActionMode.RECOMMEND_VALUE)
+                    ? ActionMode.RECOMMEND : mode);
             case SUPPORTED:
-                return getNonWorkflowActionMode(
-                    action, entitiesCache);
+                return getNonWorkflowActionMode(action, entitiesCache);
             default:
                 throw new IllegalArgumentException("Action SupportLevel is of unrecognized type.");
         }
     }
 
     @Nonnull
-    private ActionMode getNonWorkflowActionMode(@Nonnull final ActionView action,
-                @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
+    private ModeAndSchedule getNonWorkflowActionMode(@Nonnull final ActionView action,
+              @Nullable final EntitiesAndSettingsSnapshot entitiesCache) {
         Optional<ActionDTO.Action> translatedRecommendation = action.getActionTranslation()
                 .getTranslatedRecommendation();
         if (translatedRecommendation.isPresent()) {
@@ -243,49 +252,336 @@ public class ActionModeCalculator {
                         Collections.emptyMap() : entitiesCache.getSettingsForEntity(targetEntityId);
 
                 return specsApplicableToAction(actionDto, settingsForTargetEntity)
-                        .map(spec -> {
-                            final Setting setting = settingsForTargetEntity.get(spec.getSettingName());
-                            if (spec == EntitySettingSpecs.EnforceNonDisruptive) {
-                                // Default is to return most liberal setting because calculateActionMode picks
-                                // the minimum ultimately.
-                                ActionMode mode = ActionMode.AUTOMATIC;
-                                if (setting != null && setting.hasBooleanSettingValue()
-                                        && setting.getBooleanSettingValue().getValue()) {
-                                    Optional<ActionPartialEntity> entity = entitiesCache.getEntityFromOid(targetEntityId);
-                                    if (entity.isPresent()) {
-                                        mode = applyNonDisruptiveSetting(entity.get(), action.getRecommendation());
-                                    } else {
-                                        logger.error("Entity with id {} not found for non-disruptive setting.",
-                                                        targetEntityId);
-                                    }
-                                }
-                                return mode.name();
-                            } else {
-                                if (setting == null) {
-                                    // If there is no setting for this spec that applies to the target
-                                    // of the action, we use the system default (which comes from the
-                                    // enum definitions).
-                                    return spec.getSettingSpec().getEnumSettingValueType().getDefault();
+                    .map(spec -> {
+                        final Setting setting = settingsForTargetEntity.get(spec.getSettingName());
+                        if (spec == EntitySettingSpecs.EnforceNonDisruptive) {
+                            // Default is to return most liberal setting because calculateActionMode picks
+                            // the minimum ultimately.
+                            ActionMode mode = ActionMode.AUTOMATIC;
+                            if (setting != null && setting.hasBooleanSettingValue()
+                                && setting.getBooleanSettingValue().getValue()) {
+                                Optional<ActionPartialEntity> entity = entitiesCache.getEntityFromOid(targetEntityId);
+                                if (entity.isPresent()) {
+                                    mode = applyNonDisruptiveSetting(entity.get(), action.getRecommendation());
                                 } else {
-                                    // In all other cases, we use the default value from the setting.
-                                    return setting.getEnumSettingValue().getValue();
+                                    logger.error("Entity with id {} not found for non-disruptive setting.",
+                                        targetEntityId);
                                 }
                             }
-                        })
-                        .map(ActionMode::valueOf)
-                        // We're not using a proper tiebreaker because we're comparing across setting specs.
-                        .min(ActionMode::compareTo)
-                        .orElse(ActionMode.RECOMMEND);
+                            return Pair.of(mode, Collections.<Long>emptyList());
+                        } else {
+                            if (setting == null) {
+                                // If there is no setting for this spec that applies to the target
+                                // of the action, we use the system default (which comes from the
+                                // enum definitions).
+                                return Pair.of(ActionMode.valueOf(spec.getSettingSpec().getEnumSettingValueType().getDefault()),
+                                    Collections.<Long>emptyList());
+                            } else {
+                                List<Long> scheduleIds = Collections.emptyList();
+                                final String scheduleSettingSpecName =
+                                    getExecutionWindowSettingSpec(spec);
+
+                                if (scheduleSettingSpecName != null
+                                    && settingsForTargetEntity.containsKey(scheduleSettingSpecName)) {
+                                    scheduleIds = settingsForTargetEntity.get(scheduleSettingSpecName)
+                                            .getSortedSetOfOidSettingValue().getOidsList();
+                                }
+
+                                // In all other cases, we use the default value from the setting.
+                                return Pair.of(ActionMode.valueOf(setting.getEnumSettingValue().getValue()),
+                                    scheduleIds);
+                            }
+                        }
+                    })
+                    // We're not using a proper tiebreaker because we're comparing across setting specs.
+                    .min(Comparator.comparing(Pair::getLeft))
+                    // select the schedule from the list of schedules
+                    .map(p -> getModeAndSchedule(action, p.getLeft(), p.getRight(), entitiesCache))
+                    .orElse(ModeAndSchedule.of(ActionMode.RECOMMEND));
+
             } catch (UnsupportedActionException e) {
                 logger.error("Unable to calculate action mode.", e);
-                return ActionMode.RECOMMEND;
+                return ModeAndSchedule.of(ActionMode.RECOMMEND);
             }
         } else {
             logger.error("Action {} has no translated recommendation.", action.getId());
-            return ActionMode.RECOMMEND;
+            return ModeAndSchedule.of(ActionMode.RECOMMEND);
         }
     }
 
+    /**
+     * This method gets the selected action mode for an action and list of schedules associated
+     * with action and selects the mode for the action and its schedule.
+     *
+     * @param action the action in question.
+     * @param chosenMode the mode chosen for action based on settings.
+     * @param scheduleIds the schedule ids associates to action.
+     * @param entitiesCache the entities cache.
+     * @return the result mode and schedule.
+     */
+    @Nonnull
+    private ModeAndSchedule getModeAndSchedule(@Nonnull ActionView action,
+                                               @Nonnull ActionMode chosenMode, @Nonnull List<Long> scheduleIds,
+                                               @Nullable EntitiesAndSettingsSnapshot entitiesCache) {
+
+
+        if ((chosenMode != ActionMode.MANUAL && chosenMode != ActionMode.AUTOMATIC)
+            || scheduleIds.isEmpty() || entitiesCache == null) {
+            return ModeAndSchedule.of(chosenMode);
+        }
+
+        logger.debug("Schedules with OIDs `{}` are associated with action `{}`",
+            () -> scheduleIds.stream().map(String::valueOf).collect(Collectors.joining(", ")),
+            () -> action);
+
+        final String acceptedBy =
+            entitiesCache.getAcceptingUserForAction(action.getId()).orElse(null);
+
+        // Select the schedule that we use for the action
+        final ActionSchedule selectedSchedule = createActionSchedule(scheduleIds, chosenMode,
+            entitiesCache, acceptedBy);
+
+        // If we are here it means there are some schedules associated to this action and if
+        // the selected schedule is null it means something has gone wrong. Therefore, we go with
+        // recommend action mode to be on the safe side.
+        if (selectedSchedule == null) {
+            logger.warn("Cannot find any schedule to associate to action `{}`. Setting the mode to "
+                + "`RECOMMEND`.", action);
+            return ModeAndSchedule.of(ActionMode.RECOMMEND);
+        }
+
+        logger.debug("Action schedule `{}` was selected for action `{}`.", () -> selectedSchedule,
+            () -> action);
+
+        // Determine the action mode based on execution schedule
+        final ActionMode selectedMode = selectActionMode(action, chosenMode, selectedSchedule);
+
+        return ModeAndSchedule.of(selectedMode, selectedSchedule);
+    }
+
+    @Nonnull
+    private ActionMode selectActionMode(@Nonnull ActionView action,
+                                        @Nonnull ActionMode chosenMode,
+                                        @Nonnull ActionSchedule actionSchedule) {
+        final Long scheduleStartTimestamp = actionSchedule.getScheduleStartTimestamp();
+        final Long scheduleEndTimestamp = actionSchedule.getScheduleEndTimestamp();
+        final ActionMode selectedMode;
+        if (scheduleStartTimestamp == null && scheduleEndTimestamp == null) {
+            logger.debug("Action mode for action `{}` has been set to recommend as the selected "
+                    + "schedule `{}` for the action has next no occurrence.", () -> action,
+                () -> actionSchedule);
+            selectedMode = ActionMode.RECOMMEND;
+        } else if (scheduleStartTimestamp == null || scheduleEndTimestamp < scheduleStartTimestamp ) {
+            // If the selected schedule is active and the action is accepted or chosen mode is
+            // automated accept it.
+            if (chosenMode == ActionMode.AUTOMATIC) {
+                logger.info("Setting mode for Action `{}` to `AUTOMATED` as it is in its "
+                    + "execution window `{}`.", action, actionSchedule);
+                selectedMode = ActionMode.AUTOMATIC;
+            } else if (chosenMode == ActionMode.MANUAL && actionSchedule.getAcceptingUser() != null) {
+                logger.debug("Setting mode for Action `{}` to `MANUAL`. It has been accepted "
+                        + "by `{}` and it is in its execution window `{}`.", action,
+                        actionSchedule.getAcceptingUser(), actionSchedule);
+                selectedMode = ActionMode.MANUAL;
+            } else {
+                logger.debug("Setting mode for Action `{}` to `MANUAL`. The action has not been "
+                        + "accepted by a user and it is in its execution window `{}`.", action,
+                        actionSchedule);
+                selectedMode = ActionMode.MANUAL;
+            }
+        } else {
+            if (chosenMode == ActionMode.AUTOMATIC) {
+                logger.debug("Setting the action mode for action `{}` to `RECOMMEND` as there is "
+                    + "an upcoming schedule `{}` for it with the `AUTOMATED` mode.", () -> action,
+                    () -> actionSchedule);
+                selectedMode = ActionMode.RECOMMEND;
+            } else if (actionSchedule.getAcceptingUser() != null)  {
+                logger.debug("Setting the action mode for action `{}` to `RECOMMEND` as there is "
+                    + "an upcoming schedule `{}` with `MANUAL` for it and it has been accepted by"
+                    + " `{}`.", () -> action, () -> actionSchedule, () -> actionSchedule.getAcceptingUser());
+                selectedMode = ActionMode.RECOMMEND;
+            } else {
+                logger.debug("Setting the action mode for action `{}` to `MANUAL` as there is an "
+                    + "upcoming schedule `{}` with `MANUAL` mode for it.", () -> action,
+                    () -> actionSchedule);
+                selectedMode = ActionMode.MANUAL;
+            }
+        }
+
+        return selectedMode;
+    }
+
+    @Nullable
+    private ActionSchedule createActionSchedule(@Nonnull List<Long> scheduleIds,
+                                                @Nonnull ActionMode chosenMode,
+                                                @Nonnull EntitiesAndSettingsSnapshot entitiesCache,
+                                                @Nullable String acceptingUser) {
+        // Select the closest schedule between the schedules associated to action
+        ScheduleProto.Schedule selectedSchedule = selectClosestSchedule(scheduleIds,
+            entitiesCache.getScheduleMap());
+
+        if (selectedSchedule == null) {
+            return null;
+        }
+
+        // Find the start and time of closest schedule
+        Pair<Long, Long> startAndEndTime = getScheduleStartAndEndTime(selectedSchedule,
+            entitiesCache.getPopulationTimestamp());
+
+        return new ActionSchedule(startAndEndTime.getLeft(), startAndEndTime.getRight(),
+            selectedSchedule.getTimezoneId(), selectedSchedule.getId(), selectedSchedule.getDisplayName(),
+            chosenMode, acceptingUser);
+    }
+
+    @Nullable
+    private ScheduleProto.Schedule selectClosestSchedule(@Nonnull List<Long> scheduleIds,
+                                                         Map<Long, ScheduleProto.Schedule> scheduleMap) {
+        ScheduleProto.Schedule selectedSchedule = null;
+
+        for (long scheduleOid : scheduleIds) {
+            final ScheduleProto.Schedule currentSchedule = scheduleMap.get(scheduleOid);
+
+            // If the schedule cannot found, we log an error message and ignore this schedule
+            if (currentSchedule == null) {
+                logger.error("The schedule with OID {} cannot be found. This schedule will be ignored.",
+                    scheduleOid);
+                continue;
+            }
+
+            if (selectedSchedule == null) {
+                selectedSchedule = currentSchedule;
+                continue;
+            }
+
+            // This is the case where there is an existing schedule that is active has been
+            // selected.
+            if (selectedSchedule.hasActive()) {
+                // If there are more than one schedule which are active we go with the one that
+                // is active longer
+                if (currentSchedule.hasActive()
+                    && currentSchedule.getActive().getRemainingActiveTimeMs()
+                    > selectedSchedule.getActive().getRemainingActiveTimeMs()) {
+                    selectedSchedule = currentSchedule;
+                }
+                continue;
+            }
+
+            // If we are here, it means currently selected schedule is not active and therefore
+            // if current schedule is active we use that as the selected schedule
+            if (currentSchedule.hasActive()) {
+                selectedSchedule = currentSchedule;
+                continue;
+            }
+
+            // If selected schedule and current schedule both have next occurrence go with the
+            // one than it next occurrence is closer.
+            if (selectedSchedule.hasNextOccurrence()) {
+                if (currentSchedule.hasNextOccurrence()
+                    && currentSchedule.getNextOccurrence().getStartTime() < selectedSchedule.getNextOccurrence().getStartTime()) {
+                    selectedSchedule = currentSchedule;
+                }
+
+                continue;
+            }
+
+            // If we are here, it means currently selected schedule does not have next occurrence
+            selectedSchedule = currentSchedule;
+        }
+
+        return selectedSchedule;
+    }
+
+    @Nonnull
+    private Pair<Long, Long> getScheduleStartAndEndTime(@Nonnull ScheduleProto.Schedule schedule,
+                                                        long populationTimeStamp) {
+        final long scheduleOccurrenceDuration =
+            schedule.getEndTime() - schedule.getStartTime();
+
+        // Find next occurrence start and end time
+        final Long scheduleStartTime;
+        final Long scheduleEndTime;
+        if (schedule.hasNextOccurrence()) {
+            scheduleStartTime = schedule.getNextOccurrence().getStartTime();
+        } else {
+            scheduleStartTime = null;
+        }
+
+        if (schedule.hasActive()) {
+            scheduleEndTime =
+                populationTimeStamp + schedule.getActive().getRemainingActiveTimeMs();
+        } else if (schedule.hasNextOccurrence()) {
+            scheduleEndTime = scheduleStartTime + scheduleOccurrenceDuration;
+        } else {
+            scheduleEndTime = null;
+        }
+
+        return Pair.of(scheduleStartTime, scheduleEndTime);
+    }
+
+    @Nullable
+    private String getExecutionWindowSettingSpec(@Nonnull EntitySettingSpecs spec) {
+        return EntitySettingSpecs
+            .getActionModeToExecutionScheduleSettings().get(spec.getSettingName());
+    }
+
+    /**
+     * This class holds an action mode and schedule.
+     */
+    @Immutable
+    public static class ModeAndSchedule {
+        final ActionMode mode;
+        final ActionSchedule schedule;
+
+        private ModeAndSchedule(@Nonnull ActionMode mode, @Nullable ActionSchedule schedule) {
+            this.mode = mode;
+            this.schedule = schedule;
+        }
+
+        /**
+         * Factory method for actions without schedule.
+         * @param mode the mode for action.
+         * @return The new instance of {@link ModeAndSchedule} object.
+         */
+        @Nonnull
+        public static ModeAndSchedule of(@Nonnull ActionMode mode) {
+            return new ModeAndSchedule(mode, null);
+        }
+
+        /**
+         * Factory method for actions without schedule.
+         * @param mode the mode for action.
+         * @param schedule the schedule for action.
+         * @return The new instance of {@link ModeAndSchedule} object.
+         */
+        @Nonnull
+        public static ModeAndSchedule of(@Nonnull ActionMode mode, @Nonnull ActionSchedule schedule) {
+            return new ModeAndSchedule(mode, schedule);
+        }
+
+        @Nonnull
+        public ActionMode getMode() {
+            return mode;
+        }
+
+        @Nullable
+        public ActionSchedule getSchedule() {
+            return schedule;
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final ModeAndSchedule that = (ModeAndSchedule)o;
+            return mode == that.mode && Objects.equals(schedule, that.schedule);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(mode, schedule);
+        }
+    }
 
     private ActionMode applyNonDisruptiveSetting(ActionPartialEntity entity, Action action) {
         final ActionTypeCase actionType = action.getInfo().getActionTypeCase();

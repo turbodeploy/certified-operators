@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO.Thresholds;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProviderOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -113,6 +114,7 @@ public class EntitySettingsApplicator {
                 new SuspendApplicator(true), new SuspendApplicator(false),
                 new ProvisionApplicator(),
                 new ResizeApplicator(),
+                new ScalingApplicator(),
                 new MoveCommoditiesFromProviderTypesApplicator(EntitySettingSpecs.StorageMove,
                         TopologyDTOUtil.STORAGE_TYPES),
                 new MoveCommoditiesFromProviderTypesApplicator(EntitySettingSpecs.BusinessUserMove,
@@ -540,6 +542,28 @@ public class EntitySettingsApplicator {
         }
     }
 
+    /**
+     * Adds the "scaling" setting to a {@link TopologyEntityDTO.Builder}.
+     */
+    private static class ScalingApplicator extends SingleSettingApplicator {
+
+        private ScalingApplicator() {
+            super(EntitySettingSpecs.Move);
+        }
+        @Override
+        protected void apply(@Nonnull final Builder entity, @Nonnull final Setting setting) {
+            List<CommoditiesBoughtFromProvider.Builder> commBoughtGroupingList = entity
+                    .getCommoditiesBoughtFromProvidersBuilderList().stream()
+                    .filter(s -> s.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE ||
+                            s.getProviderEntityType() == EntityType.DATABASE_SERVER_TIER_VALUE
+                    || s.getProviderEntityType() == EntityType.DATABASE_TIER_VALUE).collect(Collectors.toList());
+            for (CommoditiesBoughtFromProvider.Builder commBought : commBoughtGroupingList) {
+                if (setting.getEnumSettingValue().getValue().equals(ActionMode.DISABLED.name())) {
+                    commBought.setScalable(false);
+                }
+            }
+        }
+    }
     /**
      * Applies the "resize" setting to a {@link TopologyEntityDTO.Builder}.
      */

@@ -2,6 +2,7 @@ package com.vmturbo.group.schedule;
 
 import static com.vmturbo.group.db.Tables.SCHEDULE;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
+import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING_SCHEDULE_IDS;
 import static org.jooq.impl.DSL.deleteFrom;
 import static org.jooq.impl.DSL.trueCondition;
 
@@ -136,8 +137,8 @@ public class ScheduleStore implements DiagsRestorable {
             });
         } catch (DataAccessException e) {
             logger.error("Exception restoring schedule diags", e);
-            errors.add("Exception restoring schedule diags: " + e.getMessage() + ": " +
-                ExceptionUtils.getStackTrace(e));
+            errors.add("Exception restoring schedule diags: " + e.getMessage() + ": "
+                    + ExceptionUtils.getStackTrace(e));
         }
         if (!errors.isEmpty()) {
             throw new DiagnosticsException(errors);
@@ -229,8 +230,9 @@ public class ScheduleStore implements DiagsRestorable {
                     .where(SCHEDULE.DISPLAY_NAME.eq(schedule.getDisplayName()))
                     .fetchOne();
                 if (existingId != null) {
-                    throw new DuplicateNameException("Schedule with name `" + schedule.getDisplayName() +
-                        "` already exists.");
+                    throw new DuplicateNameException(
+                            "Schedule with name `" + schedule.getDisplayName()
+                                    + "` already exists.");
                 }
                 Schedule scheduleRecord = generateScheduleRecord(schedule);
                 context.newRecord(SCHEDULE, scheduleRecord).store();
@@ -281,8 +283,9 @@ public class ScheduleStore implements DiagsRestorable {
                     .and(SCHEDULE.ID.ne(id))
                     .fetchOne();
                 if (existingId != null) {
-                    throw new DuplicateNameException("Schedule with name `" + schedule.getDisplayName() +
-                        "` already exists.");
+                    throw new DuplicateNameException(
+                            "Schedule with name `" + schedule.getDisplayName()
+                                    + "` already exists.");
                 }
 
                 // Validate before saving
@@ -325,12 +328,7 @@ public class ScheduleStore implements DiagsRestorable {
                 if (existingRecord == null) {
                     throw new ScheduleNotFoundException(id);
                 }
-                // Verify no setting policies are assigned to this schedule
-                if (getAssignedSettingPolicyCount(context, id) > 0) {
-                    throw new ScheduleInUseDeleteException("Cannot delete schedule `" +
-                        existingRecord.getDisplayName() + "` because it is used in one or more " +
-                        "automation policies");
-                }
+                verifySchedulesAreNotUsedInPolicies(context, Collections.singleton(id));
 
                 final int modifiedRecords = existingRecord.delete();
                 if (modifiedRecords == 0) {
@@ -376,17 +374,10 @@ public class ScheduleStore implements DiagsRestorable {
                         .stream()
                         .map(String::valueOf)
                         .collect(Collectors.toSet());
-                    throw new ScheduleNotFoundException("Schedules " + String.join(",", missingIds) +
-                        " not found");
+                    throw new ScheduleNotFoundException(
+                            "Schedules " + String.join(",", missingIds) + " not found");
                 }
-
-                if (getAssignedSettingPolicyMultipleScheduleCount(context, ids) > 0) {
-                    final Set<String> usedIds = ids.stream()
-                        .map(String::valueOf)
-                        .collect(Collectors.toSet());
-                    throw new ScheduleInUseDeleteException("Cannot delete schedule records with ids: "
-                        + String.join(",", usedIds) + " because they are used by setting policies");
-                }
+                verifySchedulesAreNotUsedInPolicies(context, ids);
 
                 Lists.partition(existingIds, MAX_BATCH_SIZE).stream()
                     .forEach(batchToDelete -> context.batch(
@@ -433,8 +424,8 @@ public class ScheduleStore implements DiagsRestorable {
                     throw new SettingPolicyNotFoundException(settingPolicyId);
                 } else {
                     if (Type.DISCOVERED == settingPolicy.get().getSettingPolicyType()) {
-                        throw new InvalidScheduleAssignmentException("Schedule cannot be assigned " +
-                            "to discovered setting policy");
+                        throw new InvalidScheduleAssignmentException(
+                                "Schedule cannot be assigned to discovered setting policy");
                     }
                 }
                 if (!getSchedule(scheduleId).isPresent()) {
@@ -462,19 +453,28 @@ public class ScheduleStore implements DiagsRestorable {
     }
 
     /**
-     * Get count of setting policies assigned to the specified schedule.
+     * Checks that schedules are not used in setting policies.
      *
      * @param context jooq DSL context
-     * @param scheduleId Schedule ID {@link Schedule} id which is assigned to to the SettingPolicy
-     * @return Number of assigned {@link com.vmturbo.group.db.tables.records.SettingPolicyRecord}
+     * @param scheduleIds Collection of schedule IDs
+     * @throws ScheduleInUseDeleteException if at least one schedule used as least in one policy
      */
-    private int getAssignedSettingPolicyCount(
-        @Nonnull final DSLContext context, @Nonnull final long scheduleId) {
-        return context
-            .selectCount()
-            .from(SETTING_POLICY)
-            .where(SETTING_POLICY.SCHEDULE_ID.eq(scheduleId))
-            .fetchOne(0, Integer.class);
+    private void verifySchedulesAreNotUsedInPolicies(@Nonnull final DSLContext context,
+            @Nonnull final Collection<Long> scheduleIds) throws ScheduleInUseDeleteException {
+        if (getAssignedSettingPoliciesCount(context, scheduleIds) > 0) {
+            throw new ScheduleInUseDeleteException(
+                    "Cannot delete schedule records with ids: " + String.join(",",
+                            scheduleIds.stream().map(String::valueOf).collect(Collectors.toSet()))
+                            + " because they are used as activation schedules by setting policies");
+        }
+
+        if (getUsedAsExecutionWindowsInPoliciesCount(context, scheduleIds) > 0) {
+            throw new ScheduleInUseDeleteException(
+                    "Cannot delete schedule records with ids: `" + String.join(",",
+                            scheduleIds.stream().map(String::valueOf).collect(Collectors.toSet()))
+                            + "` because they are used as execution windows by "
+                            + "setting policies");
+        }
     }
 
     /**
@@ -484,13 +484,28 @@ public class ScheduleStore implements DiagsRestorable {
      * @param scheduleIds Collection of schedule IDs
      * @return Number of assigned {@link com.vmturbo.group.db.tables.records.SettingPolicyRecord}
      * */
-    private int getAssignedSettingPolicyMultipleScheduleCount(
+    private int getAssignedSettingPoliciesCount(
         @Nonnull final DSLContext context, final Collection<Long> scheduleIds) {
         return context
             .selectCount()
             .from(SETTING_POLICY
             .where(SETTING_POLICY.SCHEDULE_ID.in(scheduleIds)))
             .fetchOne(0, Integer.class);
+    }
+
+    /**
+     * Return count of policies used this schedule as execution window.
+     *
+     * @param context jooq DSL context
+     * @param scheduleIds schedule ids
+     * @return count of policies
+     */
+    private int getUsedAsExecutionWindowsInPoliciesCount(@Nonnull final DSLContext context,
+            @Nonnull final Collection<Long> scheduleIds) {
+        return context.selectCount()
+                .from(SETTING_POLICY_SETTING_SCHEDULE_IDS)
+                .where(SETTING_POLICY_SETTING_SCHEDULE_IDS.EXECUTION_SCHEDULE_ID.in(scheduleIds))
+                .fetchOne(0, Integer.class);
     }
 
     /**
@@ -581,13 +596,13 @@ public class ScheduleStore implements DiagsRestorable {
             scheduleMessage.getDisplayName(),
             new Timestamp(scheduleMessage.getStartTime()),
             new Timestamp(scheduleMessage.getEndTime()),
-            scheduleMessage.hasOneTime() || scheduleMessage.hasPerpetual() ?
-                null : new Timestamp(scheduleMessage.getLastDate()),
-            scheduleMessage.hasOneTime() ?
-                null : scheduleMessage.getRecurRule(),
+            scheduleMessage.hasOneTime() || scheduleMessage.hasPerpetual()
+                ? null : new Timestamp(scheduleMessage.getLastDate()),
+            scheduleMessage.hasOneTime()
+                ? null : scheduleMessage.getRecurRule(),
             scheduleMessage.getTimezoneId(),
-            scheduleMessage.hasRecurrenceStart() ?
-                new Timestamp(scheduleMessage.getRecurrenceStart().getRecurrenceStartTime()) : null
+            scheduleMessage.hasRecurrenceStart()
+                ? new Timestamp(scheduleMessage.getRecurrenceStart().getRecurrenceStartTime()) : null
         );
     }
 
@@ -602,10 +617,11 @@ public class ScheduleStore implements DiagsRestorable {
         recordToUpdate.setDisplayName(scheduleMessage.getDisplayName());
         recordToUpdate.setStartTime(new Timestamp(scheduleMessage.getStartTime()));
         recordToUpdate.setEndTime(new Timestamp(scheduleMessage.getEndTime()));
-        recordToUpdate.setLastDate(scheduleMessage.hasOneTime() || scheduleMessage.hasPerpetual() ?
-            null : new Timestamp(scheduleMessage.getLastDate()));
-        recordToUpdate.setRecurRule(scheduleMessage.hasOneTime() ?
-            null : scheduleMessage.getRecurRule());
+        recordToUpdate.setLastDate(
+                scheduleMessage.hasOneTime() || scheduleMessage.hasPerpetual() ? null
+                        : new Timestamp(scheduleMessage.getLastDate()));
+        recordToUpdate.setRecurRule(
+                scheduleMessage.hasOneTime() ? null : scheduleMessage.getRecurRule());
         recordToUpdate.setTimeZoneId(scheduleMessage.getTimezoneId());
         // UI may not send deferred schedule start time with every request so don't overwrite the
         // existing value

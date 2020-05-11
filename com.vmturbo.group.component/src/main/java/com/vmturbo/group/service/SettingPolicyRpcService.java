@@ -17,6 +17,7 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
@@ -426,6 +427,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      * @return A stream of {@link UploadEntitySettingsRequest} containing chunks of the entity
      * settings request.
      */
+    @Override
     public StreamObserver<UploadEntitySettingsRequest> uploadEntitySettings(
         final StreamObserver<UploadEntitySettingsResponse> responseObserver) {
         return new EntitySettingsRequest(responseObserver);
@@ -499,8 +501,14 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
                 logger.info("Completed uploading of {} entity settings in context: {}",
                     allEntitySettings.size(), contextVal);
                 try {
-                    entitySettingStore.storeEntitySettings(contextVal.getTopologyContextId(),
-                            contextVal.getTopologyId(), allEntitySettings.stream());
+                    if (contextVal.getTopologyContextId() == realtimeTopologyContextId) {
+                        entitySettingStore.storeEntitySettings(contextVal.getTopologyContextId(),
+                                contextVal.getTopologyId(), allEntitySettings.stream());
+                    } else {
+                        // save allEntitySettings to database
+                        entitySettingStore.savePlanEntitySettings(contextVal.getTopologyContextId(),
+                                allEntitySettings);
+                    }
                     responseObserver.onNext(UploadEntitySettingsResponse.newBuilder().build());
                     responseObserver.onCompleted();
                 } catch (StoreOperationException e) {
@@ -606,6 +614,10 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
         } catch (StoreOperationException e) {
             logger.error("Failed to get entity settings for " + request, e);
             responseObserver.onError(e.getStatus().withDescription(e.getMessage()).asException());
+        } catch (InvalidProtocolBufferException e) {
+            logger.error("Failed to load setting from plan setting database.", e);
+            responseObserver.onError(Status.NOT_FOUND
+                    .withDescription(e.getMessage()).asException());
         }
     }
 

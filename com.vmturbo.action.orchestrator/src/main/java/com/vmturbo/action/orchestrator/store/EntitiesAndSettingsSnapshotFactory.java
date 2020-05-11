@@ -42,6 +42,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainScope;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainSeed;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto;
+import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
@@ -79,6 +81,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
 
     private final SupplyChainServiceBlockingStub supplyChainService;
 
+    private final ScheduleServiceGrpc.ScheduleServiceBlockingStub scheduleService;
+
     private final long timeToWaitForTopology;
 
     private final TimeUnit timeToWaitUnit;
@@ -97,6 +101,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         this.repositoryService = RepositoryServiceGrpc.newBlockingStub(repoChannel);
         this.groupService = GroupServiceGrpc.newBlockingStub(groupChannel);
         this.supplyChainService = SupplyChainServiceGrpc.newBlockingStub(repoChannel);
+        this.scheduleService = ScheduleServiceGrpc.newBlockingStub(groupChannel);
         this.timeToWaitForTopology = timeToWaitForTopology;
         this.timeToWaitUnit = timeToWaitUnit;
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -113,21 +118,27 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         private final Map<Long, ActionPartialEntity> oidToEntityMap;
         private final OwnershipGraph<EntityWithConnections> ownershipGraph;
         private final Map<Long, Long> entityToResourceGroupMap;
+        private final Map<Long, ScheduleProto.Schedule> oidToScheduleMap;
         private final long topologyContextId;
         private final TopologyType topologyType;
+        private final long populationTimestamp;
 
         public EntitiesAndSettingsSnapshot(@Nonnull final Map<Long, Map<String, Setting>> settings,
-                                           @Nonnull final Map<Long, ActionPartialEntity> entityMap,
-                                           @Nonnull final OwnershipGraph<EntityWithConnections> ownershipGraph,
-                                           @Nonnull final Map<Long, Long> entityToResourceGroupMap,
-                                           final long topologyContextId,
-                                           @Nonnull final TopologyType targetTopologyType) {
+                @Nonnull final Map<Long, ActionPartialEntity> entityMap,
+                @Nonnull final OwnershipGraph<EntityWithConnections> ownershipGraph,
+                @Nonnull final Map<Long, Long> entityToResourceGroupMap,
+                @Nonnull final Map<Long, ScheduleProto.Schedule> oidToScheduleMap,
+                final long topologyContextId,
+                @Nonnull final TopologyType targetTopologyType,
+                final long populationTimestamp) {
             this.settingsByEntityAndSpecName = settings;
             this.oidToEntityMap = entityMap;
             this.ownershipGraph = ownershipGraph;
             this.entityToResourceGroupMap = entityToResourceGroupMap;
             this.topologyContextId = topologyContextId;
             this.topologyType = targetTopologyType;
+            this.oidToScheduleMap = oidToScheduleMap;
+            this.populationTimestamp = populationTimestamp;
         }
 
         /**
@@ -150,6 +161,24 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         @Nonnull
         public  Map<Long, ActionPartialEntity> getEntityMap() {
             return oidToEntityMap;
+        }
+
+        @Nonnull
+        public Map<Long, ScheduleProto.Schedule> getScheduleMap() {
+            return Collections.unmodifiableMap(oidToScheduleMap);
+        }
+
+        /**
+         * Returns the user that has accepted the action.
+         *
+         * @param actionId the id for the action for which we are querying the accepting user.
+         * @return the user name for the user that accepted action or empty otherwise.
+         */
+        @Nonnull
+        public Optional<String> getAcceptingUserForAction(long actionId) {
+            // TODO (mahdi - OM-57913) Read the acceptance that read into memory in the entities
+            //  cache and get the user that accepted the action.
+            return  Optional.empty();
         }
 
         public long getToologyContextId() {
@@ -182,6 +211,14 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
         @Nonnull
         public Optional<Long> getResourceGroupForEntity(final long entityId) {
             return Optional.ofNullable(entityToResourceGroupMap.get(entityId));
+        }
+
+        /**
+         * Returns the timestamp where the snapshot is created.
+         * @return the timestamp where the snapshot is created.
+         */
+        public long getPopulationTimestamp() {
+            return populationTimestamp;
         }
 
     }
@@ -262,8 +299,14 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
             logger.error("Failed to wait for repository to return data due to exception : " + e);
         }
 
+        Map<Long, ScheduleProto.Schedule> oidToScheduleMap = new HashMap<>();
+        scheduleService.getSchedules(
+            ScheduleProto.GetSchedulesRequest.newBuilder().build()).forEachRemaining(
+                schedule -> oidToScheduleMap.put(schedule.getId(), schedule));
+
         return new EntitiesAndSettingsSnapshot(newSettings, entityMap, ownershipGraph,
-            entityToResourceGroupMap, topologyContextId, targetTopologyType);
+            entityToResourceGroupMap, oidToScheduleMap, topologyContextId, targetTopologyType,
+            System.currentTimeMillis());
     }
 
     @Nonnull
@@ -388,7 +431,8 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
     @Nonnull
     public EntitiesAndSettingsSnapshot emptySnapshot() {
         return new EntitiesAndSettingsSnapshot(Collections.emptyMap(), Maps.newHashMap(),
-            OwnershipGraph.empty(), Maps.newHashMap(), realtimeTopologyContextId, TopologyType.SOURCE);
+            OwnershipGraph.empty(), Maps.newHashMap(), Maps.newHashMap(), realtimeTopologyContextId,
+            TopologyType.SOURCE, System.currentTimeMillis());
     }
 
     /**

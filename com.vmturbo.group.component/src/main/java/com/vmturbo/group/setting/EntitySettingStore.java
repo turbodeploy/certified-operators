@@ -28,8 +28,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
@@ -38,6 +42,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.TopologySelection;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.proactivesupport.DataMetricCounter;
 import com.vmturbo.proactivesupport.DataMetricSummary;
@@ -56,6 +61,13 @@ public class EntitySettingStore {
             .builder()
             .withName("group_entity_setting_update_duration_seconds")
             .withHelp("Duration in seconds it takes to update the entity setting store")
+            .build()
+            .register();
+
+    private static final DataMetricSummary ENTITY_SETTING_STORE_SAVE_DURATION = DataMetricSummary
+            .builder()
+            .withName("group_entity_setting_save_duration_seconds")
+            .withHelp("Duration in seconds it takes to save entity settings to database")
             .build()
             .register();
 
@@ -95,6 +107,11 @@ public class EntitySettingStore {
     private final SettingStore settingStore;
 
     private final long realtimeTopologyContextId;
+
+    private static final List<String> settingSpecsToSave = ImmutableList.of(
+            EntitySettingSpecs.PercentileAggressivenessVirtualMachine.getSettingName(),
+            EntitySettingSpecs.MaxObservationPeriodVirtualMachine.getSettingName());
+
 
     public EntitySettingStore(final long realtimeTopologyContextId,
                               @Nonnull final SettingStore settingStore) {
@@ -154,6 +171,43 @@ public class EntitySettingStore {
     }
 
     /**
+     * Save settings by topologyContextId.
+     *
+     * @param topologyContextId Topology Context ID
+     * @param entitySettings entity setting object
+     * @throws StoreOperationException if failed to retrieve data from DB
+     */
+    public void savePlanEntitySettings(long topologyContextId,
+                                    @Nonnull final List<EntitySettings> entitySettings)
+            throws StoreOperationException {
+        try (DataMetricTimer timer = ENTITY_SETTING_STORE_SAVE_DURATION.startTimer()) {
+            final Map<Long, SettingPolicy> defaultPolicies = settingStore.getSettingPolicies(
+                    SettingPolicyFilter.newBuilder()
+                            .withType(Type.DEFAULT)
+                            .build())
+                    .stream()
+                    .collect(Collectors.toMap(SettingPolicy::getId, Function.identity()));
+            final EntitySettingSnapshot newSnapshot =
+                    snapshotFactory.createSnapshot(entitySettings.stream(), defaultPolicies);
+
+            final Predicate<SettingToPolicyId> namePredicate =
+                    s -> settingSpecsToSave.contains(s.getSetting().getSettingSpecName());
+
+            final Multimap<Long, Setting> entityToSettingMap = HashMultimap.create();
+            final Multimap<Setting, Long> settingToEntityMap = HashMultimap.create();
+
+            for (EntitySettings userSettings : newSnapshot.settingsByEntity.values()) {
+                newSnapshot.getEntitySettings(userSettings.getEntityOid(), namePredicate)
+                        .forEach(s -> {
+                            entityToSettingMap.put(userSettings.getEntityOid(), s.getSetting());
+                            settingToEntityMap.put(s.getSetting(), userSettings.getEntityOid());
+                        });
+            }
+            settingStore.savePlanEntitySettings(topologyContextId, entityToSettingMap, settingToEntityMap);
+        }
+    }
+
+    /**
      * Get entity settings stored via
      * {@link EntitySettingStore#storeEntitySettings(long, long, Stream)}.
      *
@@ -164,33 +218,39 @@ public class EntitySettingStore {
      *         All entities specified in the {@link EntitySettingFilter} will have entries in the map.
      * @throws NoSettingsForTopologyException If there is no setting information for entities in
      *      the topology specified by the input filter.
+     * @throws InvalidProtocolBufferException Error with getting plan entity settings
      */
     @Nonnull
     public Map<Long, Collection<SettingToPolicyId>> getEntitySettings(@Nonnull final TopologySelection topologySelection,
                                                       @Nonnull final EntitySettingFilter filter)
-            throws NoSettingsForTopologyException {
+            throws NoSettingsForTopologyException, InvalidProtocolBufferException {
 
         ENTITY_SETTING_STORE_QUERY_HIT_COUNT.increment();
         try (final DataMetricTimer timer = ENTITY_SETTING_STORE_QUERY_DURATION.startTimer()) {
             final long contextId = topologySelection.hasTopologyContextId() ?
                     topologySelection.getTopologyContextId() : realtimeTopologyContextId;
-            final ContextSettingSnapshotCache contextCache = entitySettingSnapshots.get(contextId);
-            if (contextCache == null) {
-                throw new NoSettingsForTopologyException(contextId);
-            }
-            final EntitySettingSnapshot snapshot;
-            if (topologySelection.hasTopologyId()) {
-                snapshot = contextCache.getSnapshot(topologySelection.getTopologyId())
-                        .orElseThrow(() -> new NoSettingsForTopologyException(contextId,
-                                topologySelection.getTopologyId()));
+            if (contextId == realtimeTopologyContextId) {
+                final ContextSettingSnapshotCache contextCache = entitySettingSnapshots.get(contextId);
+                if (contextCache == null) {
+                    throw new NoSettingsForTopologyException(contextId);
+                }
+                final EntitySettingSnapshot snapshot;
+                if (topologySelection.hasTopologyId()) {
+                    snapshot = contextCache.getSnapshot(topologySelection.getTopologyId())
+                            .orElseThrow(() -> new NoSettingsForTopologyException(contextId,
+                                    topologySelection.getTopologyId()));
+                } else {
+                    snapshot = contextCache.getLatestSnapshot()
+                            // We may have a briefly empty setting cache that hasn't been fully initialized
+                            // yet. Treat it as if it doesn't exist.
+                            .orElseThrow(() -> new NoSettingsForTopologyException(contextId));
+                }
+                return snapshot.getFilteredSettings(filter);
             } else {
-                snapshot = contextCache.getLatestSnapshot()
-                        // We may have a briefly empty setting cache that hasn't been fully initialized
-                        // yet. Treat it as if it doesn't exist.
-                        .orElseThrow(() -> new NoSettingsForTopologyException(contextId));
+                // For plans, get the settings from database.
+                return settingStore.getPlanEntitySettings(contextId, filter.getEntitiesList());
             }
-            return snapshot.getFilteredSettings(filter);
-        } catch (NoSettingsForTopologyException | RuntimeException e) {
+        } catch (NoSettingsForTopologyException | RuntimeException | InvalidProtocolBufferException e) {
             ENTITY_SETTING_STORE_QUERY_ERROR_COUNT.increment();
             throw e;
         }
@@ -542,11 +602,6 @@ public class EntitySettingStore {
 
     }
 
-    /**
-     * Returns the {@link realtimeTopologyContextId}.
-     *
-     * @return realtimeTopologyContextId
-     */
     public long getRealtimeTopologyContextId() {
         return realtimeTopologyContextId;
     }

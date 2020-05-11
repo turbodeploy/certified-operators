@@ -55,6 +55,7 @@ import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ObjectsPage;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -214,6 +215,8 @@ public class GroupsService implements IGroupsService {
 
     private final BusinessAccountRetriever businessAccountRetriever;
 
+    private final ServiceProviderExpander serviceProviderExpander;
+
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final GroupMapper groupMapper,
@@ -234,7 +237,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final ThinTargetCache thinTargetCache,
                   @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
                   @Nonnull final GroupFilterMapper groupFilterMapper,
-                  @Nonnull final BusinessAccountRetriever businessAccountRetriever) {
+                  @Nonnull final BusinessAccountRetriever businessAccountRetriever,
+                  @Nonnull final ServiceProviderExpander serviceProviderExpander) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -256,6 +260,7 @@ public class GroupsService implements IGroupsService {
         this.entitySettingQueryExecutor = entitySettingQueryExecutor;
         this.groupFilterMapper = Objects.requireNonNull(groupFilterMapper);
         this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
+        this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
     }
 
     /**
@@ -461,10 +466,12 @@ public class GroupsService implements IGroupsService {
             // use the entitySettingQueryExecutor for now. We could probably optimize the call a bit
             // since we're only expecting a limited result, but since this is an "undocumented API"
             // right now, not going to worry about performance yet.
-            Optional<SettingApiDTO> optionalSetting = entitySettingQueryExecutor.getEntitySettings(
-                    uuidMapper.fromUuid(groupUuid),
-                    false,
-                    Collections.singleton(settingUuid))
+            Optional<SettingApiDTO> optionalSetting = entitySettingQueryExecutor
+                    .getEntitySettings(
+                            uuidMapper.fromUuid(groupUuid),
+                            false,
+                            Collections.singleton(settingUuid),
+                            null)
                     .stream()
                     .map(settingManager -> settingManager.getSettings())
                     .flatMap(List::stream)
@@ -496,7 +503,7 @@ public class GroupsService implements IGroupsService {
             return entitySettingQueryExecutor.getEntitySettings(
                     uuidMapper.fromUuid(groupUuid),
                     false,
-                    settingsManagerMapping.getSettingNamesForManagers(Collections.singleton(settingManagerUuid)))
+                    settingsManagerMapping.getSettingNamesForManagers(Collections.singleton(settingManagerUuid)), null)
                     .stream()
                         .map(SettingsManagerApiDTO::getSettings)
                         .flatMap(List::stream)
@@ -1555,10 +1562,19 @@ public class GroupsService implements IGroupsService {
 
         // use seedUuids (entity + group) to find entities of related type using supply chain
         if (!seedUuids.isEmpty()) {
+
+            // expand service providers to regions, expandServiceProviders will return a set of all
+            // regions and original non serviceProvider scopes. if found an empty list then expand
+            // using supplychain
+            final Set<Long> expandedScopes = serviceProviderExpander.expand(seedUuids.stream()
+                    .map(Long::parseLong)
+                    .collect(Collectors.toSet()));
+            final Set<String> entityOrGroupsIds = expandedScopes.stream().map(s -> Long.toString(s)).collect(Collectors.toSet());
+
             final Map<String, SupplyChainNode> supplyChainForScope =
                 supplyChainFetcherFactory.newNodeFetcher()
                     .topologyContextId(realtimeTopologyContextId)
-                    .addSeedUuids(seedUuids)
+                    .addSeedUuids(entityOrGroupsIds)
                     .entityTypes(relatedEntityTypes)
                     .apiEnvironmentType(environmentType)
                     .fetch();

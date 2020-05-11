@@ -81,7 +81,7 @@ public class SettingsMapperIntegrationTest {
         final SettingsService settingService =
                 new SettingsService(SettingServiceGrpc.newBlockingStub(channel),
                         StatsHistoryServiceGrpc.newBlockingStub(channel),
-                        mapper, settingsManagerMapping, settingsPoliciesService);
+                        mapper, settingsManagerMapping, settingsPoliciesService, false);
 
         final List<SettingsManagerApiDTO> settingSpecs =
                 settingService.getSettingsSpecs(null, null, false);

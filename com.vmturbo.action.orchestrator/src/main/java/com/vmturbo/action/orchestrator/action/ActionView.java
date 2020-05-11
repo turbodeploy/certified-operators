@@ -145,6 +145,14 @@ public interface ActionView {
     ActionCategory getActionCategory();
 
     /**
+     * Gets the execution schedule associated for this action if any.
+     *
+     * @return the execution schedule associated for this action if any.
+     */
+    @Nonnull
+    Optional<ActionSchedule> getSchedule();
+
+    /**
      * Get the severity of the action. Currently, the severity of an action
      * is determined solely by its category; hence the default method.
      *

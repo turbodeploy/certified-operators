@@ -22,6 +22,7 @@ import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
 import com.vmturbo.api.component.external.api.mapper.SeverityPopulator;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.businessaccount.BusinessAccountMapper;
 import com.vmturbo.api.component.external.api.util.businessaccount.SupplementaryDataFactory;
@@ -495,6 +496,11 @@ public class CommunicationConfig {
     public GroupExpander groupExpander() {
         return new GroupExpander(groupRpcService(),
                 new GroupMemberRetriever(groupRpcService()));
+    }
+
+    @Bean
+    public ServiceProviderExpander serviceProviderExpander() {
+        return new ServiceProviderExpander(mapperConfig.uuidMapper(), supplyChainFetcher());
     }
 
     @Bean

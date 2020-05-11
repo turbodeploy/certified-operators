@@ -28,6 +28,7 @@ import com.vmturbo.group.diagnostics.GroupDiagnosticsConfig;
 import com.vmturbo.group.schedule.ScheduleConfig;
 import com.vmturbo.group.service.RpcConfig;
 import com.vmturbo.group.setting.SettingConfig;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 
 /**
  * Main component configuration for the Group Component. Manages groups and policies.
@@ -40,6 +41,7 @@ import com.vmturbo.group.setting.SettingConfig;
         GroupComponentDBConfig.class,
         GroupApiSecurityConfig.class,
         GroupDiagnosticsConfig.class,
+        PlanOrchestratorClientConfig.class,
         SpringSecurityConfig.class})
 public class GroupComponent extends BaseVmtComponent {
 

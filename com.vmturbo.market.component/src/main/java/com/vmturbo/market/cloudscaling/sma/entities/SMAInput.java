@@ -354,9 +354,9 @@ public class SMAInput {
                 () -> oid, () -> name, () -> vmInfo.getBillingType().name());
             return;
         }
-        AnalysisSettings settings = entity.getAnalysisSettings();
-        boolean isEligibleForScale = settings.getIsEligibleForScale();
-        if (!isEligibleForScale) {
+        final AnalysisSettings settings = entity.getAnalysisSettings();
+        final boolean isMovable = settings.getIsEligibleForScale() && settings.getControllable();
+        if (!isMovable) {
             processNotEligibleForScaling(cloudCostData, oid, name, riBoughtIdToCouponsUsed);
             return;
         }
