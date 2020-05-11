@@ -18,8 +18,10 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -35,6 +37,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 
+import org.apache.commons.collections4.MultiValuedMap;
+import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -127,7 +131,9 @@ import com.vmturbo.topology.processor.cost.PriceTableUploader;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler.DeploymentProfileWithTemplate;
 import com.vmturbo.topology.processor.diagnostics.TopologyProcessorDiagnosticsHandler.ProbeInfoWithId;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.entity.EntityStore.TargetIncrementalEntities;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
+import com.vmturbo.topology.processor.entity.IncrementalEntityByMessageDTO;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader.TargetDiscoveredData;
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
@@ -170,6 +176,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     private final PriceTableUploader priceTableUploader = mock(PriceTableUploader.class);
     private final TopologyPipelineExecutorService pipelineExecutorService = mock(TopologyPipelineExecutorService.class);
     private IdentityProvider identityProvider;
+    private final TargetIncrementalEntities targetIncrementalEntities =
+        mock(TargetIncrementalEntities.class);
     private final EntityDTO nwDto =
             EntityDTO.newBuilder().setId("NW-1").setEntityType(EntityType.NETWORK).build();
 
@@ -191,7 +199,13 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         = new HashMap<>();
     private final Map<Long, TargetDiscoveredData> discoveredGroupMap = new HashMap<>();
     private final Map<Long, ProbeInfo> probeMap = new HashMap<>();
-
+    private final LinkedHashMap<Integer, Collection<EntityDTO>>  messageIdToEntityDTO =
+        new LinkedHashMap<>();
+    private final int messageId = 1;
+    private final EntityDTO entityDTO =
+        EntityDTO.newBuilder().setId("1").setDisplayName("2").setEntityType(EntityType.PHYSICAL_MACHINE).build();
+    private final IncrementalEntityByMessageDTO incrementalEntityByMessageDTO =
+        new IncrementalEntityByMessageDTO(messageId, entityDTO);
     private static final String DISCOVERED_CLOUD_COST = "foo";
     private static final String DISCOVERED_PRICE_TABLE = "bar";
 
@@ -208,7 +222,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         Map<Long, EntityDTO> map = ImmutableMap.of(199L, nwDto);
         when(entityStore.discoveredByTarget(100001)).thenReturn(map);
         when(entityStore.getTargetLastUpdatedTime(100001)).thenReturn(Optional.of(12345L));
-
+        messageIdToEntityDTO.put(messageId, Collections.singletonList(entityDTO));
+        when(targetIncrementalEntities.getEntitiesByMessageId()).thenReturn(messageIdToEntityDTO);
+        when(entityStore.getIncrementalEntities(1)).thenReturn(Optional.of(targetIncrementalEntities));
         when(targetStore.getAll()).thenReturn(targets);
         doReturn(discoveredGroupMap).when(groupUploader).getDataByTarget();
         doReturn(discoveredProfileMap).when(templateDeploymentProfileUploader)
@@ -432,6 +448,8 @@ public class TopologyProcessorDiagnosticsHandlerTest {
                 .withIncrementalSchedule(mock(TargetDiscoverySchedule.class))
                 .setUpMocks()
         };
+        when(entityStore.getIncrementalEntities(100001)).thenReturn(Optional.of(targetIncrementalEntities));
+        when(entityStore.getIncrementalEntities(200001)).thenReturn(Optional.of(targetIncrementalEntities));
 
         final ZipInputStream zis = dumpDiags();
 
@@ -510,6 +528,14 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             }
 
             ze = zis.getNextEntry();
+            assertEquals("IncrementalEntities" + suffix, ze.getName());
+            bytes = new byte[100];
+            bytesRead = zis.read(bytes);
+            assertNotEquals(-1, bytesRead);
+            String json = new String(bytes, 0, 100).trim();
+            assertEquals(IncrementalEntityByMessageDTO.toJson(incrementalEntityByMessageDTO), json);
+
+            ze = zis.getNextEntry();
             assertEquals("DiscoveredGroupsAndPolicies" + suffix, ze.getName());
             bytes = new byte[2048];
             assertNotEquals(-1, zis.read(bytes));
@@ -553,14 +579,14 @@ public class TopologyProcessorDiagnosticsHandlerTest {
      */
     @Test
     public void testTargetWithNoExtraDataDiscovered() throws IOException {
-
+        final int targetId = 100001;
         TestTopology[] testTopologies = new TestTopology[]{
-            new TestTopology("123456789").withTargetId(100001).withProbeId(101).withProbeInfo()
+            new TestTopology("123456789").withTargetId(targetId).withProbeId(101).withProbeInfo()
                 .withTime(12345).withEntity(IDENTIFIED_ENTITY).withDiscoveredClusterGroup()
                 .withSettingPolicy().withTemplate().withProfile().withTarget(mock(Target.class))
                 .withTargetInfo().setUpMocksWithNoExtraDiscoveredData(),
         };
-
+        when(entityStore.getIncrementalEntities(targetId)).thenReturn(Optional.of(targetIncrementalEntities));
         // this method should not throw exception, otherwise we are not dealing correctly with targets
         // missing those extra data
         final ZipInputStream zis = dumpDiags();
