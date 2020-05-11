@@ -28,7 +28,6 @@ import com.vmturbo.api.component.external.api.mapper.aspect.StorageControllerAsp
 import com.vmturbo.api.component.external.api.mapper.aspect.StorageTierAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualMachineAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.VirtualVolumeAspectMapper;
-import com.vmturbo.api.component.external.api.mapper.aspect.WorkloadControllerAspectMapper;
 import com.vmturbo.api.component.external.api.service.ServiceConfig;
 import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.MagicScopeGateway;
@@ -359,18 +358,13 @@ public class MapperConfig {
     }
 
     @Bean
-    public WorkloadControllerAspectMapper workloadControllerAspectMapper() {
-        return new WorkloadControllerAspectMapper();
-    }
-
-    @Bean
     public EntityAspectMapper entityAspectMapper() {
         return new EntityAspectMapper(storageTierAspectMapper(), virtualVolumeAspectMapper(),
             cloudAspectMapper(), virtualMachineMapper(), desktopPoolAspectMapper(),
             masterImageEntityAspectMapper(), physicalMachineAspectMapper(),
             storageAspectMapper(), diskArrayAspectMapper(), logicalPoolAspectMapper(),
             storageControllerAspectMapper(), portsAspectMapper(), databaseAspectMapper(),
-            regionAspectMapper(), workloadControllerAspectMapper());
+            regionAspectMapper());
     }
 
     @Bean

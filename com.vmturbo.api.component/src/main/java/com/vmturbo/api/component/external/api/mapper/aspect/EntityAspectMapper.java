@@ -47,8 +47,7 @@ public class EntityAspectMapper {
                               @Nonnull final StorageControllerAspectMapper storageControllerAspectMapper,
                               @Nonnull final PortsAspectMapper portsAspectMapper,
                               @Nonnull final DatabaseAspectMapper databaseAspectMapper,
-                              @Nonnull final RegionAspectMapper regionAspectMapper,
-                              @Nonnull final WorkloadControllerAspectMapper workloadControllerAspectMapper) {
+                              @Nonnull final RegionAspectMapper regionAspectMapper) {
 
         aspectMappers = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
             .put(EntityType.DATABASE_VALUE, ImmutableList.of(
@@ -93,8 +92,6 @@ public class EntityAspectMapper {
                 cloudAspectMapper))
             .put(EntityType.REGION_VALUE, ImmutableList.of(
                 regionAspectMapper))
-            .put(EntityType.WORKLOAD_CONTROLLER_VALUE,
-                ImmutableList.of(workloadControllerAspectMapper))
             .build();
     }
 

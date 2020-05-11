@@ -62,7 +62,6 @@ public class ServiceEntityRepoDTO {
     private BusinessAccountInfoRepoDTO businessAccountInfoRepoDTO;
     private DesktopPoolInfoRepoDTO desktopPoolInfoRepoDTO;
     private BusinessUserInfoRepoDTO businessUserInfoRepoDTO;
-    private WorkloadControllerInfoRepoDTO workloadControllerInfoRepoDTO;
 
     public String getUuid() {
         return uuid;
@@ -270,14 +269,6 @@ public class ServiceEntityRepoDTO {
 
     public void setBusinessAccountInfoRepoDTO(final BusinessAccountInfoRepoDTO businessAccountInfoRepoDTO) {
         this.businessAccountInfoRepoDTO = businessAccountInfoRepoDTO;
-    }
-
-    public WorkloadControllerInfoRepoDTO getWorkloadControllerInfoRepoDTO() {
-        return workloadControllerInfoRepoDTO;
-    }
-
-    public void setWorkloadControllerInfoRepoDTO(final WorkloadControllerInfoRepoDTO workloadControllerInfoRepoDTO) {
-        this.workloadControllerInfoRepoDTO = workloadControllerInfoRepoDTO;
     }
 
     public EntityPipelineErrorsRepoDTO getEntityPipelineErrorsRepoDTO() {
