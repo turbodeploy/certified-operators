@@ -387,7 +387,9 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
             processTarget(secretFields, targetInfoObject, entry.getKey(), probeIdToProbeTypeMap);
 
         }
-        awsBillingTargetNoLongerDerived(persistedTargets, probeIdToProbeTypeMap);
+        // Get the targets from consul to pick up any changes.
+        awsBillingTargetNoLongerDerived(keyValueStore.getByPrefix(TargetStore.TARGET_KV_STORE_PREFIX),
+            probeIdToProbeTypeMap);
     }
 
     /**
@@ -440,8 +442,7 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
         if (AWS.getProbeType().equals(probeType)) {
             // save AWS target key
             awsTargetKeys.add(targetKey);
-        }
-        if (AWS_BILLING.getProbeType().equals(probeType)) {
+        } else if (AWS_BILLING.getProbeType().equals(probeType)) {
             // save AWS Billing target ID
             awsBillingTargetIds.add(targetId);
             // change isHidden from true to false
