@@ -120,8 +120,8 @@ public class TopologyDataDefinitionStoreTest {
         // Test that the automated entity definition was properly created.
         assertEquals(AUTOMATED_TOPO_DATA_DEF, automatedTopoDataDefEntry.getDefinition());
         assertTrue(automatedTopoDataDefEntry.hasId());
-        assertTrue(manualTopoDataDefEntry.getId() !=
-            automatedTopoDataDefEntry.getId());
+        assertTrue(manualTopoDataDefEntry.getId()
+            != automatedTopoDataDefEntry.getId());
 
         // Test that we can't create the same automated entity definition again.
         expectedException.expect(DuplicateNameException.class);

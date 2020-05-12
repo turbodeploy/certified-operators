@@ -61,7 +61,7 @@
         "deleteExecutionSchedule",
         "provisionExecutionSchedule",
         "reconfigureExecutionSchedule",
-        "activateExecutionSchedule"
+        "activateExecutionSchedule",
         "shopTogether",
         "resizeUpHeap",
         "resizeDownHeap",

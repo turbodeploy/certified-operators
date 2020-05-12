@@ -51,12 +51,12 @@ public class V1_23_2__UpdateSettingPolicyForUpdatedEntities extends BaseJdbcMigr
     private void migrateAppRelatedPolicies(Connection connection)
             throws SQLException, InvalidProtocolBufferException {
         final ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT id, setting_policy_data " +
-                        "FROM setting_policy WHERE policy_type <> 'default' AND (entity_type = " +
-                        EntityType.APPLICATION_VALUE +
-                        " OR entity_type = " +
-                        EntityType.APPLICATION_SERVER_VALUE +
-                        ")");
+                .executeQuery("SELECT id, setting_policy_data "
+                    + "FROM setting_policy WHERE policy_type <> 'default' AND (entity_type = "
+                    + EntityType.APPLICATION_VALUE
+                    + " OR entity_type = "
+                    + EntityType.APPLICATION_SERVER_VALUE
+                    + ")");
         while (rs.next()) {
             final long oid = rs.getLong("id");
             final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");
@@ -83,8 +83,8 @@ public class V1_23_2__UpdateSettingPolicyForUpdatedEntities extends BaseJdbcMigr
 
                 // Perform policies updating
                 final PreparedStatement stmt = connection.prepareStatement(
-                        "UPDATE setting_policy SET setting_policy_data=?, entity_type=" +
-                                EntityType.APPLICATION_COMPONENT_VALUE + " WHERE id=?");
+                        "UPDATE setting_policy SET setting_policy_data=?, entity_type="
+                            + EntityType.APPLICATION_COMPONENT_VALUE + " WHERE id=?");
                 stmt.setBytes(1, updatedSettingPolicyInfoBuilder.build().toByteArray());
                 stmt.setLong(2, oid);
                 stmt.execute();
@@ -92,11 +92,11 @@ public class V1_23_2__UpdateSettingPolicyForUpdatedEntities extends BaseJdbcMigr
         }
         // Removing default APPLICATION and APPLICATION_SERVER policies
         connection.createStatement()
-                .execute("DELETE FROM setting_policy WHERE policy_type = 'default' AND (entity_type = " +
-                        EntityType.APPLICATION_VALUE +
-                        " OR entity_type = " +
-                        EntityType.APPLICATION_SERVER_VALUE +
-                        ")");
+                .execute("DELETE FROM setting_policy WHERE policy_type = 'default' AND (entity_type = "
+                    + EntityType.APPLICATION_VALUE
+                    + " OR entity_type = "
+                    + EntityType.APPLICATION_SERVER_VALUE
+                    + ")");
     }
 
     /**
@@ -118,9 +118,9 @@ public class V1_23_2__UpdateSettingPolicyForUpdatedEntities extends BaseJdbcMigr
     private void migrateBusinessAppPolicies(Connection connection)
             throws SQLException, InvalidProtocolBufferException {
         final ResultSet rs = connection.createStatement()
-                .executeQuery("SELECT id, setting_policy_data " +
-                        "FROM setting_policy WHERE entity_type = " +
-                        EntityType.BUSINESS_APPLICATION_VALUE);
+                .executeQuery("SELECT id, setting_policy_data "
+                    + "FROM setting_policy WHERE entity_type = "
+                    + EntityType.BUSINESS_APPLICATION_VALUE);
         while (rs.next()) {
             final long oid = rs.getLong("id");
             final byte[] settingPolicyDataBin = rs.getBytes("setting_policy_data");

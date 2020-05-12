@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Sets;
@@ -143,7 +144,6 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
             .thenReturn(Collections.singletonList(ScheduleProto.Schedule.newBuilder().setId(SCHEDULE_ID)
                 .setDisplayName(SCHEDULE_DISPLAY_NAME).build()));
 
-        Set<Long> nonProjectedEntities = any();
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
             Collections.singleton(ENTITY_ID), REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
