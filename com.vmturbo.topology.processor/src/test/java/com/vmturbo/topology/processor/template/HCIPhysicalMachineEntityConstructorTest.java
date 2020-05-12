@@ -106,6 +106,10 @@ public class HCIPhysicalMachineEntityConstructorTest {
         @Override
         public void updateProbeInfo(ProbeInfo probeInfo) {
         }
+
+        @Override
+        public void initialize() throws InitializationException {
+        }
     };
 
     /**
