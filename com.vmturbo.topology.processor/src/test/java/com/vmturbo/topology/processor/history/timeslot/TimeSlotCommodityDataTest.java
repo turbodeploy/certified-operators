@@ -80,9 +80,9 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         TimeSlotCommodityData.recordsToSlots(dbValue, slots);
 
         Assert.assertEquals(2, slots[0].getCount());
-        Assert.assertEquals(used1 + used2, slots[0].getTotal(), DELTA);
+        Assert.assertEquals((used1 + used2) / capacity, slots[0].getTotal(), DELTA);
         Assert.assertEquals(3, slots[1].getCount());
-        Assert.assertEquals(used3 + used4 + used5, slots[1].getTotal(), DELTA);
+        Assert.assertEquals((used3 + used4 + used5) / capacity, slots[1].getTotal(), DELTA);
     }
 
     /**
@@ -123,7 +123,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         commSold.getHistoricalUsedBuilder().clear();
 
         // advance time by an hour and add a point - previous hour should be accounted for
-        final float expectedFirstHourAvg = (float)((used1 + used2) / 2);
+        final float expectedFirstHourAvg = (float)((used1 + used2) / 2 / cap);
         Mockito.doReturn(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS + 1).when(clock).millis();
         Mockito.doReturn(used3).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
@@ -132,7 +132,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         commSold.getHistoricalUsedBuilder().clear();
 
         // advance time by 12 hours and add a point
-        final float expectedFirstSlotAvg = (float)((expectedFirstHourAvg + used3) / 2);
+        final float expectedFirstSlotAvg = (float)((expectedFirstHourAvg + used3 / cap) / 2);
         Mockito.doReturn(TimeInMillisConstants.HOUR_LENGTH_IN_MILLIS * 12 + 1).when(clock).millis();
         Mockito.doReturn(used4).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
@@ -145,7 +145,7 @@ public class TimeSlotCommodityDataTest extends BaseGraphRelatedTest {
         Mockito.doReturn(used5).when(accessor).getRealTimeValue(FIELD);
         tcd.aggregate(FIELD, config, context);
         Assert.assertEquals(expectedFirstSlotAvg, commSold.getHistoricalUsed().getTimeSlot(0), DELTA);
-        Assert.assertEquals(used4, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
+        Assert.assertEquals(used4 / cap, commSold.getHistoricalUsed().getTimeSlot(1), DELTA);
 
     }
 

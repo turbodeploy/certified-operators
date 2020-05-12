@@ -114,8 +114,7 @@ public class GroupMapper {
      * DiscoveryConfigService#cloudTargetTypes.
      */
     public static final Set<String> CLOUD_ENVIRONMENT_PROBE_TYPES = ImmutableSet.of(
-            SDKProbeType.AWS.getProbeType(), SDKProbeType.AWS_BILLING.getProbeType(),
-            SDKProbeType.GCP.getProbeType(),
+            SDKProbeType.AWS.getProbeType(), SDKProbeType.GCP.getProbeType(),
             SDKProbeType.AZURE.getProbeType(), SDKProbeType.AZURE_EA.getProbeType(),
             SDKProbeType.AZURE_SERVICE_PRINCIPAL.getProbeType());
 

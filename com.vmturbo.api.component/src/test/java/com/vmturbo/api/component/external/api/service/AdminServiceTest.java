@@ -166,7 +166,7 @@ public class AdminServiceTest {
     }
 
     /**
-     * Test {@link AdminService#getVersionInfo(boolean)} with SaaS {@link DeploymentMode}.
+     * Test {@link AdminService#getVersionInfo(boolean)} with default {@link DeploymentMode}.
      *
      * @throws Exception if an error occurs
      */
@@ -179,37 +179,13 @@ public class AdminServiceTest {
                 Mockito.mock(RestTemplate.class),
                 Mockito.mock(ApiWebsocketHandler.class),
                 Mockito.mock(BuildProperties.class),
-                DeploymentMode.SAAS,
-                false);
+                DeploymentMode.SAAS);
         //WHEN
         ProductCapabilityDTO dto = adminService.getProductCapabilities();
 
         //THEN
         assertEquals(DeploymentMode.SAAS, dto.getDeploymentMode());
         assertFalse(dto.isReportingEnabled());
-    }
-
-    /**
-     * Test {@link AdminService#getVersionInfo(boolean)} with uiReportEnabled to true {@link DeploymentMode}.
-     *
-     * @throws Exception if an error occurs
-     */
-    @Test
-    public void testGetProductCapabilitiesWithUIReportEnabled() throws Exception {
-        //GIVEN
-        AdminService adminService = new AdminService(Mockito.mock(ClusterService.class),
-                Mockito.mock(KeyValueStore.class),
-                Mockito.mock(ClusterMgrRestClient.class),
-                Mockito.mock(RestTemplate.class),
-                Mockito.mock(ApiWebsocketHandler.class),
-                Mockito.mock(BuildProperties.class),
-                DeploymentMode.SAAS,
-                true);
-        //WHEN
-        ProductCapabilityDTO dto = adminService.getProductCapabilities();
-
-        //THEN
-        assertTrue(dto.isReportingEnabled());
     }
 
     /**
@@ -481,7 +457,7 @@ public class AdminServiceTest {
         @Bean
         public AdminService adminService() {
             return new AdminService(clusterService, keyValueStore(),
-                clusterMgrClient(), restTemplate, apiWebsocketHandler(), buildProperties(), DeploymentMode.SERVER, false);
+                clusterMgrClient(), restTemplate, apiWebsocketHandler(), buildProperties(), DeploymentMode.SERVER);
         }
 
         /**

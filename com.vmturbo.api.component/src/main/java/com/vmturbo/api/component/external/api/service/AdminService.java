@@ -153,17 +153,13 @@ public class AdminService implements IAdminService {
 
     private DeploymentMode deploymentMode;
 
-    private final boolean enableReporting;
-
-
     AdminService(@Nonnull final ClusterService clusterService,
                  @Nonnull final KeyValueStore keyValueStore,
                  @Nonnull final ClusterMgrRestClient clusterMgrApi,
                  @Nonnull final RestTemplate restTemplate,
                  @Nonnull final ApiWebsocketHandler apiWebsocketHandler,
                  @Nonnull final BuildProperties buildProperties,
-                @Nonnull final DeploymentMode deploymentMode,
-            @Nonnull final boolean enableReporting) {
+                @Nonnull final DeploymentMode deploymentMode) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.clusterMgrApi = Objects.requireNonNull(clusterMgrApi);
@@ -171,7 +167,6 @@ public class AdminService implements IAdminService {
         this.apiWebsocketHandler = Objects.requireNonNull(apiWebsocketHandler);
         this.buildProperties = buildProperties;
         this.deploymentMode = deploymentMode;
-        this.enableReporting = enableReporting;
     }
 
     @Override
@@ -477,7 +472,7 @@ public class AdminService implements IAdminService {
     public ProductCapabilityDTO getProductCapabilities() throws Exception {
         ProductCapabilityDTO productCapabilityDTO = new ProductCapabilityDTO();
         productCapabilityDTO.setDeploymentMode(this.deploymentMode);
-        productCapabilityDTO.setReportingEnabled(this.enableReporting);
+        productCapabilityDTO.setReportingEnabled(false);
         return productCapabilityDTO;
     }
 

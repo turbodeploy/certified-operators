@@ -81,7 +81,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     private final Logger logger = LogManager.getLogger();
 
     // START Fields for Probe ID management
-    private ConcurrentMap<String, Long> probeTypeToId;
+    private final ConcurrentMap<String, Long> probeTypeToId;
 
     private final Object probeIdLock = new Object();
     // END Fields for Probe ID management
@@ -129,11 +129,12 @@ public class IdentityProviderImpl implements IdentityProvider {
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
         this.probeInfoCompatibilityChecker = Objects.requireNonNull(compatibilityChecker);
 
-        // if another class get instantiated before the migrations, and requires the IdentityProvider.
-        initialize_internal();
-      }
+        Map<String, String> savedProbeIds = this.keyValueStore.getByPrefix(PROBE_ID_PREFIX);
 
-
+        this.probeTypeToId = savedProbeIds.entrySet().stream().collect(Collectors.toConcurrentMap(
+                entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
+                entry -> Long.parseLong(entry.getValue())));
+    }
 
     /** {@inheritDoc}
      */
@@ -361,38 +362,5 @@ public class IdentityProviderImpl implements IdentityProvider {
 
     private void storeProbeId(final String probeType, final Long probeId) {
         keyValueStore.put(PROBE_ID_PREFIX + probeType, probeId.toString());
-    }
-
-    /**
-     * After migration, run this method.
-     *
-     * @throws InitializationException throws an exception.
-     */
-    @Override
-    public void initialize() throws InitializationException {
-        initialize_internal();
-    }
-
-    private void initialize_internal()  {
-        Map<String, String> savedProbeIds = this.keyValueStore.getByPrefix(PROBE_ID_PREFIX);
-        logger.debug("initialize");
-        this.probeTypeToId = savedProbeIds.entrySet().stream().collect(Collectors.toConcurrentMap(
-            entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
-            entry -> Long.parseLong(entry.getValue())));
-    }
-    /**
-     * priority of identity provider for initialization.
-     */
-    public static final int IDENTITY_PROVIDER_INITIALIZATION_PRIORITY = 2;
-
-    /**
-     * Must run before the probe and target stores.  Therefore the priority must be greater than
-     * the probe and target store's priorities.
-     *
-     * @return the priority.
-     */
-    @Override
-    public int priority() {
-        return IDENTITY_PROVIDER_INITIALIZATION_PRIORITY;
     }
 }

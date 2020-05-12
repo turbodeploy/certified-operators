@@ -90,7 +90,6 @@ public class RemoteProbeStore implements ProbeStore {
 
     @Override
     public void initialize() {
-        logger.debug("initialize");
         this.probeInfos.clear();
         // Load ProbeInfo persisted in Consul.
         Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_KV_STORE_PREFIX);

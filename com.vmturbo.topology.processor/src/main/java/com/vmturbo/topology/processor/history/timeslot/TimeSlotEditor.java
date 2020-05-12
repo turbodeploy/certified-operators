@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.history.timeslot;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -19,8 +21,8 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.Logger;
 
@@ -33,10 +35,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.history.AbstractBackgroundLoadingHistoricalEditor;
+import com.vmturbo.topology.processor.history.CommodityField;
 import com.vmturbo.topology.processor.history.EntityCommodityFieldReference;
 import com.vmturbo.topology.processor.history.HistoryAggregationContext;
 import com.vmturbo.topology.processor.history.HistoryCalculationException;
@@ -51,8 +55,8 @@ public class TimeSlotEditor extends
                                 List<Pair<Long, StatRecord>>,
                                 StatsHistoryServiceBlockingStub,
                                 Void> {
-    private static final Set<CommodityType> ENABLED_TIMESLOT_COMMODITY_TYPES = Sets.immutableEnumSet(
-                        CommodityDTO.CommodityType.POOL_CPU,
+    private static final Set<CommodityType> ENABLED_BOUGHT_COMMODITY_TYPES = ImmutableSet
+                    .of(CommodityDTO.CommodityType.POOL_CPU,
                         CommodityDTO.CommodityType.POOL_MEM,
                         CommodityDTO.CommodityType.POOL_STORAGE);
 
@@ -104,20 +108,19 @@ public class TimeSlotEditor extends
 
     @Override
     public boolean isEntityApplicable(TopologyEntity entity) {
-        return true;
+        return entity.getEntityType() == EntityType.BUSINESS_USER_VALUE;
     }
 
     @Override
     public boolean isCommodityApplicable(TopologyEntity entity,
                     TopologyDTO.CommoditySoldDTO.Builder commSold) {
-        return ENABLED_TIMESLOT_COMMODITY_TYPES
-            .contains(CommodityType.forNumber(commSold.getCommodityType().getType()));
+        return false;
     }
 
     @Override
     public boolean isCommodityApplicable(@Nonnull TopologyEntity entity,
                     TopologyDTO.CommodityBoughtDTO.Builder commBought) {
-        return ENABLED_TIMESLOT_COMMODITY_TYPES
+        return ENABLED_BOUGHT_COMMODITY_TYPES
                         .contains(CommodityType.forNumber(commBought.getCommodityType().getType()));
     }
 
@@ -146,15 +149,9 @@ public class TimeSlotEditor extends
         List<HistoryLoadingCallable> loadingTasks = new LinkedList<>();
         final long now = getConfig().getClock().millis();
         for (Map.Entry<Integer, List<EntityCommodityReference>> period2comm : period2comms.entrySet()) {
-            List<List<EntityCommodityReference>> partitions = Lists.newArrayList();
-            // partition by entity type
-            final Collection<List<EntityCommodityReference>> commsByEnityType = period2comm.getValue()
-                .stream()
-                .collect(Collectors.groupingBy(comm -> context.getEntityType(comm.getEntityOid())))
-                .values();
             // chunk commodities of each period by configured size
-            commsByEnityType.forEach(comms -> partitions.addAll(Lists.partition(comms,
-                getConfig().getLoadingChunkSize())));
+            List<List<EntityCommodityReference>> partitions = Lists
+                            .partition(period2comm.getValue(), getConfig().getLoadingChunkSize());
             for (List<EntityCommodityReference> chunk : partitions) {
                 final Pair<Long, Long> range = new Pair<>(now
                                 - period2comm.getKey() * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS,
@@ -193,8 +190,46 @@ public class TimeSlotEditor extends
     public void completeBroadcast(@Nonnull HistoryAggregationContext context)
                     throws HistoryCalculationException, InterruptedException {
         debugLogDataValues("Time slot data when calculations applied %s");
+        updateSoldHistoricalTimeSlotValues(context);
         super.completeBroadcast(context);
         maintenance(context);
+    }
+
+    private void updateSoldHistoricalTimeSlotValues(final HistoryAggregationContext context) {
+        final TopologyDTO.CommodityType anyCommodityType = TopologyDTO.CommodityType.newBuilder()
+                        .setType(ENABLED_BOUGHT_COMMODITY_TYPES.iterator().next().getNumber())
+                        .build();
+        // Retrieve all desktop pool entities with the associated observation period setting
+        final Map<Long, Integer> dP2Period = context.entityToSetting(
+                        topologyEntity -> EntityType.DESKTOP_POOL_VALUE == topologyEntity
+                                        .getEntityType(), entity -> getConfig().getSlots(context,
+                                        new EntityCommodityReference(entity.getOid(),
+                                                        anyCommodityType, null)));
+
+        // Gather the sold commodity references for each DP
+        List<EntityCommodityFieldReference> soldFieldReferences =
+                new ArrayList<>();
+        for (final Long dpOid : dP2Period.keySet()) {
+            ENABLED_BOUGHT_COMMODITY_TYPES.forEach(type -> {
+                soldFieldReferences.add(new EntityCommodityFieldReference(dpOid,
+                        TopologyDTO.CommodityType.newBuilder().setType(type.getNumber()).build(),
+                        CommodityField.USED));
+            });
+        }
+        // process each commodity reference to update the historical values
+        for (EntityCommodityFieldReference commRef : soldFieldReferences) {
+            Integer period = dP2Period.get(commRef.getEntityOid());
+            Double[] histValue = new Double[period];
+            Double util = context.getAccessor().getRealTimeValue(commRef);
+            if (util == null) {
+                util = 0d;
+            }
+            Arrays.fill(histValue, util);
+            // update the historical value with the 0 list
+            context.getAccessor().updateHistoryValue(commRef,
+                    hv -> hv.addAllTimeSlot(Arrays.asList(histValue)),
+                    TimeSlotEditor.class.getSimpleName());
+        }
     }
 
     private void maintenance(@Nonnull HistoryAggregationContext context) {

@@ -39,8 +39,6 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
-import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
-import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
@@ -95,17 +93,9 @@ public class ActionsServiceTest {
 
     private ActionSpecMapper actionSpecMapper;
 
-    private ActionSearchUtil actionSearchUtil;
-
-    private MarketsService marketsService;
-
-    private SupplyChainFetcherFactory supplyChainFetcherFactory;
-
     private final long REALTIME_TOPOLOGY_ID = 777777L;
 
     private final String UUID = "12345";
-
-    private final int maxInnerPagination = 500;
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceBackend);
@@ -117,16 +107,12 @@ public class ActionsServiceTest {
     public void setup() throws IOException {
         // set up a mock Actions RPC server
         actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
-        actionSearchUtil = Mockito.mock(ActionSearchUtil.class);
-        marketsService = Mockito.mock(MarketsService.class);
-        supplyChainFetcherFactory = Mockito.mock(SupplyChainFetcherFactory.class);
         actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         // set up the ActionsService to test
         actionsServiceUnderTest = new ActionsService(actionsRpcService, actionSpecMapper,
             repositoryApi, REALTIME_TOPOLOGY_ID,
-            actionStatsQueryExecutor, uuidMapper, serviceProviderExpander,
-            actionSearchUtil, marketsService, supplyChainFetcherFactory, maxInnerPagination);
+            actionStatsQueryExecutor, uuidMapper, serviceProviderExpander);
     }
 
     /**
