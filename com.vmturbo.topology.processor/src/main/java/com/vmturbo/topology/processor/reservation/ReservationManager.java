@@ -49,7 +49,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ReservationOrigin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
-import com.vmturbo.components.common.utils.ReservationProtoUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.stitching.TopologyEntity;
@@ -164,14 +163,15 @@ public class ReservationManager {
                     reservedReservations.remove(reservationId),
                     currentReservations.remove(reservationId));
                 if (existing != null) {
-                    updateReqBldr.addReservation(
+                    updateReqBldr.addReservation(existing.toBuilder()
                         // We mark them as invalid here.
                         // On the next broadcast, in the ReservationManager, we will trigger a call to
                         // mark invalid reservations as unfulfilled, which will trigger another
                         // reservation plan. We don't mark them as UNFULFILLED here because that will trigger
                         // an immediate reservation plan, and if the reservation continues to be invalid
                         // we will just continue running the reservation plan ad infinitum!
-                            ReservationProtoUtil.invalidateReservation(existing));
+                        .setStatus(ReservationStatus.INVALID)
+                        .build());
                 }
             });
             final UpdateReservationsRequest req = updateReqBldr.build();

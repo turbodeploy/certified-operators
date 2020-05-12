@@ -270,32 +270,16 @@ public class ReservationManagerTest {
      */
     @Test
     public void testUpdateReservationResult() {
-        ReservationManager reservationManagerSpy = Mockito.spy(reservationManager);
-        Reservation reservedWithNewProvider = Reservation.newBuilder()
-                .setId(1010)
-                .setName("test-reservation")
-                .setStatus(ReservationStatus.RESERVED)
-                .setReservationTemplateCollection(ReservationTemplateCollection.newBuilder()
-                        .addReservationTemplate(ReservationTemplate.newBuilder()
-                                .setCount(1L)
-                                .setTemplateId(234L)
-                                .addReservationInstance(ReservationInstance.newBuilder()
-                                        .addPlacementInfo(PlacementInfo.newBuilder()
-                                                .setProviderId(600L)))))
-                .build();
-
         HashSet<Reservation> inProgressReservation =
                 new HashSet<>(Arrays.asList(inProgressReservation1,
                         inProgressReservation2,
-                        inProgressReservation3,
-                        reservedWithNewProvider));
+                        inProgressReservation3));
         ArgumentCaptor<HashSet<Reservation>> captor =
                 ArgumentCaptor.forClass((Class<HashSet<Reservation>>)(Class)HashSet
                         .class);
-        reservationManagerSpy.updateReservationResult(inProgressReservation);
+        reservationManager.updateReservationResult(inProgressReservation);
         try {
-            verify(reservationDao, times(1))
-                    .updateReservationBatch(captor.capture());
+            verify(reservationDao, times(1)).updateReservationBatch(captor.capture());
             Set<Long> reservedReservations =
                     captor.getValue().stream()
                             .filter(a -> a.getStatus() == ReservationStatus.RESERVED)
@@ -307,32 +291,12 @@ public class ReservationManagerTest {
                             .map(a -> a.getId())
                             .collect(Collectors.toSet());
 
-            // We should call the updateReservationBatch for all reservations including the ones
-            // whose status didn't change..Because the provider could have changed.
             assert (reservedReservations.contains(1005L));
-            assert (reservedReservations.contains(1010L));
             assert (failedReservations.contains(1003L));
             assert (failedReservations.contains(1004L));
-            // assert the provider is updated
         } catch (NoSuchObjectException e) {
             e.printStackTrace();
         }
-
-
-        verify(reservationManagerSpy, times(1))
-                .broadcastReservationChange(captor.capture());
-        Set<Long> statusUpdatedReservations =
-                    captor.getValue().stream()
-                            .map(a -> a.getId())
-                            .collect(Collectors.toSet());
-        // we should not broadcast the reservation change to the UI if the status does not change.
-        // The provider change happens only during the main market and that need not be updated
-        // in the UI. A refresh of screen will get the user the new providers.
-        assert (statusUpdatedReservations.contains(1005L));
-        assert (!statusUpdatedReservations.contains(1010L));
-        assert (statusUpdatedReservations.contains(1003L));
-        assert (statusUpdatedReservations.contains(1004L));
-
     }
 
     /**
@@ -343,7 +307,7 @@ public class ReservationManagerTest {
     @Test
     public void testPlanFailure() throws Exception {
         when(reservationDao.getAllReservations())
-            .thenReturn(Sets.newHashSet(inProgressReservation1, inProgressReservation2, inProgressReservation3, unfulfilledReservation));
+            .thenReturn(Sets.newHashSet(inProgressReservation1, unfulfilledReservation));
 
         reservationManager.onPlanStatusChanged(PlanInstance.newBuilder()
             .setPlanId(1)
@@ -356,18 +320,9 @@ public class ReservationManagerTest {
         final Set<Reservation> updatedReservations = updateBatchCaptor.getValue();
 
         // We should have updated the in-progress reservation to invalid.
-        for (Reservation reservation : updatedReservations) {
-            assertTrue(reservation.getStatus() == ReservationStatus.INVALID);
-            for (ReservationTemplate reservationTemplate
-                    : reservation.getReservationTemplateCollection().getReservationTemplateList()) {
-                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
-                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
-                        assertFalse(placementInfo.hasProviderId());
-                    }
-                }
-            }
-
-        }
+        assertThat(updatedReservations, containsInAnyOrder(inProgressReservation1.toBuilder()
+            .setStatus(ReservationStatus.INVALID)
+            .build()));
     }
 
     /**

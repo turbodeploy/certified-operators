@@ -204,11 +204,7 @@ public class ServiceConfig {
                                   communicationConfig.getRealtimeTopologyContextId(),
                                   actionStatsQueryExecutor(),
                                   mapperConfig.uuidMapper(),
-                                  communicationConfig.serviceProviderExpander(),
-                                  actionSearchUtil(),
-                                  marketsService(),
-                                  communicationConfig.supplyChainFetcher(),
-                                  apiPaginationMaxLimit);
+                                  communicationConfig.serviceProviderExpander());
     }
 
     @Bean
