@@ -66,8 +66,8 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
             @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
-                template, originalTopologyEntity, isReplaced, identityProvider).iterator().next();
-        topologyEntityBuilder.setEntityType(EntityType.VIRTUAL_MACHINE_VALUE);
+                template, originalTopologyEntity, isReplaced, identityProvider,
+                EntityType.VIRTUAL_MACHINE_VALUE);
 
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints =
                 sortAccessCommodityBought(getActiveCommoditiesWithKeysGroups(originalTopologyEntity));
