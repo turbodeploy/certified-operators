@@ -25,6 +25,8 @@ public class TopologyProcessorListenerConfig {
         return topologyClientConfig.topologyProcessor(
                 TopologyProcessorSubscription.forTopic(Topic.LiveTopologies),
                 // used by ReservedInstanceConfig::thinTargetCache
-                TopologyProcessorSubscription.forTopic(Topic.Notifications));
+                TopologyProcessorSubscription.forTopic(Topic.Notifications),
+                // used by TopologyInforTracker
+                TopologyProcessorSubscription.forTopic(Topic.TopologySummaries));
     }
 }
