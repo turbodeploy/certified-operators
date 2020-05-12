@@ -3,8 +3,6 @@ package com.vmturbo.topology.processor.reservation;
 import static com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType.VMPM_ACCESS_VALUE;
 import static com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE;
 import static com.vmturbo.topology.processor.reservation.ReservationManager.RESERVATION_KEY;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -26,14 +24,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import com.google.common.collect.Lists;
-
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import com.google.common.collect.Lists;
 
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ReservationDTO.Reservation;
@@ -204,9 +202,18 @@ public class ReservationManagerTest {
         final ArgumentCaptor<UpdateReservationsRequest> updateCaptor =
             ArgumentCaptor.forClass(UpdateReservationsRequest.class);
         verify(reservationService).updateReservations(updateCaptor.capture());
-        assertThat(updateCaptor.getValue().getReservationList(), containsInAnyOrder(reservation.toBuilder()
-            .setStatus(ReservationStatus.INVALID)
-            .build()));
+
+        for (Reservation reservation : updateCaptor.getValue().getReservationList()) {
+            assertTrue(reservation.getStatus() == ReservationStatus.INVALID);
+            for (ReservationTemplate reservationTemplate
+                    : reservation.getReservationTemplateCollection().getReservationTemplateList()) {
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                        assertFalse(placementInfo.hasProviderId());
+                    }
+                }
+            }
+        }
     }
 
     /**
