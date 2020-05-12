@@ -130,7 +130,7 @@ public class IdentityProviderImpl implements IdentityProvider {
         this.probeInfoCompatibilityChecker = Objects.requireNonNull(compatibilityChecker);
 
         // if another class get instantiated before the migrations, and requires the IdentityProvider.
-        initialize();
+        initialize_internal();
       }
 
 
@@ -370,13 +370,16 @@ public class IdentityProviderImpl implements IdentityProvider {
      */
     @Override
     public void initialize() throws InitializationException {
+        initialize_internal();
+    }
+
+    private void initialize_internal()  {
         Map<String, String> savedProbeIds = this.keyValueStore.getByPrefix(PROBE_ID_PREFIX);
         logger.debug("initialize");
         this.probeTypeToId = savedProbeIds.entrySet().stream().collect(Collectors.toConcurrentMap(
             entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
             entry -> Long.parseLong(entry.getValue())));
     }
-
     /**
      * priority of identity provider for initialization.
      */
