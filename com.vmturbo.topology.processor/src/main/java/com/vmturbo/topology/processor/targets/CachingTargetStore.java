@@ -120,6 +120,7 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
 
     @Override
     public void initialize() {
+        logger.debug("initialize");
         // Clear out any existing state. This is mainly necessary in cases where we forcefully
         // initialize the store during Java migrations, and are re-initializing them afterward.
         this.targetsById.clear();
