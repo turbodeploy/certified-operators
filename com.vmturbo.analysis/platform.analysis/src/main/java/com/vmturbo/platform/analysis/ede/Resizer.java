@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -710,40 +711,88 @@ public class Resizer {
                 if (boughtIndex < 0) {
                     continue;
                 }
-                CommoditySold commSoldBySupplier = supplier.getCommoditySold(basketBought
-                                .get(boughtIndex));
+                CommoditySpecification specOfSold = basketBought.get(boughtIndex);
+                CommoditySold commSoldBySupplier = supplier.getCommoditySold(specOfSold);
                 double changeInCapacity = newCapacity - commoditySold.getCapacity();
-                if (changeInCapacity < 0) {
-                    // resize down
-                    DoubleTernaryOperator decrementFunction =
-                                            typeOfCommBought.getDecrementFunction();
-                    double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
-                    double decrementedQuantity = decrementFunction.applyAsDouble(
-                                                oldQuantityBought, newCapacity, 0);
-                    double newQuantityBought = commSoldBySupplier.getQuantity()
-                            - (oldQuantityBought - decrementedQuantity);
-                    if (!supplier.isTemplateProvider()) {
-                        if (newQuantityBought < 0) {
-                            logger.warn("Expected new quantity bought {} to >= 0. Buyer is {}. "
-                                            + "Supplier is {}.", newQuantityBought, seller.getDebugInfoNeverUseInCode(),
-                                            supplier.getDebugInfoNeverUseInCode());
-                            continue;
-                        }
-                        commSoldBySupplier.setQuantity(newQuantityBought);
-                    }
-                    shoppingList.getQuantities()[boughtIndex] = decrementedQuantity;
-                } else {
-                    // resize up
-                    DoubleTernaryOperator incrementFunction =
-                                    typeOfCommBought.getIncrementFunction();
-                    double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
-                    double incrementedQuantity = incrementFunction.applyAsDouble(
-                                                           oldQuantityBought, changeInCapacity, 0);
-                    shoppingList.getQuantities()[boughtIndex] = incrementedQuantity;
-                    commSoldBySupplier.setQuantity(commSoldBySupplier.getQuantity()
-                                                 + (incrementedQuantity - oldQuantityBought));
+
+                updateUsageOnBoughtAndSoldCommodities(commSoldBySupplier, shoppingList, boughtIndex,
+                                                        typeOfCommBought, newCapacity, changeInCapacity);
+
+                if (commSoldBySupplier.getSettings().isResold() && changeInCapacity > 0) {
+                    resizeDependentCommoditiesOnReseller(economy, supplier, specOfSold,
+                            typeOfCommBought, newCapacity, changeInCapacity);
                 }
             }
+        }
+    }
+
+    /**
+     * recursively identify the dependent commodities on the resellers and update usage on buyer and seller.
+     *
+     * @param economy The {@link Economy}.
+     * @param supplier The {@link Trader} selling the dependent commodity.
+     * @param commSpec The specification of the dependent commodity being scaled.
+     * @param typeOfCommBought is the dependant CommoditySpecification.
+     * @param newCapacity is the new desired capacity.
+     * @param changeInCapacity The change in capacity.
+     */
+    private static void resizeDependentCommoditiesOnReseller(Economy economy, Trader supplier,
+                                                             CommoditySpecification commSpec,
+                                                             CommodityResizeSpecification typeOfCommBought,
+                                                             double newCapacity,
+                                                             double changeInCapacity) {
+        Optional<ShoppingList> slOfSupplier = economy.getMarketsAsBuyer(supplier).keySet().stream()
+                .filter(sl -> sl.getBasket().indexOfBaseType(commSpec.getBaseType()) != -1)
+                .findFirst();
+        if (slOfSupplier.isPresent()) {
+            ShoppingList sl = slOfSupplier.get();
+            int soldIndex = sl.getSupplier().getBasketSold().indexOfBaseType(commSpec.getBaseType());
+            CommoditySold commSoldBySupplier = sl.getSupplier().getCommoditiesSold().get(soldIndex);
+            updateUsageOnBoughtAndSoldCommodities(commSoldBySupplier, sl,
+                    sl.getBasket().indexOfBaseType(commSpec.getBaseType()),
+                    typeOfCommBought, newCapacity, changeInCapacity);
+            if (commSoldBySupplier.getSettings().isResold()) {
+                resizeDependentCommoditiesOnReseller(economy, sl.getSupplier(), commSpec,
+                        typeOfCommBought, newCapacity, changeInCapacity);
+            }
+        }
+    }
+
+    /**
+     * update the usage of both bought quantity and sold quantity by changeInCapacity.
+     *
+     * @param commSoldBySupplier The commoditySold by the seller whose usage we update.
+     * @param shoppingList The {@link ShoppingList} of the consumer.
+     * @param boughtIndex index of the bought commodity.
+     * @param typeOfCommBought is the dependant CommoditySpecification.
+     * @param newCapacity is the new desiredCapacity.
+     * @param changeInCapacity change in capacity.
+     */
+    private static void updateUsageOnBoughtAndSoldCommodities(CommoditySold commSoldBySupplier,
+                                                               ShoppingList shoppingList, int boughtIndex,
+                                                               CommodityResizeSpecification typeOfCommBought,
+                                                               double newCapacity, double changeInCapacity) {
+        if (changeInCapacity < 0) {
+            // resize down
+            DoubleTernaryOperator decrementFunction =
+            typeOfCommBought.getDecrementFunction();
+            double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
+            double decrementedQuantity = decrementFunction.applyAsDouble(
+                                        oldQuantityBought, newCapacity, 0);
+            double newQuantityBought = commSoldBySupplier.getQuantity()
+            - (oldQuantityBought - decrementedQuantity);
+            commSoldBySupplier.setQuantity(newQuantityBought);
+            shoppingList.getQuantities()[boughtIndex] = decrementedQuantity;
+        } else {
+            // resize up
+            DoubleTernaryOperator incrementFunction =
+                    typeOfCommBought.getIncrementFunction();
+            double oldQuantityBought = shoppingList.getQuantities()[boughtIndex];
+            double incrementedQuantity = incrementFunction.applyAsDouble(
+                    oldQuantityBought, changeInCapacity, 0);
+            shoppingList.getQuantities()[boughtIndex] = incrementedQuantity;
+            commSoldBySupplier.setQuantity(commSoldBySupplier.getQuantity()
+                    + (incrementedQuantity - oldQuantityBought));
         }
     }
 }
