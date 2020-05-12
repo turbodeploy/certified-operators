@@ -6,6 +6,7 @@ import java.util.Map;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
+import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -24,7 +25,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
  * <p>ID assignment for targets, probes, discoveries, actions etc. also
  * happens here.
  */
-public interface IdentityProvider extends DiagsRestorable {
+public interface IdentityProvider extends DiagsRestorable, RequiresDataInitialization {
 
     /**
      * Get the target ID for the target described by a given spec.
