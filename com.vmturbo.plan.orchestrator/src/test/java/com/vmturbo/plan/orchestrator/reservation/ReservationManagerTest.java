@@ -307,7 +307,7 @@ public class ReservationManagerTest {
     @Test
     public void testPlanFailure() throws Exception {
         when(reservationDao.getAllReservations())
-            .thenReturn(Sets.newHashSet(inProgressReservation1, unfulfilledReservation));
+            .thenReturn(Sets.newHashSet(inProgressReservation1, inProgressReservation2, inProgressReservation3, unfulfilledReservation));
 
         reservationManager.onPlanStatusChanged(PlanInstance.newBuilder()
             .setPlanId(1)
@@ -320,9 +320,18 @@ public class ReservationManagerTest {
         final Set<Reservation> updatedReservations = updateBatchCaptor.getValue();
 
         // We should have updated the in-progress reservation to invalid.
-        assertThat(updatedReservations, containsInAnyOrder(inProgressReservation1.toBuilder()
-            .setStatus(ReservationStatus.INVALID)
-            .build()));
+        for (Reservation reservation : updatedReservations) {
+            assertTrue(reservation.getStatus() == ReservationStatus.INVALID);
+            for (ReservationTemplate reservationTemplate
+                    : reservation.getReservationTemplateCollection().getReservationTemplateList()) {
+                for (ReservationInstance reservationInstance : reservationTemplate.getReservationInstanceList()) {
+                    for (PlacementInfo placementInfo : reservationInstance.getPlacementInfoList()) {
+                        assertFalse(placementInfo.hasProviderId());
+                    }
+                }
+            }
+
+        }
     }
 
     /**

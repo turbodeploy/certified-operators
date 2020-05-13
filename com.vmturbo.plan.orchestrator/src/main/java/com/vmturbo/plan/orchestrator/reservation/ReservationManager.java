@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.utils.ReservationProtoUtil;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
@@ -111,8 +112,7 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                             .collect(Collectors.toSet());
             Set<Reservation> updatedReservation = new HashSet<>();
             for (ReservationDTO.Reservation reservation : inProgressSet) {
-                updatedReservation.add(reservation.toBuilder()
-                        .setStatus(ReservationStatus.INVALID).build());
+                updatedReservation.add(ReservationProtoUtil.invalidateReservation(reservation));
             }
             try {
                 reservationDao.updateReservationBatch(updatedReservation);
