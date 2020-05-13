@@ -106,7 +106,6 @@ import com.vmturbo.common.protobuf.search.SearchMoles.SearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchMoles.TargetSearchServiceMole;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
-import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.components.api.test.GrpcExceptionMatcher;
@@ -889,76 +888,6 @@ public class GroupRpcServiceTest {
         verify(mockObserver, never()).onError(any(Exception.class));
         verify(mockObserver).onNext(expectedResponse);
         verify(mockObserver).onCompleted();
-    }
-
-    /**
-     * Tests getting the members of a group when the group is dynamic group of accounts.
-     */
-    @Test
-    public void testGetMembersOfDynamicGroupOfAccounts() {
-        // ARRANGE
-        final long groupId = 1234L;
-        final List<Long> mockSearchResults = Arrays.asList(1L, 2L);
-
-        final GroupDTO.GetMembersRequest req = GroupDTO.GetMembersRequest.newBuilder()
-            .addId(groupId)
-            .build();
-
-        final Grouping group = Grouping
-            .newBuilder()
-            .setId(groupId)
-            .setDefinition(GroupDefinition
-                .newBuilder()
-                .setEntityFilters(
-                    EntityFilters
-                        .newBuilder()
-                        .addEntityFilter(
-                            EntityFilter
-                                .newBuilder()
-                                .setEntityType(EntityType.BUSINESS_ACCOUNT.getNumber())
-                                .setSearchParametersCollection(
-                                    SearchParametersCollection
-                                        .newBuilder()
-                                        .addSearchParameters(
-                                            SearchParameters
-                                                .getDefaultInstance()
-                                        )
-                                )
-                        )
-                )
-            )
-            .build();
-
-        final StreamObserver<GroupDTO.GetMembersResponse> mockObserver =
-            mock(StreamObserver.class);
-
-        groupStoreDAO.addGroup(group);
-        final ArgumentCaptor<SearchEntityOidsRequest> captor =
-            ArgumentCaptor.forClass(SearchEntityOidsRequest.class);
-        Mockito.when(searchServiceMole.searchEntityOids(captor.capture()))
-            .thenReturn(Search.SearchEntityOidsResponse.newBuilder()
-                .addAllEntities(mockSearchResults)
-                .build());
-
-        // ACT
-        groupRpcService.getMembers(req, mockObserver);
-
-        // ASSERT
-        final GroupDTO.GetMembersResponse expectedResponse = GetMembersResponse.newBuilder()
-            .setGroupId(groupId)
-            .addAllMemberId(mockSearchResults)
-            .build();
-
-        verify(mockObserver, never()).onError(any(Exception.class));
-        verify(mockObserver).onNext(expectedResponse);
-        verify(mockObserver).onCompleted();
-
-        final Search.SearchQuery query = captor.getValue().getSearch();
-        assertThat(query.getSearchParametersCount(), is(2));
-        final SearchParameters targetSearchParam = query.getSearchParameters(1);
-        assertThat(targetSearchParam.getSearchFilterCount(), is(1));
-        assertThat(targetSearchParam.getSearchFilter(0).getPropertyFilter().getPropertyName(),
-            is(SearchableProperties.ASSOCIATED_TARGET_ID));
     }
 
     /**
