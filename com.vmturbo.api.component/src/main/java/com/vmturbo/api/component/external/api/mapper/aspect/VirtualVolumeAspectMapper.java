@@ -152,8 +152,11 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         EntityAspect aspect = mapEntitiesToAspect(entities);
 
         if (aspect != null) {
-            return Optional.of(mapOneToManyAspects(entities, aspect).entrySet().stream()
-                    .collect(Collectors.toMap(e -> Long.valueOf(e.getKey()), e -> e.getValue())));
+            Map<String, EntityAspect> aspectMap = mapOneToManyAspects(entities, aspect);
+            if (aspectMap != null) {
+                return Optional.of(aspectMap.entrySet().stream()
+                        .collect(Collectors.toMap(e -> Long.valueOf(e.getKey()), e -> e.getValue())));
+            }
         }
 
         return Optional.empty();

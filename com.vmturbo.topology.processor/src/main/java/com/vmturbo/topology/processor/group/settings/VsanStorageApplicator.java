@@ -18,11 +18,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData.StoragePolicy;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageRedundancyMethod;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -51,7 +54,7 @@ public class VsanStorageApplicator implements SettingApplicator {
         }
 
         try {
-            applyToStorageAmount(storage, settings, storage.getTypeSpecificInfo().getStorage());
+            applyToStorageAmount(storage, settings);
             applyToStorageAccessAndProvisioned(storage, settings);
         } catch (EntityApplicatorException e) {
             logger.error("Error applying settings to Storage commodities for vSAN storage "
@@ -60,8 +63,7 @@ public class VsanStorageApplicator implements SettingApplicator {
     }
 
     private void applyToStorageAmount(@Nonnull Builder storage,
-                    @Nonnull Map<EntitySettingSpecs, Setting> settings,
-                    @Nonnull StorageInfo storageInfo) throws EntityApplicatorException {
+            @Nonnull Map<EntitySettingSpecs, Setting> settings) throws EntityApplicatorException {
         CommoditySoldDTO.Builder storageAmount = getSoldStorageCommodityBuilder(
                         storage, CommodityType.STORAGE_AMOUNT);
         double effectiveCapacity = storageAmount.getCapacity();
@@ -71,15 +73,22 @@ public class VsanStorageApplicator implements SettingApplicator {
         double hostCapacityReservation = getNumericSetting(settings,
                 EntitySettingSpecs.HciHostCapacityReservation);
         double largestCapacity = getLargestHciHostRawDiskCapacity(storage);
-        // TODO Host capacities needs to be adjusted by RAID factor
-        largestCapacity *= storageInfo.getPolicy().getRaidFactor();
         effectiveCapacity -= largestCapacity * hostCapacityReservation;
+
+        if (effectiveCapacity < 0) {
+            throw new EntityApplicatorException(
+                    "The effective capacity is negative or zero. hostCapacityReservation: "
+                            + hostCapacityReservation);
+        }
 
         // reduce by requested slack space
         double slackSpacePercentage = getNumericSetting(settings,
                 EntitySettingSpecs.HciSlackSpacePercentage);
         double slackSpaceRatio = (100.0 - slackSpacePercentage) / 100.0;
         effectiveCapacity *= slackSpaceRatio;
+
+        // reduce by RAID factor
+        effectiveCapacity *= computeRaidFactor(storage);
 
         // Adjust by compression ratio
         boolean useCompressionSetting = getBooleanSetting(settings,
@@ -91,6 +100,67 @@ public class VsanStorageApplicator implements SettingApplicator {
 
         storageAmount.setUsed(storageAmount.getUsed() * compressionRatio);
         storageAmount.setCapacity(effectiveCapacity);
+    }
+
+    /**
+     * Compute the factor representing the RAID overhead based on the discovered
+     * failures to tolerate and redundancy method. RAID 5 is selected if
+     * failures to tolerate == 1, RAID 6 if failures to tolerate == 2.
+     *
+     * @param storage vSAN storage
+     * @return a factor <= 1.0 by which the raw storage amount is reduced to get
+     *         usable space
+     * @throws EntityApplicatorException conversion error
+     */
+    private static double computeRaidFactor(@Nonnull Builder storage)
+            throws EntityApplicatorException {
+        if (!storage.hasTypeSpecificInfo()) {
+            throw new EntityApplicatorException(
+                    "Storage '" + storage.getDisplayName() + "' does not have Type Specific Info");
+        }
+
+        TypeSpecificInfo info = storage.getTypeSpecificInfo();
+
+        if (!info.hasStorage()) {
+            throw new EntityApplicatorException(
+                    "Storage '" + storage.getDisplayName() + "' does not have Storage Info");
+        }
+
+        StorageInfo storageInfo = info.getStorage();
+
+        if (!storageInfo.hasPolicy()) {
+            throw new EntityApplicatorException(
+                    "Storage '" + storage.getDisplayName() + "' does not have Storage Policy");
+        }
+
+        StoragePolicy policy = storageInfo.getPolicy();
+
+        if (!policy.hasRedundancy()) {
+            throw new EntityApplicatorException(
+                    "Storage '" + storage.getDisplayName() + "' does not have Redundancy");
+        }
+
+        StorageRedundancyMethod raidType = policy.getRedundancy();
+
+        if (!policy.hasFailuresToTolerate()) {
+            throw new EntityApplicatorException("Storage '" + storage.getDisplayName()
+                    + "' does not have Failures To Tolerate");
+        }
+
+        int failuresToTolerate = policy.getFailuresToTolerate();
+
+        if (raidType == StorageRedundancyMethod.RAID0) {
+            return 1;
+        } else if (raidType == StorageRedundancyMethod.RAID1) {
+            return 1.0 / (failuresToTolerate + 1);
+        } else if (raidType == StorageRedundancyMethod.RAID5
+                || raidType == StorageRedundancyMethod.RAID6) {
+            return 1.0 / (1.0 + failuresToTolerate / (2.0 + failuresToTolerate));
+        }
+
+        throw new EntityApplicatorException(
+                "Invalid RAID type " + raidType + ", while computing the RAID factor for Storage "
+                        + storage.getDisplayName());
     }
 
     private void applyToStorageAccessAndProvisioned(@Nonnull Builder storage,
