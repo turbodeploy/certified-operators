@@ -200,8 +200,15 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
         for (Entry<String, String> entry : persistedProbes.entrySet()) {
             final String key = entry.getKey();
             final String probeId = key.substring(ProbeStore.PROBE_KV_STORE_PREFIX.length());
-            final JsonReader reader = new JsonReader(new StringReader(entry.getValue()));
-            JsonObject json = new JsonParser().parse(reader).getAsJsonObject();
+            JsonObject json = null;
+            JsonReader reader = null;
+            try {
+                reader = new JsonReader(new StringReader(entry.getValue()));
+                json = new JsonParser().parse(reader).getAsJsonObject();
+            } catch (IllegalStateException e) {
+                logger.trace("probeId={} unable to read JSON!", probeId);
+                continue;
+            }
             String probeType = json.get("probeType").getAsString();
             if (!PROBE_TYPES_ALL_AWS.contains(probeType)) {
                 logger.trace("probeId={} probeType='{}' not an AWS probe", probeId, probeType);
