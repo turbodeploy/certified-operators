@@ -6,6 +6,9 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiParam;
@@ -24,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInGroupsInputDTO;
 import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
 import com.vmturbo.auth.component.store.AuthProvider;
@@ -161,6 +165,31 @@ public class AuthUsersController {
                     .getCompactRepresentation();
         }
         return targetStore_.authorize(userInputDTO.getUser(), externalGroup,
+                userInputDTO.getIpAddress()).getCompactRepresentation();
+    }
+
+    /**
+     * Authorize the external user with multiple groups.
+     *
+     * @param userInputDTO The user input DTO
+     * @return The compact representation of the Authorization Token if successful.
+     * @throws Exception In case of an error adding user.
+     */
+    @ApiOperation(value = "Authorize user")
+    @RequestMapping(path = "authorize/groups", method = RequestMethod.POST,
+            consumes = {MediaType.APPLICATION_JSON_VALUE},
+            produces = {MediaType.APPLICATION_JSON_VALUE})
+    @ResponseBody
+    public @Nonnull
+    String authorizeGroups(@RequestBody AuthorizeUserInGroupsInputDTO userInputDTO) throws Exception {
+
+        final String[] externalGroups = userInputDTO.getGroup();
+        if (externalGroups == null) {
+            return targetStore_.authorize(userInputDTO.getUser(), userInputDTO.getIpAddress())
+                    .getCompactRepresentation();
+        }
+        return targetStore_.authorize(userInputDTO.getUser(),
+                ImmutableList.copyOf(Lists.newArrayList(externalGroups)),
                 userInputDTO.getIpAddress()).getCompactRepresentation();
     }
 
