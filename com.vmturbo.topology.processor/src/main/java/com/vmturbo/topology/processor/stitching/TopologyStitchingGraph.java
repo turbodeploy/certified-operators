@@ -14,23 +14,21 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+
+import org.apache.commons.lang.mutable.MutableInt;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import org.apache.commons.lang.mutable.MutableInt;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.EntityPipelineErrors.StitchingErrorCode;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.ConnectedEntity;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.Builder;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -284,13 +282,8 @@ public class TopologyStitchingGraph {
         }
 
         // add connected entities
+        if (entityData.supportsConnectedTo()) {
             addConnections(entityData, entityMap, entity, entityDtoBuilder, errorsByCategory);
-        if (entityData.supportsDeprecatedConnectedTo()) {
-            // A deprecated mode for expressing entity connections overloaded other relationships
-            // such as "LayeredOver" and "ConsistsOf". Deprecated in favor of the SDK ConnectedEntity
-            // but we need to continue to support this mode until all probes have been converted
-            // over.
-            addDeprecatedConnections(entityData, entityMap, entity, entityDtoBuilder, errorsByCategory);
         }
 
         // Log and record the high-level error summary.
@@ -306,59 +299,19 @@ public class TopologyStitchingGraph {
         return entity;
     }
 
-    private void addConnections(
-        final @Nonnull StitchingEntityData entityData,
-        final @Nonnull Map<String, StitchingEntityData> entityMap,
-        final TopologyStitchingEntity entity,
-        final Builder entityDtoBuilder,
-        final Map<StitchingErrorCode, MutableInt> errorsByCategory) {
 
-        // Map of connections we've already processed. Used for detecting duplicates.
-        final Map<ConnectedEntity.ConnectionType, Set<String>> processedConnections = new HashMap<>();
-        // Duplicates detected.
-        final Map<ConnectedEntity.ConnectionType, MutableInt> duplicateCounts = new HashMap<>();
-
-        for (ConnectedEntity connection : entityDtoBuilder.getConnectedEntitiesList()) {
-            final Set<String> processed = processedConnections.computeIfAbsent(
-                connection.getConnectionType(), type -> new HashSet<>());
-
-            // Check if we have already processed an identical connection
-            if (processed.contains(connection.getConnectedEntityId())) {
-                duplicateCounts.computeIfAbsent(connection.getConnectionType(),
-                    k -> new MutableInt()).increment();
-
-            } else {
-                // Look up and validate the connection.
-                final TopologyStitchingEntity connectedEntity = lookupAndValidateConnectedEntity(
-                    entityData, entityMap, entity, errorsByCategory, connection);
-
-                // Add the connection.
-                if (connectedEntity != null) {
-                    final ConnectionType xlConnectionType = xlConnectionTypeFor(connection.getConnectionType());
-                        entity.addConnectedTo(xlConnectionType, connectedEntity);
-                        connectedEntity.addConnectedFrom(xlConnectionType, entity);
-                }
-            }
-        }
-
-        if (!duplicateCounts.isEmpty()) {
-            // Log eliminated duplicates by category.
-            logger.info("Entity {} (local id: {}) Removed duplicate connections {}.",
-                entity.getOid(), entity.getLocalId(), duplicateCounts);
-        }
-    }
 
     // Cloud probes generally use "layeredOver" to represent aggregation,
     // and "consistsOf" to represent ownership. This method creates the
-    // appropriate connections. Deprecated in favor of having the probes create
-    // these connections themselves. Once all probes are properly creating
-    // the new relationships, remove this functionality.
-    private void addDeprecatedConnections(
-        final @Nonnull StitchingEntityData entityData,
-        final @Nonnull Map<String, StitchingEntityData> entityMap,
-        final TopologyStitchingEntity entity,
-        final Builder entityDtoBuilder,
-        final Map<StitchingErrorCode, MutableInt> errorsByCategory) {
+    // appropriate connections.
+    // TODO: this step should not be a pre-stitcher. Making the probes create
+    // these connections themselves is the subject of task OM-52947
+    private void addConnections(
+            final @Nonnull StitchingEntityData entityData,
+            final @Nonnull Map<String, StitchingEntityData> entityMap,
+            final TopologyStitchingEntity entity,
+            final Builder entityDtoBuilder,
+            final Map<StitchingErrorCode, MutableInt> errorsByCategory) {
         // translate layeredOver relations to aggregations
         if (!entityDtoBuilder.getLayeredOverList().isEmpty()) {
             final Set<String> distinctLayeredOver =
@@ -475,69 +428,6 @@ public class TopologyStitchingGraph {
 
     private boolean isStorageType(@Nonnull EntityType entityType) {
         return entityType == EntityType.STORAGE || entityType == EntityType.STORAGE_TIER;
-    }
-
-    @Nullable
-    private TopologyStitchingEntity lookupAndValidateConnectedEntity(
-        final @Nonnull StitchingEntityData entityData,
-        final @Nonnull Map<String, StitchingEntityData> entityMap,
-        final @Nonnull TopologyStitchingEntity entity,
-        final @Nonnull Map<StitchingErrorCode, MutableInt> errorsByCategory,
-        final @Nonnull ConnectedEntity connection) {
-        final StitchingEntityData connectedEntity = entityMap.get(connection.getConnectedEntityId());
-        if (connectedEntity == null) {
-            // The final list of invalid entities gets printed at error-level
-            // below, so this can be at debug.
-            logger.debug("Entity {} (local id: {}) - connection {} "
-                + " does not exist.", entity.getOid(), entity.getLocalId(), connection);
-            errorsByCategory.computeIfAbsent(stitchingErrorCodeFor(connection.getConnectionType()),
-                k -> new MutableInt(0)).increment();
-            return null;
-        }
-
-        final TopologyStitchingEntity consistsOfEntity = getOrCreateStitchingEntity(connectedEntity);
-        if (!consistsOfEntity.getLocalId().equals(connection.getConnectedEntityId())) {
-            // The final list of invalid entities gets printed at error-level
-            // below, so this can be at debug.
-            logger.debug("Entity {} (local id: {}) - Map key {} does not "
-                    + "match connection localId value {}", entityData.getOid(),
-                entityData.getLocalId(), connection.getConnectedEntityId(),
-                consistsOfEntity.getLocalId());
-            errorsByCategory.computeIfAbsent(stitchingErrorCodeFor(connection.getConnectionType()),
-                k -> new MutableInt()).increment();
-            errorsByCategory.computeIfAbsent(StitchingErrorCode.INCONSISTENT_KEY,
-                k -> new MutableInt()).increment();
-            return null;
-        }
-        return consistsOfEntity;
-    }
-
-    static StitchingErrorCode stitchingErrorCodeFor(final @Nonnull ConnectedEntity.ConnectionType type) {
-        switch (type) {
-            case NORMAL_CONNECTION:
-                return StitchingErrorCode.INVALID_NORMAL_CONNECTION;
-            case OWNS_CONNECTION:
-                return StitchingErrorCode.INVALID_OWNS_CONNECTION;
-            case AGGREGATED_BY_CONNECTION:
-                return StitchingErrorCode.INVALID_AGGREGATED_BY_CONNECTION;
-            default:
-                logger.error("Unknown connection type " + type);
-                return StitchingErrorCode.UNKNOWN;
-        }
-    }
-
-    static ConnectionType xlConnectionTypeFor(final @Nonnull ConnectedEntity.ConnectionType type) {
-        switch (type) {
-            case NORMAL_CONNECTION:
-                return ConnectionType.NORMAL_CONNECTION;
-            case OWNS_CONNECTION:
-                return ConnectionType.OWNS_CONNECTION;
-            case AGGREGATED_BY_CONNECTION:
-                return ConnectionType.AGGREGATED_BY_CONNECTION;
-            default:
-                logger.error("Unknown connection type " + type);
-                return ConnectionType.forNumber(type.getNumber());
-        }
     }
 
     private TopologyStitchingEntity getConsistsOfData(

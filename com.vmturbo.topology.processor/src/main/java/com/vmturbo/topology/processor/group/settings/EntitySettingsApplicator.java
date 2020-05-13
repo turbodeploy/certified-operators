@@ -111,7 +111,7 @@ public class EntitySettingsApplicator {
         return ImmutableList.of(new MoveApplicator(graphWithSettings),
                 new VMShopTogetherApplicator(topologyInfo),
                 new SuspendApplicator(true), new SuspendApplicator(false),
-                new ProvisionApplicator(true), new ProvisionApplicator(false),
+                new ProvisionApplicator(),
                 new ResizeApplicator(),
                 new ScalingApplicator(),
                 new MoveCommoditiesFromProviderTypesApplicator(EntitySettingSpecs.StorageMove,
@@ -516,9 +516,8 @@ public class EntitySettingsApplicator {
      */
     private static class ProvisionApplicator extends SingleSettingApplicator {
 
-        private ProvisionApplicator(boolean isEnabledByDefault) {
-            super(isEnabledByDefault ? EntitySettingSpecs.Provision
-                    : EntitySettingSpecs.DisabledProvision);
+        private ProvisionApplicator() {
+            super(EntitySettingSpecs.Provision);
         }
 
         @Override

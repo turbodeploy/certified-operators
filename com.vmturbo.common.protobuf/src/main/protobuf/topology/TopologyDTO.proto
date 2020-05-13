@@ -872,8 +872,7 @@ message TopologyEntityDTO {
             // *aggregated entity*. This is the opposite of the convention that we use for ownership.
             // The reason for this inconsistent convention has to do with the memory efficiency
             // of the Market and the Cost component, which use TopologyEntityDTO objects directly
-            // in their logic. Note that this is also the reverse of the SDK AGGREGATES_CONNECTION
-            // connection type.
+            // in their logic.
             AGGREGATED_BY_CONNECTION = 3;
         }
     }
@@ -911,15 +910,6 @@ message TopologyEntityDTO {
             // There is a mismatch between the local ID used by an entity to address another
             // entity, and that entity's self-declared local ID.
             INCONSISTENT_KEY = 5;
-
-            // An entity with a normal connection to another entity that does not exist.
-            INVALID_NORMAL_CONNECTION = 6;
-
-            // An entity with an owns connection to another entity that does not exist.
-            INVALID_OWNS_CONNECTION = 7;
-
-            // An entity with an aggregated by connection to another entity that does not exist.
-            INVALID_AGGREGATED_BY_CONNECTION = 8;
         }
     }
 }

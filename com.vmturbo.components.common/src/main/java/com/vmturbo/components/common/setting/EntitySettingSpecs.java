@@ -333,13 +333,7 @@ public enum EntitySettingSpecs {
     Provision("provision", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL), actionExecutionModeSetToManual(), true),
-
-    /**
-     * For some types of entities Suspend actions are disabled by default.
-     */
-    DisabledProvision("provisionIsDisabled", "Provision", Collections.emptyList(), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE_CONTROLLER), actionExecutionModeSetToDisabled(), true),
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER), actionExecutionModeSetToManual(), true),
 
     /**
      * Provision action execution schedule.
@@ -348,7 +342,7 @@ public enum EntitySettingSpecs {
             SettingTiebreaker.UNION,
             EnumSet.of(EntityType.STORAGE, EntityType.PHYSICAL_MACHINE, EntityType.DISK_ARRAY,
                     EntityType.VIRTUAL_MACHINE, EntityType.CONTAINER_POD, EntityType.CONTAINER,
-                    EntityType.LOGICAL_POOL),
+                    EntityType.LOGICAL_POOL, EntityType.STORAGE_CONTROLLER),
             sortedSetOfOid(Type.ENTITY), true),
 
     /**
@@ -1224,28 +1218,27 @@ public enum EntitySettingSpecs {
             true);
 
     private static final ImmutableSet<String> AUTOMATION_SETTINGS =
-            ImmutableSet.of(
-                    EntitySettingSpecs.Activate.name,
-                    EntitySettingSpecs.Move.name,
-                    EntitySettingSpecs.BusinessUserMove.name,
-                    EntitySettingSpecs.StorageMove.name,
-                    EntitySettingSpecs.Provision.name,
-                    EntitySettingSpecs.DisabledProvision.name,
-                    EntitySettingSpecs.Reconfigure.name,
-                    EntitySettingSpecs.Resize.name,
-                    EntitySettingSpecs.Suspend.name,
-                    EntitySettingSpecs.DisabledSuspend.name,
-                    EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.name,
-                    EntitySettingSpecs.ResizeVcpuBelowMinThreshold.name,
-                    EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.name,
-                    EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.name,
-                    EntitySettingSpecs.ResizeVmemAboveMaxThreshold.name,
-                    EntitySettingSpecs.ResizeVmemBelowMinThreshold.name,
-                    EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
-                    EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name,
-                    EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
-                    EntitySettingSpecs.EnforceNonDisruptive.name,
-                    EntitySettingSpecs.ShopTogether.name);
+        ImmutableSet.of(
+            EntitySettingSpecs.Activate.name,
+            EntitySettingSpecs.Move.name,
+            EntitySettingSpecs.BusinessUserMove.name,
+            EntitySettingSpecs.StorageMove.name,
+            EntitySettingSpecs.Provision.name,
+            EntitySettingSpecs.Reconfigure.name,
+            EntitySettingSpecs.Resize.name,
+            EntitySettingSpecs.Suspend.name,
+            EntitySettingSpecs.DisabledSuspend.name,
+            EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.name,
+            EntitySettingSpecs.ResizeVcpuBelowMinThreshold.name,
+            EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.name,
+            EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.name,
+            EntitySettingSpecs.ResizeVmemAboveMaxThreshold.name,
+            EntitySettingSpecs.ResizeVmemBelowMinThreshold.name,
+            EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name,
+            EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.name,
+            EntitySettingSpecs.UseHypervisorMetricsForResizing.name,
+            EntitySettingSpecs.EnforceNonDisruptive.name,
+            EntitySettingSpecs.ShopTogether.name);
     /**
      * Contains information about ActionMode setting and corresponding ExecutionSchedule setting
      * that can be used optionally in settings policies.
