@@ -75,10 +75,12 @@ import com.vmturbo.common.protobuf.search.Search.SearchFilter;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
+import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.TargetSearchServiceGrpc.TargetSearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.group.group.GroupMembersPlain;
 import com.vmturbo.group.group.IGroupStore;
 import com.vmturbo.group.group.IGroupStore.DiscoveredGroup;
@@ -91,6 +93,7 @@ import com.vmturbo.group.stitching.GroupStitchingContext;
 import com.vmturbo.group.stitching.GroupStitchingManager;
 import com.vmturbo.group.stitching.StitchingGroup;
 import com.vmturbo.group.stitching.StitchingResult;
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 
@@ -923,12 +926,27 @@ public class GroupRpcService extends GroupServiceImplBase {
                 finalParams.add(searchFilterResolver.resolveExternalFilters(params));
             }
             try {
+                final SearchQuery.Builder query = SearchQuery.newBuilder()
+                    .addAllSearchParameters(finalParams)
+                    .setLogicalOperator(entityFilter.getLogicalOperator());
+
+                if (entityFilter.getEntityType() == CommonDTO.EntityDTO
+                            .EntityType.BUSINESS_ACCOUNT.getNumber()) {
+                    // Dynamic group of accounts should only include those accounts that have an
+                    // associated target
+                    query.addSearchParameters(SearchProtoUtil.makeSearchParameters(
+                        SearchProtoUtil.entityTypeFilter(ApiEntityType.BUSINESS_ACCOUNT))
+                        .addSearchFilter(SearchFilter.newBuilder()
+                            .setPropertyFilter(SearchProtoUtil.associatedTargetFilter())
+                            .build())
+                        .build());
+                }
+
                 final Search.SearchEntityOidsResponse searchResponse =
                     searchServiceRpc.searchEntityOids(SearchEntityOidsRequest.newBuilder()
-                        .setSearch(SearchQuery.newBuilder()
-                            .addAllSearchParameters(finalParams)
-                            .setLogicalOperator(entityFilter.getLogicalOperator()))
+                        .setSearch(query)
                         .build());
+
                 memberOids.addAll(searchResponse.getEntitiesList());
             } catch (StatusRuntimeException e) {
                 logger.error("Error resolving filter {}. Error: {}. Some members may be missing.",
