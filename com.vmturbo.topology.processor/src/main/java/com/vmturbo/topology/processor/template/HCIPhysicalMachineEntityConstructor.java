@@ -126,33 +126,6 @@ public class HCIPhysicalMachineEntityConstructor {
                 .getTemplateValue(templateValues, "failuresToTolerate").intValue();
         policy.setFailuresToTolerate(failuresToTolerate);
         policy.setRedundancy(getRaidLevel());
-        policy.setRaidFactor(getRaidFactor());
-    }
-
-    // TODO Remove this method in OM-58271
-    private float getRaidFactor() throws TopologyEntityConstructorException {
-        int failuresToTolerate = TopologyEntityConstructor
-                .getTemplateValue(templateValues, "failuresToTolerate").intValue();
-        int redundancyMethod = TopologyEntityConstructor
-                .getTemplateValue(templateValues, "redundancyMethod").intValue();
-
-        // RAID0
-        if (failuresToTolerate == 0) {
-            return 1;
-        }
-
-        // RAID1
-        if (redundancyMethod == 0) {
-            return 1f / (failuresToTolerate + 1f);
-        }
-
-        // RAID5, or RAID6
-        if (redundancyMethod == 1 || redundancyMethod == 2) {
-            return 1f / (1f + failuresToTolerate / (2f + failuresToTolerate));
-        }
-
-        throw new TopologyEntityConstructorException("Invalid combination: Failures to tolerate: "
-                + failuresToTolerate + ", redundancy method: " + redundancyMethod);
     }
 
     // TODO Re-implement the method when OM-58198 is fixed
