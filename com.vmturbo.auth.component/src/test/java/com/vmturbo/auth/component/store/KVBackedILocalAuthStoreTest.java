@@ -30,6 +30,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import org.assertj.core.util.Lists;
+import org.jetbrains.annotations.NotNull;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -102,7 +103,7 @@ public class KVBackedILocalAuthStoreTest {
     /**
      * The KV prefix.
      */
-    private static final String PREFIX = AuthProvider.PREFIX;
+    private static final String PREFIX = AuthProviderBase.PREFIX;
 
     /**
      * The JSON builder.
@@ -142,9 +143,14 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAdminCheckInitColdStart() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
         Assert.assertFalse(store.checkAdminInit());
         Assert.assertEquals(0, store.getSecurityGroups().size());
+    }
+
+    @NotNull
+    private AuthProvider getStore(KeyValueStore keyValueStore) {
+        return new AuthProvider(keyValueStore, null, kvSupplier, null, new UserPolicy(LoginPolicy.ALL));
     }
 
     /**
@@ -153,7 +159,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAdminInitColdStart() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
         assertTrue(store.initAdmin("admin", "password0"));
         assertTrue(store.checkAdminInit());
         assertCreatedPredefinedSecurityGroups(store);
@@ -276,7 +282,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAuthenticate() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -300,7 +306,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAuthenticateWithIpAddress() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
         verifyAuthentication(keyValueStore, store, PROVIDER.LOCAL);
     }
 
@@ -308,7 +314,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAuthorizationWithExternalUser() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
 
         String result = store.add(PROVIDER.LDAP, "user1", "password0",
                 ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -330,7 +336,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test(expected = AuthorizationException.class)
     public void testAuthorizationWithInvalidExternalUser() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
 
         String result = store.add(PROVIDER.LDAP, "user1", "password0",
                 ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -354,7 +360,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testAuthorizationWithExternalGroup() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
         SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group",
                 "group",
                 "administrator", ImmutableList.of(1L));
@@ -378,7 +384,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test(expected = AuthorizationException.class)
     public void testAuthorizationWithInvalidExternalGroup() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
         SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group",
                 "group",
                 "administrator");
@@ -390,7 +396,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testModifyPassword() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -423,7 +429,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testModifyRoles() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, null);
+        AuthProvider store = new AuthProvider(keyValueStore, groupServiceClient, kvSupplier, widgetsetDbStore, new UserPolicy(LoginPolicy.ALL));
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -488,7 +494,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testRemovePresent() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -502,7 +508,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testRemoveAbsent() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
 
         Assert.assertFalse(store.remove("user0").isPresent());
         Optional<String> jsonData = keyValueStore.get(PREFIX + AuthUserDTO.PROVIDER.LOCAL.name()
@@ -513,7 +519,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testLock() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -540,7 +546,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testUnlock() throws Exception {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
 
         String result = store.add(AuthUserDTO.PROVIDER.LOCAL, "user0", "password0",
                                    ImmutableList.of("ADMIN", "USER"), ImmutableList.of(1L));
@@ -574,7 +580,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testLDAPInputUrlWithProtocolAndPortNumber() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
 
         EXPECTED_LDAP_URL.cellSet().forEach(cell ->
             Assert.assertEquals(
@@ -588,7 +594,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testCreateSecurityGroup() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
         SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
             "DedicatedCustomer",
             "administrator");
@@ -604,7 +610,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test(expected = SecurityException.class)
     public void testCreateSecurityGroupWhichAlreadyExists() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
         SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
             "DedicatedCustomer",
             "administrator");
@@ -616,7 +622,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test
     public void testUpdateSecurityGroup() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
         SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
             "DedicatedCustomer",
             "administrator");
@@ -640,7 +646,7 @@ public class KVBackedILocalAuthStoreTest {
     @Test(expected = SecurityException.class)
     public void testUpdateSecurityGroupWhichDoesNotExist() {
         KeyValueStore keyValueStore = new MapKeyValueStore();
-        AuthProvider store = new AuthProvider(keyValueStore, kvSupplier);
+        AuthProvider store = getStore(keyValueStore);
         SecurityGroupDTO securityGroupDTO = new SecurityGroupDTO("group1",
             "DedicatedCustomer",
             "administrator");

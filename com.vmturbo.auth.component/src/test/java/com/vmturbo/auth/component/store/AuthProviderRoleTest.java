@@ -1,7 +1,7 @@
 package com.vmturbo.auth.component.store;
 
 import static com.vmturbo.auth.api.authorization.jwt.SecurityConstant.ADMINISTRATOR;
-import static com.vmturbo.auth.component.store.AuthProvider.PREFIX;
+import static com.vmturbo.auth.component.store.AuthProviderBase.PREFIX;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
