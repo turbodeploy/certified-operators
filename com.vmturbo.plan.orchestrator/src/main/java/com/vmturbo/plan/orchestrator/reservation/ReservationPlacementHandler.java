@@ -119,8 +119,6 @@ public class ReservationPlacementHandler implements ProjectedTopologyProcessor {
                 .map(reservation -> updateReservationPlacement(reservation, entityIdToEntityMap))
                 .collect(Collectors.toSet());
         reservationManager.updateReservationResult(updatedReservation);
-
-        reservationManager.checkAndStartReservationPlan();
     }
 
     private Set<Long> extractReservationEntityIds(@Nonnull final Set<Reservation> reservations) {
