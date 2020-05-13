@@ -512,6 +512,9 @@ public class TopologyConverter {
                     // Allow creation of traderTOs for traders discarded due to state or entityType.
                     // We will remove them traderTO set after scoping but before sending to market.
                     if (SKIPPED_ENTITY_STATES.contains(entity.getEntityState())) {
+                        logger.debug("Skipping trader creation for entity oid = {}, name = {}, type = {}, "
+                                        + "state = {} because of state.", entity.getOid(), entity.getDisplayName(),
+                                EntityType.forNumber(entityType), entity.getEntityState());
                         skippedEntities.put(entity.getOid(), entity);
                     }
                     entityOidToDto.put(entity.getOid(), entity);
