@@ -39,6 +39,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -159,7 +160,7 @@ public class RIBuyAnalysisContextProviderTest {
 
         RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory = mock(RegionalRIMatcherCacheFactory.class);
         when(regionalRIMatcherCacheFactory.createNewCache(any(CloudTopology.class),
-                any(Map.class))).thenReturn(matcherCache);
+                any(Map.class), any(TopologyInfo.class))).thenReturn(matcherCache);
 
 
         final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = StartBuyRIAnalysisRequest.newBuilder()
@@ -202,7 +203,7 @@ public class RIBuyAnalysisContextProviderTest {
 
         RegionalRIMatcherCacheFactory regionalRIMatcherCacheFactory = mock(RegionalRIMatcherCacheFactory.class);
         when(regionalRIMatcherCacheFactory.createNewCache(any(CloudTopology.class),
-                any(Map.class))).thenReturn(matcherCache);
+                any(Map.class), any(TopologyInfo.class))).thenReturn(matcherCache);
 
 
         final StartBuyRIAnalysisRequest startBuyRIAnalysisRequest = StartBuyRIAnalysisRequest.newBuilder()

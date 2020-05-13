@@ -148,7 +148,7 @@ public class PlanReservedInstanceRpcService extends PlanReservedInstanceServiceI
     public void insertPlanReservedInstanceBought(UploadRIDataRequest request,
         StreamObserver<UploadRIDataResponse> responseObserver) {
         try {
-            final Long planId = request.getTopologyId();
+            final Long planId = request.getTopologyContextId();
             planReservedInstanceStore.insertPlanReservedInstanceBought(request.getReservedInstanceBoughtList(),
                                                                        planId);
             responseObserver.onNext(UploadRIDataResponse.getDefaultInstance());

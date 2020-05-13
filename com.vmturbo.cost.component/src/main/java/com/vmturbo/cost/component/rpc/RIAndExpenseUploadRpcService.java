@@ -117,7 +117,7 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
 
     @Override
     public void uploadRIData(final UploadRIDataRequest request, final StreamObserver<UploadRIDataResponse> responseObserver) {
-        logger.info("Processing RI data for topology {}", request.getTopologyId());
+        logger.info("Processing RI data for topology {}", request.getTopologyContextId());
         // need to update reserved instance bought and spec first, because reserved instance coverage
         // data will use them later.
         storeRIBoughtAndSpecIntoDB(request);
@@ -130,7 +130,7 @@ public class RIAndExpenseUploadRpcService extends RIAndExpenseUploadServiceImplB
         // the dependency on downstream consumers.
         final List<EntityRICoverageUpload> entityRiCoverageWithRIOid =
                 updateCoverageWithLocalRIBoughtIds(request.getReservedInstanceCoverageList());
-        reservedInstanceCoverageUpdate.storeEntityRICoverageOnlyIntoCache(request.getTopologyId(),
+        reservedInstanceCoverageUpdate.storeEntityRICoverageOnlyIntoCache(request.getTopologyContextId(),
                 entityRiCoverageWithRIOid);
         lastProcessedRIDataChecksum = request.getChecksum();
         responseObserver.onNext(UploadRIDataResponse.getDefaultInstance());

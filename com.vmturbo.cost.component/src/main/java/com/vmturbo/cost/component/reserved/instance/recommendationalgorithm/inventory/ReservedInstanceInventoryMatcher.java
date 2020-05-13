@@ -120,8 +120,11 @@ public class ReservedInstanceInventoryMatcher {
 
 
         final ImmutableRIBoughtKey.Builder keyBuilder = ImmutableRIBoughtKey.builder()
-                .riSpecId(riBoughtInfo.getReservedInstanceSpec())
-                .zoneOid(riBoughtInfo.getAvailabilityZoneId());
+                .riSpecId(riBoughtInfo.getReservedInstanceSpec());
+
+        if (riBoughtInfo.hasAvailabilityZoneId()) {
+            keyBuilder.zoneOid(riBoughtInfo.getAvailabilityZoneId());
+        }
 
         final AccountGroupingIdentifier accountGroupingId =
                 riOidToAccountGroupingId.get(riBought.getId());

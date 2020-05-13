@@ -123,7 +123,7 @@ public class RIAndExpenseUploadRpcServiceTest {
                 .build();
 
         final UploadRIDataRequest uploadRIDataRequest = UploadRIDataRequest.newBuilder()
-                .setTopologyId(topologyId)
+                .setTopologyContextId(topologyId)
                 .addReservedInstanceSpecs(reservedInstanceSpec)
                 .addReservedInstanceBought(reservedInstanceBought)
                 .addReservedInstanceCoverage(entityRICoverageUpload)
