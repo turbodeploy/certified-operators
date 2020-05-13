@@ -56,17 +56,6 @@ public class PreStitchingOperationLibrary {
         EntityType.RESERVED_INSTANCE);
 
     /**
-     * Entity types from GCP that need to be merged.
-     */
-    private static final List<EntityType> GCP_ENTITY_TYPES = ImmutableList.of(
-        EntityType.SERVICE_PROVIDER,
-        EntityType.CLOUD_SERVICE,
-        EntityType.COMPUTE_TIER,
-        EntityType.STORAGE_TIER,
-        EntityType.REGION,
-        EntityType.AVAILABILITY_ZONE);
-
-    /**
      * Create a new {@link PreStitchingOperation} library.
      */
     public PreStitchingOperationLibrary() {
@@ -100,10 +89,6 @@ public class PreStitchingOperationLibrary {
                 new SharedCloudEntityPreStitchingOperation(
                         stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
                                 SDKProbeType.AZURE.getProbeType(), entityType))));
-        GCP_ENTITY_TYPES.forEach(entityType -> operations.add(
-            new SharedCloudEntityPreStitchingOperation(
-                stitchingScopeFactory -> stitchingScopeFactory.probeEntityTypeScope(
-                    SDKProbeType.GCP.getProbeType(), entityType))));
         return operations;
     }
 
