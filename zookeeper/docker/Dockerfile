@@ -2,7 +2,7 @@ FROM registry.access.redhat.com/ubi8
 MAINTAINER Billy O'Connell <billy.oconnell@turbonomic.com>
 
 # This is the release of Zookeeper to pull in.
-ENV ZOOKEEPER_VERSION=3.5.7
+ENV ZOOKEEPER_VERSION=3.5.8
 
 # Create a zookeeper user and group first so the IDs get set the same way, even as
 # the rest of this may change over time.
