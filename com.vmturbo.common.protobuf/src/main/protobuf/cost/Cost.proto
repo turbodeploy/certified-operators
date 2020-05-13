@@ -559,7 +559,7 @@ message UploadRIDataRequest {
     optional int64 created_time = 11;
 
     // the topology id this upload is associated with. It will always be a realtime topology.
-    optional int64 topology_id = 1;
+    optional int64 topology_context_id = 1;
 
     // The set of Reserved Instance configurations that have been purchased or are available.
     repeated ReservedInstanceSpec reserved_instance_specs = 3;
