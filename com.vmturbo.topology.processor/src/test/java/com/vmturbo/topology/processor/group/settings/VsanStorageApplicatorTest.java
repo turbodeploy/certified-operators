@@ -80,37 +80,37 @@ public class VsanStorageApplicatorTest {
         // RAID1; All off
         Pair<Double, Double> raid1AllOff = runApplicator(RAID1, false, 0, 0, 0);
         Assert.assertEquals(16.25, raid1AllOff.getFirst(), .01);
-        Assert.assertEquals(19.99, raid1AllOff.getSecond(), .01);
+        Assert.assertEquals(10, raid1AllOff.getSecond(), .01);
 
         // RAID1; Compression is on
         Pair<Double, Double> raid1Comprsession = runApplicator(RAID1, true, 1.5f, 0, 0);
         Assert.assertEquals(24.38, raid1Comprsession.getFirst(), .01);
-        Assert.assertEquals(29.99, raid1Comprsession.getSecond(), .01);
+        Assert.assertEquals(15, raid1Comprsession.getSecond(), .01);
 
         // RAID1; Slack is on; Compression is on
         Pair<Double, Double> raid1SlackCompression = runApplicator(RAID1, true, 1.5f, 50, 0);
         Assert.assertEquals(24.38, raid1SlackCompression.getFirst(), .01);
-        Assert.assertEquals(15, raid1SlackCompression.getSecond(), .01);
+        Assert.assertEquals(7.5, raid1SlackCompression.getSecond(), .01);
 
         // RAID1; Host capacity is on
         Pair<Double, Double> raid1Host = runApplicator(RAID1, false, 0, 0, 1);
         Assert.assertEquals(16.25, raid1Host.getFirst(), .01);
-        Assert.assertEquals(14.99, raid1Host.getSecond(), .01);
+        Assert.assertEquals(5, raid1Host.getSecond(), .01);
 
         // RAID1; Host capacity is on; Slack is on
         Pair<Double, Double> raid1HostSlack = runApplicator(RAID1, false, 0, 50, 1);
         Assert.assertEquals(16.25, raid1HostSlack.getFirst(), .01);
-        Assert.assertEquals(7.5, raid1HostSlack.getSecond(), .01);
+        Assert.assertEquals(2.5, raid1HostSlack.getSecond(), .01);
 
         // RAID1; Host capacity is on; Slack is on; Compression is on
         Pair<Double, Double> raid1HostSlackCompress = runApplicator(RAID1, true, 2.0f, 50, 1);
         Assert.assertEquals(32.5, raid1HostSlackCompress.getFirst(), .01);
-        Assert.assertEquals(14.99, raid1HostSlackCompress.getSecond(), .01);
+        Assert.assertEquals(5, raid1HostSlackCompress.getSecond(), .01);
 
         // RAOD1; All on
         Pair<Double, Double> raid1 = runApplicator(RAID1, true, 1.7f, 13, 1);
         Assert.assertEquals(27.62, raid1.getFirst(), .01);
-        Assert.assertEquals(22.18, raid1.getSecond(), .01);
+        Assert.assertEquals(7.4, raid1.getSecond(), .01);
     }
 
     private static Pair<Double, Double> runApplicator(@Nonnull String fileName,
