@@ -4,6 +4,8 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -11,6 +13,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -40,10 +43,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
 import com.vmturbo.components.api.RetriableOperation;
 import com.vmturbo.components.api.RetriableOperation.RetriableOperationFailedException;
+import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.PlanPipelineQueue;
@@ -52,6 +57,8 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutor
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineRequest;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineRunnable;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService.TopologyPipelineWorker;
+import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineUnblockFactory;
+import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineUnblockFactory.PipelineUnblock;
 
 /**
  * Unit tests for {@link TopologyPipelineExecutorService}.
@@ -83,6 +90,13 @@ public class TopologyPipelineExecutorServiceTest {
 
     private PlanPipelineQueue mockPlanQueue = mock(PlanPipelineQueue.class);
     private RealtimePipelineQueue mockRealtimeQueue = mock(RealtimePipelineQueue.class);
+    private TargetStore targetStore = mock(TargetStore.class);
+    private PipelineUnblockFactory
+            unblockBroadcastsFactory = mock(PipelineUnblockFactory.class);
+
+    private MutableFixedClock clock = new MutableFixedClock(1_000_000);
+
+    private static final long MAX_BLOCK_TIME = 10_000;
 
     private static final int CONCURRENT_PLANS_ALLOWED = 2;
 
@@ -96,7 +110,10 @@ public class TopologyPipelineExecutorServiceTest {
             mockPlanPipelineFactory,
             mockEntityStore,
             mockNotificationSender,
-            false);
+            targetStore,
+            unblockBroadcastsFactory,
+            false,
+            MAX_BLOCK_TIME, TimeUnit.MILLISECONDS);
 
     private final TopologyInfo topologyInfo = TopologyInfo.newBuilder()
         .setTopologyContextId(77)
@@ -216,7 +233,7 @@ public class TopologyPipelineExecutorServiceTest {
      */
     @Test
     public void testRealtimeQueueNeverFull() throws Exception {
-        RealtimePipelineQueue realtimePipelineQueue = new RealtimePipelineQueue();
+        RealtimePipelineQueue realtimePipelineQueue = new RealtimePipelineQueue(clock);
         for (long i = 0; i < 100; ++i) {
             final long topologyId = i;
             realtimePipelineQueue.queuePipeline(() -> TopologyInfo.newBuilder()
@@ -334,8 +351,10 @@ public class TopologyPipelineExecutorServiceTest {
                 mockPlanPipelineFactory,
                 mockEntityStore,
                 mockNotificationSender,
+                targetStore,
+                unblockBroadcastsFactory,
                 // Set this to true.
-                true);
+                true, MAX_BLOCK_TIME, TimeUnit.MILLISECONDS);
         // Run
         executorServiceWithReservationPipeline.queuePlanPipeline(
             reservationTopoInfo, SCENARIO_CHANGES, PLAN_SCOPE, JOURNAL_FACTORY);
@@ -380,7 +399,7 @@ public class TopologyPipelineExecutorServiceTest {
     @Test
     public void testQueuedPlanMultipleTimesRunsOnce() throws Exception {
         final TopologyBroadcastInfo expectedBroadcastInfo = mock(TopologyBroadcastInfo.class);
-        final TopologyPipelineQueue pipelineQueue = new TopologyPipelineQueue(CONCURRENT_PLANS_ALLOWED);
+        final TopologyPipelineQueue pipelineQueue = new TopologyPipelineQueue(clock, CONCURRENT_PLANS_ALLOWED);
 
         // Queue the same thing multiple times.
         pipelineQueue.queuePipeline(() -> topologyInfo, () -> expectedBroadcastInfo);
@@ -403,7 +422,7 @@ public class TopologyPipelineExecutorServiceTest {
     @Test
     public void testPipelineQueue() throws Exception {
         final TopologyBroadcastInfo expectedBroadcastInfo = mock(TopologyBroadcastInfo.class);
-        final TopologyPipelineQueue pipelineQueue = new TopologyPipelineQueue(CONCURRENT_PLANS_ALLOWED);
+        final TopologyPipelineQueue pipelineQueue = new TopologyPipelineQueue(clock, CONCURRENT_PLANS_ALLOWED);
 
         final TopologyInfo otherTopologyInfo = topologyInfo.toBuilder()
             .setTopologyContextId(topologyInfo.getTopologyContextId() + 100)
@@ -425,6 +444,75 @@ public class TopologyPipelineExecutorServiceTest {
         assertThat(pipelineQueue.poll().get().getTopologyInfo(), is(topologyInfo));
         // No more in the queue.
         assertFalse(pipelineQueue.poll().isPresent());
+    }
+
+    /**
+     * Test that a blocked {@link TopologyPipelineQueue} unblocks after the specified block time
+     * has passed.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testQueueBlockingExpires() throws Exception {
+        TopologyPipelineQueue pipelineQueue = new TopologyPipelineQueue(clock, 1);
+        pipelineQueue.block(10, TimeUnit.MILLISECONDS);
+        assertTrue(pipelineQueue.isBlocked());
+        final long topologyId = 123;
+        pipelineQueue.queuePipeline(() -> TopologyInfo.newBuilder()
+                .setTopologyContextId(777)
+                .setTopologyId(topologyId)
+                .build(), () -> null);
+        CompletableFuture<Void> takeStarted = new CompletableFuture<>();
+        CompletableFuture<Long> takeSuccess = new CompletableFuture<>();
+        new Thread(() -> {
+            try {
+                takeStarted.complete(null);
+                takeSuccess.complete(pipelineQueue.take().getTopologyId());
+            } catch (InterruptedException e) {
+                takeSuccess.completeExceptionally(e);
+            }
+        }).start();
+
+        takeStarted.get(1, TimeUnit.MINUTES);
+        assertFalse(takeSuccess.isDone());
+
+        clock.addTime(10, ChronoUnit.MILLIS);
+
+        assertThat(takeSuccess.get(1, TimeUnit.MINUTES), is(topologyId));
+    }
+
+    /**
+     * Test blocking and unblocking a {@link TopologyPipelineQueue}.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testQueueBlockUnblock() throws Exception {
+        TopologyPipelineQueue pipelineQueue = new TopologyPipelineQueue(clock, 1);
+        pipelineQueue.block(MAX_BLOCK_TIME, TimeUnit.MILLISECONDS);
+        assertTrue(pipelineQueue.isBlocked());
+        final long topologyId = 123;
+        pipelineQueue.queuePipeline(() -> TopologyInfo.newBuilder()
+                .setTopologyContextId(777)
+                .setTopologyId(topologyId)
+                .build(), () -> null);
+        CompletableFuture<Void> takeStarted = new CompletableFuture<>();
+        CompletableFuture<Long> takeSuccess = new CompletableFuture<>();
+        new Thread(() -> {
+            try {
+                takeStarted.complete(null);
+                takeSuccess.complete(pipelineQueue.take().getTopologyId());
+            } catch (InterruptedException e) {
+                takeSuccess.completeExceptionally(e);
+            }
+        }).start();
+
+        takeStarted.get(1, TimeUnit.MINUTES);
+        assertFalse(takeSuccess.isDone());
+
+        pipelineQueue.unblock();
+
+        assertThat(takeSuccess.get(1, TimeUnit.MINUTES), is(topologyId));
     }
 
     /**
@@ -588,4 +676,42 @@ public class TopologyPipelineExecutorServiceTest {
         }
     }
 
+    /**
+     * Test that the initialization logic invokes the unblock operation.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testInitialization() throws Exception {
+        final CompletableFuture<Void> future = new CompletableFuture<>();
+        when(unblockBroadcastsFactory.newUnblockOperation(any())).thenAnswer(invocationOnMock ->
+                (PipelineUnblock)() -> {
+                    invocationOnMock.getArgumentAt(0, TopologyPipelineExecutorService.class)
+                            .unblockBroadcasts();
+                    future.complete(null);
+                });
+        pipelineExecutorService.blockBroadcasts(1, TimeUnit.HOURS);
+
+        verify(mockRealtimeQueue).block(1, TimeUnit.HOURS);
+        verify(mockPlanQueue).block(1, TimeUnit.HOURS);
+
+        pipelineExecutorService.initialize();
+        // Make sure the factory got called.
+        verify(unblockBroadcastsFactory).newUnblockOperation(pipelineExecutorService);
+        // Make sure the unblocking happens - this is done asynchronously.
+        future.get(30, TimeUnit.SECONDS);
+
+        verify(mockRealtimeQueue).unblock();
+        verify(mockPlanQueue).unblock();
+    }
+
+    /**
+     * Test initialization priority relative to the target store.
+     */
+    @Test
+    public void testInitializationPriority() {
+        when(targetStore.priority()).thenReturn(1);
+        // Should have a smaller priority, so that it gets initialized later.
+        assertTrue(pipelineExecutorService.priority() < targetStore.priority());
+    }
 }

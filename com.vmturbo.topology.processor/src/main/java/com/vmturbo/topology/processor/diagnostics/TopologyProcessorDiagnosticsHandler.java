@@ -73,6 +73,7 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 
 /**
  * Handle diagnostics for {@link TopologyProcessorComponent}.
@@ -98,6 +99,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     private final IdentityProvider identityProvider;
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader;
     private final PriceTableUploader priceTableUploader;
+    private final TopologyPipelineExecutorService topologyPipelineExecutorService;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -111,7 +113,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             @Nonnull final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader,
             @Nonnull final IdentityProvider identityProvider,
             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
-            @Nonnull final PriceTableUploader priceTableUploader) {
+            @Nonnull final PriceTableUploader priceTableUploader,
+            @Nonnull final TopologyPipelineExecutorService topologyPipelineExecutorService) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -122,6 +125,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         this.identityProvider = identityProvider;
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
         this.priceTableUploader = priceTableUploader;
+        this.topologyPipelineExecutorService = topologyPipelineExecutorService;
     }
 
     /**
@@ -347,6 +351,16 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     @Override
     @Nonnull
     public String restore(@Nonnull InputStream zis) throws DiagnosticsException {
+        try {
+            topologyPipelineExecutorService.blockBroadcasts(1, TimeUnit.HOURS);
+            return internalRestore(zis);
+        } finally {
+            topologyPipelineExecutorService.unblockBroadcasts();
+        }
+    }
+
+    @Nonnull
+    private String internalRestore(@Nonnull InputStream zis) throws DiagnosticsException {
         // Ordering is important. The identityProvider diags must be restored before the probes diags.
         // Otherwise, a race condition occurs where if a probe (re)registers after the restore of
         // the probe diags and before the restore of the identityProvider diags, then a probeInfo
