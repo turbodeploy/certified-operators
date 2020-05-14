@@ -369,6 +369,7 @@ public class ServiceConfig {
                 policiesService(),
                 communicationConfig.policyRpcService(),
                 communicationConfig.planRpcService(),
+                communicationConfig.planProjectRpcService(),
                 communicationConfig.scenarioRpcService(),
                 mapperConfig.policyMapper(),
                 mapperConfig.marketMapper(),

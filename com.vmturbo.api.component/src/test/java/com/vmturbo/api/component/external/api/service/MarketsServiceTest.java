@@ -112,6 +112,15 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanDTO.UpdatePlanRequest;
 import com.vmturbo.common.protobuf.plan.PlanDTOMoles.PlanServiceMole;
+import com.vmturbo.common.protobuf.plan.PlanProjectMoles.PlanProjectServiceMole;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetAllPlanProjectsResponse;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectRequest;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.GetPlanProjectResponse;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProject.PlanProjectStatus;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectInfo;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
+import com.vmturbo.common.protobuf.plan.PlanProjectServiceGrpc;
 import com.vmturbo.common.protobuf.plan.PlanServiceGrpc;
 import com.vmturbo.common.protobuf.plan.ScenarioMoles.ScenarioServiceMole;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
@@ -197,6 +206,7 @@ public class MarketsServiceTest {
     private ActionsServiceMole actionsBackend = spy(ActionsServiceMole.class);
     private PolicyServiceMole policiesBackend = spy(PolicyServiceMole.class);
     private PlanServiceMole planBackend = spy(PlanServiceMole.class);
+    private PlanProjectServiceMole planProjectBackend = spy(PlanProjectServiceMole.class);
     private ScenarioServiceMole scenarioBackend = spy(ScenarioServiceMole.class);
     private RepositoryServiceMole repositoryBackend = spy(RepositoryServiceMole.class);
 
@@ -215,7 +225,7 @@ public class MarketsServiceTest {
      */
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(actionsBackend, policiesBackend,
-        planBackend, scenarioBackend, repositoryBackend, entitySeverityBackend,
+        planBackend, planProjectBackend, scenarioBackend, repositoryBackend, entitySeverityBackend,
         groupBackend, searchBackend);
 
     private MarketsService marketsService;
@@ -232,6 +242,7 @@ public class MarketsServiceTest {
             policiesService,
             PolicyServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             PlanServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
+            PlanProjectServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             ScenarioServiceGrpc.newBlockingStub(grpcTestServer.getChannel()),
             policyMapper,
             marketMapper,
@@ -267,22 +278,89 @@ public class MarketsServiceTest {
      */
     @Test
     public void testGetAllMarkets() throws Exception {
-        final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
-        final PlanInstance plan2 = PlanInstance.newBuilder(planDefault).setPlanId(2).build();
+        final long planId1 = 1;
+        final String planName1 = "Plan1";
+        final long planId2 = 2;
+        final String planName2 = "Plan2";
+        final PlanInstance plan1 = PlanInstance.newBuilder(planDefault)
+                .setName(planName1).setPlanId(planId1).build();
+        final PlanInstance plan2 = PlanInstance.newBuilder(planDefault)
+                .setName(planName2).setPlanId(planId2).build();
+
+        final long planProjectId = 214192011699008L;
+        final long mainPlanId = 313;
+        final String mainPlanName = "Consumption1";
+        final long relatedPlanId = 414;
+        final PlanInstance planMain = PlanInstance.newBuilder(planDefault)
+                .setName(mainPlanName)
+                .setPlanId(mainPlanId)
+                .setPlanProjectId(planProjectId)
+                .build();
+        final PlanInstance planRelated = PlanInstance.newBuilder(planDefault)
+                .setPlanId(relatedPlanId)
+                .setPlanProjectId(planProjectId)
+                .build();
+
+        final PlanProject projectDisplayed = PlanProject.newBuilder()
+                .setPlanProjectId(planProjectId)
+                .setStatus(PlanProjectStatus.READY)
+                .setPlanProjectInfo(PlanProjectInfo.newBuilder().setName("Migration project")
+                        .setMainPlanId(mainPlanId)
+                        .setType(PlanProjectType.CLOUD_MIGRATION)
+                        .addRelatedPlanIds(relatedPlanId)
+                        .build())
+                .build();
+        final PlanProject projectNotDisplayable = PlanProject.newBuilder()
+                .setPlanProjectId(919)
+                .setStatus(PlanProjectStatus.READY)
+                .setPlanProjectInfo(PlanProjectInfo.newBuilder().setName("Headroom project")
+                        .setType(PlanProjectType.CLUSTER_HEADROOM)
+                        .build())
+                .build();
 
         final MarketApiDTO mappedPlan1 = new MarketApiDTO();
+        mappedPlan1.setUuid(String.valueOf(planId1));
+        mappedPlan1.setDisplayName(planName1);
         final MarketApiDTO mappedPlan2 = new MarketApiDTO();
+        mappedPlan2.setUuid(String.valueOf(planId2));
+        mappedPlan2.setDisplayName(planName2);
+        final MarketApiDTO mappedProject1 = new MarketApiDTO();
+        mappedProject1.setUuid(String.valueOf(mainPlanId));
+        mappedProject1.setDisplayName(mainPlanName);
         when(marketMapper.dtoFromPlanInstance(plan1)).thenReturn(mappedPlan1);
         when(marketMapper.dtoFromPlanInstance(plan2)).thenReturn(mappedPlan2);
+        when(marketMapper.dtoFromPlanProject(any(), any(), any(), any()))
+                .thenReturn(mappedProject1);
 
-        doReturn(Arrays.asList(plan1, plan2)).when(planBackend).getAllPlans(any());
+        when(planBackend.getPlan(PlanId.newBuilder().setPlanId(mainPlanId).build()))
+                .thenReturn(OptionalPlanInstance.newBuilder().setPlanInstance(planMain)
+                        .build());
+        when(planBackend.getPlan(PlanId.newBuilder().setPlanId(relatedPlanId).build()))
+                .thenReturn(OptionalPlanInstance.newBuilder().setPlanInstance(planRelated)
+                        .build());
+
+        doReturn(Arrays.asList(plan1, plan2, planMain)).when(planBackend).getAllPlans(any());
+        doReturn(GetAllPlanProjectsResponse.newBuilder().addAllProjects(
+                Arrays.asList(projectDisplayed, projectNotDisplayable)).build())
+                .when(planProjectBackend).getAllPlanProjects(any());
+
+        when(planProjectBackend.getPlanProject(GetPlanProjectRequest
+                .newBuilder().setProjectId(planProjectId).build()))
+                .thenReturn(GetPlanProjectResponse.newBuilder().setProject(projectDisplayed)
+                .build());
+        ApiTestUtils.mockPlanId(String.valueOf(mainPlanId), uuidMapper);
+        // Also test the lookup by the project id, verify that the mapped project is being returned.
+        MarketApiDTO projectDto = marketsService.getMarketByUuid(String.valueOf(mainPlanId));
+        assertThat(projectDto, is(mappedProject1));
+        assertEquals(projectDto.getUuid(), mappedProject1.getUuid());
 
         final List<MarketApiDTO> resp = marketsService.getMarkets(null);
 
-        // Three markets are expected because the results include the realtime market
-        assertEquals(3, resp.size());
+        // Results include the realtime market
+        assertEquals(4, resp.size());
         assertTrue(resp.contains(mappedPlan1));
         assertTrue(resp.contains(mappedPlan2));
+        assertTrue(resp.contains(mappedProject1));
         // Also check that the realtime market was returned.
         final MarketApiDTO realtimeMarket =
                 resp.stream().filter(market -> market.getUuid().equals("777777")).findFirst().get();
@@ -298,7 +376,9 @@ public class MarketsServiceTest {
     @Test
     public void testMarketDeleteNotification() throws Exception {
         final PlanInstance plan1 = PlanInstance.newBuilder(planDefault).setPlanId(1).build();
-
+        // We are now getting the plan first before deleting it, so set that up as well.
+        doReturn(OptionalPlanInstance.newBuilder().setPlanInstance(plan1)
+                .build()).when(planBackend).getPlan(any());
         doReturn(plan1).when(planBackend).deletePlan(any());
 
         marketsService.deleteMarketByUuid("1");
@@ -878,5 +958,13 @@ public class MarketsServiceTest {
     private interface EditOrCreateOperation {
         void createOrEdit(PolicyApiInputDTO policy, GroupDefinition.Builder groupBuilder)
                 throws ConversionException, InterruptedException;
+    }
+
+    /**
+     * Tests if we are returning plan projects correctly or not.
+     */
+    @Test
+    public void getMarketsPlanProjects() {
+
     }
 }

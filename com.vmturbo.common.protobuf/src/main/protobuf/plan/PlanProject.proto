@@ -16,11 +16,32 @@ message PlanProject {
 
     // Information describing the plan project
     optional PlanProjectInfo plan_project_info = 2;
+
+    // The current status of the plan project
+    optional PlanProjectStatus status = 3;
+
+    enum PlanProjectStatus {
+        // Plan project succeeded
+        SUCCEEDED = 1;
+
+        // Plan project failed
+        FAILED = 2;
+
+        // Plan project running
+        RUNNING = 3;
+
+        // Plan project created and ready to run.
+        READY = 4;
+
+        // Project status not available
+        UNAVAILABLE = 5;
+    }
 }
 
 enum PlanProjectType {
     // A custom plan project is created by the user
     // and has no special behaviour/server-side code.
+    // Also used for Optimize Cloud plans.
     USER = 0;
 
     // A headroom plan project is responsible for calculating
@@ -33,6 +54,9 @@ enum PlanProjectType {
 
     // A reservation plan
     RESERVATION_PLAN = 3;
+
+    // Plan for on-prem or cloud, to cloud migration.
+    CLOUD_MIGRATION = 4;
 }
 
 // Information describing the plan project.
@@ -90,6 +114,30 @@ message PlanProjectInfo {
     message StaticScope {
         // The oids of groups in the scope.
         repeated int64 id = 1;
+    }
+
+    // For migration plan project, the Optimized plan is the 'main' one, with the
+    // 'Lift&Shift' plan being a 'linked' related plan.
+    optional int64 main_plan_id = 12;
+
+    // Ids of related plans. 1 (Lift & Shift) plan in case of migration project.
+    repeated int64 related_plan_ids = 13;
+}
+
+message PlanProjectStatusNotification {
+    // The plan project changed status. Affected by underlying plans changing their status.
+    message StatusUpdate {
+        // The id of the plan project with the new status.
+        required int64 plan_project_id = 1;
+
+        // The new status of the plan project.
+        required PlanProject.PlanProjectStatus plan_project_status = 2;
+    }
+
+    // The type of notification.
+    oneof type {
+        // The plan project changed state/status.
+        StatusUpdate update = 1;
     }
 }
 
@@ -166,6 +214,8 @@ message DeletePlanProjectResponse {
 }
 
 message GetAllPlanProjectsRequest {
+    // Type of projects to fetch. If not specified, all projects are fetched.
+    optional PlanProjectType project_type = 1;
 }
 
 message GetAllPlanProjectsResponse {
@@ -178,6 +228,21 @@ message RunPlanProjectRequest {
 }
 
 message RunPlanProjectResponse {
+}
+
+// Message to update the PlanProject
+message UpdatePlanProjectRequest {
+    // ID of the plan project
+    required int64 plan_project_id = 1;
+
+    // Status of plan project.
+    optional PlanProject.PlanProjectStatus plan_project_status = 2;
+
+    // New name of the plan
+    optional int64 main_plan_id = 3;
+
+    // Ids of related plans in this project.
+    repeated int64 related_plan_ids = 4;
 }
 
 // A service responsible for CRUD operations for plan project.
@@ -201,6 +266,11 @@ service PlanProjectService {
     //
     // @returns the newly created project
     rpc CreatePlanProject (PlanProjectInfo) returns (PlanProject);
+
+    // Updates some fields like the main_plan_id etc for the existing plan project.
+    //
+    // @return The updated plan project.
+    rpc UpdatePlanProject(UpdatePlanProjectRequest) returns (PlanProject);
 
     // Get a project by its ID.
     // Searches the plan project persisted previously to the Plan database.

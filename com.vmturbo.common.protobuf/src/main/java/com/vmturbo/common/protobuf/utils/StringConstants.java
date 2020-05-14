@@ -374,6 +374,16 @@ public class StringConstants {
     public static final String RESIZE = "resize";
 
     /**
+     * Allocation (new name: Lift & Shift) plan type of cloud migration plan project. Resize = false.
+     */
+    public static final String MIGRATION_ALLOCATION_TYPE = "MIGRATION_ALLOCATION";
+
+    /**
+     * Consumption (new name: Optimized) plan type of cloud migration plan project. Resize = true.
+     */
+    public static final String MIGRATION_CONSUMPTION_TYPE = "MIGRATION_CONSUMPTION";
+
+    /**
      * String indicating the Business Account entity type in the UI.
      */
     public static final String BUSINESS_ACCOUNT = "BusinessAccount";

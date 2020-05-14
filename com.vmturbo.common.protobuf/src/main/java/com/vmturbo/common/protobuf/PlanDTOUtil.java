@@ -34,6 +34,17 @@ public class PlanDTOUtil {
         PlanProjectType.CLUSTER_HEADROOM);
 
     /**
+     * Checks if the plan project needs to be displayed to the user. If it is persisted, it is
+     * being displayed.
+     *
+     * @param planProjectType Type of plan project.
+     * @return Whether plan needs to be returned as part of API back to UI or not.
+     */
+    public static boolean isDisplayablePlan(PlanProjectType planProjectType) {
+        return !NO_PERSISTENCE_PLAN_PROJECT.contains(planProjectType);
+    }
+
+    /**
      * Return whether or not a {@link TopologyInfo} describes a transient plan.
      * Transient plans are those that don't require saving anything to disk. The plan orchestrator
      * listens to get the necessary information and do the necessary post-processing directly.

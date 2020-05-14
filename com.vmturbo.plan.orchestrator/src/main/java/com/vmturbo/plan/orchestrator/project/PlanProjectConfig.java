@@ -10,10 +10,12 @@ import com.vmturbo.action.orchestrator.api.impl.ActionOrchestratorClientConfig;
 import com.vmturbo.common.protobuf.plan.PlanProjectREST.PlanProjectServiceController;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
+import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.component.api.impl.HistoryClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientImpl;
 import com.vmturbo.plan.orchestrator.market.PlanOrchestratorMarketConfig;
 import com.vmturbo.plan.orchestrator.plan.PlanConfig;
 import com.vmturbo.plan.orchestrator.templates.TemplatesConfig;
@@ -28,7 +30,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
         PlanConfig.class,
         TemplatesConfig.class,
         ActionOrchestratorClientConfig.class,
-        PlanOrchestratorMarketConfig.class})
+        PlanOrchestratorMarketConfig.class,
+        BaseKafkaProducerConfig.class})
 public class PlanProjectConfig {
     @Autowired
     private PlanOrchestratorDBConfig databaseConfig;
@@ -63,6 +66,9 @@ public class PlanProjectConfig {
     @Value("${headroomCalculationForAllClusters}")
     private boolean headroomCalculationForAllClusters;
 
+    @Autowired
+    private BaseKafkaProducerConfig kafkaProducerConfig;
+
     @Bean
     public PlanProjectRpcService planProjectService() {
         return new PlanProjectRpcService(planProjectDao(), planProjectExecutor());
@@ -78,6 +84,17 @@ public class PlanProjectConfig {
         return new PlanProjectServiceController(planProjectService());
     }
 
+    /**
+     * Gets notification sender for plan project.
+     *
+     * @return Plan project notification sender.
+     */
+    @Bean
+    public PlanProjectNotificationSender planProjectNotificationSender() {
+        return new PlanProjectNotificationSender(kafkaProducerConfig.kafkaMessageSender()
+                        .messageSender(PlanOrchestratorClientImpl.STATUS_CHANGED_TOPIC));
+    }
+
     @Bean
     public ProjectPlanPostProcessorRegistry planProjectRuntime() {
         final ProjectPlanPostProcessorRegistry runtime = new ProjectPlanPostProcessorRegistry();
@@ -88,13 +105,14 @@ public class PlanProjectConfig {
 
     @Bean
     public PlanProjectExecutor planProjectExecutor() {
-        return new PlanProjectExecutor(planConfig.planDao(),
+        return new PlanProjectExecutor(planConfig.planDao(), planProjectDao(),
                 groupClientConfig.groupChannel(),
                 planConfig.planService(),
                 planProjectRuntime(),
                 repositoryClientConfig.repositoryChannel(),
                 templatesConfig.templatesDao(),
                 historyClientConfig.historyChannel(),
+                planProjectNotificationSender(),
                 headroomCalculationForAllClusters);
     }
 
