@@ -243,7 +243,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
     private Template loadTemplate(@Nonnull String jsonFileName) throws IOException {
         String str = readResourceFileAsString(jsonFileName);
         Template.Builder builder = Template.newBuilder();
-        JsonFormat.parser().merge(str, builder);
+        JsonFormat.parser().ignoringUnknownFields().merge(str, builder);
 
         return builder.build();
     }
@@ -253,7 +253,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
             throws IOException {
         String str = readResourceFileAsString(jsonFileName);
         TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder();
-        JsonFormat.parser().merge(str, builder);
+        JsonFormat.parser().ignoringUnknownFields().merge(str, builder);
 
         return builder.build();
     }

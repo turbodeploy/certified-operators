@@ -1,5 +1,6 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.BlockingDeque;
@@ -10,6 +11,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
@@ -30,12 +32,16 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastFailure
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
+import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
+import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
+import com.vmturbo.topology.processor.topology.pipeline.blocking.DiscoveryBasedUnblock;
+import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineUnblockFactory;
 
 /**
  * This class controls the building and running of topology pipelines. It is responsible for
@@ -47,7 +53,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Topolog
  * a broadcast is successful.
  */
 @ThreadSafe
-public class TopologyPipelineExecutorService implements AutoCloseable {
+public class TopologyPipelineExecutorService implements AutoCloseable, RequiresDataInitialization {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -67,6 +73,10 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
 
     private final boolean useReservationPipeline;
 
+    private final TargetStore targetStore;
+
+    private final PipelineUnblockFactory unblockBroadcastsFactory;
+
     /**
      * This is the "real" constructor. Intended to be invoked from a Spring configuration.
      *
@@ -80,38 +90,57 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
      * @param entityStore The {@link EntityStore} used as input to construct "live" topologies.
      * @param notificationSender The {@link TopologyProcessorNotificationSender} used to broadcast
      *                           notifications about successful/failed topology broadcasts.
+     * @param targetStore The {@link TargetStore} containing target information.
+     * @param unblockFactory Factory for {@link DiscoveryBasedUnblock} operations to unblock
+     *                       broadcasts after all targets are discovered.
      * @param useReservationPipeline Dynamically control whether we use the custom,
      *                               slimmed down pipeline for reservations.
+     * @param clock The system clock.
+     * @param maxBroadcastWait The maximum block time for broadcasts at startup.
+     * @param timeUnit The time unit for the broadcast wait time.
      */
     public TopologyPipelineExecutorService(final int concurrentPlansAllowed,
-                                           final int maxQueuedPlansAllowed,
-                                           @Nonnull final LivePipelineFactory topologyPipelineFactory,
-                                           @Nonnull final PlanPipelineFactory planPipelineFactory,
-                                           @Nonnull final EntityStore entityStore,
-                                           @Nonnull final TopologyProcessorNotificationSender notificationSender,
-                                           final boolean useReservationPipeline) {
+            final int maxQueuedPlansAllowed,
+            @Nonnull final LivePipelineFactory topologyPipelineFactory,
+            @Nonnull final PlanPipelineFactory planPipelineFactory,
+            @Nonnull final EntityStore entityStore,
+            @Nonnull final TopologyProcessorNotificationSender notificationSender,
+            @Nonnull final TargetStore targetStore,
+            @Nonnull final PipelineUnblockFactory unblockFactory,
+            final boolean useReservationPipeline,
+            @Nonnull final Clock clock,
+            final long maxBroadcastWait,
+            @Nonnull final TimeUnit timeUnit) {
         this(concurrentPlansAllowed, createPlanExecutorService(concurrentPlansAllowed), createRealtimeExecutorService(),
-            new PlanPipelineQueue(maxQueuedPlansAllowed),
+            new PlanPipelineQueue(clock, maxQueuedPlansAllowed),
             // We only expect one queued live pipeline, because we collapse all the other ones.
-            new RealtimePipelineQueue(),
+            new RealtimePipelineQueue(clock),
             topologyPipelineFactory,
             planPipelineFactory,
             entityStore,
             notificationSender,
-            useReservationPipeline);
+            targetStore,
+            unblockFactory,
+            useReservationPipeline,
+            maxBroadcastWait,
+            timeUnit);
     }
 
     @VisibleForTesting
     TopologyPipelineExecutorService(final int concurrentPipelinesAllowed,
-                                    final ExecutorService planExecutorService,
-                                    final ExecutorService realtimeExecutorService,
-                                    @Nonnull final PlanPipelineQueue planPipelineQueue,
-                                    @Nonnull final RealtimePipelineQueue realtimePipelineQueue,
-                                    @Nonnull final LivePipelineFactory topologyPipelineFactory,
-                                    @Nonnull final PlanPipelineFactory planPipelineFactory,
-                                    @Nonnull final EntityStore entityStore,
-                                    @Nonnull final TopologyProcessorNotificationSender notificationSender,
-                                    final boolean useReservationPipeline) {
+            final ExecutorService planExecutorService,
+            final ExecutorService realtimeExecutorService,
+            @Nonnull final PlanPipelineQueue planPipelineQueue,
+            @Nonnull final RealtimePipelineQueue realtimePipelineQueue,
+            @Nonnull final LivePipelineFactory topologyPipelineFactory,
+            @Nonnull final PlanPipelineFactory planPipelineFactory,
+            @Nonnull final EntityStore entityStore,
+            @Nonnull final TopologyProcessorNotificationSender notificationSender,
+            @Nonnull final TargetStore targetStore,
+            @Nonnull final PipelineUnblockFactory unblockFactory,
+            final boolean useReservationPipeline,
+            final long maxBroadcastWait,
+            @Nonnull final TimeUnit timeUnit) {
         this.planExecutorService = planExecutorService;
         this.realtimeExecutorService = realtimeExecutorService;
         this.livePipelineFactory = topologyPipelineFactory;
@@ -120,10 +149,53 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         this.realtimePipelineQueue = realtimePipelineQueue;
         this.planPipelineQueue = planPipelineQueue;
         this.useReservationPipeline = useReservationPipeline;
+        this.targetStore = targetStore;
+        this.unblockBroadcastsFactory = unblockFactory;
         for (int i = 0; i < concurrentPipelinesAllowed; ++i) {
             planExecutorService.submit(new TopologyPipelineWorker(planPipelineQueue, notificationSender));
         }
         realtimeExecutorService.submit(new TopologyPipelineWorker(realtimePipelineQueue, notificationSender));
+
+        // Block live broadcasts. At initialization time we will schedule a thread that will unblock
+        // them when appropriate.
+        blockBroadcasts(maxBroadcastWait, timeUnit);
+    }
+
+    /**
+     * Block all broadcasts. Effective until
+     * {@link TopologyPipelineExecutorService#unblockBroadcasts()} is called.
+     *
+     * <p/>Multiple calls do not stack. The reason for this is because the two main use cases for blocking broadcasts are:
+     * 1) At startup, to prevent sending out inconsistent topologies.
+     * 2) At diag loading time, to prevent sending out inconsistent topologies in the middle of
+     *    diag loading.
+     *
+     * <p/>These two use cases SHOULDN'T stack on top of each other. When loading diags is complete
+     * we should allow broadcasts, regardless of the startup blocking logic.
+     *
+     * @param blockTime The maximum time to block broadcasts for.
+     * @param timeUnit The time unit for the block time.
+     */
+    public void blockBroadcasts(final long blockTime, @Nonnull final TimeUnit timeUnit) {
+        realtimePipelineQueue.block(blockTime, timeUnit);
+        planPipelineQueue.block(blockTime, timeUnit);
+    }
+
+    /**
+     * Unblock all broadcasts, if they are currently blocked.
+     */
+    public void unblockBroadcasts() {
+        realtimePipelineQueue.unblock();
+        planPipelineQueue.unblock();
+    }
+
+    /**
+     * Return whether or not broadcasts are blocked.
+     *
+     * @return True if broadcasts are blocked.
+     */
+    public boolean areBroadcastsBlocked() {
+        return realtimePipelineQueue.isBlocked() || planPipelineQueue.isBlocked();
     }
 
     @VisibleForTesting
@@ -238,6 +310,22 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         realtimeExecutorService.shutdownNow();
     }
 
+    @Override
+    public void initialize() {
+        // Asynchronously wait for discoveries to complete before unblocking.
+        //
+        // We do this asynchronously because we don't want to wait until discoveries are done
+        // to have the component up and responsive to other requests (e.g. add/remove targets).
+        new Thread(unblockBroadcastsFactory.newUnblockOperation(this),
+                "wait-for-discoveries").start();
+    }
+
+    @Override
+    public int priority() {
+        // Initialize AFTER the target store, so that we can get accurate target information.
+        return targetStore.priority() - 1;
+    }
+
     /**
      * Utility interface to abstract away the differences between running live, plan, and
      * plan-over-plan topology pipelines.
@@ -258,6 +346,12 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
     @ThreadSafe
     static class TopologyPipelineQueue {
 
+        private final AtomicLong blockQueueUntil = new AtomicLong(0);
+
+        private final Clock clock;
+
+        private final int capacity;
+
         /**
          * The main FIFO queue. This is where requests queued by
          * {@link TopologyPipelineQueue#queuePipeline(Supplier, TopologyPipelineRunnable)}
@@ -265,8 +359,56 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
          */
         private final BlockingDeque<TopologyPipelineRequest> queuedRequests;
 
-        TopologyPipelineQueue(final int capacity) {
+        TopologyPipelineQueue(@Nonnull final Clock clock,
+                final int capacity) {
+            this.clock = clock;
+            this.capacity = capacity;
             queuedRequests = new LinkedBlockingDeque<>(capacity);
+        }
+
+        /**
+         * Block all requests to the pipeline queue from returning. To unblock the queue, call
+         * {@link TopologyPipelineQueue#unblock()}.
+         *
+         * @param blockTime The maximum time to block the pipeline for.
+         * @param timeUnit The time unit for the block time.
+         */
+        void block(final long blockTime,
+                   @Nonnull final TimeUnit timeUnit) {
+            synchronized (blockQueueUntil) {
+                blockQueueUntil.set(clock.millis() + timeUnit.toMillis(blockTime));
+                blockQueueUntil.notifyAll();
+            }
+        }
+
+        /**
+         * Unblock queue requests, if they are blocked.
+         */
+        void unblock() {
+            synchronized (blockQueueUntil) {
+                blockQueueUntil.set(0);
+                blockQueueUntil.notifyAll();
+            }
+        }
+
+        /**
+         * Return whether or not the queue is blocked.
+         *
+         * @return True if the queue is blocked. False otherwise.
+         */
+        boolean isBlocked() {
+            synchronized (blockQueueUntil) {
+                return blockQueueUntil.get() > clock.millis();
+            }
+        }
+
+        private void waitForUnblock() throws InterruptedException {
+            synchronized (blockQueueUntil) {
+                while (isBlocked()) {
+                    final long maxWaitMs = blockQueueUntil.get() - clock.millis();
+                    blockQueueUntil.wait(maxWaitMs);
+                }
+            }
         }
 
         /**
@@ -280,7 +422,10 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         @Nonnull
         TopologyPipelineRequest take() throws InterruptedException {
             // Wait for the next request from the main FIFO queue.
-            return queuedRequests.take();
+            waitForUnblock();
+            final TopologyPipelineRequest req = queuedRequests.take();
+            waitForUnblock();
+            return req;
         }
 
         @Nonnull
@@ -325,6 +470,15 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             }
             return request;
         }
+
+        /**
+         * Get the capacity of the queue.
+         *
+         * @return The capacity.
+         */
+        public int getCapacity() {
+            return capacity;
+        }
     }
 
     /**
@@ -333,8 +487,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
      */
     public static class QueueCapacityExceededException extends Exception {
         QueueCapacityExceededException(final TopologyPipelineQueue queue) {
-            super(queue.getClass().getSimpleName() + " is full, and cannot accept additional " +
-                "requests right now.");
+            super(queue.getClass().getSimpleName() + " is full (capacity: " + queue.getCapacity()
+                    + "), and cannot accept additional requests right now.");
         }
     }
 
@@ -342,8 +496,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
      * A pipeline queue for plans. Using subclass for clarity in logs/debugging.
      */
     static class PlanPipelineQueue extends TopologyPipelineQueue {
-        PlanPipelineQueue(final int capacity) {
-            super(capacity);
+        PlanPipelineQueue(@Nonnull final Clock clock, final int capacity) {
+            super(clock, capacity);
         }
     }
 
@@ -351,8 +505,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
      * A pipeline queue for realtime. Using subclass for clarity in logs/debugging.
      */
     static class RealtimePipelineQueue extends TopologyPipelineQueue {
-        RealtimePipelineQueue() {
-            super(1);
+        RealtimePipelineQueue(@Nonnull final Clock clock) {
+            super(clock, 1);
         }
     }
 
@@ -490,8 +644,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
 
         private void sendFailureNotification(@Nonnull final TopologyInfo topologyInfo,
                                              String errorDescription) {
-            logger.error("Failed to complete topology pipeline " +
-                    "(context: {}, topology: {}) due to error: {}",
+            logger.error("Failed to complete topology pipeline "
+                    + "(context: {}, topology: {}) due to error: {}",
                 topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), errorDescription);
             notificationSender.broadcastTopologySummary(TopologySummary.newBuilder()
                 .setTopologyInfo(topologyInfo)

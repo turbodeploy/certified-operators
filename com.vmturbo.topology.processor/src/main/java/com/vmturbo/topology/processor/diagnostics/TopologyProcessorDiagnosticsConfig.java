@@ -21,13 +21,15 @@ import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.scheduling.SchedulerConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
+import com.vmturbo.topology.processor.topology.TopologyConfig;
 
 /**
  * Configuration for the Topology package in TopologyProcessor.
  */
 @Configuration
 @Import({TargetConfig.class, SchedulerConfig.class, EntityConfig.class, GroupConfig.class,
-    TemplateConfig.class, IdentityProviderConfig.class, ProbeConfig.class, CloudCostConfig.class})
+    TemplateConfig.class, IdentityProviderConfig.class, ProbeConfig.class, CloudCostConfig.class,
+    TopologyConfig.class})
 public class TopologyProcessorDiagnosticsConfig {
     /**
      * The urgent collection interval setting.
@@ -88,6 +90,9 @@ public class TopologyProcessorDiagnosticsConfig {
     @Autowired
     private CloudCostConfig cloudCostConfig;
 
+    @Autowired
+    private TopologyConfig topologyConfig;
+
     /**
      * The hardLock key.
      */
@@ -109,7 +114,8 @@ public class TopologyProcessorDiagnosticsConfig {
             templateConfig.discoveredTemplatesUploader(),
             identityProviderConfig.identityProvider(),
             cloudCostConfig.discoveredCloudCostUploader(),
-            cloudCostConfig.priceTableUploader());
+            cloudCostConfig.priceTableUploader(),
+            topologyConfig.pipelineExecutorService());
     }
 
     @Bean
