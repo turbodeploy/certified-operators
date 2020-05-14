@@ -30,6 +30,7 @@
         "delete",
         "resize",
         "provision",
+        "provisionIsDisabled",
         "activate",
         "reconfigure",
         "resizeVcpuUpInBetweenThresholds",
