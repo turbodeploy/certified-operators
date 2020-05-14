@@ -1401,9 +1401,6 @@ message CurrentActionStatsQuery {
 
         // Group by the risk severity of actions.
         SEVERITY = 12;
-
-        // Group by the CSP
-        CSP = 13;
     }
 }
 
@@ -1613,9 +1610,6 @@ message CurrentActionStat {
 
         // Assigned Severity level of the Action used for the "group_by" "severity" query
         optional Severity severity = 11;
-
-        // Cloud service provider of the Action target entity used for the "group_by" "csp" query
-        optional string csp = 12;
     }
 
     // The stat group this action stat is in.

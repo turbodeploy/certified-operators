@@ -45,7 +45,6 @@ import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
-import com.vmturbo.topology.processor.api.util.ThinTargetCache;
 
 public class ActionStatsQueryExecutorTest {
 
@@ -57,7 +56,6 @@ public class ActionStatsQueryExecutorTest {
     private CurrentQueryMapper currentQueryMapper = mock(CurrentQueryMapper.class);
     private ActionStatsMapper actionStatsMapper = mock(ActionStatsMapper.class);
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
-    private ThinTargetCache thinTargetCache = mock(ThinTargetCache.class);
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
     @Rule
@@ -72,8 +70,7 @@ public class ActionStatsQueryExecutorTest {
             historicalQueryMapper,
             currentQueryMapper,
             actionStatsMapper,
-            repositoryApi,
-            thinTargetCache);
+            repositoryApi);
         final ActionStatsQuery actionStatsQuery = mock(ActionStatsQuery.class);
         ActionApiInputDTO inputDTO = new ActionApiInputDTO();
         inputDTO.setGroupBy(new ArrayList<>());
@@ -124,8 +121,7 @@ public class ActionStatsQueryExecutorTest {
             historicalQueryMapper,
             currentQueryMapper,
             actionStatsMapper,
-            repositoryApi,
-            thinTargetCache);
+            repositoryApi);
         final ActionStatsQuery actionStatsQuery = mock(ActionStatsQuery.class);
         when(actionStatsQuery.isHistorical(clock)).thenReturn(false);
         ActionApiInputDTO inputDTO = new ActionApiInputDTO();
@@ -146,7 +142,7 @@ public class ActionStatsQueryExecutorTest {
 
         final StatSnapshotApiDTO translatedLiveStat = new StatSnapshotApiDTO();
         when(actionStatsMapper.currentActionStatsToApiSnapshot(
-                Collections.singletonList(currentActionStat), actionStatsQuery, Maps.newHashMap(), Maps.newHashMap()))
+                Collections.singletonList(currentActionStat), actionStatsQuery, Maps.newHashMap()))
             .thenReturn(translatedLiveStat);
 
         doReturn(GetCurrentActionStatsResponse.newBuilder()
