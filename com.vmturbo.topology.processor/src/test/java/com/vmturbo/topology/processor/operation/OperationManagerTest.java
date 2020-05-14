@@ -51,6 +51,8 @@ import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.NotificationDTO.Severity;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -66,6 +68,7 @@ import com.vmturbo.platform.sdk.common.MediationMessage.MediationClientMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.MediationServerMessage;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ValidationRequest;
+import com.vmturbo.platform.sdk.common.util.NotificationCategoryDTO;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 import com.vmturbo.topology.processor.TestIdentityStore;
@@ -341,6 +344,57 @@ public class OperationManagerTest {
         OperationTestUtilities.notifyAndWaitForDiscovery(operationManager, discovery, result);
         Mockito.verify(entityStore, never()).entitiesDiscovered(anyLong(), anyLong(), anyInt(),
             eq(discoveryType), any());
+    }
+
+    /**
+     * Test that failed and successful discovery notifications get processed properly.
+     *
+     * @param discoveryType type of the discovery to test
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    @Parameters({"FULL", "INCREMENTAL"})
+    public void testProcessDiscoveryNotification(DiscoveryType discoveryType) throws Exception {
+        // Failure
+        final Discovery discovery = operationManager.startDiscovery(targetId, discoveryType);
+        // Critical errors applying to the target rather than a specific entity
+        // should prevent any EntityDTOs in the discovery from being added to
+        // the topology snapshot for the target.
+        NotificationDTO.Builder notification = NotificationDTO.newBuilder()
+                        .setEvent("Target Discovery")
+                        .setCategory(NotificationCategoryDTO.DISCOVERY.toString())
+                        .setSeverity(Severity.CRITICAL).setDescription("Discovery Failed");
+        final DiscoveryResponse resultFailure = DiscoveryResponse.newBuilder()
+                .addEntityDTO(entity)
+                .addErrorDTO(ErrorDTO.newBuilder()
+                        .setSeverity(ErrorSeverity.CRITICAL)
+                        .setDescription("error"))
+                .addNotification(notification)
+                .build();
+
+        // Wait until we receive notification of the failure
+        OperationTestUtilities.waitForEvent(operationManager.notifyDiscoveryResult(
+                                                           discovery, resultFailure), Future::isDone);
+
+        // We should have received two notifications - once for start, once for complete
+        Assert.assertFalse(operationManager.getInProgressDiscovery(discovery.getId()).isPresent());
+
+
+
+        //Success
+        final Discovery discovery2 = operationManager.startDiscovery(targetId, discoveryType);
+        final DiscoveryResponse resultSuccess = DiscoveryResponse.newBuilder()
+                        .addEntityDTO(entity)
+                        .addNotification(notification)
+                        .build();
+
+        // Wait until we receive notification of the failure
+        OperationTestUtilities.waitForEvent(operationManager.notifyDiscoveryResult(
+                                                           discovery2, resultSuccess), Future::isDone);
+
+        // We should have received two notifications - once for start, once for complete
+        Assert.assertFalse(operationManager.getInProgressDiscovery(discovery2.getId()).isPresent());
+
     }
 
     /**
