@@ -33,7 +33,7 @@ public class DiscoveryDumpFilenameTest {
             tmpDir + filename.substring(0, filename.length() - 3) + "txt",
             ddFileName.getFile(dumpDirectory, true, false).getAbsolutePath());
         Assert.assertEquals(
-            tmpDir + filename.substring(0, filename.length() - 3) + "txt.gz",
+            tmpDir + filename.substring(0, filename.length() - 3) + "txt.l4z",
             ddFileName.getFile(dumpDirectory, true, true).getAbsolutePath());
     }
 

@@ -48,6 +48,7 @@ import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSe
 import com.vmturbo.topology.processor.controllable.EntityActionDao;
 import com.vmturbo.topology.processor.conversions.TopologyToSdkEntityConverter;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.entity.EntityValidator;
@@ -328,7 +329,10 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
             systemNotificationProducer(),
             1L, 1L, 1L,
             5, 10, 1, 1,
-            TheMatrix.instance());
+            TheMatrix.instance(),
+            binaryDiscoveryDumper(),
+            false
+            );
     }
 
     @Bean
@@ -339,6 +343,15 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
     @Bean
     public OperationController operationController() {
         return new OperationController(operationManager(), scheduler(), targetStore());
+    }
+
+    /**
+     * Creates a {@link BinaryDiscoveryDumper}.
+     * @return {@link BinaryDiscoveryDumper} the dumper.
+     */
+    @Bean
+    public BinaryDiscoveryDumper binaryDiscoveryDumper() {
+        return Mockito.mock(BinaryDiscoveryDumper.class);
     }
 
     @Bean

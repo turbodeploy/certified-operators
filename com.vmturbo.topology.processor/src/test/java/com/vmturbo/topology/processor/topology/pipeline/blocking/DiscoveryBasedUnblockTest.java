@@ -9,17 +9,34 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import net.jpountz.lz4.LZ4FrameOutputStream;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
+import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumpFilename;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
@@ -32,6 +49,8 @@ import com.vmturbo.topology.processor.topology.pipeline.blocking.DiscoveryBasedU
  * Unit tests for {@link DiscoveryBasedUnblock}.
  */
 public class DiscoveryBasedUnblockTest {
+
+    private final Logger logger = LogManager.getLogger(getClass());
 
     private TargetStore targetStore = mock(TargetStore.class);
 
@@ -49,17 +68,31 @@ public class DiscoveryBasedUnblockTest {
 
     private TopologyPipelineExecutorService pipelineExecutorService = mock(TopologyPipelineExecutorService.class);
 
-    private DiscoveryBasedUnblockFactory unblockBroadcastsFactory = new DiscoveryBasedUnblockFactory(
-            targetStore, operationManager, clock, targetShortCircuitCount, maxDiscoveryWaitMs,
-            maxProbeRegistrationWaitMs, TimeUnit.MILLISECONDS);
-
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
+
+    private File dumpDir;
+
+    private DiscoveryBasedUnblockFactory unblockBroadcastsFactory;
+
+
+    /**
+     * Create a temporary folder for cached responses.
+     */
+    @Rule
+    public TemporaryFolder tmpFolder = new TemporaryFolder();
 
     /**
      * Common setup code before every test.
+     * @throws IOException id the dumpDir can't be created
      */
     @Before
-    public void setup() {
+    public void setup() throws IOException {
+        dumpDir = new File(tmpFolder.newFolder("cached-responses-root"), "");
+        final BinaryDiscoveryDumper discoveryDumper = new BinaryDiscoveryDumper(dumpDir);
+        unblockBroadcastsFactory = new DiscoveryBasedUnblockFactory(
+            targetStore, operationManager, clock, targetShortCircuitCount, maxDiscoveryWaitMs,
+            maxProbeRegistrationWaitMs, TimeUnit.MILLISECONDS, identityProvider, discoveryDumper,
+            true);
         IdentityGenerator.initPrefix(1L);
         when(identityProvider.generateOperationId()).thenAnswer(invocation -> IdentityGenerator.next());
     }
@@ -318,6 +351,84 @@ public class DiscoveryBasedUnblockTest {
         verify(pipelineExecutorService).unblockBroadcasts();
     }
 
+    /**
+     * Test that loading cached responses at startup unlock the broadcast.
+     */
+    @Test
+    public void testLoadingCachedResponses() {
+        final long targetId = 1;
+        writeDiscoveryResponse(targetId);
+        Target mockTarget = setupTarget(targetId);
+        newLastDiscovery(mockTarget.getId());
+        when(targetStore.getAll()).thenReturn(Arrays.asList(mockTarget));
+        when(targetStore.getTarget(targetId)).thenReturn(Optional.of(mockTarget));
+        when(mockTarget.getProbeId()).thenReturn(1L);
+        final DiscoveryBasedUnblock unblock =
+            unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
+
+        // Before loading the responses
+        assertFalse(unblock.runIteration());
+
+        unblock.run();
+
+        // After loading the responses
+        assertTrue(unblock.runIteration());
+
+        verify(pipelineExecutorService).unblockBroadcasts();
+    }
+
+    /**
+     * Test that loading cached responses for only a subset of the availables target doesn't
+     * unlock the broadcast.
+     */
+    @Test
+    public void testLoadingCachedResponsesWithMissingTarget() {
+        final long targetId = 1;
+        writeDiscoveryResponse(targetId);
+        Target mockTarget1 = setupTarget(targetId);
+        newLastDiscovery(mockTarget1.getId());
+        when(targetStore.getTarget(targetId)).thenReturn(Optional.of(mockTarget1));
+        when(mockTarget1.getProbeId()).thenReturn(1L);
+
+        Target mockTarget2 = setupTarget(2);
+        newLastDiscovery(mockTarget2.getId());
+        when(targetStore.getTarget(targetId)).thenReturn(Optional.of(mockTarget1));
+        when(mockTarget1.getProbeId()).thenReturn(2L);
+
+        when(targetStore.getAll()).thenReturn(Arrays.asList(mockTarget1, mockTarget2));
+
+        final DiscoveryBasedUnblock unblock =
+            unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
+
+        assertFalse(unblock.runIteration());
+
+        unblock.run();
+        // We could only load one target, so the broadcast is still blocked
+        assertFalse(unblock.runIteration());
+
+        verify(pipelineExecutorService).unblockBroadcasts();
+    }
+
+    /**
+     * Test that loading cached responses for only a subset of the availables target doesn't
+     * unlock the broadcast.
+     */
+    @Test
+    public void testDeleteTargetDiscoveryResponse() {
+        final long targetId = 1;
+        writeDiscoveryResponse(targetId);
+        when(targetStore.getTarget(targetId)).thenReturn(Optional.ofNullable(null));
+
+        final DiscoveryBasedUnblock unblock =
+            unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
+
+        Assert.assertEquals(1, dumpDir.list().length);
+
+        unblock.run();
+
+        Assert.assertEquals(0, dumpDir.list().length);
+    }
+
     private Target setupTarget(long targetId) {
         Target mockTarget = mock(Target.class);
         when(mockTarget.getId()).thenReturn(targetId);
@@ -329,5 +440,20 @@ public class DiscoveryBasedUnblockTest {
         when(operationManager.getLastDiscoveryForTarget(targetId, DiscoveryType.FULL))
                 .thenReturn(Optional.of(mockDiscovery));
         return mockDiscovery;
+    }
+
+    private void writeDiscoveryResponse(final long targetId) {
+        final DiscoveryResponse discoveryResponse = DiscoveryResponse.newBuilder()
+            .addEntityDTO(EntityDTO.newBuilder().setId("foo").setEntityType(EntityType.VIRTUAL_MACHINE)).build();
+        final String sanitizedTargetName = DiscoveryDumpFilename.sanitize(String.valueOf(targetId));
+        final DiscoveryDumpFilename ddf =
+            new DiscoveryDumpFilename(sanitizedTargetName, new Date(), DiscoveryType.FULL);
+        final File dtoFile = ddf.getFile(dumpDir, false, true);
+        try (OutputStream os = new LZ4FrameOutputStream(new FileOutputStream(dtoFile))) {
+            os.write(discoveryResponse.toByteArray());
+            logger.trace("Successfully saved text discovery response");
+        } catch (IOException e) {
+            logger.error("Could not save " + dtoFile.getAbsolutePath(), e);
+        }
     }
 }
