@@ -24,6 +24,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.stream.JsonReader;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,8 +35,11 @@ import com.vmturbo.common.protobuf.common.Migration.MigrationStatus;
 import com.vmturbo.components.common.migration.AbstractMigration;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
+import com.vmturbo.platform.sdk.common.MediationMessage;
+import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo.CreationMode;
-import com.vmturbo.platform.sdk.common.util.ProbeCategory;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
+import com.vmturbo.topology.processor.identity.IdentityProviderException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -70,7 +75,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
  *    e) change username, password and iamRoleArn instance types' account value Constraint to Mandatory
  *    f) add dependencyKey="iamRole" and dependencyValue to the account value for instance types username, password and iamRoleArn
  *    g) change the three S3 fields to Mandatory
- *    h) change probeCategory from Billing to CloudManagement.
+ *    h) make sure that probeCategory is Billing.
  *    i) change creationMode from "DERIVED" to "STAND_ALONE"
  *  3) change AWS lambda probe
  *    a) change address instance type's account value displayName from "Address" to "Custom Target Name".
@@ -96,6 +101,8 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
 
     private final KeyValueStore keyValueStore;
 
+    private final IdentityProvider identityProvider;
+
     // all AWS probes
     ImmutableSet<String> PROBE_TYPES_ALL_AWS = ImmutableSet.of(AWS.getProbeType(),
         AWS_BILLING.getProbeType(), AWS_COST.getProbeType(), AWS_LAMBDA.getProbeType());
@@ -105,6 +112,9 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
     // all AWS probes excluding AWS_COST.
     ImmutableSet<String> PROBE_TYPES_ALL_BUT_COST = ImmutableSet.of(AWS.getProbeType(),
         AWS_BILLING.getProbeType(), AWS_LAMBDA.getProbeType());
+
+    // map from probe ID to probe type.  populated in updateProbe, used in updateTargets.
+    Map<String, String> probeIdToProbeTypeMap = new HashMap<>();
 
     // probe field names.
     static final String FIELD_ACCOUNT_DEFINITION = "accountDefinition";
@@ -165,16 +175,25 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
      * Create the migration object.
      *
      * @param keyValueStore consul
+     * @param identityProvider identity provider
      */
-    public V_01_00_05__Standalone_AWS_Billing(@Nonnull KeyValueStore keyValueStore) {
+    public V_01_00_05__Standalone_AWS_Billing(@Nonnull KeyValueStore keyValueStore,
+                                              @Nonnull IdentityProvider identityProvider) {
         this.keyValueStore = Objects.requireNonNull(keyValueStore);
+        this.identityProvider = identityProvider;
     }
 
     @Override
     protected MigrationProgressInfo doStartMigration() {
         logger.info("Starting migration.");
         // process all the AWS probes
-        Map<String, String> probeIdToProbeTypeMap = updateProbes(keyValueStore);
+        boolean succeeded = updateProbes(keyValueStore);
+        if (probeIdToProbeTypeMap == null) {
+            // updating probes failed.
+            String msg = "All AWS probe migration failed. Upgrade finished.";
+            logger.error(msg);
+            return updateMigrationProgress(MigrationStatus.FAILED, 40, msg);
+        }
         // process all AWS targets
         updateTargets(keyValueStore, probeIdToProbeTypeMap);
 
@@ -190,10 +209,9 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
      * @return map from probe ID to probe type
      */
     @Nullable
-    private Map<String, String> updateProbes(KeyValueStore keyValueStore) {
+    private boolean updateProbes(KeyValueStore keyValueStore) {
         logger.debug("Starting probe migration.");
-        // map from probe ID to probe type
-        Map<String, String> probeIdToProbeTypeMap = new HashMap<>();
+        boolean succeeded = true;
         // get the JSON for all the previously stored probes
         final Map<String, String> persistedProbes =
             keyValueStore.getByPrefix(ProbeStore.PROBE_KV_STORE_PREFIX);
@@ -215,12 +233,69 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
                 continue;
             }
             // Only AWS probes
+            // save original JSON string for probeInfo
+            String orginalJsonString = json.toString();
             // process the AWS probe
-            processAwsProbe(probeId, probeType, json, probeIdToProbeTypeMap);
+            processAwsProbe(probeId, probeType, json);
             // update consul
-            keyValueStore.put(key, json.toString());
+            String jsonString = json.toString();
+            keyValueStore.put(key, jsonString);
+            succeeded &= updateIdentityProvider(probeId, probeType, orginalJsonString, jsonString);
         }
-        return probeIdToProbeTypeMap;
+        return succeeded;
+    }
+
+    /**
+     * Update the IdentityProvider with the new probe info.  First determine if IdentityProvider needs
+     * to be update.
+     *
+     * @param probeId probe ID
+     * @param probeType probe Type
+     * @param originalJsonString probe info as a string before any modifications.
+     * @param jsonString probe info as a string
+     * @return false if update fails, otherwise return true.
+     */
+    @VisibleForTesting
+    boolean updateIdentityProvider(String probeId, String probeType, String originalJsonString, String jsonString) {
+        if (originalJsonString.equals(jsonString)) {
+            // Nothing to change.
+            return true;
+        }
+        // Does the IdentityProvider knows about probe.
+        Long id = null;
+        try {
+            final MediationMessage.ProbeInfo.Builder probeInfoBuilder = MediationMessage.ProbeInfo.newBuilder();
+            JsonFormat.parser().merge(originalJsonString, probeInfoBuilder);
+            ProbeInfo probeInfo = probeInfoBuilder.build();
+            // if not found, add it
+            id = identityProvider.getProbeId(probeInfo);
+        } catch (IdentityProviderException e) {
+            // probeInfo is not compatible with what is found
+            String msg = String.format("probeId=%s probeType=%s identityProvider.getProbeId() probeInfo not compatible",
+                probeId, probeType);
+            logger.warn(msg, e);
+            return false;
+        } catch (InvalidProtocolBufferException e1) {
+            // probeInfo is not compatible with what is found or JSON parse error
+            String msg = String.format("probeId=%s probeType=%s identityProvider.getProbeId() JSON parse error json=%s",
+                probeId, probeType, jsonString);
+            logger.warn(msg, e1);
+            return false;
+        }
+        // update IdentityProvider with new probe info
+        try {
+            final MediationMessage.ProbeInfo.Builder probeInfoBuilder = MediationMessage.ProbeInfo.newBuilder();
+            JsonFormat.parser().merge(jsonString, probeInfoBuilder);
+            ProbeInfo probeInfo = probeInfoBuilder.build();
+            identityProvider.updateProbeInfo(probeInfo);
+        } catch (InvalidProtocolBufferException e) {
+            // JSON parse error
+            String msg = String.format("probeId=%s probeType=%s IdentityProvider.updateProbeInfo() has JSON parse error json=%s",
+                probeId, probeType, jsonString);
+            logger.error(msg, e);
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -230,18 +305,14 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
      * @param probeType             probe Type
      * @param json                  json object representing the probe.  This value will be updated in this method and
      *                              written back to consul by the caller.
-     * @param probeIdToProbeTypeMap probe ID to probe type map.  This map is constructed in this method.
      */
     @VisibleForTesting
-    void processAwsProbe(final String probeId, final String probeType, JsonObject json,
-                         Map<String, String> probeIdToProbeTypeMap) {
+    void processAwsProbe(final String probeId, final String probeType, JsonObject json) {
         logger.info("probeId={} probeType='{}' Starting probe migration.", probeId, probeType);
         // update bi map
         probeIdToProbeTypeMap.put(probeId, probeType);
         if (probeType.equals(AWS_BILLING.getProbeType())) {
-            // AWS Billing probe: change probe category and creation mode
-            json.remove(FIELD_PROBE_CATEGORY);
-            json.addProperty(FIELD_PROBE_CATEGORY, ProbeCategory.CLOUD_MANAGEMENT.getCategory());
+            // AWS Billing probe: change creation mode
             json.remove(FIELD_CREATION_MODE);
             json.addProperty(FIELD_CREATION_MODE, CreationMode.STAND_ALONE.name());
             logger.trace("probeId={} probeType='{}' AWS Billing Category and creation mode", probeId, probeType);
@@ -421,8 +492,7 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
         }
         String probeType = probeIdToProbeTypeMap.get(probeId);
 
-        logger.info("targetId={} probeType='{}' Starting target migration targetInfo={}.",
-            targetId, probeType, targetInfoObject.toString());
+        logger.info("targetId={} probeType='{}' Starting target migration", targetId, probeType);
         processSpec(spec, targetKey, targetId, probeId, probeType);
 
 
