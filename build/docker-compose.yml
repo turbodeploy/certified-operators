@@ -150,7 +150,14 @@ services:
       component_type: auth
       instance_id: auth-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${AUTH_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${AUTH_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${AUTH_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     volumes:
       - auth:/home/turbonomic/data
     mem_limit: ${AUTH_MEM_LIMIT_MB}M
@@ -171,7 +178,14 @@ services:
       component_type: clustermgr
       instance_id: clustermgr-1
       serverHttpPort: 8080
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${CLUSTERMGR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${CLUSTERMGR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${CLUSTERMGR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       node_name: default
       consul_host: consul
       kafkaServers: ${KAFKA_SERVERS}
@@ -195,7 +209,15 @@ services:
       component_type: api
       instance_id: api-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${API_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${API_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${API_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      JVM_TYPE: "${JVM_TYPE}"
     volumes:
       - api:/home/turbonomic/data
       - /tmp/certs:/tmp/certs
@@ -237,7 +259,14 @@ services:
       component_type: market
       instance_id: market-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MARKET_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${MARKET_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MARKET_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MARKET_MEM_LIMIT_MB}M
 
   action-orchestrator:
@@ -257,7 +286,14 @@ services:
       component_type: action-orchestrator
       instance_id: action-orchestrator-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${ACTION_ORCHESTRATOR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${ACTION_ORCHESTRATOR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${ACTION_ORCHESTRATOR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${ACTION_ORCHESTRATOR_MEM_LIMIT_MB}M
 
   topology-processor:
@@ -278,7 +314,14 @@ services:
       instance_id: topology-processor-1
       node_name: default
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${TOPOLOGY_PROCESSOR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${TOPOLOGY_PROCESSOR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${TOPOLOGY_PROCESSOR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     volumes:
       - topology-processor:/home/turbonomic/data
     mem_limit: ${TOPOLOGY_PROCESSOR_MEM_LIMIT_MB}M
@@ -308,7 +351,14 @@ services:
     environment:
       component_type: sample
       instance_id: sample-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${SAMPLE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${SAMPLE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${SAMPLE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
 
   arangodb:
     extends:
@@ -362,7 +412,14 @@ services:
       instance_id: ml-datastore-1
       kafkaServers: ${KAFKA_SERVERS}
       METRON_ENABLED: "${METRON_ENABLED}"
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${ML_DATASTORE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${ML_DATASTORE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${ML_DATASTORE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${ML_DATASTORE_MEM_LIMIT_MB}M
 
   repository:
@@ -383,7 +440,14 @@ services:
       instance_id: repository-1
       REPOSITORY_ARANGODB_HOST: arangodb
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${REPOSITORY_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${REPOSITORY_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${REPOSITORY_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${REPOSITORY_MEM_LIMIT_MB}M
 
   group:
@@ -402,7 +466,14 @@ services:
       component_type: group
       instance_id: group-1
       logging.level.com.vmturbo.group: info # change to debug to enable more debugging output
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${GROUP_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${GROUP_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${GROUP_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       kafkaServers: ${KAFKA_SERVERS}
     mem_limit: ${GROUP_MEM_LIMIT_MB}M
 
@@ -424,7 +495,14 @@ services:
       instance_id: history-1
       logging.level.com.vmturbo.history: INFO
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${HISTORY_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${HISTORY_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${HISTORY_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${HISTORY_MEM_LIMIT_MB}M
 
   plan-orchestrator:
@@ -444,7 +522,14 @@ services:
       component_type: plan-orchestrator
       instance_id: plan-orchestrator-1
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${PLAN_ORCHESTRATOR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${PLAN_ORCHESTRATOR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${PLAN_ORCHESTRATOR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${PLAN_ORCHESTRATOR_MEM_LIMIT_MB}M
 
   reporting:
@@ -466,29 +551,43 @@ services:
       instance_id: reporting-1
       report.files.output.dir: /home/turbonomic/data
       kafkaServers: ${KAFKA_SERVERS}
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${REPORTING_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${REPORTING_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${REPORTING_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${REPORTING_MEM_LIMIT_MB}M
 
   cost:
-      extends:
-        file: common-services.yml
-        service: dev-component
-      image: turbonomic/com.vmturbo.cost.component:${XL_VERSION}
-      ports:
-        - "${COST_PORT}"
-        - "${COST_DEBUG_PORT}"
-      depends_on:
-        - clustermgr
-        - db
-        - kafka1
-        - auth
-      environment:
-        component_type: cost
-        instance_id: cost-1
-        logging.level.com.vmturbo.cost: info # change to debug to enable more debugging output
-        JAVA_OPTS: "${DEV_JAVA_OPTS} ${COST_SYSTEM_PROPERTIES}"
-        kafkaServers: ${KAFKA_SERVERS}
-      mem_limit: ${COST_MEM_LIMIT_MB}M
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/com.vmturbo.cost.component:${XL_VERSION}
+    ports:
+      - "${COST_PORT}"
+      - "${COST_DEBUG_PORT}"
+    depends_on:
+      - clustermgr
+      - db
+      - kafka1
+      - auth
+    environment:
+      component_type: cost
+      instance_id: cost-1
+      logging.level.com.vmturbo.cost: info # change to debug to enable more debugging output
+      JAVA_COMPONENT_OPTS: "${COST_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${COST_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      kafkaServers: ${KAFKA_SERVERS}
+    mem_limit: ${COST_MEM_LIMIT_MB}M
 
   integration-intersight:
     extends:
@@ -506,7 +605,14 @@ services:
     environment:
       component_type: integration-intersight
       instance_id: integration-intersight-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${INTEGRATION_INTERSIGHT_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${INTEGRATION_INTERSIGHT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${COST_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       kafkaServers: ${KAFKA_SERVERS}
     mem_limit: ${INTEGRATION_INTERSIGHT_MEM_LIMIT_MB}M
 
@@ -522,7 +628,14 @@ services:
     environment:
       component_type: mediation-vcenter
       instance_id: mediation-vcenter-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VCENTER_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VCENTER_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VCENTER_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VCENTER_MEM_LIMIT_MB}M
 
   mediation-vcenter-browsing:
@@ -537,7 +650,14 @@ services:
     environment:
       component_type: mediation-vcenter-browsing
       instance_id: mediation-vcenter-browsing-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VCENTER_BROWSING_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VCENTER_BROWSING_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VCENTER_BROWSING_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VCENTER_BROWSING_MEM_LIMIT_MB}M
 
   mediation-stressprobe:
@@ -556,7 +676,14 @@ services:
       serverGrpcPort: 9001
       consul_host: consul
       consul_port: 8500
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_STRESSPROBE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_STRESSPROBE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_STRESSPROBE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       kvStoreTimeoutSeconds : 120
     mem_limit: ${MEDIATION_STRESSPROBE_MEM_LIMIT_MB}M
 
@@ -576,7 +703,14 @@ services:
       consul_port: 8500
       component_type: mediation-stressprobe
       instance_id: mediation-storagestressprobe-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_STORAGESTRESSPROBE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_STORAGESTRESSPROBE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_STORAGESTRESSPROBE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       kvStoreTimeoutSeconds : 120
     mem_limit: ${MEDIATION_STORAGESTRESSPROBE_MEM_LIMIT_MB}M
 
@@ -592,7 +726,14 @@ services:
     environment:
       component_type: mediation-delegatingprobe
       instance_id: mediation-delegatingprobe-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_DELEGATINGPROBE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_DELEGATINGPROBE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_DELEGATINGPROBE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       kvStoreTimeoutSeconds : 120
     mem_limit: ${MEDIATION_DELEGATINGPROBE_MEM_LIMIT_MB}M
 
@@ -608,7 +749,14 @@ services:
     environment:
       component_type: mediation-hyperv
       instance_id: mediation-hyperv-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HYPERV_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_HYPERV_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_HYPERV_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HYPERV_MEM_LIMIT_MB}M
 
   mediation-netapp:
@@ -623,7 +771,14 @@ services:
     environment:
       component_type: mediation-netapp
       instance_id: mediation-netapp-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_NETAPP_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_NETAPP_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_NETAPP_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_NETAPP_MEM_LIMIT_MB}M
 
   mediation-nutanix:
@@ -638,7 +793,14 @@ services:
     environment:
       component_type: mediation-nutanix
       instance_id: mediation-nutanix-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_NUTANIX_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_NUTANIX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_NUTANIX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_NUTANIX_MEM_LIMIT_MB}M
 
   mediation-ucs:
@@ -653,7 +815,14 @@ services:
     environment:
       component_type: mediation-ucs
       instance_id: mediation-ucs-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_UCS_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_UCS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_UCS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_UCS_MEM_LIMIT_MB}M
 
   mediation-aix:
@@ -668,7 +837,14 @@ services:
     environment:
       component_type: mediation-aix
       instance_id: mediation-aix-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AIX_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AIX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AIX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_AIX_MEM_LIMIT_MB}M
 
   mediation-vmax:
@@ -683,7 +859,14 @@ services:
     environment:
       component_type: mediation-vmax
       instance_id: mediation-vmax-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VMAX_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VMAX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VMAX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VMAX_MEM_LIMIT_MB}M
 
   mediation-vmm:
@@ -698,7 +881,14 @@ services:
     environment:
       component_type: mediation-vmm
       instance_id: mediation-vmm-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VMM_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VMM_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VMM_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VMM_MEM_LIMIT_MB}M
 
   mediation-hpe3par:
@@ -713,7 +903,14 @@ services:
     environment:
       component_type: mediation-hpe3par
       instance_id: mediation-hpe3par-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HPE3PAR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_HPE3PAR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_HPE3PAR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HPE3PAR_MEM_LIMIT_MB}M
 
   mediation-pure:
@@ -728,7 +925,14 @@ services:
     environment:
       component_type: mediation-pure
       instance_id: mediation-pure-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_PURE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_PURE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_PURE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_PURE_MEM_LIMIT_MB}M
 
   mediation-scaleio:
@@ -743,7 +947,14 @@ services:
     environment:
       component_type: mediation-scaleio
       instance_id: mediation-scaleio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_SCALEIO_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_SCALEIO_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_SCALEIO_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_SCALEIO_MEM_LIMIT_MB}M
 
   mediation-hds:
@@ -758,7 +969,14 @@ services:
     environment:
       component_type: mediation-hds
       instance_id: mediation-hds-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HDS_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_HDS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_HDS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HDS_MEM_LIMIT_MB}M
 
   mediation-compellent:
@@ -773,7 +991,14 @@ services:
     environment:
       component_type: mediation-compellent
       instance_id: mediation-compellent-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_COMPELLENT_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_COMPELLENT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_COMPELLENT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_COMPELLENT_MEM_LIMIT_MB}M
 
   mediation-xtremio:
@@ -788,7 +1013,14 @@ services:
     environment:
       component_type: mediation-xtremio
       instance_id: mediation-xtremio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_XTREMIO_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_XTREMIO_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_XTREMIO_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_XTREMIO_MEM_LIMIT_MB}M
 
   mediation-vplex:
@@ -803,7 +1035,14 @@ services:
     environment:
       component_type: mediation-vplex
       instance_id: mediation-vplex-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VPLEX_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VPLEX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VPLEX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VPLEX_MEM_LIMIT_MB}M
 
   mediation-rhv:
@@ -818,7 +1057,14 @@ services:
     environment:
       component_type: mediation-rhv
       instance_id: mediation-rhv-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_RHV_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_RHV_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_RHV_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_RHV_MEM_LIMIT_MB}M
 
   mediation-openstack:
@@ -833,7 +1079,14 @@ services:
     environment:
       component_type: mediation-openstack
       instance_id: mediation-openstack-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_OPENSTACK_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_OPENSTACK_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_OPENSTACK_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_OPENSTACK_MEM_LIMIT_MB}M
 
   mediation-ucsdirector:
@@ -848,7 +1101,14 @@ services:
     environment:
       component_type: mediation-ucsdirector
       instance_id: mediation-ucsdirector-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_UCSDIRECTOR_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_UCSDIRECTOR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_UCSDIRECTOR_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_UCSDIRECTOR_MEM_LIMIT_MB}M
 
   mediation-aws:
@@ -863,7 +1123,14 @@ services:
     environment:
       component_type: mediation-aws
       instance_id: mediation-aws-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AWS_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AWS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AWS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -883,7 +1150,14 @@ services:
     environment:
       component_type: mediation-awsbilling
       instance_id: mediation-awsbilling-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AWSBILLING_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AWSBILLING_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AWSBILLING_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -903,7 +1177,14 @@ services:
     environment:
       component_type: mediation-awscost
       instance_id: mediation-awscost-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AWSCOST_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AWSCOST_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AWSCOST_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -923,7 +1204,14 @@ services:
     environment:
       component_type: mediation-datadog
       instance_id: mediation-datadog-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_DATADOG_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_DATADOG_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_DATADOG_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -941,7 +1229,14 @@ services:
     environment:
       component_type: mediation-azure
       instance_id: mediation-azure-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AZURE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZURE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZURE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -961,7 +1256,14 @@ services:
     environment:
       component_type: mediation-azurecost
       instance_id: mediation-azurecost-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AZURECOST_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZURECOST_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZURECOST_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -981,7 +1283,14 @@ services:
     environment:
       component_type: mediation-azureea
       instance_id: mediation-azureea-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AZUREEA_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZUREEA_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZUREEA_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -999,7 +1308,14 @@ services:
     environment:
       component_type: mediation-azuresp
       instance_id: mediation-azuresp-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AZURESP_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZURESP_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZURESP_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -1017,7 +1333,14 @@ services:
     environment:
       component_type: mediation-azure-volumes
       instance_id: mediation-azure-volumes-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_AZURE_VOLUMES_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_AZURE_VOLUMES_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_AZURE_VOLUMES_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
       # overriding the tmpdir location because the cloud probes download large files to temp, and we
       # don't want these to go to a memory-backed volume like /tmp
       MORE_JAVA_OPTS: -Djava.io.tmpdir=/home/turbonomic/data
@@ -1035,7 +1358,14 @@ services:
     environment:
       component_type: mediation-oneview
       instance_id: mediation-oneview-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_ONEVIEW_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ONEVIEW_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ONEVIEW_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_ONEVIEW_MEM_LIMIT_MB}M
 
   mediation-vcd:
@@ -1050,7 +1380,14 @@ services:
     environment:
       component_type: mediation-vcd
       instance_id: mediation-vcd-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_VCD_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_VCD_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_VCD_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_VCD_MEM_LIMIT_MB}M
 
   mediation-mssql:
@@ -1065,7 +1402,14 @@ services:
     environment:
       component_type: mediation-mssql
       instance_id: mediation-mssql-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_MSSQL_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_MSSQL_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_MSSQL_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_MSSQL_MEM_LIMIT_MB}M
 
   mediation-actionscript:
@@ -1080,7 +1424,14 @@ services:
     environment:
       component_type: mediation-actionscript
       instance_id: mediation-actionscript-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_ACTIONSCRIPT_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ACTIONSCRIPT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ACTIONSCRIPT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_ACTIONSCRIPT_MEM_LIMIT_MB}M
 
   mediation-wmi:
@@ -1095,7 +1446,14 @@ services:
     environment:
       component_type: mediation-wmi
       instance_id: mediation-wmi-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_WMI_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_WMI_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_WMI_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_WMI_MEM_LIMIT_MB}M
 
   mediation-snmp:
@@ -1110,7 +1468,14 @@ services:
     environment:
       component_type: mediation-snmp
       instance_id: mediation-snmp-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_SNMP_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_SNMP_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_SNMP_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_SNMP_MEM_LIMIT_MB}M
 
   mediation-appdynamics:
@@ -1125,7 +1490,14 @@ services:
     environment:
       component_type: mediation-appdynamics
       instance_id: mediation-appdynamics-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_APPDYNAMICS_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_APPDYNAMICS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_APPDYNAMICS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_APPDYNAMICS_MEM_LIMIT_MB}M
 
   mediation-newrelic:
@@ -1140,7 +1512,14 @@ services:
     environment:
       component_type: mediation-newrelic
       instance_id: mediation-newrelic-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_NEWRELIC_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_NEWRELIC_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_NEWRELIC_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_NEWRELIC_MEM_LIMIT_MB}M
 
   mediation-appinsights:
@@ -1155,7 +1534,14 @@ services:
     environment:
       component_type: mediation-appinsights
       instance_id: mediation-appinsights-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_APPINSIGHTS_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_APPINSIGHTS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_APPINSIGHTS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_APPINSIGHTS_MEM_LIMIT_MB}M
 
   mediation-customdata:
@@ -1170,7 +1556,14 @@ services:
     environment:
       component_type: mediation-customdata
       instance_id: mediation-customdata-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_CUSTOMDATA_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_CUSTOMDATA_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_CUSTOMDATA_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_CUSTOMDATA_MEM_LIMIT_MB}M
 
   mediation-dynatrace:
@@ -1185,7 +1578,14 @@ services:
     environment:
       component_type: mediation-dynatrace
       instance_id: mediation-dynatrace-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_DYNATRACE_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_DYNATRACE_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_DYNATRACE_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_DYNATRACE_MEM_LIMIT_MB}M
 
   mediation-pivotal:
@@ -1200,7 +1600,14 @@ services:
     environment:
       component_type: mediation-pivotal
       instance_id: mediation-pivotal-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_PIVOTAL_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_PIVOTAL_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_PIVOTAL_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_PIVOTAL_MEM_LIMIT_MB}M
 
   mediation-cloudfoundry:
@@ -1215,7 +1622,14 @@ services:
     environment:
       component_type: mediation-cloudfoundry
       instance_id: mediation-cloudfoundry-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_CLOUDFOUNDRY_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_CLOUDFOUNDRY_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_CLOUDFOUNDRY_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_CLOUDFOUNDRY_MEM_LIMIT_MB}M
 
   mediation-istio:
@@ -1230,7 +1644,14 @@ services:
     environment:
       component_type: mediation-istio
       instance_id: mediation-istio-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_ISTIO_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_ISTIO_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_ISTIO_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_ISTIO_MEM_LIMIT_MB}M
 
   mediation-netflow:
@@ -1245,7 +1666,14 @@ services:
     environment:
       component_type: mediation-netflow
       instance_id: mediation-netflow-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_NETFLOW_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_NETFLOW_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_NETFLOW_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_NETFLOW_MEM_LIMIT_MB}M
 
   mediation-tetration:
@@ -1260,7 +1688,14 @@ services:
     environment:
       component_type: mediation-tetration
       instance_id: mediation-tetration-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_TETRATION_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_TETRATION_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_TETRATION_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_TETRATION_MEM_LIMIT_MB}M
 
   mediation-hyperflex:
@@ -1275,7 +1710,14 @@ services:
     environment:
       component_type: mediation-hyperflex
       instance_id: mediation-hyperflex-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HYPERFLEX_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_HYPERFLEX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_HYPERFLEX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HYPERFLEX_MEM_LIMIT_MB}M
 
   mediation-horizon:
@@ -1290,7 +1732,14 @@ services:
     environment:
       component_type: mediation-horizon
       instance_id: mediation-horizon-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_HORIZON_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_HORIZON_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_HORIZON_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_HORIZON_MEM_LIMIT_MB}M
 
   mediation-intersight-hyperflex:
@@ -1305,7 +1754,14 @@ services:
     environment:
       component_type: mediation-intersight-hyperflex
       instance_id: mediation-intersight-hyperflex-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_INTERSIGHT_HYPERFLEX_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_INTERSIGHT_HYPERFLEX_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_INTERSIGHT_HYPERFLEX_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_INTERSIGHT_HYPERFLEX_MEM_LIMIT_MB}M
 
   mediation-intersight-ucs:
@@ -1320,7 +1776,14 @@ services:
     environment:
       component_type: mediation-intersight-ucs
       instance_id: mediation-intersight-ucs-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_INTERSIGHT_UCS_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_INTERSIGHT_UCS_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_INTERSIGHT_UCS_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_INTERSIGHT_UCS_MEM_LIMIT_MB}M
 
   mediation-intersight-server:
@@ -1335,7 +1798,14 @@ services:
     environment:
       component_type: mediation-intersight-server
       instance_id: mediation-intersight-server-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_INTERSIGHT_SERVER_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} ${MEDIATION_INTERSIGHT_SERVER_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_INTERSIGHT_SERVER_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_INTERSIGHT_SERVER_MEM_LIMIT_MB}M
 
   mediation:
@@ -1350,5 +1820,12 @@ services:
     environment:
       component_type: mediation
       instance_id: mediation-1
-      JAVA_OPTS: "${DEV_JAVA_OPTS} ${MEDIATION_COMPONENT_SYSTEM_PROPERTIES}"
+      JAVA_COMPONENT_OPTS: "${JAVA_PROBE_OPTS} -Xmx${MEDIATION_COMPONENT_XMX_MB}M ${MEDIATION_COMPONENT_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${MEDIATION_COMPONENT_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
     mem_limit: ${MEDIATION_COMPONENT_MEM_LIMIT_MB}M
