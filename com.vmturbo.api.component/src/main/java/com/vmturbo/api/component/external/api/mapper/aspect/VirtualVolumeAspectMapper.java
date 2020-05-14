@@ -490,23 +490,24 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         final Map<Long, Long> storageTierIdByVolumeId = Maps.newHashMap();
         final Set<Long> storageTierIds = Sets.newHashSet();
 
+        final Map<Long, ApiPartialEntity> regionByZoneId = Maps.newHashMap();
+        final Map<Long, ApiPartialEntity> regionById = fetchRegions();
+        regionById.values().forEach(region ->
+                region.getConnectedToList().stream()
+                        .filter(connectedEntity -> connectedEntity.getEntityType() == EntityType.AVAILABILITY_ZONE_VALUE)
+                        .forEach(connectedEntity -> regionByZoneId.put(connectedEntity.getOid(), region))
+        );
+
         vols.forEach(vol -> {
             for (ConnectedEntity connectedEntity : vol.getConnectedEntityListList()) {
                 switch (connectedEntity.getConnectedEntityType()) {
                     case EntityType.AVAILABILITY_ZONE_VALUE:
                         // get region from zone
-                        repositoryApi.newSearchRequest(
-                                SearchProtoUtil.neighborsOfType(connectedEntity.getConnectedEntityId(),
-                                        TraversalDirection.OWNED_BY,
-                                        ApiEntityType.REGION))
-                                .getEntities()
-                                .forEach(region -> regionByVolumeId.put(vol.getOid(), region));
+                        regionByVolumeId.put(vol.getOid(), regionByZoneId.get(connectedEntity.getConnectedEntityId()));
                         break;
                     case EntityType.REGION_VALUE:
                         // in case of Azure, volume connected from Region directly.
-                        repositoryApi.entityRequest(connectedEntity.getConnectedEntityId())
-                            .getEntity()
-                            .ifPresent(region -> regionByVolumeId.put(vol.getOid(), region));
+                        regionByVolumeId.put(vol.getOid(), regionById.get(connectedEntity.getConnectedEntityId()));
                         break;
                     case EntityType.STORAGE_TIER_VALUE:
                         storageTierIdByVolumeId.put(vol.getOid(), connectedEntity.getConnectedEntityId());
