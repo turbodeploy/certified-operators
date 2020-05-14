@@ -128,7 +128,8 @@ public class ReservedInstanceAnalysisConfig {
     @Bean
     public ReservedInstanceInventoryMatcherFactory reservedInstanceInventoryMatcherFactory() {
         return new ReservedInstanceInventoryMatcherFactory(
-                reservedInstanceConfig.reservedInstanceBoughtStore());
+                reservedInstanceConfig.reservedInstanceBoughtStore(),
+                reservedInstanceConfig.planReservedInstanceStore());
     }
 
     @Bean

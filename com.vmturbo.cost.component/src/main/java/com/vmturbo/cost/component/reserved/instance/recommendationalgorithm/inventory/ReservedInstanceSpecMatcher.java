@@ -1,6 +1,7 @@
 package com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.inventory;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -10,6 +11,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import org.immutables.value.Value;
@@ -106,11 +108,18 @@ public class ReservedInstanceSpecMatcher {
             specKeyBuilder.osType(demandCluster.platform());
         }
 
+        final Set<ReservedInstanceSpecKey> riSpecKeys = new HashSet<>();
+        if (matchingRule.isSizeFlexible().orElse(true)) {
+            riSpecKeys.add(specKeyBuilder.build());
+        }
         if (!matchingRule.isSizeFlexible().orElse(false)) {
             specKeyBuilder.computerTierOid(demandCluster.computeTierOid());
+            riSpecKeys.add(specKeyBuilder.build());
         }
-
-        return riSpecIdsByKey.getOrDefault(specKeyBuilder.build(), Collections.emptySet());
+        return riSpecKeys.stream()
+                .map(key -> riSpecIdsByKey.getOrDefault(key, Collections.emptySet()))
+                .flatMap(Set::stream)
+                .collect(ImmutableSet.toImmutableSet());
     }
 
     @Nonnull

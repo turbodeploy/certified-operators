@@ -433,8 +433,9 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
                                    entity.getEntityBuilder().getOrigin()
                                                    .getDiscoveryOrigin()
                                                    .getDiscoveredTargetDataMap().keySet());
+                    Long templateOid = null;
                     for (Long targetId : targets) {
-                        Long templateOid = getProfileId(targetId, masterImageVendorId);
+                        templateOid = getProfileId(targetId, masterImageVendorId);
                         if (templateOid != null) {
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Patched template reference '{}' for desktop pool {} into {}",
@@ -447,6 +448,10 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
                         }
                     }
                     builder.removeEntityPropertyMap(DesktopPoolInfoMapper.DESKTOP_POOL_TEMPLATE_REFERENCE);
+                    if (templateOid == null) {
+                        logger.warn("Master Image {} has not been resolved to a VM or template OID, desktop pool data will be incomplete",
+                                masterImageVendorId);
+                    }
                 }
             }
         }

@@ -203,7 +203,7 @@ public class PlanProjectedRICoverageAndUtilStoreTest {
         final UploadRIDataRequest uploadRequest =
                 UploadRIDataRequest
                         .newBuilder()
-                        .setTopologyId(PLAN_ID)
+                        .setTopologyContextId(PLAN_ID)
                         .addAllReservedInstanceBought(selectedRis)
                         .build();
         planReservedInstanceService.insertPlanReservedInstanceBought(uploadRequest);

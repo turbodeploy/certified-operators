@@ -101,6 +101,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
             .add(EntitySettingSpecs.Move.getSettingName()).add(EntitySettingSpecs.StorageMove.getSettingName())
             .add(EntitySettingSpecs.Provision.getSettingName()).add(EntitySettingSpecs.Suspend.getSettingName())
             .add(EntitySettingSpecs.DisabledSuspend.getSettingName())
+            .add(EntitySettingSpecs.DisabledProvision.getSettingName())
             .add(EntitySettingSpecs.Activate.getSettingName()).add(EntitySettingSpecs.Resize.getSettingName())
             .add(EntitySettingSpecs.Reconfigure.getSettingName()).build();
 
