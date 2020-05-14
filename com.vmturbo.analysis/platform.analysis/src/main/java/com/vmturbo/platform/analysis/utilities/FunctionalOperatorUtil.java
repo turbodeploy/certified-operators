@@ -180,7 +180,9 @@ public class FunctionalOperatorUtil {
                 double couponsBought = 0;
                 for (ShoppingList peer : peers) {
                     int couponBoughtIndex = peer.getBasket().indexOfBaseType(couponCommBaseType);
-                    Long supplierOid =  economy.getTopology().getTraderOid(buyer.getSupplier());
+                    // When moving out of a supplier, the buyer's supplier will be null. So we use
+                    // peer shopping list's supplier here.
+                    Long supplierOid =  economy.getTopology().getTraderOid(peer.getSupplier());
                     Double couponsToRelinquish = totalCouponsToRelinquish.getOrDefault(supplierOid, new Double(0));
                     couponsBought = peer.getQuantity(couponBoughtIndex);
                     // the peers relinquish the excess
