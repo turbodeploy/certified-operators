@@ -67,7 +67,7 @@ public class StitchingEntityData {
         return lastUpdatedTime;
     }
 
-    public boolean supportsConnectedTo() {
+    public boolean supportsDeprecatedConnectedTo() {
         return supportsConnectedTo;
     }
 
