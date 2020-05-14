@@ -17,7 +17,6 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableSet;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -38,6 +37,8 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistorySer
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.ClassicEnumMapper;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
@@ -56,6 +57,11 @@ public class CommoditiesEditor {
                                     CommodityType.TEMPLATE_ACCESS, CommodityType.LICENSE_ACCESS,
                                     CommodityType.ACCESS, CommodityType.TENANCY_ACCESS,
                                     CommodityType.VMPM_ACCESS, CommodityType.VAPP_ACCESS);
+
+    // Providers from which LICENSE_ACCESS can be bought. Physical Machine only would
+    // buy it in the case of on-prem VMs which are migrating to the cloud.
+    private static final Set<Integer> LICENSE_PROVIDER_TYPES = ImmutableSet.of(
+        EntityType.COMPUTE_TIER_VALUE, EntityType.PHYSICAL_MACHINE_VALUE);
 
     private final Logger logger = LogManager.getLogger();
     private final StatsHistoryServiceBlockingStub historyClient;
@@ -77,6 +83,7 @@ public class CommoditiesEditor {
                     TopologyDTO.TopologyInfo topologyInfo, @Nonnull final PlanScope scope) {
         editCommoditiesForBaselineChanges(graph, changes, topologyInfo);
         editCommoditiesForClusterHeadroom(graph, scope, topologyInfo);
+        editCommoditiesForMigrateToCloud(graph, changes, topologyInfo);
     }
 
     /**
@@ -101,6 +108,102 @@ public class CommoditiesEditor {
                     .getHistoricalBaseline().getBaselineDate();
                 fetchAndApplyHistoricalData(vmSet, graph, baselineDate);
             });
+    }
+
+    /**
+     * Change commodity values for VMs and its providers if a scenario change
+     * related to migration to cloud exists.
+     *
+     * @param graph to extract entities from.
+     * @param changes to iterate over and find relevant to baseline change.
+     * @param topologyInfo to find VMs in current scope.
+     */
+    private void editCommoditiesForMigrateToCloud(@Nonnull final TopologyGraph<TopologyEntity> graph,
+                                                  @Nonnull final List<ScenarioChange> changes,
+                                                  TopologyDTO.TopologyInfo topologyInfo) {
+        for (ScenarioChange change : changes) {
+            if (change.hasTopologyMigration()) {
+                final Set<TopologyEntity> vmSet = topologyInfo.getScopeSeedOidsList().stream()
+                    .distinct()
+                    .flatMap(oid -> findVMsInScope(graph, oid))
+                    .collect(Collectors.toSet());
+
+                for (TopologyEntity vm : vmSet) {
+                    // TODO: look at vm.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType()
+                    // and the OS mapping specified in change.getTopologyMigration and
+                    // decide what key to buy instead of hardcoding Linux.
+
+                    updateAccessCommodityForVmAndProviders(vm, LICENSE_PROVIDER_TYPES,
+                        CommodityType.LICENSE_ACCESS, "Linux");
+
+                    // TODO: this would also be the place, for migrations to Azure, where
+                    // if the migrating VM is not buying IO_THROUGHPUT from storage,
+                    // to add it in proportion to STORAGE_ACCESS so that we get reasonable
+                    // cost estimates for Ultra Disk.
+                }
+            }
+        }
+    }
+
+    private void updateAccessCommodityForVmAndProviders(@Nonnull TopologyEntity vm,
+                                                        @Nonnull Set<Integer> providerTypeIds,
+                                                        @Nonnull CommodityType commodityType,
+                                                        @Nonnull String newKey) {
+        Builder vmBuilder = vm.getTopologyEntityDtoBuilder();
+
+        List<CommoditiesBoughtFromProvider> originalCommoditiesBoughtFromProviderList =
+            vmBuilder.getCommoditiesBoughtFromProvidersList();
+
+        vm.getTopologyEntityDtoBuilder().clearCommoditiesBoughtFromProviders();
+
+        for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider :
+            originalCommoditiesBoughtFromProviderList) {
+            if (providerTypeIds.contains(commoditiesBoughtFromProvider.getProviderEntityType())) {
+                commoditiesBoughtFromProvider =
+                    updateAccessCommodityKey(commoditiesBoughtFromProvider, commodityType, newKey);
+            }
+
+            vmBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider);
+        }
+    }
+
+    private CommoditiesBoughtFromProvider updateAccessCommodityKey(
+        @Nonnull CommoditiesBoughtFromProvider commoditiesBoughtFromProvider,
+        @Nonnull CommodityType commodityType,
+        @Nonnull String newKey) {
+
+        CommoditiesBoughtFromProvider.Builder newCommoditiesBoughtFromProviderBuilder
+            = commoditiesBoughtFromProvider.toBuilder().clearCommodityBought();
+
+        boolean foundCommodity = false;
+
+        for (CommodityBoughtDTO commodityBought :
+            commoditiesBoughtFromProvider.getCommodityBoughtList()) {
+
+            // If this is the commodity type we're looking to change, rebuild it with the new key
+            if (commodityBought.getCommodityType().getType() == commodityType.getNumber()) {
+                commodityBought = commodityBought.toBuilder().setCommodityType(
+                    commodityBought.getCommodityType().toBuilder().setKey(newKey)
+                ).build();
+
+                foundCommodity = true;
+            }
+
+            newCommoditiesBoughtFromProviderBuilder.addCommodityBought(commodityBought);
+        }
+
+        if (!foundCommodity) {
+            // Add commodity since it wasn't present
+            newCommoditiesBoughtFromProviderBuilder.addCommodityBought(
+                CommodityBoughtDTO.newBuilder().setCommodityType(
+                    TopologyDTO.CommodityType.newBuilder()
+                        .setType(commodityType.getNumber())
+                        .setKey(newKey)
+                )
+            );
+        }
+
+        return newCommoditiesBoughtFromProviderBuilder.build();
     }
 
     /**
