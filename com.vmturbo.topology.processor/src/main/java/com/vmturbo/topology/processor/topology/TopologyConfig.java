@@ -161,6 +161,9 @@ public class TopologyConfig {
     @Value("${useReservationPipeline:true}")
     private boolean useReservationPipeline;
 
+    @Value("${enableDiscoveryResponsesCaching:true}")
+    private boolean enableDiscoveryResponsesCaching;
+
     /**
      * The maximum number of failures we will allow for a target at startup before allowing
      * broadcasts.
@@ -337,7 +340,9 @@ public class TopologyConfig {
                         operationConfig.operationManager(), clockConfig.clock(),
                         startupDiscoveryTargetShortCircuitCount,
                         startupDiscoveryMaxDiscoveryWaitMinutes,
-                        maxProbeRegistrationWaitMins, TimeUnit.MINUTES);
+                        maxProbeRegistrationWaitMins, TimeUnit.MINUTES,
+                    identityProviderConfig.identityProvider(),
+                    operationConfig.binaryDiscoveryDumper(), enableDiscoveryResponsesCaching);
         }
     }
 

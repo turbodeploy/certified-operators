@@ -85,6 +85,7 @@ import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.db.TopologyProcessor;
 import com.vmturbo.topology.processor.db.enums.EntityActionActionType;
 import com.vmturbo.topology.processor.db.tables.records.EntityActionRecord;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
@@ -160,6 +161,9 @@ public class OperationManagerTest {
 
     private DerivedTargetParser derivedTargetParser = Mockito.mock(DerivedTargetParser.class);
 
+    private BinaryDiscoveryDumper binaryDiscoveryDumper =
+        Mockito.mock(BinaryDiscoveryDumper.class);
+
     private OperationManager operationManager;
 
     private long probeId;
@@ -199,7 +203,7 @@ public class OperationManagerTest {
             mockRemoteMediationServer, operationListener, entityStore, discoveredGroupUploader,
             discoveredWorkflowUploader, discoveredCloudCostUploader, discoveredTemplatesUploader,
             entityActionDao, derivedTargetParser, groupScopeResolver, targetDumpingSettings, systemNotificationProducer, 10, 10, 10,
-            5, 10, 1, 1, TheMatrix.instance());
+            5, 10, 1, 1, TheMatrix.instance(), binaryDiscoveryDumper, false);
         IdentityGenerator.initPrefix(0);
         when(identityProvider.generateOperationId()).thenAnswer((invocation) -> IdentityGenerator.next());
 

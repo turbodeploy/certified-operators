@@ -16,6 +16,8 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
+import com.vmturbo.topology.processor.discoverydumper.BinaryDiscoveryDumper;
+import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
 import com.vmturbo.topology.processor.targets.Target;
@@ -40,6 +42,10 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
     private final Map<Long, TargetDiscoveryInfo> targetDiscoveryInfoMap = new HashMap<>();
     private final long startMillis;
     private final long endMillis;
+    private final IdentityProvider identityProvider;
+    private BinaryDiscoveryDumper binaryDiscoveryDumper;
+    private boolean enableDiscoveryResponsesCaching;
+
 
     // Use the factory.
     private DiscoveryBasedUnblock(@Nonnull final TopologyPipelineExecutorService pipelineExecutorService,
@@ -48,7 +54,10 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
             final int targetShortCircuitCount,
             @Nonnull final Clock clock,
             final long maxDiscoveryWaitPeriodMs,
-            final long maxProbeRegistrationWaitPeriodMs) {
+            final long maxProbeRegistrationWaitPeriodMs,
+            @Nonnull final IdentityProvider identityProvider,
+            BinaryDiscoveryDumper binaryDiscoveryDumper,
+            boolean enableDiscoveryResponsesCaching) {
         this.pipelineExecutorService = pipelineExecutorService;
         this.targetStore = targetStore;
         this.operationManager = operationManager;
@@ -58,6 +67,9 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
         startMillis = clock.millis();
         endMillis = clock.millis() + maxDiscoveryWaitPeriodMs;
         this.maxProbeRegistrationWaitPeriodMs = maxProbeRegistrationWaitPeriodMs;
+        this.identityProvider = identityProvider;
+        this.binaryDiscoveryDumper = binaryDiscoveryDumper;
+        this.enableDiscoveryResponsesCaching = enableDiscoveryResponsesCaching;
     }
 
     /**
@@ -86,8 +98,14 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
          * target's probe DOES register while we're waiting for other targets, we transition back
          * to the "WAITING" status. This is why this state is not terminal.
          */
-        PROBE_NOT_REGISTERED;
+        PROBE_NOT_REGISTERED,
+
+        /**
+         * The target has correctly been loaded from a binary file persisted on disk.
+         */
+        RESTORED_FROM_DISK;
     }
+
 
     boolean runIteration() {
         // We get all existing targets here, since some discoveries can add derived
@@ -152,6 +170,21 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
     @Override
     public void run() {
         try {
+            if (enableDiscoveryResponsesCaching) {
+                binaryDiscoveryDumper.restoreDiscoveryResponses(targetStore).forEach((key, discoveryResponse) -> {
+                    long targetId = key;
+                    if (targetStore.getTarget(targetId).isPresent()) {
+                        // TODO: (MarcoBerlot 5/26/20) do not fake the discovery object
+                        Discovery operation = new Discovery(targetStore.getTarget(targetId).get().getProbeId(),
+                            targetId, identityProvider);
+                        operationManager.notifyDiscoveryResult(operation, discoveryResponse);
+                        TargetDiscoveryInfo info = targetDiscoveryInfoMap.computeIfAbsent(targetId,
+                            k -> new TargetDiscoveryInfo(targetId, targetShortCircuitCount, maxProbeRegistrationWaitPeriodMs));
+                        // This target should be considered successfully discovered.
+                        info.changeStatus(TargetWaitingStatus.RESTORED_FROM_DISK);
+                    }
+                });
+            }
             while (pipelineExecutorService.areBroadcastsBlocked()) {
                 try {
                     if (runIteration()) {
@@ -201,10 +234,10 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
         }
 
         void updateDiscovery(Optional<Discovery> discoveryOpt, Clock clock) {
-            // Early return if we already had a successful discovery, or already had the "fatal"
-            // number of failed discoveries.
+            // Early return if we already had a successful discovery, a loaded discovery from disk,
+            // or  had the "fatal" number of failed discoveries.
             if (status == TargetWaitingStatus.FAILURE_EXCEED_THRESHOLD
-                    || status == TargetWaitingStatus.SUCCESS) {
+                    || status == TargetWaitingStatus.RESTORED_FROM_DISK || status == TargetWaitingStatus.SUCCESS ) {
                 return;
             }
 
@@ -265,6 +298,9 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
         private final int targetShortCircuitCount;
         private final long maxDiscoveryWaitMs;
         private final long maxProbeRegistrationWaitMs;
+        private final IdentityProvider identityProvider;
+        private BinaryDiscoveryDumper binaryDiscoveryDumper;
+        private boolean enableDiscoveryResponsesCaching;
 
         /**
          * Create a new instance of the factory.
@@ -277,6 +313,9 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
          * @param maxDiscoveryWait Maximum time to wait for all targets to be discovered.
          * @param maxProbeRegistrationWait Maximum time to wait for probes to be registered.
          * @param maxDiscoveryWaitTimeUnit Time unit for the max wait time.
+         * @param identityProvider The identity provider to use to get an ID.
+         * @param binaryDiscoveryDumper class that handles loading cached discovery responses.
+         * @param enableDiscoveryResponsesCaching enabes restoring discovery responses from disk.
          */
         public DiscoveryBasedUnblockFactory(@Nonnull final TargetStore targetStore,
                 @Nonnull final IOperationManager operationManager,
@@ -284,20 +323,27 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                 final int targetShortCircuitCount,
                 final long maxDiscoveryWait,
                 final long maxProbeRegistrationWait,
-                TimeUnit maxDiscoveryWaitTimeUnit) {
+                TimeUnit maxDiscoveryWaitTimeUnit,
+                IdentityProvider identityProvider,
+                BinaryDiscoveryDumper binaryDiscoveryDumper,
+                boolean enableDiscoveryResponsesCaching) {
             this.targetStore = targetStore;
             this.operationManager = operationManager;
             this.clock = clock;
             this.targetShortCircuitCount = targetShortCircuitCount;
             this.maxProbeRegistrationWaitMs = maxDiscoveryWaitTimeUnit.toMillis(maxProbeRegistrationWait);
             this.maxDiscoveryWaitMs = maxDiscoveryWaitTimeUnit.toMillis(maxDiscoveryWait);
+            this.identityProvider = identityProvider;
+            this.binaryDiscoveryDumper = binaryDiscoveryDumper;
+            this.enableDiscoveryResponsesCaching = enableDiscoveryResponsesCaching;
         }
 
         @Override
         public DiscoveryBasedUnblock newUnblockOperation(@Nonnull final TopologyPipelineExecutorService pipelineExecutorService) {
             return new DiscoveryBasedUnblock(pipelineExecutorService, targetStore,
                     operationManager, targetShortCircuitCount, clock,
-                    maxDiscoveryWaitMs, maxProbeRegistrationWaitMs);
+                    maxDiscoveryWaitMs, maxProbeRegistrationWaitMs, identityProvider,
+                binaryDiscoveryDumper, enableDiscoveryResponsesCaching);
         }
 
     }
