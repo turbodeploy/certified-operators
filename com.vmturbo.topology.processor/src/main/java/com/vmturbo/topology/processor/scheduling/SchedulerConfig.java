@@ -58,11 +58,11 @@ public class SchedulerConfig {
             topologyConfig.topologyHandler(),
             kvConfig.keyValueStore(),
             stitchingConfig.stitchingJournalFactory(),
-            Executors.newSingleThreadScheduledExecutor(
-                    new ThreadFactoryBuilder().setNameFormat("target-full-discovery-scheduler")
+                (name) -> Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder().setNameFormat(name)
                             .build()),
-            Executors.newSingleThreadScheduledExecutor( //todo:delete
-                    new ThreadFactoryBuilder().setNameFormat("target-incremental-discovery-scheduler")
+                (name) -> Executors.newSingleThreadScheduledExecutor(
+                    new ThreadFactoryBuilder().setNameFormat(name)
                             .build()),
             Executors.newSingleThreadScheduledExecutor(
                     new ThreadFactoryBuilder().setNameFormat("realtime-broadcast-scheduler")

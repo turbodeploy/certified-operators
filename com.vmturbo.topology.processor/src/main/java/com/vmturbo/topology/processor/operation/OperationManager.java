@@ -583,9 +583,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
         // If the probe has not yet registered, the semaphore won't be initialized.
         final Optional<Semaphore> semaphore = Optional.ofNullable(probeOperationPermits.get(probeId))
             .map(semaphoreByDiscoveryType -> semaphoreByDiscoveryType.get(discoveryType));
-        logger.info("Number of permits before acquire: {}, queueLength: {} by targetId: {} ({})",
+        logger.info("Number of permits before acquire: {}, queueLength: {} by targetId: {}({}) ({})",
             () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
             () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
+            () -> target.getDisplayName(),
             () -> targetId,
             () -> discoveryType);
 
@@ -603,8 +604,8 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
             // todo: should we have different timeout for incremental discovery?
             final long waitTimeout = probeDiscoveryPermitWaitTimeoutMins +
                     random.nextInt(probeDiscoveryPermitWaitTimeoutIntervalMins);
-            logger.info("Set permit acquire timeout to: {} for targetId: {} ({})",
-                waitTimeout, targetId, discoveryType);
+            logger.info("Set permit acquire timeout to: {} for target: {}({}) ({})",
+                waitTimeout, target.getDisplayName(), targetId, discoveryType);
             boolean gotPermit = semaphore.get().tryAcquire(1, waitTimeout, TimeUnit.MINUTES);
             if (!gotPermit) {
                 logger.warn("Permit acquire timeout of: {} {} exceeded for targetId: {} ({})." +
@@ -612,9 +613,10 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                     targetId, discoveryType);
             }
         }
-        logger.info("Number of permits after acquire: {}, queueLength: {} by targetId: {} ({})",
+        logger.info("Number of permits after acquire: {}, queueLength: {} by target: {}({}) ({})",
             () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
             () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
+            () -> target.getDisplayName(),
             () -> targetId,
             () -> discoveryType);
 
@@ -626,6 +628,13 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 if (currentDiscovery.isPresent()) {
                     logger.info("Discovery is in progress. Returning existing discovery for target: {} ({})",
                         targetId, discoveryType);
+                    semaphore.ifPresent(Semaphore::release);
+                    logger.info("Number of permits after release: {}, queueLength: {} by target: {}({}) ({})",
+                            () -> semaphore.map(Semaphore::availablePermits).orElse(-1),
+                            () -> semaphore.map(Semaphore::getQueueLength).orElse(-1),
+                            () -> target.getDisplayName(),
+                            () -> targetId,
+                            () -> discoveryType);
                     return currentDiscovery.get();
                 }
                 discoveryMessageHandler =
