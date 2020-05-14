@@ -247,8 +247,14 @@ public enum GlobalSettingSpecs {
 
     WindowsByol("windowsByol", "BYOL Target OS for VMs with Windows OS",
             new BooleanSettingDataType(false),
-            Collections.emptyList());
+            Collections.emptyList()),
 
+    /**
+     * Setting for Analytics and Telemetry
+     */
+    TelemetryEnabled("telemetryEnabled", "Enable Telemetry and Analytics",
+            new BooleanSettingDataType(false),
+            Collections.emptyList());
     /**
      * A list of global settings that are visible to the UI.
      */

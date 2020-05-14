@@ -283,6 +283,12 @@
         "slesByol",
         "windowsByol"
       ]
+    },
+    "telemetrymanager": {
+      "displayName": "Telemetry Manager",
+      "settings": [
+        "telemetryEnabled"
+      ]
     }
   }
 }
