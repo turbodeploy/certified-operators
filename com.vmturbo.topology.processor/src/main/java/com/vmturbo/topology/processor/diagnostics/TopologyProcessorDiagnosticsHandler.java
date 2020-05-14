@@ -26,6 +26,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.Streams;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
@@ -141,6 +142,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     @Override
     public void dump(@Nonnull ZipOutputStream diagnosticZip) {
         final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
+
+        // Identity information.
+        diagsWriter.dumpDiagnosable(identityProvider);
+
         // Probes
         diagsWriter.writeZipEntry(PROBES_DIAGS_FILE_NAME, probeStore.getProbes()
                 .entrySet()
@@ -246,7 +251,6 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                             .iterator());
         }
 
-        diagsWriter.dumpDiagnosable(identityProvider);
         diagsWriter.dumpDiagnosable(
                 new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry));
 
@@ -283,6 +287,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
      */
     public void dumpAnonymizedDiags(ZipOutputStream diagnosticZip) {
         final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
+        diagsWriter.dumpDiagnosable(identityProvider);
         // Target identifiers in db.
         diagsWriter.dumpDiagnosable(targetPersistentIdentityStore);
         // Targets
@@ -315,7 +320,6 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         diagsWriter.dumpDiagnosable(discoveredCloudCostUploader);
         // Discovered price tables.
         diagsWriter.dumpDiagnosable(priceTableUploader);
-        diagsWriter.dumpDiagnosable(identityProvider);
         if (!diagsWriter.getErrors().isEmpty()) {
             diagsWriter.writeZipEntry(DiagnosticsHandler.ERRORS_FILE,
                     diagsWriter.getErrors().iterator());
@@ -385,7 +389,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         // the probe diags and before the restore of the identityProvider diags, then a probeInfo
         // will be written to Consul with the old ID. This entry will later become a duplicate entry
         // and cause severe problems.
-        List<Diags> sortedDiagnostics = Streams.stream(new DiagsZipReader(zis))
+        final Stopwatch stopwatch = Stopwatch.createStarted();
+        final List<Diags> sortedDiagnostics = Streams.stream(new DiagsZipReader(zis, true))
             .sorted(diagsRestoreComparator)
             .collect(Collectors.toList());
         final List<String> errors = new ArrayList<>();
@@ -454,7 +459,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             }
         }
         if (errors.isEmpty()) {
-            return "Successfully restored " + targetStore.getAll().size() + " targets";
+            final String status = "Successfully restored " + targetStore.getAll().size() + " targets in "
+                + stopwatch.elapsed(TimeUnit.SECONDS) + " seconds";
+            logger.info(status);
+            return status;
         } else {
             throw new DiagnosticsException(errors);
         }
@@ -677,28 +685,33 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
      */
     private void restoreTemplatesAndDeploymentProfiles(final long targetId,
                                                        @Nonnull final List<String> serialized) {
+        if (templateDeploymentProfileUploader.ignoreTemplatesForTarget(targetId)) {
+            logger.info("Skipping template/deployment profile loading for target {}.", targetId);
+        } else {
+            logger.info("Restoring {} discovered deployment profiles and associated templates for "
+                    + "target {}", serialized.size(), targetId);
+            Map<DeploymentProfileInfo, Set<EntityProfileDTO>> mappedProfiles = serialized.stream()
+                    .map(string -> {
+                        try {
+                            return GSON.fromJson(string, DeploymentProfileWithTemplate.class);
+                        } catch (JsonParseException e) {
+                            logger.error(
+                                    "Failed to deserialize deployment profile and template {} for "
+                                            + "target {} because of error: ", string, targetId, e);
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toMap(DeploymentProfileWithTemplate::getProfile,
+                            DeploymentProfileWithTemplate::getTemplates));
 
-        logger.info("Restoring {} discovered deployment profiles and associated templates for " +
-            "target {}", serialized.size(), targetId);
-        Map<DeploymentProfileInfo, Set<EntityProfileDTO>> mappedProfiles = serialized.stream()
-            .map(string -> {
-                try {
-                    return GSON.fromJson(string, DeploymentProfileWithTemplate.class);
-                } catch (JsonParseException e) {
-                    logger.error("Failed to deserialize deployment profile and template {} for " +
-                        "target {} because of error: ", string, targetId, e);
-                    return null;
-                }
-            })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toMap(DeploymentProfileWithTemplate::getProfile,
-                DeploymentProfileWithTemplate::getTemplates));
+            templateDeploymentProfileUploader.setTargetsTemplateDeploymentProfileInfos(targetId,
+                    mappedProfiles);
 
-        templateDeploymentProfileUploader
-            .setTargetsTemplateDeploymentProfileInfos(targetId, mappedProfiles);
-
-        logger.info("Done restoring {} discovered deployment profiles and templates for target {}",
-            mappedProfiles.size(), targetId);
+            logger.info(
+                    "Done restoring {} discovered deployment profiles and templates for target {}",
+                    mappedProfiles.size(), targetId);
+        }
     }
 
     /**

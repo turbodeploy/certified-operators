@@ -276,7 +276,12 @@ public class TopologyProcessorDiagnosticsHandlerTest {
     public void testNoTargets() throws IOException {
         ZipInputStream zis = dumpDiags();
 
+
+
         ZipEntry ze = zis.getNextEntry();
+        assertEquals("Identity.diags", ze.getName());
+
+        ze = zis.getNextEntry();
         assertEquals("Probes.diags", ze.getName());
         byte[] bytes = new byte[20];
         assertEquals(-1, zis.read(bytes));
@@ -305,9 +310,6 @@ public class TopologyProcessorDiagnosticsHandlerTest {
 
         ze = zis.getNextEntry();
         assertEquals("PriceTables.diags", ze.getName());
-
-        ze = zis.getNextEntry();
-        assertEquals("Identity.diags", ze.getName());
 
         ze = zis.getNextEntry();
         assertEquals("PrometheusMetrics", ze.getName());
@@ -357,6 +359,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         final ZipInputStream zis = dumpDiags();
 
         ZipEntry ze = zis.getNextEntry();
+        assertEquals("Identity.diags", ze.getName());
+
+        ze = zis.getNextEntry();
         assertEquals("Probes.diags", ze.getName());
         byte[] bytes = new byte[1024];
         assertNotEquals(-1, zis.read(bytes));
@@ -449,6 +454,9 @@ public class TopologyProcessorDiagnosticsHandlerTest {
         final ZipInputStream zis = dumpDiags();
 
         ZipEntry ze = zis.getNextEntry();
+        assertEquals("Identity.diags", ze.getName());
+
+        ze = zis.getNextEntry();
         assertEquals("Probes.diags", ze.getName());
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -553,9 +561,6 @@ public class TopologyProcessorDiagnosticsHandlerTest {
             assertEquals(testTopology.template, GSON.fromJson(result,
                 DeploymentProfileWithTemplate.class).getTemplates().iterator().next());
         }
-
-        ze = zis.getNextEntry();
-        assertEquals("Identity.diags", ze.getName());
 
         ze = zis.getNextEntry();
         assertEquals("PrometheusMetrics", ze.getName());

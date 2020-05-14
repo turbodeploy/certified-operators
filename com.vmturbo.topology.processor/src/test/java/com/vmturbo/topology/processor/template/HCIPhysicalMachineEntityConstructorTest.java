@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.template;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -24,6 +27,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -56,60 +60,15 @@ public class HCIPhysicalMachineEntityConstructorTest {
     private static final long[] OIDS = {11111111111111L, 22222222222222L};
     private static int oidCount = 0;
 
-    private static final IdentityProvider IDENTITY_PROVIDER = new IdentityProvider() {
-        @Override
-        public long generateTopologyId() {
-            return OIDS[oidCount++];
-        }
+    private final IdentityProvider identityProvider = mock(IdentityProvider.class);
 
-        @Override
-        public void restoreDiags(List<String> arg0) throws DiagnosticsException {
-        }
-
-        @Override
-        public void collectDiags(DiagnosticsAppender arg0) throws DiagnosticsException {
-        }
-
-        @Override
-        public String getFileName() {
-            return null;
-        }
-
-        @Override
-        public long getTargetId(TargetSpec targetSpec) {
-            return 0;
-        }
-
-        @Override
-        public long getProbeId(ProbeInfo probeInfo) throws IdentityProviderException {
-            return 0;
-        }
-
-        @Override
-        public Map<Long, EntityDTO> getIdsForEntities(long probeId, List<EntityDTO> entityDTOs)
-                throws IdentityUninitializedException, IdentityMetadataMissingException,
-                IdentityProviderException {
-            return null;
-        }
-
-        @Override
-        public long getCloneId(TopologyEntityDTOOrBuilder inputEntity) {
-            return 0;
-        }
-
-        @Override
-        public long generateOperationId() {
-            return 0;
-        }
-
-        @Override
-        public void updateProbeInfo(ProbeInfo probeInfo) {
-        }
-
-        @Override
-        public void initialize() throws InitializationException {
-        }
-    };
+    /**
+     * Common setup before every test.
+     */
+    @Before
+    public void setup() {
+        when(identityProvider.generateTopologyId()).thenAnswer(invocationOnMock -> OIDS[oidCount++]);
+    }
 
     /**
      * Test constructing HCI entities from the HCI template.
@@ -148,7 +107,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
         // Run test
         Collection<TopologyEntityDTO.Builder> result = new HCIPhysicalMachineEntityConstructor(
                 template, topology, Collections.singletonList(originalHostBuilder), true,
-                IDENTITY_PROVIDER).createTopologyEntitiesFromTemplate();
+                identityProvider).createTopologyEntitiesFromTemplate();
 
         Assert.assertEquals(2, result.size());
         TopologyEntityDTO.Builder newHost = result.stream()
