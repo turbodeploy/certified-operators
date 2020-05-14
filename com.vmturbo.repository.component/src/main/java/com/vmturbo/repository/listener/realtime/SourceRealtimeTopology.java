@@ -1,7 +1,6 @@
 package com.vmturbo.repository.listener.realtime;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -28,6 +27,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.api.SetOnce;
+import com.vmturbo.components.api.SharedByteBuffer;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.proactivesupport.DataMetricSummary;

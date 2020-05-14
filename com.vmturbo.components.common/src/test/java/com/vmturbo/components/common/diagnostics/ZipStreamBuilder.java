@@ -25,8 +25,7 @@ public class ZipStreamBuilder {
     }
 
     ZipStreamBuilder withTextFile(String name, String... lines) throws IOException {
-        final String text = String.join("\n", lines);
-        return withFile(name, text.getBytes(Charsets.UTF_8));
+        return withFile(name, linesToBytes(lines));
     }
 
     ZipStreamBuilder withBinaryFile(String name, int... values) throws IOException {
@@ -70,5 +69,10 @@ public class ZipStreamBuilder {
             bytes[i] = (byte) values[i];
         }
         return bytes;
+    }
+
+    static byte[] linesToBytes(String... lines) {
+        final String text = String.join("\n", lines);
+        return text.getBytes(Charsets.UTF_8);
     }
 }
