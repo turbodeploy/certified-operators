@@ -378,7 +378,6 @@ public class EntitySettingsApplicator {
             super(EntitySettingSpecs.Move);
             this.graphWithSettings = Objects.requireNonNull(graphWithSettings);
             this.specialCases = new HashMap<>();
-            this.specialCases.put(EntityType.VIRTUAL_VOLUME, this::applyVirtualVolumeMove);
             this.specialCases.put(EntityType.VIRTUAL_MACHINE, (virtualMachine, isMoveEnabled) -> {
                 applyMovableToCommodities(virtualMachine, isMoveEnabled,
                         c -> c.getProviderEntityType() == EntityType.PHYSICAL_MACHINE_VALUE);
@@ -390,39 +389,6 @@ public class EntitySettingsApplicator {
             this.specialCases.getOrDefault(EntityType.forNumber(entity.getEntityType()),
                     (e, s) -> applyMovableToCommodities(e, s, c -> true))
                     .accept(entity, isMoveEnabled);
-        }
-
-        private void applyVirtualVolumeMove(TopologyEntityDTO.Builder virtualVolume,
-                Boolean isMoveEnabled) {
-            logger.debug(
-                    "Setting will be applied to virtual machines connected to virtual volume {}",
-                    virtualVolume::getOid);
-            final Collection<TopologyEntityDTO.Builder> connectedVirtualMachines =
-                    this.graphWithSettings.getTopologyGraph()
-                            .getEntity(virtualVolume.getOid())
-                            .map(vv -> vv.getInboundAssociatedEntities()
-                                    .stream()
-                                    .filter(connectedEntity -> connectedEntity.getEntityType() ==
-                                            EntityType.VIRTUAL_MACHINE_VALUE)
-                                    .map(TopologyEntity::getTopologyEntityDtoBuilder)
-                                    .collect(Collectors.toList()))
-                            .orElseGet(() -> {
-                                logger.error(
-                                        "Topology graph does not contain virtual volume with id {}",
-                                        virtualVolume.getOid());
-                                return Collections.emptyList();
-                            });
-            if (connectedVirtualMachines.isEmpty()) {
-                logger.debug("Unattached virtual volume {}. No move settings applied",
-                        virtualVolume::getOid);
-            } else {
-                connectedVirtualMachines.forEach(vm ->
-                        // Virtual machine may have more than one virtual volume with the same storage tier.
-                        // Only apply to the one with the associated virtual volume.
-                        applyMovableToCommodities(vm, isMoveEnabled,
-                                c -> c.getProviderEntityType() == EntityType.STORAGE_TIER_VALUE &&
-                                        c.getVolumeId() == virtualVolume.getOid()));
-            }
         }
     }
 
