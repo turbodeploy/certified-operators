@@ -679,7 +679,8 @@ public class ServiceConfig {
             communicationConfig.supplyChainFetcher(),
             userSessionContext(),
             communicationConfig.repositoryApi(),
-            mapperConfig.buyRiScopeHandler());
+            mapperConfig.buyRiScopeHandler(),
+            communicationConfig.thinTargetCache());
     }
 
     @Bean
