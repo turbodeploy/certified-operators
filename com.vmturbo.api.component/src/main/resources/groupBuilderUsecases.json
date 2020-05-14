@@ -69,14 +69,37 @@
     "Container" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containersByName"},
-            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containersByPodName"}
+            {"inputType": "*", "elements": "ContainerPod:displayName:PRODUCES", "filterCategory": "entity", "filterType": "containersByPodName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES", "filterCategory": "entity", "filterType": "containersByNamespace"}
         ]
     },
 
     "ContainerPod" : {
         "criteria" : [
-            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerpodsByName"},
-            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containerpodsByVMName"}
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerPodsByName"},
+            {"inputType": "*", "elements": "VirtualMachine:displayName:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByVMName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByNamespace"}
+        ]
+    },
+
+    "ContainerSpec" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerSpecsByName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:AGGREGATES:ContainerSpec", "filterCategory": "entity", "filterType": "containerSpecsByVMNamespace"}
+        ]
+    },
+
+    "WorkloadController" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "workloadControllersByName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES", "filterCategory": "entity", "filterType": "workloadControllersByNamespace"},
+            {"inputType": "s|*", "elements": "workloadControllerInfoRepoDTO.controllerType", "filterCategory": "property", "filterType": "workloadControllersByKind", "loadOptions": true}
+        ]
+    },
+
+    "Namespace" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "namespacesByName"}
         ]
     },
 
