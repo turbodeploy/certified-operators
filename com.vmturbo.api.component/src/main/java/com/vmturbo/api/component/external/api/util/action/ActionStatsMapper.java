@@ -16,6 +16,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -76,18 +77,20 @@ class ActionStatsMapper {
      * @param entityLookup A map of entity oid to {@link MinimalEntity}. In the case of group by template
      *                     requests, we need to have the name of the entity in the response.
      *                     The names are looked up using this map.
+     * @param cspLookup A map of entity oid to {@link MinimalEntity} to cloud type.
      * @return The {@link StatSnapshotApiDTO} to return to the caller.
      */
     @Nonnull
     public StatSnapshotApiDTO currentActionStatsToApiSnapshot(
             @Nonnull final List<CurrentActionStat> currentActionStats,
             @Nonnull final ActionStatsQuery query,
-            @Nonnull Map<Long, MinimalEntity> entityLookup) {
+            @Nonnull Map<Long, MinimalEntity> entityLookup,
+            @Nonnull Map<Long, String> cspLookup) {
         final StatSnapshotApiDTO statSnapshotApiDTO = new StatSnapshotApiDTO();
         statSnapshotApiDTO.setDate(query.currentTimeStamp().isPresent() ? query.currentTimeStamp().get()
                         : DateTimeUtil.toString(clock.millis()));
         statSnapshotApiDTO.setStatistics(currentActionStats.stream()
-            .flatMap(stat -> currentActionStatXlToApi(stat, query, entityLookup).stream())
+            .flatMap(stat -> currentActionStatXlToApi(stat, query, entityLookup, cspLookup).stream())
             .collect(Collectors.toList()));
         return statSnapshotApiDTO;
     }
@@ -119,7 +122,8 @@ class ActionStatsMapper {
     @Nonnull
     private List<StatApiDTO> currentActionStatXlToApi(@Nonnull final CurrentActionStat actionStat,
                                                       @Nonnull final ActionStatsQuery query,
-                                                      @Nonnull final Map<Long, MinimalEntity> entityLookup) {
+                                                      @Nonnull final Map<Long, MinimalEntity> entityLookup,
+                                                      @Nonnull final Map<Long, String> cspLookup) {
         // The filters that applied to get this action stat
         final GroupByFilters groupByFilters = groupByFiltersFactory.filtersForQuery(query);
         if (actionStat.getStatGroup().hasActionCategory()) {
@@ -152,6 +156,13 @@ class ActionStatsMapper {
 
         if (actionStat.getStatGroup().hasCostType()) {
             groupByFilters.setActionCostType(actionStat.getStatGroup().getCostType());
+        }
+
+        if (actionStat.getStatGroup().hasCsp()) {
+            final String cspType = cspLookup.get(Long.parseLong(actionStat.getStatGroup().getCsp()));
+            if (!StringUtils.isEmpty(cspType)) {
+                groupByFilters.setCSP(cspType);
+            }
         }
 
         if (actionStat.getStatGroup().hasSeverity()) {
