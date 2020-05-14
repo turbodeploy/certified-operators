@@ -3,13 +3,10 @@ package com.vmturbo.topology.processor.entity;
 import static com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter.entityState;
 
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,8 +32,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
-import org.apache.commons.collections4.MultiValuedMap;
-import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -797,7 +792,7 @@ public class EntityStore {
      * @return optional incremental entities, or empty if not any
      */
     @VisibleForTesting
-    public synchronized Optional<TargetIncrementalEntities> getIncrementalEntities(long targetId) {
+    public Optional<TargetIncrementalEntities> getIncrementalEntities(long targetId) {
         return Optional.ofNullable(targetIncrementalEntities.get(targetId));
     }
 
@@ -867,29 +862,6 @@ public class EntityStore {
                 return Collections.emptySortedMap();
             }
             return new TreeMap<>(entityInDiscoveryOrder);
-        }
-
-        /**
-         * Get a map where each message id is mapped to the corresponding incremental EntityDTOs.
-         *
-         * @return the map
-         */
-        public synchronized LinkedHashMap<Integer, Collection<EntityDTO>> getEntitiesByMessageId() {
-            final LinkedHashMap<Integer, Collection<EntityDTO>> messageIdToEntityDtos =
-                new LinkedHashMap<>();
-            for (TreeMap<Integer, EntityDTO> messageIdToEntity : orderedIncrementalEntities.values()) {
-                for (Integer messageId : messageIdToEntity.keySet()) {
-                    if (messageIdToEntityDtos.containsValue(messageId)) {
-                        Collection<EntityDTO> currentEntityDTOs = messageIdToEntityDtos.get(messageId);
-                        currentEntityDTOs.add(messageIdToEntity.get(messageId));
-                        messageIdToEntityDtos.put(messageId,currentEntityDTOs);
-                    } else {
-                        messageIdToEntityDtos.put(messageId,
-                            Collections.singletonList(messageIdToEntity.get(messageId)));
-                    }
-                }
-            }
-            return messageIdToEntityDtos;
         }
     }
 

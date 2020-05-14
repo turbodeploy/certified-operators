@@ -132,13 +132,7 @@ public class TopologyEntitiesHandler {
         BiMap<Long, ShoppingList> shoppingListBiMapInverse = topology
                 .getShoppingListOids().inverse();
         for (Long shoppingListID : computeCloudShoppingListIds) {
-
-            final ShoppingList shopList = shoppingListBiMapInverse.get(shoppingListID);
-            if (shopList == null) {
-                logger.error("Cannot find shopping list for shoppingListID: {}", shoppingListID);
-            } else {
-                cloudVmComputeShoppingList.add(shopList);
-            }
+            cloudVmComputeShoppingList.add(shoppingListBiMapInverse.get(shoppingListID));
         }
         return ede.getProviderLists(cloudVmComputeShoppingList, economy);
     }

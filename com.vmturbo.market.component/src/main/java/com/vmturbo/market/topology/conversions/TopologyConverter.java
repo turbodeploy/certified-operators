@@ -2986,17 +2986,7 @@ public class TopologyConverter {
         // Remove all skipped traders as we don't want to send them to market
         // and only needed them for scoping.
         for (long skippedEntityOid : skippedEntities.keySet()) {
-            final TraderTO traderTO = oidToOriginalTraderTOMap.get(skippedEntityOid);
-            if (traderTO != null) {
-                traderTOs.remove(traderTO);
-                final Set<Long> shoppingListsOids = traderTO.getShoppingListsList().stream().map(ShoppingListTO::getOid)
-                        .collect(Collectors.toSet());
-                logger.debug("Remove following ShoppingListTOs {} from cloudVmComputeShoppingListIDs, because traderTO {} is skipped",
-                        () -> shoppingListsOids.stream().map(String::valueOf).collect(Collectors.joining(",")),
-                        () -> traderTO.getDebugInfoNeverUseInCode());
-                cloudVmComputeShoppingListIDs.removeAll(shoppingListsOids);
-
-            }
+            traderTOs.remove(oidToOriginalTraderTOMap.get(skippedEntityOid));
         }
     }
 

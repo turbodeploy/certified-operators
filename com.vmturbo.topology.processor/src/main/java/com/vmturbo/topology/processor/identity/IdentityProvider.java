@@ -25,7 +25,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
  * <p>ID assignment for targets, probes, discoveries, actions etc. also
  * happens here.
  */
-public interface IdentityProvider extends DiagsRestorable {
+public interface IdentityProvider extends DiagsRestorable, RequiresDataInitialization {
 
     /**
      * Get the target ID for the target described by a given spec.
