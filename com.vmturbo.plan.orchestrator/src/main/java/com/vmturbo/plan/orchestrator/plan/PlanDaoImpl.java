@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance.PlanStatus;
 import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.Scenario;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
@@ -124,22 +125,24 @@ public class PlanDaoImpl implements PlanDao {
     private final OldPlanCleanup oldPlanCleanup;
 
     PlanDaoImpl(@Nonnull final DSLContext dsl,
-                       @Nonnull final Channel groupChannel,
-                       @Nonnull final UserSessionContext userSessionContext,
-                       @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
-                       @Nonnull final Clock clock,
-                       @Nonnull final ScheduledExecutorService cleanupExecutor,
-                       final long planTimeout,
-                       @Nonnull final TimeUnit planTimeoutUnit,
-                       final long cleanupInterval,
-                       @Nonnull final TimeUnit cleanupIntervalUnit) {
+                @Nonnull final Channel groupChannel,
+                @Nonnull final UserSessionContext userSessionContext,
+                @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
+                @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceServiceBlockingStub,
+                @Nonnull final Clock clock,
+                @Nonnull final ScheduledExecutorService cleanupExecutor,
+                final long planTimeout,
+                @Nonnull final TimeUnit planTimeoutUnit,
+                final long cleanupInterval,
+                @Nonnull final TimeUnit cleanupIntervalUnit) {
         this.dsl = Objects.requireNonNull(dsl);
         this.settingService = SettingServiceGrpc.newBlockingStub(groupChannel);
         this.settingPolicyService = SettingPolicyServiceGrpc.newBlockingStub(groupChannel);
         this.userSessionContext = userSessionContext;
         this.clock = clock;
         this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
-                GroupServiceGrpc.newBlockingStub(groupChannel), searchServiceBlockingStub);
+                GroupServiceGrpc.newBlockingStub(groupChannel), searchServiceBlockingStub,
+                supplyChainServiceServiceBlockingStub);
         this.cleanupExecutor = cleanupExecutor;
         this.oldPlanCleanup = new OldPlanCleanup(clock, this, planTimeout, planTimeoutUnit);
         this.cleanupExecutor.scheduleAtFixedRate(this.oldPlanCleanup, cleanupInterval, cleanupInterval, cleanupIntervalUnit);
