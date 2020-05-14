@@ -1,0 +1,10 @@
+{
+    "entityType": "CONTAINER",
+    "displayName": "Containers By Deployment::btc/kubeturbo-btc [Kubernetes-btc AWS]",
+    "groupName": "Deployment::btc/kubeturbo-btc-Kubernetes-btc AWS[Container]",
+    "memberList": {
+        "member": [
+            "a7d0af87-9449-11ea-ae38-005056b89b98-0"]
+    },
+    "isConsistentResizing": false
+}

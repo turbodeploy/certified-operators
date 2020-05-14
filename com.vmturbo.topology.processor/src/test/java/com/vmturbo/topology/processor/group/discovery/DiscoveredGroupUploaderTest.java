@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -59,7 +60,6 @@ import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByT
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
-import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -385,11 +385,71 @@ public class DiscoveredGroupUploaderTest {
         Assert.assertThat(policy.getDisplayName(), CoreMatchers.containsString(name));
         Assert.assertThat(policy.getDiscoveredGroupNames(0), CoreMatchers.containsString(name));
         Assert.assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, policy.getEntityType());
-        Optional<Setting> setting = policy.getSettingsList().stream()
-                .filter(s -> s.getSettingSpecName() == EntitySettingSpecs.ExcludedTemplates
-                        .getSettingSpec().getName())
-                .findFirst();
-        Assert.assertTrue(setting.isPresent());
+        Assert.assertTrue(doesPolicyHaveSetting(policy, EntitySettingSpecs.ExcludedTemplates));
+    }
+
+    /**
+     * Verify that groups with consistent scaling enabled generate the correct associated policies.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testConvertConsistentScalingSettingsToPolicies() throws Exception {
+        /*
+         * Load some groups:
+         * - Accelerated networking with consistent scaling set.  This will generate two policies.
+         * - Consistent scaling only, enabled.  This will generate one policy.
+         * - Consistent scaling only, disabled.  This will not generate a policy.
+         *
+         * Total number of policies generated will be two consistent scaling and one template
+         * exclusion.
+         */
+        String[] groupFiles = {
+                        "AcceleratedNetworkingGroupDTO-consistent-scaling.json",  // VM
+                        "ConsistentScalingEnabled.json",  // CONTAINER
+                        "ConsistentScalingDisabled.json"  // CONTAINER
+        };
+        List<GroupDTO> groupDTOS = new ArrayList<>();
+        for (String filename : groupFiles) {
+            groupDTOS.add(loadGroupDto(filename));
+        }
+        recorderSpy.setTargetDiscoveredGroups(TARGET_ID, groupDTOS);
+
+        List<DiscoveredSettingPolicyInfo> policies = getSettingPoliciesOfTarget(TARGET_ID);
+        Assert.assertEquals(3, policies.size());
+        // Template exclusion policies are generated first, followed by consistent scaling.
+        Iterator it = policies.iterator();
+        DiscoveredSettingPolicyInfo policy = (DiscoveredSettingPolicyInfo)it.next();
+        Assert.assertEquals(EntityType.VIRTUAL_MACHINE_VALUE, policy.getEntityType());
+        Assert.assertTrue(doesPolicyHaveSetting(policy, EntitySettingSpecs.ExcludedTemplates));
+        Assert.assertEquals(1, countPoliciesWithSetting(policies,
+                EntitySettingSpecs.ExcludedTemplates));
+        // Check for consistent scaling policies
+        Assert.assertEquals(2, countPoliciesWithSetting(policies,
+                EntitySettingSpecs.EnableConsistentResizing));
+    }
+
+    /**
+     * Check whether a policy contains the specified setting.
+     * @param policy policy to check
+     * @param setting setting to check for
+     * @return true if the policy contains the setting
+     */
+    private boolean doesPolicyHaveSetting(DiscoveredSettingPolicyInfo policy,
+                                          EntitySettingSpecs setting) {
+        return policy.getSettingsList().stream()
+                        .anyMatch(s -> s.getSettingSpecName() == setting.getSettingName());
+    }
+
+    /**
+     * Return the number of policies that contain the specified setting.
+     * @param policies list of policies to check
+     * @param setting setting to check for
+     * @return the number of policies with the specified setting
+     */
+    private long countPoliciesWithSetting(final List<DiscoveredSettingPolicyInfo> policies,
+                                         final EntitySettingSpecs setting) {
+        return policies.stream().filter(p -> doesPolicyHaveSetting(p, setting)).count();
     }
 
     /**
