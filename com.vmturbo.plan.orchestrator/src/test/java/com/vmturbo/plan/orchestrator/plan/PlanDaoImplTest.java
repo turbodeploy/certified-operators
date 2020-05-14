@@ -126,6 +126,7 @@ public class PlanDaoImplTest {
         planDao = new PlanDaoImpl(dsl,
             grpcServer.getChannel(),
             userSessionContext, SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                null,
             clock, planCleanupExecutor,
             1, TimeUnit.HOURS, 1, TimeUnit.HOURS);
     }

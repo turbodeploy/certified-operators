@@ -28,6 +28,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioRequest;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.UpdateScenarioResponse;
 import com.vmturbo.common.protobuf.plan.ScenarioServiceGrpc.ScenarioServiceImplBase;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.commons.idgen.IdentityInitializer;
@@ -47,13 +48,14 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
                               @Nonnull final IdentityInitializer identityInitializer,
                               @Nonnull final UserSessionContext userSessionContext,
                               @Nonnull final GroupServiceBlockingStub groupServiceBlockingStub,
-                              @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub) {
+                              @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
+                              @Nonnull final SupplyChainServiceBlockingStub supplyChainServiceClient) {
         this.scenarioDao = scenarioDao;
         Objects.requireNonNull(identityInitializer); // Ensure identity generator is initialized
         this.userSessionContext = userSessionContext;
         this.groupServiceStub = groupServiceBlockingStub;
         this.scenarioScopeAccessChecker = new ScenarioScopeAccessChecker(userSessionContext,
-            groupServiceStub, searchServiceBlockingStub);
+                groupServiceStub, searchServiceBlockingStub, supplyChainServiceClient);
     }
 
     @Override
@@ -88,7 +90,7 @@ public class ScenarioRpcService extends ScenarioServiceImplBase {
             // the scope entries exist in the system, if any of them do not exist, then the whole
             // scenario scope is invalid, and we should prevent scenario from being created
             try {
-                scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(info);
+                info = scenarioScopeAccessChecker.checkScenarioAccessAndValidateScopes(info);
             } catch (ScenarioScopeNotFoundException e) {
                 logger.error(e.getMessage());
                 responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(
