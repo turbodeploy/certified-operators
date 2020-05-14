@@ -77,6 +77,7 @@ class CombinedStatsBuckets {
                 bucketKey.explanation().ifPresent(bldr::setActionExplanation);
                 bucketKey.type().ifPresent(bldr::setActionType);
                 bucketKey.costType().ifPresent(bldr::setCostType);
+                bucketKey.csp().ifPresent(bldr::setCsp);
                 bucketKey.severity().ifPresent(bldr::setSeverity);
                 bucketKey.targetEntityType().ifPresent(bldr::setTargetEntityType);
                 bucketKey.targetEntityId().ifPresent(bldr::setTargetEntityId);
@@ -140,6 +141,12 @@ class CombinedStatsBuckets {
         if (groupBy.contains(GroupBy.RESOURCE_GROUP_ID)) {
             keyBuilder.resourceGroupId(
                 actionInfo.action().getAssociatedResourceGroupId().orElse(0L));
+        }
+
+        if (groupBy.contains(GroupBy.CSP)) {
+            keyBuilder.csp(actionView.getAssociatedAccount()
+                    // Use an explicit 0 for actions not associated with accounts.
+                    .orElse(0L).toString());
         }
 
         Set<ImmutableGroupByBucketKey> bucketKeys = new HashSet<>();
@@ -255,6 +262,13 @@ class CombinedStatsBuckets {
          * @return Value, or {@link Optional} if the requested group-by included the cost type.
          */
         Optional<ActionCostType> costType();
+
+        /**
+         * The cloud service provider for this bucket.
+         *
+         * @return Value, or {@link Optional} if the requested group-by included the csp.
+         */
+        Optional<String> csp();
 
         /**
          * The {@link Severity} for this bucket.
