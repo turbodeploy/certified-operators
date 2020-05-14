@@ -64,6 +64,8 @@ import com.vmturbo.topology.processor.topology.TopologyEntityTopologyGraphCreato
  * Group-C: VM-5
  * DiscoveredGroup-A: VM-4, VM-6
  * DiscoveredGroup-B: VM-7
+ * One-VM-powered-off: VM-9, VM-10
+ * All-VMs-powered-off: VM-11, VM-12
  *
  * <p>Group-A merges with Group-B to form one scaling group because VM-2 is in both groups.
  * Group-C forms a separate scaling group
@@ -95,10 +97,6 @@ public class ConsistentScalingManagerTest {
     }
 
     private void populateCSMWithTestData(ConsistentScalingManager csm) {
-        // Add discovered scaling groups
-        csm.addDiscoveredGroup(makeInterpretedGroup("DiscoveredGroup-A", true));
-        csm.addDiscoveredGroup(makeInterpretedGroup("DiscoveredGroup-B", true));
-
         // Add consistent scaling policies
         consistentScalingPolicies.entrySet().forEach(entry -> {
             csm.addEntities(testGroups, topologyGraph,
@@ -146,10 +144,17 @@ public class ConsistentScalingManagerTest {
         return new ConsistentScalingManager(config);
     }
 
+    /**
+     * Stub gRPC server.
+     */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(testGroupService,
         testSettingPolicyService, testSettingService);
 
+    /**
+     * Common setup for all tests.
+     * @throws Exception on initialization error. Will not occur for properly written tests.
+     */
     @Before
     public void setUp() throws Exception {
         groupServiceClient = GroupServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -182,7 +187,10 @@ public class ConsistentScalingManagerTest {
         makeSettingPolicy(1001L, 101L, true);
         makeSettingPolicy(1002L, 102L, true);
         makeSettingPolicy(1003L, 103L, true);
+        makeSettingPolicy(1004L, 104L, true);
+        makeSettingPolicy(1005L, 105L, true);
         makeSettingPolicy(1006L, 106L, false);
+        makeSettingPolicy(1007L, 107L, true);
         makeSettingPolicy(1009L, 109L, true);
         makeSettingPolicy(1011L, 111L, true);
     }
@@ -197,6 +205,10 @@ public class ConsistentScalingManagerTest {
         return group;
     }
 
+    /**
+     * Ensure that scaling group membership information is uploaded to the group component
+     * correctly.
+     */
     @Test
     public void testAddScalingGroupSettings() {
         ConsistentScalingManager csm = createCSM(true);
@@ -214,10 +226,13 @@ public class ConsistentScalingManagerTest {
                 .contains(EntitySettingSpecs.ScalingGroupMembership.getSettingName())));
     }
 
+    /**
+     * Test adding entities when consistent scaling is globally disabled.
+     */
     @Test
     public void testAddEntities() {
-        // addEntities() is already tested in XXX.  Here tests when consistent scaling is globally
-        // disabled.
+        // addEntities() is already tested as part of test initialiation.  This tests tests when
+        // consistent scaling is globally disabled.
         ConsistentScalingManager csm = createCSM(false);
         populateCSMWithTestData(csm);
         buildScalingGroups(csm);
@@ -248,6 +263,9 @@ public class ConsistentScalingManagerTest {
         Assert.assertFalse(csm.getScalingGroupId(12L).isPresent());
     }
 
+    /**
+     * Ensure scaling group IDs lookups work for independent and merged groups.
+     */
     @Test
     public void testGetScalingGroupId() {
         ConsistentScalingManager csm = createCSM(true);
@@ -261,6 +279,9 @@ public class ConsistentScalingManagerTest {
         Assert.assertEquals(Optional.of("Group-C"), csm.getScalingGroupId(5L));
     }
 
+    /**
+     * Ensure CSM state is cleared correctly.
+     */
     @Test
     public void testClear() {
         ConsistentScalingManager csm = createCSM(true);
@@ -272,36 +293,11 @@ public class ConsistentScalingManagerTest {
         Assert.assertNotNull(settingsMaps.get(9L));
         csm.clear();
         Assert.assertFalse(csm.getScalingGroupId(1L).isPresent());
-
-        // Repopulate
-        populateCSMWithTestData(csm);
-        // Clear discovered groups
-        csm.clearDiscoveredGroups();
-        buildScalingGroups(csm);
-        // VM-7 is in DiscoveredGroup-B, so now it should no longer be in there
-        Assert.assertFalse(csm.getScalingGroupId(7L).isPresent());
     }
 
-    @Test
-    public void testAddDiscoveredGroupEnabled() {
-        ConsistentScalingManager csm = createCSM(true);
-        csm.addDiscoveredGroup(makeInterpretedGroup("DiscoveredGroup-A", true));
-        csm.addDiscoveredGroup(makeInterpretedGroup("DiscoveredGroup-B", true));
-        buildScalingGroups(csm);
-        Assert.assertEquals(Optional.of("DiscoveredGroup-B"), csm.getScalingGroupId(7L));
-        Assert.assertEquals(Optional.empty(), csm.getScalingGroupId(1L));
-    }
-
-    @Test
-    public void testAddDiscoveredGroupDisabled() {
-        // Globally disable consistent scaling
-        ConsistentScalingManager csm = createCSM(false);
-        csm.addDiscoveredGroup(makeInterpretedGroup("DiscoveredGroup-A", true));
-        csm.addDiscoveredGroup(makeInterpretedGroup("DiscoveredGroup-B", true));
-        buildScalingGroups(csm);
-        Assert.assertEquals(Optional.empty(), csm.getScalingGroupId(7L));
-    }
-
+    /**
+     * Ensure scaling groups are built and merged correctly.
+     */
     @Test
     public void testBuildScalingGroups() {
         // buildScalingGroups() is tested is other areas.  This test targets processing groups

@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.common.protobuf.group.GroupDTO.StoreDiscoveredGroupsPoliciesSettingsResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceStub;
+import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.topology.DiscoveredGroup.DiscoveredGroupInfo;
@@ -146,8 +147,11 @@ public class DiscoveredGroupUploader {
                 discoveredGroupInterpreter.interpretSdkGroupList(groups, targetId);
         final DiscoveredPolicyInfoParser parser = new DiscoveredPolicyInfoParser(groups, targetId);
         final List<DiscoveredPolicyInfo> discoveredPolicyInfos = parser.parsePoliciesOfGroups();
-        final List<DiscoveredSettingPolicyInfo> discoveredSettingPolicyInfos =
-            convertTemplateExclusionGroupsToPolicies(targetId, groups);
+        final List<DiscoveredSettingPolicyInfo> discoveredSettingPolicyInfos = new ArrayList<>();
+        discoveredSettingPolicyInfos
+                    .addAll(convertTemplateExclusionGroupsToPolicies(targetId, groups));
+        discoveredSettingPolicyInfos
+                    .addAll(convertConsistentScalingGroupsToPolicies(targetId, groups));
 
         final TargetDiscoveredData discoveredData = new TargetDiscoveredData(interpretedDtos,
             discoveredPolicyInfos, discoveredSettingPolicyInfos);
@@ -156,6 +160,38 @@ public class DiscoveredGroupUploader {
             dataByTarget.put(targetId, discoveredData);
             discoveredClusterConstraintCache.storeDiscoveredClusterConstraint(targetId, groups);
         }
+    }
+
+    /**
+     * Create policies to enable consistent scaling on groups that have it enabled via mediation.
+     *
+     * @param targetId The id of the target whose groups were discovered
+     * @param groups GroupDTOs to process
+     * @return list of DiscoveredSettingPolicyInfo created for consistent scaling
+     */
+    private List<DiscoveredSettingPolicyInfo> convertConsistentScalingGroupsToPolicies(
+                    final long targetId,
+                    final List<GroupDTO> groups) {
+        List<DiscoveredSettingPolicyInfo> discoveredPolicyInfos = new ArrayList<>();
+        for (GroupDTO group : groups) {
+            if (!group.getIsConsistentResizing()) {
+                continue;
+            }
+            DiscoveredSettingPolicyInfo.Builder policy = DiscoveredSettingPolicyInfo.newBuilder();
+            Setting.Builder setting = Setting.newBuilder();
+            setting.setSettingSpecName(EntitySettingSpecs.EnableConsistentResizing.getSettingName());
+            setting.setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true));
+            policy.setEntityType(group.getEntityType().getNumber());
+            policy.addDiscoveredGroupNames(GroupProtoUtil.createIdentifyingKey(group));
+            String targetName = getTargetDisplayName(targetId);
+            String name = String.format("%s - %s - Consistent Scaling Policy (account %d)",
+                                        targetName, group.getDisplayName(), targetId);
+            policy.setDisplayName(name);
+            policy.setName(name);
+            policy.addSettings(setting);
+            discoveredPolicyInfos.add(policy.build());
+        }
+        return discoveredPolicyInfos;
     }
 
     /**
@@ -297,10 +333,6 @@ public class DiscoveredGroupUploader {
         // while an upload is in progress so that the data structures for each type cannot be made to be
         // out of sync with each other.
         synchronized (dataByTarget) {
-
-            // Create the upload requests and register discovered consistent scaling groups.
-            consistentScalingManager.clearDiscoveredGroups();
-
             dataByTarget.forEach((targetId, targetData) -> {
                 final List<InterpretedGroup> groupsCopy = targetData.copyGroups();
 
@@ -332,11 +364,6 @@ public class DiscoveredGroupUploader {
                         .setTargetId(targetId)
                         .setProbeType(probeType);
                 groupsCopy.forEach(interpretedDto -> {
-                    // Since the consistent scaling setting is not available in the Grouping
-                    // but it is available in the SDK DTO, we need to tell the CSM which
-                    // discovered groups need to be consistently scaled here while the setting
-                    // is available.
-                    consistentScalingManager.addDiscoveredGroup(interpretedDto);
                     interpretedDto.convertToUploadedGroup().ifPresent(req::addUploadedGroups);
                 });
 
