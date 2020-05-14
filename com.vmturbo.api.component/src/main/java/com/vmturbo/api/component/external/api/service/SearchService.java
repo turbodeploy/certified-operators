@@ -105,6 +105,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
@@ -118,6 +119,7 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo.ControllerTypeCase;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -232,6 +234,7 @@ public class SearchService implements ISearchService {
                 .put(EntityFilterMapper.MEMBER_OF_BILLING_FAMILY_OID, (a, b, c) -> getBillingFamiliesOptions())
                 .put(EntityFilterMapper.OWNER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsUUIDOptions())
                 .put("discoveredBy:validationStatus", (a, b, c) -> getValidationStatusOptions())
+                .put(EntityFilterMapper.WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
                 .build();
     }
 
@@ -1111,6 +1114,28 @@ public class SearchService implements ISearchService {
             }
         }
         return Collections.unmodifiableList(result);
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getWorkloadControllerTypeOptions() {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        // Options have all possible controller types except CUSTOM_CONTROLLER_INFO and
+        // CONTROLLERTYPE_NOT_SET
+        Arrays.stream(ControllerTypeCase.values())
+            .forEach(controllerType -> {
+                if (controllerType == ControllerTypeCase.CONTROLLERTYPE_NOT_SET
+                    || controllerType == ControllerTypeCase.CUSTOM_CONTROLLER_INFO) {
+                    return;
+                }
+                final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+                optionApiDTO.setValue(controllerType.name());
+                optionApiDTOs.add(optionApiDTO);
+            });
+        // Add an "Other" option
+        CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+        optionApiDTO.setValue(SearchableProperties.OTHER_CONTROLLER_TYPE);
+        optionApiDTOs.add(optionApiDTO);
+        return optionApiDTOs;
     }
 
     /**

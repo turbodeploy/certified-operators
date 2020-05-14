@@ -40,9 +40,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.CustomControllerInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DeploymentInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StatefulSetInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo.ControllerTypeCase;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -1297,6 +1302,143 @@ public class TopologyFilterFactoryTest {
 
         associatedTargetFilter.apply(Stream.of(notSupportedEntity), graph)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Test the filter for a WorkloadController entity's controller type with given options.
+     */
+    @Test
+    public void testSearchFilterControllerTypeWithOptions() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.WC_INFO_REPO_DTO_PROPERTY_NAME)
+                .setObjectFilter(ObjectFilter.newBuilder()
+                    .addFilters(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.CONTROLLER_TYPE)
+                        .setStringFilter(StringFilter.newBuilder().addOptions(ControllerTypeCase.DEPLOYMENT_INFO.name()).build())
+                    )
+                )
+            ).build();
+        final TestGraphEntity vmEntity =
+            TestGraphEntity.newBuilder(1L, ApiEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity pmEntity =
+            TestGraphEntity.newBuilder(2L, ApiEntityType.PHYSICAL_MACHINE).build();
+
+        final TestGraphEntity wcEntityMatching =
+            TestGraphEntity.newBuilder(3L, ApiEntityType.WORKLOAD_CONTROLLER)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setWorkloadController(WorkloadControllerInfo.newBuilder()
+                        .setDeploymentInfo(DeploymentInfo.newBuilder().build()))
+                    .build())
+                .build();
+        final TestGraphEntity wcEntityNotMatching =
+            TestGraphEntity.newBuilder(4L, ApiEntityType.WORKLOAD_CONTROLLER)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setWorkloadController(WorkloadControllerInfo.newBuilder()
+                        .setStatefulSetInfo(StatefulSetInfo.newBuilder().build()))
+                    .build())
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        assertFalse(propertyFilter.test(vmEntity));
+        assertFalse(propertyFilter.test(pmEntity));
+        assertTrue(propertyFilter.test(wcEntityMatching));
+        assertFalse(propertyFilter.test(wcEntityNotMatching));
+    }
+
+    /**
+     * Test the filter for a WorkloadController entity's controller type with "Other" options.
+     * We'll search for WorkloadControllers with any customer controller type.
+     */
+    @Test
+    public void testSearchFilterControllerTypeWithOtherOptions() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.WC_INFO_REPO_DTO_PROPERTY_NAME)
+                .setObjectFilter(ObjectFilter.newBuilder()
+                    .addFilters(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.CONTROLLER_TYPE)
+                        .setStringFilter(StringFilter.newBuilder().addOptions(SearchableProperties.OTHER_CONTROLLER_TYPE).build())
+                    )
+                )
+            ).build();
+        final TestGraphEntity vmEntity =
+            TestGraphEntity.newBuilder(1L, ApiEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity pmEntity =
+            TestGraphEntity.newBuilder(2L, ApiEntityType.PHYSICAL_MACHINE).build();
+
+        final TestGraphEntity wcEntityMatching =
+            TestGraphEntity.newBuilder(3L, ApiEntityType.WORKLOAD_CONTROLLER)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setWorkloadController(WorkloadControllerInfo.newBuilder()
+                        .setCustomControllerInfo(CustomControllerInfo.newBuilder().build()))
+                    .build())
+                .build();
+        final TestGraphEntity wcEntityNotMatching =
+            TestGraphEntity.newBuilder(4L, ApiEntityType.WORKLOAD_CONTROLLER)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setWorkloadController(WorkloadControllerInfo.newBuilder()
+                        .setStatefulSetInfo(StatefulSetInfo.newBuilder().build()))
+                    .build())
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        assertFalse(propertyFilter.test(vmEntity));
+        assertFalse(propertyFilter.test(pmEntity));
+        assertTrue(propertyFilter.test(wcEntityMatching));
+        assertFalse(propertyFilter.test(wcEntityNotMatching));
+    }
+
+    /**
+     * Test the filter for a WorkloadController entity's controller type with regex.
+     */
+    @Test
+    public void testSearchFilterControllerTypeWithRegex() {
+        final SearchFilter searchFilter = SearchFilter.newBuilder()
+            .setPropertyFilter(Search.PropertyFilter.newBuilder()
+                .setPropertyName(SearchableProperties.WC_INFO_REPO_DTO_PROPERTY_NAME)
+                .setObjectFilter(ObjectFilter.newBuilder()
+                    .addFilters(Search.PropertyFilter.newBuilder()
+                        .setPropertyName(SearchableProperties.CONTROLLER_TYPE)
+                        .setStringFilter(StringFilter.newBuilder().setStringPropertyRegex("DeploymentCo.*").build())
+                    )
+                )
+            ).build();
+        final TestGraphEntity vmEntity =
+            TestGraphEntity.newBuilder(1L, ApiEntityType.VIRTUAL_MACHINE).build();
+        final TestGraphEntity pmEntity =
+            TestGraphEntity.newBuilder(2L, ApiEntityType.PHYSICAL_MACHINE).build();
+
+        final TestGraphEntity wcEntityMatching =
+            TestGraphEntity.newBuilder(3L, ApiEntityType.WORKLOAD_CONTROLLER)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setWorkloadController(WorkloadControllerInfo.newBuilder()
+                        .setCustomControllerInfo(CustomControllerInfo.newBuilder()
+                            .setCustomControllerType("DeploymentConfig").build()))
+                    .build())
+                .build();
+        final TestGraphEntity wcEntityNotMatching =
+            TestGraphEntity.newBuilder(4L, ApiEntityType.WORKLOAD_CONTROLLER)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setWorkloadController(WorkloadControllerInfo.newBuilder()
+                        .setStatefulSetInfo(StatefulSetInfo.newBuilder().build()))
+                    .build())
+                .build();
+
+        final TopologyFilter<TestGraphEntity> filter = filterFactory.filterFor(searchFilter);
+        assertTrue(filter instanceof PropertyFilter);
+        PropertyFilter<TestGraphEntity> propertyFilter = (PropertyFilter<TestGraphEntity>)filter;
+
+        assertFalse(propertyFilter.test(vmEntity));
+        assertFalse(propertyFilter.test(pmEntity));
+        assertTrue(propertyFilter.test(wcEntityMatching));
+        assertFalse(propertyFilter.test(wcEntityNotMatching));
     }
 
     private TestGraphEntity makeVmWithConnectedNetworks(long id, String... connectedNetworks) {
