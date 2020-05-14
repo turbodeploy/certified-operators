@@ -3,8 +3,10 @@ package com.vmturbo.topology.processor.topology;
 import static com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil.CLOUD_PROBE_TYPES;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -12,12 +14,13 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,8 +30,8 @@ import gnu.trove.set.TLongSet;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.targets.Target;
@@ -43,6 +46,28 @@ public class EnvironmentTypeInjector {
     private static final Logger logger = LogManager.getLogger();
 
     private final TargetStore targetStore;
+
+    /**
+     * Provides functions for traversing related entities in the topology when looking
+     * up the environment type of an entity.
+     * <p/>
+     * Key: Integer EntityType of an entity.
+     * Value: A function that given an entity, returns a Collection of connected entities in
+     *         the topology to traverse when searching for environment type. By default, we
+     *         traverse provider entities for entity types not explicitly in the map.
+     */
+    private static final Map<Integer, Function<TopologyEntity, Collection<TopologyEntity>>> ALTERNATE_TRAVERSAL_MAP =
+        ImmutableMap.of(
+            // ContainerSpecs are connected to their on-prem/cloud infrastructure through the Containers
+            // they aggregate.
+            EntityType.CONTAINER_SPEC_VALUE, TopologyEntity::getAggregatedEntities,
+            // WorkloadControllers are connected to their on-prem/cloud infrastructure through the ContainerPods
+            // that consume from them.
+            EntityType.WORKLOAD_CONTROLLER_VALUE, TopologyEntity::getConsumers,
+            // Namespaces are connected to their on-prem/cloud infrastructure through the WorkloadControllers
+            // and ContainerPods that consume from them.
+            EntityType.NAMESPACE_VALUE, TopologyEntity::getConsumers
+        );
 
     public EnvironmentTypeInjector(@Nonnull final TargetStore targetStore) {
         this.targetStore = Objects.requireNonNull(targetStore);
@@ -74,13 +99,13 @@ public class EnvironmentTypeInjector {
                 .map(ProbeCategory::isAppOrContainerCategory)
                 .orElse(false))
             .collect(Collectors.toSet());
-        final EntityTypeCache cache = new EntityTypeCache();
+        final EnvironmentTypeCache cache = new EnvironmentTypeCache();
         topologyGraph.entities().forEach(topoEntity -> {
             final EnvironmentType envType;
             final boolean discoveredByAppOrContainer = topoEntity.getDiscoveringTargetIds()
                 .anyMatch(appContainerTargetIds::contains);
             if (discoveredByAppOrContainer) {
-                envType = computeEnvironmentTypeByProviders(topoEntity, cloudTargetIds, cache);
+                envType = computeEnvironmentType(topoEntity, cloudTargetIds, cache, new HashSet<>());
             } else {
                 envType = getEnvironmentType(topoEntity, cloudTargetIds);
             }
@@ -169,56 +194,104 @@ public class EnvironmentTypeInjector {
     /**
      * The method defines an environment type (CLOUD, ON_PREM, etc.) of an entity, which was
      * discovered by a probe that can be considered as 'application or container' (CLOUD_NATIVE,
-     * GUEST_OS_PROCESSES, etc.). Some providers (other entities) of this target entity may have
+     * GUEST_OS_PROCESSES, etc.). Some connections (other entities) of this target entity may have
      * different env. types, and it influences on the target entity env. type.
-     * - If all env. types of all leaf providers are the same (leafProvidersTypes.size()==1), this env.
+     * - If all env. types of all leaf connections are the same (leafConnectionTypes.size()==1), this env.
      *   type goes to the target entity;
-     * - If the set 'leafProvidersTypes' contains HYBRID env. type, it means that target entity
+     * - If the set 'leafConnectionTypes' contains HYBRID env. type, it means that target entity
      *   has HYBRID type as well;
-     * - If the set 'leafProvidersTypes' contains both ON_PREM and CLOUD types, it means that target
+     * - If the set 'leafConnectionTypes' contains both ON_PREM and CLOUD types, it means that target
      *   entity has HYBRID env. type.
+     * - By default we traverse provider relationships, but we allow override of this behavior through
+     *   the ALTERNATE_TRAVERSAL_MAP. We skip traversing connections from entity types outside the
+     *   ALTERNATE_TRAVERSAL_MAP to inside the ALTERNATE_TRAVERSAL_MAP to prevent infinite traversal.
+     *
      * @param entity - target entity
      * @param cloudTargetIds - a set of targets IDs, that considered as cloud-based.
-     * @param cache - Cache to avoid multiple traversals of the same providers.
+     * @param cache - Cache to avoid multiple traversals of the same connections.
+     * @param traversed - The set of entities traversed so far during the environment type computation.
      * @return an environment type of the target entity.
      */
     @Nonnull
-    private EnvironmentType computeEnvironmentTypeByProviders(@Nonnull TopologyEntity entity,
-                                                              @Nonnull Set<Long> cloudTargetIds,
-                                                              @Nonnull EntityTypeCache cache) {
+    private EnvironmentType computeEnvironmentType(@Nonnull TopologyEntity entity,
+                                                   @Nonnull Set<Long> cloudTargetIds,
+                                                   @Nonnull EnvironmentTypeCache cache,
+                                                   @Nonnull Set<Long> traversed) {
         return cache.computeIfAbsent(entity.getOid(), () -> {
-            final EnvironmentType ret;
-            if (entity.getProviders().size() == 0) {
-                ret = getEnvironmentType(entity, cloudTargetIds);
-            } else {
-                EnvironmentType combinedType = null;
-                for (TopologyEntity p : entity.getProviders()) {
-                    final EnvironmentType providerEnvType =
-                        computeEnvironmentTypeByProviders(p, cloudTargetIds, cache);
-                    if (combinedType == null || combinedType == EnvironmentType.UNKNOWN_ENV) {
-                        // If the combined type is unset or UNKNOWN, override it completely.
-                        combinedType = providerEnvType;
-                    } else if (combinedType != providerEnvType && providerEnvType != EnvironmentType.UNKNOWN_ENV) {
-                        // If this provider's type is not UNKNOWN and not the same as the current
-                        // combined type, that means the entity has a HYBRID environment.
-                        combinedType = EnvironmentType.HYBRID;
-                        // Once we know it's hybrid we don't care about the rest of the providers.
-                        break;
-                    }
-                }
-                ret = combinedType;
+            if (traversed.contains(entity.getOid())) {
+                logger.error("Cycle detected at entity {} of type {} during "
+                    + "computeEnvironmentType traversal. Ending this leg of traversal.",
+                    entity.getOid(), EntityType.forNumber(entity.getEntityType()));
+                return getEnvironmentType(entity, cloudTargetIds);
             }
-            return ret;
+
+            traversed.add(entity.getOid());
+            final Collection<TopologyEntity> connections = ALTERNATE_TRAVERSAL_MAP
+                .getOrDefault(entity.getEntityType(), TopologyEntity::getProviders)
+                .apply(entity);
+
+            EnvironmentType combinedType = null;
+            for (TopologyEntity connection : connections) {
+                if (shouldSkipTraversal(entity, connection)) {
+                    continue;
+                }
+
+                final EnvironmentType connectedEnvType =
+                    computeEnvironmentType(connection, cloudTargetIds, cache, traversed);
+                if (combinedType == null || combinedType == EnvironmentType.UNKNOWN_ENV) {
+                    // If the combined type is unset or UNKNOWN, override it completely.
+                    combinedType = connectedEnvType;
+                } else if (combinedType != connectedEnvType && connectedEnvType != EnvironmentType.UNKNOWN_ENV) {
+                    // If this connections's type is not UNKNOWN and not the same as the current
+                    // combined type, that means the entity has a HYBRID environment.
+                    combinedType = EnvironmentType.HYBRID;
+                    // Once we know it's hybrid we don't care about the rest of the connections.
+                    break;
+                }
+            }
+
+            // We failed to determine environment type through any connections, so perform lookup on ourselves.
+            if (combinedType == null) {
+                combinedType = getEnvironmentType(entity, cloudTargetIds);
+            }
+            return combinedType;
         });
+    }
+
+    /**
+     * During environment type computation, check whether to skip the traversal between
+     * two entities. We skip traversals from outside-->inside the alternate traversal
+     * subgraph.
+     * <p/>
+     * Typically we wish to traverse provider relationships when computing environment type,
+     * but certain entity types are not connected to the infrastructure through provider
+     * relationships. For example, WORKLOAD_CONTROLLER entity types are connected through
+     * the Pods that consume quota commodities from the controllers. To prevent an infinite
+     * loop where we traverse Controller Consumers -> Pod Providers -> Controller Consumers
+     * etc. we prevent traversals from outside the alternate traversal subgraph to the inside.
+     * Searching inside the alternate traversal subgraph will not lead to finding the
+     * infrastructure part of the supply chain in any case, so there is no use in traversing
+     * from outside to inside.
+     *
+     * @param connectionStart For a directed edge in the graph, this entity is the starting
+     *                        node.
+     * @param connectionEnd For a directed edge in the graph, this entity is the destination
+     *                      node.
+     * @return Whether to skip the traversal of the edge from the start to the end entities.
+     */
+    private boolean shouldSkipTraversal(@Nonnull final TopologyEntity connectionStart,
+                                        @Nonnull final TopologyEntity connectionEnd) {
+        return ALTERNATE_TRAVERSAL_MAP.containsKey(connectionEnd.getEntityType())
+            && !ALTERNATE_TRAVERSAL_MAP.containsKey(connectionStart.getEntityType());
     }
 
     /**
      * A cache for already-computed environment types.
      * We use this to avoid repeating traversals when recursively traversing providers to calculate
      * an entity's environment type
-     * (see {@link EnvironmentTypeInjector#computeEnvironmentTypeByProviders(TopologyEntity, Set, EntityTypeCache)}.
+     * (see {@link EnvironmentTypeInjector#computeEnvironmentType(TopologyEntity, Set, EnvironmentTypeCache, Set)}.
      */
-    private static class EntityTypeCache {
+    private static class EnvironmentTypeCache {
 
         /**
          * Map from (EnvironmentType) -> (oid set).
@@ -228,10 +301,10 @@ public class EnvironmentTypeInjector {
          * footprint. The memory required to cache 200k entries is ~13.5MB when using a {@link Set},
          * 3.7MB when using a {@link TLongSet}, and 0.5MB when using the bitmap.
          */
-        private final EnumMap<EnvironmentType, Roaring64NavigableMap> providersByEnv;
+        private final EnumMap<EnvironmentType, Roaring64NavigableMap> entitiesByEnv;
 
-        EntityTypeCache() {
-            providersByEnv = new EnumMap<>(EnvironmentType.class);
+        EnvironmentTypeCache() {
+            entitiesByEnv = new EnumMap<>(EnvironmentType.class);
         }
 
         /**
@@ -247,7 +320,7 @@ public class EnvironmentTypeInjector {
                                      @Nonnull final Supplier<EnvironmentType> envTypeSupplier) {
             // We iterate over all keys and search each one. This is fast, because the total number
             // of possible keys is 3-4.
-            for (Entry<EnvironmentType, Roaring64NavigableMap> entry : providersByEnv.entrySet()) {
+            for (Entry<EnvironmentType, Roaring64NavigableMap> entry : entitiesByEnv.entrySet()) {
                 if (entry.getValue().contains(id)) {
                     return entry.getKey();
                 }
@@ -257,7 +330,7 @@ public class EnvironmentTypeInjector {
             // update the cache.
             final EnvironmentType envTypeSet = envTypeSupplier.get();
             final Roaring64NavigableMap mapForEnv =
-                providersByEnv.computeIfAbsent(envTypeSet, k -> new Roaring64NavigableMap());
+                entitiesByEnv.computeIfAbsent(envTypeSet, k -> new Roaring64NavigableMap());
             mapForEnv.addLong(id);
             return envTypeSet;
         }
