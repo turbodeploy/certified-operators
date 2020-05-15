@@ -108,11 +108,12 @@ public class TopologyCostCalculator {
             final CloudTopology<TopologyEntityDTO> cloudTopology,
             final TopologyEntityDTO cloudEntity) {
         final List<TopologyEntityDTO> entities = Lists.newArrayList(cloudEntity);
-        // If the entity has connected volumes we need to calculate costs for them too, or
+        // If the entity has attached volumes we need to calculate costs for them too, or
         // else we won't be able to get the storage cost for the entity.
-        entities.addAll(cloudTopology.getConnectedVolumes(cloudEntity.getOid()));
-        final Map<Long, CostJournal<TopologyEntityDTO>> costsForEntities;
-        costsForEntities = calculateCostsInTopology(entities, cloudTopology, cloudCostData.getCurrentRiCoverage());
+        entities.addAll(cloudTopology.getAttachedVolumes(cloudEntity.getOid()));
+        final Map<Long, CostJournal<TopologyEntityDTO>> costsForEntities =
+                calculateCostsInTopology(entities, cloudTopology,
+                        cloudCostData.getCurrentRiCoverage());
         return Optional.ofNullable(costsForEntities.get(cloudEntity.getOid()));
     }
 
