@@ -17,12 +17,13 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-
-import org.junit.Before;
-import org.junit.Test;
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
+import org.junit.Before;
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -34,6 +35,7 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
@@ -41,12 +43,11 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudCostDataProvider.CloudCostData;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
-import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
@@ -76,7 +77,7 @@ public class WastedFilesAnalysisTest {
             .thenReturn(END_INSTANT);
     }
 
-    private TopologyEntityDTO.Builder createOnPremEntity(long oid, EntityType entityType) {
+    private static TopologyEntityDTO.Builder createOnPremEntity(long oid, EntityType entityType) {
         return TopologyEntityDTO.newBuilder()
             .setOid(oid)
             .setEntityType(entityType.getNumber())
@@ -86,43 +87,49 @@ public class WastedFilesAnalysisTest {
                 .build());
     }
 
-    private TopologyEntityDTO.Builder createCloudEntity(final long oid,
-                                                        @Nonnull final EntityType entityType,
-                                                        @Nonnull final AttachmentState attachmentState) {
-        return this.createCloudEntity(oid, entityType, attachmentState, true);
+    private static TopologyEntityDTO.Builder createCloudEntity(
+            final long oid,
+            @Nonnull final EntityType entityType,
+            @Nullable final AttachmentState attachmentState) {
+        return createCloudEntity(oid, entityType, attachmentState, true);
     }
 
-    private TopologyEntityDTO.Builder createCloudEntity(final long oid,
-                                                        @Nonnull final EntityType entityType,
-                                                        @Nonnull final AttachmentState attachmentState,
-                                                        final boolean deletable) {
-        if (entityType == EntityType.VIRTUAL_VOLUME) {
-            return TopologyEntityDTO.newBuilder()
-                .setOid(oid)
-                .setEntityType(entityType.getNumber())
-                .setDisplayName("Vol-"+oid)
-                .setEnvironmentType(EnvironmentType.CLOUD)
-                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                    .setStorageAccessCapacity(10f)
-                    .setStorageAmountCapacity(20f)
-                    .setAttachmentState(attachmentState).build()).build())
-                .setAnalysisSettings(AnalysisSettings.newBuilder()
-                    .setDeletable(deletable)
-                    .build());
-        } else {
-            return TopologyEntityDTO.newBuilder()
+    private static TopologyEntityDTO.Builder createCloudEntity(
+            final long oid,
+            @Nonnull final EntityType entityType,
+            @Nullable final AttachmentState attachmentState,
+            final boolean deletable) {
+        final TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder()
                 .setOid(oid)
                 .setEntityType(entityType.getNumber())
                 .setEnvironmentType(EnvironmentType.CLOUD);
+        if (entityType == EntityType.VIRTUAL_VOLUME) {
+            builder.setDisplayName("Vol-" + oid)
+                .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
+                    .setVirtualVolume(VirtualVolumeInfo.newBuilder()
+                    .setStorageAccessCapacity(10f)
+                    .setStorageAmountCapacity(20f)
+                    .setAttachmentState(attachmentState)))
+                .setAnalysisSettings(AnalysisSettings.newBuilder()
+                    .setDeletable(deletable));
         }
+        return builder;
     }
 
-    private void connectEntities(TopologyEntityDTO.Builder from, TopologyEntityDTO.Builder to) {
+    private static void connectEntities(TopologyEntityDTO.Builder from, TopologyEntityDTO.Builder to) {
         from.addConnectedEntityList(ConnectedEntity.newBuilder().setConnectedEntityId(to.getOid())
             .setConnectedEntityType(to.getEntityType()));
     }
 
-    private void addFilesToOnpremVolume(TopologyEntityDTO.Builder volume, String[] filePath,
+    private static void createCommodityLink(
+            @Nonnull final TopologyEntityDTO.Builder consumer,
+            @Nonnull final TopologyEntityDTO.Builder producer) {
+        consumer.addCommoditiesBoughtFromProviders(CommoditiesBoughtFromProvider.newBuilder()
+                .setProviderId(producer.getOid())
+                .setProviderEntityType(producer.getEntityType()));
+    }
+
+    private static void addFilesToOnpremVolume(TopologyEntityDTO.Builder volume, String[] filePath,
                                        long [] sizeKb) {
         VirtualVolumeInfo.Builder volumeInfo = VirtualVolumeInfo.newBuilder();
         for (int i = 0; i < filePath.length; i++) {
@@ -132,7 +139,7 @@ public class WastedFilesAnalysisTest {
         volume.setTypeSpecificInfo(TypeSpecificInfo.newBuilder().setVirtualVolume(volumeInfo));
     }
 
-    private Map<Long, TopologyEntityDTO> createTestOnPremTopology() {
+    private static Map<Long, TopologyEntityDTO> createTestOnPremTopology() {
         final long vmOid = 1l;
         final long storOid = 2l;
         final long wastedFileVolumeOid = 3l;
@@ -176,7 +183,7 @@ public class WastedFilesAnalysisTest {
             .build();
     }
 
-    private Map<Long, TopologyEntityDTO> createTestCloudTopology(final boolean includeNondeletable) {
+    private static Map<Long, TopologyEntityDTO> createTestCloudTopology(final boolean includeNondeletable) {
         final long vmOid = 1L;
         final long wastedFileVolume1Oid = 2L;
         final long wastedFileVolume2Oid = 3L;
@@ -195,11 +202,11 @@ public class WastedFilesAnalysisTest {
         final TopologyEntityDTO.Builder storageTier = createCloudEntity(storageTierOid,
                 EntityType.STORAGE_TIER, null);
 
-        connectEntities(vm, connectedVolume);
-        connectEntities(connectedVolume, storageTier);
-        connectEntities(wastedFileVolume1, storageTier);
-        connectEntities(wastedFileVolume2, storageTier);
-        connectEntities(unConnectedVolumeInUse, storageTier);
+        createCommodityLink(vm, connectedVolume);
+        createCommodityLink(connectedVolume, storageTier);
+        createCommodityLink(wastedFileVolume1, storageTier);
+        createCommodityLink(wastedFileVolume2, storageTier);
+        createCommodityLink(unConnectedVolumeInUse, storageTier);
 
         return ImmutableMap.<Long, TopologyEntityDTO>builder()
                 .put(vm.getOid(), vm.build())
@@ -212,11 +219,10 @@ public class WastedFilesAnalysisTest {
     }
 
     /**
-     * Test the {@link Analysis} constructor.
+     * Test wasted files analysis for On Prem.
      */
     @Test
     public void testOnPremWastedFilesAnalysis() {
-        final TopologyEntityCloudTopologyFactory cloudTopologyFactory = mock(TopologyEntityCloudTopologyFactory.class);
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
         when(cloudCostCalculator.getCloudCostData()).thenReturn(CloudCostData.empty());
         final TopologyCostCalculatorFactory cloudCostCalculatorFactory = mock(TopologyCostCalculatorFactory.class);
@@ -260,6 +266,9 @@ public class WastedFilesAnalysisTest {
             analysis.getStorageAmountReleasedForOid(2L).get().longValue());
     }
 
+    /**
+     * Test wasted files analysis for Cloud.
+     */
     @Test
     public void testCloudWastedFilesAnalysis() {
         final TopologyCostCalculator cloudCostCalculator = mock(TopologyCostCalculator.class);
@@ -319,7 +328,7 @@ public class WastedFilesAnalysisTest {
         // make sure storage tier is the target of each action
         analysis.getActions().forEach(action -> {
             assertEquals("Each file path are empty", "", action.getInfo().getDelete().getFilePath());
-            assertEquals("Each action should be executable", true, action.getExecutable());
+            assertTrue("Each action should be executable", action.getExecutable());
 
             ActionEntity target = action.getInfo().getDelete().getTarget();
             assertEquals(EntityType.VIRTUAL_VOLUME_VALUE, target.getType());
@@ -393,7 +402,7 @@ public class WastedFilesAnalysisTest {
         // make sure storage tier is the target of each action
         analysis.getActions().forEach(action -> {
             assertEquals("Each file path are empty", "", action.getInfo().getDelete().getFilePath());
-            assertEquals("Each action should be executable", true, action.getExecutable());
+            assertTrue("Each action should be executable", action.getExecutable());
 
             ActionEntity target = action.getInfo().getDelete().getTarget();
             assertEquals(EntityType.VIRTUAL_VOLUME_VALUE, target.getType());

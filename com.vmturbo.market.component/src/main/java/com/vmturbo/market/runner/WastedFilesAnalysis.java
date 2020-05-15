@@ -11,13 +11,16 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.base.Strings;
+import com.google.common.collect.Streams;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.google.common.base.Strings;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.Action;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -29,13 +32,15 @@ import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Units;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.SetOnce;
-import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -145,25 +150,17 @@ public class WastedFilesAnalysis {
                         .hasStorageAmountCapacity() &&
                         topoEntity.getTypeSpecificInfo().getVirtualVolume().getStorageAmountCapacity() > 0)
                         || topoEntity.getTypeSpecificInfo().getVirtualVolume().getFilesCount() > 0)
-                    .filter(topoEntity -> topoEntity.getConnectedEntityListList().stream()
-                        .anyMatch(connEntity -> connEntity.hasConnectedEntityType()
-                            && (connEntity.getConnectedEntityType() == EntityType.STORAGE_VALUE
-                            || connEntity.getConnectedEntityType() == EntityType.STORAGE_TIER_VALUE)
-                            && !storagesToIgnoreWastedFiles.contains(
-                                connEntity.getConnectedEntityId())
-                        ))
+                    .filter(topoEntity -> getVolumeProviders(topoEntity)
+                        .anyMatch(providerId -> !storagesToIgnoreWastedFiles.contains(providerId)))
                     // only include those which are "deletable" from setting
                     .filter(topoEntity -> topoEntity.hasAnalysisSettings() &&
                                           topoEntity.getAnalysisSettings().getDeletable())
                     .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-                // remove any VirtualVolumes that have VMs which are connectedTo them
+                 // remove any VirtualVolumes that have VMs which are connectedTo them
                  topologyDTOs.values().stream()
                     .filter(topoEntity -> topoEntity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
-                    .forEach(virtualMachine -> virtualMachine.getConnectedEntityListList().stream()
-                        .filter(connEntity -> connEntity.hasConnectedEntityType())
-                        .filter(connEntity -> connEntity.getConnectedEntityType() ==
-                            EntityType.VIRTUAL_VOLUME_VALUE)
-                        .forEach(connEntity -> wastedFilesMap.remove(connEntity.getConnectedEntityId())));
+                    .forEach(virtualMachine -> getAttachedVolumesIds(virtualMachine)
+                        .forEach(wastedFilesMap::remove));
                 actions = wastedFilesMap.values().stream()
                         .flatMap(volume -> createActionsFromVolume(volume).stream())
                         .collect(Collectors.toList());
@@ -181,6 +178,61 @@ public class WastedFilesAnalysis {
             + startTime.getValue().get().until(completionTime.getValue().get(),
             ChronoUnit.SECONDS) + " seconds");
         return true;
+    }
+
+    /**
+     * Get volume providers. For on prem case, the result contains storages connected to the
+     * volume. For cloud case, the result contains storage tiers selling commodities to
+     * the volume.
+     *
+     * @param volume Virtual volume.
+     * @return Stream of OIDs of volume providers (Storages or Storage Tiers).
+     */
+    private static Stream<Long> getVolumeProviders(@Nonnull final TopologyEntityDTO volume) {
+        // Get storages connected to the volume (on prem case)
+        final Stream<Long> connectedStorages = volume.getConnectedEntityListList().stream()
+                .filter(ConnectedEntity::hasConnectedEntityType)
+                .filter(connEntity -> connEntity.getConnectedEntityType()
+                        == EntityType.STORAGE_VALUE)
+                .map(ConnectedEntity::getConnectedEntityId);
+
+        // Get storage tiers selling commodities to the volume (cloud case)
+        final Stream<Long> consumedStorageTiers = volume.getCommoditiesBoughtFromProvidersList()
+                .stream()
+                .filter(commBought -> commBought.getProviderEntityType()
+                        == EntityType.STORAGE_TIER_VALUE)
+                .map(CommoditiesBoughtFromProvider::getProviderId);
+
+        return Streams.concat(connectedStorages, consumedStorageTiers);
+    }
+
+    /**
+     * Get volumes attached to a virtual machine. For on prem VMs attached volumes are represented
+     * using ConnectedTo relationship. For cloud VMs attached volumes are represented as commodity
+     * providers. This method joins connected entities and commodity providers and returns
+     * concatenated stream.
+     *
+     * @param virtualMachine Virtual machine.
+     * @return Stream of OIDs of volumes attached to the virtual machine.
+     */
+    private static Stream<Long> getAttachedVolumesIds(
+            @Nonnull final TopologyEntityDTO virtualMachine) {
+        final int volumeType = EntityType.VIRTUAL_VOLUME_VALUE;
+
+        // Get volumes connected to the VM (on prem case)
+        final Stream<Long> connectedVolumes = virtualMachine.getConnectedEntityListList()
+                .stream()
+                .filter(ConnectedEntity::hasConnectedEntityType)
+                .filter(connEntity -> connEntity.getConnectedEntityType() == volumeType)
+                .map(ConnectedEntity::getConnectedEntityId);
+
+        // Get volumes selling commodities to the VM (cloud case)
+        final Stream<Long> consumedVolumes = virtualMachine.getCommoditiesBoughtFromProvidersList()
+                .stream()
+                .filter(commBought -> commBought.getProviderEntityType() == volumeType)
+                .map(CommoditiesBoughtFromProvider::getProviderId);
+
+        return Streams.concat(connectedVolumes, consumedVolumes);
     }
 
     private DeleteExplanation getOnPremWastedFilesDeleteExplanation(long sizeKb) {
@@ -261,7 +313,6 @@ public class WastedFilesAnalysis {
      * with the volume.
      */
     private Collection<Action> createActionsFromVolume(final TopologyEntityDTO volume) {
-        Optional<Long> storageOid;
         if (volume.hasTypeSpecificInfo() && volume.getTypeSpecificInfo().hasVirtualVolume() &&
                 volume.getTypeSpecificInfo().getVirtualVolume().hasAttachmentState() &&
                 volume.getTypeSpecificInfo().getVirtualVolume().getAttachmentState()
@@ -273,9 +324,12 @@ public class WastedFilesAnalysis {
 
         if (volume.getEnvironmentType() != EnvironmentType.ON_PREM) {
             // handle cloud case
-            storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
-                EntityType.STORAGE_TIER.getNumber()).findFirst();
-            if (!storageOid.isPresent()) {
+            final Long storageTierOid = volume.getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(commBought -> commBought.getProviderEntityType()
+                            == EntityType.STORAGE_TIER.getNumber())
+                    .map(CommoditiesBoughtFromProvider::getProviderId)
+                    .findAny().orElse(null);
+            if (storageTierOid == null) {
                 return Collections.emptyList();
             }
 
@@ -287,12 +341,12 @@ public class WastedFilesAnalysis {
                 // This will set the hourly saving rate to the action
                 costSavings = costJournalOpt.get().getTotalHourlyCost().getValue();
             } else {
-                logger.debug("Unable to get cost for volume", volume.getDisplayName());
+                logger.debug("Unable to get cost for volume {}", volume.getDisplayName());
             }
 
             return Collections.singletonList(newActionFromVolume(
                     volume.getOid(), EntityType.VIRTUAL_VOLUME,
-                    storageOid.get(), EntityType.STORAGE_TIER,
+                    storageTierOid, EntityType.STORAGE_TIER,
                     null,
                     volume.getEnvironmentType())
                 .setExplanation(Explanation.newBuilder().setDelete(
@@ -303,10 +357,10 @@ public class WastedFilesAnalysis {
                 .build());
         } else {
             // handle ON_PREM
-            storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
+            final Optional<Long> storageOid = TopologyDTOUtil.getOidsOfConnectedEntityOfType(volume,
                 EntityType.STORAGE.getNumber()).findFirst();
             if (!storageOid.isPresent()) {
-                return Collections.EMPTY_LIST;
+                return Collections.emptyList();
             }
             // TODO add a setting to control the minimum file size.  For now, use 1MB
             return volume.getTypeSpecificInfo().getVirtualVolume().getFilesList().stream()
