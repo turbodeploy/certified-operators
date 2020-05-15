@@ -58,6 +58,7 @@ import com.vmturbo.platform.analysis.topology.Topology;
 import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 import com.vmturbo.platform.analysis.translators.ProtobufToAnalysis;
 import com.vmturbo.platform.analysis.utilities.DoubleTernaryOperator;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 import com.vmturbo.proactivesupport.DataMetricTimer;
 
@@ -458,10 +459,17 @@ public class TopologyEntitiesHandler {
                 analysisConfig.getDiscountedComputeCostFactor());
         }
 
-        analysisConfig.getGlobalSetting(GlobalSettingSpecs.RateOfResize).ifPresent(rateOfResize -> {
+        analysisConfig.getGlobalSetting(GlobalSettingSpecs.DefaultRateOfResize).ifPresent(rateOfResize -> {
             if (rateOfResize.hasNumericSettingValue()) {
-                economySettings.setRateOfResize(rateOfResizeTranslationMap
-                        .get(rateOfResize.getNumericSettingValue().getValue()));
+                economySettings.setDefaultRateOfResize(rateOfResizeTranslationMap
+                    .get(rateOfResize.getNumericSettingValue().getValue()));
+            }
+        });
+
+        analysisConfig.getGlobalSetting(GlobalSettingSpecs.ContainerRateOfResize).ifPresent(rateOfResize -> {
+            if (rateOfResize.hasNumericSettingValue()) {
+                economySettings.setRateOfResizeForTraderType(EntityType.CONTAINER_VALUE,
+                    rateOfResizeTranslationMap.get(rateOfResize.getNumericSettingValue().getValue()));
             }
         });
 
