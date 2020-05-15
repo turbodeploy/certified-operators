@@ -30,20 +30,11 @@ import com.vmturbo.components.common.setting.RISettingsEnum.PreferredOfferingCla
 public enum GlobalSettingSpecs {
 
     /**
-     * Rate of resize. This is global setting that applies to all settings except containers
-     * which have their own rate of resize. In the UX it shows up under the VM default settings.
+     * Rate of resize. This is global setting. But in the UX it shows up
+     * under VM entity.
      */
-    DefaultRateOfResize("RATE_OF_RESIZE", "Rate of Resize",
+    RateOfResize("RATE_OF_RESIZE", "Rate of Resize",
             numeric(1.0f/*min*/, 3.0f/*max*/, 2.0f/*default*/),
-            //path is needed for the UI to display this setting in a separate category
-            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS)),
-
-    /**
-     * Container rate of resize only applies to resizes generated for container entities.
-     * It shows up under the Container default settings.
-     */
-    ContainerRateOfResize("containerRateOfResize", "Container Rate of Resize",
-            numeric(1.0f/*min*/, 3.0f/*max*/, 3.0f/*default*/),
             //path is needed for the UI to display this setting in a separate category
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS)),
 

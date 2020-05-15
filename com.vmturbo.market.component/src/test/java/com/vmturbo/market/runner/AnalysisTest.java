@@ -165,16 +165,10 @@ public class AnalysisTest {
     }
 
     private Map<String, Setting> getRateOfResizeSettingMap(float resizeValue) {
-        return ImmutableMap.of(
-            GlobalSettingSpecs.DefaultRateOfResize.getSettingName(), Setting.newBuilder()
-                .setSettingSpecName(GlobalSettingSpecs.DefaultRateOfResize.getSettingName())
-                .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(resizeValue))
-                .build(),
-            GlobalSettingSpecs.ContainerRateOfResize.getSettingName(), Setting.newBuilder()
-                .setSettingSpecName(GlobalSettingSpecs.ContainerRateOfResize.getSettingName())
-                .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(resizeValue))
-                .build()
-        );
+        return ImmutableMap.of(GlobalSettingSpecs.RateOfResize.getSettingName(), Setting.newBuilder()
+            .setSettingSpecName(GlobalSettingSpecs.RateOfResize.getSettingName())
+            .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(resizeValue))
+            .build());
     }
 
     /**
@@ -319,7 +313,7 @@ public class AnalysisTest {
         Set<TopologyEntityDTO> set = Sets.newHashSet(buyer());
         final AnalysisConfig analysisConfig = AnalysisConfig.newBuilder(QUOTE_FACTOR, MOVE_COST_FACTOR,
                     SuspensionsThrottlingConfig.DEFAULT,
-                    // DefaultRateOfResize negative to throw exception
+                    // RateOfResize negative to throw exception
                     getRateOfResizeSettingMap(-1))
                 .setIncludeVDC(true)
                 .build();

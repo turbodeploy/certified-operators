@@ -185,12 +185,9 @@ public interface AnalysisFactory {
 
             final Map<String, Setting> settingsMap = new HashMap<>();
 
-            // for now only interested in DefaultRateOfResize, ContainerRateOfResize,
-            // and DisableAllActions global settings.
-            ImmutableList<String> inputSettings = ImmutableList.of(
-                GlobalSettingSpecs.DisableAllActions.getSettingName(),
-                GlobalSettingSpecs.DefaultRateOfResize.getSettingName(),
-                GlobalSettingSpecs.ContainerRateOfResize.getSettingName());
+            // for now only interested in RateOfResize and DisableAllActions global settings.
+            ImmutableList<String> inputSettings = ImmutableList.of(GlobalSettingSpecs.DisableAllActions.getSettingName(),
+                    GlobalSettingSpecs.RateOfResize.getSettingName());
             final GetMultipleGlobalSettingsRequest settingRequest =
                             GetMultipleGlobalSettingsRequest.newBuilder()
                                 .addAllSettingSpecName(inputSettings)

@@ -277,13 +277,13 @@ public class MarketPerformanceTest {
         public void getGlobalSetting(final GetSingleGlobalSettingRequest request,
                                    final StreamObserver<GetGlobalSettingResponse> responseObserver) {
             Preconditions.checkArgument(
-                request.getSettingSpecName().equals(GlobalSettingSpecs.DefaultRateOfResize.getSettingName())
+                request.getSettingSpecName().equals(GlobalSettingSpecs.RateOfResize.getSettingName())
             );
 
             responseObserver.onNext(GetGlobalSettingResponse.newBuilder()
                 .setSetting(Setting.newBuilder()
                     .setSettingSpecName(
-                        GlobalSettingSpecs.DefaultRateOfResize.getSettingName())
+                        GlobalSettingSpecs.RateOfResize.getSettingName())
                     .setNumericSettingValue(
                         SettingDTOUtil.createNumericSettingValue(2.0f)))
                 .build());

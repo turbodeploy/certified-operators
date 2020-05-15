@@ -223,18 +223,15 @@ public class SettingsPoliciesService implements ISettingsPoliciesService {
                         .build());
                 editedPolicy = response.getSettingPolicy();
 
-                // Some global settings in the UI, are displayed along with the default policy
-                // for a specific entity type. Reset any global settings for the default policy here.
-                final int entityType = response.getSettingPolicy().getInfo().getEntityType();
-                if (SettingsMapper.ENTITY_TYPE_GLOBAL_SETTINGS.containsKey(entityType)) {
-                    final GlobalSettingSpecs settingSpec = SettingsMapper.ENTITY_TYPE_GLOBAL_SETTINGS.get(entityType);
-                    final String globalSettingName = settingSpec.getSettingName();
-                    float defaultValue = settingSpec.createSettingSpec().getNumericSettingValueType().getDefault();
+                if (SettingsMapper.isVmEntityType(response.getSettingPolicy().getInfo().getEntityType())) {
+                    String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
+                    float defaultValue = GlobalSettingSpecs.RateOfResize.createSettingSpec().getNumericSettingValueType().getDefault();
                     settingService.updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder()
-                        .addSetting(Setting.newBuilder().setSettingSpecName(globalSettingName)
+                        .addSetting(Setting.newBuilder().setSettingSpecName(rateOfResizeSettingName)
                             .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(defaultValue)))
                             .build());
                 }
+
             } else {
                 final SettingPolicyInfo policyInfo =
                         settingsMapper.convertEditedInputPolicy(id, settingPolicy);

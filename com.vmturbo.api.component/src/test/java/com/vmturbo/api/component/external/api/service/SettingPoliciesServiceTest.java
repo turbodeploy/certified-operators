@@ -116,9 +116,10 @@ public class SettingPoliciesServiceTest {
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
-    private SettingServiceMole settingBackend = spy(new SettingServiceMole());
+    private final SettingServiceMole settingBackend = spy(new SettingServiceMole());
 
     private SettingServiceBlockingStub settingServiceStub;
+
 
     @Rule
     public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(settingPolicyBackend,settingBackend);
@@ -247,11 +248,10 @@ public class SettingPoliciesServiceTest {
     }
 
     @Test
-    public void testUpdatePolicySetDefaultRateOfResize() throws Exception {
+    public void testUpdatePolicySetDefault() throws Exception {
         final long id = 7;
-        String rateOfResizeSettingName = GlobalSettingSpecs.DefaultRateOfResize.getSettingName();
-        float defaultValue = GlobalSettingSpecs.DefaultRateOfResize.createSettingSpec()
-            .getNumericSettingValueType().getDefault();
+        String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
+        float defaultValue = GlobalSettingSpecs.RateOfResize.createSettingSpec().getNumericSettingValueType().getDefault();
         when(settingsMapper.convertEditedInputPolicy(eq(id), eq(inputPolicy)))
                 .thenReturn(SCOPE_POLICY_INFO);
         when(settingPolicyBackend.resetSettingPolicy(ResetSettingPolicyRequest.newBuilder()
@@ -259,49 +259,13 @@ public class SettingPoliciesServiceTest {
                 .build()))
                 .thenReturn(ResetSettingPolicyResponse.newBuilder()
                         .setSettingPolicy(SCOPE_POLICY)
-                    .build());
+                        .build());
 
         when(settingsMapper.convertSettingPolicy(eq(SCOPE_POLICY)))
                 .thenReturn(RET_SP_DTO);
         when(settingBackend.updateGlobalSetting(
             UpdateGlobalSettingRequest.newBuilder().addSetting(Setting.newBuilder()
                 .setSettingSpecName(rateOfResizeSettingName)
-                .setNumericSettingValue(
-                    SettingDTOUtil.createNumericSettingValue(
-                        defaultValue)))
-                .build())).thenReturn(UpdateGlobalSettingResponse.newBuilder().build());
-        final SettingsPolicyApiDTO retDto =
-                settingsPoliciesService.editSettingsPolicy(Long.toString(id), true, inputPolicy);
-        verify(settingPolicyBackend).resetSettingPolicy(any());
-        verify(settingBackend).updateGlobalSetting(any());
-        assertEquals(retDto, RET_SP_DTO);
-    }
-
-    /**
-     * Test setting container rate of resize.
-     *
-     * @throws Exception if an exception occurs.
-     */
-    @Test
-    public void testUpdatePolicySetContainerRateOfResize() throws Exception {
-        final long id = 7;
-        String settingNa = GlobalSettingSpecs.ContainerRateOfResize.getSettingName();
-        float defaultValue = GlobalSettingSpecs.ContainerRateOfResize.createSettingSpec()
-            .getNumericSettingValueType().getDefault();
-        when(settingsMapper.convertEditedInputPolicy(eq(id), eq(inputPolicy)))
-                .thenReturn(SCOPE_POLICY_INFO);
-        when(settingPolicyBackend.resetSettingPolicy(ResetSettingPolicyRequest.newBuilder()
-                .setSettingPolicyId(id)
-                .build()))
-                .thenReturn(ResetSettingPolicyResponse.newBuilder()
-                        .setSettingPolicy(SCOPE_POLICY)
-                    .build());
-
-        when(settingsMapper.convertSettingPolicy(eq(SCOPE_POLICY)))
-                .thenReturn(RET_SP_DTO);
-        when(settingBackend.updateGlobalSetting(
-            UpdateGlobalSettingRequest.newBuilder().addSetting(Setting.newBuilder()
-                .setSettingSpecName(settingNa)
                 .setNumericSettingValue(
                     SettingDTOUtil.createNumericSettingValue(
                         defaultValue)))
