@@ -54,9 +54,8 @@ public class Resizer {
                                                                  @NonNull Ledger ledger) {
         List<@NonNull Action> actions = new ArrayList<>();
         ConsistentResizer consistentResizer = new ConsistentResizer();
-        float rateOfResize = economy.getSettings().getRateOfResize();
         for (Trader seller : economy.getTraders()) {
-
+            float rateOfResize = economy.getSettings().getRateOfResize(seller.getType());
             ledger.calculateCommodityExpensesAndRevenuesForTrader(economy, seller);
             if (economy.getForceStop()) {
                 return actions;
