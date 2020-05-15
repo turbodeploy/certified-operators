@@ -1,9 +1,5 @@
 package com.vmturbo.platform.analysis.ede;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -32,6 +28,10 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(JUnitParamsRunner.class)
 public class ResizerTest {
@@ -835,14 +835,27 @@ public class ResizerTest {
         Economy economy = setupContainerTopologyForResizeTest(vmAndPodVcpuCapacity, contVcpuCapacity,
                 vcpuUsedByApp, vcpuUsedByCont, vcpuUsedByPod, 0.65, 0.75,
                 RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
-
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
-
         assertTrue(numActions == actions.size());
         if (numActions == 1) {
             assertTrue((((Resize)actions.get(0)).getNewCapacity()
                     - ((Resize)actions.get(0)).getOldCapacity()) * up > 0);
         }
+    }
+
+    /**
+     * Make sure that a single container part of a scalingGroup will not be consistently scaled.
+     **/
+    @Test
+    public final void testIsSingleContainerNotConsistentlyScaled() {
+        Economy economy = new Economy();
+        cont = TestUtils.createTrader(economy, TestUtils.CONTAINER_TYPE,
+                Arrays.asList(0L), Collections.EMPTY_LIST,
+                new double[]{}, false, false);
+        cont.setScalingGroupId("sg1");
+        economy.populatePeerMembersForScalingGroup(cont, "sg1");
+        // make sure single container is not treated as part of a scalingGp
+        assertFalse(cont.isInScalingGroup(economy));
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -1546,6 +1559,7 @@ public class ResizerTest {
             buyer.setDebugInfoNeverUseInCode("Buyer-" + n);
             if (consistentScaling) {
                 buyer.setScalingGroupId("scaling-group-1");
+                economy.populatePeerMembersForScalingGroup(buyer, "scaling-group-1");
             }
 
             buyer
