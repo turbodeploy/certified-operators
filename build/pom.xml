@@ -379,7 +379,6 @@
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
-                <module>../com.vmturbo.mediation.servicenow.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.terraform.component</module>
@@ -1119,7 +1118,6 @@
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
-                <module>../com.vmturbo.mediation.servicenow.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.terraform.component</module>
