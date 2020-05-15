@@ -43,6 +43,10 @@ public class VsanStorageApplicatorTest {
     private static final String RAID1 = "/VsanStorageApplicatorTest_RAID1_FTT1.json";
 
     private static final int HCI_HOST_IOPS_CAPACITY_DEFAULT = 50000;
+    private static final int STORAGE_OVERPROVISIONED_PERCENTAGE_DEFAULT = 200;
+
+    private static final int HCI_HOST_CAPACITY_RESERVATION_ON = 1;
+    private static final int HCI_HOST_CAPACITY_RESERVATION_OFF = 0;
 
     /**
      * Test the applicator for different settings.
@@ -53,67 +57,69 @@ public class VsanStorageApplicatorTest {
     public void testApplicator() throws Exception {
 
         // All the settings are off
-        Pair<Double, Double> allOff = runApplicator(RAID0, false, 0, 0, 0);
-        Assert.assertEquals(32.46, allOff.getFirst(), .01);
-        Assert.assertEquals(39.99, allOff.getSecond(), .01);
+        ApplicatorResult allOff = runApplicator(RAID0, false, 0, 0, HCI_HOST_CAPACITY_RESERVATION_OFF);
+        allOff.checkStorageAmount(32.46, 39.99);
+        allOff.checkIOPS(HCI_HOST_CAPACITY_RESERVATION_OFF);
+        allOff.checkUtilizationThreshold(100);
 
         // Compression is on
-        Pair<Double, Double> comprsession = runApplicator(RAID0, true, 1.5f, 0, 0);
-        Assert.assertEquals(48.69, comprsession.getFirst(), .01);
-        Assert.assertEquals(59.98, comprsession.getSecond(), .01);
+        ApplicatorResult comprsession = runApplicator(RAID0, true, 1.5f, 0, HCI_HOST_CAPACITY_RESERVATION_OFF);
+        comprsession.checkStorageAmount(48.69, 59.98);
+        comprsession.checkUtilizationThreshold(150);
 
         // Slack is on
-        Pair<Double, Double> slack = runApplicator(RAID0, false, 0, 50, 0);
-        Assert.assertEquals(32.46, slack.getFirst(), .01);
-        Assert.assertEquals(19.99, slack.getSecond(), .01);
+        ApplicatorResult slack = runApplicator(RAID0, false, 0, 50, HCI_HOST_CAPACITY_RESERVATION_OFF);
+        slack.checkStorageAmount(32.46, 19.99);
+        slack.checkUtilizationThreshold(50);
 
         // Slack is on; Compression is on
-        Pair<Double, Double> comprsessionAndSlack = runApplicator(RAID0, true, 1.5f, 50, 0);
-        Assert.assertEquals(48.69, comprsessionAndSlack.getFirst(), .01);
-        Assert.assertEquals(29.99, comprsessionAndSlack.getSecond(), .01);
+        ApplicatorResult comprsessionAndSlack = runApplicator(RAID0, true, 1.5f, 50, HCI_HOST_CAPACITY_RESERVATION_OFF);
+        comprsessionAndSlack.checkStorageAmount(48.69, 29.99);
+        comprsessionAndSlack.checkUtilizationThreshold(75);
 
         // Slack is on; Compression is on; Host capacity is on
-        Pair<Double, Double> allOn = runApplicator(RAID0, true, 1.7f, 13, 1);
-        Assert.assertEquals(55.18, allOn.getFirst(), .01);
-        Assert.assertEquals(44.35, allOn.getSecond(), .01);
+        ApplicatorResult allOn = runApplicator(RAID0, true, 1.7f, 13, HCI_HOST_CAPACITY_RESERVATION_ON);
+        allOn.checkStorageAmount(55.18, 44.35);
+        allOn.checkIOPS(HCI_HOST_CAPACITY_RESERVATION_ON);
+        allOn.checkUtilizationThreshold(147.9);
 
         // RAID1; All off
-        Pair<Double, Double> raid1AllOff = runApplicator(RAID1, false, 0, 0, 0);
-        Assert.assertEquals(16.25, raid1AllOff.getFirst(), .01);
-        Assert.assertEquals(10, raid1AllOff.getSecond(), .01);
+        ApplicatorResult raid1AllOff = runApplicator(RAID1, false, 0, 0, HCI_HOST_CAPACITY_RESERVATION_OFF);
+        raid1AllOff.checkStorageAmount(16.25, 10);
+        raid1AllOff.checkUtilizationThreshold(50);
 
         // RAID1; Compression is on
-        Pair<Double, Double> raid1Comprsession = runApplicator(RAID1, true, 1.5f, 0, 0);
-        Assert.assertEquals(24.38, raid1Comprsession.getFirst(), .01);
-        Assert.assertEquals(15, raid1Comprsession.getSecond(), .01);
+        ApplicatorResult raid1Comprsession = runApplicator(RAID1, true, 1.5f, 0, HCI_HOST_CAPACITY_RESERVATION_OFF);
+        raid1Comprsession.checkStorageAmount(24.38, 15);
+        raid1Comprsession.checkUtilizationThreshold(75);
 
         // RAID1; Slack is on; Compression is on
-        Pair<Double, Double> raid1SlackCompression = runApplicator(RAID1, true, 1.5f, 50, 0);
-        Assert.assertEquals(24.38, raid1SlackCompression.getFirst(), .01);
-        Assert.assertEquals(7.5, raid1SlackCompression.getSecond(), .01);
+        ApplicatorResult raid1SlackCompression = runApplicator(RAID1, true, 1.5f, 50, HCI_HOST_CAPACITY_RESERVATION_OFF);
+        raid1SlackCompression.checkStorageAmount(24.38, 7.5);
+        raid1SlackCompression.checkUtilizationThreshold(37.5);
 
         // RAID1; Host capacity is on
-        Pair<Double, Double> raid1Host = runApplicator(RAID1, false, 0, 0, 1);
-        Assert.assertEquals(16.25, raid1Host.getFirst(), .01);
-        Assert.assertEquals(5, raid1Host.getSecond(), .01);
+        ApplicatorResult raid1Host = runApplicator(RAID1, false, 0, 0, HCI_HOST_CAPACITY_RESERVATION_ON);
+        raid1Host.checkStorageAmount(16.25, 5);
+        raid1Host.checkUtilizationThreshold(50);
 
         // RAID1; Host capacity is on; Slack is on
-        Pair<Double, Double> raid1HostSlack = runApplicator(RAID1, false, 0, 50, 1);
-        Assert.assertEquals(16.25, raid1HostSlack.getFirst(), .01);
-        Assert.assertEquals(2.5, raid1HostSlack.getSecond(), .01);
+        ApplicatorResult raid1HostSlack = runApplicator(RAID1, false, 0, 50, HCI_HOST_CAPACITY_RESERVATION_ON);
+        raid1HostSlack.checkStorageAmount(16.25, 2.5);
+        raid1HostSlack.checkUtilizationThreshold(25);
 
         // RAID1; Host capacity is on; Slack is on; Compression is on
-        Pair<Double, Double> raid1HostSlackCompress = runApplicator(RAID1, true, 2.0f, 50, 1);
-        Assert.assertEquals(32.5, raid1HostSlackCompress.getFirst(), .01);
-        Assert.assertEquals(5, raid1HostSlackCompress.getSecond(), .01);
+        ApplicatorResult raid1HostSlackCompress = runApplicator(RAID1, true, 2.0f, 50, HCI_HOST_CAPACITY_RESERVATION_ON);
+        raid1HostSlackCompress.checkStorageAmount(32.5, 5);
+        raid1HostSlackCompress.checkUtilizationThreshold(50);
 
         // RAOD1; All on
-        Pair<Double, Double> raid1 = runApplicator(RAID1, true, 1.7f, 13, 1);
-        Assert.assertEquals(27.62, raid1.getFirst(), .01);
-        Assert.assertEquals(7.4, raid1.getSecond(), .01);
+        ApplicatorResult raid1 = runApplicator(RAID1, true, 1.7f, 13, HCI_HOST_CAPACITY_RESERVATION_ON);
+        raid1.checkStorageAmount(27.62, 7.4);
+        raid1.checkUtilizationThreshold(73.95);
     }
 
-    private static Pair<Double, Double> runApplicator(@Nonnull String fileName,
+    private static ApplicatorResult runApplicator(@Nonnull String fileName,
             boolean hciUseCompression,
             float hciCompressionRatio, float hciSlackSpacePercentage,
             float hciHostCapacityReservation) throws IOException {
@@ -134,21 +140,13 @@ public class VsanStorageApplicatorTest {
                 getNumericSettingValue(hciHostCapacityReservation));
         settings.put(EntitySettingSpecs.HciHostIopsCapacity,
                 getNumericSettingValue(HCI_HOST_IOPS_CAPACITY_DEFAULT));
+        settings.put(EntitySettingSpecs.StorageOverprovisionedPercentage,
+                        getNumericSettingValue(STORAGE_OVERPROVISIONED_PERCENTAGE_DEFAULT));
 
         Pair<GraphWithSettings, Integer> graphNHostsCnt = makeGraphWithSettings(storage, settings);
         new VsanStorageApplicator(graphNHostsCnt.getFirst()).apply(storage, settings);
 
-        CommoditySoldDTO.Builder storageAccess = SettingApplicator
-                        .getCommoditySoldBuilders(storage, CommodityType.STORAGE_ACCESS).iterator().next();
-        int referenceIOPSCapacity = (int)((graphNHostsCnt.getSecond() -
-                        hciHostCapacityReservation) * HCI_HOST_IOPS_CAPACITY_DEFAULT);
-        Assert.assertEquals(referenceIOPSCapacity, (int)storageAccess.getCapacity());
-
-
-        CommoditySoldDTO.Builder storageAmount = SettingApplicator
-                .getCommoditySoldBuilders(storage, CommodityType.STORAGE_AMOUNT).iterator().next();
-
-        return new Pair<>(storageAmount.getUsed() / 1024, storageAmount.getCapacity() / 1024);
+        return new ApplicatorResult(storage, graphNHostsCnt);
     }
 
     private static Setting getBooleanSettingValue(boolean value) {
@@ -179,13 +177,15 @@ public class VsanStorageApplicatorTest {
                             .setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
             for (CommodityBoughtDTO boughtCommodityDTO : commoditiesFromProvider
                             .getCommodityBoughtList())  {
-                if (boughtCommodityDTO.getCommodityType().getType() !=
-                                CommodityType.STORAGE_ACCESS_VALUE) {
-                    continue;
-                }
-                provider.addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                int commodityTypeInt = boughtCommodityDTO.getCommodityType().getType();
+                CommoditySoldDTO.Builder soldCommodityBuilder = CommoditySoldDTO.newBuilder()
                                 .setCommodityType(TopologyDTO.CommodityType.newBuilder()
-                                                .setType(CommodityType.STORAGE_ACCESS_VALUE)));
+                                                .setType(commodityTypeInt));
+                if (commodityTypeInt == CommodityType.STORAGE_AMOUNT_VALUE) {
+                    soldCommodityBuilder.setCapacity(boughtCommodityDTO.getUsed());
+                    soldCommodityBuilder.setUsed(boughtCommodityDTO.getUsed());
+                }
+                provider.addCommoditySoldList(soldCommodityBuilder);
             }
 
             if (provider.getCommoditySoldListCount() != 0)  {
@@ -214,5 +214,60 @@ public class VsanStorageApplicatorTest {
         GraphWithSettings result = new GraphWithSettings(graph, entitySettings,
                         Collections.singletonMap(storageId, policy));
         return new Pair<>(result, cntHosts);
+    }
+
+    /**
+     * A class to collect the results of applying {@link VsanStorageApplicator}
+     * and run the checking procedures.
+     */
+    private static class ApplicatorResult  {
+        private TopologyEntityDTO.Builder storage;
+        private GraphWithSettings graph;
+        private int numberOfHosts;
+
+        ApplicatorResult(TopologyEntityDTO.Builder storage,
+                        Pair<GraphWithSettings, Integer> graphNHostsCnt)   {
+            this.storage = storage;
+            this.graph = graphNHostsCnt.getFirst();
+            this.numberOfHosts = graphNHostsCnt.getSecond();
+        }
+
+        public void checkStorageAmount(double expectedUsed, double expectedCapacity)    {
+            CommoditySoldDTO.Builder storageAmount = SettingApplicator
+                            .getCommoditySoldBuilders(storage, CommodityType.STORAGE_AMOUNT)
+                            .iterator().next();
+            Assert.assertEquals(expectedUsed, storageAmount.getUsed() / 1024, .01);
+            Assert.assertEquals(expectedCapacity, storageAmount.getCapacity() / 1024, .01);
+        }
+
+        public void checkIOPS(int hciHostCapacityReservation)   {
+            CommoditySoldDTO.Builder storageAccess = SettingApplicator
+                            .getCommoditySoldBuilders(storage, CommodityType.STORAGE_ACCESS)
+                            .iterator().next();
+            int referenceIOPSCapacity = (numberOfHosts - hciHostCapacityReservation)
+                            * HCI_HOST_IOPS_CAPACITY_DEFAULT;
+            Assert.assertEquals(referenceIOPSCapacity, (int)storageAccess.getCapacity());
+        }
+
+        public void checkUtilizationThreshold(double hciUsablePercentage)    {
+            for (CommoditiesBoughtFromProvider commoditiesFromProvider
+                            : storage.getCommoditiesBoughtFromProvidersList())   {
+                if (commoditiesFromProvider.getProviderEntityType()
+                                != EntityType.PHYSICAL_MACHINE_VALUE)    {
+                    continue;
+                }
+                long providerId = commoditiesFromProvider.getProviderId();
+                TopologyEntity provider = graph.getTopologyGraph().getEntity(providerId).get();
+                for (CommoditySoldDTO.Builder soldCommodity
+                                : provider.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()) {
+                    int commodityTypeInt = soldCommodity.getCommodityType().getType();
+                    if (commodityTypeInt != CommodityType.STORAGE_PROVISIONED_VALUE
+                                    && commodityTypeInt != CommodityType.STORAGE_AMOUNT_VALUE)  {
+                        continue;
+                    }
+                    Assert.assertEquals(hciUsablePercentage, soldCommodity.getEffectiveCapacityPercentage(), .01);
+                }
+            }
+        }
     }
 }
