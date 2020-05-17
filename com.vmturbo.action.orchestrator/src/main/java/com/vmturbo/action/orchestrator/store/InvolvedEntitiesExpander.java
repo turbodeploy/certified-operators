@@ -2,6 +2,7 @@ package com.vmturbo.action.orchestrator.store;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
 import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.GetSupplyChainRequest;
@@ -72,6 +74,8 @@ public class InvolvedEntitiesExpander {
         EntityType.BUSINESS_TRANSACTION.getValue(),
         EntityType.SERVICE.getValue());
 
+    private final Map<Integer, Set<Long>> expandedEntitiesPerARMEntityType = new HashMap<>();
+
     private static Logger logger = LogManager.getLogger();
 
     private final RepositoryServiceBlockingStub repositoryService;
@@ -89,6 +93,28 @@ public class InvolvedEntitiesExpander {
             @Nonnull final SupplyChainServiceBlockingStub supplyChainService) {
         this.repositoryService = repositoryService;
         this.supplyChainService = supplyChainService;
+    }
+
+    /**
+     * Check if an entity's actions should be propagated to the required ARM entity type.
+     *
+     * @param involvedEntityId the involved entity ID.
+     * @param desiredEntityTypes the ARM entity types in the query.
+     * @return true if this entity's actions should be propagated to the required ARM entity types.
+     */
+    public boolean isBelowARMEntityType(long involvedEntityId, Set<Integer> desiredEntityTypes) {
+        return desiredEntityTypes.stream().anyMatch(entityType -> isARMEntityType(entityType)
+                && expandedEntitiesPerARMEntityType.get(entityType).contains(involvedEntityId));
+    }
+
+    /**
+     * Check if the given entity type is an ARM entity type.
+     *
+     * @param entityType the entity type.
+     * @return true if this is an ARM entity type.
+     */
+    public boolean isARMEntityType(int entityType) {
+        return ARM_ENTITY_TYPE.contains(entityType);
     }
 
     /**
@@ -143,6 +169,24 @@ public class InvolvedEntitiesExpander {
             // look for any entity type that is not arm (BApp/BTxn/Service)
             // anyMatch short circuits
             .anyMatch(entityType -> !ARM_ENTITY_TYPE.contains(entityType));
+    }
+
+    /**
+     * Expand all ARM entities by type and save the mapping for later use.
+     */
+    public void expandAllARMEntities() {
+        expandedEntitiesPerARMEntityType.clear();
+        ARM_ENTITY_TYPE.forEach(armEntityType -> {
+            Set<Long> armEntities = RepositoryDTOUtil.topologyEntityStream(
+                    repositoryService.retrieveTopologyEntities(
+                            RetrieveTopologyEntitiesRequest.newBuilder()
+                                    .addEntityType(armEntityType)
+                                    .setReturnType(Type.MINIMAL)
+                                    .build()))
+                    .map(partialEntity -> partialEntity.getMinimal().getOid())
+                    .collect(Collectors.toSet());
+            expandedEntitiesPerARMEntityType.put(armEntityType, expandARMEntities(armEntities));
+        });
     }
 
     /**

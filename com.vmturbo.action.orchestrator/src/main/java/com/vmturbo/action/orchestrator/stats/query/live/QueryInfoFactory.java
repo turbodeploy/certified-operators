@@ -57,6 +57,15 @@ public class QueryInfoFactory {
         this.involvedEntitiesExpander = involvedEntitiesExpander;
     }
 
+    private boolean isGlobalTempGroupOfARMEntityTypes(@Nonnull final SingleQuery query) {
+        if (query.hasQuery() && query.getQuery().hasScopeFilter()
+                && query.getQuery().getScopeFilter().hasGlobal()) {
+            return query.getQuery().getScopeFilter().getGlobal().getEntityTypeList().stream()
+                    .allMatch(involvedEntitiesExpander::isARMEntityType);
+        }
+        return false;
+    }
+
     /**
      * Extracts the {@link QueryInfo} from a {@link SingleQuery}, filling all the necessary
      * parameters.
@@ -76,6 +85,10 @@ public class QueryInfoFactory {
                 involvedEntitiesExpander.expandInvolvedEntitiesFilter(oids);
             desiredEntities = filter.getEntities();
             immutableQueryInfo.involvedEntityCalculation(filter.getCalculationType());
+        } else if (isGlobalTempGroupOfARMEntityTypes(query)) {
+            desiredEntities = null;
+            immutableQueryInfo.involvedEntityCalculation(
+                    InvolvedEntityCalculation.INCLUDE_SOURCE_PROVIDERS_WITH_RISKS);
         } else {
             desiredEntities = null;
             immutableQueryInfo.involvedEntityCalculation(
@@ -137,6 +150,13 @@ public class QueryInfoFactory {
                 final Predicate<ActionEntity> entityTypePredicate;
                 if (desiredEntityTypes.isEmpty()) {
                     entityTypePredicate = entity -> true;
+                } else if (desiredEntityTypes.stream().anyMatch(involvedEntitiesExpander::isARMEntityType)) {
+                    // If the scope is a global temp group of ARM entity, the predicate should be
+                    // true for entities that should be propagated to ARM entity types.
+                    entityTypePredicate = actionEntity ->
+                            desiredEntityTypes.contains(actionEntity.getType())
+                                    || involvedEntitiesExpander.isBelowARMEntityType(
+                                            actionEntity.getId(), desiredEntityTypes);
                 } else {
                     // Note - we don't expect to hit this condition if the scope case is "entity list."
                     entityTypePredicate = actionEntity -> desiredEntityTypes.contains(actionEntity.getType());

@@ -9,9 +9,11 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -203,6 +205,38 @@ public class QueryInfoFactoryTest {
         assertTrue(queryInfo.entityPredicate().test(CLOUD_VM));
         assertTrue(queryInfo.entityPredicate().test(ON_PREM_VM));
         assertFalse(queryInfo.entityPredicate().test(ON_PREM_PM));
+    }
+
+    @Test
+    public void testQueryMarketGlobalScopeARMEntityType() {
+
+        long belowARMEntityId = 1L;
+        long notBelowARMEntityId = 2L;
+
+        when(involvedEntitiesExpander.isARMEntityType(EntityType.SERVICE_VALUE)).thenReturn(true);
+        when(involvedEntitiesExpander.isBelowARMEntityType(belowARMEntityId,
+                Collections.singleton(EntityType.SERVICE_VALUE))).thenReturn(true);
+        when(involvedEntitiesExpander.isBelowARMEntityType(notBelowARMEntityId,
+                Collections.singleton(EntityType.SERVICE_VALUE))).thenReturn(false);
+
+        final QueryInfo queryInfo = queryInfoFactory.extractQueryInfo(SingleQuery.newBuilder()
+                .setQuery(CurrentActionStatsQuery.newBuilder()
+                        .setScopeFilter(ScopeFilter.newBuilder()
+                                .setGlobal(GlobalScope.newBuilder()
+                                        .addEntityType(EntityType.SERVICE_VALUE))))
+                .build());
+
+        assertTrue(queryInfo.entityPredicate().test(ActionEntity.newBuilder()
+                .setId(belowARMEntityId)
+                .setType(VM)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .build()));
+
+        assertFalse(queryInfo.entityPredicate().test(ActionEntity.newBuilder()
+                .setId(notBelowARMEntityId)
+                .setType(EntityType.RESERVED_INSTANCE_VALUE)
+                .setEnvironmentType(EnvironmentType.ON_PREM)
+                .build()));
     }
 
     @Test
