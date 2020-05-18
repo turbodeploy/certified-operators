@@ -1,9 +1,5 @@
 package com.vmturbo.platform.analysis.ede;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -33,6 +29,10 @@ import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
 @RunWith(JUnitParamsRunner.class)
 public class ResizerTest {
 
@@ -42,6 +42,7 @@ public class ResizerTest {
     Trader vm, vm1, vm2;
     Trader cont, pod;
     Trader pm;
+    Trader namespace;
     Ledger ledger;
     public static final Set<CommoditySpecification> EXPECTED_COMM_SPECS_TO_BE_RESIZED =
                     Collections.unmodifiableSet(
@@ -465,7 +466,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setRateOfResize((float)Math.pow(10, 10));
+        economy.getSettings().setDefaultRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());
@@ -735,7 +736,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(30));
         // set the rate of resize to low
-        economy.getSettings().setRateOfResize(1000000);
+        economy.getSettings().setDefaultRateOfResize(1000000);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         assertEquals(0, actions.size());
@@ -762,7 +763,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(30));
         // set the rate of resize to high
-        economy.getSettings().setRateOfResize(1);
+        economy.getSettings().setDefaultRateOfResize(1);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         assertEquals(2, actions.size());
@@ -800,7 +801,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.getSettings().setCapacityIncrement(500));
         // set the rate of resize to low
-        economy.getSettings().setRateOfResize(1000000);
+        economy.getSettings().setDefaultRateOfResize(1000000);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
 
         assertEquals(0, actions.size());
@@ -825,24 +826,41 @@ public class ResizerTest {
     @Test
     @Parameters
     @TestCaseName("Test #{index}: ResizeDecisionsForContainersTest({0}, {1}, {2}, {3}, {4}, {5})")
-    public final void testResizeDecisionsForContainers(double vmAndPodVcpuCapacity,
-                                                       double contVcpuCapacity,
-                                                       double vcpuUsedByApp,
-                                                       double vcpuUsedByCont,
-                                                       double vcpuUsedByPod,
+    public final void testResizeDecisionsForContainers(double nsAndPodVmemLimitCapacity,
+                                                       double contVmemCapacity,
+                                                       double vmemUsedByApp,
+                                                       double vmemUsedByCont,
+                                                       double vmemLimitUsedByPod,
                                                        double numActions,
                                                        double up) {
-        Economy economy = setupContainerTopologyForResizeTest(vmAndPodVcpuCapacity, contVcpuCapacity,
-                vcpuUsedByApp, vcpuUsedByCont, vcpuUsedByPod, 0.65, 0.75,
-                RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
-
+        Economy economy = setupContainerTopologyForResizeTest(nsAndPodVmemLimitCapacity, contVmemCapacity,
+                vmemUsedByApp, vmemUsedByCont, vmemLimitUsedByPod, 0.65, 0.75,
+                RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
-
         assertTrue(numActions == actions.size());
         if (numActions == 1) {
-            assertTrue((((Resize)actions.get(0)).getNewCapacity()
-                    - ((Resize)actions.get(0)).getOldCapacity()) * up > 0);
+            double change = ((Resize) actions.get(0)).getNewCapacity() - ((Resize) actions.get(0)).getOldCapacity();
+            assertTrue(change * up > 0);
+            // make sure the namespaceQnty increased by the change observed while resizing up
+            if (up == 1) {
+                assertEquals(change, namespace.getCommoditiesSold().get(0).getQuantity() - vmemLimitUsedByPod, 0);
+            }
         }
+    }
+
+    /**
+     * Make sure that a single container part of a scalingGroup will not be consistently scaled.
+     **/
+    @Test
+    public final void testIsSingleContainerNotConsistentlyScaled() {
+        Economy economy = new Economy();
+        cont = TestUtils.createTrader(economy, TestUtils.CONTAINER_TYPE,
+                Arrays.asList(0L), Collections.EMPTY_LIST,
+                new double[]{}, false, false);
+        cont.setScalingGroupId("sg1");
+        economy.populatePeerMembersForScalingGroup(cont, "sg1");
+        // make sure single container is not treated as part of a scalingGp
+        assertFalse(cont.isInScalingGroup(economy));
     }
 
     @SuppressWarnings("unused") // it is used reflectively
@@ -922,68 +940,62 @@ public class ResizerTest {
 
     /**
      * Sets up topology with one PM, one VM placed on the PM, and one app placed on the VM.
-     * @param vmAndPodVcpuCapacity - The VM's VCPU capacity
-     * @param contVcpuCapacity - The Container's VCPU capacity
-     * @param vcpuUsedByApp - The quantity of VCPU used by the app.
-     * @param vcpuUsedByCont - The quantity of VCPU used by the container.
-     * @param vcpuUsedByPod - The quantity of VCPU used by the pod.
+     * @param nsAndPodVmemLimitCapacity - The VM's VMEM capacity
+     * @param contVmemCapacity - The Container's VMEM capacity
+     * @param vmemUsedByApp - The quantity of VMEM used by the app.
+     * @param vmemUsedByCont - The quantity of VMEM used by the container.
+     * @param vmemLimitUsedByPod - The quantity of VMEM used by the pod.
      * @param minDesiredUtil - The minimum desired utilization.
      * @param maxDesiredUtil - The maximum desired utilization.
      * @param economyRightSizeLower - Economy's right size lower limit
      * @param economyRightSizeUpper - Economy's right size upper limit
-     * @param shouldSetupCommodityResizeDependencyMap -
-     *        should the commodity resize dependency map
-     *        be setup for the economy passed in.
      * @return Economy with the topology setup.
      */
     private Economy setupContainerTopologyForResizeTest(
-            double vmAndPodVcpuCapacity,
-            double contVcpuCapacity,
-            double vcpuUsedByApp,
-            double vcpuUsedByCont,
-            double vcpuUsedByPod,
+            double nsAndPodVmemLimitCapacity,
+            double contVmemCapacity,
+            double vmemUsedByApp,
+            double vmemUsedByCont,
+            double vmemLimitUsedByPod,
             double minDesiredUtil, double maxDesiredUtil,
-            double economyRightSizeLower, double economyRightSizeUpper,
-            boolean shouldSetupCommodityResizeDependencyMap) {
+            double economyRightSizeLower, double economyRightSizeUpper) {
         Economy economy = new Economy();
-        // Create VM
-        vm = TestUtils.createTrader(economy, TestUtils.VM_TYPE,
-                Arrays.asList(0L), Arrays.asList(TestUtils.VCPU),
-                new double[]{vmAndPodVcpuCapacity}, false, false);
-        vm.setDebugInfoNeverUseInCode("VM1");
-        vm.getCommoditiesSold().stream().forEach(cs -> cs.getSettings().setResizable(false));
-        //Create pod and place on vm
+        // Create Namespace
+        namespace = TestUtils.createTrader(economy, TestUtils.NAMESPACE_TYPE,
+                Arrays.asList(0L), Arrays.asList(TestUtils.VMEMLIMITQUOTA),
+                new double[]{nsAndPodVmemLimitCapacity}, false, false);
+        namespace.setDebugInfoNeverUseInCode("NS1");
+        namespace.getCommoditiesSold().stream().forEach(cs -> cs.getSettings().setResizable(false));
+        //Create pod and place on namespace
         pod = TestUtils.createTrader(economy, TestUtils.POD_TYPE,
-                Arrays.asList(0L), Arrays.asList(TestUtils.VCPU),
-                new double[]{vmAndPodVcpuCapacity}, false, false);
+                Arrays.asList(0L), Arrays.asList(TestUtils.VMEMLIMITQUOTA),
+                new double[]{nsAndPodVmemLimitCapacity}, false, false);
         pod.setDebugInfoNeverUseInCode("POD1");
         pod.getCommoditiesSold().stream().forEach(cs -> cs.getSettings().setResold(true).setResizable(false));
         TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(TestUtils.VCPU), pod,
-                new double[]{vcpuUsedByPod}, vm).setMovable(false);
+                Arrays.asList(TestUtils.VMEMLIMITQUOTA), pod,
+                new double[]{vmemLimitUsedByPod}, namespace).setMovable(false);
         //Create cont and place on pod
         cont = TestUtils.createTrader(economy, TestUtils.CONTAINER_TYPE,
-                Arrays.asList(0L), Arrays.asList(TestUtils.VCPU),
-                new double[]{contVcpuCapacity}, false, false);
+                Arrays.asList(0L), Arrays.asList(TestUtils.VMEM),
+                new double[]{contVmemCapacity}, false, false);
         cont.setDebugInfoNeverUseInCode("CONTAINER1");
         TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(TestUtils.VCPU), cont,
-                new double[]{vcpuUsedByCont}, pod).setMovable(false);
+                Arrays.asList(TestUtils.VMEMLIMITQUOTA), cont,
+                new double[]{vmemUsedByCont}, pod).setMovable(false);
         //Create app and place on container
         app = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
                 Arrays.asList(0L), Arrays.asList(), new double[]{}, false, false);
         app.setDebugInfoNeverUseInCode("APP1");
         TestUtils.createAndPlaceShoppingList(economy,
-                Arrays.asList(TestUtils.VCPU), app,
-                new double[]{vcpuUsedByApp}, cont);
-        vm.getSettings().setMinDesiredUtil(minDesiredUtil).setMaxDesiredUtil(maxDesiredUtil);
+                Arrays.asList(TestUtils.VMEM), app,
+                new double[]{vmemUsedByApp}, cont);
+        namespace.getSettings().setMinDesiredUtil(minDesiredUtil).setMaxDesiredUtil(maxDesiredUtil);
         cont.getSettings().setMinDesiredUtil(minDesiredUtil).setMaxDesiredUtil(maxDesiredUtil);
         economy.getSettings().setRightSizeLower(economyRightSizeLower);
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
         TestUtils.setupRawCommodityMap(economy);
-        if (shouldSetupCommodityResizeDependencyMap) {
-            TestUtils.setupCommodityResizeDependencyMap(economy);
-        }
+        TestUtils.setupCommodityResizeDependencyMap(economy);
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         ledger = new Ledger(economy);
         return economy;
@@ -1474,7 +1486,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setRateOfResize((float)Math.pow(10, 10));
+        economy.getSettings().setDefaultRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());
@@ -1497,7 +1509,7 @@ public class ResizerTest {
             RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER, true);
         vm.getCommoditiesSold().stream().forEach(c -> c.setMaxQuantity(90));
 
-        economy.getSettings().setRateOfResize((float)Math.pow(10, 10));
+        economy.getSettings().setDefaultRateOfResize((float)Math.pow(10, 10));
         Ledger ledger = new Ledger(economy);
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertEquals(2, actions.size());
@@ -1546,6 +1558,7 @@ public class ResizerTest {
             buyer.setDebugInfoNeverUseInCode("Buyer-" + n);
             if (consistentScaling) {
                 buyer.setScalingGroupId("scaling-group-1");
+                economy.populatePeerMembersForScalingGroup(buyer, "scaling-group-1");
             }
 
             buyer

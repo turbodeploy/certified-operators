@@ -3,6 +3,8 @@ package com.vmturbo.platform.analysis.economy;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.dataflow.qual.Deterministic;
@@ -51,13 +53,20 @@ public final class EconomySettings implements Serializable {
     private double rightSizeUpper_;
     private boolean useExpenseMetricForTermination_;
     private float expenseMetricFactor_;
-    private float rateOfResize_ = 1.0f;
+    private float defaultRateOfResize = 1.0f;
     private boolean isEstimatesEnabled_ = true;
     private boolean isResizeDependentCommodities_ = true;
     private int maxPlacementIterations_ = DEFAULT_MAX_PLACEMENT_ITERATIONS;
     private boolean useQuoteCacheDuringSNM_ = DEFAULT_USE_QUOTE_CACHE_DURING_SNM;
     private boolean sortShoppingLists_ = false;
     private float discountedComputeCostFactor = -1f;
+
+    /**
+     * Override the default rate of resize on a per-trader-type basis.
+     * Key: Trader type
+     * Value: Rate of resize for that type of trader
+     */
+    private final Map<Integer, Float> overrideRateOfResize = new HashMap<>();
 
     // Constructors
     /**
@@ -156,8 +165,13 @@ public final class EconomySettings implements Serializable {
     }
 
     @Pure
-    public float getRateOfResize(@ReadOnly EconomySettings this) {
-        return rateOfResize_;
+    public float getRateOfResize(@ReadOnly EconomySettings this, final int traderType) {
+        return overrideRateOfResize.getOrDefault(traderType, defaultRateOfResize);
+    }
+
+    @Pure
+    public float getDefaultRateOfResize(@ReadOnly EconomySettings this) {
+        return defaultRateOfResize;
     }
 
     @Deterministic
@@ -210,9 +224,16 @@ public final class EconomySettings implements Serializable {
     }
 
     @Deterministic
-    public EconomySettings setRateOfResize(float rateOfRightSize) {
+    public EconomySettings setDefaultRateOfResize(float rateOfRightSize) {
         checkArgument(rateOfRightSize > 0, "rateOfRightSize = " + rateOfRightSize);
-        rateOfResize_ = rateOfRightSize;
+        defaultRateOfResize = rateOfRightSize;
+        return this;
+    }
+
+    @Deterministic
+    public EconomySettings setRateOfResizeForTraderType(int traderType, float rateOfRightSize) {
+        checkArgument(rateOfRightSize > 0, "rateOfRightSize = " + rateOfRightSize);
+        overrideRateOfResize.put(traderType, rateOfRightSize);
         return this;
     }
 
