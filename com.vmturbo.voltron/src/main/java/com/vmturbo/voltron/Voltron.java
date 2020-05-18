@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -42,6 +43,7 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
 
+import com.vmturbo.clustermgr.ClusterMgrService;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -183,6 +185,17 @@ public class Voltron extends BaseVmtComponent {
         return fullPath.toString();
     }
 
+
+    static void initializeClustermgr(@Nonnull final VoltronContext context) {
+        // Initialize clusterMgr. This prevents the continual popup asking you whether
+        // or not you are willing to enable telemetry. Without flagging clustermgr
+        // as initialized this popup will appear on every new page you navigate
+        // to in the UI.
+        Optional.ofNullable(context.getComponents().get(Component.CLUSTERMGR)).ifPresent(clustermgr ->
+            clustermgr.getBean(ClusterMgrService.class)
+                .setClusterKvStoreInitialized(true));
+    }
+
     /**
      * Start Voltron.
      * @param namespace The namespace to use. This namespace will propagate to all data folders, and
@@ -223,6 +236,8 @@ public class Voltron extends BaseVmtComponent {
                  RefreshController refreshCtrl = v.rootContext.getBean(RefreshController.class);
                  refreshCtrl.setComponentContexts(v.getComponents());
              });
+
+            voltronContext.getValue().ifPresent(Voltron::initializeClustermgr);
         } catch (Exception e) {
             logger.error("Voltron failed to start up. Will demolish data. Error:", e);
         }
