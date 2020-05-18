@@ -22,7 +22,8 @@
             {"inputType": "*", "elements": "networks", "filterCategory": "property", "filterType": "vmsByNetwork"},
             {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "vmsByResourceGroupName", "loadOptions": true},
             {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByAvailabilityZoneName"},
-            {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByRegionName"}
+            {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByRegionName"},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "vmsByCloudProvider", "loadOptions": true}
         ]
     },
 
@@ -68,14 +69,37 @@
     "Container" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containersByName"},
-            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containersByPodName"}
+            {"inputType": "*", "elements": "ContainerPod:displayName:PRODUCES", "filterCategory": "entity", "filterType": "containersByPodName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES", "filterCategory": "entity", "filterType": "containersByNamespace"}
         ]
     },
 
     "ContainerPod" : {
         "criteria" : [
-            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerpodsByName"},
-            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containerpodsByVMName"}
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerPodsByName"},
+            {"inputType": "*", "elements": "VirtualMachine:displayName:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByVMName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByNamespace"}
+        ]
+    },
+
+    "ContainerSpec" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerSpecsByName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:AGGREGATES:ContainerSpec", "filterCategory": "entity", "filterType": "containerSpecsByVMNamespace"}
+        ]
+    },
+
+    "WorkloadController" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "workloadControllersByName"},
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES", "filterCategory": "entity", "filterType": "workloadControllersByNamespace"},
+            {"inputType": "s|*", "elements": "workloadControllerInfoRepoDTO.controllerType", "filterCategory": "property", "filterType": "workloadControllersByKind", "loadOptions": true}
+        ]
+    },
+
+    "Namespace" : {
+        "criteria" : [
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "namespacesByName"}
         ]
     },
 
@@ -96,7 +120,8 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseByName"},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseByTag", "loadOptions": true},
             {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "databaseByBusinessAccountUuid", "loadOptions": true},
-            {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "databaseByResourceGroupName", "loadOptions": true}
+            {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "databaseByResourceGroupName", "loadOptions": true},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "databaseByCloudProvider", "loadOptions": true}
         ]
     },
 
@@ -105,7 +130,8 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "databaseServerByName"},
             {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "databaseServerByTag", "loadOptions": true},
             {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "databaseServerByBusinessAccountUuid", "loadOptions": true},
-            {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "databaseServerByResourceGroupName", "loadOptions": true}
+            {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "databaseServerByResourceGroupName", "loadOptions": true},
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "databaseServerByCloudProvider", "loadOptions": true}
         ]
     },
 
@@ -221,13 +247,15 @@
 
     "Region" : {
       "criteria" : [
-        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "regsByName"}
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "regsByName"},
+        {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "regsByCloudProvider", "loadOptions": true}
       ]
     },
 
     "AvailabilityZone" : {
       "criteria" : [
-        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "zonsByName"}
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "zonsByName"},
+        {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "zoneByCloudProvider", "loadOptions": true}
       ]
     },
 

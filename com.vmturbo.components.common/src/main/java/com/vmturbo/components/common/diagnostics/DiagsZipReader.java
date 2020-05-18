@@ -1,24 +1,20 @@
 package com.vmturbo.components.common.diagnostics;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import org.apache.commons.io.IOUtils;
-
-import com.google.common.base.Charsets;
-
+import com.vmturbo.components.api.SharedByteBuffer;
+import com.vmturbo.components.common.diagnostics.Diags.CompressedDiags;
+import com.vmturbo.components.common.diagnostics.Diags.UncompressedDiags;
 import com.vmturbo.components.common.diagnostics.RecursiveZipIterator.WrappedZipEntry;
 
 /**
  * This class reads Diags entries from a diags file and creates an iterable that delivers them.
  *
- * <p>The outermost file is expected to be a ZIP file. File entries are treated based on their
+ * <p/>The outermost file is expected to be a ZIP file. File entries are treated based on their
  * file extension, as in:
  * <dl>
  *     <dt>.binary</dt>
@@ -30,17 +26,24 @@ import com.vmturbo.components.common.diagnostics.RecursiveZipIterator.WrappedZip
  *     are delivered before continuing with this file's diags objects.</dd>
  * </dl>
  * Other entries, including directory entries, are ignored.
- * </p>
- * <p>If an exception is encountered during this processing, the iterable stops delivering new
+ *
+ * <p/>If an exception is encountered during this processing, the iterable stops delivering new
  * diags objects, and the exception can be obtained using the {@link #getException} method.
  * Otherwise this case is indistinguishable from coming having fully scanned the input.
- * </p>
  *
  */
 public class DiagsZipReader implements Iterable<Diags> {
 
+    /**
+     * Files with this suffix should have text/string diagnostic data.
+     */
     public static final String TEXT_DIAGS_SUFFIX = ".diags";
+
+    /**
+     * Files with this suffix should have binary data.
+     */
     public static final String BINARY_DIAGS_SUFFIX = ".binary";
+
     private final DiagsIterator diagsIterator;
 
     /**
@@ -49,8 +52,20 @@ public class DiagsZipReader implements Iterable<Diags> {
      * @param inputStream input stream to be scanned
      */
     public DiagsZipReader(InputStream inputStream) {
+        this(inputStream, false);
+    }
+
+    /**
+     * Create a new instance to scan the given input stream.
+     *
+     * @param inputStream Input stream to be scanned.
+     * @param compress Whether or not to compress the input stream entry data. This should be "true"
+     *                 if you are expecting lots of data, AND you intend to collect the diags
+     *                 in memory (e.g. to sort them and process them in a particular way).
+     */
+    public DiagsZipReader(InputStream inputStream, final boolean compress) {
         final RecursiveZipIterator zipIterator = new RecursiveZipIterator(new ZipInputStream(inputStream));
-        this.diagsIterator = new DiagsIterator(zipIterator);
+        this.diagsIterator = new DiagsIterator(zipIterator, compress);
     }
 
     @Override
@@ -68,21 +83,25 @@ public class DiagsZipReader implements Iterable<Diags> {
     }
 
     /**
-     * Iterator class supporting the top-level Iterable
+     * Iterator class supporting the top-level Iterable.
      */
     private static class DiagsIterator implements Iterator<Diags> {
 
         private RecursiveZipIterator zipIterator;
         private Diags nextValue = null;
         private Throwable exception = null;
+        private final boolean compress;
+        private final SharedByteBuffer sharedByteBuffer = new SharedByteBuffer(0);
 
         /**
          * Create a new instance, given a zip file iterator.
          *
          * @param zipIterator iterator to deliver zip file entries
+         * @param compress See {@link DiagsZipReader#DiagsZipReader(InputStream, boolean)}.
          */
-        DiagsIterator(RecursiveZipIterator zipIterator) {
+        DiagsIterator(RecursiveZipIterator zipIterator, final boolean compress) {
             this.zipIterator = zipIterator;
+            this.compress = compress;
             // tee up first value for delivery
             produceNextValue();
         }
@@ -142,8 +161,8 @@ public class DiagsZipReader implements Iterable<Diags> {
          * @return true if it appears to be a diags entry
          */
         private boolean isDiagsEntry(WrappedZipEntry entry) {
-            return !entry.isExceptionEntry() && !entry.isDirectory() &&
-                (isTextDiags(entry) || isBinaryDiags(entry));
+            return !entry.isExceptionEntry() && !entry.isDirectory()
+                && (Diags.isTextDiags(entry.getName()) || Diags.isBinaryDiags(entry.getName()));
         }
 
         /**
@@ -154,19 +173,15 @@ public class DiagsZipReader implements Iterable<Diags> {
          * @throws IOException if the conversion fails
          */
         private Diags toDiags(WrappedZipEntry entry) throws IOException {
-            byte[] content = entry.getContent();
-            if (isTextDiags(entry)) {
-                // text diags object encapsulates a list of lines of text
-                List<String> lines = IOUtils.readLines(new ByteArrayInputStream(content),
-                    Charsets.UTF_8);
-                return new Diags(entry.getName(), lines);
-
-            } else if (isBinaryDiags(entry)) {
-                // a binary diags object encompases the raw zip entry content
-                return new Diags(entry.getName(), content);
-            } else {
-                // should never happen, but if it does, treat it as an iterator-terminating condition
-                handleException(new IllegalStateException(("Invalid file extension for diags entry")));
+            final byte[] content = entry.getContent();
+            try {
+                if (compress) {
+                    return new CompressedDiags(entry.getName(), content, sharedByteBuffer);
+                } else {
+                    return new UncompressedDiags(entry.getName(), content);
+                }
+            } catch (RuntimeException e) {
+                handleException(e);
                 return null;
             }
         }
@@ -184,32 +199,12 @@ public class DiagsZipReader implements Iterable<Diags> {
         }
 
         /**
-         * Return the exception that caused this iterator to terminate early
+         * Return the exception that caused this iterator to terminate early.
          *
          * @return the terminating exception, or null if that didn't happen
          */
         public Throwable getException() {
             return exception;
-        }
-
-        /**
-         * Check whether the given zip file entry looks like a text diags entry
-         *
-         * @param entry the entry to be checked, which must be a normal file entry
-         * @return true if it looks like a text diags entry
-         */
-        private static boolean isTextDiags(ZipEntry entry) {
-            return entry.getName().toLowerCase().endsWith(TEXT_DIAGS_SUFFIX);
-        }
-
-        /**
-         * Check whether the given zip file entry looks like a binray diags entry
-         *
-         * @param entry the entry to be checked, which must be a normal file entry
-         * @return true if it looks like a binary diags entry
-         */
-        private static boolean isBinaryDiags(ZipEntry entry) {
-            return entry.getName().toLowerCase().endsWith(BINARY_DIAGS_SUFFIX);
         }
     }
 }

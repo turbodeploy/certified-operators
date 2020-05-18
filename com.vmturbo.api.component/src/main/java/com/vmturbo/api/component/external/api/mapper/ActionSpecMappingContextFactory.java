@@ -257,6 +257,9 @@ public class ActionSpecMappingContextFactory {
         // fetch all volume aspects
         final Map<Long, List<VirtualDiskApiDTO>> volumesAspectsByEntity = fetchVolumeAspects(actions, topologyContextId);
 
+
+        datacenterById.values().forEach(e -> entitiesById.put(e.getOid(), e));
+
         if (topologyContextId == realtimeTopologyContextId) {
             return new ActionSpecMappingContext(entitiesById, policies.get(), entityIdToRegion,
                 volumesAspectsByEntity, cloudAspects, Collections.emptyMap(), Collections.emptyMap(),
@@ -635,9 +638,15 @@ public class ActionSpecMappingContextFactory {
                                  @Nonnull ServiceEntityMapper serviceEntityMapper,
                                  final boolean isPlan,
                                  final Collection<PolicyApiDTO> policiesApiDto) {
-            this.serviceEntityApiDTOs = topologyEntityDTOs.entrySet().stream()
-                .collect(Collectors.toMap(Entry::getKey, entry ->
-                    serviceEntityMapper.toServiceEntityApiDTO(entry.getValue())));
+
+            /* topologyEntityDTOs contain some ZoneId -> Region entries,
+               so we can't just use serviceEntityMapper.toServiceEntityApiDTOMap() output
+             */
+            Map<Long, ServiceEntityApiDTO> seMap = serviceEntityMapper.toServiceEntityApiDTOMap(topologyEntityDTOs.values());
+            this.serviceEntityApiDTOs = new HashMap<>();
+            topologyEntityDTOs.entrySet().forEach(entry -> {
+                this.serviceEntityApiDTOs.put(entry.getKey(), seMap.get(entry.getValue().getOid()));
+            });
             this.policies = Objects.requireNonNull(policies);
             this.entityIdToRegion = Objects.requireNonNull(entityIdToRegion);
             this.volumeAspectsByEntity = Objects.requireNonNull(volumeAspectsByEntity);

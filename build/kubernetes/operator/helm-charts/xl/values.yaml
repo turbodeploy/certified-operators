@@ -176,6 +176,8 @@ rhv:
   enabled: false
 scaleio:
   enabled: false
+servicenow:
+  enabled: false
 snmp:
   enabled: false
 terraform:

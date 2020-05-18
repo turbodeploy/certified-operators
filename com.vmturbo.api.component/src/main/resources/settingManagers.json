@@ -151,6 +151,7 @@
         "heapUtilization",
         "collectionTimeUtilization",
         "RATE_OF_RESIZE",
+        "containerRateOfResize",
         "percentileAggressivenessBusinessUser",
         "percentileAggressivenessVirtualMachine",
         "minObservationPeriodVirtualMachine",
@@ -282,6 +283,12 @@
         "rhelByol",
         "slesByol",
         "windowsByol"
+      ]
+    },
+    "telemetrymanager": {
+      "displayName": "Telemetry Manager",
+      "settings": [
+        "telemetryEnabled"
       ]
     }
   }

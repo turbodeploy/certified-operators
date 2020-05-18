@@ -210,10 +210,20 @@ public class SettingsMapper {
      */
     public static final Map<String, String> GLOBAL_SETTING_ENTITY_TYPES =
         ImmutableMap.<String, String>builder()
-            .put(GlobalSettingSpecs.RateOfResize.getSettingName(), ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .put(GlobalSettingSpecs.DefaultRateOfResize.getSettingName(), ApiEntityType.VIRTUAL_MACHINE.apiStr())
+            .put(GlobalSettingSpecs.ContainerRateOfResize.getSettingName(), ApiEntityType.CONTAINER.apiStr())
             .put(GlobalSettingSpecs.DisableAllActions.getSettingName(), SERVICE_ENTITY)
             .put(GlobalSettingSpecs.MaxVMGrowthObservationPeriod.getSettingName(), SERVICE_ENTITY)
             .build();
+
+    /**
+     * Some global settings appear specifically on the default setting policy for a specific entity type.
+     * This is a map of the entity type to the corresponding global settings.
+     */
+    public static final Map<Integer, GlobalSettingSpecs> ENTITY_TYPE_GLOBAL_SETTINGS = ImmutableMap.of(
+            EntityType.VIRTUAL_MACHINE_VALUE, GlobalSettingSpecs.DefaultRateOfResize,
+            EntityType.CONTAINER_VALUE, GlobalSettingSpecs.ContainerRateOfResize
+        );
 
     /**
      * map to get the predefined label for a given setting enum. if not found, we will use
@@ -458,21 +468,20 @@ public class SettingsMapper {
                     .flatMap(settingMgr -> settingMgr.getSettings().stream())
                     .collect(Collectors.toMap(SettingApiDTO::getUuid, Function.identity()));
 
-            // **HAAACK** for RATE_OF_RESIZE
-            // If the RATE_OF_RESIZE setting has been updated as part of the Default
-            // VM Setting, remove it from the SettingPolicy and update the
-            // setting.
-            String rateOfResizeSettingName = GlobalSettingSpecs.RateOfResize.getSettingName();
-            // Api is not setting the default flag. So we can only check if it is a VM
-            // type.
-            if (isVmEntityType(entityType) &&
-                    involvedSettings.containsKey(rateOfResizeSettingName)) {
-                SettingApiDTO<?> settingApiDto = involvedSettings.remove(rateOfResizeSettingName);
-                settingService.updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder()
-                    .addSetting(Setting.newBuilder().setSettingSpecName(rateOfResizeSettingName)
-                        .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(
-                            Float.valueOf(SettingsMapper.inputValueToString(settingApiDto).orElse("0")))))
-                    .build());
+            // Some global settings in the UI, are displayed along with the default policy
+            // for a specific entity type. Remove it from the involvedSettings and update the
+            // associated global setting. Api is not setting the default flag. So we can only
+            // check its type.
+            if (ENTITY_TYPE_GLOBAL_SETTINGS.containsKey(entityType)) {
+                final String globalSettingName = ENTITY_TYPE_GLOBAL_SETTINGS.get(entityType).getSettingName();
+                if (involvedSettings.containsKey(globalSettingName)) {
+                    final SettingApiDTO<?> settingApiDto = involvedSettings.remove(globalSettingName);
+                    settingService.updateGlobalSetting(UpdateGlobalSettingRequest.newBuilder()
+                        .addSetting(Setting.newBuilder().setSettingSpecName(globalSettingName)
+                            .setNumericSettingValue(SettingDTOUtil.createNumericSettingValue(
+                                Float.valueOf(SettingsMapper.inputValueToString(settingApiDto).orElse("0")))))
+                        .build());
+                }
             }
 
             if (!involvedSettings.isEmpty()) {
@@ -794,12 +803,11 @@ public class SettingsMapper {
                             managerMapping.getManagerUuid(setting.getSettingSpecName())
                                     .orElse(NO_MANAGER)));
 
-            // *HAAACK*. Add RATE_OF_RESIZE hack here. Even thought it is a global setting
-            // in the UI, it is displayed along with VM default policy. So fetch the global
-            // setting and inject it here.
-            if (isVmDefaultPolicy(settingPolicy)) {
-                injectGlobalSetting(GlobalSettingSpecs.RateOfResize, settingsByMgr,
-                                globalSettingNameToSettingMap);
+            // Some global settings in the UI, are displayed along with the default policy
+            // for a specific entity type. So fetch the global setting and inject it here.
+            if (isEntityDefaultPolicyWithGlobalSetting(settingPolicy)) {
+                injectGlobalSetting(ENTITY_TYPE_GLOBAL_SETTINGS.get(
+                        settingPolicy.getInfo().getEntityType()), settingsByMgr, globalSettingNameToSettingMap);
             } else if (isGlobalSettingPolicy(settingPolicy)) {
                 apiDto.setEntityType(SERVICE_ENTITY);
                 GlobalSettingSpecs.VISIBLE_TO_UI.forEach(globalSettingSpecs ->
@@ -1077,10 +1085,9 @@ public class SettingsMapper {
         return Optional.of(value.toString());
     }
 
-    private static boolean isVmDefaultPolicy(@Nonnull SettingPolicy policy) {
-
-        return (policy.getSettingPolicyType().equals(Type.DEFAULT) &&
-                    isVmEntityType(policy.getInfo().getEntityType()));
+    private static boolean isEntityDefaultPolicyWithGlobalSetting(@Nonnull SettingPolicy policy) {
+        return policy.getSettingPolicyType().equals(Type.DEFAULT)
+            && ENTITY_TYPE_GLOBAL_SETTINGS.containsKey(policy.getInfo().getEntityType());
     }
 
     public static boolean isVmEntityType(int entityType) {
@@ -1376,17 +1383,18 @@ public class SettingsMapper {
 
     private Map<String, Setting> getRelevantGlobalSettings(List<SettingPolicy> settingPolicies) {
         Set<String> globalSettingNames = settingPolicies.stream()
-                        .flatMap(policy -> {
-                            if (isVmDefaultPolicy(policy)) {
-                                return Stream.of(GlobalSettingSpecs.RateOfResize.getSettingName());
-                            } else if (isGlobalSettingPolicy(policy)) {
-                                return GlobalSettingSpecs.VISIBLE_TO_UI.stream().map(GlobalSettingSpecs::getSettingName);
-                            } else {
-                                return Stream.empty();
-                            }
-                        })
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toSet());
+            .flatMap(policy -> {
+                if (isEntityDefaultPolicyWithGlobalSetting(policy)) {
+                    return Stream.of(ENTITY_TYPE_GLOBAL_SETTINGS.get(
+                        policy.getInfo().getEntityType()).getSettingName());
+                } else if (isGlobalSettingPolicy(policy)) {
+                    return GlobalSettingSpecs.VISIBLE_TO_UI.stream().map(GlobalSettingSpecs::getSettingName);
+                } else {
+                    return Stream.empty();
+                }
+            }
+            ).filter(Objects::nonNull)
+            .collect(Collectors.toSet());
 
         Map<String, Setting> globalSettings = new HashMap<String, Setting>();
 

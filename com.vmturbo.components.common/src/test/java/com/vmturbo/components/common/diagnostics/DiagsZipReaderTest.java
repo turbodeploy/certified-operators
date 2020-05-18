@@ -1,12 +1,13 @@
 package com.vmturbo.components.common.diagnostics;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
 import org.junit.Assert;
 import org.junit.Test;
+
+import com.vmturbo.components.common.diagnostics.Diags.UncompressedDiags;
 
 public class DiagsZipReaderTest extends Assert {
 
@@ -25,12 +26,12 @@ public class DiagsZipReaderTest extends Assert {
             .withBinaryFile("f.binary", 1, 2, 3)
             .withTextFile("g.diags", "g", "h", "i");
         checkDiags(builder, new Object[][]{
-            {"a.diags", lines("a", "b", "c")},
+            {"a.diags", bytes("a", "b", "c")},
             {"b.binary", bytes(1, 2, 3)},
             {"c.binary", bytes(1, 2, 3)},
-            {"e.diags", lines("e", "f", "g")},
+            {"e.diags", bytes("e", "f", "g")},
             {"f.binary", bytes(1, 2, 3)},
-            {"g.diags", lines("g", "h", "i")}
+            {"g.diags", bytes("g", "h", "i")}
         });
     }
 
@@ -43,15 +44,8 @@ public class DiagsZipReaderTest extends Assert {
             String name = (String) objects[0];
             Object content = objects[1];
             boolean isText = content instanceof List;
-            Diags expectedDiags;
-            if (isText) {
-                @SuppressWarnings("unchecked")
-                List<String> castContent = (List<String>) content;
-                expectedDiags = new Diags(name, castContent);
-            } else {
-                byte[] castContent = (byte[]) content;
-                expectedDiags = new Diags(name, castContent);
-            }
+            byte[] castContent = (byte[]) content;
+            Diags expectedDiags = new UncompressedDiags(name, castContent);
             assertEquals("Incorrect diags name",
                 expectedDiags.getName(), actualDiags.getName());
             if (isText) {
@@ -63,11 +57,11 @@ public class DiagsZipReaderTest extends Assert {
         assertFalse(diagsIter.hasNext());
     }
 
-    private List<String> lines(String... lines) {
-        return Arrays.asList(lines);
-    }
-
     private byte[] bytes(int... values) {
         return ZipStreamBuilder.intsToBytes(values);
+    }
+
+    private byte[] bytes(String... values) {
+        return ZipStreamBuilder.linesToBytes(values);
     }
 }

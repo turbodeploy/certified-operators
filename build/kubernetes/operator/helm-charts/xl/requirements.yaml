@@ -331,6 +331,10 @@ dependencies:
     repository: file://../probes/mediation-scaleio
     version: 0.1.0
     condition: scaleio.enabled
+  - name: mediation-servicenow
+    repository: file://../probes/mediation-servicenow
+    version: 0.1.0
+    condition: servicenow.enabled
   - name: mediation-snmp
     repository: file://../probes/mediation-snmp
     version: 0.1.0

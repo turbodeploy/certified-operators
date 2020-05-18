@@ -11,17 +11,19 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.immutables.value.Value;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
@@ -34,6 +36,7 @@ import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
 import com.vmturbo.api.enums.ActionCostType;
+import com.vmturbo.api.enums.CloudType;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.utils.CompositeEntityTypesSpec;
 import com.vmturbo.api.utils.DateTimeUtil;
@@ -47,9 +50,12 @@ import com.vmturbo.common.protobuf.action.ActionDTO.GetHistoricalActionStatsResp
 import com.vmturbo.common.protobuf.action.ActionDTO.HistoricalActionStatsQuery;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PerTargetEntityInformation;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache;
+import com.vmturbo.topology.processor.api.util.ThinTargetCache.ThinTargetInfo;
 
 /**
  * A shared utility class to execute action stats queries, meant to be used by whichever
@@ -75,6 +81,8 @@ public class ActionStatsQueryExecutor {
 
     private final Clock clock;
 
+    private final ThinTargetCache thinTargetCache;
+
     /**
      * Constructor for the executor.
      *
@@ -87,6 +95,7 @@ public class ActionStatsQueryExecutor {
      * @param userSessionContext {@link UserSessionContext} to enforce user scope.
      * @param repositoryApi {@link RepositoryApi} for repository access.
      * @param buyRiScopeHandler {@link BuyRiScopeHandler}.
+     * @param thinTargetCache {@link ThinTargetCache}
      */
     public ActionStatsQueryExecutor(@Nonnull final Clock clock,
                                     @Nonnull final ActionsServiceBlockingStub actionsServiceBlockingStub,
@@ -96,7 +105,8 @@ public class ActionStatsQueryExecutor {
                                     @Nonnull final SupplyChainFetcherFactory supplyChainFetcherFactory,
                                     @Nonnull final UserSessionContext userSessionContext,
                                     @Nonnull final RepositoryApi repositoryApi,
-                                    @Nonnull final BuyRiScopeHandler buyRiScopeHandler) {
+                                    @Nonnull final BuyRiScopeHandler buyRiScopeHandler,
+                                    @Nonnull final ThinTargetCache thinTargetCache) {
         this(clock, actionsServiceBlockingStub,
             userSessionContext,
             uuidMapper,
@@ -104,7 +114,8 @@ public class ActionStatsQueryExecutor {
             new CurrentQueryMapper(actionSpecMapper, groupExpander, supplyChainFetcherFactory,
                     userSessionContext, repositoryApi, buyRiScopeHandler),
             new ActionStatsMapper(clock, actionSpecMapper),
-            repositoryApi);
+            repositoryApi,
+            thinTargetCache);
     }
 
     @VisibleForTesting
@@ -115,7 +126,8 @@ public class ActionStatsQueryExecutor {
                              @Nonnull final HistoricalQueryMapper historicalQueryMapper,
                              @Nonnull final CurrentQueryMapper currentQueryMapper,
                              @Nonnull final ActionStatsMapper actionStatsMapper,
-                             @Nonnull final RepositoryApi repositoryApi) {
+                             @Nonnull final RepositoryApi repositoryApi,
+                             @Nonnull final ThinTargetCache thinTargetCache) {
         this.clock = clock;
         this.actionsServiceBlockingStub = Objects.requireNonNull(actionsServiceBlockingStub);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
@@ -124,6 +136,7 @@ public class ActionStatsQueryExecutor {
         this.currentQueryMapper = Objects.requireNonNull(currentQueryMapper);
         this.actionStatsMapper = Objects.requireNonNull(actionStatsMapper);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
+        this.thinTargetCache = Objects.requireNonNull(thinTargetCache);
     }
 
     /**
@@ -184,30 +197,69 @@ public class ActionStatsQueryExecutor {
                     .build()));
             final GetCurrentActionStatsResponse curResponse =
                 actionsServiceBlockingStub.getCurrentActionStats(curReqBldr.build());
+
             final Map<Long, MinimalEntity> entityLookup;
-            // If the request was to group by templates, then we group by target id. For these
-            // requests, we need to get the names of the target ids from the search service
-            if (query.actionInput().getGroupBy() != null &&
-                query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
-                Set<Long> templatesToLookup = curResponse.getResponsesList().stream()
-                    .flatMap(singleResponse -> singleResponse.getActionStatsList().stream())
-                    .filter(stat -> stat.getStatGroup().hasTargetEntityId())
-                    .map(stat -> stat.getStatGroup().getTargetEntityId())
-                    .collect(Collectors.toSet());
-                entityLookup = repositoryApi.entitiesRequest(templatesToLookup).getMinimalEntities()
-                    .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
+            final Map<Long, String> cspLookup;
+            if (query.actionInput().getGroupBy() != null) {
+                // If the request was to group by templates, then we group by target id. For these
+                // requests, we need to get the names of the target ids from the search service
+                if (query.actionInput().getGroupBy().contains(StringConstants.TEMPLATE)) {
+                    Set<Long> templatesToLookup = curResponse.getResponsesList().stream()
+                            .flatMap(singleResponse -> singleResponse.getActionStatsList().stream())
+                            .filter(stat -> stat.getStatGroup().hasTargetEntityId())
+                            .map(stat -> stat.getStatGroup().getTargetEntityId())
+                            .collect(Collectors.toSet());
+                    entityLookup = repositoryApi.entitiesRequest(templatesToLookup).getMinimalEntities()
+                            .collect(Collectors.toMap(MinimalEntity::getOid, Function.identity()));
+                } else {
+                    entityLookup = Collections.emptyMap();
+                }
+
+                if (query.actionInput().getGroupBy().contains(StringConstants.CSP)) {
+                    final Set<Long> cspsToLookup = curResponse.getResponsesList().stream()
+                            .flatMap(singleResponse -> singleResponse.getActionStatsList().stream())
+                            .filter(stat -> stat.getStatGroup().hasCsp())
+                            .map(stat -> Long.parseLong(stat.getStatGroup().getCsp()))
+                            .collect(Collectors.toSet());
+
+                    final Map<Long, String> tempCspLookup = new HashMap<>();
+                    repositoryApi.entitiesRequest(cspsToLookup).getEntities().forEach(apiEntity -> {
+                        tempCspLookup.put(apiEntity.getOid(), getCloudTypeFromProbeType(apiEntity::getDiscoveredTargetDataMap));
+                    });
+                    cspLookup = ImmutableMap.copyOf(tempCspLookup);
+                } else {
+                    cspLookup = Collections.emptyMap();
+                }
             } else {
                 entityLookup = Collections.emptyMap();
+                cspLookup = Collections.emptyMap();
             }
+
             curResponse.getResponsesList().forEach(singleResponse -> {
                 final List<StatSnapshotApiDTO> snapshots = retStats.computeIfAbsent(
                     uuidMapper.fromOid(singleResponse.getQueryId()),
                     k -> new ArrayList<>(1));
                 snapshots.add(actionStatsMapper.currentActionStatsToApiSnapshot(
-                    singleResponse.getActionStatsList(), query, entityLookup));
+                    singleResponse.getActionStatsList(), query, entityLookup, cspLookup));
             });
         }
         return retStats;
+    }
+
+    private String getCloudTypeFromProbeType(Supplier<Map<Long, PerTargetEntityInformation>> idMapGetter) {
+        final Set<CloudType> cloudTypeSet = new HashSet<>();
+        Map<Long, PerTargetEntityInformation> target2data = idMapGetter.get();
+        if (!target2data.isEmpty()) {
+            for (Map.Entry<Long, PerTargetEntityInformation> info : target2data.entrySet()) {
+                thinTargetCache.getTargetInfo(info.getKey()).ifPresent(thinTargetInfo ->
+                        cloudTypeSet.add(CloudType.fromProbeType(thinTargetInfo.probeInfo().type())));
+            }
+        }
+        if (cloudTypeSet.size() == 1) {
+            final Optional<CloudType> matchedCloudType = cloudTypeSet.stream().findFirst();
+            return matchedCloudType.get().toString();
+        }
+        return CloudType.UNKNOWN.toString();
     }
 
     /**
