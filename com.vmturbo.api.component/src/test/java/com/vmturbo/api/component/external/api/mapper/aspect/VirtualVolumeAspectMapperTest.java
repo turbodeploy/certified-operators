@@ -342,6 +342,11 @@ public class VirtualVolumeAspectMapperTest {
     private final int storageAmountCapacityInMB = 2 * 1024;
     private final String snapshotId = "snap-vv1";
 
+    private ApiPartialEntity region = ApiPartialEntity.newBuilder().setOid(azureRegionId)
+            .setEntityType(EntityType.REGION_VALUE)
+            .addConnectedTo(RelatedEntity.newBuilder().setOid(volumeConnectedZoneId)
+                    .setEntityType(EntityType.AVAILABILITY_ZONE_VALUE).build()).build();
+
     private final BiFunction<Long, EnvironmentType, TopologyEntityDTO> getVirtualVolumeWithId = (virtualVolumeId, envType) -> TopologyEntityDTO.newBuilder()
             .setOid(virtualVolumeId)
             .setDisplayName(virtualVolumeDisplayName)
@@ -413,11 +418,13 @@ public class VirtualVolumeAspectMapperTest {
             } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, ApiEntityType.REGION))) {
-                return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
+                return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId + 1, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else if (param.equals(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.REGION.apiStr())).build())) {
+                return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
             } else {
                 throw new IllegalArgumentException(param.toString());
             }
@@ -440,7 +447,7 @@ public class VirtualVolumeAspectMapperTest {
                 assertNotNull(volumeAspect);
                 assertThat(volumeAspect.getUuid(), anyOf(is(String.valueOf(virtualVolumeId)), is(String.valueOf(virtualVolumeId + 1))));
                 assertEquals(String.valueOf(storageTierId1), volumeAspect.getProvider().getUuid());
-                assertEquals(String.valueOf(volumeConnectedZoneId), volumeAspect.getDataCenter().getUuid());
+                assertEquals(String.valueOf(azureRegionId), volumeAspect.getDataCenter().getUuid());
                 assertEquals(String.valueOf(volumeConnectedBusinessAccountId), volumeAspect.getBusinessAccount().getUuid());
 
                 // check stats for volume
@@ -480,9 +487,11 @@ public class VirtualVolumeAspectMapperTest {
             if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_MACHINE))) {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(vm1));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(volumeConnectedZoneId, TraversalDirection.OWNED_BY, ApiEntityType.REGION))) {
-                return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
+                return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else if (param.equals(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.REGION.apiStr())).build())) {
+                return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
             } else {
                 throw new IllegalArgumentException(param.toString());
             }
@@ -507,7 +516,7 @@ public class VirtualVolumeAspectMapperTest {
         assertNotNull(volumeAspect);
         assertEquals(String.valueOf(virtualVolumeId), volumeAspect.getUuid());
         assertEquals(String.valueOf(storageTierId1), volumeAspect.getProvider().getUuid());
-        assertEquals(String.valueOf(volumeConnectedZoneId), volumeAspect.getDataCenter().getUuid());
+        assertEquals(String.valueOf(azureRegionId), volumeAspect.getDataCenter().getUuid());
         assertEquals(String.valueOf(volumeConnectedBusinessAccountId), volumeAspect.getBusinessAccount().getUuid());
 
         // check stats for volume
@@ -548,6 +557,8 @@ public class VirtualVolumeAspectMapperTest {
                 return ApiTestUtils.mockSearchFullReq(Lists.newArrayList(azureStorageTier));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(azureVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else if (param.equals(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.REGION.apiStr())).build())) {
+                return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
             } else {
                 throw new IllegalArgumentException(param.toString());
             }
@@ -621,6 +632,8 @@ public class VirtualVolumeAspectMapperTest {
                 return ApiTestUtils.mockSearchReq(Lists.newArrayList(volumeConnectedZone));
             } else if (param.equals(SearchProtoUtil.neighborsOfType(virtualVolumeId, TraversalDirection.OWNED_BY, ApiEntityType.BUSINESS_ACCOUNT))) {
                 return ApiTestUtils.mockSearchSEReq(Lists.newArrayList(volumeConnectedBusinessAccount));
+            } else if (param.equals(SearchParameters.newBuilder().setStartingFilter(SearchProtoUtil.entityTypeFilter(ApiEntityType.REGION.apiStr())).build())) {
+                return ApiTestUtils.mockSearchReq(Lists.newArrayList(region));
             } else {
                 throw new IllegalArgumentException(param.toString());
             }
@@ -645,7 +658,7 @@ public class VirtualVolumeAspectMapperTest {
         assertNotNull(volumeAspect);
         assertEquals(String.valueOf(virtualVolumeId), volumeAspect.getUuid());
         assertEquals(String.valueOf(storageTierId1), volumeAspect.getProvider().getUuid());
-        assertEquals(String.valueOf(volumeConnectedZoneId), volumeAspect.getDataCenter().getUuid());
+        assertEquals(String.valueOf(azureRegionId), volumeAspect.getDataCenter().getUuid());
         assertEquals(String.valueOf(volumeConnectedBusinessAccountId), volumeAspect.getBusinessAccount().getUuid());
 
         // check stats for volume
@@ -1037,6 +1050,7 @@ public class VirtualVolumeAspectMapperTest {
     private void stubRepositoryApi() throws Exception {
         final SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.getFullEntities()).thenReturn(Stream.of()).thenReturn(Stream.of());
+        when(searchRequest.getEntities()).thenReturn(Stream.of()).thenReturn(Stream.of());
         when(repositoryApi.newSearchRequest(any())).thenReturn(searchRequest);
         final MultiEntityRequest multiEntityRequest = mock(MultiEntityRequest.class);
         when(multiEntityRequest.getSEMap()).thenReturn(Collections.emptyMap())

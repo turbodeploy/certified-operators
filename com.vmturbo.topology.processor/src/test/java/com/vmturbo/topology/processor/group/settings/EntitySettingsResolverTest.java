@@ -88,6 +88,7 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.Pair;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.stitching.TopologyEntity;
@@ -177,7 +178,11 @@ public class EntitySettingsResolverTest {
     private static final long SP2_ID = 6003;
     private static final long SP3_ID = 6004;
     private static final long SP4_ID = 6005;
-    private static final long DEFUALT_POLICY_ID = 6101L;
+
+    private static final long CSG_ENABLED_SP_ID = 7001L;
+    private static final long CSG_DISABLED_SP_ID = 7002L;
+
+    private static final long DEFAULT_POLICY_ID = 6101L;
     private static final List<Setting> inputSettings1  = Arrays.asList(setting1, setting2);
     private static final List<Setting> inputSettings1a  = Arrays.asList(setting1a, setting2a);
     private static final List<Setting> inputSettings2  = Arrays.asList(setting3, setting4);
@@ -222,8 +227,8 @@ public class EntitySettingsResolverTest {
             TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
                     Collections.singletonList(setting2a)));
     private static final SettingPolicy defaultSettingPolicy =
-        createSettingPolicy(DEFUALT_POLICY_ID, "sp_def", SettingPolicy.Type.DEFAULT,
-            inputSettings1, Collections.singletonList(groupId));
+        createSettingPolicy(DEFAULT_POLICY_ID, "sp_def", SettingPolicy.Type.DEFAULT,
+                            inputSettings1, Collections.singletonList(groupId));
 
     private static final String SPEC_NAME = "settingSpecName";
     private static final SettingSpec SPEC_SMALLER_TIEBREAKER =
@@ -270,6 +275,8 @@ public class EntitySettingsResolverTest {
     private static final int CHUNK_SIZE = 1;
     private static final ConsistentScalingManager consistentScalingManager =
             mock(ConsistentScalingManager.class);
+    private static final String consistentScalingSpecName =
+                    EntitySettingSpecs.EnableConsistentResizing.getSettingName();
     /*
     static {
         when(scheduleResolver.appliesAtResolutionInstant(eq(APPLIES_NOW.getId()),
@@ -352,8 +359,8 @@ public class EntitySettingsResolverTest {
         verify(settingOverrides, times(2)).overrideSettings(any(), any());
         assertEquals(entitiesSettings.getEntitySettings().size(), 2);
         assertThat(entitiesSettings.getEntitySettings(), containsInAnyOrder(
-            createDefaultEntitySettings(entityOid1, DEFUALT_POLICY_ID),
-            createDefaultEntitySettings(entityOid2, DEFUALT_POLICY_ID)));
+            createDefaultEntitySettings(entityOid1, DEFAULT_POLICY_ID),
+            createDefaultEntitySettings(entityOid2, DEFAULT_POLICY_ID)));
     }
 
     /**
@@ -380,9 +387,9 @@ public class EntitySettingsResolverTest {
         assertEquals(entitiesSettings.getEntitySettings().size(), 2);
         assertThat(entitiesSettings.getEntitySettings(), containsInAnyOrder(
                 createEntitySettings(entityOid1, Arrays.asList(setting2, setting1),
-                        Collections.singletonList(SP1_ID), DEFUALT_POLICY_ID),
+                                     Collections.singletonList(SP1_ID), DEFAULT_POLICY_ID),
                 createEntitySettings(entityOid2, Arrays.asList(setting2, setting1),
-                        Collections.singletonList(SP1_ID), DEFUALT_POLICY_ID)));
+                                     Collections.singletonList(SP1_ID), DEFAULT_POLICY_ID)));
     }
 
     /**
@@ -523,7 +530,82 @@ public class EntitySettingsResolverTest {
     }
 
     /**
-     * Policy 1 (Policy without execution windows) - MANUAL
+     * Test consistent scaling setting application.
+     *
+     * <p/>Group 1 contains VMs 101, 102, and 103
+     * Policy "enable-csg" enables consistent resizing on Group 1
+     * Group 2 contains VM 102
+     * Policy "disable-csg" disables consistent resizing on Group 2
+     *
+     * <p/>Since disabling consistent scaling has higher priority than enabling it, only VMs 101 and 103
+     * should have consistent scaling enabled.
+     */
+    @Test
+    public void testConsistentScalingSettings() {
+        final Map<String, SettingSpec> csgSettingNameToSettingSpecs =
+                        Collections.singletonMap(consistentScalingSpecName,
+                                     EntitySettingSpecs.EnableConsistentResizing.getSettingSpec());
+        Map<Long, Map<String, SettingAndPolicyIdRecord>> entitySettingsBySettingNameMap = new HashMap<>();
+
+        Pair<SettingPolicy, List<TopologyProcessorSetting<?>>> enabledSettingPolicy =
+                        createConsistentScalingPolicy(CSG_ENABLED_SP_ID, "enable-csg", true, 1L);
+        entitySettingsResolver.resolveAllEntitySettings(
+                enabledSettingPolicy.first, enabledSettingPolicy.second,
+                Collections.singletonMap(1L, resolvedGroup(group, Sets.newHashSet(101L, 102L, 103L))),
+                entitySettingsBySettingNameMap, csgSettingNameToSettingSpecs,
+                Collections.emptyMap());
+
+        Pair<SettingPolicy, List<TopologyProcessorSetting<?>>> disabledSettingPolicy =
+                        createConsistentScalingPolicy(CSG_DISABLED_SP_ID, "disable-csg", false, 2L);
+        entitySettingsResolver.resolveAllEntitySettings(
+                        disabledSettingPolicy.first, disabledSettingPolicy.second,
+                        Collections.singletonMap(2L, resolvedGroup(group, Sets.newHashSet(102L))),
+                        entitySettingsBySettingNameMap, csgSettingNameToSettingSpecs,
+                        Collections.emptyMap());
+
+        // Expected results:
+        // Entity 101: policy ID = 7001L, consistent scaling = true
+        // Entity 102: policy ID = 7002L, consistent scaling = false
+        // Entity 103: policy ID = 7001L, consistent scaling = true
+        long[] expectedResults = { 7001L, 7002L, 7001L };
+
+        for (int i = 0; i < 3; i++) {
+            Long oid = 101L + i;
+            SettingAndPolicyIdRecord record =
+                            entitySettingsBySettingNameMap.get(oid).get(consistentScalingSpecName);
+            assertEquals(SettingPolicy.Type.DISCOVERED, record.getType());
+            assertEquals(Collections.singleton(expectedResults[i]), record.getSettingPolicyIdList());
+            assertEquals(createBooleanSetting(consistentScalingSpecName, expectedResults[i] == 7001L),
+                         TopologyProcessorSettingsConverter
+                                         .toProtoSettings(record.getSetting()).iterator().next());
+        }
+    }
+
+    /**
+     * Helper function: Create a setting policy and topology processor setting for consistent
+     * scaling.
+     * @param policyId ID of policy to create
+     * @param policyName name of policy
+     * @param csgSetting whether to enable consistent resizing
+     * @param groupId group ID to apply the policy to
+     * @return A pair: first = the created SettingPolicy, second = list of TopologyProcessorSettings
+     */
+    private Pair<SettingPolicy, List<TopologyProcessorSetting<?>>> createConsistentScalingPolicy(
+                    long policyId, String policyName, boolean csgSetting, long groupId) {
+        final Setting setting = createBooleanSetting(consistentScalingSpecName, csgSetting);
+
+        final SettingPolicy settingPolicy = createSettingPolicy(policyId, policyName,
+                    SettingPolicy.Type.DISCOVERED, Collections.singletonList(setting),
+                    Collections.singletonList(groupId));
+
+        final List<TopologyProcessorSetting<?>> tpSettings = Collections.singletonList(
+                        TopologyProcessorSettingsConverter
+                                .toTopologyProcessorSetting(Collections.singletonList(setting)));
+        return new Pair<>(settingPolicy, tpSettings);
+    }
+
+    /**
+     * Policy 1 (Policy without execution windows) - MANUAL.
      *                                                          -> MANUAL
      * Policy 2 (Policy without execution windows) - AUTOMATIC
      *
@@ -1067,7 +1149,7 @@ public class EntitySettingsResolverTest {
 
         entitySettingsResolver.sendEntitySettings(info, Collections.singletonList(
                 createEntitySettings(entityOid1, Arrays.asList(setting2, setting1),
-                        Collections.singletonList(444444L))));
+                        Collections.singletonList(444444L))), null);
 
         verify(testSettingPolicyService).uploadEntitySettings(any(StreamObserver.class));
     }
@@ -1107,7 +1189,7 @@ public class EntitySettingsResolverTest {
 
         entitySettingsResolver.sendEntitySettings(info, Collections.singletonList(
                 createEntitySettings(entityOid1, Arrays.asList(setting2, setting1),
-                        Collections.singletonList(444444L))));
+                        Collections.singletonList(444444L))), null);
 
         verify(testSettingPolicyService, never()).updateSettingPolicy(any());
     }

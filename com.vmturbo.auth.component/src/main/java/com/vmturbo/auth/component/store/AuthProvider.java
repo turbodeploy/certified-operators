@@ -14,7 +14,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -22,13 +21,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 import io.jsonwebtoken.CompressionCodecs;
 import io.jsonwebtoken.JwtBuilder;
@@ -74,25 +70,7 @@ import com.vmturbo.kvstore.KeyValueStore;
  * The consul-backed authentication store that holds the users information.
  */
 @ThreadSafe
-public class AuthProvider {
-
-    /**
-     * The KV prefix.
-     */
-    @VisibleForTesting
-    static final String PREFIX = "users/";
-
-    /**
-     * The KV AD prefix.
-     */
-    private static final String PREFIX_AD = "ad/info";
-
-    private static final String PREFIX_GROUP = "groups/";
-
-    /**
-     * KV prefix for external group users.
-     */
-    private static final String PREFIX_GROUP_USERS = "groupusers/";
+public class AuthProvider extends AuthProviderBase {
 
     private static final String UNABLE_TO_AUTHORIZE_THE_USER = "Unable to authorize the user: ";
     private static final String WITH_GROUP = " with group: ";
@@ -101,18 +79,6 @@ public class AuthProvider {
     private final AuthInitProvider authInitProvider;
 
     private final Logger logger_ = LogManager.getLogger(AuthProvider.class);
-    private static final Gson GSON = new GsonBuilder().create();
-
-    /**
-     * The key/value store.
-     */
-    @GuardedBy("storeLock")
-    private final @Nonnull KeyValueStore keyValueStore_;
-
-    /**
-     * Locks for write operations on target storages.
-     */
-    private final Object storeLock_ = new Object();
 
     /**
      * The AD provider.
@@ -138,18 +104,6 @@ public class AuthProvider {
     private final WidgetsetDbStore widgetsetDbStore;
 
     /**
-     * Constructs the KV store -- without support for validating shared groups.
-     *
-     * @param keyValueStore The underlying store backend.
-     * @param keyValueDir Function to provide the directory to store private key value data.
-     */
-    @VisibleForTesting
-    public AuthProvider(@Nonnull final KeyValueStore keyValueStore,
-                        @Nonnull final Supplier<String> keyValueDir) {
-        this(keyValueStore, null, keyValueDir, null, new UserPolicy(LoginPolicy.ALL));
-    }
-
-    /**
      * Constructs the KV store.
      *
      * @param keyValueStore The underlying store backend.
@@ -163,7 +117,7 @@ public class AuthProvider {
                         @Nonnull final Supplier<String> keyValueDir,
                         @Nullable final WidgetsetDbStore widgetsetDbStore,
                         @Nonnull UserPolicy userPolicy) {
-        keyValueStore_ = Objects.requireNonNull(keyValueStore);
+        super(keyValueStore);
         authInitProvider = new AuthInitProvider(keyValueStore, keyValueDir);
         ssoUtil = new SsoUtil();
         IdentityGenerator.initPrefix(identityGeneratorPrefix_);
@@ -171,37 +125,6 @@ public class AuthProvider {
         this.widgetsetDbStore = widgetsetDbStore;
         this.userPolicy = userPolicy;
     }
-
-    /**
-     * Generates an AUTH token for the specified user.
-     *
-     * @param userName The user name.
-     * @param uuid     The UUID.
-     * @param roles    The role names.
-     * @param scopeGroups the groups in the scope to which the user has access
-     * @param provider The login provider.
-     * @return The generated JWT token.
-     */
-    @Nonnull
-    private JWTAuthorizationToken generateToken(final @Nonnull String userName,
-            final @Nonnull String uuid, final @Nonnull List<String> roles,
-            final @Nullable List<Long> scopeGroups, final @Nonnull AuthUserDTO.PROVIDER provider) {
-        final PrivateKey privateKey = authInitProvider.getEncryptionKeyForVMTurboInstance();
-        JwtBuilder jwtBuilder = Jwts.builder()
-                             .setSubject(userName)
-                             .claim(IAuthorizationVerifier.ROLE_CLAIM, roles)
-                             .claim(UUID_CLAIM, uuid)
-                             .claim(PROVIDER_CLAIM, provider)
-                             .compressWith(CompressionCodecs.GZIP)
-                             .signWith(SignatureAlgorithm.ES256, privateKey);
-        // any scopes, does the user have?
-        if (CollectionUtils.isNotEmpty(scopeGroups)) {
-            jwtBuilder.claim(SCOPE_CLAIM, scopeGroups);
-        }
-        String compact = jwtBuilder.compact();
-        return new JWTAuthorizationToken(compact);
-    }
-
 
     /**
      * Generates an AUTH token for the specified user with remote IP address.
@@ -285,54 +208,6 @@ public class AuthProvider {
     }
 
     /**
-     * Retrieves the value for the key from the KV store.
-     *
-     * @param key The key.
-     * @return The Optional value.
-     */
-    private Optional<String> getKVValue(final @Nonnull String key) {
-        synchronized (storeLock_) {
-            return keyValueStore_.get(key);
-        }
-    }
-
-    /**
-     * Puts the value for the key into the KV store.
-     *
-     * @param key   The key.
-     * @param value The value.
-     */
-    private void putKVValue(final @Nonnull String key, final @Nonnull String value) {
-        synchronized (storeLock_) {
-            keyValueStore_.put(key, value);
-        }
-    }
-
-    /**
-     * Removes the value for the key in the KV store.
-     * It's similar to: consul kv delete key
-     *
-     * @param key The key.
-     */
-    private void removeKVKey(final @Nonnull String key) {
-        synchronized (storeLock_) {
-            keyValueStore_.removeKey(key);
-        }
-    }
-
-    /**
-     * Delete keys start with prefix from the key value store. No effect if the key is absent.
-     * It's similar to: consul kv delete -recurse prefix.
-     *
-     * @param prefix The prefix in kv store.
-     */
-    private void removeKVKeysWithPrefix(final @Nonnull String prefix) {
-        synchronized (storeLock_) {
-            keyValueStore_.removeKeysWithPrefix(prefix);
-        }
-    }
-
-    /**
      * Checks whether the admin user has been instantiated.
      * When the XL first starts up, there is no user defined in the XL.
      * The first required step is to instantiate an admin user.
@@ -385,11 +260,12 @@ public class AuthProvider {
      *
      * @param info     The user info.
      * @param password The password.
+     * @param ipAddress IP address.
      * @return The JWTAuthorizationToken if successful.
      * @throws AuthenticationException In case of error authenticating AD user.
      */
     private @Nonnull JWTAuthorizationToken authenticateADUser(final @Nonnull UserInfo info,
-                                                              final @Nonnull String password)
+            final @Nonnull String password, final @Nonnull String ipAddress)
             throws AuthenticationException {
         reloadSSOConfiguration();
         try {
@@ -399,7 +275,7 @@ public class AuthProvider {
             throw new AuthenticationException(e);
         }
         logger_.info("AUDIT::SUCCESS: Success authenticating user: " + info.userName);
-        return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, info.provider);
+        return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, ipAddress, info.provider);
     }
 
 
@@ -422,11 +298,12 @@ public class AuthProvider {
      *
      * @param userName The user name.
      * @param password The password.
+     * @param ipAddress IP address.
      * @return The JWTAuthorizationToken if successful.
      * @throws AuthenticationException In case we failed to authenticate user against SSO group.
      */
     private @Nonnull JWTAuthorizationToken authenticateADGroup(final @Nonnull String userName,
-                                                               final @Nonnull String password)
+            final @Nonnull String password, final @Nonnull String ipAddress)
             throws AuthenticationException {
         // Get the LDAP servers we can query.  If there are none, there's no point in going on.
         try {
@@ -440,7 +317,7 @@ public class AuthProvider {
                     // persist user in external group if it's not added before
                     final String uuid = addExternalGroupUser(userGroup.getDisplayName(), userName);
                     return generateToken(userName, uuid, ImmutableList.of(userGroup.getRoleName()),
-                            userGroup.getScopeGroups(), AuthUserDTO.PROVIDER.LDAP);
+                            userGroup.getScopeGroups(), ipAddress, AuthUserDTO.PROVIDER.LDAP);
                 }
             }
             throw new AuthenticationException("Unable to authenticate the user " + userName);
@@ -477,6 +354,32 @@ public class AuthProvider {
     }
 
     /**
+     * Authorize the SAML user by external groups membership.
+     *
+     * @param userName The user name.
+     * @param externalGroupNames The external group names.
+     * @param ipAddress the IP address that the user logged on from
+     * @return The JWTAuthorizationToken if successful.
+     * @throws AuthorizationException In case we failed to authenticate user against external group.
+     */
+    private @Nonnull JWTAuthorizationToken authorizeSAMLGroups(
+        final @Nonnull String userName,
+        final @Nonnull List<String> externalGroupNames,
+        final @Nonnull String ipAddress) throws AuthorizationException {
+
+        reloadSSOConfiguration();
+        return ssoUtil.authorizeSAMLUserInGroups(userName, externalGroupNames).map(externalGroup -> {
+                logger_.info(AUDIT_SUCCESS_SUCCESS_AUTHENTICATING_USER + userName);
+                // persist user in external group if it's not added before
+                final String uuid = addExternalGroupUser(externalGroup.getDisplayName(), userName);
+                return generateToken(userName, uuid, ImmutableList.of(externalGroup.getRoleName()),
+                    externalGroup.getScopeGroups(), ipAddress, AuthUserDTO.PROVIDER.LDAP);
+            }
+        ).orElseThrow(() -> new AuthorizationException(UNABLE_TO_AUTHORIZE_THE_USER
+            + userName + WITH_GROUP + externalGroupNames));
+    }
+
+    /**
      * Authenticates the user.
      *
      * @param userName The user name.
@@ -488,43 +391,7 @@ public class AuthProvider {
     public @Nonnull JWTAuthorizationToken authenticate(final @Nonnull String userName,
                                                        final @Nonnull String password)
             throws AuthenticationException, SecurityException {
-        // Try local users first.
-        Optional<String> json = getKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LOCAL,
-                                                              userName));
-        if (!json.isPresent()) {
-            json = getKVValue(composeUserInfoKey(AuthUserDTO.PROVIDER.LDAP, userName));
-        }
-
-        if (json.isPresent()) {
-            try {
-                String jsonData = json.get();
-                UserInfo info = GSON.fromJson(jsonData, UserInfo.class);
-                // Check the authentication.
-                if (!info.unlocked) {
-                    logger_.warn("AUDIT::FAILURE:AUTH: Account is locked: " + userName);
-                    throw new AuthenticationException("AUDIT::NEGATIVE: Account is locked");
-                }
-                if (AuthUserDTO.PROVIDER.LOCAL.equals(info.provider)) {
-                    if (!HashAuthUtils.checkSecureHash(info.passwordHash, password)) {
-                        logger_.warn("AUDIT::FAILURE:AUTH: Invalid credentials provided for user: " + userName);
-                        throw new AuthenticationException("AUDIT::NEGATIVE: The User Name or Password is Incorrect");
-                    }
-                    logger_.info("AUDIT::SUCCESS: Success authenticating user: " + userName);
-                    return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups, info.provider);
-                } else {
-                    return authenticateADUser(info, password);
-                }
-            } catch (AuthenticationException e) {
-                // prevent next catch clause from wrapping this exception; all paths here
-                // log the authentication failure
-                throw e;
-            } catch (Exception e) {
-                logger_.error("AUDIT::FAILURE:AUTH: Error authenticating user: " + userName);
-                throw new SecurityException("Authentication failed", e);
-            }
-        }
-        // use group-based authentication
-        return authenticateADGroup(userName, password);
+        return authenticate(userName, password, "UNKNOWN IP");
     }
 
     /**
@@ -563,7 +430,7 @@ public class AuthProvider {
                     return generateToken(info.userName, info.uuid, info.roles, info.scopeGroups,
                             ipAddress, info.provider);
                 } else {
-                    return authenticateADUser(info, password);
+                    return authenticateADUser(info, password, ipAddress);
                 }
             } catch (AuthenticationException e) {
                 // prevent next clause from wrapping this exception. All paths here have already
@@ -574,7 +441,7 @@ public class AuthProvider {
                 throw new SecurityException("Authentication failed", e);
             }
         }
-        return authenticateADGroup(userName, password);
+        return authenticateADGroup(userName, password, ipAddress);
     }
 
     /**
@@ -610,7 +477,7 @@ public class AuthProvider {
      * Authenticates the user when IP address is available.
      *
      * @param userName The user name.
-     * @param groupName The password.
+     * @param groupName The group name.
      * @param ipAddress The user's IP address.
      * @return The JWTAuthorizationToken if successful.
      * @throws AuthorizationException In case of error authenticating the user.
@@ -618,12 +485,29 @@ public class AuthProvider {
      */
     @PreAuthorize("hasRole('ADMINISTRATOR')")
     public @Nonnull JWTAuthorizationToken authorize(final @Nonnull String userName,
-                                                       final @Nonnull String groupName,
-                                                       final @Nonnull String ipAddress)
+            final @Nonnull String groupName,
+            final @Nonnull String ipAddress)
             throws SecurityException, AuthorizationException {
         return authorizeSAMLGroup(userName, groupName, ipAddress);
     }
 
+    /**
+     * Authenticates the user when IP address is available.
+     *
+     * @param userName The user name.
+     * @param groupNames The group names.
+     * @param ipAddress The user's IP address.
+     * @return The JWTAuthorizationToken if successful.
+     * @throws AuthorizationException In case of error authenticating the user.
+     * @throws SecurityException       In case of an internal error while authorizing an user.
+     */
+    @PreAuthorize("hasRole('ADMINISTRATOR')")
+    public @Nonnull JWTAuthorizationToken authorize(final @Nonnull String userName,
+                                                       final @Nonnull List<String> groupNames,
+                                                       final @Nonnull String ipAddress)
+            throws SecurityException, AuthorizationException {
+        return authorizeSAMLGroups(userName, groupNames, ipAddress);
+    }
 
     /**
      * Authorize SAML user.

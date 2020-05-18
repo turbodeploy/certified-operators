@@ -19,6 +19,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.plan.ReservationDTO.ReservationStatus;
+import com.vmturbo.components.common.utils.ReservationProtoUtil;
 import com.vmturbo.plan.orchestrator.db.tables.records.ReservationRecord;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -117,7 +118,10 @@ public class DiscoveredTemplateDeploymentProfileDaoImpl {
     private List<ReservationRecord> invalidateReservation(List<ReservationRecord> oldRecords) {
         return oldRecords.stream()
                 .map(r -> new ReservationRecord(r.getId(), r.getName(), r.getStartTime(), r.getExpireTime(),
-                         r.getReservationTemplateCollection(), r.getConstraintInfoCollection(),
+                        ReservationProtoUtil
+                                .clearProviderFromReservationInstance(
+                                        r.getReservationTemplateCollection()),
+                        r.getConstraintInfoCollection(),
                         ReservationStatusConverter.typeToDb(ReservationStatus.INVALID)))
                 .collect(Collectors.toList());
     }

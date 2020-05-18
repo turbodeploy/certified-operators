@@ -710,10 +710,11 @@ public class ActionSpecMapper {
             // set location, which is the region
             final ApiPartialEntity region = context.getRegion(vmId);
             if (region != null) {
-                final BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
-                // todo: set current and new location to be different if region could be changed
-                actionApiDTO.setCurrentLocation(regionDTO);
-                actionApiDTO.setNewLocation(regionDTO);
+                context.getEntity(region.getOid()).ifPresent(regionDTO -> {
+                    // todo: set current and new location to be different if region could be changed
+                    actionApiDTO.setCurrentLocation(regionDTO);
+                    actionApiDTO.setNewLocation(regionDTO);
+                });
             }
 
             // Filter virtual disks if it is scale virtual volume action.
@@ -830,12 +831,13 @@ public class ActionSpecMapper {
                                       boolean newLocation) {
         context.getDatacenterFromOid(oid)
             .ifPresent(apiPartialEntity -> {
-                final BaseApiDTO baseApiDTO = serviceEntityMapper.toServiceEntityApiDTO(apiPartialEntity);
-                if (newLocation) {
-                    actionApiDTO.setNewLocation(baseApiDTO);
-                } else {
-                    actionApiDTO.setCurrentLocation(baseApiDTO);
-                }
+                context.getEntity(apiPartialEntity.getOid()).ifPresent(baseApiDTO -> {
+                    if (newLocation) {
+                        actionApiDTO.setNewLocation(baseApiDTO);
+                    } else {
+                        actionApiDTO.setCurrentLocation(baseApiDTO);
+                    }
+                });
             });
     }
 
@@ -1387,10 +1389,10 @@ public class ActionSpecMapper {
     private void setCurrentAndNewLocation(long targetUuid, ActionSpecMappingContext context, ActionApiDTO actionApiDTO) {
         ApiPartialEntity region = context.getRegion(targetUuid);
         if (region != null) {
-            BaseApiDTO regionDTO = serviceEntityMapper.toServiceEntityApiDTO(region);
-            regionDTO.setDisplayName(region.getDisplayName());
-            actionApiDTO.setCurrentLocation(regionDTO);
-            actionApiDTO.setNewLocation(regionDTO);
+            context.getEntity(region.getOid()).ifPresent(regionDTO -> {
+                actionApiDTO.setCurrentLocation(regionDTO);
+                actionApiDTO.setNewLocation(regionDTO);
+            });
         }
     }
 
@@ -1547,10 +1549,8 @@ public class ActionSpecMapper {
     private String readableEntityTypeAndName(BaseApiDTO entityDTO) {
         final String fullType = entityDTO.getClassName();
         final String shortenedIfNecessary = SHORTENED_ENTITY_TYPES.getOrDefault(fullType, fullType);
-        return String.format("%s %s",
-            StringUtil.getSpaceSeparatedWordsFromCamelCaseString(shortenedIfNecessary),
-            entityDTO.getDisplayName()
-        );
+        final String entityType = StringUtil.getSpaceSeparatedWordsFromCamelCaseString(shortenedIfNecessary);
+        return entityType + " " + entityDTO.getDisplayName();
     }
 
     /**

@@ -8,8 +8,6 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-import io.jsonwebtoken.lang.Collections;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -23,25 +21,27 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Commod
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData.StoragePolicy;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageRedundancyMethod;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 
 /**
- * Construct HCI PM and HCI storage out of the HCI template.
+ * Construct HCI host and HCI storage out of the HCI template.
  */
-public class HCIPhysicalMachineEntityConstructor extends TopologyEntityConstructor {
+public class HCIPhysicalMachineEntityConstructor {
 
     private static final Logger logger = LogManager.getLogger();
 
-    @Nonnull
     private final Template template;
-    @Nonnull
     private final Map<Long, TopologyEntity.Builder> topology;
-    @Nonnull
     private final Collection<TopologyEntity.Builder> hostsToReplace;
     private final boolean isReplaced;
-    @Nonnull
     private final IdentityProvider identityProvider;
+
+    private final TopologyEntity.Builder originalHost;
+    private final TopologyEntity.Builder originalStorage;
+    private final Map<String, String> templateValues;
 
     public HCIPhysicalMachineEntityConstructor(@Nonnull Template template,
             @Nonnull Map<Long, TopologyEntity.Builder> topology,
@@ -53,9 +53,16 @@ public class HCIPhysicalMachineEntityConstructor extends TopologyEntityConstruct
         this.isReplaced = isReplaced;
         this.identityProvider = identityProvider;
 
-        if (Collections.isEmpty(hostsToReplace)) {
+        if (hostsToReplace.isEmpty()) {
             throw new TopologyEntityConstructorException("HCI template has no hosts to replace");
         }
+
+        // All the hosts should belong to the same vSAN cluster. Get the first
+        // one.
+        this.originalHost = hostsToReplace.iterator().next();
+        this.originalStorage = topology.get(getHCIStorageOid(originalHost));
+        this.templateValues = TopologyEntityConstructor.createFieldNameValueMap(template,
+                ResourcesCategoryName.Storage);
     }
 
     /**
@@ -69,61 +76,116 @@ public class HCIPhysicalMachineEntityConstructor extends TopologyEntityConstruct
             throws TopologyEntityConstructorException {
         List<TopologyEntityDTO.Builder> result = new ArrayList<>();
 
-        // All the hosts should belong to the same vSAN cluster. Get the first
-        // one.
-        TopologyEntity.Builder originalHost = hostsToReplace.iterator().next();
+        // Create new storage
+        TopologyEntityDTO.Builder newStorage = new StorageEntityConstructor()
+                .createTopologyEntityFromTemplate(template, null, originalStorage, isReplaced,
+                        identityProvider);
+        setClusterCommodities(newStorage);
+        setReplaced(newStorage);
+        setStoragePolicy(newStorage);
+        result.add(newStorage);
+        logger.info("Replacing HCI storage '{}' with '{}'", originalStorage.getDisplayName(),
+                newStorage.getDisplayName());
 
+        // Create new host
         TopologyEntityDTO.Builder newHost = new PhysicalMachineEntityConstructor()
                 .createTopologyEntityFromTemplate(template, null, originalHost, isReplaced,
                         identityProvider);
         result.add(newHost);
-
         logger.info("Replacing HCI host '{}' with '{}'", originalHost.getDisplayName(),
                 newHost.getDisplayName());
 
-        long storageOid = getHCIStorageOid(originalHost);
-        TopologyEntity.Builder originalStorage = topology.get(storageOid);
+        // Replace oids for the accesses commodities to the new ones
+        replaceAccessOid(newStorage, originalHost.getOid(), newHost.getOid());
+        replaceAccessOid(newHost, originalStorage.getOid(), newStorage.getOid());
 
+        for (TopologyEntity.Builder provider : getProvidingStorages(originalHost)) {
+            replaceAccessOid(provider.getEntityBuilder(), originalHost.getOid(), newHost.getOid());
+        }
+
+        // Create commodities from the template
+        TopologyEntityConstructor.addStorageCommoditiesSold(newHost, templateValues, true);
+        TopologyEntityConstructor.addStorageCommoditiesBought(newStorage, newHost.getOid(),
+                templateValues);
+
+        return result;
+    }
+
+    /**
+     * Set the new vSAN storage commodities by the HCI settings.
+     *
+     * @param newStorage vSAN storage
+     * @throws TopologyEntityConstructorException error in HCI processing
+     */
+    private void setStoragePolicy(@Nonnull TopologyEntityDTO.Builder newStorage)
+            throws TopologyEntityConstructorException {
+        StoragePolicy.Builder policy = newStorage.getTypeSpecificInfoBuilder().getStorageBuilder()
+                .getPolicyBuilder();
+
+        int failuresToTolerate = TopologyEntityConstructor
+                .getTemplateValue(templateValues, "failuresToTolerate").intValue();
+        policy.setFailuresToTolerate(failuresToTolerate);
+        policy.setRedundancy(getRaidLevel());
+    }
+
+    // TODO Re-implement the method when OM-58198 is fixed
+    private StorageRedundancyMethod getRaidLevel() throws TopologyEntityConstructorException {
+        int failuresToTolerate = TopologyEntityConstructor
+                .getTemplateValue(templateValues, "failuresToTolerate").intValue();
+        int redundancyMethod = TopologyEntityConstructor
+                .getTemplateValue(templateValues, "redundancyMethod").intValue();
+
+        // RAID0
+        if (failuresToTolerate == 0) {
+            return StorageRedundancyMethod.RAID0;
+        }
+
+        // RAID1
+        if (redundancyMethod == 0) {
+            return StorageRedundancyMethod.RAID1;
+        }
+
+        // RAID5
+        if (redundancyMethod == 1) {
+            return StorageRedundancyMethod.RAID5;
+        }
+
+        // RAID6
+        if (redundancyMethod == 2) {
+            return StorageRedundancyMethod.RAID6;
+        }
+
+        throw new TopologyEntityConstructorException("Invalid combination: Failures to tolerate: "
+                + failuresToTolerate + ", redundancy method: " + redundancyMethod);
+    }
+
+    /**
+     * Set the 'replaced' fields.
+     *
+     * @param newStorage new vSAN storage
+     */
+    private void setReplaced(@Nonnull TopologyEntityDTO.Builder newStorage) {
         long planId = originalHost.getEntityBuilder().getEdit().getReplaced().getPlanId();
         originalStorage.getEntityBuilder().getEditBuilder().getReplacedBuilder().setPlanId(planId);
 
-        TopologyEntityDTO.Builder newStorage = new StorageEntityConstructor()
-                .createTopologyEntityFromTemplate(template, null, originalStorage, isReplaced,
-                        identityProvider);
-        result.add(newStorage);
-
-        logger.info("Replacing HCI storage '{}' with '{}'", originalStorage.getDisplayName(),
-                newStorage.getDisplayName());
-
-        // Replace oids for the accesses commodities to the new ones
-        replaceAccessOid(newStorage, originalHost.getEntityBuilder(), newHost);
-        replaceAccessOid(newHost, originalStorage.getEntityBuilder(), newStorage);
-
-        // Create commodities from the template
-        Map<String, String> templateMap = createFieldNameValueMap(
-                getTemplateResources(template, ResourcesCategoryName.Storage));
-        addStorageCommoditiesSold(newHost, templateMap);
-        addStorageCommoditiesBought(newStorage, newHost.getOid(), templateMap);
-
-        // Set Replace for the PM related storages
-        for (Long providerOid : originalHost.getProviderIds()) {
-            TopologyEntity.Builder provider = topology.get(providerOid);
-
-            if (provider.getEntityType() != EntityType.STORAGE_VALUE) {
-                continue;
-            }
-
+        for (TopologyEntity.Builder provider : getProvidingStorages(originalHost)) {
             provider.getEntityBuilder().getEditBuilder().getReplacedBuilder()
                     .setReplacementId(newStorage.getOid()).setPlanId(planId);
-            replaceAccessOid(provider.getEntityBuilder(), originalHost.getEntityBuilder(), newHost);
-
-            logger.trace("Marked Storage '{}' for replacement with '{}'", provider.getDisplayName(),
-                    newStorage.getDisplayName());
         }
+    }
 
-        setClusterCommodities(newStorage);
-
-        return result;
+    /**
+     * Get the storages that are the providers for the host.
+     *
+     * @param host host
+     * @return storages providers for the host
+     */
+    @Nonnull
+    private List<TopologyEntity.Builder> getProvidingStorages(
+            @Nonnull TopologyEntity.Builder host) {
+        return host.getProviderIds().stream().map(topology::get)
+                .filter(p -> p.getEntityType() == EntityType.STORAGE_VALUE)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -214,17 +276,14 @@ public class HCIPhysicalMachineEntityConstructor extends TopologyEntityConstruct
      * Replace oids for the 'assesses' fields to the new ones.
      *
      * @param entity entity to modify
-     * @param oldAccessEntity old oid
-     * @param newAccessEntity new oid
+     * @param oldOid old oid
+     * @param newOid new oid
      */
-    private static void replaceAccessOid(@Nonnull TopologyEntityDTO.Builder entity,
-            TopologyEntityDTO.Builder oldAccessEntity, TopologyEntityDTO.Builder newAccessEntity) {
+    private static void replaceAccessOid(@Nonnull TopologyEntityDTO.Builder entity, long oldOid,
+            long newOid) {
         for (CommoditySoldDTO.Builder comm : entity.getCommoditySoldListBuilderList()) {
-            if (comm.getAccesses() == oldAccessEntity.getOid()) {
-                comm.setAccesses(newAccessEntity.getOid());
-                logger.info("Entity: '{}'. Change {} accesses from '{}' to '{}'",
-                        entity.getDisplayName(), commodityToString(comm),
-                        oldAccessEntity.getDisplayName(), newAccessEntity.getDisplayName());
+            if (comm.getAccesses() == oldOid) {
+                comm.setAccesses(newOid);
             }
         }
     }

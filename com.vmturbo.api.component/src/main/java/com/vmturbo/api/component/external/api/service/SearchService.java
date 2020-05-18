@@ -22,8 +22,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -107,6 +105,7 @@ import com.vmturbo.common.protobuf.search.Search.SearchQuery;
 import com.vmturbo.common.protobuf.search.SearchFilterResolver;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
@@ -117,10 +116,11 @@ import com.vmturbo.common.protobuf.stats.Stats.StatsFilter.CommodityRequest;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo.ControllerTypeCase;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
@@ -234,6 +234,7 @@ public class SearchService implements ISearchService {
                 .put(EntityFilterMapper.MEMBER_OF_BILLING_FAMILY_OID, (a, b, c) -> getBillingFamiliesOptions())
                 .put(EntityFilterMapper.OWNER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsUUIDOptions())
                 .put("discoveredBy:validationStatus", (a, b, c) -> getValidationStatusOptions())
+                .put(EntityFilterMapper.WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
                 .build();
     }
 
@@ -334,23 +335,19 @@ public class SearchService implements ISearchService {
                                                      List<String> probeTypes,
                                                      boolean isRegex)
             throws Exception {
-        // temporally hack to accommodate signature changes.
-        final String groupType = (groupTypes != null && groupTypes.size() > 0) ? groupTypes.get(0) : null;
-        // TODO: escape any special chars in query string if isregex is false.
-
-        if (types == null && groupType == null) {
+        if (types == null && CollectionUtils.isEmpty(groupTypes)) {
             throw new IllegalArgumentException("Type or groupType must be set for search result.");
         }
-        // Determine which of many (many) types of searches is requested.
+        // Determine which of many (many) types of searches is requested. G
         // NB: this method is heavily overloaded.  The REST endpoint to be redefined
         // TODO most of the cases below only handle one type of scope.  We need to generalize scope
         // handling to handle target, market, entity, or group for all use cases.
-        if (StringUtils.isNotEmpty(groupType)) {
+        if (!CollectionUtils.isEmpty(groupTypes)) {
             // Get all groups containing elements of type 'groupType' including any type of group
             // (regular, cluster, storage_cluster, etc.)
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, Collections.emptyList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest, groupType, environmentType, scopes, true);
+                paginationRequest, new HashSet(groupTypes), environmentType, scopes, true);
         } else if (types != null) {
             final Set<String> typesHashSet = new HashSet(types);
             // Check for a type that requires a query to a specific service, vs. Repository search.
@@ -461,9 +458,10 @@ public class SearchService implements ISearchService {
         // to search for a group by name. These come from the groupBuilderUsecases.json file.
         final String className = StringUtils.defaultIfEmpty(inputDTO.getClassName(), "");
         if (GROUP.equals(className)) {
+            final Set<String> groupTypes = inputDTO.getGroupType() == null ? null : Collections.singleton(inputDTO.getGroupType());
             return groupsService.getPaginatedGroupApiDTOs(
                 addNameMatcher(query, inputDTO.getCriteriaList(), GroupFilterMapper.GROUPS_FILTER_TYPE),
-                paginationRequest,  inputDTO.getGroupType(), inputDTO.getEnvironmentType(),
+                paginationRequest, groupTypes, inputDTO.getEnvironmentType(),
                 inputDTO.getScope(), false);
         } else if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(className)) {
             GroupType groupType = GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(className);
@@ -1116,6 +1114,28 @@ public class SearchService implements ISearchService {
             }
         }
         return Collections.unmodifiableList(result);
+    }
+
+    @Nonnull
+    private List<CriteriaOptionApiDTO> getWorkloadControllerTypeOptions() {
+        final List<CriteriaOptionApiDTO> optionApiDTOs = new ArrayList<>();
+        // Options have all possible controller types except CUSTOM_CONTROLLER_INFO and
+        // CONTROLLERTYPE_NOT_SET
+        Arrays.stream(ControllerTypeCase.values())
+            .forEach(controllerType -> {
+                if (controllerType == ControllerTypeCase.CONTROLLERTYPE_NOT_SET
+                    || controllerType == ControllerTypeCase.CUSTOM_CONTROLLER_INFO) {
+                    return;
+                }
+                final CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+                optionApiDTO.setValue(controllerType.name());
+                optionApiDTOs.add(optionApiDTO);
+            });
+        // Add an "Other" option
+        CriteriaOptionApiDTO optionApiDTO = new CriteriaOptionApiDTO();
+        optionApiDTO.setValue(SearchableProperties.OTHER_CONTROLLER_TYPE);
+        optionApiDTOs.add(optionApiDTO);
+        return optionApiDTOs;
     }
 
     /**

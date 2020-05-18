@@ -1,6 +1,9 @@
 package com.vmturbo.group.setting;
 
+import static com.vmturbo.group.db.Tables.ENTITY_SETTINGS;
 import static com.vmturbo.group.db.Tables.GLOBAL_SETTINGS;
+import static com.vmturbo.group.db.Tables.SETTINGS;
+import static com.vmturbo.group.db.Tables.SETTINGS_OIDS;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_GROUPS;
 import static com.vmturbo.group.db.Tables.SETTING_POLICY_SETTING;
@@ -25,8 +28,11 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Functions;
 import com.google.common.collect.HashBasedTable;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Table;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -38,10 +44,13 @@ import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.BatchBindStep;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.jooq.Query;
+import org.jooq.Record;
 import org.jooq.Record1;
 import org.jooq.Record3;
+import org.jooq.Result;
 import org.jooq.TableRecord;
 import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
@@ -50,6 +59,7 @@ import org.springframework.retry.annotation.Retryable;
 
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Scope;
@@ -76,12 +86,14 @@ import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundExcep
 import com.vmturbo.group.db.Tables;
 import com.vmturbo.group.db.enums.SettingPolicyPolicyType;
 import com.vmturbo.group.db.tables.pojos.SettingPolicy;
+import com.vmturbo.group.db.tables.records.EntitySettingsRecord;
 import com.vmturbo.group.db.tables.records.GlobalSettingsRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicyGroupsRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicyRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingOidsRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingRecord;
 import com.vmturbo.group.db.tables.records.SettingPolicySettingScheduleIdsRecord;
+import com.vmturbo.group.db.tables.records.SettingsOidsRecord;
 import com.vmturbo.group.service.StoreOperationException;
 
 /**
@@ -1337,6 +1349,226 @@ public class SettingStore implements DiagsRestorable {
                                 setting.getSettingSpecName(), oid);
                 result.add(record);
             }
+        }
+    }
+
+    /**
+     * Save plan entity settings.
+     *
+     * @param topologyContextId topology context ID
+     * @param entityToSettingMap a multimap that maps entity OID to settings associated to it.
+     * @param settingToEntityMap a multimap that maps settings to list of entities that use it.
+     */
+    public void savePlanEntitySettings(final long topologyContextId,
+                                       @Nonnull Multimap<Long, Setting> entityToSettingMap,
+                                       @Nonnull Multimap<Setting, Long> settingToEntityMap) {
+        // Insert unique settings into database
+        final Map<Setting, Integer> settingToIdMap = new HashMap<>();
+        settingToEntityMap.keySet().forEach(setting -> {
+            final SettingAdapter settingAdapter = new SettingAdapter(setting);
+            final Record record = dslContext.insertInto(SETTINGS, SETTINGS.TOPOLOGY_CONTEXT_ID,
+                    SETTINGS.SETTING_NAME, SETTINGS.SETTING_TYPE, SETTINGS.SETTING_VALUE)
+                    .values(topologyContextId, settingAdapter.getSettingName(),
+                            (short)settingAdapter.getSettingType().getNumber(), settingAdapter.getValue())
+                    .returning(SETTINGS.ID)
+                    .fetchOne();
+            final Integer settingId = record.getValue(SETTINGS.ID);
+            if (ValueCase.SORTED_SET_OF_OID_SETTING_VALUE.equals(settingAdapter.getSettingType())) {
+                final List<TableRecord<?>> oidRecords = new ArrayList<>(settingAdapter.getOidList().size());
+                for (Long oid : settingAdapter.getOidList()) {
+                    oidRecords.add(new SettingsOidsRecord(settingId, oid));
+                }
+                dslContext.batchInsert(oidRecords).execute();
+            }
+            settingToIdMap.put(setting, settingId);
+        });
+
+        // Insert entity to setting association to plan_entity_settings table.
+        final List<TableRecord<?>> planEntitySettingRecords = new ArrayList<>();
+        entityToSettingMap.forEach((entityId, setting) -> planEntitySettingRecords.add(
+                new EntitySettingsRecord(topologyContextId, entityId, settingToIdMap.get(setting))));
+        dslContext.batchInsert(planEntitySettingRecords).execute();
+    }
+
+    /**
+     * Get the settings used by specified entities of a plan.
+     *
+     * @param topologyContextId topology context ID
+     * @param entityIds Entity IDs
+     * @return a map that maps entities to their settings.
+     * @throws InvalidProtocolBufferException error when loading settings object from database
+     */
+    public Map<Long, Collection<SettingToPolicyId>> getPlanEntitySettings(long topologyContextId,
+                                                                          List<Long> entityIds)
+            throws InvalidProtocolBufferException {
+        Condition conditions = ENTITY_SETTINGS.TOPOLOGY_CONTEXT_ID.eq(topologyContextId);
+        // If no entity IDs are provided, return settings for all entities (VMs) for this plan.
+        if (!entityIds.isEmpty()) {
+            conditions = conditions.and(ENTITY_SETTINGS.ENTITY_ID.in(entityIds));
+        }
+        final Result<?> entitySettings = dslContext.select().from(ENTITY_SETTINGS)
+                .join(SETTINGS)
+                .on(ENTITY_SETTINGS.SETTING_ID.eq(SETTINGS.ID))
+                .where(conditions)
+                .fetch();
+
+        final Multimap<Long, SettingToPolicyId> entityToSettingsMap = HashMultimap.create();
+        for (Record record : entitySettings) {
+            final Long entityId = record.get(ENTITY_SETTINGS.ENTITY_ID);
+            final String settingName = record.get(SETTINGS.SETTING_NAME);
+            final ValueCase settingType = ValueCase.forNumber(record.get(SETTINGS.SETTING_TYPE));
+            final String value = record.get(SETTINGS.SETTING_VALUE);
+            final Integer settingId = record.get(ENTITY_SETTINGS.SETTING_ID);
+            final List<Long> oids = new ArrayList<>();
+            if (ValueCase.SORTED_SET_OF_OID_SETTING_VALUE.equals(settingType)) {
+                final Result<?> settingOids = dslContext.select().from(SETTINGS_OIDS)
+                        .where(SETTINGS_OIDS.SETTING_ID.eq(settingId))
+                        .orderBy(SETTINGS_OIDS.OID)
+                        .fetch();
+                for (Record oidRecord : settingOids) {
+                    oids.add(oidRecord.get(SETTINGS_OIDS.OID));
+                }
+            }
+            final SettingAdapter settingAdapter = new SettingAdapter(settingName, settingType,
+                    value, oids);
+            final SettingToPolicyId settingToPolicyId = SettingToPolicyId.newBuilder()
+                    .setSetting(settingAdapter.getSetting())
+                    .build();
+            entityToSettingsMap.put(entityId, settingToPolicyId);
+        }
+        return entityToSettingsMap.asMap();
+    }
+
+    /**
+     * Delete records that saved the settings used by the plan from database.
+     *
+     * @param topologyContextId topology context ID
+     */
+    public void deletePlanSettings(long topologyContextId) {
+        // Delete records in settings table by topologyContextId.
+        // Related records in entity_settings and setting_oids tables
+        // will be delete automatically (delete cascade).
+        dslContext.delete(SETTINGS)
+                .where(SETTINGS.TOPOLOGY_CONTEXT_ID.eq(topologyContextId))
+                .execute();
+    }
+
+    /**
+     * Get all topology context IDs that have associated plan settings.
+     *
+     * @return a set of topology context IDs
+     */
+    public Set<Long> getContextsWithSettings() {
+        return dslContext.selectDistinct(ENTITY_SETTINGS.TOPOLOGY_CONTEXT_ID)
+                .from(ENTITY_SETTINGS)
+                .fetch()
+                .stream()
+                .map(Record1::value1)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Adapter class for Setting Protobuf object to adapt to the corresponding database tables.
+     */
+    @VisibleForTesting
+    static class SettingAdapter {
+        private Setting setting;
+        private String settingName;
+        private ValueCase settingType;
+        private String value;
+        private List<Long> oidList = new ArrayList<>();
+
+        /**
+         * Constructor using a Setting object. Database values are derived from the Setting object.
+         *
+         * @param setting Setting protobuf object
+         */
+        SettingAdapter(@Nonnull final Setting setting) {
+            this.setting = setting;
+            this.settingName = setting.getSettingSpecName();
+            this.settingType = setting.getValueCase();
+            switch (settingType) {
+                case BOOLEAN_SETTING_VALUE:
+                    value = Boolean.toString(setting.getBooleanSettingValue().getValue());
+                    break;
+                case NUMERIC_SETTING_VALUE:
+                    value = Float.toString(setting.getNumericSettingValue().getValue());
+                    break;
+                case STRING_SETTING_VALUE:
+                    value = setting.getStringSettingValue().getValue();
+                    break;
+                case ENUM_SETTING_VALUE:
+                    value = setting.getEnumSettingValue().getValue();
+                    break;
+                case SORTED_SET_OF_OID_SETTING_VALUE:
+                    value = "-";
+                    oidList = setting.getSortedSetOfOidSettingValue().getOidsList();
+                    break;
+                default:
+                    value = "-";
+            }
+        }
+
+        /**
+         * Constructor using database values as input, and derive the Setting object.
+         *
+         * @param settingName setting name
+         * @param settingType setting type
+         * @param value setting value
+         * @param oidListValue oid list (empty list if not applicable)
+         */
+        SettingAdapter(@Nonnull final String settingName, @Nonnull final ValueCase settingType,
+                              @Nonnull final String value, @Nonnull final List<Long> oidListValue) {
+            this.settingName = settingName;
+            this.settingType = settingType;
+            this.value = value;
+            this.oidList = oidListValue;
+            Setting.Builder settingBuilder = Setting.newBuilder().setSettingSpecName(settingName);
+            switch (settingType) {
+                case BOOLEAN_SETTING_VALUE:
+                    settingBuilder.setBooleanSettingValue(
+                            BooleanSettingValue.newBuilder().setValue(Boolean.parseBoolean(value)));
+                    break;
+                case NUMERIC_SETTING_VALUE:
+                    settingBuilder.setNumericSettingValue(
+                            NumericSettingValue.newBuilder().setValue(Float.parseFloat(value)));
+                    break;
+                case STRING_SETTING_VALUE:
+                    settingBuilder.setStringSettingValue(
+                            StringSettingValue.newBuilder().setValue(value));
+                    break;
+                case ENUM_SETTING_VALUE:
+                    settingBuilder.setEnumSettingValue(
+                            EnumSettingValue.newBuilder().setValue(value));
+                    break;
+                case SORTED_SET_OF_OID_SETTING_VALUE:
+                    settingBuilder.setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                            .addAllOids(oidListValue)
+                            .build());
+                    break;
+                default:
+            }
+            this.setting = settingBuilder.build();
+        }
+
+        Setting getSetting() {
+            return setting;
+        }
+
+        String getSettingName() {
+            return settingName;
+        }
+
+        ValueCase getSettingType() {
+            return settingType;
+        }
+
+        String getValue() {
+            return value;
+        }
+
+        List<Long> getOidList() {
+            return oidList;
         }
     }
 }

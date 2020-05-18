@@ -4,13 +4,16 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -23,6 +26,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.Streams;
 import com.google.gson.Gson;
 import com.google.gson.JsonParseException;
@@ -56,7 +60,9 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetInfo;
 import com.vmturbo.topology.processor.cost.DiscoveredCloudCostUploader;
 import com.vmturbo.topology.processor.cost.PriceTableUploader;
 import com.vmturbo.topology.processor.entity.EntityStore;
+import com.vmturbo.topology.processor.entity.EntityStore.TargetIncrementalEntities;
 import com.vmturbo.topology.processor.entity.IdentifiedEntityDTO;
+import com.vmturbo.topology.processor.entity.IncrementalEntityByMessageDTO;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader.TargetDiscoveredData;
 import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
@@ -73,6 +79,7 @@ import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetNotFoundException;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.template.DiscoveredTemplateDeploymentProfileUploader;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 
 /**
  * Handle diagnostics for {@link TopologyProcessorComponent}.
@@ -98,6 +105,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     private final IdentityProvider identityProvider;
     private final DiscoveredCloudCostUploader discoveredCloudCostUploader;
     private final PriceTableUploader priceTableUploader;
+    private final TopologyPipelineExecutorService topologyPipelineExecutorService;
 
     private final Logger logger = LogManager.getLogger();
 
@@ -111,7 +119,8 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             @Nonnull final DiscoveredTemplateDeploymentProfileUploader templateDeploymentProfileUploader,
             @Nonnull final IdentityProvider identityProvider,
             @Nonnull final DiscoveredCloudCostUploader discoveredCloudCostUploader,
-            @Nonnull final PriceTableUploader priceTableUploader) {
+            @Nonnull final PriceTableUploader priceTableUploader,
+            @Nonnull final TopologyPipelineExecutorService topologyPipelineExecutorService) {
         this.targetStore = targetStore;
         this.targetPersistentIdentityStore = targetPersistentIdentityStore;
         this.scheduler = scheduler;
@@ -122,6 +131,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         this.identityProvider = identityProvider;
         this.discoveredCloudCostUploader = discoveredCloudCostUploader;
         this.priceTableUploader = priceTableUploader;
+        this.topologyPipelineExecutorService = topologyPipelineExecutorService;
     }
 
     /**
@@ -132,6 +142,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     @Override
     public void dump(@Nonnull ZipOutputStream diagnosticZip) {
         final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
+
+        // Identity information.
+        diagsWriter.dumpDiagnosable(identityProvider);
+
         // Probes
         diagsWriter.writeZipEntry(PROBES_DIAGS_FILE_NAME, probeStore.getProbes()
                 .entrySet()
@@ -194,6 +208,20 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                     .map(ientity -> GSON.toJson(ientity, IdentifiedEntityDTO.class))
                     .iterator();
             diagsWriter.writeZipEntry("Entities" + targetSuffix, objectsToWrite);
+            Optional<TargetIncrementalEntities> incrementalEntities =  entityStore.getIncrementalEntities(id);
+            if (incrementalEntities.isPresent()) {
+                // Incremental Entities
+                LinkedHashMap<Integer, Collection<EntityDTO>> entitiesByMessageId = incrementalEntities.get()
+                    .getEntitiesByMessageId();
+                final List<String> entitiesToWrite = new ArrayList<>();
+                for (Map.Entry<Integer, Collection<EntityDTO>> entityByMessageId : entitiesByMessageId.entrySet()) {
+                    for (EntityDTO entityDTO : entityByMessageId.getValue()) {
+                        entitiesToWrite.add(IncrementalEntityByMessageDTO
+                            .toJson(new IncrementalEntityByMessageDTO(entityByMessageId.getKey(), entityDTO)));
+                    }
+                }
+                diagsWriter.writeZipEntry("IncrementalEntities" + targetSuffix, entitiesToWrite.iterator());
+            }
 
             //Discovered Groups
             diagsWriter.writeZipEntry("DiscoveredGroupsAndPolicies" + targetSuffix, discoveredGroups
@@ -223,7 +251,6 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
                             .iterator());
         }
 
-        diagsWriter.dumpDiagnosable(identityProvider);
         diagsWriter.dumpDiagnosable(
                 new PrometheusDiagnosticsProvider(CollectorRegistry.defaultRegistry));
 
@@ -260,6 +287,7 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
      */
     public void dumpAnonymizedDiags(ZipOutputStream diagnosticZip) {
         final DiagnosticsWriter diagsWriter = new DiagnosticsWriter(diagnosticZip);
+        diagsWriter.dumpDiagnosable(identityProvider);
         // Target identifiers in db.
         diagsWriter.dumpDiagnosable(targetPersistentIdentityStore);
         // Targets
@@ -292,7 +320,6 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
         diagsWriter.dumpDiagnosable(discoveredCloudCostUploader);
         // Discovered price tables.
         diagsWriter.dumpDiagnosable(priceTableUploader);
-        diagsWriter.dumpDiagnosable(identityProvider);
         if (!diagsWriter.getErrors().isEmpty()) {
             diagsWriter.writeZipEntry(DiagnosticsHandler.ERRORS_FILE,
                     diagsWriter.getErrors().iterator());
@@ -347,12 +374,23 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
     @Override
     @Nonnull
     public String restore(@Nonnull InputStream zis) throws DiagnosticsException {
+        try {
+            topologyPipelineExecutorService.blockBroadcasts(1, TimeUnit.HOURS);
+            return internalRestore(zis);
+        } finally {
+            topologyPipelineExecutorService.unblockBroadcasts();
+        }
+    }
+
+    @Nonnull
+    private String internalRestore(@Nonnull InputStream zis) throws DiagnosticsException {
         // Ordering is important. The identityProvider diags must be restored before the probes diags.
         // Otherwise, a race condition occurs where if a probe (re)registers after the restore of
         // the probe diags and before the restore of the identityProvider diags, then a probeInfo
         // will be written to Consul with the old ID. This entry will later become a duplicate entry
         // and cause severe problems.
-        List<Diags> sortedDiagnostics = Streams.stream(new DiagsZipReader(zis))
+        final Stopwatch stopwatch = Stopwatch.createStarted();
+        final List<Diags> sortedDiagnostics = Streams.stream(new DiagsZipReader(zis, true))
             .sorted(diagsRestoreComparator)
             .collect(Collectors.toList());
         final List<String> errors = new ArrayList<>();
@@ -421,7 +459,10 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
             }
         }
         if (errors.isEmpty()) {
-            return "Successfully restored " + targetStore.getAll().size() + " targets";
+            final String status = "Successfully restored " + targetStore.getAll().size() + " targets in "
+                + stopwatch.elapsed(TimeUnit.SECONDS) + " seconds";
+            logger.info(status);
+            return status;
         } else {
             throw new DiagnosticsException(errors);
         }
@@ -644,28 +685,33 @@ public class TopologyProcessorDiagnosticsHandler implements IDiagnosticsHandlerI
      */
     private void restoreTemplatesAndDeploymentProfiles(final long targetId,
                                                        @Nonnull final List<String> serialized) {
+        if (templateDeploymentProfileUploader.ignoreTemplatesForTarget(targetId)) {
+            logger.info("Skipping template/deployment profile loading for target {}.", targetId);
+        } else {
+            logger.info("Restoring {} discovered deployment profiles and associated templates for "
+                    + "target {}", serialized.size(), targetId);
+            Map<DeploymentProfileInfo, Set<EntityProfileDTO>> mappedProfiles = serialized.stream()
+                    .map(string -> {
+                        try {
+                            return GSON.fromJson(string, DeploymentProfileWithTemplate.class);
+                        } catch (JsonParseException e) {
+                            logger.error(
+                                    "Failed to deserialize deployment profile and template {} for "
+                                            + "target {} because of error: ", string, targetId, e);
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toMap(DeploymentProfileWithTemplate::getProfile,
+                            DeploymentProfileWithTemplate::getTemplates));
 
-        logger.info("Restoring {} discovered deployment profiles and associated templates for " +
-            "target {}", serialized.size(), targetId);
-        Map<DeploymentProfileInfo, Set<EntityProfileDTO>> mappedProfiles = serialized.stream()
-            .map(string -> {
-                try {
-                    return GSON.fromJson(string, DeploymentProfileWithTemplate.class);
-                } catch (JsonParseException e) {
-                    logger.error("Failed to deserialize deployment profile and template {} for " +
-                        "target {} because of error: ", string, targetId, e);
-                    return null;
-                }
-            })
-            .filter(Objects::nonNull)
-            .collect(Collectors.toMap(DeploymentProfileWithTemplate::getProfile,
-                DeploymentProfileWithTemplate::getTemplates));
+            templateDeploymentProfileUploader.setTargetsTemplateDeploymentProfileInfos(targetId,
+                    mappedProfiles);
 
-        templateDeploymentProfileUploader
-            .setTargetsTemplateDeploymentProfileInfos(targetId, mappedProfiles);
-
-        logger.info("Done restoring {} discovered deployment profiles and templates for target {}",
-            mappedProfiles.size(), targetId);
+            logger.info(
+                    "Done restoring {} discovered deployment profiles and templates for target {}",
+                    mappedProfiles.size(), targetId);
+        }
     }
 
     /**

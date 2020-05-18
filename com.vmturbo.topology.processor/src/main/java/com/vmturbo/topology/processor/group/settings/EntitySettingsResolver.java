@@ -58,9 +58,11 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
 import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
@@ -452,9 +454,11 @@ public class EntitySettingsResolver {
      * @param topologyInfo The information about the topology which was used to resolve
      *                    the settings.
      * @param entitiesSettings List of EntitySettings messages
+     * @param graph The topology graph
      */
     public void sendEntitySettings(@Nonnull final TopologyInfo topologyInfo,
-                                   @Nonnull final Collection<EntitySettings> entitiesSettings) {
+                                   @Nonnull final Collection<EntitySettings> entitiesSettings,
+                                   @Nonnull final TopologyGraph<TopologyEntity> graph) {
         final CountDownLatch finishLatch = new CountDownLatch(1);
         // For now, don't upload settings for non-realtime topologies.
         StreamObserver<UploadEntitySettingsResponse> responseObserver =
@@ -482,24 +486,33 @@ public class EntitySettingsResolver {
                 }
             };
 
-        if (topologyInfo.getTopologyType().equals(TopologyType.REALTIME)) {
-            StreamObserver<UploadEntitySettingsRequest> requestObserver =
-                    settingPolicyServiceAsyncStub.uploadEntitySettings(responseObserver);
-            try {
+        StreamObserver<UploadEntitySettingsRequest> requestObserver =
+                settingPolicyServiceAsyncStub.uploadEntitySettings(responseObserver);
+        try {
+            if (!TopologyDTOUtil.isPlan(topologyInfo)) {
                 streamEntitySettingsRequest(topologyInfo, entitiesSettings, requestObserver);
-            } catch (RuntimeException e) {
-                // Cancel RPC
-                requestObserver.onError(e);
-                throw e;
+            } else {
+                // Topology is a plan topology. Save the settings in the group component.
+                // Only send settings for VMs to the group component.
+                List<EntitySettings> vmSettings = entitiesSettings.stream().filter(e -> {
+                    TopologyEntity entity = graph.getEntity(e.getEntityOid()).orElse(null);
+                    return entity != null &&
+                            entity.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue();
+                }).collect(Collectors.toList());
+                streamEntitySettingsRequest(topologyInfo, vmSettings, requestObserver);
             }
-            requestObserver.onCompleted();
-            try {
-                // block until we get a response or an exception occurs.
-                finishLatch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();  // set interrupt flag
-                logger.error("Interrupted while waiting for response", e);
-            }
+        } catch (RuntimeException e) {
+            // Cancel RPC
+            requestObserver.onError(e);
+            throw e;
+        }
+        requestObserver.onCompleted();
+        try {
+            // block until we get a response or an exception occurs.
+            finishLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();  // set interrupt flag
+            logger.error("Interrupted while waiting for response", e);
         }
     }
 

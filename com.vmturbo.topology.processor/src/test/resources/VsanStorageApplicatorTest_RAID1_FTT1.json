@@ -277,8 +277,7 @@
       "policy": {
         "redundancy": "RAID1",
         "failuresToTolerate": 1,
-        "spaceReservationPct": 0,
-        "raidFactor": 0.5
+        "spaceReservationPct": 0
       },
       "rawCapacity": {
         "capacity": "40947",

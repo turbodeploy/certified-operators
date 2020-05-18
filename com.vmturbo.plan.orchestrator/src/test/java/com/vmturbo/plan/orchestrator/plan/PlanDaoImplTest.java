@@ -62,6 +62,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.GetGlobalSettingResponse
 import com.vmturbo.common.protobuf.setting.SettingProto.GetSingleGlobalSettingRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
@@ -104,6 +105,7 @@ public class PlanDaoImplTest {
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
     private SettingServiceMole settingBackend = spy(SettingServiceMole.class);
+    private SettingPolicyServiceMole settingPolicyBackend = spy(SettingPolicyServiceMole.class);
     private SearchServiceMole searchBackend = spy(SearchServiceMole.class);
     private ScheduledExecutorService planCleanupExecutor = mock(ScheduledExecutorService.class);
 
@@ -111,7 +113,7 @@ public class PlanDaoImplTest {
      * gRPC server to mock out gRPC dependencies.
      */
     @Rule
-    public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingBackend, searchBackend);
+    public GrpcTestServer grpcServer = GrpcTestServer.newServer(settingBackend, searchBackend, settingPolicyBackend);
 
     @Before
     public void setup() throws Exception {
@@ -124,6 +126,7 @@ public class PlanDaoImplTest {
         planDao = new PlanDaoImpl(dsl,
             grpcServer.getChannel(),
             userSessionContext, SearchServiceGrpc.newBlockingStub(grpcServer.getChannel()),
+                null,
             clock, planCleanupExecutor,
             1, TimeUnit.HOURS, 1, TimeUnit.HOURS);
     }

@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.search.SearchableProperties;
 import com.vmturbo.common.protobuf.topology.EnvironmentTypeUtil;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.WorkloadControllerInfo;
 import com.vmturbo.common.protobuf.topology.UICommodityType;
 import com.vmturbo.common.protobuf.topology.UIEntityState;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
@@ -683,6 +684,8 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
                         throw new IllegalArgumentException("Unknown property: " +
                             filter.getPropertyName() + " on " + propertyName);
                 }
+            case SearchableProperties.WC_INFO_REPO_DTO_PROPERTY_NAME:
+                return workloadControllerObjectFilter(propertyName, objectCriteria);
 
             default:
                 throw new IllegalArgumentException("Unknown object property: " + propertyName
@@ -832,6 +835,65 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
         };
     }
 
+    /**
+     * Get property filter for WorkloadController based on given property name and filter criteria.
+     *
+     * @param propertyName   Name of the property that we want to compare
+     * @param objectCriteria The filter criteria used to check if an object matches.
+     * @return WorkloadController object filter that corresponds to the input criteria.
+     */
+    private PropertyFilter<E> workloadControllerObjectFilter(@Nonnull final String propertyName,
+                                                             @Nonnull final Search.PropertyFilter.ObjectFilter objectCriteria) {
+        List<Search.PropertyFilter> filters = objectCriteria.getFiltersList();
+        if (filters.size() != 1) {
+            throw new IllegalArgumentException("Expecting one PropertyFilter for "
+                + propertyName + ", but got " + filters.size() + ": " + filters);
+        }
+        Search.PropertyFilter filter = objectCriteria.getFilters(0);
+        switch (filter.getPropertyName()) {
+            case SearchableProperties.CONTROLLER_TYPE:
+                if (filter.getPropertyTypeCase() != PropertyTypeCase.STRING_FILTER) {
+                    throw new IllegalArgumentException("Expecting StringFilter for "
+                        + filter.getPropertyName() + ", but got " + filter);
+                }
+                StringFilter stringFilter = filter.getStringFilter();
+                final Function<E, String> controllerTypeFunc = topologyEntity -> {
+                    WorkloadControllerInfo wcInfo = topologyEntity.getTypeSpecificInfo().getWorkloadController();
+                    // If wcInfo has custom controller info, then use the customControllerType
+                    // for searching.
+                    if (wcInfo.hasCustomControllerInfo()) {
+                        return wcInfo.getCustomControllerInfo().getCustomControllerType();
+                    }
+                    return wcInfo.getControllerTypeCase().name();
+                };
+                // If stringPropertyRegex is not empty, search by regex
+                if (!StringUtils.isEmpty(stringFilter.getStringPropertyRegex())) {
+                    return new PropertyFilter<>(entity -> hasWorkloadControllerInfoPredicate().test(entity)
+                        && stringPredicate(stringFilter.getStringPropertyRegex(), controllerTypeFunc,
+                        !stringFilter.getPositiveMatch(),
+                        stringFilter.getCaseSensitive()).test(entity));
+                } else {
+                    // Else search by the given options
+                    Set<String> expectedSet = stringFilter.getOptionsList().stream()
+                        .map(String::toLowerCase)
+                        .collect(Collectors.toSet());
+                    // If stringFilter options list contains OTHER_CONTROLLER_TYPE, then we are searching
+                    // for WorkloadController entities with customControllerInfo.
+                    if (expectedSet.contains(SearchableProperties.OTHER_CONTROLLER_TYPE.toLowerCase())) {
+                        return new PropertyFilter<>(entity -> hasWorkloadControllerInfoPredicate().test(entity)
+                            && entity.getTypeSpecificInfo().getWorkloadController().hasCustomControllerInfo());
+                    }
+                    return new PropertyFilter<>(entity -> hasWorkloadControllerInfoPredicate().test(entity)
+                        && stringOptionsPredicate(stringFilter.getOptionsList(), controllerTypeFunc,
+                        !stringFilter.getPositiveMatch(),
+                        stringFilter.getCaseSensitive()).test(entity));
+                }
+            default:
+                throw new IllegalArgumentException("Unknown property: "
+                    + filter.getPropertyName() + " on " + propertyName);
+        }
+    }
+
     private Predicate<E> hasVirtualMachineInfoPredicate() {
         return entity -> entity.getTypeSpecificInfo().hasVirtualMachine();
     }
@@ -850,5 +912,9 @@ public class TopologyFilterFactory<E extends TopologyGraphEntity<E>> {
 
     private Predicate<E> hasVolumeInfoPredicate() {
         return entity -> entity.getTypeSpecificInfo().hasVirtualVolume();
+    }
+
+    private Predicate<E> hasWorkloadControllerInfoPredicate() {
+        return entity -> entity.getTypeSpecificInfo().hasWorkloadController();
     }
 }

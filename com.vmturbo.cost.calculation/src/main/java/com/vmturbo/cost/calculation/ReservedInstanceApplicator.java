@@ -207,20 +207,25 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
      */
     private TraxNumber calculateEffectiveHourlyCost(final TraxNumber riBoughtPercentage,
                                                 @Nonnull final ReservedInstanceData riData) {
-        final ReservedInstanceBoughtCost cost = riData.getReservedInstanceBought()
+        final ReservedInstanceBoughtCost costPerInstance = riData.getReservedInstanceBought()
                 .getReservedInstanceBoughtInfo()
                 .getReservedInstanceBoughtCost();
 
-        // effective cost: (hourly cost) + (fixed cost / hours in term)
+        // effective costPerInstance: (hourly costPerInstance) + (fixed costPerInstance / hours in term)
         final TraxNumber hrsInTerm = trax(CostProtoUtil.timeUnitsInTerm(
                 riData.getReservedInstanceSpec().getReservedInstanceSpecInfo().getType(), TimeUnit.HOURS), "hrs in RI term");
         // We currently don't consider the offering type of the RI Spec. This may be the wrong thing
         // to do. For example, if the RI Spec says the payment for the RI is all-upfront and the
-        // RIBought has an hourly cost, it may be more correct to disregard the cost in the RIBought.
+        // RIBought has an hourly costPerInstance, it may be more correct to disregard the costPerInstance in the RIBought.
         // However, we take the RIBought to be authoritative.
-        final TraxNumber totalHourlyFixedCost = trax(cost.getFixedCost().getAmount(), "RI cost").dividedBy(hrsInTerm).compute("total hourly fixed");
+        final TraxNumber totalHourlyFixedCostPerInstance = trax(costPerInstance.getFixedCost().getAmount(), "RI costPerInstance")
+                        .dividedBy(hrsInTerm)
+                        .compute("total hourly fixed per instance");
+        final TraxNumber totalHourlyFixedCost = totalHourlyFixedCostPerInstance
+                        .times(riData.getReservedInstanceBought().getReservedInstanceBoughtInfo().getNumBought(), "Number of RI Instances bought")
+                        .compute("Total Hourly Fixed Cost");
         final TraxNumber hourlyFixedCost = riBoughtPercentage.times(totalHourlyFixedCost).compute("hourly fixed");
-        return hourlyFixedCost.plus(calculateHourlyUsageCost(riBoughtPercentage, riData)).compute("effective cost/hr");
+        return hourlyFixedCost.plus(calculateHourlyUsageCost(riBoughtPercentage, riData)).compute("effective costPerInstance/hr");
     }
 
     /**
@@ -237,13 +242,19 @@ public class ReservedInstanceApplicator<ENTITY_CLASS> {
                 .getReservedInstanceBoughtInfo()
                 .getReservedInstanceBoughtCost();
 
+        final int numBought = riData.getReservedInstanceBought().getReservedInstanceBoughtInfo()
+                        .getNumBought();
         // usage cost: recurring cost + usage cost.
         final TraxNumber recurringCost = riBoughtPercentage
-            .times(cost.getRecurringCostPerHour().getAmount(), "recurring cost/hr")
-            .compute("usage cost");
+            .times(cost.getRecurringCostPerHour().getAmount(), "recurring cost per instance/hr")
+            .compute("recurring cost per instance")
+            .times(numBought, "Number of RI Instances bought")
+            .compute("recurring cost");
         final TraxNumber usageCost = riBoughtPercentage
-            .times(cost.getUsageCostPerHour().getAmount(), "usage cost/hr")
-            .compute("usage cost");
+            .times(cost.getUsageCostPerHour().getAmount(), "usage cost per instance/hr")
+            .compute("usage cost per instance")
+            .times(numBought, "Number of RI Instances bought")
+            .compute();
         return recurringCost.plus(usageCost).compute("total usage cost/hr");
     }
 

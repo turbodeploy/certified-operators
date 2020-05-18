@@ -694,14 +694,16 @@ public class Analysis {
         // Calculate set of Volumes that have been already added to projected entities. They are:
         // 1. Volumes attached to VMs
         // 2. Detached volumes that have Delete action
-        final Set<Long> attachedVolumeIds = originalCloudTopology
-                .getAllEntitiesOfType(EntityType.VIRTUAL_MACHINE_VALUE).stream()
+        final Set<Long> projectedAttachedVolumeIds = projectedEntities.values().stream()
+                .map(ProjectedTopologyEntity::getEntity)
+                .filter(Objects::nonNull)
+                .filter(e -> e.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
                 .flatMap(vm -> vm.getConnectedEntityListList().stream())
                 .filter(connectedEntity -> connectedEntity.getConnectedEntityType() ==
                         EntityType.VIRTUAL_VOLUME_VALUE)
                 .map(ConnectedEntity::getConnectedEntityId)
                 .collect(Collectors.toSet());
-        final Set<Long> alreadyAddedVolumeIds = Sets.union(attachedVolumeIds, wastedStorageActionsVolumeIds);
+        final Set<Long> alreadyAddedVolumeIds = Sets.union(projectedAttachedVolumeIds, wastedStorageActionsVolumeIds);
 
         final Stream<TopologyEntityDTO> projectedEntitiesFromOriginalTopo =
                 originalCloudTopology.getAllEntitiesOfType(

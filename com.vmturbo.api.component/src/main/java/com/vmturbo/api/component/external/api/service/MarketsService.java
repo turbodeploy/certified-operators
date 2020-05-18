@@ -51,6 +51,7 @@ import com.vmturbo.api.component.external.api.util.ApiUtils;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
+import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.PlanEntityStatsFetcher;
 import com.vmturbo.api.component.external.api.websocket.UINotificationChannel;
 import com.vmturbo.api.dto.action.ActionApiDTO;
@@ -63,6 +64,7 @@ import com.vmturbo.api.dto.notification.LogEntryApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiInputDTO;
 import com.vmturbo.api.dto.reservation.DemandReservationApiDTO;
+import com.vmturbo.api.dto.setting.SettingsManagerApiDTO;
 import com.vmturbo.api.dto.statistic.StatPeriodApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
 import com.vmturbo.api.dto.statistic.StatSnapshotApiDTO;
@@ -215,6 +217,8 @@ public class MarketsService implements IMarketsService {
      */
     private final PlanEntityStatsFetcher planEntityStatsFetcher;
 
+    private final EntitySettingQueryExecutor entitySettingQueryExecutor;
+
     public MarketsService(@Nonnull final ActionSpecMapper actionSpecMapper,
                           @Nonnull final UuidMapper uuidMapper,
                           @Nonnull final ActionsServiceBlockingStub actionRpcService,
@@ -239,6 +243,7 @@ public class MarketsService implements IMarketsService {
                           @Nonnull final PlanEntityStatsFetcher planEntityStatsFetcher,
                           @Nonnull final SearchServiceBlockingStub searchServiceBlockingStub,
                           @Nonnull final ActionSearchUtil actionSearchUtil,
+                          @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
                           final long realtimeTopologyContextId) {
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -267,6 +272,7 @@ public class MarketsService implements IMarketsService {
         this.mergePolicyHandler =
                 new MergePolicyHandler(groupRpcService, policyRpcService, repositoryApi);
         this.actionSearchUtil = actionSearchUtil;
+        this.entitySettingQueryExecutor = Objects.requireNonNull(entitySettingQueryExecutor);
     }
 
     /**
@@ -1344,5 +1350,13 @@ public class MarketsService implements IMarketsService {
                     .setIsHidden(true)
                     .setStaticGroupMembers(staticGroupMembers);
         }
+    }
+
+    @Override
+    public List<SettingsManagerApiDTO> getSettingsByEntityAndMarketId(String marketUuid, String entityUuid) throws Exception {
+        final ApiId id = uuidMapper.fromUuid(entityUuid);
+        final List<SettingsManagerApiDTO> retMgrs =
+                entitySettingQueryExecutor.getEntitySettings(id, false, null, Long.parseLong(marketUuid));
+        return retMgrs;
     }
 }

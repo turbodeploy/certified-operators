@@ -50,13 +50,12 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
 
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull final Template template,
-            @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nonnull final Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
-                template, originalTopologyEntity, isReplaced, identityProvider).iterator().next();
-        topologyEntityBuilder.setEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
+                template, originalTopologyEntity, isReplaced, identityProvider,
+                EntityType.PHYSICAL_MACHINE_VALUE);
 
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
                 originalTopologyEntity);

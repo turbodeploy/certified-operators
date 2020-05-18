@@ -70,7 +70,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(stat1Filters);
 
         final StatSnapshotApiDTO snapshots = new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap());
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap(), Maps.newHashMap());
 
         assertThat(snapshots.getDate(), is(DateTimeUtil.toString(clock.millis())));
 
@@ -145,7 +145,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(stat1Filters, stat2Filters);
 
         new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1, stat2), query, Maps.newHashMap());
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1, stat2), query, Maps.newHashMap(), Maps.newHashMap());
 
         // Should have been called twice - one for each action stat.
         verify(groupByFiltersFactory, times(2)).filtersForQuery(any());
@@ -182,7 +182,7 @@ public class ActionStatsMapperTest {
         when(query.actionInput()).thenReturn(inputDTO);
 
         StatSnapshotApiDTO stats = new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat), query, Maps.newHashMap());
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat), query, Maps.newHashMap(), Maps.newHashMap());
 
         List<StatApiDTO> statsList = stats.getStatistics();
 
@@ -376,7 +376,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
         final StatSnapshotApiDTO snapshot = new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap());
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap(), Maps.newHashMap());
 
         assertThat(snapshot.getDate(), is(DateTimeUtil.toString(clock.millis())));
         assertThat(snapshot.getStatistics().size(), is(1));
@@ -407,7 +407,7 @@ public class ActionStatsMapperTest {
         when(groupByFiltersFactory.filtersForQuery(query)).thenReturn(groupByFilters);
 
         final StatSnapshotApiDTO snapshot = new ActionStatsMapper(clock, groupByFiltersFactory)
-            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap());
+            .currentActionStatsToApiSnapshot(Arrays.asList(stat1), query, Maps.newHashMap(), Maps.newHashMap());
 
         assertThat(snapshot.getDate(), is(DateTimeUtil.toString(clock.millis())));
         assertThat(snapshot.getStatistics().size(), is(1));

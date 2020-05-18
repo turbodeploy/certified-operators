@@ -81,7 +81,7 @@ public class IdentityProviderImpl implements IdentityProvider {
     private final Logger logger = LogManager.getLogger();
 
     // START Fields for Probe ID management
-    private final ConcurrentMap<String, Long> probeTypeToId;
+    private ConcurrentMap<String, Long> probeTypeToId;
 
     private final Object probeIdLock = new Object();
     // END Fields for Probe ID management
@@ -130,11 +130,10 @@ public class IdentityProviderImpl implements IdentityProvider {
         this.probeInfoCompatibilityChecker = Objects.requireNonNull(compatibilityChecker);
 
         Map<String, String> savedProbeIds = this.keyValueStore.getByPrefix(PROBE_ID_PREFIX);
-
         this.probeTypeToId = savedProbeIds.entrySet().stream().collect(Collectors.toConcurrentMap(
-                entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
-                entry -> Long.parseLong(entry.getValue())));
-    }
+            entry -> entry.getKey().replaceFirst(PROBE_ID_PREFIX, ""),
+            entry -> Long.parseLong(entry.getValue())));
+      }
 
     /** {@inheritDoc}
      */

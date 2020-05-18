@@ -28,6 +28,7 @@ import com.vmturbo.topology.processor.historical.HistoricalUtilizationDatabase;
 import com.vmturbo.topology.processor.history.HistoryAggregationConfig;
 import com.vmturbo.topology.processor.identity.IdentityProviderConfig;
 import com.vmturbo.topology.processor.ncm.MatrixConfig;
+import com.vmturbo.topology.processor.operation.OperationConfig;
 import com.vmturbo.topology.processor.probes.ProbeConfig;
 import com.vmturbo.topology.processor.repository.RepositoryConfig;
 import com.vmturbo.topology.processor.reservation.ReservationConfig;
@@ -40,6 +41,9 @@ import com.vmturbo.topology.processor.topology.pipeline.CachedTopology;
 import com.vmturbo.topology.processor.topology.pipeline.LivePipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.PlanPipelineFactory;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
+import com.vmturbo.topology.processor.topology.pipeline.blocking.DiscoveryBasedUnblock.DiscoveryBasedUnblockFactory;
+import com.vmturbo.topology.processor.topology.pipeline.blocking.ImmediateUnblock.ImmediateUnblockFactory;
+import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineUnblockFactory;
 import com.vmturbo.topology.processor.workflow.WorkflowConfig;
 
 /**
@@ -63,6 +67,7 @@ import com.vmturbo.topology.processor.workflow.WorkflowConfig;
     WorkflowConfig.class,
     HistoryClientConfig.class,
     CloudCostConfig.class,
+    OperationConfig.class,
     MatrixConfig.class,
     HistoryAggregationConfig.class,
     LicenseCheckClientConfig.class,
@@ -138,6 +143,9 @@ public class TopologyConfig {
     @Autowired
     private ActionsConfig actionsConfig;
 
+    @Autowired
+    private OperationConfig operationConfig;
+
     @Value("${realtimeTopologyContextId}")
     private long realtimeTopologyContextId;
 
@@ -152,6 +160,26 @@ public class TopologyConfig {
 
     @Value("${useReservationPipeline:true}")
     private boolean useReservationPipeline;
+
+    /**
+     * The maximum number of failures we will allow for a target at startup before allowing
+     * broadcasts.
+     */
+    @Value("${startupDiscovery.targetShortCircuitCount:3}")
+    private int startupDiscoveryTargetShortCircuitCount;
+
+    /**
+     * How long we will wait to successfully discover targets at startup before allowing broadcasts.
+     */
+    @Value("${startupDiscovery.maxDiscoveryWaitMins:360}")
+    private long startupDiscoveryMaxDiscoveryWaitMinutes;
+
+    /**
+     * The type of pipeline unblocking operation to use at startup.
+     * See {@link TopologyConfig#pipelineUnblockFactory()} for valid types.
+     */
+    @Value("${pipelineUnblockType:discovery}")
+    private String pipelineUnblockType;
 
     @Bean
     public TopologyHandler topologyHandler() {
@@ -282,16 +310,41 @@ public class TopologyConfig {
     }
 
     /**
+     * Factory for discovery unblocking.
+     *
+     * @return The {@link DiscoveryBasedUnblockFactory}.
+     */
+    @Bean
+    PipelineUnblockFactory pipelineUnblockFactory() {
+        switch (pipelineUnblockType) {
+            case "immediate":
+                return new ImmediateUnblockFactory();
+            case "discovery": default:
+                return new DiscoveryBasedUnblockFactory(targetConfig.targetStore(),
+                        operationConfig.operationManager(), clockConfig.clock(),
+                        startupDiscoveryTargetShortCircuitCount, startupDiscoveryMaxDiscoveryWaitMinutes, TimeUnit.MINUTES);
+        }
+    }
+
+    /**
      * The entrance point for triggering broadcasts.
      *
      * @return The {@link TopologyPipelineExecutorService}.
      */
     @Bean
     public TopologyPipelineExecutorService pipelineExecutorService() {
-        return new TopologyPipelineExecutorService(concurrentPlanPipelinesAllowed, maxQueuedPlanPipelinesAllowed, livePipelineFactory(),
-            planPipelineFactory(), entityConfig.entityStore(),
+        return new TopologyPipelineExecutorService(concurrentPlanPipelinesAllowed,
+            maxQueuedPlanPipelinesAllowed,
+            livePipelineFactory(),
+            planPipelineFactory(),
+            entityConfig.entityStore(),
             apiConfig.topologyProcessorNotificationSender(),
-            useReservationPipeline);
+            targetConfig.targetStore(),
+            pipelineUnblockFactory(),
+            useReservationPipeline,
+            clockConfig.clock(),
+            startupDiscoveryMaxDiscoveryWaitMinutes,
+            TimeUnit.MINUTES);
     }
 
     /**

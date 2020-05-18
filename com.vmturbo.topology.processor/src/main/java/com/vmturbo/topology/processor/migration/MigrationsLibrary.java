@@ -1,6 +1,5 @@
 package com.vmturbo.topology.processor.migration;
 
-
 import java.util.Objects;
 import java.util.SortedMap;
 
@@ -63,23 +62,26 @@ public class MigrationsLibrary {
     }
 
     public SortedMap<String, Migration> getMigrationsList(){
-        return ImmutableSortedMap.of(
-            "V_01_00_00__Probe_Metadata_Change_Migration",
+        ImmutableSortedMap.Builder<String, Migration> builder =
+            ImmutableSortedMap.<String, Migration>naturalOrder();
+        builder.put("V_01_00_00__Probe_Metadata_Change_Migration",
             new V_01_00_00__Probe_Metadata_Change_Migration(probeStore,
                 dslContext, statsHistoryClient,
                 identityServiceUnderlyingStore,
-                identityProvider),
-            "V_01_00_01__Vim_Probe_Storage_Browsing_Migration",
-            new V_01_00_01__Vim_Probe_Storage_Browsing_Migration(probeStore,
-                identityServiceUnderlyingStore,
-                identityProvider),
-            "V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration",
-            new V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration(keyValueStore),
-            "V_01_00_03__Target_Oid_Replace_Ip_With_Address",
-            new V_01_00_03__Target_Oid_Replace_Ip_With_Address(probeStore, targetStore,
-                targetIdentityStore),
-            "V_01_00_04__Remove_Orphaned_Targets_Migration",
-            new V_01_00_04__RemoveOrphanedTargetsMigration(targetStore, probeStore, targetDao)
-        );
+                identityProvider))
+            .put("V_01_00_01__Vim_Probe_Storage_Browsing_Migration",
+                new V_01_00_01__Vim_Probe_Storage_Browsing_Migration(probeStore,
+                    identityServiceUnderlyingStore,
+                    identityProvider))
+            .put("V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration",
+                new V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration(keyValueStore))
+            .put("V_01_00_03__Target_Oid_Replace_Ip_With_Address",
+                new V_01_00_03__Target_Oid_Replace_Ip_With_Address(probeStore, targetStore,
+                    targetIdentityStore))
+            .put("V_01_00_04__Remove_Orphaned_Targets_Migration",
+                new V_01_00_04__RemoveOrphanedTargetsMigration(targetStore, probeStore, targetDao))
+            .put("V_01_00_05__Standalone_AWS_Billing",
+                new V_01_00_05__Standalone_AWS_Billing(keyValueStore, identityProvider));
+        return builder.build();
     }
 }

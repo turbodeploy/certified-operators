@@ -34,6 +34,7 @@ message TypeSpecificInfo {
         DesktopPoolInfo desktop_pool = 74;
         BusinessUserInfo business_user = 75;
         RegionInfo region = 76;
+        WorkloadControllerInfo workload_controller = 77;
     }
 
     message ApplicationInfo {
@@ -340,6 +341,54 @@ message TypeSpecificInfo {
 
         // Map of the VM id to the session duration
         map<int64, int64> vm_oid_to_session_duration = 1;
+    }
+
+    // Specific data for Workload Controller entity types. These come
+    // in various flavors captured by the enclosed oneof.
+    message WorkloadControllerInfo {
+        oneof controller_type {
+            CronJobInfo cron_job_info = 1;
+            CustomControllerInfo custom_controller_info = 2;
+            DaemonSetInfo daemon_set_info = 3;
+            DeploymentInfo deployment_info = 4;
+            JobInfo job_info = 5;
+            ReplicaSetInfo replica_set_info = 6;
+            ReplicationControllerInfo replication_controller_info = 7;
+            StatefulSetInfo stateful_set_info = 8;
+        }
+    }
+
+    message CronJobInfo {
+        // CronJob specific data goes here.
+    }
+
+    message CustomControllerInfo {
+        // Type of a custom controller. For example, "DeploymentConfig" for an Openshift DeploymentConfig.
+        optional string custom_controller_type = 1;
+    }
+
+    message DaemonSetInfo {
+        // DaemonSet specific data goes here.
+    }
+
+    message DeploymentInfo {
+        // Deployment specific data goes here.
+    }
+
+    message JobInfo {
+        // Job specific data goes here.
+    }
+
+    message ReplicaSetInfo {
+        // ReplicaSet specific data goes here.
+    }
+
+    message ReplicationControllerInfo {
+        // ReplicationController specific data goes here.
+    }
+
+    message StatefulSetInfo {
+        // StatefulSet specific data goes here.
     }
 }
 
@@ -823,7 +872,8 @@ message TopologyEntityDTO {
             // *aggregated entity*. This is the opposite of the convention that we use for ownership.
             // The reason for this inconsistent convention has to do with the memory efficiency
             // of the Market and the Cost component, which use TopologyEntityDTO objects directly
-            // in their logic.
+            // in their logic. Note that this is also the reverse of the SDK AGGREGATES_CONNECTION
+            // connection type.
             AGGREGATED_BY_CONNECTION = 3;
         }
     }
@@ -861,6 +911,15 @@ message TopologyEntityDTO {
             // There is a mismatch between the local ID used by an entity to address another
             // entity, and that entity's self-declared local ID.
             INCONSISTENT_KEY = 5;
+
+            // An entity with a normal connection to another entity that does not exist.
+            INVALID_NORMAL_CONNECTION = 6;
+
+            // An entity with an owns connection to another entity that does not exist.
+            INVALID_OWNS_CONNECTION = 7;
+
+            // An entity with an aggregated by connection to another entity that does not exist.
+            INVALID_AGGREGATED_BY_CONNECTION = 8;
         }
     }
 }
