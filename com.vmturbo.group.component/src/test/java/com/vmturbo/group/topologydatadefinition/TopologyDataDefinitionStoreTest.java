@@ -173,7 +173,7 @@ public class TopologyDataDefinitionStoreTest {
                 updatedManualDef);
         assertTrue(optUpdatedEntry.isPresent());
         assertEquals(newGroupId, optUpdatedEntry.get().getDefinition().getManualEntityDefinition()
-            .getAssociatedGroup().getId());
+            .getAssociatedEntities(0).getAssociatedGroup().getId());
         assertEquals(manualTopoDataDefEntry.getId(), optUpdatedEntry.get().getId());
 
         // Check that we can't update a definition with a non existent OID.

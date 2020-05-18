@@ -36,24 +36,29 @@ message TopologyDataDefinition {
         // Entity Type to create. One of Business_Application, Business_Transaction, or Service
         optional common_dto.EntityDTO.EntityType entity_type = 2;
 
+        // List of criteria for defining entities to associate with the created entity
+        repeated AssociatedEntitySelectionCriteria associated_entities = 3;
+
         // The information that is used for selecting entities to associate with the created entity.
         // There are three possibilities: specify a static list of entities by OID, give the ID of
         // an existing group that contains the entities to associate, or specify a list of filters
         // that dynamically determine the entities to associate the created entity with.
-        oneof related_entity_selection_criteria {
+        message AssociatedEntitySelectionCriteria {
+            oneof selection_type {
 
-            // A fixed, static list of associated entities.
-            StaticMembers static_associated_entities = 8;
+                // A fixed, static list of associated entities.
+                StaticMembers static_associated_entities = 1;
 
-            // OID of group containing associated entities.  If the group's contents change, the
-            // created entity's associated entities will change in the same way.
-            GroupID associated_group = 9;
+                // OID of group containing associated entities.  If the group's contents change, the
+                // created entity's associated entities will change in the same way.
+                GroupID associated_group = 2;
 
-            // The criteria to select associated members dynamically.  The criteria are
-            // evaluated dynamically with time so that if the set of entities that matches changes,
-            // the realtionships between the created entity and its associated entities will change
-            // in the same way.
-            GroupDefinition.EntityFilters entity_filters = 10;
+                // The criteria to select associated members dynamically.  The criteria are
+                // evaluated dynamically with time so that if the set of entities that matches changes,
+                // the realtionships between the created entity and its associated entities will change
+                // in the same way.
+                GroupDefinition.EntityFilters entity_filters = 3;
+            }
         }
     }
 

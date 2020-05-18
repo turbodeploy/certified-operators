@@ -7,6 +7,7 @@ import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.Topolo
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.AutomatedEntityDefinition;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.AutomatedEntityDefinition.TagBasedGenerationAndConnection;
 import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition;
+import com.vmturbo.common.protobuf.group.TopologyDataDefinitionOuterClass.TopologyDataDefinition.ManualEntityDefinition.AssociatedEntitySelectionCriteria;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -28,16 +29,18 @@ public class TopologyDataDefinitionTestUtils {
      * @return TopologyDataDefinition based on the parameters.
      */
     public static TopologyDataDefinition createManualTopologyDataDefinition(
-        final EntityType entityType, final String name, long groupId) {
+            final EntityType entityType, final String name, long groupId) {
         return TopologyDataDefinition.newBuilder()
-            .setManualEntityDefinition(ManualEntityDefinition.newBuilder()
-                .setEntityType(entityType)
-                .setEntityName(name)
-                .setAssociatedGroup(GroupID.newBuilder()
-                    .setId(groupId)
-                    .build())
-                .build())
-            .build();
+                .setManualEntityDefinition(ManualEntityDefinition.newBuilder()
+                        .setEntityType(entityType)
+                        .setEntityName(name)
+                        .addAssociatedEntities(AssociatedEntitySelectionCriteria.newBuilder()
+                                .setAssociatedGroup(GroupID.newBuilder()
+                                        .setId(groupId)
+                                        .build())
+                                .build())
+                        .build())
+                .build();
     }
 
     /**
