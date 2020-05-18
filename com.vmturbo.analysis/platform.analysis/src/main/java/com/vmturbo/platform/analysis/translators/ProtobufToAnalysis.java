@@ -375,6 +375,7 @@ public final class ProtobufToAnalysis {
         output.setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
         final String scalingGroupId = input.getScalingGroupId();
         output.setScalingGroupId(scalingGroupId);
+        ((Economy)topology.getEconomy()).populatePeerMembersForScalingGroup(output, scalingGroupId);
         populateTraderSettings(topology, input, output.getSettings());
 
         output.setDebugEnabled(input.getDebugEnabled());

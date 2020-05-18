@@ -183,7 +183,7 @@ public class AnalysisServer implements AutoCloseable {
         settings.setUseExpenseMetricForTermination(
                         settingsTO.getUseExpenseMetricForTermination());
         settings.setExpenseMetricFactor(settingsTO.getExpenseMetricFactor());
-        settings.setRateOfResize(settingsTO.getRateOfResize());
+        settings.setDefaultRateOfResize(settingsTO.getRateOfResize());
         settings.setEstimatesEnabled(settingsTO.getEstimates());
         settings.setQuoteFactor(settingsTO.getQuoteFactor());
         settings.setMaxPlacementIterations(settingsTO.getMaxPlacementIterations());

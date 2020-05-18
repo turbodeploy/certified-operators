@@ -584,6 +584,7 @@ public class Ledger {
                         // Use desired utilization if we are using historical quantity for populating
                         // income statement otherwise calculate the utilization based on shopping list
                         // quantity
+                        // the boughtUtil is still a constant when the resizing commodity is using percentile
                         double commBoughtUtil = cs.isHistoricalQuantitySet()
                                         ? (minDesUtil + maxDesUtil) / 2
                                         : shoppingList.getQuantity(boughtIndex)
@@ -594,10 +595,9 @@ public class Ledger {
                             // Use average of min and max desired expenses if we are using historical
                             // quantity for resizing otherwise use current expenses
                             double historicalExpenses = cs.isHistoricalQuantitySet()
-                                                            ? ((incomeStatementExpenses[1]
-                                                                            + incomeStatementExpenses[2])
-                                                                            / 2)
-                                                            : incomeStatementExpenses[0];
+                                            ? (commSoldBySeller.isHistoricalQuantitySet() ? incomeStatementExpenses[0]
+                                                : ((incomeStatementExpenses[1] + incomeStatementExpenses[2]) / 2))
+                                            : incomeStatementExpenses[0];
                             commSoldIS.setExpenses(relevantShoppingListProcessed
                                 ? (commSoldIS.getExpenses() + historicalExpenses)
                                     : historicalExpenses);
@@ -643,7 +643,9 @@ public class Ledger {
     private double[] calculateIncomeStatementExpenses(CommoditySold commSold, ShoppingList shoppingList,
         Trader supplier, Economy economy, double commUtil, double maxDesUtil, double minDesUtil) {
             PriceFunction commPriceFunction = commSold.getSettings().getPriceFunction();
-            double expenses = commPriceFunction.unitPrice(commSold.getQuantity()
+            // the expense calculation uses the percentile usage of the provider when present. When a VM has had a
+            // consistent historically high usage, we want a high expense and thereby reduce chances of scaleUps
+            double expenses = commPriceFunction.unitPrice(commSold.getHistoricalOrElseCurrentQuantity()
                 / commSold.getEffectiveCapacity(), shoppingList, supplier, commSold, economy) * commUtil;
             double maxDesiredExpenses = commPriceFunction.unitPrice(maxDesUtil, shoppingList, supplier,
                 commSold, economy) * commUtil;
