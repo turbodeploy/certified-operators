@@ -424,28 +424,26 @@ public class Placement {
                     Trader buyer,
                    @NonNull CliqueMinimizer minimizer) {
         List<Action> actions = new ArrayList<>();
-        List<Entry<ShoppingList, Market>> movableSlByMarket = economy.moveableSlByMarket(buyer);
-        List<ShoppingList> shoppingLists = movableSlByMarket.stream().map(Entry::getKey)
-                        .collect(Collectors.toList());
-        Set<Integer> currentSuppliersIds = traderIds(shoppingLists.stream()
-                        .map(ShoppingList::getSupplier));
         if (minimizer == null || minimizer.getBestSellers() == null) {
             return actions;
         }
-        Set<Integer> bestSellerIds = traderIds(minimizer.getBestSellers().stream());
+
+        final List<ShoppingList> shoppingLists = minimizer.getEntries().stream()
+            .map(Entry::getKey).collect(Collectors.toList());
+        final List<Trader> currentSuppliers = minimizer.getEntries().stream()
+            .map(entry -> entry.getKey().getSupplier()).collect(Collectors.toList());
+        final List<Trader> bestSellers = minimizer.getBestSellers();
+
         boolean isLeaderSl = shoppingLists.stream().anyMatch(sl -> (sl.getGroupFactor() > 1));
         // If there is a leader SL, then we want to always want to produce the move for that
         // SL even if it the best sellers are the same as the current suppliers.
-        if (minimizer != null && (!currentSuppliersIds.equals(bestSellerIds) || isLeaderSl)) {
+        if (!currentSuppliers.equals(bestSellers) || isLeaderSl) {
             ShoppingList firstSL = shoppingLists.get(0);
-            double currentTotalQuote = computeCurrentQuote(economy, movableSlByMarket);
+            double currentTotalQuote = computeCurrentQuote(economy, minimizer.getEntries());
             if (isLeaderSl || Math.min(MOVE_COST_FACTOR_MAX_COMM_SIZE, firstSL.getBasket().size())
                             * firstSL.getBuyer().getSettings().getMoveCostFactor()
                             + minimizer.getBestTotalQuote() < currentTotalQuote
                             * firstSL.getBuyer().getSettings().getQuoteFactor()) {
-                List<Trader> bestSellers = minimizer.getBestSellers();
-                List<Trader> currentSuppliers = shoppingLists.stream().map(ShoppingList::getSupplier)
-                                .collect(Collectors.toList());
                 double importance = currentTotalQuote - minimizer.getBestTotalQuote();
                 generateCompoundMoveOrMoveAction(
                     economy, shoppingLists, currentSuppliers, bestSellers, actions, importance);
@@ -677,7 +675,7 @@ public class Placement {
      * @return the current quote given by current supplier
      */
     public static double computeCurrentQuote(Economy economy,
-                    List<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket) {
+                    Collection<Entry<@NonNull ShoppingList, @NonNull Market>> movableSlByMarket) {
         // Compute current total quote.
         double quote = 0;
         for (Entry<ShoppingList, Market> entry : movableSlByMarket) {
