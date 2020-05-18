@@ -164,8 +164,11 @@ public class TopologyConfig {
     /**
      * The maximum number of failures we will allow for a target at startup before allowing
      * broadcasts.
+     *
+     * <p/>Be VERY careful about setting this above 1, because some targets have high re-discovery
+     * intervals (e.g. a whole day for certain Billing probes).
      */
-    @Value("${startupDiscovery.targetShortCircuitCount:3}")
+    @Value("${startupDiscovery.targetShortCircuitCount:1}")
     private int startupDiscoveryTargetShortCircuitCount;
 
     /**
@@ -173,6 +176,16 @@ public class TopologyConfig {
      */
     @Value("${startupDiscovery.maxDiscoveryWaitMins:360}")
     private long startupDiscoveryMaxDiscoveryWaitMinutes;
+
+    /**
+     * How long we will wait for a target's probe to register and a discovery to start.
+     *
+     * <p/>It is used to control how we unblock the initial broadcast after the topology processor
+     * starts up. Some targets may not have associated probes in the deployment anymore, and will
+     * never have successful/failed discoveries. We don't want to wait for those targets.
+     */
+    @Value("${startupDiscovery.maxProbeRegistrationWaitMins:10}")
+    private long maxProbeRegistrationWaitMins;
 
     /**
      * The type of pipeline unblocking operation to use at startup.
@@ -322,7 +335,9 @@ public class TopologyConfig {
             case "discovery": default:
                 return new DiscoveryBasedUnblockFactory(targetConfig.targetStore(),
                         operationConfig.operationManager(), clockConfig.clock(),
-                        startupDiscoveryTargetShortCircuitCount, startupDiscoveryMaxDiscoveryWaitMinutes, TimeUnit.MINUTES);
+                        startupDiscoveryTargetShortCircuitCount,
+                        startupDiscoveryMaxDiscoveryWaitMinutes,
+                        maxProbeRegistrationWaitMins, TimeUnit.MINUTES);
         }
     }
 
