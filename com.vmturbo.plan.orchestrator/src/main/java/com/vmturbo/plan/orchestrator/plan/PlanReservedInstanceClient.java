@@ -149,7 +149,7 @@ public class PlanReservedInstanceClient {
         final UploadRIDataRequest insertRiRequest =
                                                   UploadRIDataRequest
                                                       .newBuilder()
-                                                      .setTopologyId(planId)
+                                                      .setTopologyContextId(planId)
                                                       .addAllReservedInstanceBought(planRIs)
                                                       .build();
 

@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -294,10 +295,8 @@ public class SearchServiceTest {
      */
     @Test
     public void testGetSearchResults() throws Exception {
-        final SearchPaginationResponse paginationResponse =
-            Mockito.mock(SearchPaginationResponse.class);
-        final SearchPaginationRequest paginationRequest =
-            Mockito.mock(SearchPaginationRequest.class);
+        final SearchPaginationResponse paginationResponse = Mockito.mock(SearchPaginationResponse.class);
+        final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
 
         getSearchResults(searchService, null, Lists.newArrayList("Market"), null, null, null, EnvironmentType.ONPREM, null, null);
         verify(marketsService).getMarkets(Mockito.anyListOf(String.class));
@@ -327,7 +326,7 @@ public class SearchServiceTest {
             Lists.newArrayList("Group", "Cluster"),
             null,
             null,
-            Collections.singletonList(null),
+            null,
             EnvironmentType.ONPREM,
             null,
             null,
@@ -342,7 +341,7 @@ public class SearchServiceTest {
             Lists.newArrayList("Cluster"),
             null,
             null,
-            Collections.singletonList(null),
+            null,
             EnvironmentType.ONPREM,
             null,
             paginationRequest,
@@ -377,7 +376,7 @@ public class SearchServiceTest {
                 Lists.newArrayList("Cluster"),
                 Lists.newArrayList("Market"),
                 null,
-                Collections.singletonList(null),
+                null,
                 EnvironmentType.ONPREM,
                 null,
                 paginationRequest,
@@ -839,8 +838,7 @@ public class SearchServiceTest {
         final SearchPaginationResponse response = mock(SearchPaginationResponse.class);
         Mockito.when(groupsService.getPaginatedGroupApiDTOs(any(), any(), any(), any(), any(), eq(false)))
             .thenReturn(response);
-        final ArgumentCaptor<String> resultCaptor =
-            ArgumentCaptor.forClass((Class)String.class);
+        final ArgumentCaptor<Set<String>> resultCaptor = ArgumentCaptor.forClass((Class)HashSet.class);
         final SearchPaginationRequest paginationRequest = mock(SearchPaginationRequest.class);
 
         assertTrue(response == searchService.getMembersBasedOnFilter("foo",
@@ -852,7 +850,7 @@ public class SearchServiceTest {
         verify(groupsService, times(2)).getPaginatedGroupApiDTOs(any(), any(), resultCaptor.capture(), any(), any(), eq(false));
         // verify that first call to groupsService.getPaginatedGroupApiDTOs passed in VirtualMachine
         // as entityType argument
-        assertEquals(ApiEntityType.VIRTUAL_MACHINE.apiStr(),
+        assertEquals(Collections.singleton(ApiEntityType.VIRTUAL_MACHINE.apiStr()),
             resultCaptor.getAllValues().get(0));
         // verify that second call to groupsService.getPaginatedGroupApiDTOs had null as
         // entityType argument

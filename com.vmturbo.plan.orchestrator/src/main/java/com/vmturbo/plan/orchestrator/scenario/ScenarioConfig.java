@@ -10,6 +10,8 @@ import com.vmturbo.auth.api.authorization.jwt.JwtClientInterceptor;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.plan.ScenarioREST.ScenarioServiceController;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.GlobalConfig;
 import com.vmturbo.plan.orchestrator.PlanOrchestratorDBConfig;
@@ -43,7 +45,7 @@ public class ScenarioConfig {
     public ScenarioRpcService scenarioService() {
         return new ScenarioRpcService(scenarioDao(), globalConfig.identityInitializer(),
             userSessionConfig.userSessionContext(), groupServiceBlockingStub(),
-            repositoryClientConfig.searchServiceClient());
+                repositoryClientConfig.searchServiceClient(), supplyChainRpcService());
     }
 
     @Bean
@@ -62,4 +64,8 @@ public class ScenarioConfig {
                 .withInterceptors(jwtClientInterceptor());
     }
 
+    @Bean
+    public SupplyChainServiceBlockingStub supplyChainRpcService() {
+        return SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
 }

@@ -76,8 +76,11 @@ import com.vmturbo.auth.api.usermgmt.ActiveDirectoryDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
 import com.vmturbo.auth.api.usermgmt.AuthUserModifyDTO;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInGroupsInputDTO;
 import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 import com.vmturbo.auth.api.usermgmt.SecurityGroupDTO;
+import com.vmturbo.auth.component.policy.UserPolicy;
+import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
 import com.vmturbo.auth.component.services.AuthUsersController;
 import com.vmturbo.auth.component.store.AuthProvider;
 import com.vmturbo.kvstore.IPublicKeyStore;
@@ -127,7 +130,8 @@ public class RestTest {
     /**
      * The K/V local auth store.
      */
-    private static AuthProvider authStore = new AuthProvider(kvStore, () -> System.getProperty("com.vmturbo.kvdir"));
+    private static AuthProvider authStore = new AuthProvider(kvStore, null,
+            () -> System.getProperty("com.vmturbo.kvdir"), null, new UserPolicy(LoginPolicy.ALL));
 
     /**
      * The verifier.
@@ -699,6 +703,72 @@ public class RestTest {
 
             String json = GSON.toJson(dto, AuthorizeUserInputDTO.class);
             mockMvc.perform(post("/users/authorize")
+                    .content(json)
+                    .contentType(RET_TYPE)
+                    .accept(RET_TYPE))
+                    .andExpect(status().is4xxClientError())
+                    .andReturn().getResponse().getContentAsString();
+
+        } finally {
+            SecurityContextHolder.getContext().setAuthentication(null);
+            // clean security groups so it doesn't affect other tests
+            authStore.deleteSecurityGroup("group");
+        }
+    }
+
+    /**
+     * Happy path - verify authorizing multiple external groups.
+     *
+     * @throws Exception if exception is thrown.
+     */
+    @Test
+    public void testAuthorizeUserWithExternalGroups() throws Exception {
+        // The logon is here to work around the issue with the WebSecurity setup.
+        logon("ADMINISTRATOR");
+        String result = mockMvc.perform(postAddSSO())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        result = mockMvc.perform(postAddSSOGroup())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        AuthorizeUserInGroupsInputDTO dto =
+                new AuthorizeUserInGroupsInputDTO("user1", new String[] {"group"}, "1.1.1.1");
+
+        String json = GSON.toJson(dto, AuthorizeUserInGroupsInputDTO.class);
+        mockMvc.perform(post("/users/authorize/groups")
+                .content(json)
+                .contentType(RET_TYPE)
+                .accept(RET_TYPE))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        SecurityContextHolder.getContext().setAuthentication(null);
+        // clean security groups so it doesn't affect other tests
+        authStore.deleteSecurityGroup("group");
+    }
+
+    /**
+     * Negative path to verify authorizing multiple external groups.
+     * Note the Authorization exception is wrapped by NestedServletException.
+     */
+    @Test(expected = NestedServletException.class)
+    public void testAuthorizeUserWithInvalidExternalGroups() throws Exception {
+        // The logon is here to work around the issue with the WebSecurity setup.
+        logon("ADMINISTRATOR");
+        String result = mockMvc.perform(postAddSSO())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        result = mockMvc.perform(postAddSSOGroup())
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        try {
+            AuthorizeUserInGroupsInputDTO dto =
+                    new AuthorizeUserInGroupsInputDTO("user1", new String[] {"group1"}, "1.1.1.1");
+
+            String json = GSON.toJson(dto, AuthorizeUserInGroupsInputDTO.class);
+            mockMvc.perform(post("/users/authorize/groups")
                     .content(json)
                     .contentType(RET_TYPE)
                     .accept(RET_TYPE))

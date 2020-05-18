@@ -37,6 +37,7 @@ import com.vmturbo.repository.dto.StorageInfoRepoDTO;
 import com.vmturbo.repository.dto.TypeSpecificInfoRepoDTO;
 import com.vmturbo.repository.dto.VirtualMachineInfoRepoDTO;
 import com.vmturbo.repository.dto.VirtualVolumeInfoRepoDTO;
+import com.vmturbo.repository.dto.WorkloadControllerInfoRepoDTO;
 
 /**
  * Map TopologyEntityDTO to ServiceEntityRepoDTO.
@@ -60,6 +61,7 @@ class TopologyEntityDTOConverter {
                     .put(TypeCase.PHYSICAL_MACHINE, PhysicalMachineInfoRepoDTO.class)
                     .put(TypeCase.DESKTOP_POOL, DesktopPoolInfoRepoDTO.class)
                     .put(TypeCase.BUSINESS_USER, BusinessUserInfoRepoDTO.class)
+                    .put(TypeCase.WORKLOAD_CONTROLLER, WorkloadControllerInfoRepoDTO.class)
                     .build();
 
 

@@ -59,7 +59,7 @@ public class DesktopPoolInfoMapper extends TypeSpecificInfoMapper {
                     vmWithSnapshotBuilder.setSnapshot(dpData.getSnapshot());
                 }
                 desktopInfoBuilder.setVmWithSnapshot(vmWithSnapshotBuilder.build());
-            } else if (!dpData.hasSnapshot()) {
+            } else {
                 // template identities are resolved much later
                 // this hack is to pass the raw vendor template identifier reference down the
                 // data flow, in a temporary entity property, to get converted after
@@ -73,9 +73,7 @@ public class DesktopPoolInfoMapper extends TypeSpecificInfoMapper {
                 //   uniformly and simultaneously before stitching, then connecting pool to template could be
                 //   a legitimate stitcher
                 entityPropertyMap.put(DESKTOP_POOL_TEMPLATE_REFERENCE, dpData.getMasterImage());
-            } else {
-                logger.warn("Master Image {} has not been resolved to a VM or template OID, desktop pool data will be incomplete",
-                            dpData.getMasterImage());
+
             }
         }
         return TypeSpecificInfo.newBuilder()

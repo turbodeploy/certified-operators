@@ -11,11 +11,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import javax.annotation.Nonnull;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -42,6 +44,7 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.kvstore.IComponentJwtStore;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO.PROVIDER;
+import com.vmturbo.auth.api.usermgmt.AuthorizeUserInGroupsInputDTO;
 import com.vmturbo.auth.api.usermgmt.AuthorizeUserInputDTO;
 
 public class RestAuthenticationProvider implements AuthenticationProvider {
@@ -50,6 +53,8 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
      */
     public static final String AUTH_HEADER_NAME = "x-auth-token";
     public static final String USERS_AUTHORIZE = "/users/authorize/";
+    private static final String USERS_AUTHORIZE_GROUPS = "/users/authorize/groups";
+
     private static final String DUMMY_PASS = "DUMMY_PASS";
 
     /**
@@ -189,11 +194,77 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         return getAuthentication(password, username, token, remoteIpAddress);
     }
 
+    /**
+     * Retrieve SAML user role from AUTH component.
+     * Todo: attached unique JWT token signed by API component private key
+     * @param username  SAML user name
+     * @param groupName SAML user group
+     * @param remoteIpAddress SAML user requested IP address
+     * @param componentJwtStore API component JWT store
+     * @return authentication if valid
+     * @throws AuthenticationException when the roles are not found for the user
+     */
+    @Nonnull
+    public Authentication authorize(@Nonnull final String username,
+            @Nonnull final Optional<String> groupName, @Nonnull final String remoteIpAddress,
+            @Nonnull final IComponentJwtStore componentJwtStore) throws AuthenticationException {
+        return assignPermission(username, remoteIpAddress, componentJwtStore,
+                httpHeaders -> new HttpEntity<>(
+                        new AuthorizeUserInputDTO(username, groupName.orElse(null),
+                                remoteIpAddress), httpHeaders), USERS_AUTHORIZE);
+    }
+
+    /**
+     * Retrieve SAML user role from AUTH component by matches least privilege groups.
+     * @param username  SAML user name
+     * @param groupNames SAML user groups
+     * @param remoteIpAddress SAML user requested IP address
+     * @param componentJwtStore API component JWT store
+     * @return authentication if valid
+     * @throws AuthenticationException when the roles are not found for the user
+     */
+    @Nonnull
+    public Authentication authorize(@Nonnull final String username,
+            @Nonnull final String[] groupNames, @Nonnull final String remoteIpAddress,
+            @Nonnull final IComponentJwtStore componentJwtStore) throws AuthenticationException {
+        return assignPermission(username, remoteIpAddress, componentJwtStore,
+                httpHeaders -> new HttpEntity<>(
+                        new AuthorizeUserInGroupsInputDTO(username, groupNames, remoteIpAddress),
+                        httpHeaders), USERS_AUTHORIZE_GROUPS);
+    }
+
+    @NotNull
+    private Authentication assignPermission(@Nonnull String username, @Nonnull String remoteIpAddress,
+            @Nonnull IComponentJwtStore componentJwtStore,
+            Function<HttpHeaders, HttpEntity<?>> function, String path) {
+        final UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
+                .scheme("http")
+                .host(authHost_)
+                .port(authPort_)
+                .path(path);
+
+        final HttpHeaders headers = new HttpHeaders();
+        headers.setAccept(HTTP_ACCEPT);
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
+                componentJwtStore.generateToken().getCompactRepresentation());
+        headers.set(SecurityConstant.COMPONENT_ATTRIBUTE, componentJwtStore.getNamespace());
+
+        final HttpEntity<?> entity = function.apply(headers);
+
+        final ResponseEntity<String> result =
+                restTemplate_.exchange(builder.toUriString(), HttpMethod.POST, entity,
+                        String.class);
+        final JWTAuthorizationToken token = new JWTAuthorizationToken(result.getBody());
+        // add a dummy password.
+        return getAuthentication(DUMMY_PASS, username, token, remoteIpAddress);
+    }
+
     @Nonnull
     protected Authentication getAuthentication(final String password,
-                                             final String username,
-                                             final JWTAuthorizationToken token,
-                                             final String remoteIpAddress) {
+            final String username,
+            final JWTAuthorizationToken token,
+            final String remoteIpAddress) {
         AuthUserDTO dto;
         try {
             dto = verifier_.verify(token, Collections.emptyList());
@@ -211,53 +282,17 @@ public class RestAuthenticationProvider implements AuthenticationProvider {
         // also set the correct provider, use LOCAL if it's not initialized
         final PROVIDER provider = dto.getProvider() != null ? dto.getProvider() : PROVIDER.LOCAL;
         AuthUserDTO user = new AuthUserDTO(provider, username, null, remoteIpAddress, dto.getUuid(),
-                                           token.getCompactRepresentation(), roles, dto.getScopeGroups());
+                token.getCompactRepresentation(), roles, dto.getScopeGroups());
+        final String detailMsg = dto.getScopeGroups().isEmpty()
+                ? String.format("User logged in successfully with role %s", dto.getRoles())
+                : String.format("User logged in successfully with role %s, scopes %s", dto.getRoles(), dto.getScopeGroups());
         AuditLog.newEntry(AuditAction.LOGIN,
-                "User logged in successfully", true)
+                detailMsg, true)
                 .remoteClientIP(remoteIpAddress)
                 .targetName("AUTHORIZATION_SERVICE")
                 .actionInitiator(username)
                 .audit();
         return new UsernamePasswordAuthenticationToken(user, password, grantedAuths);
-    }
-
-    /**
-     * Retrieve SAML user role from AUTH component.
-     * Todo: attached unique JWT token signed by API component private key
-     * @param username  SAML user name
-     * @param groupName SAML user group
-     * @param remoteIpAddress SAML user requested IP address
-     * @param componentJwtStore API component JWT store
-     * @return authentication if valid
-     * @throws AuthenticationException when the roles are not found for the user
-     */
-    @Nonnull
-    public Authentication authorize(@Nonnull final String username,
-                                    @Nonnull final Optional<String> groupName,
-                                    @Nonnull final String remoteIpAddress,
-                                    @Nonnull final IComponentJwtStore componentJwtStore)
-            throws AuthenticationException {
-        final UriComponentsBuilder builder = UriComponentsBuilder.newInstance()
-                .scheme("http")
-                .host(authHost_)
-                .port(authPort_)
-                .path(USERS_AUTHORIZE);
-
-        final HttpHeaders headers = new HttpHeaders();
-        headers.setAccept(HTTP_ACCEPT);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(RestAuthenticationProvider.AUTH_HEADER_NAME,
-                componentJwtStore.generateToken().getCompactRepresentation());
-        headers.set(SecurityConstant.COMPONENT_ATTRIBUTE, componentJwtStore.getNamespace());
-
-        final HttpEntity<AuthorizeUserInputDTO> entity
-         = new HttpEntity<>(new AuthorizeUserInputDTO(username, groupName.orElse(null), remoteIpAddress), headers);
-
-        final ResponseEntity<String> result = restTemplate_.exchange(builder.toUriString(),
-                HttpMethod.POST, entity, String.class);
-        final JWTAuthorizationToken token = new JWTAuthorizationToken(result.getBody());
-        // add a dummy password.
-        return getAuthentication(DUMMY_PASS, username, token, remoteIpAddress);
     }
 
     @Override

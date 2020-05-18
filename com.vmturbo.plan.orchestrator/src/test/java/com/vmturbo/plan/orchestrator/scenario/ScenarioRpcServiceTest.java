@@ -106,7 +106,7 @@ public class ScenarioRpcServiceTest {
     private void prepareGrpc() throws Exception {
         scenarioDao = new ScenarioDao(dbConfig.getDslContext());
         scenarioRpcService = new ScenarioRpcService(scenarioDao, new IdentityInitializer(0),
-                userSessionContext, groupServiceClient, searchServiceClient);
+                userSessionContext, groupServiceClient, searchServiceClient, null);
         grpcServer = GrpcTestServer.newServer(scenarioRpcService);
         grpcServer.start();
         scenarioServiceClient = ScenarioServiceGrpc.newBlockingStub(grpcServer.getChannel());

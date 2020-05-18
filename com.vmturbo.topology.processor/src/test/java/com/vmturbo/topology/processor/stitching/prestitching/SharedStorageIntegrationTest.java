@@ -152,6 +152,7 @@ public class SharedStorageIntegrationTest {
         when(probeStore.getProbeIdForType(SDKProbeType.VMM.getProbeType())).thenReturn(Optional.of(5679L));
         when(probeStore.getProbeIdForType(SDKProbeType.AWS.getProbeType())).thenReturn(Optional.empty());
         when(probeStore.getProbeIdForType(SDKProbeType.AZURE.getProbeType())).thenReturn(Optional.empty());
+        when(probeStore.getProbeIdForType(SDKProbeType.GCP.getProbeType())).thenReturn(Optional.empty());
         when(probeStore.getProbeIdForType(SDKProbeType.VMWARE_HORIZON_VIEW.getProbeType())).thenReturn(Optional.empty());
         when(targetStore.getProbeTargets(eq(5678L))).thenReturn(Arrays.asList(targetA, targetB));
         // the probe type doesn't matter here, just return any non-cloud probe type so it gets

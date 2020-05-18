@@ -18,11 +18,14 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.utils.HCIUtils;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageData.StoragePolicy;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageRedundancyMethod;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -51,58 +54,132 @@ public class VsanStorageApplicator implements SettingApplicator {
         }
 
         try {
-            applyToStorageAmount(storage, settings, storage.getTypeSpecificInfo().getStorage());
-            applyToStorageAccessAndProvisioned(storage, settings);
+            final double iopsCapacityPerHost = getNumericSetting(settings,
+                            EntitySettingSpecs.HciHostIopsCapacity);
+            final boolean useCompressionSetting = getBooleanSetting(settings,
+                            EntitySettingSpecs.HciUseCompression);
+            final double compressionRatio = useCompressionSetting
+                            ? getNumericSetting(settings, EntitySettingSpecs.HciCompressionRatio)
+                            : 1.0;
+            final double slackSpaceRatio = getSlackSpaceRatio(settings);
+            final double raidFactor = computeRaidFactor(storage);
+            double hciUsablePercentage = raidFactor * slackSpaceRatio * compressionRatio * 100;
+
+            applyToStorage(storage, settings, raidFactor, slackSpaceRatio,
+                            compressionRatio, iopsCapacityPerHost);
+            applyToStorageHosts(storage, settings, iopsCapacityPerHost, hciUsablePercentage);
         } catch (EntityApplicatorException e) {
-            logger.error("Error applying settings to Storage commodities for vSAN storage "
-                    + storage.getDisplayName(), e);
+            logger.error("Error applying settings to Storage commodities for vSAN storage {}",
+                    storage.getDisplayName(), e);
         }
     }
 
-    private void applyToStorageAmount(@Nonnull Builder storage,
-                    @Nonnull Map<EntitySettingSpecs, Setting> settings,
-                    @Nonnull StorageInfo storageInfo) throws EntityApplicatorException {
+    private double getSlackSpaceRatio(@Nonnull Map<EntitySettingSpecs, Setting> settings)
+                    throws EntityApplicatorException {
+        double slackSpacePercentage = getNumericSetting(settings,
+                        EntitySettingSpecs.HciSlackSpacePercentage);
+        return (100.0 - slackSpacePercentage) / 100.0;
+    }
+
+    /**
+     * Compute the factor representing the RAID overhead based on the discovered
+     * failures to tolerate and redundancy method. RAID 5 is selected if
+     * failures to tolerate == 1, RAID 6 if failures to tolerate == 2.
+     *
+     * @param storage vSAN storage
+     * @return a factor <= 1.0 by which the raw storage amount is reduced to get
+     *         usable space
+     * @throws EntityApplicatorException conversion error
+     */
+    private static double computeRaidFactor(@Nonnull Builder storage)
+            throws EntityApplicatorException {
+        if (!storage.hasTypeSpecificInfo()) {
+            throw new EntityApplicatorException(
+                    "Storage '" + storage.getDisplayName() + "' does not have Type Specific Info");
+        }
+
+        TypeSpecificInfo info = storage.getTypeSpecificInfo();
+
+        if (!info.hasStorage()) {
+            throw new EntityApplicatorException(
+                    "Storage '" + storage.getDisplayName() + "' does not have Storage Info");
+        }
+
+        StorageInfo storageInfo = info.getStorage();
+
+        if (!storageInfo.hasPolicy()) {
+            throw new EntityApplicatorException(
+                    "Storage '" + storage.getDisplayName() + "' does not have Storage Policy");
+        }
+
+        StoragePolicy policy = storageInfo.getPolicy();
+
+        if (!policy.hasRedundancy()) {
+            throw new EntityApplicatorException(
+                    "Storage '" + storage.getDisplayName() + "' does not have Redundancy");
+        }
+
+        StorageRedundancyMethod raidType = policy.getRedundancy();
+
+        if (!policy.hasFailuresToTolerate()) {
+            throw new EntityApplicatorException("Storage '" + storage.getDisplayName()
+                    + "' does not have Failures To Tolerate");
+        }
+
+        int failuresToTolerate = policy.getFailuresToTolerate();
+
+        if (raidType == StorageRedundancyMethod.RAID0) {
+            return 1;
+        } else if (raidType == StorageRedundancyMethod.RAID1) {
+            return 1.0 / (failuresToTolerate + 1);
+        } else if (raidType == StorageRedundancyMethod.RAID5
+                || raidType == StorageRedundancyMethod.RAID6) {
+            return 1.0 / (1.0 + failuresToTolerate / (2.0 + failuresToTolerate));
+        }
+
+        throw new EntityApplicatorException(
+                "Invalid RAID type " + raidType + ", while computing the RAID factor for Storage "
+                        + storage.getDisplayName());
+    }
+
+    private void applyToStorage(Builder storage, Map<EntitySettingSpecs, Setting> settings,
+                    double raidFactor, double slackSpaceRatio,
+                    double compressionRatio, double iopsCapacityPerHost)
+                                    throws EntityApplicatorException {
+        final double hostCapacityReservation = getNumericSetting(settings,
+                        EntitySettingSpecs.HciHostCapacityReservation);
+
         CommoditySoldDTO.Builder storageAmount = getSoldStorageCommodityBuilder(
                         storage, CommodityType.STORAGE_AMOUNT);
-        double effectiveCapacity = storageAmount.getCapacity();
+        double effectiveSACapacity = storageAmount.getCapacity();
 
         // subtract off space reserved for unavailable hosts, either failed
         // or in maintenance
-        double hostCapacityReservation = getNumericSetting(settings,
-                EntitySettingSpecs.HciHostCapacityReservation);
         double largestCapacity = getLargestHciHostRawDiskCapacity(storage);
-        // TODO Host capacities needs to be adjusted by RAID factor
-        largestCapacity *= storageInfo.getPolicy().getRaidFactor();
-        effectiveCapacity -= largestCapacity * hostCapacityReservation;
+        effectiveSACapacity -= largestCapacity * hostCapacityReservation;
+
+        if (effectiveSACapacity < 0) {
+            throw new EntityApplicatorException(
+                    "The effective capacity is negative or zero. hostCapacityReservation: "
+                            + hostCapacityReservation);
+        }
 
         // reduce by requested slack space
-        double slackSpacePercentage = getNumericSetting(settings,
-                EntitySettingSpecs.HciSlackSpacePercentage);
-        double slackSpaceRatio = (100.0 - slackSpacePercentage) / 100.0;
-        effectiveCapacity *= slackSpaceRatio;
+        effectiveSACapacity *= slackSpaceRatio;
+
+        // reduce by RAID factor
+        effectiveSACapacity *= raidFactor;
 
         // Adjust by compression ratio
-        boolean useCompressionSetting = getBooleanSetting(settings,
-                EntitySettingSpecs.HciUseCompression);
-        double compressionRatio = useCompressionSetting
-                ? getNumericSetting(settings, EntitySettingSpecs.HciCompressionRatio)
-                : 1.0;
-        effectiveCapacity *= compressionRatio;
+        effectiveSACapacity *= compressionRatio;
 
+        // Set capacity and used for Storage Amount.
         storageAmount.setUsed(storageAmount.getUsed() * compressionRatio);
-        storageAmount.setCapacity(effectiveCapacity);
-    }
+        storageAmount.setCapacity(effectiveSACapacity);
 
-    private void applyToStorageAccessAndProvisioned(@Nonnull Builder storage,
-                    @Nonnull Map<EntitySettingSpecs, Setting> settings)
-                    throws EntityApplicatorException {
-        //Get settings for and compute Storage Access capacity.
-        final double iopsCapacityPerHost = getNumericSetting(settings,
-                        EntitySettingSpecs.HciHostIopsCapacity);
-        final double reservedHostCount = getNumericSetting(settings,
-                        EntitySettingSpecs.HciHostCapacityReservation);
+        //Compute Storage Access capacity.
         final long hciHostCount = countHCIHosts(storage);
-        final double totalIOPSCapacity = (hciHostCount - reservedHostCount) * iopsCapacityPerHost;
+        final double totalIOPSCapacity = (hciHostCount - hostCapacityReservation) * iopsCapacityPerHost;
 
         //Set capacity for sold Storage Access.
         CommoditySoldDTO.Builder storageAccess = getSoldStorageCommodityBuilder(
@@ -110,8 +187,11 @@ public class VsanStorageApplicator implements SettingApplicator {
         logger.trace("Set sold StorageAccess for {} capacity to {}, host count {}",
                 storage.getDisplayName(), totalIOPSCapacity, hciHostCount);
         storageAccess.setCapacity(totalIOPSCapacity);
+    }
 
-        //Get setting for storage provisioned.
+    private void applyToStorageHosts(Builder storage, Map<EntitySettingSpecs, Setting> settings,
+                    double iopsCapacityPerHost, double hciUsablePercentage)
+                                    throws EntityApplicatorException {
         final double storageOverprovisioningCoefficient = getNumericSetting(settings,
                         EntitySettingSpecs.StorageOverprovisionedPercentage) / 100;
 
@@ -126,6 +206,7 @@ public class VsanStorageApplicator implements SettingApplicator {
             if (provider.isPresent())  {
                 setAccessCapacityForProvider(provider.get(), iopsCapacityPerHost);
                 setProvisionedCapacityForProvider(provider.get(), storageOverprovisioningCoefficient);
+                setUtilizationThresholdForProvider(provider.get(), hciUsablePercentage);
             } else {
                 logger.error("No provider with ID {} in Topology Graph.",
                                 boughtBuilder.getProviderId());
@@ -221,10 +302,12 @@ public class VsanStorageApplicator implements SettingApplicator {
     private void setProvisionedCapacityForProvider(TopologyEntity provider,
                     double storageOverprovisioningCoefficient)  {
         List<Double> storageAmountCapacities = provider.getTopologyEntityDtoBuilder()
-            .getCommoditySoldListBuilderList().stream().filter(soldCommodityBuilder ->
-                soldCommodityBuilder.getCommodityType().getType() ==
-                    CommodityType.STORAGE_AMOUNT_VALUE  &&  soldCommodityBuilder.hasCapacity())
-            .map(CommoditySoldDTO.Builder::getCapacity).collect(Collectors.toList());
+            .getCommoditySoldListBuilderList().stream()
+            .filter(soldCommodityBuilder -> soldCommodityBuilder.getCommodityType().getType()
+                            == CommodityType.STORAGE_AMOUNT_VALUE
+                        && soldCommodityBuilder.hasCapacity())
+            .map(CommoditySoldDTO.Builder::getCapacity)
+            .collect(Collectors.toList());
 
         if (storageAmountCapacities.size() != 1)  {
             logger.error("Wrong number of StorageAmount commodities sold "
@@ -234,10 +317,19 @@ public class VsanStorageApplicator implements SettingApplicator {
         }
         Double amountCapacity = storageAmountCapacities.iterator().next();
 
-        provider.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList()
-            .stream().filter(soldBuilder -> soldBuilder.getCommodityType().getType()
+        provider.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+            .filter(soldBuilder -> soldBuilder.getCommodityType().getType()
                             == CommodityType.STORAGE_PROVISIONED_VALUE)
             .forEach(soldBuilder -> soldBuilder.setCapacity(amountCapacity *
                             storageOverprovisioningCoefficient));
+    }
+
+    private void setUtilizationThresholdForProvider(TopologyEntity provider, double value)   {
+        provider.getTopologyEntityDtoBuilder().getCommoditySoldListBuilderList().stream()
+            .filter(soldBuilder -> soldBuilder.getCommodityType().getType()
+                            == CommodityType.STORAGE_PROVISIONED_VALUE
+                        || soldBuilder.getCommodityType().getType()
+                            == CommodityType.STORAGE_AMOUNT_VALUE)
+            .forEach(soldBuilder -> soldBuilder.setEffectiveCapacityPercentage(value));
     }
 }

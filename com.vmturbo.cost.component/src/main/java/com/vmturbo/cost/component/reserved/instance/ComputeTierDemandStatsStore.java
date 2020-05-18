@@ -138,14 +138,17 @@ public class ComputeTierDemandStatsStore {
     }
 
     /**
-     * Checks whether an update has been performed in the current hour for the tableName and columnName.
+     * Checks whether an update has been performed for the topology created
+     * hour for the tableName and columnName.
      *
      * @param tableName the table name.
      * @param columnName the column name.
+     * @param topologyCreationDate the creation time of the current topology being processed.
      * @return whether an update has been performed in the current hour for the tableName and columnName.
      */
-    public boolean isUpdatedInLastHour(String tableName, String columnName) {
-        java.sql.Timestamp date = new java.sql.Timestamp(new java.util.Date().getTime());
+    public boolean isUpdatedInLastHour(String tableName, String columnName,
+                                       Calendar topologyCreationDate) {
+        java.sql.Timestamp date = new java.sql.Timestamp(topologyCreationDate.getTimeInMillis());
 
         Calendar start = Calendar.getInstance();
         start.setTime(date);

@@ -10,18 +10,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.stats.Stats.EntityCommoditiesMaxValues;
 import com.vmturbo.common.protobuf.stats.Stats.GetEntityCommoditiesMaxValuesRequest;
@@ -45,9 +47,6 @@ import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.EntityChangesBuilder;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal.FormatRecommendation;
-
-import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 
 /**
  * Post-stitching operation for setting maxQuantity values of the commodities for each entity.
@@ -112,8 +111,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     private static final ImmutableMap<EntityType, ImmutableSet<Integer>> QUERY_MAP =
         ImmutableMap.<EntityType, ImmutableSet<Integer>>builder()
             .put(EntityType.APPLICATION_SERVER, ImmutableSet.of(CommodityType.HEAP_VALUE))
+            .put(EntityType.CONTAINER_SPEC, ImmutableSet.of(CommodityType.VCPU_VALUE, CommodityType.VMEM_VALUE))
             .put(EntityType.CONTAINER, ImmutableSet.of(CommodityType.VCPU_VALUE, CommodityType.VMEM_VALUE))
-            .put(EntityType.CONTAINER_POD, ImmutableSet.of(CommodityType.VCPU_VALUE, CommodityType.VMEM_VALUE))
             .put(EntityType.DATABASE, ImmutableSet.of(CommodityType.VMEM_VALUE))
             .put(EntityType.DATABASE_SERVER, ImmutableSet.of(CommodityType.DB_MEM_VALUE))
             .put(EntityType.DISK_ARRAY, ImmutableSet.of(CommodityType.STORAGE_AMOUNT_VALUE))
@@ -151,8 +150,8 @@ public class SetCommodityMaxQuantityPostStitchingOperation implements PostStitch
     private static final List<EntityType> interestedEntityTypes =
         ImmutableList.of(
             EntityType.CHASSIS,
+            EntityType.CONTAINER_SPEC,
             EntityType.CONTAINER,
-            EntityType.CONTAINER_POD,
             EntityType.DISK_ARRAY,
             EntityType.DPOD,
             EntityType.IO_MODULE,

@@ -74,6 +74,7 @@ import com.vmturbo.topology.processor.conversions.typespecific.StorageInfoMapper
 import com.vmturbo.topology.processor.conversions.typespecific.TypeSpecificInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualMachineInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualVolumeInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.WorkloadControllerInfoMapper;
 import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
@@ -113,6 +114,7 @@ public class SdkToTopologyEntityConverter {
                     .put(EntityType.VIRTUAL_VOLUME, new VirtualVolumeInfoMapper())
                     .put(EntityType.DESKTOP_POOL, new DesktopPoolInfoMapper())
                     .put(EntityType.BUSINESS_USER, new BusinessUserMapper())
+                    .put(EntityType.WORKLOAD_CONTROLLER, new WorkloadControllerInfoMapper())
                     .build();
 
     private static final Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =

@@ -146,6 +146,14 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         Objects.requireNonNull(entityProfileDTOs);
         Objects.requireNonNull(deploymentProfileDTOs);
 
+        if (ignoreTemplatesForTarget(targetId)) {
+            if (!entityProfileDTOs.isEmpty() || !deploymentProfileDTOs.isEmpty()) {
+                logger.info("Ignoring {} templates and {} deployment profiles for target {}",
+                    entityProfileDTOs.size(), deploymentProfileDTOs.size(), targetId);
+            }
+            return;
+        }
+
         // we may have some missing fields in the entity profiles, such as VCPU speed. Classic has
         // special logic to provide a fallback value for these fields when an entity is created from
         // a profile, but rather than do it during entity creation, we will fill them in during
@@ -236,29 +244,33 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
      */
     public void setTargetsTemplateDeploymentProfileInfos(long targetId,
                 @Nonnull Map<DeploymentProfileInfo, Set<EntityProfileDTO>> profileTemplateMap) {
+        if (ignoreTemplatesForTarget(targetId)) {
+            if (!profileTemplateMap.isEmpty()) {
+                logger.info("Ignoring {} templates/deployment profiles for target {}",
+                    profileTemplateMap.size(), targetId);
+            }
+            return;
+        }
+
         Objects.requireNonNull(profileTemplateMap);
 
         Map<EntityProfileDTO, Set<DeploymentProfileInfo>> reverseMap = new HashMap<>();
 
-        profileTemplateMap.forEach((profile, templateSet) ->
-            templateSet.forEach(template -> {
-                if (reverseMap.containsKey(template)) {
-                    reverseMap.get(template).add(profile);
-                } else {
-                    reverseMap.put(template, Sets.newHashSet(profile));
-                }
-            })
-        );
+        profileTemplateMap.forEach((profile, templateSet) -> templateSet.forEach(template -> {
+            if (reverseMap.containsKey(template)) {
+                reverseMap.get(template).add(profile);
+            } else {
+                reverseMap.put(template, Sets.newHashSet(profile));
+            }
+        }));
         synchronized (storeLock) {
-            discoveredTemplateToDeploymentProfile.put(targetId,
-                new EntityProfileToDeploymentProfileMap(reverseMap));
-            orphanedDeploymentProfile.put(targetId,
-                profileTemplateMap.entrySet().stream()
-                    .filter(entry -> entry.getValue().isEmpty()).map(Entry::getKey)
-                    .collect(Collectors.toSet())
-            );
+            discoveredTemplateToDeploymentProfile.put(targetId, new EntityProfileToDeploymentProfileMap(reverseMap));
+            orphanedDeploymentProfile.put(targetId, profileTemplateMap.entrySet()
+                    .stream()
+                    .filter(entry -> entry.getValue().isEmpty())
+                    .map(Entry::getKey)
+                    .collect(Collectors.toSet()));
         }
-
     }
 
     @Override
@@ -305,28 +317,24 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
         // Synchronized map iterate operation in order to prevent other thread modify map in same time.
         synchronized (storeLock) {
             discoveredTemplateToDeploymentProfile.forEach((targetId, discoveredData) -> {
-                if (isTargetEligibleForUpload(targetId)) {
-                    final UpdateTargetDiscoveredTemplateDeploymentProfileRequest.Builder targetRequest =
-                        UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
-                            .setTargetId(targetId);
-                    addEntityProfileToDeploymentProfile(discoveredData, targetRequest);
-                    targetRequest.addAllDeploymentProfileWithoutTemplates(
-                        orphanedDeploymentProfile.getOrDefault(targetId, Collections.emptySet()));
-                    targetRequest.build();
-                    // Sending the template
-                    requestObserver.onNext(targetRequest.build());
-                }
+                final UpdateTargetDiscoveredTemplateDeploymentProfileRequest.Builder targetRequest =
+                    UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
+                        .setTargetId(targetId);
+                addEntityProfileToDeploymentProfile(discoveredData, targetRequest);
+                targetRequest.addAllDeploymentProfileWithoutTemplates(
+                    orphanedDeploymentProfile.getOrDefault(targetId, Collections.emptySet()));
+                targetRequest.build();
+                // Sending the template
+                requestObserver.onNext(targetRequest.build());
             });
 
             // Send information about targets that have no discovered templates (yet). This will
             // prevent any existing data for those targets from being deleted on restart.
             targetsWithoutDiscoveredTemplateData.forEach(targetId -> {
-                if (isTargetEligibleForUpload(targetId)) {
-                    requestObserver.onNext(UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
-                        .setTargetId(targetId)
-                        .setDataAvailable(false)
-                        .build());
-                }
+                requestObserver.onNext(UpdateTargetDiscoveredTemplateDeploymentProfileRequest.newBuilder()
+                    .setTargetId(targetId)
+                    .setDataAvailable(false)
+                    .build());
             });
         }
         // After sending all the templates continue the logic in Plan Orchestrator
@@ -340,16 +348,26 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
     }
 
     /**
-     * Is the target eligible for uploading templates? Cloud targets should not upload templates
-     * and deployment profiles.
+     * Do we need templates/deployment profiles discovered by this target?
+     *
+     * <p/>Cloud targets should not upload templates and deployment profiles. In XL the cloud
+     * data model has "tier" service entities, and the templates in the SDK discovery response are
+     * leftovers from how we did things in Opsmgr.
+     *
+     * <p/>WARNING: At the time of this writing cloud targets - Azure in particular - send lots of
+     * duplicate template information (the same LARGE set of templates/deployment profiles for
+     * every subscription). This greatly increases the memory footprint of this class, and, by
+     * extension, the topology processor. IF you want to stop ignoring cloud templates, make sure
+     * this issue is fixed, or add code in the uploader to de-dupe the targets!
+     *
      * @param targetId the target id
      * @return true if the target is eligible for uploading templates. False otherwise.
      */
-    private boolean isTargetEligibleForUpload(long targetId) {
+    public boolean ignoreTemplatesForTarget(long targetId) {
         // We directly check for the probe type here instead of the probe category of CLOUD_MANAGEMENT
         // because CLOUD_MANAGEMENT probe category includes VMM which might have templates.
         Optional<SDKProbeType> probeType = targetStore.getProbeTypeForTarget(targetId);
-        return probeType.isPresent() && !CLOUD_PROBE_TYPES.contains(probeType.get());
+        return probeType.isPresent() && CLOUD_PROBE_TYPES.contains(probeType.get());
     }
 
     /**
@@ -433,8 +451,9 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
                                    entity.getEntityBuilder().getOrigin()
                                                    .getDiscoveryOrigin()
                                                    .getDiscoveredTargetDataMap().keySet());
+                    Long templateOid = null;
                     for (Long targetId : targets) {
-                        Long templateOid = getProfileId(targetId, masterImageVendorId);
+                        templateOid = getProfileId(targetId, masterImageVendorId);
                         if (templateOid != null) {
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Patched template reference '{}' for desktop pool {} into {}",
@@ -447,6 +466,10 @@ public class DiscoveredTemplateDeploymentProfileUploader implements DiscoveredTe
                         }
                     }
                     builder.removeEntityPropertyMap(DesktopPoolInfoMapper.DESKTOP_POOL_TEMPLATE_REFERENCE);
+                    if (templateOid == null) {
+                        logger.warn("Master Image {} has not been resolved to a VM or template OID, desktop pool data will be incomplete",
+                                masterImageVendorId);
+                    }
                 }
             }
         }

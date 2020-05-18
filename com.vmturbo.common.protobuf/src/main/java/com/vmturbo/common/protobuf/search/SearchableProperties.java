@@ -49,6 +49,21 @@ public class SearchableProperties {
     public static final String DS_LOCAL = "local";
 
     /**
+     * DTO containing workload controller information.
+     */
+    public static final String WC_INFO_REPO_DTO_PROPERTY_NAME = "workloadControllerInfoRepoDTO";
+
+    /**
+     * Controller type property name used for searching WorkloadControllers by controller type.
+     */
+    public static final String CONTROLLER_TYPE = "controllerType";
+
+    /**
+     * Other controller type property name used for searching WorkloadControllers by controller type.
+     */
+    public static final String OTHER_CONTROLLER_TYPE = "Other";
+
+    /**
      * Property used for searching discovered business accounts which have associated target.
      */
     public static final String ASSOCIATED_TARGET_ID = "associatedTargetId";

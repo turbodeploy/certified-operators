@@ -47,6 +47,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
+import com.vmturbo.components.common.utils.ReservationProtoUtil;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
@@ -111,8 +112,7 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
                             .collect(Collectors.toSet());
             Set<Reservation> updatedReservation = new HashSet<>();
             for (ReservationDTO.Reservation reservation : inProgressSet) {
-                updatedReservation.add(reservation.toBuilder()
-                        .setStatus(ReservationStatus.INVALID).build());
+                updatedReservation.add(ReservationProtoUtil.invalidateReservation(reservation));
             }
             try {
                 reservationDao.updateReservationBatch(updatedReservation);
@@ -224,30 +224,38 @@ public class ReservationManager implements PlanStatusListener, ReservationDelete
     public void updateReservationResult(Set<ReservationDTO.Reservation> reservationSet) {
         synchronized (reservationSetLock) {
             Set<ReservationDTO.Reservation> updatedReservations = new HashSet<>();
+            Set<ReservationDTO.Reservation> statusUpdatedReservation = new HashSet<>();
             for (ReservationDTO.Reservation reservation : reservationSet) {
                 boolean isSuccessful = isReservationSuccessful(reservation);
-                if (isSuccessful && ReservationStatus.RESERVED != reservation.getStatus()) {
-                    ReservationDTO.Reservation updatedReservation = reservation.toBuilder()
-                        .setStatus(ReservationStatus.RESERVED).build();
-                    updatedReservations.add(updatedReservation);
+                ReservationDTO.Reservation.Builder updatedReservation = reservation.toBuilder();
+                // We should call the updateReservationBatch for all reservations including the ones
+                // whose status didn't change..Because the provider could have changed.
+                if (isSuccessful) {
+                    updatedReservation.setStatus(ReservationStatus.RESERVED);
+                } else {
+                    updatedReservation.setStatus(ReservationStatus.PLACEMENT_FAILED);
+                }
+                updatedReservations.add(updatedReservation.build());
+                // we should not broadcast the reservation change to the UI if the status does not change.
+                // The provider change happens only during the main market and that need not be updated
+                // in the UI. A refresh of screen will get the user the new providers.
+                if (updatedReservation.getStatus() != reservation.getStatus()) {
                     logger.info("Finished Reservation: " + reservation.getName());
-                } else if (!isSuccessful && ReservationStatus.PLACEMENT_FAILED != reservation.getStatus()) {
-                    ReservationDTO.Reservation updatedReservation = reservation.toBuilder()
-                            .setStatus(ReservationStatus.PLACEMENT_FAILED).build();
-                    updatedReservations.add(updatedReservation);
-                    logger.info("Finished Reservation: " + reservation.getName());
+                    statusUpdatedReservation.add(updatedReservation.build());
                 }
             }
             try {
                 if (!updatedReservations.isEmpty()) {
                     reservationDao.updateReservationBatch(updatedReservations);
-                    broadcastReservationChange(updatedReservations);
+                }
+                if (!statusUpdatedReservation.isEmpty()) {
+                    broadcastReservationChange(statusUpdatedReservation);
                 }
             } catch (NoSuchObjectException e) {
                 logger.error("Reservation update failed" + e);
             }
-            return;
         }
+        checkAndStartReservationPlan();
     }
 
     /**

@@ -10,8 +10,8 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
-
 import com.google.common.collect.Sets;
+
 import org.apache.commons.collections4.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
@@ -143,7 +143,7 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
             }
         }
 
-        if (isValidScopeForCoverageRequest(context) &&
+        if (isValidScopeForCoverageRequest() &&
                 containsStat(StringConstants.RI_COUPON_COVERAGE, stats)) {
             snapshots.addAll(internalConvertRIStatsRecordsToStatSnapshotApiDTO(
                     riUtilizationCoverageService.getReservedInstanceCoverageStats(
@@ -222,33 +222,35 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
 
         final ApiId inputScope = context.getInputScope();
         if (inputScope.getScopeTypes().isPresent() && !inputScope.getScopeTypes().get().isEmpty()) {
-            final Set<ApiEntityType> apiEntityTypes = inputScope.getScopeTypes().get();
-            if (apiEntityTypes.size() != 1) {
-                //TODO (mahdi) Change the logic to support scopes with more than one type
-                throw new IllegalStateException("Scopes with more than one type is not supported.");
-            }
-            final ApiEntityType type = apiEntityTypes.iterator().next();
-            switch (type) {
-                case REGION:
-                    reqBuilder.setRegionFilter(
-                            RegionFilter.newBuilder().addAllRegionId(getScopeEntities(context)));
-                    break;
-                case AVAILABILITY_ZONE:
-                    reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
-                            .addAllAvailabilityZoneId(getScopeEntities(context)));
-                    break;
-                case BUSINESS_ACCOUNT:
-                    reqBuilder.setAccountFilter(
-                            AccountFilter.newBuilder().addAllAccountId(getScopeEntities(context)));
-                    break;
-                case SERVICE_PROVIDER:
-                    reqBuilder.setRegionFilter(RegionFilter.newBuilder()
-                            .addAllRegionId(
-                                    translateServiceProvidersToRegions(getScopeEntities(context))));
-                    break;
-                default:
-                    throw new OperationFailedException(
-                            String.format("Invalid scope for query: %s", type.apiStr()));
+            final Map<ApiEntityType, Set<Long>> scopeEntitiesByType = inputScope.getScopeEntitiesByType();
+
+            if (scopeEntitiesByType.containsKey(ApiEntityType.SERVICE_PROVIDER)) {
+                reqBuilder.setRegionFilter(RegionFilter.newBuilder()
+                        .addAllRegionId(
+                                translateServiceProvidersToRegions(scopeEntitiesByType
+                                        .get(ApiEntityType.SERVICE_PROVIDER))));
+            } else if (scopeEntitiesByType.containsKey(ApiEntityType.BUSINESS_ACCOUNT)) {
+                reqBuilder.setAccountFilter(
+                        AccountFilter.newBuilder().addAllAccountId(scopeEntitiesByType
+                                .get(ApiEntityType.BUSINESS_ACCOUNT)));
+            } else if (scopeEntitiesByType.containsKey(ApiEntityType.REGION)) {
+                reqBuilder.setRegionFilter(
+                        RegionFilter.newBuilder().addAllRegionId(scopeEntitiesByType
+                                .get(ApiEntityType.REGION)));
+            } else if (scopeEntitiesByType.containsKey(ApiEntityType.AVAILABILITY_ZONE)) {
+                reqBuilder.setAvailabilityZoneFilter(AvailabilityZoneFilter.newBuilder()
+                        .addAllAvailabilityZoneId(scopeEntitiesByType
+                                .get(ApiEntityType.AVAILABILITY_ZONE)));
+            } else {
+                throw new OperationFailedException(new StringBuilder(
+                        "Invalid scope for RI Cost query: ")
+                        .append(inputScope.getScopeTypes())
+                        .append(". Must have a supported entity type: ")
+                        .append(ApiEntityType.SERVICE_PROVIDER.displayName()).append(", ")
+                        .append(ApiEntityType.BUSINESS_ACCOUNT.displayName()).append(", ")
+                        .append(ApiEntityType.REGION.displayName()).append(", ")
+                        .append(ApiEntityType.AVAILABILITY_ZONE.displayName())
+                        .toString());
             }
         } else if (!context.isGlobalScope()) {
             throw new OperationFailedException(
@@ -282,17 +284,10 @@ public class RIStatsSubQuery extends AbstractRIStatsSubQuery {
     /**
      * Check if valid scope for RI Coverage request.
      *
-     * @param context the {@link StatsQueryContext}.
      * @return {@code true} if scope is valid for coverage request
      */
-    private boolean isValidScopeForCoverageRequest(@Nonnull final StatsQueryContext context) {
+    private boolean isValidScopeForCoverageRequest() {
         // Only allow non-scoped-observer users.
-        if (userSessionContext.isUserObserver() && userSessionContext.isUserScoped()) {
-            return false;
-        }
-        return context.getInputScope()
-                .getScopeTypes()
-                .map(scopeTypes -> scopeTypes.size() == 1)
-                .orElse(context.isGlobalScope());
+        return !(userSessionContext.isUserObserver() && userSessionContext.isUserScoped());
     }
 }

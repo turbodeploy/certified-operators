@@ -148,6 +148,12 @@ public class ServiceConfig {
     @Value("${deploymentMode:SERVER}")
     private DeploymentMode deploymentMode;
 
+    /**
+     * Configuration used to enable/disable ui reporting section.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
+
     @Value("${apiPaginationDefaultLimit:100}")
     private int apiPaginationDefaultLimit;
 
@@ -204,14 +210,19 @@ public class ServiceConfig {
                                   communicationConfig.getRealtimeTopologyContextId(),
                                   actionStatsQueryExecutor(),
                                   mapperConfig.uuidMapper(),
-                                  communicationConfig.serviceProviderExpander());
+                                  communicationConfig.serviceProviderExpander(),
+                                  actionSearchUtil(),
+                                  marketsService(),
+                                  communicationConfig.supplyChainFetcher(),
+                                  apiPaginationMaxLimit);
     }
 
     @Bean
     public AdminService adminService() {
         return new AdminService(clusterService(), keyValueStoreConfig.keyValueStore(),
             communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate(),
-            websocketConfig.websocketHandler(), BuildProperties.get(), this.deploymentMode);
+            websocketConfig.websocketHandler(), BuildProperties.get(), this.deploymentMode,
+                this.enableReporting);
     }
 
     @Bean
@@ -675,7 +686,8 @@ public class ServiceConfig {
             communicationConfig.supplyChainFetcher(),
             userSessionContext(),
             communicationConfig.repositoryApi(),
-            mapperConfig.buyRiScopeHandler());
+            mapperConfig.buyRiScopeHandler(),
+            communicationConfig.thinTargetCache());
     }
 
     @Bean

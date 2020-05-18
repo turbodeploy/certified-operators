@@ -77,6 +77,8 @@ public class SamlApiSecurityConfig extends ApiSecurityConfig {
                 relyingPartyRegistrationRepository())
                 .loginProcessingUrl(LOGIN_PROCESSING_URL) // IDP redirect URL
                 .authenticationManager(new ProviderManager(asList(samlAuthenticationProvider)))
+                .failureHandler((request, response, exception) -> response.getWriter()
+                        .println(exception.getMessage()))
                 .successHandler(successRedirectHandler()));
 
         // customize SAML authentication request to support adding base URL (/vmturbo).

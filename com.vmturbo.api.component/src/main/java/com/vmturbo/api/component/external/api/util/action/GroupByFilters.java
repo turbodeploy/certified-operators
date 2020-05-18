@@ -147,6 +147,15 @@ public class GroupByFilters {
         setValue(StringConstants.TEMPLATE, template);
     }
 
+    /**
+     * Add a filter with particular csp type.
+     *
+     * @param cspType the type of cloud service provider
+     */
+    public void setCSP(final String cspType) {
+        setValue(StringConstants.CSP, cspType);
+    }
+
     @Nonnull
     public List<StatFilterApiDTO> getFilters() {
         return Lists.newArrayList(filtersByName.values());

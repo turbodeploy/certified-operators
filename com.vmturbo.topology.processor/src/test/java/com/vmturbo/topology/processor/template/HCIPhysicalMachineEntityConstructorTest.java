@@ -1,5 +1,8 @@
 package com.vmturbo.topology.processor.template;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Type;
@@ -24,6 +27,7 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
@@ -31,7 +35,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
@@ -57,56 +60,15 @@ public class HCIPhysicalMachineEntityConstructorTest {
     private static final long[] OIDS = {11111111111111L, 22222222222222L};
     private static int oidCount = 0;
 
-    private static final IdentityProvider IDENTITY_PROVIDER = new IdentityProvider() {
-        @Override
-        public long generateTopologyId() {
-            return OIDS[oidCount++];
-        }
+    private final IdentityProvider identityProvider = mock(IdentityProvider.class);
 
-        @Override
-        public void restoreDiags(List<String> arg0) throws DiagnosticsException {
-        }
-
-        @Override
-        public void collectDiags(DiagnosticsAppender arg0) throws DiagnosticsException {
-        }
-
-        @Override
-        public String getFileName() {
-            return null;
-        }
-
-        @Override
-        public long getTargetId(TargetSpec targetSpec) {
-            return 0;
-        }
-
-        @Override
-        public long getProbeId(ProbeInfo probeInfo) throws IdentityProviderException {
-            return 0;
-        }
-
-        @Override
-        public Map<Long, EntityDTO> getIdsForEntities(long probeId, List<EntityDTO> entityDTOs)
-                throws IdentityUninitializedException, IdentityMetadataMissingException,
-                IdentityProviderException {
-            return null;
-        }
-
-        @Override
-        public long getCloneId(TopologyEntityDTOOrBuilder inputEntity) {
-            return 0;
-        }
-
-        @Override
-        public long generateOperationId() {
-            return 0;
-        }
-
-        @Override
-        public void updateProbeInfo(ProbeInfo probeInfo) {
-        }
-    };
+    /**
+     * Common setup before every test.
+     */
+    @Before
+    public void setup() {
+        when(identityProvider.generateTopologyId()).thenAnswer(invocationOnMock -> OIDS[oidCount++]);
+    }
 
     /**
      * Test constructing HCI entities from the HCI template.
@@ -143,19 +105,19 @@ public class HCIPhysicalMachineEntityConstructorTest {
         }
 
         // Run test
-        Collection<Builder> result = new HCIPhysicalMachineEntityConstructor(template, topology,
-                Collections.singletonList(originalHostBuilder), true, IDENTITY_PROVIDER)
-                        .createTopologyEntitiesFromTemplate();
+        Collection<TopologyEntityDTO.Builder> result = new HCIPhysicalMachineEntityConstructor(
+                template, topology, Collections.singletonList(originalHostBuilder), true,
+                identityProvider).createTopologyEntitiesFromTemplate();
 
         Assert.assertEquals(2, result.size());
-        Builder newHost = result.stream()
+        TopologyEntityDTO.Builder newHost = result.stream()
                 .filter(o -> o.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE).findFirst()
                 .get();
-        Builder newStorage = result.stream()
+        TopologyEntityDTO.Builder newStorage = result.stream()
                 .filter(o -> o.getEntityType() == EntityType.STORAGE_VALUE).findFirst().get();
 
-        Builder originalHost = originalHostBuilder.getEntityBuilder();
-        Builder originalStorage = originalStorageBuilder.getEntityBuilder();
+        TopologyEntityDTO.Builder originalHost = originalHostBuilder.getEntityBuilder();
+        TopologyEntityDTO.Builder originalStorage = originalStorageBuilder.getEntityBuilder();
 
         // Check the original entities for modifications
         Assert.assertEquals(newHost.getOid(),
@@ -199,27 +161,8 @@ public class HCIPhysicalMachineEntityConstructorTest {
         }
     }
 
-    private List<TopologyEntityDTO> loadEntities()
-            throws IOException, InvalidProtocolBufferException {
-        List<TopologyEntityDTO> result = new ArrayList<>();
-
-        String entitiesStr = readResourceFileAsString("HCIPlanEntities.json");
-        Type listType = new TypeToken<List<Object>>() {
-        }.getType();
-        List<Object> entitiesObj = new Gson().fromJson(entitiesStr, listType);
-
-        for (Object o : entitiesObj) {
-            String str = new Gson().toJson(o);
-            TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder();
-            JsonFormat.parser().merge(str, builder);
-            result.add(builder.build());
-        }
-
-        return result;
-    }
-
-    private static void checkMissingSoldCommodity(@Nonnull Builder originalEntity,
-            @Nonnull Builder newEntity) {
+    private static void checkMissingSoldCommodity(@Nonnull TopologyEntityDTO.Builder originalEntity,
+            @Nonnull TopologyEntityDTO.Builder newEntity) {
         for (CommoditySoldDTO commOrig : originalEntity.getCommoditySoldListList()) {
             List<CommoditySoldDTO> comms = newEntity.getCommoditySoldListList().stream()
                     .filter(commNew -> commOrig.getCommodityType().getType() == commNew
@@ -259,7 +202,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
     private Template loadTemplate(@Nonnull String jsonFileName) throws IOException {
         String str = readResourceFileAsString(jsonFileName);
         Template.Builder builder = Template.newBuilder();
-        JsonFormat.parser().merge(str, builder);
+        JsonFormat.parser().ignoringUnknownFields().merge(str, builder);
 
         return builder.build();
     }
@@ -269,7 +212,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
             throws IOException {
         String str = readResourceFileAsString(jsonFileName);
         TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder();
-        JsonFormat.parser().merge(str, builder);
+        JsonFormat.parser().ignoringUnknownFields().merge(str, builder);
 
         return builder.build();
     }

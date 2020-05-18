@@ -156,7 +156,7 @@ public class KafkaMessageConsumer implements AutoCloseable, IMessageReceiverFact
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", ByteArrayDeserializer.class.getName());
         props.put("session.timeout.ms", 90000);
-        props.put("max.poll.records", 1);
+        props.put("max.poll.records", 500);
         props.put("max.poll.interval.ms", 90000);
         props.put("fetch.max.bytes", 67108864);
         props.put("auto.offset.reset", "earliest");
