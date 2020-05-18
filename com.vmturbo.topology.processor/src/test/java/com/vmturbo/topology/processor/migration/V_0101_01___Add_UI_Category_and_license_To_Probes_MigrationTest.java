@@ -24,7 +24,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 /**
  * Test probe migration.
  */
-public class V_01_00_05__Add_UI_Category_and_license_To_Probes_MigrationTest {
+public class V_0101_01___Add_UI_Category_and_license_To_Probes_MigrationTest {
 
     private static final String PROBE_ID = "73432431951280";
     private static final Map<String, String> PROBES =
@@ -32,14 +32,14 @@ public class V_01_00_05__Add_UI_Category_and_license_To_Probes_MigrationTest {
                     "{\"probeType\": \"AWS\",\"probeCategory\": \"Cloud Management\"," +
                         "\"supplyChainDefinitionSet\": []}");
 
-    private V_01_00_05__Add_UI_Category_and_license_To_Probes_Migration migration;
+    private V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration migration;
     private final KeyValueStore kvStore = Mockito.mock(KeyValueStore.class);
 
     @Before
     public void setUp() {
         Mockito.when(kvStore.getByPrefix(ProbeStore.PROBE_KV_STORE_PREFIX))
                 .thenReturn(PROBES);
-        migration = new V_01_00_05__Add_UI_Category_and_license_To_Probes_Migration(kvStore);
+        migration = new V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration(kvStore);
     }
 
     /**
