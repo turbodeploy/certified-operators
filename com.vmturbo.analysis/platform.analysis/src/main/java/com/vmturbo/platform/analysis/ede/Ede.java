@@ -36,7 +36,6 @@ import com.vmturbo.platform.analysis.utilities.CostFunctionFactory;
 import com.vmturbo.platform.analysis.utilities.M2Utils;
 import com.vmturbo.platform.analysis.utilities.PlacementResults;
 import com.vmturbo.platform.analysis.utilities.PlacementStats;
-import com.vmturbo.platform.analysis.utilities.ProvisionUtils;
 import com.vmturbo.platform.analysis.utilities.QuoteTracker;
 import com.vmturbo.platform.analysis.utilities.StatsManager;
 import com.vmturbo.platform.analysis.utilities.StatsUtils;
@@ -49,9 +48,6 @@ import com.vmturbo.platform.analysis.utilities.StatsWriter;
  *
  */
 public final class Ede {
-
-    // Fields
-    private transient @NonNull ReplayActions replayActions_;
 
     // Constructor
 
@@ -93,58 +89,54 @@ public final class Ede {
     }
 
     /**
-     * Generate Actions.
+     * Returns a new set of actions for a snapshot of the economy.
      *
-     * Add 'collapse' argument
-     * @see #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, String)
-     */
-    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
-                                                          boolean classifyActions,
-                                                          boolean isProvision, boolean isSuspension,
-                                                          boolean isResize, String mktName) {
-        return generateActions(economy, classifyActions, isProvision, isSuspension,
-                               isResize, false, false, mktName, SuspensionsThrottlingConfig.DEFAULT);
-    }
-
-    /** Generate Actions.
-     *
-     * Add 'collapse' and 'replay' argument
-     * @see #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, String)
-     */
-    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
-                                                          boolean classifyActions,
-                                                          boolean isProvision, boolean isSuspension,
-                                                          boolean isResize) {
-        return generateActions(economy, classifyActions, isProvision, isSuspension,
-                               isResize, false, false, "unspecified|",
-                               SuspensionsThrottlingConfig.DEFAULT);
-    }
-
-    /**
-     * Create a new set of actions for a snapshot of the economy.
+     * <p>This is an overloaded version providing default values for a number of arguments.</p>
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
      * @param classifyActions True if we we want to classify actions into non-executable.
      * @param isProvision True if we need to trigger provision algorithm and false otherwise
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
      * @param isResize True if we need to trigger resize algorithm and false otherwise
-     * @param collapse whether to collapse the returned list of actions.
+     * @param mktName contains the market name and any stats to be written to the row
+     *          delimited by "|"
+     *
      * @return A list of actions suggested by the economic decisions engine.
      *
-     * @see ActionCollapse#collapsed(List)
+     * @see #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, ReplayActions, String)
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
-                                                          boolean classifyActions,
-                                                          boolean isProvision,
-                                                          boolean isSuspension,
-                                                          boolean isResize, boolean collapse) {
+            boolean classifyActions, boolean isProvision, boolean isSuspension, boolean isResize,
+            String mktName) {
         return generateActions(economy, classifyActions, isProvision, isSuspension,
-                               isResize, collapse, false, "unspecified|",
+                               isResize, false, false, new ReplayActions(), mktName,
                                SuspensionsThrottlingConfig.DEFAULT);
     }
 
     /**
-     * Create a new set of actions for a snapshot of the economy.
+     * Returns a new set of actions for a snapshot of the economy.
+     *
+     * <p>This is an overloaded version providing default values for a number of arguments.</p>
+     *
+     * @param economy The snapshot of the economy which we analyze and take decisions.
+     * @param classifyActions True if we we want to classify actions into non-executable.
+     * @param isProvision True if we need to trigger provision algorithm and false otherwise
+     * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
+     * @param isResize True if we need to trigger resize algorithm and false otherwise
+     *
+     * @return A list of actions suggested by the economic decisions engine.
+     *
+     * @see #generateActions(Economy, boolean, boolean, boolean, boolean, boolean, boolean, ReplayActions, String)
+     */
+    public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
+            boolean classifyActions, boolean isProvision, boolean isSuspension, boolean isResize) {
+        return generateActions(economy, classifyActions, isProvision, isSuspension,
+                               isResize, false, false, new ReplayActions(), "unspecified|",
+                               SuspensionsThrottlingConfig.DEFAULT);
+    }
+
+    /**
+     * Returns a new set of actions for a snapshot of the economy.
      *
      * @param economy The snapshot of the economy which we analyze and take decisions.
      * @param classifyActions True if we we want to classify actions into non-executable.
@@ -153,6 +145,10 @@ public final class Ede {
      * @param isResize True if we need to trigger resize algorithm and false otherwise
      * @param collapse whether to collapse the returned list of actions.
      * @param isReplay True if we want to run replay algorithm and false otherwise
+     * @param seedActions Actions that should be used to "seed" various analysis algorithms. This
+     *                    can be for stability or performance. e.g. to deactivate the same traders
+     *                    as last cycle or to start with more supply to spend less time in provision
+     *                    algorithm.
      * @param mktData contains the market name and any stats to be written to the row
      *          delimited by "|"
      * @param suspensionsThrottlingConfig level of Suspension throttling.
@@ -164,7 +160,8 @@ public final class Ede {
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
                     boolean classifyActions, boolean isProvision, boolean isSuspension,
-                    boolean isResize, boolean collapse, boolean isReplay, String mktData,
+                    boolean isResize, boolean collapse, boolean isReplay,
+                    @NonNull ReplayActions seedActions, String mktData,
                     SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
         String analysisLabel = "Analysis ";
         logger.info(analysisLabel + "Started.");
@@ -291,9 +288,8 @@ public final class Ede {
         // resize time
         statsUtils.after();
 
-        if (isReplay && getReplayActions() != null) {
-            getReplayActions().replayActions(economy, ledger, suspensionsThrottlingConfig);
-            actions.addAll(getReplayActions().getActions());
+        if (isReplay) {
+            actions.addAll(seedActions.tryReplayDeactivateActions(economy, ledger, suspensionsThrottlingConfig));
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "replaying");
         }
 
@@ -309,7 +305,7 @@ public final class Ede {
         // trigger provision, suspension and resize algorithm only when needed
         int oldActionCount = actions.size();
         if (isProvision) {
-            actions.addAll(Provision.provisionDecisions(economy, ledger, this));
+            actions.addAll(Provision.provisionDecisions(economy, ledger));
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "provisioning");
             // if provision generated some actions, run placements
             if (actions.size() > oldActionCount) {
@@ -325,18 +321,10 @@ public final class Ede {
         statsUtils.before();
         if (isSuspension) {
             Suspension suspension = new Suspension(suspensionsThrottlingConfig);
-            if (getReplayActions() != null) {
-                // initialize the rolled back trader list from last run
-                getReplayActions().translateRolledbackTraders(economy, economy.getTopology());
-                suspension.setRolledBack(getReplayActions().getRolledBackSuspensionCandidates());
-            }
             // find if any seller is the sole provider in any market, if so, it should not
             // be considered as suspension candidate
             suspension.findSoleProviders(economy);
             actions.addAll(suspension.suspensionDecisions(economy, ledger));
-            if (getReplayActions() != null) {
-                getReplayActions().getRolledBackSuspensionCandidates().addAll(suspension.getRolledBack());
-            }
             logPhaseAndClearPlacementStats(actionStats, economy.getPlacementStats(), "suspending");
         }
         // suspension time
@@ -383,6 +371,7 @@ public final class Ede {
      * @param isSuspension True if we need to trigger suspension algorithm and false otherwise
      * @param isResize True if we need to trigger resize algorithm and false otherwise
      * @param collapse whether to collapse the returned list of actions.
+     * @param seedActions Actions that should be used to "seed" various analysis algorithms.
      * @param mktData contains the market name and any stats to be written to the row
      *          delimited by "|"
      * @param isRealTime True for analysis of a realtime topology
@@ -394,22 +383,20 @@ public final class Ede {
      * @see ActionCollapse#collapsed(List)
      */
     public @NonNull List<@NonNull Action> generateActions(@NonNull Economy economy,
-                                                          boolean classifyActions,
-                                                          boolean isProvision, boolean isSuspension,
-                                                          boolean isResize, boolean collapse,
-                                                          String mktData, boolean isRealTime,
-                                          SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
+            boolean classifyActions, boolean isProvision, boolean isSuspension, boolean isResize,
+            boolean collapse, @NonNull ReplayActions seedActions, String mktData,
+            boolean isRealTime, SuspensionsThrottlingConfig suspensionsThrottlingConfig) {
         @NonNull List<Action> actions = new ArrayList<>();
         // only run replay in first sub round for realTime market.
-        boolean isReplay = true;
         if (isRealTime) {
             economy.getSettings().setResizeDependentCommodities(false);
             // run a round of analysis without provisions.
             actions.addAll(generateActions(economy, classifyActions, false, isSuspension,
-                            isResize, collapse, isReplay, mktData, suspensionsThrottlingConfig));
+                            isResize, collapse, true, seedActions, mktData,
+                            suspensionsThrottlingConfig));
         } else {
             actions.addAll(generateActions(economy, classifyActions, isProvision,
-                            isSuspension, isResize, collapse, !isReplay, mktData,
+                            isSuspension, isResize, collapse, false, new ReplayActions(), mktData,
                             suspensionsThrottlingConfig));
         }
 
@@ -459,21 +446,6 @@ public final class Ede {
                     + " actions.");
         return actions;
     }
-
-    /**
-     * save the {@link ReplayActions} associated with this {@link Ede}
-     */
-    public Ede setReplayActions(ReplayActions state) {
-        replayActions_ = state;
-        return this;
-    }
-
-    /**
-     * @return return the {@link ReplayActions} associated with this {@link Ede}
-     */
-     public ReplayActions getReplayActions() {
-         return replayActions_;
-     }
 
     /**
      * Log basket sold of traders for which debug has been enabled from advanced tab.

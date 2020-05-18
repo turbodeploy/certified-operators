@@ -1,7 +1,6 @@
 package com.vmturbo.platform.analysis.translators;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -69,7 +68,6 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificationTO;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults;
 import com.vmturbo.platform.analysis.protobuf.CommunicationDTOs.AnalysisResults.NewShoppingListToBuyerEntry;
-import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.Context;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.ShoppingListTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderSettingsTO;
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderStateTO;
@@ -427,7 +425,7 @@ public final class AnalysisToProtobuf {
             ActivateTO.Builder activateBuilder = ActivateTO.newBuilder()
                     .setTraderToActivate(traderOid.get(activate.getTarget()))
                     .setModelSeller(traderOid.get(activate.getModelSeller()))
-                    .addAllTriggeringBasket(specificationTOs(activate.getSourceMarket().getBasket()));
+                    .addAllTriggeringBasket(specificationTOs(activate.getTriggeringBasket()));
             if (activate.getReason() != null) {
                 activateBuilder.setMostExpensiveCommodity(activate.getReason().getBaseType());
             }
@@ -435,9 +433,8 @@ public final class AnalysisToProtobuf {
         } else if (input instanceof Deactivate) {
             Deactivate deactivate = (Deactivate)input;
             builder.setDeactivate(DeactivateTO.newBuilder()
-                            .setTraderToDeactivate(traderOid.get(deactivate.getTarget()))
-                            .addAllTriggeringBasket(specificationTOs(deactivate.getSourceMarket() != null ?
-                                            deactivate.getSourceMarket().getBasket() : new Basket(Collections.emptyList()))));
+                   .setTraderToDeactivate(traderOid.get(deactivate.getTarget()))
+                   .addAllTriggeringBasket(specificationTOs(deactivate.getTriggeringBasket())));
         } else if (input instanceof ProvisionByDemand) {
             ProvisionByDemand provDemand = (ProvisionByDemand)input;
             ProvisionByDemandTO.Builder provDemandTO = ProvisionByDemandTO.newBuilder()
@@ -447,8 +444,6 @@ public final class AnalysisToProtobuf {
                             // and add the oid into BiMap traderOids_
                             .setProvisionedSeller(topology.addProvisionedTrader(
                                             provDemand.getProvisionedSeller()));
-            // set oid for use in the next round for replaying of actions
-            provDemand.setOid(topology.getTraderOids().get(provDemand.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists
             topology.getEconomy()
                 .getMarketsAsBuyer(provDemand.getProvisionedSeller())
@@ -508,8 +503,6 @@ public final class AnalysisToProtobuf {
                                                                             .getModelSeller(),
                                                                             topology.getEconomy())
                                                             : provSupply.getReason()));
-            // set oid for use in the next round for replaying of actions
-            provSupply.setOid(topology.getTraderOids().get(provSupply.getProvisionedSeller()));
             // create shopping list OIDs for the provisioned shopping lists
             topology.getEconomy()
                 .getMarketsAsBuyer(provSupply.getProvisionedSeller())

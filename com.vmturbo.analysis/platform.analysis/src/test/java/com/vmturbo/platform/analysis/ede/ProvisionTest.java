@@ -5,6 +5,10 @@ import static org.junit.Assert.assertTrue;
 import java.util.Arrays;
 import java.util.List;
 
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -18,10 +22,6 @@ import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 import com.vmturbo.platform.analysis.ledger.Ledger;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 /**
  * Test the functionality of {@link Provision#provisionDecisions}.
@@ -104,8 +104,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, allActions);
         if (baseTypeOfReasonCommodity == -1) {
@@ -178,8 +177,7 @@ public class ProvisionTest {
             }
         }
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 0);
     }
@@ -223,8 +221,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 2);
         assertMoveCount(actions, 2);
@@ -252,8 +249,7 @@ public class ProvisionTest {
         st1.setDebugInfoNeverUseInCode("DS1");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 0);
     }
@@ -292,8 +288,7 @@ public class ProvisionTest {
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         economy.setForceStop(true);
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 0);
     }
@@ -333,8 +328,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 0);
     }
@@ -376,8 +370,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 0);
     }
@@ -419,8 +412,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 4);
         assertActivateCount(actions, 1);
@@ -465,8 +457,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 4);
         assertActivateCount(actions, 1);
@@ -515,8 +506,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 4);
         assertActivateCount(actions, 2);
@@ -560,8 +550,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 4);
         assertProvisionBySupplyCount(actions, 2);
@@ -605,8 +594,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 4);
         assertProvisionBySupplyCount(actions, 2);
@@ -654,8 +642,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 4);
         assertProvisionBySupplyCount(actions, 2);
@@ -703,8 +690,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 4);
         assertProvisionBySupplyCount(actions, 1);
@@ -753,8 +739,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 4);
         assertProvisionBySupplyCount(actions, 1);
@@ -807,8 +792,7 @@ public class ProvisionTest {
         vm2.setDebugInfoNeverUseInCode("VM2");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 4);
         assertProvisionBySupplyCount(actions, 1);
@@ -842,8 +826,7 @@ public class ProvisionTest {
         vm1.setDebugInfoNeverUseInCode("VM1");
         economy.populateMarketsWithSellersAndMergeConsumerCoverage();
 
-        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy),
-                                                                        new Ede());
+        List<Action> actions = Provision.provisionDecisions(economy, new Ledger(economy));
 
         assertAllCount(actions, 0);
     }

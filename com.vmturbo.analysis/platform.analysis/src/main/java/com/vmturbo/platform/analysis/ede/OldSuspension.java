@@ -6,15 +6,17 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.javari.qual.ReadOnly;
-
 import com.google.common.collect.Lists;
+
+import org.checkerframework.checker.javari.qual.ReadOnly;
+import org.checkerframework.checker.nullness.qual.NonNull;
+
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
 import com.vmturbo.platform.analysis.actions.CompoundMove;
 import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.Move;
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -93,7 +95,8 @@ public class OldSuspension {
                 }
                 double oldRevenue = ledger.getTraderIncomeStatements()
                                 .get(leastProfitableTrader.getEconomyIndex()).getRevenues();
-                takeActionAndUpdateLedger(economy, market, ledger, leastProfitableTrader, actions);
+                takeActionAndUpdateLedger(economy, market.getBasket(), ledger,
+                                            leastProfitableTrader, actions);
 
                 List<@NonNull Action> placementActions = Placement.runPlacementsTillConverge(
                                 economy, ledger, SUSPENSION_PHASE).getActions();
@@ -217,16 +220,16 @@ public class OldSuspension {
      * created, executed and added to the list returned.
      *
      * @param economy - the {@link Economy} in which the suspend action is taken place
-     * @param market - the {@link Market} in which the suspend action takes place
+     * @param triggeringBasket - The {@link Basket} of the {@link Market} in which the suspend
+     *                         action takes place
      * @param ledger -  the {@link Ledger} that holds the incomeStatement of the economy
      * @param bestTraderToEngage - the trader that satisfies the engagement criteria best
      * @param actions - a list that the suspend action would be added to
      */
-    public void takeActionAndUpdateLedger(Economy economy, Market market, Ledger ledger,
-                    Trader bestTraderToEngage, List<@NonNull Action> actions) {
-        Deactivate deactivateAction = new Deactivate(economy, bestTraderToEngage, market);
+    public void takeActionAndUpdateLedger(Economy economy, @NonNull Basket triggeringBasket,
+              Ledger ledger, Trader bestTraderToEngage, List<@NonNull Action> actions) {
+        Deactivate deactivateAction = new Deactivate(economy, bestTraderToEngage, triggeringBasket);
         actions.add(deactivateAction.take());
-        return;
     }
 
     /**

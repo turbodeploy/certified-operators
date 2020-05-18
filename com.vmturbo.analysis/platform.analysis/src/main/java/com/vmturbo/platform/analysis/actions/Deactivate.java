@@ -10,17 +10,16 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import com.google.common.hash.Hashing;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.hash.Hashing;
-
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
@@ -31,9 +30,6 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 public class Deactivate extends StateChangeBase { // inheritance for code reuse
 
     private static final Logger logger = LogManager.getLogger();
-    private final @NonNull Economy economy_;
-    // Actions triggered by chaining Deactivate actions triggering by providerMustClone
-    private List<@NonNull Action> subsequentActions_ = new ArrayList<>();
     private List<ShoppingList> removedShoppingLists = new ArrayList<>();
 
     // Constructors
@@ -41,25 +37,18 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
     /**
      * Constructs a new Deactivate action with the specified target.
      *
+     * @param economy The economy containing <b>target</b>.
      * @param target The trader that will be deactivated as a result of taking {@code this} action.
-     * @param sourceMarket The market that benefits from deactivating target.
-     *                     The sourceMarket can be NULL when the target doesn't sell in any market
+     * @param triggeringBasket The basket bought of the market that benefits from deactivating
+     *                         target or the basket sold by the trader that doesn't sell in any
+     *                         market.
      */
-    public Deactivate(@NonNull Economy economy, @NonNull Trader target, @Nullable Market sourceMarket) {
-        super(target,sourceMarket);
-        economy_ = economy;
-
+    public Deactivate(@NonNull Economy economy, @NonNull Trader target,
+                      @NonNull Basket triggeringBasket) {
+        super(economy, target, triggeringBasket);
     }
 
     // Methods
-
-    /**
-     * Returns the economy in which the new seller will be added.
-     */
-    @Pure
-    public @NonNull Economy getEconomy(@ReadOnly Deactivate this) {
-        return economy_;
-    }
 
     @Override
     public @NonNull String serialize(@NonNull Function<@NonNull Trader, @NonNull String> oid) {
@@ -83,7 +72,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                 .map(ShoppingList::getBuyer)
             .filter(trader -> trader.getSettings().isResizeThroughSupplier())
             .forEach(trader -> {
-                    economy_.getMarketsAsBuyer(trader).keySet().stream()
+                    getEconomy().getMarketsAsBuyer(trader).keySet().stream()
                         .filter(shoppingList -> shoppingList.getSupplier() == target)
                         .forEach(sl -> {
                             // Generate the resize actions for matching commodities between
@@ -92,7 +81,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                                                                                     getEconomy(),
                                                                                     target,
                                                                                     sl, false));
-                });
+                        });
             });
         } catch (Exception e) {
             logger.error("Error in Deactivate for resizeThroughSupplier Trader Capacity "
@@ -132,6 +121,26 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
         return this;
     }
 
+    @Override
+    public @NonNull Deactivate port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        return new Deactivate(destinationEconomy, destinationTrader.apply(getTarget()),
+            getTriggeringBasket());
+    }
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a deactivate is considered valid iff the target trader is suspendable and
+     * active.</p>
+     */
+    @Override
+    public boolean isValid() {
+        return getTarget().getSettings().isSuspendable() && getTarget().getState().isActive();
+    }
+
     // TODO: update description and reason when we create the corresponding matrix.
     @Override
     public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
@@ -152,12 +161,9 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
                     @NonNull Function<@NonNull Trader, @NonNull String> name,
                     @NonNull IntFunction<@NonNull String> commodityType,
                     @NonNull IntFunction<@NonNull String> traderType) {
-        if (getSourceMarket() != null) {
-            return new StringBuilder().append("Because of insufficient demand for ")
-                            .append(getSourceMarket().getBasket()).append(".").toString(); // TODO: print basket in human-readable form.
-        } else {
-            return new StringBuilder().append("Because trader has no customers.").toString();
-        }
+        return new StringBuilder().append("Because of insufficient demand for ")
+                                  .append(getTriggeringBasket()).append(".").toString();
+                                  // TODO: print basket in human-readable form.
     }
 
     /**
@@ -166,13 +172,13 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
     @Override
     @Pure
     public boolean equals(@ReadOnly Deactivate this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof Deactivate)) {
+        if (!(other instanceof Deactivate)) {
             return false;
         }
         Deactivate otherDeactivate = (Deactivate)other;
         return otherDeactivate.getEconomy() == getEconomy()
                         && otherDeactivate.getTarget() == getTarget()
-                        && otherDeactivate.getSourceMarket() == getSourceMarket();
+                        && otherDeactivate.getTriggeringBasket().equals(getTriggeringBasket());
     }
 
     /**
@@ -182,10 +188,7 @@ public class Deactivate extends StateChangeBase { // inheritance for code reuse
     @Pure
     public int hashCode() {
         return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
-                        .putInt(getTarget().hashCode()).putInt(
-                                        ((getSourceMarket() != null) ? getSourceMarket()
-                                        : getTarget()).hashCode()).hash()
-                        .asInt();
+            .putInt(getTarget().hashCode()).putInt(getTriggeringBasket().hashCode()).hash().asInt();
     }
 
     @Override

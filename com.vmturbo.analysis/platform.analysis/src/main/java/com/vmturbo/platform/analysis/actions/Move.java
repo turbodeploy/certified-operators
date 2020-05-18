@@ -210,6 +210,35 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     }
 
     @Override
+    @Pure
+    public @NonNull Move port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        return new Move(destinationEconomy, destinationShoppingList.apply(getTarget()),
+            getSource() == null ? null : destinationTrader.apply(getSource()),
+            getDestination() == null ? null : destinationTrader.apply(getDestination()),
+            getContext());
+    }
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a move is considered valid iff the target shopping list is movable, the
+     * destination trader can accept new customers and the source trader is where the target
+     * shopping list is currently placed.
+     * </p>
+     */
+    // TODO: are those checks enough?
+    @Override
+    public boolean isValid() {
+        return getTarget().isMovable()
+            && (getDestination() == null || getDestination().getSettings().canAcceptNewCustomers())
+            // TODO: for replay this kind of makes sense but in general?
+            && getSource() == getTarget().getSupplier();
+    }
+
+    @Override
     public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
@@ -484,7 +513,7 @@ public class Move extends MoveBase implements Action { // inheritance for code r
     @Override
     @Pure
     public boolean equals(@ReadOnly Move this, @ReadOnly Object other) {
-        if (other == null || !(other instanceof Move)) {
+        if (!(other instanceof Move)) {
             return false;
         }
         Move otherMove = (Move)other;
