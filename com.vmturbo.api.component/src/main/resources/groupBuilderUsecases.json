@@ -74,7 +74,6 @@
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containersByName"},
             {"inputType": "*", "elements": "ContainerPod:displayName:PRODUCES", "filterCategory": "entity", "filterType": "containersByPodName"},
             {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES", "filterCategory": "entity", "filterType": "containersByNamespace"},
-            {"inputType": "*", "elements": "HostedBy:displayName", "filterCategory": "entity", "filterType": "containersByPodName"},
             {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByApplicationComponent"},
             {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByBusinessApplication"},
             {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByBusinessTransaction"},
