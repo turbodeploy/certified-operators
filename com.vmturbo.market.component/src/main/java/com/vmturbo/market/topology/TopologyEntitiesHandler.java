@@ -1,6 +1,5 @@
 package com.vmturbo.market.topology;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -14,6 +13,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
@@ -32,8 +32,8 @@ import com.vmturbo.market.runner.Analysis;
 import com.vmturbo.market.runner.AnalysisFactory.AnalysisConfig;
 import com.vmturbo.market.topology.conversions.MarketAnalysisUtils;
 import com.vmturbo.platform.analysis.actions.Action;
-import com.vmturbo.platform.analysis.actions.ActionType;
 import com.vmturbo.platform.analysis.actions.Activate;
+import com.vmturbo.platform.analysis.actions.Deactivate;
 import com.vmturbo.platform.analysis.actions.ProvisionBase;
 import com.vmturbo.platform.analysis.actions.ProvisionByDemand;
 import com.vmturbo.platform.analysis.actions.ProvisionBySupply;
@@ -232,13 +232,11 @@ public class TopologyEntitiesHandler {
                 + Long.toString(topologyInfo.getTopologyContextId()) + "-"
                 + Long.toString(topologyInfo.getTopologyId());
         // Set replay actions.
-        if (isRealtime) {
-            ede.setReplayActions(analysis.getReplayActions() == null ? new ReplayActions()
-                            : analysis.getReplayActions());
-        }
+        final @NonNull ReplayActions seedActions = isRealtime ? analysis.getReplayActions()
+                                                              : new ReplayActions();
         // trigger suspension throttling in XL
         actions = ede.generateActions(economy, true, true, true, true,
-                true, marketId, isRealtime,
+                true, seedActions, marketId, isRealtime,
                 isRealtime ? analysisConfig.getSuspensionsThrottlingConfig() : SuspensionsThrottlingConfig.DEFAULT);
         final long stop = System.nanoTime();
 
@@ -259,7 +257,6 @@ public class TopologyEntitiesHandler {
             // provision actions (market subcycle 1) and then if there are still insufficient resources
             // to meet demand, add any necessary provision actions on top of the recommendations without
             // provisions (market subcycle 2).
-            @NonNull List<Action> secondRoundActions = new ArrayList<>();
             AnalysisResults.Builder builder = results.toBuilder();
             economy.getSettings().setResizeDependentCommodities(false);
             // This is a HACK first implemented by the market for OM-31510 in legacy which subsequently
@@ -271,15 +268,17 @@ public class TopologyEntitiesHandler {
             // actions themselves in the results. Note that if we are to ever include any of the move/start
             // actions on the newly provisioned entities, excluding the provisioned entities will cause those
             // actions to reference entities not actually in the projected topology.
-            secondRoundActions.addAll(ede.generateActions(economy, true, true,
-                true, false, true, false, marketId, analysisConfig.getSuspensionsThrottlingConfig())
-                .stream().filter(action -> (action instanceof ProvisionByDemand
-                            || action instanceof ProvisionBySupply || action instanceof Activate)
-                            // Extract resizes that explicitly set extractAction
-                            // to true as part of resizeThroughSupplier
-                            // provision actions.
-                            || (action instanceof Resize && action.isExtractAction()))
-                .collect(Collectors.toList()));
+            @NonNull List<Action> secondRoundActions = ede.generateActions(economy, true, true,
+                true, false, true, false, seedActions, marketId,
+                analysisConfig.getSuspensionsThrottlingConfig()).stream()
+                .filter(action -> (action instanceof ProvisionByDemand
+                                || action instanceof ProvisionBySupply
+                                || action instanceof Activate)
+                                // Extract resize actions that explicitly set extractAction
+                                // to true as part of resizeThroughSupplier
+                                // provision actions.
+                                || action instanceof Resize && action.isExtractAction())
+                .collect(Collectors.toList());
             List<Trader> provisionedTraders = Lists.newArrayList();
 
             for (Action action : secondRoundActions) {
@@ -289,10 +288,8 @@ public class TopologyEntitiesHandler {
                     builder.addActions(actionTO);
                     // After action is added, find the provisioned trader
                     // to be added later in analysis results
-                    Trader provisionedTrader = null;
                     if (action instanceof ProvisionBase) {
-                        provisionedTrader = ((ProvisionBase)action).getProvisionedSeller();
-                        provisionedTraders.add(provisionedTrader);
+                        provisionedTraders.add(((ProvisionBase)action).getProvisionedSeller());
                     } else if (action instanceof Activate) {
                        /** Update state of traderTO that was already created
                          * because this is an existing entity.
@@ -314,12 +311,12 @@ public class TopologyEntitiesHandler {
             results = builder.build();
 
             // Update replay actions
-            ReplayActions newReplayActions = ede.getReplayActions();
-            newReplayActions.setTraderOids(topology.getTraderOids());
-            newReplayActions.setActions(actions.stream()
-                            .filter(action -> action.getType().equals(ActionType.DEACTIVATE))
-                            .collect(Collectors.toList()));
-            analysis.setReplayActions(newReplayActions);
+            analysis.setReplayActions(new ReplayActions(ImmutableList.of(),
+                                                actions.stream()
+                                                    .filter(action -> action instanceof Deactivate)
+                                                    .map(action -> (Deactivate)action)
+                                                    .collect(Collectors.toList()),
+                                                topology));
         }
 
         runTimer.observe();
