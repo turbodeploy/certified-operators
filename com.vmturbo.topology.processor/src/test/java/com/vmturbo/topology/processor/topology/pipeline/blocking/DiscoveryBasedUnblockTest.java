@@ -45,11 +45,13 @@ public class DiscoveryBasedUnblockTest {
 
     private final long maxDiscoveryWaitMs = 100_000;
 
+    private final long maxProbeRegistrationWaitMs = 10_000;
+
     private TopologyPipelineExecutorService pipelineExecutorService = mock(TopologyPipelineExecutorService.class);
 
     private DiscoveryBasedUnblockFactory unblockBroadcastsFactory = new DiscoveryBasedUnblockFactory(
             targetStore, operationManager, clock, targetShortCircuitCount, maxDiscoveryWaitMs,
-            TimeUnit.MILLISECONDS);
+            maxProbeRegistrationWaitMs, TimeUnit.MILLISECONDS);
 
     private IdentityProvider identityProvider = mock(IdentityProvider.class);
 
@@ -80,6 +82,74 @@ public class DiscoveryBasedUnblockTest {
         clock.addTime(maxDiscoveryWaitMs, ChronoUnit.MILLIS);
 
         // Timed out.
+        assertTrue(unblock.runIteration());
+    }
+
+    /**
+     * Test a target with no discovery for more than the configured period does not block
+     * broadcasts.
+     */
+    @Test
+    public void testProbeRegistrationTimeout() {
+        final Target t1 = setupTarget(1L);
+        when(operationManager.getLastDiscoveryForTarget(t1.getId(), DiscoveryType.FULL))
+                .thenReturn(Optional.empty());
+        when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
+
+        final DiscoveryBasedUnblock unblock =
+                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
+        assertFalse(unblock.runIteration());
+
+        // Getting close to the threshold.
+        clock.addTime(maxProbeRegistrationWaitMs - 1, ChronoUnit.MILLIS);
+
+        // Still not at threshold - waiting for probe to register.
+        assertFalse(unblock.runIteration());
+
+        clock.addTime(1, ChronoUnit.MILLIS);
+
+        // Probe still not registered. We ignore that target from now on.
+        assertTrue(unblock.runIteration());
+    }
+
+    /**
+     * Test that we wait for a target that has no associated discovery for more than the configured
+     * period BUT then gets an associated discovery while we are waiting for other targets.
+     */
+    @Test
+    public void testProbeRegistrationTimeoutThenWaiting() {
+        final Target t1 = setupTarget(1L);
+        final Target t2 = setupTarget(2L);
+        final Discovery t2d1 = newLastDiscovery(t2.getId());
+        when(operationManager.getLastDiscoveryForTarget(t1.getId(), DiscoveryType.FULL))
+                .thenReturn(Optional.empty());
+        when(targetStore.getAll()).thenReturn(Arrays.asList(t1, t2));
+
+        final DiscoveryBasedUnblock unblock =
+                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
+        assertFalse(unblock.runIteration());
+
+        // Got to the threshold, but we are still waiting for t2's discovery to complete.
+        clock.addTime(maxProbeRegistrationWaitMs, ChronoUnit.MILLIS);
+
+        assertFalse(unblock.runIteration());
+
+        // Some more time passes.
+        clock.addTime(10, ChronoUnit.MILLIS);
+        assertFalse(unblock.runIteration());
+
+        // Probe registered - AFTER the threshold, but while we are still waiting for another discovery.
+        final Discovery t1d1 = newLastDiscovery(t1.getId());
+        assertFalse(unblock.runIteration());
+
+        // The other discovery succeeds. But now we will still be waiting for t1's discovery.
+        t2d1.success();
+
+        assertFalse(unblock.runIteration());
+
+        t1d1.success();
+
+        // Both discoveries now completed.
         assertTrue(unblock.runIteration());
     }
 
