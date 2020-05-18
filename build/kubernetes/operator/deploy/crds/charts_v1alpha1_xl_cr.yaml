@@ -41,6 +41,8 @@ spec:
     enabled: true
   netapp:
     enabled: true
+  nutanix:
+    enabled: true
   oneview:
     enabled: true
   pure:
