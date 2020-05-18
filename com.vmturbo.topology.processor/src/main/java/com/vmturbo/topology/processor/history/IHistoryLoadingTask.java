@@ -17,6 +17,7 @@ public interface IHistoryLoadingTask<Config, DbValue> {
     /**
      * Load the history values for given set of commodity fields from the persistent store (history db).
      *
+     * It is expected that all entities are of the same type.
      * @param commodities collection of commodities to process
      * @param config configuration (e.g. observation window or averaging weights)
      * @return per-entity field values
