@@ -236,8 +236,7 @@ public class VoltronsContainer {
         return apiClient.ensureSet(() -> {
             TurboApiClient client = TurboApiClient.newBuilder()
                     .setHost("localhost")
-                    // TODO - make dynamic.
-                    .setPort(8080)
+                    .setPort(config.getServerHttpPort())
                     .setUser("administrator")
                     .setPassword("a")
                     .build();

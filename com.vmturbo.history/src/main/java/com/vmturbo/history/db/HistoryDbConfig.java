@@ -2,9 +2,14 @@ package com.vmturbo.history.db;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 import javax.annotation.Nonnull;
 import javax.sql.DataSource;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -16,6 +21,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
+import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.BulkInserterConfig;
 import com.vmturbo.history.db.bulk.ImmutableBulkInserterConfig;
 import com.vmturbo.history.flyway.ResetChecksumsForMyIsamInfectedMigrations;
@@ -126,6 +132,19 @@ public class HistoryDbConfig extends SQLDatabaseConfig {
                 .maxRetryBackoffMsec(maxRetryBackoffMsec)
                 .maxPendingBatches(maxPendingBatches)
                 .build();
+    }
+
+    /**
+     * Create a shared thread pool for bulk writers used by all the ingesters.
+     *
+     * @return new thread pool
+     */
+    @Bean(destroyMethod = "shutdownNow")
+    public ExecutorService bulkLoaderThreadPool() {
+        ThreadFactory factory = new ThreadFactoryBuilder()
+                .setNameFormat(BulkInserter.class.getSimpleName() + "-%d")
+                .build();
+        return Executors.newFixedThreadPool(parallelBatchInserts, factory);
     }
 
     /**

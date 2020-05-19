@@ -4,11 +4,10 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -20,7 +19,6 @@ import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingSt
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.history.api.HistoryApiConfig;
 import com.vmturbo.history.db.HistoryDbConfig;
-import com.vmturbo.history.db.bulk.BulkInserter;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
 import com.vmturbo.history.ingesters.common.ImmutableTopologyIngesterConfig;
 import com.vmturbo.history.ingesters.common.TopologyIngesterConfig;
@@ -276,7 +274,7 @@ public class IngestersConfig {
     @Bean
     RollupProcessor rollupProcessor() {
         return new RollupProcessor(
-                historyDbConfig.historyDbIO(), bulkLoaderThreadPool());
+                historyDbConfig.historyDbIO(), historyDbConfig.bulkLoaderThreadPool());
     }
 
     /**
@@ -346,19 +344,6 @@ public class IngestersConfig {
     @Bean
     Supplier<SimpleBulkLoaderFactory> bulkLoaderFactorySupplier() {
         return () -> new SimpleBulkLoaderFactory(historyDbConfig.historyDbIO(),
-                historyDbConfig.bulkLoaderConfig(), bulkLoaderThreadPool());
-    }
-
-    /**
-     * Create a shared thread pool for bulk writers used by all the ingesters.
-     *
-     * @return new thread pool
-     */
-    @Bean(destroyMethod = "shutdownNow")
-    ExecutorService bulkLoaderThreadPool() {
-        ThreadFactory factory = new ThreadFactoryBuilder()
-                .setNameFormat(BulkInserter.class.getSimpleName() + "-%d")
-                .build();
-        return Executors.newFixedThreadPool(historyDbConfig.parallelBatchInserts, factory);
+                historyDbConfig.bulkLoaderConfig(), historyDbConfig.bulkLoaderThreadPool());
     }
 }
