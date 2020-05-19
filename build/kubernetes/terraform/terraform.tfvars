@@ -7,6 +7,7 @@ appdynamics = true
 hpe3par = true
 hyperv = true
 netapp = true
+nutanix = true
 pure = true
 ucs = true
 vcenter = true

@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -34,6 +35,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
     private final Clock clock;
     private final int targetShortCircuitCount;
     private final long maxDiscoveryWaitMs;
+    private final long maxProbeRegistrationWaitPeriodMs;
 
     private final Map<Long, TargetDiscoveryInfo> targetDiscoveryInfoMap = new HashMap<>();
     private final long startMillis;
@@ -45,7 +47,8 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
             @Nonnull final IOperationManager operationManager,
             final int targetShortCircuitCount,
             @Nonnull final Clock clock,
-            final long maxDiscoveryWaitPeriodMs) {
+            final long maxDiscoveryWaitPeriodMs,
+            final long maxProbeRegistrationWaitPeriodMs) {
         this.pipelineExecutorService = pipelineExecutorService;
         this.targetStore = targetStore;
         this.operationManager = operationManager;
@@ -54,6 +57,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
         this.maxDiscoveryWaitMs = maxDiscoveryWaitPeriodMs;
         startMillis = clock.millis();
         endMillis = clock.millis() + maxDiscoveryWaitPeriodMs;
+        this.maxProbeRegistrationWaitPeriodMs = maxProbeRegistrationWaitPeriodMs;
     }
 
     /**
@@ -74,7 +78,15 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
          * The target has failed more than the threshold number of times. We won't wait for it
          * anymore.
          */
-        FAILURE_EXCEED_THRESHOLD
+        FAILURE_EXCEED_THRESHOLD,
+
+        /**
+         * The target's probe did not register within the configured threshold. We do not wait for
+         * targets with this status to be discovered before unblocking discovery. However, if the
+         * target's probe DOES register while we're waiting for other targets, we transition back
+         * to the "WAITING" status. This is why this state is not terminal.
+         */
+        PROBE_NOT_REGISTERED;
     }
 
     boolean runIteration() {
@@ -89,9 +101,12 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
 
         existingTargets.forEach(target -> {
             final TargetDiscoveryInfo info = targetDiscoveryInfoMap.computeIfAbsent(target.getId(),
-                    targetId -> new TargetDiscoveryInfo(targetId, targetShortCircuitCount));
-            operationManager.getLastDiscoveryForTarget(target.getId(), DiscoveryType.FULL)
-                    .ifPresent(info::updateDiscovery);
+                    targetId -> new TargetDiscoveryInfo(targetId,
+                            targetShortCircuitCount,
+                            // The "threshold" is "maxProbeRegistrationWaitPeriodMs" after we first see the target.
+                            clock.millis() + maxProbeRegistrationWaitPeriodMs));
+            Optional<Discovery> discovery = operationManager.getLastDiscoveryForTarget(target.getId(), DiscoveryType.FULL);
+            info.updateDiscovery(discovery, clock);
         });
 
         final Map<TargetWaitingStatus, List<TargetDiscoveryInfo>> byStatus = targetDiscoveryInfoMap.values().stream()
@@ -105,7 +120,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                         existingTargets.size(),
                         targetShortCircuitCount,
                         exceedThreshold.stream()
-                                .map(t -> Long.toString(t.getTargetId()))
+                                .map(t -> t.toString())
                                 .collect(Collectors.joining(", ")));
             } else {
                 logger.info("All {} targets have finished discovery. Unblocking broadcasts.",
@@ -116,6 +131,11 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
             logger.info("{}/{} are still not successfully discovered."
                             + " Waiting for remaining discoveries before allowing broadcasts.",
                     waitingCnt.size(), existingTargets.size());
+            logger.debug("Targets by status:\n{}", () -> byStatus.entrySet().stream()
+                    .map(e -> e.getKey() + " : [\n" + e.getValue().stream()
+                            .map(targetDiscoveryInfo -> targetDiscoveryInfo.toString())
+                            .collect(Collectors.joining("\n")) + "\n]")
+                    .collect(Collectors.joining("\n")));
             final long now = clock.millis();
             if (now < endMillis) {
                 // Not done waiting.
@@ -162,36 +182,76 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
     private static class TargetDiscoveryInfo {
         private final long targetId;
         private long lastDiscoveryId = 0;
-        private boolean hasSuccess = false;
         private int numFailedDiscoveries = 0;
         private final int shortCircuitThreshold;
 
-        TargetDiscoveryInfo(final long targetId, final int shortCircuitThreshold) {
+        /**
+         * If we get to this threshold and there is no discovery for the target, stop waiting for it.
+         */
+        private final long probeRegistrationThresholdMs;
+
+        private TargetWaitingStatus status = TargetWaitingStatus.WAITING;
+
+        TargetDiscoveryInfo(final long targetId,
+                            final int shortCircuitThreshold,
+                            final long probeRegistrationThresholdMs) {
             this.targetId = targetId;
             this.shortCircuitThreshold = shortCircuitThreshold;
+            this.probeRegistrationThresholdMs = probeRegistrationThresholdMs;
         }
 
-        long getTargetId() {
-            return targetId;
-        }
-
-        void updateDiscovery(Discovery discovery) {
-            if (hasSuccess) {
+        void updateDiscovery(Optional<Discovery> discoveryOpt, Clock clock) {
+            // Early return if we already had a successful discovery, or already had the "fatal"
+            // number of failed discoveries.
+            if (status == TargetWaitingStatus.FAILURE_EXCEED_THRESHOLD
+                    || status == TargetWaitingStatus.SUCCESS) {
                 return;
             }
 
-            if (discovery.getStatus() == Status.SUCCESS) {
-                hasSuccess = true;
-            } else if (discovery.getStatus() == Status.FAILED && discovery.getId() != lastDiscoveryId) {
-                numFailedDiscoveries++;
+            if (!discoveryOpt.isPresent()) {
+                // If we've never had a discovery yet, and we've reached the probe registration
+                // threshold.
+                if (lastDiscoveryId == 0 && clock.millis() >= probeRegistrationThresholdMs) {
+                    changeStatus(TargetWaitingStatus.PROBE_NOT_REGISTERED);
+                }
+            } else {
+                final Discovery discovery = discoveryOpt.get();
+                if (discovery.getStatus() == Status.SUCCESS) {
+                    changeStatus(TargetWaitingStatus.SUCCESS);
+                    status = TargetWaitingStatus.SUCCESS;
+                } else if (discovery.getStatus() == Status.FAILED && discovery.getId() != lastDiscoveryId) {
+                    numFailedDiscoveries++;
+                    logger.trace("{} new failed discovery detected. Total failed discovery count: {}",
+                         this, numFailedDiscoveries);
+                    if (numFailedDiscoveries >= shortCircuitThreshold) {
+                        changeStatus(TargetWaitingStatus.FAILURE_EXCEED_THRESHOLD);
+                    }
+                } else if (status == TargetWaitingStatus.PROBE_NOT_REGISTERED) {
+                    // If this target's probe was not registered within the threshold,
+                    // but registered while we were waiting for other targets to be discovered,
+                    // transition the probe back to "WAITING", since we can now wait for the
+                    // discovery to fail or succeed.
+                    changeStatus(TargetWaitingStatus.WAITING);
+                }
+                lastDiscoveryId = discovery.getId();
             }
-            lastDiscoveryId = discovery.getId();
+        }
+
+        private void changeStatus(TargetWaitingStatus newStatus) {
+            if (newStatus != status) {
+                logger.trace("{} transitioning from {} to {}", this, status, newStatus);
+                status = newStatus;
+            }
         }
 
         TargetWaitingStatus getStatus() {
-            return hasSuccess ? TargetWaitingStatus.SUCCESS
-                    : shortCircuitThreshold <= numFailedDiscoveries ? TargetWaitingStatus.FAILURE_EXCEED_THRESHOLD
-                    : TargetWaitingStatus.WAITING;
+            return status;
+        }
+
+        @Override
+        public String toString() {
+            return targetId + "(lastDiscovery : " + lastDiscoveryId
+                + " , numFailedDiscoveries : " + numFailedDiscoveries + ")";
         }
     }
 
@@ -204,6 +264,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
         private final Clock clock;
         private final int targetShortCircuitCount;
         private final long maxDiscoveryWaitMs;
+        private final long maxProbeRegistrationWaitMs;
 
         /**
          * Create a new instance of the factory.
@@ -214,6 +275,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
          * @param targetShortCircuitCount Maximum number of tolerated failed discoveries before
          *                                we stop waiting for the "bad" target.
          * @param maxDiscoveryWait Maximum time to wait for all targets to be discovered.
+         * @param maxProbeRegistrationWait Maximum time to wait for probes to be registered.
          * @param maxDiscoveryWaitTimeUnit Time unit for the max wait time.
          */
         public DiscoveryBasedUnblockFactory(@Nonnull final TargetStore targetStore,
@@ -221,11 +283,13 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
                 @Nonnull final Clock clock,
                 final int targetShortCircuitCount,
                 final long maxDiscoveryWait,
+                final long maxProbeRegistrationWait,
                 TimeUnit maxDiscoveryWaitTimeUnit) {
             this.targetStore = targetStore;
             this.operationManager = operationManager;
             this.clock = clock;
             this.targetShortCircuitCount = targetShortCircuitCount;
+            this.maxProbeRegistrationWaitMs = maxDiscoveryWaitTimeUnit.toMillis(maxProbeRegistrationWait);
             this.maxDiscoveryWaitMs = maxDiscoveryWaitTimeUnit.toMillis(maxDiscoveryWait);
         }
 
@@ -233,7 +297,7 @@ public class DiscoveryBasedUnblock implements PipelineUnblock {
         public DiscoveryBasedUnblock newUnblockOperation(@Nonnull final TopologyPipelineExecutorService pipelineExecutorService) {
             return new DiscoveryBasedUnblock(pipelineExecutorService, targetStore,
                     operationManager, targetShortCircuitCount, clock,
-                    maxDiscoveryWaitMs);
+                    maxDiscoveryWaitMs, maxProbeRegistrationWaitMs);
         }
 
     }

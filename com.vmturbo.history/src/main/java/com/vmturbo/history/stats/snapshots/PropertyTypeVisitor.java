@@ -84,7 +84,7 @@ public class PropertyTypeVisitor<D> extends BasePropertyVisitor<Record, Pair<Str
                     builder.setUnits(commodityTypeUnits.getUnits());
                 }
             }
-            if (propertyTypeCommodityKey.second != null && whetherToSet(builder.hasStatKey(),
+            if (StringUtils.isNotBlank(propertyTypeCommodityKey.second) && whetherToSet(builder.hasStatKey(),
                             record)) {
                 builder.setStatKey(propertyTypeCommodityKey.second);
             }

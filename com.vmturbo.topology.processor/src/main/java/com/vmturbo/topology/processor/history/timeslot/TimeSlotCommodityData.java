@@ -141,7 +141,7 @@ public class TimeSlotCommodityData
             Double used = commodityFieldsAccessor.getRealTimeValue(field);
             if (used != null) {
                 currentSlot.count++;
-                currentSlot.total += used / capacity;
+                currentSlot.total += used;
             }
         }
 
@@ -198,7 +198,7 @@ public class TimeSlotCommodityData
                 continue;
             }
             float used = stat.getUsed().getAvg();
-            slots[slot].total += used / cap;
+            slots[slot].total += used;
         }
     }
 

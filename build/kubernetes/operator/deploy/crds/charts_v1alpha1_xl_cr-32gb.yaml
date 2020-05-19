@@ -40,6 +40,8 @@ spec:
     enabled: true
   netapp:
     enabled: true
+  nutanix:
+    enabled: true
   oneview:
     enabled: true
   pure:
@@ -150,6 +152,10 @@ spec:
     resources:
       limits:
         memory: 512Mi
+  mediation-nutanix:
+    resources:
+      limits:
+        memory: 1Gi
   mediation-oneview:
     resources:
       limits:

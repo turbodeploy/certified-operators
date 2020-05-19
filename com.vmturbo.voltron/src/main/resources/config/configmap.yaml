@@ -413,6 +413,8 @@ defaultProperties:
     # The maximum message size for serializing percentile blobs
     # Typical size for 10 millions of commodities is 120mb
     historyAggregation.grpcChannelMaxMessageSizeKb: 204800
+    # The maximum message size for serializing timeslot commodity values
+    historyAggregation.grpcTimeSlotChannelMaxMessageSizeKb: 20480
     # The timeout in seconds to history access streaming operations
     historyAggregation.grpcStreamTimeoutSec: 300
     # The chunk size for history access streaming operations

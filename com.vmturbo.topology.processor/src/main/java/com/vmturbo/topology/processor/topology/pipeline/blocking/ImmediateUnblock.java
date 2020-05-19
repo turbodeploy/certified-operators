@@ -2,6 +2,9 @@ package com.vmturbo.topology.processor.topology.pipeline.blocking;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
 import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineUnblockFactory.PipelineUnblock;
 
@@ -9,6 +12,8 @@ import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineUnblock
  * A {@link PipelineUnblock} operation that unblocks immediately.
  */
 public class ImmediateUnblock implements PipelineUnblock {
+
+    private static final Logger logger = LogManager.getLogger();
 
     private TopologyPipelineExecutorService pipelineExecutorService;
 
@@ -18,6 +23,7 @@ public class ImmediateUnblock implements PipelineUnblock {
 
     @Override
     public void run() {
+        logger.info("Immediately unblocking broadcasts.");
         pipelineExecutorService.unblockBroadcasts();
     }
 

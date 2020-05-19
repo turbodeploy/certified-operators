@@ -128,35 +128,17 @@ public class HCIPhysicalMachineEntityConstructor {
         policy.setRedundancy(getRaidLevel());
     }
 
-    // TODO Re-implement the method when OM-58198 is fixed
     private StorageRedundancyMethod getRaidLevel() throws TopologyEntityConstructorException {
-        int failuresToTolerate = TopologyEntityConstructor
-                .getTemplateValue(templateValues, "failuresToTolerate").intValue();
         int redundancyMethod = TopologyEntityConstructor
                 .getTemplateValue(templateValues, "redundancyMethod").intValue();
+        StorageRedundancyMethod result = StorageRedundancyMethod.forNumber(redundancyMethod);
 
-        // RAID0
-        if (failuresToTolerate == 0) {
-            return StorageRedundancyMethod.RAID0;
+        if (result == null) {
+            throw new TopologyEntityConstructorException(
+                    "Invalid redundancy method value: " + redundancyMethod);
         }
 
-        // RAID1
-        if (redundancyMethod == 0) {
-            return StorageRedundancyMethod.RAID1;
-        }
-
-        // RAID5
-        if (redundancyMethod == 1) {
-            return StorageRedundancyMethod.RAID5;
-        }
-
-        // RAID6
-        if (redundancyMethod == 2) {
-            return StorageRedundancyMethod.RAID6;
-        }
-
-        throw new TopologyEntityConstructorException("Invalid combination: Failures to tolerate: "
-                + failuresToTolerate + ", redundancy method: " + redundancyMethod);
+        return result;
     }
 
     /**
