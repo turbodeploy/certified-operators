@@ -209,6 +209,8 @@ public class Voltron extends BaseVmtComponent {
         System.setProperty("com.vmturbo.keydir", Paths.get(config.getDataPath(), namespace, "keydir").toString());
         System.setProperty("useInProcess", Boolean.toString(config.isUseInProcessGrpc()));
         System.setProperty("useLocalBus", Boolean.toString(config.isUseLocalBus()));
+        System.setProperty(BaseVmtComponent.PROP_serverHttpPort, Integer.toString(config.getServerHttpPort()));
+        System.setProperty(ComponentGrpcServer.PROP_SERVER_GRPC_PORT, Integer.toString(config.getServerGrpcPort()));
 
         final SetOnce<VoltronContext> voltronContext = new SetOnce<>();
         final Zarkon onEnterDemolisher = new Zarkon(namespace, config, voltronContext);
@@ -244,7 +246,7 @@ public class Voltron extends BaseVmtComponent {
 
         if (config.isUseInProcessGrpc()) {
             // Start up a real gRPC server for voltron-cli use.
-            final ServerBuilder serverBuilder = NettyServerBuilder.forPort(9001);
+            final ServerBuilder serverBuilder = NettyServerBuilder.forPort(config.getServerGrpcPort());
             ComponentGrpcServer.get().getServiceDefinitions().forEach(serverBuilder::addService);
             serverBuilder.addService(ProtoReflectionService.newInstance());
             Server server = serverBuilder.build();

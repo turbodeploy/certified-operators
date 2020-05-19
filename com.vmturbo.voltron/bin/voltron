@@ -46,6 +46,8 @@ print_help() {
    echo "voltron send_topology          ...    ; Broadcast topology."
    echo "voltron set_broadcast_interval ...    ; Set broadcast schedule."
    echo "voltron help                   ...    ; Print this message"
+   echo "To set the HTTP port, set the HTTP_PORT environment variable: HTTP_PORT=8081 voltron send_topology"
+   echo "To set the gRPC port, set the GRPC_PORT environment variable: GRPC_PORT=9002 voltron grpc ls"
 }
 
 set_broadcast_interval() {
@@ -56,12 +58,12 @@ set_broadcast_interval() {
     echo "Setting broadcast interval to $1"
     curl -X POST --header 'Content-Type: application/json;charset=UTF-8' --header 'Accept: application/json' -d "{
       \"intervalMinutes\": $1
-    }" http://localhost:8080/topology-processor/ScheduleService/setBroadcastSchedule
+    }" http://localhost:${HTTP_PORT}/topology-processor/ScheduleService/setBroadcastSchedule
   fi
 }
 
 send_topology() {
-  curl -X POST --header 'Content-Type: application/json' --header 'Accept: application/json' 'http://localhost:8080/topology-processor/topology/send'
+  curl -X POST --header 'Content-Type: application/json' --header 'Accept: application/json' http://localhost:${HTTP_PORT}/topology-processor/topology/send
 }
 
 restore_groups() {
@@ -74,7 +76,7 @@ restore_groups() {
     fullPath=${pathToFile}/${fileName}
 
     echo "Restoring from: ${fullPath}"
-    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} 'http://localhost:8080/group/internal-state'
+    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} http://localhost:${HTTP_PORT}/group/internal-state
   fi
 }
 
@@ -89,7 +91,7 @@ restore_topology() {
     fullPath=${pathToFile}/${fileName}
 
     echo "Restoring from: ${fullPath}"
-    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} 'http://localhost:8080/topology-processor/internal-state'
+    curl --header 'Content-Type: application/zip' --data-binary @${fullPath} http://localhost:${HTTP_PORT}/topology-processor/internal-state
   fi
 }
 
@@ -98,6 +100,9 @@ if [ "$#" -lt 1 ]
 then
    print_help
 fi
+
+HTTP_PORT=${HTTP_PORT:=8080}
+GRPC_PORT=${GRPC_PORT:=9001}
 
 case $1 in
 grpc)
@@ -114,13 +119,13 @@ grpc)
   else
      case $2 in
      ls)
-       grpc_cli ls localhost:9001 ${@:3};;
+       grpc_cli ls localhost:${GRPC_PORT} ${@:3};;
      call)
-       grpc_cli call localhost:9001 ${@:3};;
+       grpc_cli call localhost:${GRPC_PORT} ${@:3};;
      type)
-       grpc_cli type localhost:9001 ${@:3};;
+       grpc_cli type localhost:${GRPC_PORT} ${@:3};;
      parse)
-       grpc_cli parse localhost:9001 ${@:3};;
+       grpc_cli parse localhost:${GRPC_PORT} ${@:3};;
      help)
        grpc_cli help ${@:3};;
      esac
