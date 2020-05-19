@@ -303,7 +303,7 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
                         createContext(ImmutableMap.of(ref1, Pair.create(10F, 100F), ref2,
                                         Pair.create(195F, 200F), ref3, Pair.create(95F, 100F)));
         doCalculations(editor, contextToGraph2.getFirst());
-        Assert.assertEquals(getTimeSlots(ref1, contextToGraph2.getSecond()).get(0), 30F, 0.0001);
+        Assert.assertEquals(getTimeSlots(ref1, contextToGraph2.getSecond()).get(0), 10F, 0.0001);
     }
 
     private void doCalculations(TimeslotEditorCacheAccess editor,

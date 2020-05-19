@@ -45,4 +45,7 @@ public abstract class AbstractHistoricalEditor<Config extends HistoricalEditorCo
     @Override
     public void completeBroadcast(@Nonnull HistoryAggregationContext context)
                     throws HistoryCalculationException, InterruptedException {}
+
+    @Override
+    public void cleanupCache(@Nonnull final List<EntityCommodityReference> commodities) {}
 }
