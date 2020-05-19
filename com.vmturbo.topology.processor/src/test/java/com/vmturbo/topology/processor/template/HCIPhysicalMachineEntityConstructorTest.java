@@ -5,9 +5,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Type;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,10 +18,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.io.Files;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.google.protobuf.Internal.EnumLiteMap;
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 
 import org.junit.Assert;
@@ -36,21 +31,12 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTOOrBuilder;
-import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
-import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.StorageType;
-import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.stitching.TopologyEntity;
-import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 
 /**
  * Tests for class HCIPhysicalMachineEntityConstructor.
@@ -202,7 +188,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
     private Template loadTemplate(@Nonnull String jsonFileName) throws IOException {
         String str = readResourceFileAsString(jsonFileName);
         Template.Builder builder = Template.newBuilder();
-        JsonFormat.parser().ignoringUnknownFields().merge(str, builder);
+        JsonFormat.parser().merge(str, builder);
 
         return builder.build();
     }
@@ -212,7 +198,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
             throws IOException {
         String str = readResourceFileAsString(jsonFileName);
         TopologyEntityDTO.Builder builder = TopologyEntityDTO.newBuilder();
-        JsonFormat.parser().ignoringUnknownFields().merge(str, builder);
+        JsonFormat.parser().merge(str, builder);
 
         return builder.build();
     }
