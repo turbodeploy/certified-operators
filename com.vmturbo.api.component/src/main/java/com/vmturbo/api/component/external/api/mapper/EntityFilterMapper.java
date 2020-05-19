@@ -80,6 +80,9 @@ public class EntityFilterMapper {
     public static final String OWNER_OF_RESOURCE_GROUP_OID = "OwnerOf:ResourceGroup:uuid";
     /** Key of the criteria to query billing families by ids. */
     public static final String MEMBER_OF_BILLING_FAMILY_OID = "MemberOf:BillingFamily:uuid";
+    /** key of the criteria to query WorkloadController entities by controller types. */
+    public static final String WORKLOAD_CONTROLLER_TYPE = SearchableProperties.WC_INFO_REPO_DTO_PROPERTY_NAME
+        + "." + SearchableProperties.CONTROLLER_TYPE;
 
     public static final String STATE = "state";
     public static final String USER_DEFINED_ENTITY = "UserDefinedEntity";

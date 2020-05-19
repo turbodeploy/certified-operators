@@ -9,7 +9,10 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -24,7 +27,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -57,6 +63,7 @@ import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.action.ActionExecutionAuditApiDTO;
+import com.vmturbo.api.dto.action.ActionScheduleApiDTO;
 import com.vmturbo.api.dto.action.CloudResizeActionDetailsApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.dto.policy.PolicyApiDTO;
@@ -171,6 +178,11 @@ public class ActionSpecMapperTest {
 
     private static final long MILLIS_2020_01_01_00_00_00 = 1577854800000L;
 
+    private static final String TIMEZONE_ID = "America/Toronto";
+    private static final long SCHEDULE_ID = 505L;
+    private static final String SCHEDULE_DISPLAY_NAME = "DailySchedule";
+    private static final String ACCEPTING_USER = "administrator";
+
     private ActionSpecMapper mapper;
 
     private PoliciesService policiesService = mock(PoliciesService.class);
@@ -201,6 +213,8 @@ public class ActionSpecMapperTest {
 
     private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
+    private final VirtualVolumeAspectMapper virtualVolumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
+
     private final ActionApiInputDTO emptyInputDto = new ActionApiInputDTO();
     private final ApiId scopeWithBuyRiActions = mock(ApiId.class);
     private final Set<ActionDTO.ActionType> buyRiActionTypes = ImmutableSet.of(
@@ -228,8 +242,6 @@ public class ActionSpecMapperTest {
         SupplyChainServiceBlockingStub supplyChainService =
                 SupplyChainServiceGrpc.newBlockingStub(supplyChainGrpcServer.getChannel());
 
-        VirtualVolumeAspectMapper volumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
-
         final MultiEntityRequest emptyReq = ApiTestUtils.mockMultiEntityReqEmpty();
 
         final MultiEntityRequest datacenterReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
@@ -250,17 +262,27 @@ public class ActionSpecMapperTest {
                 reservedInstanceUtilizationCoverageServiceBlockingStub =
                 ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
         ActionSpecMappingContextFactory actionSpecMappingContextFactory =
-                new ActionSpecMappingContextFactory(policyService,
+                new ActionSpecMappingContextFactory(
+                        policyService,
                         Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()),
-                        repositoryApi, mock(EntityAspectMapper.class), volumeAspectMapper,
-                        REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper,
-                        supplyChainService, policiesService);
+                        repositoryApi,
+                        mock(EntityAspectMapper.class),
+                        virtualVolumeAspectMapper,
+                        REAL_TIME_TOPOLOGY_CONTEXT_ID,
+                        null,
+                        null,
+                        serviceEntityMapper,
+                        supplyChainService,
+                        policiesService);
 
         final BuyRiScopeHandler buyRiScopeHandler = mock(BuyRiScopeHandler.class);
         when(buyRiScopeHandler.extractActionTypes(emptyInputDto, scopeWithBuyRiActions))
                 .thenReturn(buyRiActionTypes);
         when(buyRiScopeHandler.extractBuyRiEntities(scopeWithBuyRiActions))
                 .thenReturn(buyRiOids);
+
+        when(virtualVolumeAspectMapper.mapVirtualMachines(anySetOf(Long.class), anyLong())).thenReturn(Collections.emptyMap());
+        when(virtualVolumeAspectMapper.mapUnattachedVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.empty());
 
         mapper = new ActionSpecMapper(actionSpecMappingContextFactory,
             serviceEntityMapper, policiesService, reservedInstanceMapper, riBuyContextFetchServiceStub, costServiceBlockingStub,
@@ -372,6 +394,142 @@ public class ActionSpecMapperTest {
 
         // Validate that the importance value is 0
         assertEquals(0, actionApiDTO.getImportance(), 0.05);
+    }
+
+    /**
+     * Test mapping of scheduled automated scale.
+     * @throws Exception in case of mapping error.
+     */
+    @Test
+    public void testMapScheduledScaleAutomated() throws Exception {
+        final ActionInfo scaleInfo = getScaleActionInfo();
+        final Explanation explanation = Explanation.newBuilder()
+            .setScale(ScaleExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setEfficiency(Efficiency.newBuilder()))
+                .build())
+            .build();
+
+        long scheduleStartTimestamp = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(2);
+        long scheduleEndTimestamp = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3);
+
+        ActionSpec.ActionSchedule schedule =
+            ActionDTO.ActionSpec.ActionSchedule.newBuilder()
+                .setScheduleTimezoneId(TIMEZONE_ID)
+                .setScheduleId(SCHEDULE_ID)
+                .setScheduleDisplayName(SCHEDULE_DISPLAY_NAME)
+                .setExecutionWindowActionMode(ActionMode.AUTOMATIC)
+                .setStartTimestamp(scheduleStartTimestamp)
+                .setEndTimestamp(scheduleEndTimestamp)
+                .build();
+
+        ActionSpec actionSpec = buildActionSpec(scaleInfo, explanation, Optional.empty(),
+            Optional.empty(), schedule);
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+            actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        assertNotNull(actionApiDTO.getActionSchedule());
+        ActionScheduleApiDTO actionScheduleApiDTO = actionApiDTO.getActionSchedule();
+        assertThat(actionScheduleApiDTO.getNextOccurrenceTimestamp(), is(scheduleStartTimestamp));
+        assertThat(actionScheduleApiDTO.getNextOccurrence(),
+            is(DateTimeUtil.toString(scheduleStartTimestamp, TimeZone.getTimeZone(TIMEZONE_ID))));
+        assertThat(actionScheduleApiDTO.getMode(), is(com.vmturbo.api.enums.ActionMode.AUTOMATIC));
+        assertThat(actionScheduleApiDTO.getUuid(), is(String.valueOf(SCHEDULE_ID)));
+        assertThat(actionScheduleApiDTO.getDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertNull(actionScheduleApiDTO.getRemaingTimeActiveInMs());
+        assertNull(actionScheduleApiDTO.getUserName());
+        assertTrue(actionScheduleApiDTO.isAcceptedByUserForMaintenanceWindow());
+    }
+
+    /**
+     * Test mapping of scheduled manual scale action which is accepted by user.
+     * @throws Exception in case of mapping error.
+     */
+    @Test
+    public void testMapScheduledScaleManualAccepted() throws Exception {
+        final ActionInfo scaleInfo = getScaleActionInfo();
+        final Explanation explanation = Explanation.newBuilder()
+            .setScale(ScaleExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setEfficiency(Efficiency.newBuilder()))
+                .build())
+            .build();
+
+        long scheduleStartTimestamp = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(2);
+        long scheduleEndTimestamp = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(3);
+
+        ActionSpec.ActionSchedule schedule =
+            ActionDTO.ActionSpec.ActionSchedule.newBuilder()
+                .setScheduleTimezoneId(TIMEZONE_ID)
+                .setScheduleId(SCHEDULE_ID)
+                .setScheduleDisplayName(SCHEDULE_DISPLAY_NAME)
+                .setExecutionWindowActionMode(ActionMode.MANUAL)
+                .setStartTimestamp(scheduleStartTimestamp)
+                .setEndTimestamp(scheduleEndTimestamp)
+                .setAcceptingUser(ACCEPTING_USER)
+                .build();
+
+        ActionSpec actionSpec = buildActionSpec(scaleInfo, explanation, Optional.empty(),
+            Optional.empty(), schedule);
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+            actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        assertNotNull(actionApiDTO.getActionSchedule());
+        ActionScheduleApiDTO actionScheduleApiDTO = actionApiDTO.getActionSchedule();
+        assertThat(actionScheduleApiDTO.getNextOccurrenceTimestamp(), is(scheduleStartTimestamp));
+        assertThat(actionScheduleApiDTO.getNextOccurrence(),
+            is(DateTimeUtil.toString(scheduleStartTimestamp, TimeZone.getTimeZone(TIMEZONE_ID))));
+        assertThat(actionScheduleApiDTO.getMode(), is(com.vmturbo.api.enums.ActionMode.MANUAL));
+        assertThat(actionScheduleApiDTO.getUuid(), is(String.valueOf(SCHEDULE_ID)));
+        assertThat(actionScheduleApiDTO.getDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertNull(actionScheduleApiDTO.getRemaingTimeActiveInMs());
+        assertThat(actionScheduleApiDTO.getUserName(), is(ACCEPTING_USER));
+        assertTrue(actionScheduleApiDTO.isAcceptedByUserForMaintenanceWindow());
+    }
+
+    /**
+     * Test mapping of scheduled manual scale action which is in the window.
+     * @throws Exception in case of mapping error.
+     */
+    @Test
+    public void testMapScheduledScaleManualInWindow() throws Exception {
+        final ActionInfo scaleInfo = getScaleActionInfo();
+        final Explanation explanation = Explanation.newBuilder()
+            .setScale(ScaleExplanation.newBuilder()
+                .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
+                    .setEfficiency(Efficiency.newBuilder()))
+                .build())
+            .build();
+
+        long scheduleEndTimestamp = System.currentTimeMillis() + TimeUnit.DAYS.toMillis(1);
+
+        ActionSpec.ActionSchedule schedule =
+            ActionDTO.ActionSpec.ActionSchedule.newBuilder()
+                .setScheduleTimezoneId(TIMEZONE_ID)
+                .setScheduleId(SCHEDULE_ID)
+                .setScheduleDisplayName(SCHEDULE_DISPLAY_NAME)
+                .setExecutionWindowActionMode(ActionMode.MANUAL)
+                .setEndTimestamp(scheduleEndTimestamp)
+                .build();
+
+        ActionSpec actionSpec = buildActionSpec(scaleInfo, explanation, Optional.empty(),
+            Optional.empty(), schedule);
+
+        final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
+            actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
+
+        assertNotNull(actionApiDTO.getActionSchedule());
+        ActionScheduleApiDTO actionScheduleApiDTO = actionApiDTO.getActionSchedule();
+        assertNull(actionScheduleApiDTO.getNextOccurrenceTimestamp());
+        assertNull(actionScheduleApiDTO.getNextOccurrence());
+        assertThat(actionScheduleApiDTO.getMode(), is(com.vmturbo.api.enums.ActionMode.MANUAL));
+        assertThat(actionScheduleApiDTO.getUuid(), is(String.valueOf(SCHEDULE_ID)));
+        assertThat(actionScheduleApiDTO.getDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertTrue(actionScheduleApiDTO.getRemaingTimeActiveInMs() > 0);
+        assertNull(actionScheduleApiDTO.getUserName());
+        assertFalse(actionScheduleApiDTO.isAcceptedByUserForMaintenanceWindow());
     }
 
     /**
@@ -589,9 +747,11 @@ public class ActionSpecMapperTest {
                                     .addReconfigureCommodity(network).build())
                             .build();
 
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO(SOURCE, 1L, EntityType.PHYSICAL_MACHINE_VALUE)));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(SOURCE, 1L, EntityType.PHYSICAL_MACHINE_VALUE),
+                new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE),
+                new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE))));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(3L, 1L)))
             .thenReturn(req);
 
@@ -632,8 +792,10 @@ public class ActionSpecMapperTest {
                                     .addReconfigureCommodity(cpuAllocation).build())
                             .build();
 
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE)));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE),
+                new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE))));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(3L)))
             .thenReturn(req);
 
@@ -668,9 +830,11 @@ public class ActionSpecMapperTest {
                         CommodityType.newBuilder().setType(21).build())
                         .build())).build()).build();
 
-        final MultiEntityRequest allReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO("EntityToClone", 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-                topologyEntityDTO("EntityToClone", 2L, EntityType.VIRTUAL_MACHINE_VALUE)));
+        final MultiEntityRequest allReq = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity("EntityToClone", 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+            new TestEntity("EntityToClone", 2L, EntityType.VIRTUAL_MACHINE_VALUE),
+            new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE),
+            new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE))));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(3L, 2L)))
             .thenReturn(allReq);
 
@@ -719,6 +883,13 @@ public class ActionSpecMapperTest {
             .thenReturn(srcReq);
         when(repositoryApi.entitiesRequest(Sets.newHashSet(-1L)))
             .thenReturn(projReq);
+
+        topologyEntityDTOList(Lists.newArrayList(
+                new TestEntity("EntityToClone", 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity("EntityToClone", -1, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE),
+                new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE)));
+
 
         final ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(
                 buildActionSpec(provisionInfo, provision), REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -833,8 +1004,10 @@ public class ActionSpecMapperTest {
                 .setDeprecatedEndUtilization(0.4f).build())
             .build();
 
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE)));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+                new TestEntity(ENTITY_TO_RESIZE_NAME, targetId, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE),
+                new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE))));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
             .thenReturn(req);
 
@@ -1048,8 +1221,9 @@ public class ActionSpecMapperTest {
                                                         .setMostExpensiveCommodity(CPU.getCommodityType()
                                                                                    .getType()).build())
                                         .build();
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO("EntityToActivate", targetId, EntityType.VIRTUAL_MACHINE_VALUE)));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity("EntityToActivate", targetId, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE))));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
             .thenReturn(req);
 
@@ -1086,8 +1260,9 @@ public class ActionSpecMapperTest {
         final String entityToActivateName = "EntityToActivate";
         final String prettyClassName = "Storage";
 
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO(entityToActivateName, targetId, EntityType.STORAGE_VALUE)));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+                new TestEntity(entityToActivateName, targetId, EntityType.STORAGE_VALUE),
+                new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE))));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
             .thenReturn(req);
 
@@ -1118,8 +1293,9 @@ public class ActionSpecMapperTest {
             .setDeactivate(DeactivateExplanation.newBuilder().build()).build();
         final String entityToDeactivateName = "EntityToDeactivate";
 
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO(entityToDeactivateName, targetId, EntityType.VIRTUAL_MACHINE_VALUE)));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity(entityToDeactivateName, targetId, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(DC1_NAME, DATACENTER1_ID, EntityType.DATACENTER_VALUE))));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(targetId)))
             .thenReturn(req);
 
@@ -1219,7 +1395,7 @@ public class ActionSpecMapperTest {
                                 .setInitialPlacement(InitialPlacement.newBuilder())))
                 .build();
         final ActionSpec actionSpec = buildActionSpec(moveInfo, placement,
-                Optional.of(decision), Optional.empty());
+                Optional.of(decision), Optional.empty(), null);
 
         // Act
         ActionApiDTO actionApiDTO = mapper.mapActionSpecToActionApiDTO(actionSpec, REAL_TIME_TOPOLOGY_CONTEXT_ID);
@@ -1241,10 +1417,10 @@ public class ActionSpecMapperTest {
                         .build())
                         .build();
 
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO("target", 1, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO("source", 2, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO("dest", 3, EntityType.VIRTUAL_MACHINE_VALUE)));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity("target", 1, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity("source", 2, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity("dest", 3, EntityType.VIRTUAL_MACHINE_VALUE))));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(1L, 2L, 3L)))
             .thenReturn(req);
 
@@ -1281,12 +1457,12 @@ public class ActionSpecMapperTest {
                 .setDestination(ApiUtilsTest.createActionEntity(5, EntityType.STORAGE_VALUE))
                 .build()))
             .build();
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO("target", 1, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO("source", 2, EntityType.PHYSICAL_MACHINE_VALUE),
-            topologyEntityDTO("dest", 3, EntityType.PHYSICAL_MACHINE_VALUE),
-            topologyEntityDTO("stSource", 4, EntityType.STORAGE_VALUE),
-            topologyEntityDTO("stDest", 5, EntityType.STORAGE_VALUE)));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity("target", 1, EntityType.VIRTUAL_MACHINE_VALUE),
+            new TestEntity("source", 2, EntityType.PHYSICAL_MACHINE_VALUE),
+            new TestEntity("dest", 3, EntityType.PHYSICAL_MACHINE_VALUE),
+            new TestEntity("stSource", 4, EntityType.STORAGE_VALUE),
+            new TestEntity("stDest", 5, EntityType.STORAGE_VALUE))));
         when(repositoryApi.entitiesRequest(Sets.newHashSet(1L, 2L, 3L, 4L, 5L)))
             .thenReturn(req);
 
@@ -1962,10 +2138,10 @@ public class ActionSpecMapperTest {
 
         ActionInfo moveInfo = ActionInfo.newBuilder().setMove(move).build();
 
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO(SOURCE, 1L, ApiEntityType.fromString(srcAndDestType).typeNumber()),
-            topologyEntityDTO(DESTINATION, 2L, ApiEntityType.fromString(srcAndDestType).typeNumber())));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+            new TestEntity(SOURCE, 1L, ApiEntityType.fromString(srcAndDestType).typeNumber()),
+            new TestEntity(DESTINATION, 2L, ApiEntityType.fromString(srcAndDestType).typeNumber()))));
         when(repositoryApi.entitiesRequest(any()))
             .thenReturn(req);
 
@@ -2003,8 +2179,8 @@ public class ActionSpecMapperTest {
         final ActionInfo moveInfo = ActionInfo.newBuilder().setMove(move).build();
 
         final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(
-                Lists.newArrayList(topologyEntityDTO(SOURCE, 1L, sourceEntityType),
-                        topologyEntityDTO(DESTINATION, 2L, sourceEntityType)));
+                topologyEntityDTOList(Lists.newArrayList(new TestEntity(SOURCE, 1L, sourceEntityType),
+                        new TestEntity(DESTINATION, 2L, sourceEntityType))));
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         return moveInfo;
@@ -2019,25 +2195,26 @@ public class ActionSpecMapperTest {
                     .setDestination(ApiUtilsTest.createActionEntity(2))))
             .build();
 
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO(SOURCE, 1L, ApiEntityType.COMPUTE_TIER.typeNumber()),
-            topologyEntityDTO(DESTINATION, 2L, ApiEntityType.COMPUTE_TIER.typeNumber())));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+            new TestEntity(SOURCE, 1L, ApiEntityType.COMPUTE_TIER.typeNumber()),
+            new TestEntity(DESTINATION, 2L, ApiEntityType.COMPUTE_TIER.typeNumber()))));
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         return scaleInfo;
     }
 
     private ActionInfo getAllocateActionInfo() {
+
         final ActionInfo allocateInfo = ActionInfo.newBuilder()
                 .setAllocate(Allocate.newBuilder()
                         .setTarget(ApiUtilsTest.createActionEntity(3))
                         .setWorkloadTier(ApiUtilsTest.createActionEntity(4)))
                 .build();
 
-        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-                topologyEntityDTO(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
-                topologyEntityDTO(SOURCE, 4L, ApiEntityType.COMPUTE_TIER.typeNumber())));
+        final MultiEntityRequest req = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+                new TestEntity(TARGET, 3L, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(SOURCE, 4L, ApiEntityType.COMPUTE_TIER.typeNumber()))));
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         return allocateInfo;
@@ -2058,21 +2235,66 @@ public class ActionSpecMapperTest {
         mappedE.setDisplayName(displayName);
         mappedE.setUuid(Long.toString(oid));
         mappedE.setClassName(ApiEntityType.fromType(entityType).apiStr());
+        final Map<Long, ServiceEntityApiDTO> map = new HashMap<>();
+        map.put(oid, mappedE);
         when(serviceEntityMapper.toServiceEntityApiDTO(e)).thenReturn(mappedE);
+        when(serviceEntityMapper.toServiceEntityApiDTOMap(any())).thenReturn(map);
 
         return e;
     }
 
+    /**
+     * A Test class to store information about entity, used for testing only.
+     */
+    final class TestEntity {
+        public String displayName;
+        public long oid;
+        public int entityType;
+
+        TestEntity(String displayName, long oid, int entityType) {
+            this.displayName = displayName;
+            this.oid = oid;
+            this.entityType = entityType;
+        }
+    }
+
+    private List<ApiPartialEntity> topologyEntityDTOList(List<TestEntity> testEntities) {
+        Map<Long, ServiceEntityApiDTO> map = new HashMap<>();
+
+        List<ApiPartialEntity> resp = testEntities.stream().map(testEntity -> {
+            final ServiceEntityApiDTO mappedE = new ServiceEntityApiDTO();
+            mappedE.setDisplayName(testEntity.displayName);
+            mappedE.setUuid(Long.toString(testEntity.oid));
+            mappedE.setClassName(ApiEntityType.fromType(testEntity.entityType).apiStr());
+            map.put(testEntity.oid, mappedE);
+            ApiPartialEntity e = ApiPartialEntity.newBuilder()
+                    .setOid(testEntity.oid)
+                    .setDisplayName(testEntity.displayName)
+                    .setEntityType(testEntity.entityType)
+                    // all entities to have same vendor id for testing
+                    .putDiscoveredTargetData(TARGET_ID, PerTargetEntityInformation.newBuilder()
+                            .setVendorId(TARGET_VENDOR_ID).build())
+                    .build();
+            when(serviceEntityMapper.toServiceEntityApiDTO(e)).thenReturn(mappedE);
+            return e;
+        }).collect(Collectors.toList());
+
+        when(serviceEntityMapper.toServiceEntityApiDTOMap(any())).thenReturn(map);
+        return resp;
+    }
+
     private ActionSpec buildActionSpec(ActionInfo actionInfo, Explanation explanation) {
-        return buildActionSpec(actionInfo, explanation, Optional.empty(), Optional.empty());
+        return buildActionSpec(actionInfo, explanation, Optional.empty(), Optional.empty(), null);
     }
 
     private ActionSpec buildActionSpec(ActionInfo actionInfo, Explanation explanation,
-                                       Optional<ActionDTO.ActionDecision> decision, Optional<ActionDTO.ExecutionStep> executionStep) {
+                                       Optional<ActionDTO.ActionDecision> decision,
+                                       Optional<ActionDTO.ExecutionStep> executionStep,
+                                       ActionSpec.ActionSchedule schedule) {
         ActionSpec.Builder builder = ActionSpec.newBuilder()
             .setRecommendationTime(System.currentTimeMillis())
             .setRecommendation(buildAction(actionInfo, explanation))
-                .setActionState(ActionDTO.ActionState.READY)
+            .setActionState(ActionDTO.ActionState.READY)
             .setActionMode(ActionMode.MANUAL)
             .setIsExecutable(true)
             .setExplanation(DEFAULT_EXPLANATION)
@@ -2080,9 +2302,12 @@ public class ActionSpecMapperTest {
 
         executionStep.ifPresent((builder::setExecutionStep));
         decision.ifPresent(builder::setDecision);
+
+        if (schedule != null) {
+            builder.setActionSchedule(schedule);
+        }
         return builder.build();
     }
-
     private Action buildAction(ActionInfo actionInfo, Explanation explanation) {
         return Action.newBuilder()
             .setDeprecatedImportance(0)

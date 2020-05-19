@@ -715,8 +715,7 @@ public class TargetsService implements ITargetsService {
     private TargetApiDTO mapProbeInfoToDTO(ProbeInfo probeInfo) throws FieldVerificationException {
         TargetApiDTO targetApiDTO = new TargetApiDTO();
         targetApiDTO.setUuid(Long.toString(probeInfo.getId()));
-        targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo));
-        targetApiDTO.setUiCategory(probeInfo.getUICategory());
+        targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo.getUICategory()));
         targetApiDTO.setType(probeInfo.getType());
         targetApiDTO.setIdentifyingFields(probeInfo.getIdentifyingFields());
         List<InputFieldApiDTO> inputFields =
@@ -1018,7 +1017,7 @@ public class TargetsService implements ITargetsService {
                     .collect(Collectors.toList()));
         } else {
             targetApiDTO.setType(probeInfo.getType());
-            targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo));
+            targetApiDTO.setCategory(getUserFacingCategoryString(probeInfo.getUICategory()));
 
             final Map<String, AccountValue> accountValuesByName = targetInfo.getAccountData()
                     .stream()
@@ -1131,12 +1130,11 @@ public class TargetsService implements ITargetsService {
      * regarding uppercase/lowercase, etc. This maps the known problem category strings into
      * more user-friendly names.
      *
-     * @param probeInfo the probe to map the category for
+     * @param category the probe category
      * @return a user-friendly string for the probe category (for the problem categories we know of).
      */
-    private String getUserFacingCategoryString(final ProbeInfo probeInfo) {
-        return USER_FACING_CATEGORY_MAP.getOrDefault(probeInfo.getCategory(),
-                probeInfo.getCategory());
+    private String getUserFacingCategoryString(final String category) {
+        return USER_FACING_CATEGORY_MAP.getOrDefault(category, category);
     }
 
     /**

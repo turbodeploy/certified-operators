@@ -142,8 +142,8 @@ public class PropertiesLoader {
             // populate a PropertySource with the config properties from the yaml file
             return new PropertiesPropertySource(PROPERTIES_YAML_CONFIG_SOURCE, yamlProperties);
         } catch (IOException e) {
-            throw new ContextConfigurationException("Error reading configuration file: " +
-                propertiesYamlFilePath, e);
+            throw new ContextConfigurationException(
+                    "Error reading configuration file: " + propertiesYamlFilePath, e);
         }
     }
 
@@ -224,8 +224,8 @@ public class PropertiesLoader {
             }
             return new PropertiesPropertySource(OTHER_PROPERTIES_CONFIG_SOURCE, properties);
         } catch (URISyntaxException | IOException e) {
-            throw new ContextConfigurationException("Error reading other properties files from: " +
-                otherPropertiesResource, e);
+            throw new ContextConfigurationException(
+                    "Error reading other properties files from: " + otherPropertiesResource, e);
         }
     }
 

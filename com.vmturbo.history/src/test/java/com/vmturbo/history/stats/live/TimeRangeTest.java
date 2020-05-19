@@ -210,10 +210,12 @@ public class TimeRangeTest {
     public void testFactoryNoExpandLatestTimeWindowUnequalStartEndWithTimeFrame() throws VmtDbException {
         final Timestamp timestamp = new Timestamp(9L);
         final long startTime = 10L;
-        final long endTime = 15L;
+        final long endTime = 1589428799000L;   // 2020-05-13 23:59:59
 
+        // Expected endTime is the last day of the month of the endTime value.
+        final long expectedEndTime = 1590897599000L; // 2020-05-31 23:59:59
         when(historydbIO.getTimestampsInRange(TimeFrame.MONTH,
-                startTime, endTime, Optional.empty(), Optional.empty()))
+                startTime, expectedEndTime, Optional.empty(), Optional.empty()))
                 .thenReturn(Collections.singletonList(timestamp));
 
         final Optional<TimeRange> timeRangeOpt =
@@ -224,11 +226,11 @@ public class TimeRangeTest {
                         Optional.of(TimeFrame.MONTH));
 
         verify(historydbIO).getTimestampsInRange(TimeFrame.MONTH,
-                startTime, endTime, Optional.empty(), Optional.empty());
+                startTime, expectedEndTime, Optional.empty(), Optional.empty());
 
         final TimeRange timeRange = timeRangeOpt.get();
         assertThat(timeRange.getStartTime(), is(startTime));
-        assertThat(timeRange.getEndTime(), is(endTime));
+        assertThat(timeRange.getEndTime(), is(expectedEndTime));
         assertThat(timeRange.getMostRecentSnapshotTime(), is(timestamp));
         assertThat(timeRange.getTimeFrame(), is(TimeFrame.MONTH));
         assertThat(timeRange.getSnapshotTimesInRange(), containsInAnyOrder(timestamp));
@@ -312,14 +314,16 @@ public class TimeRangeTest {
     public void testRollupPeriodTakesPrecedenceAsTimeFrame() throws VmtDbException {
         final Timestamp timestamp = new Timestamp(9L);
         final long startTime = 10L;
-        final long endTime = 15L;
+        final long endTime = 1589428799000L;  // 2020-05-13 23:59:59
         final long rollupPeriod = 30L;
         // Time frame not latest.
         doReturn(TimeFrame.DAY).when(timeFrameCalculator).millis2TimeFrame(startTime);
         doReturn(TimeFrame.MONTH).when(timeFrameCalculator)
             .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
+        // Expected endTime is the last day of the month of the endTime value.
+        final long expectedEndTime = 1590897599000L; // 2020-05-31 23:59:59
         Mockito.when(historydbIO.getTimestampsInRange(TimeFrame.MONTH,
-            startTime, endTime, Optional.empty(), Optional.empty()))
+            startTime, expectedEndTime, Optional.empty(), Optional.empty()))
             .thenReturn(Collections.singletonList(timestamp));
 
         final Optional<TimeRange> timeRangeOpt =
@@ -332,11 +336,11 @@ public class TimeRangeTest {
         Mockito.verify(timeFrameCalculator)
             .range2TimeFrame(rollupPeriod, RetentionPeriods.BOUNDARY_RETENTION_PERIODS);
         Mockito.verify(historydbIO).getTimestampsInRange(TimeFrame.MONTH,
-            startTime, endTime, Optional.empty(), Optional.empty());
+            startTime, expectedEndTime, Optional.empty(), Optional.empty());
 
         final TimeRange timeRange = timeRangeOpt.get();
         Assert.assertThat(timeRange.getStartTime(), is(startTime));
-        Assert.assertThat(timeRange.getEndTime(), is(endTime));
+        Assert.assertThat(timeRange.getEndTime(), is(expectedEndTime));
         Assert.assertThat(timeRange.getMostRecentSnapshotTime(), is(timestamp));
         Assert.assertThat(timeRange.getTimeFrame(), is(TimeFrame.MONTH));
         Assert.assertThat(timeRange.getSnapshotTimesInRange(), containsInAnyOrder(timestamp));

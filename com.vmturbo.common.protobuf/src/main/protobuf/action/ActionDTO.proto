@@ -952,6 +952,33 @@ message ActionSpec {
 
     // The severity of the action
     optional Severity severity = 13 [default = NORMAL];
+
+    optional ActionSchedule actionSchedule = 14;
+
+    // The message which keeps information for the execution window
+    message ActionSchedule {
+        // The start timestamp for the next occurrence of schedule
+        optional int64 start_timestamp = 1;
+
+        // The end timestamp of current if the schedule is active or next occurrence if the
+        // schedule is not active
+        optional int64 end_timestamp = 2;
+
+        // The timezone for the associated schedule
+        optional string schedule_timezone_id = 3;
+
+        // The id for the schedule associated to the action
+        optional int64 schedule_id = 4;
+
+        // The display name for the schedule associated to the action
+        optional string schedule_display_name = 5;
+
+        // Action mode in execution window
+        optional ActionMode execution_window_action_mode = 6;
+
+        // The user that has accepted the action for execution window.
+        optional string accepting_user = 7;
+    }
 }
 
 // A filter to be supplied with action queries.
@@ -1374,6 +1401,9 @@ message CurrentActionStatsQuery {
 
         // Group by the risk severity of actions.
         SEVERITY = 12;
+
+        // Group by the CSP
+        CSP = 13;
     }
 }
 
@@ -1583,6 +1613,9 @@ message CurrentActionStat {
 
         // Assigned Severity level of the Action used for the "group_by" "severity" query
         optional Severity severity = 11;
+
+        // Cloud service provider of the Action target entity used for the "group_by" "csp" query
+        optional string csp = 12;
     }
 
     // The stat group this action stat is in.

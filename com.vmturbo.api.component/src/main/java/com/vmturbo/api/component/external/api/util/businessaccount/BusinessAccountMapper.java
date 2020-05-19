@@ -174,7 +174,7 @@ public class BusinessAccountMapper {
                     apiDTO.setType(thinTargetInfo.probeInfo().type());
                     apiDTO.setUuid(Long.toString(thinTargetInfo.oid()));
                     apiDTO.setDisplayName(thinTargetInfo.displayName());
-                    apiDTO.setCategory(thinTargetInfo.probeInfo().category());
+                    apiDTO.setCategory(thinTargetInfo.probeInfo().uiCategory());
                     return apiDTO;
                 })
                 .collect(Collectors.toList());

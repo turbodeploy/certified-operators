@@ -187,8 +187,7 @@ public class DiagnosticsWriterTest {
                 return false;
             }
             final ClassA classA = (ClassA)o;
-            return b == classA.b &&
-                Objects.equals(a, classA.a);
+            return b == classA.b && Objects.equals(a, classA.a);
         }
 
         @Override
@@ -218,8 +217,7 @@ public class DiagnosticsWriterTest {
                 return false;
             }
             final ClassB classB = (ClassB)o;
-            return b == classB.b &&
-                Objects.equals(d, classB.d);
+            return b == classB.b && Objects.equals(d, classB.d);
         }
 
         @Override

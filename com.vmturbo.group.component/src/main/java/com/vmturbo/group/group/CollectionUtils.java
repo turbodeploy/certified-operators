@@ -86,10 +86,10 @@ public class CollectionUtils {
             }
         }
         if (!initialCollection.isEmpty()) {
-            throw new IllegalArgumentException("Source collection has cyclic or broken dependencies: " +
-                    initialCollection.stream()
-                            .map(value -> value.toString() + "->" +
-                                    dependencyExtractor.apply(value).toString())
+            throw new IllegalArgumentException(
+                    "Source collection has cyclic or broken dependencies: "
+                            + initialCollection.stream()
+                            .map(value -> value + "->" + dependencyExtractor.apply(value))
                             .collect(Collectors.joining(", ")));
         }
         return result;

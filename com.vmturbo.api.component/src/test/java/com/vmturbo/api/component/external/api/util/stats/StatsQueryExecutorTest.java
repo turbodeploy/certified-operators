@@ -354,9 +354,9 @@ public class StatsQueryExecutorTest {
         // Create a list of targets.
         List<ThinTargetInfo> thinTargetInfos = Lists.newArrayList(
             ImmutableThinTargetInfo.builder().oid(1L).displayName("target1").isHidden(false).probeInfo(
-                ImmutableThinProbeInfo.builder().oid(3L).type("probe1").category("hypervisor").build()).build(),
+                ImmutableThinProbeInfo.builder().oid(3L).type("probe1").category("hypervisor").uiCategory("hypervisor").build()).build(),
             ImmutableThinTargetInfo.builder().oid(2L).displayName("target2").isHidden(false).probeInfo(
-                ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("fabric").build()).build());
+                ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("fabric").uiCategory("fabric").build()).build());
         when(statsQueryContext.getTargets()).thenReturn(thinTargetInfos);
 
         final MinimalEntity host1 = MinimalEntity.newBuilder()

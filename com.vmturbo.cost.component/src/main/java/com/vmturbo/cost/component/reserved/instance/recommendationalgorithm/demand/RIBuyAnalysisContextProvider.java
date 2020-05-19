@@ -132,7 +132,7 @@ public class RIBuyAnalysisContextProvider {
 
         final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopology();
         final RegionalRIMatcherCache regionalRIMatcherCache =
-            regionalRIMatcherCacheFactory.createNewCache(cloudTopology, purchaseConstraints);
+            regionalRIMatcherCacheFactory.createNewCache(cloudTopology, purchaseConstraints, scope.getTopologyInfo());
 
         final List<ComputeTierTypeHourlyByWeekRecord> demandClusters = computeTierDemandStatsStore
                 .getUniqueDemandClusters().collect(Collectors.toList());

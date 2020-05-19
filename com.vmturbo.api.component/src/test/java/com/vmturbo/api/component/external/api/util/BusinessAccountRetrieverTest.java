@@ -625,6 +625,7 @@ public class BusinessAccountRetrieverTest {
             .displayName("Discovering Target")
             .probeInfo(ImmutableThinProbeInfo.builder()
                 .category(ProbeCategory.CLOUD_MANAGEMENT.getCategory())
+                .uiCategory(ProbeCategory.PUBLIC_CLOUD.getCategory())
                 .oid(11111)
                 .type(SDKProbeType.AWS.getProbeType())
                 .build())
@@ -670,7 +671,7 @@ public class BusinessAccountRetrieverTest {
         assertThat(businessUnitDTO.getTargets().size(), is(1));
         final TargetApiDTO targetApiDTO = businessUnitDTO.getTargets().get(0);
         assertThat(targetApiDTO.getType(), is(discoveringTargetInfo.probeInfo().type()));
-        assertThat(targetApiDTO.getCategory(), is(discoveringTargetInfo.probeInfo().category()));
+        assertThat(targetApiDTO.getCategory(), is(discoveringTargetInfo.probeInfo().uiCategory()));
         assertThat(targetApiDTO.getDisplayName(), is(discoveringTargetInfo.displayName()));
         assertThat(targetApiDTO.getUuid(), is(Long.toString(discoveringTargetInfo.oid())));
     }

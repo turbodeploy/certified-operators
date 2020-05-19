@@ -51,12 +51,23 @@ public class DbMonitorConfig {
 
     private static Logger logger = LogManager.getLogger();
 
+    /**
+     * Classification structure for processlist entries.
+     *
+     * <p>The value should be a multiline string formatted as YAML. In a YAML file this is easily
+     * created: simply define the property as a YAML structure, and then add "|-" on the line with
+     * the property name, which turns the entire block into a block literal string.</p>
+     *
+     * <p>{@link #DEFAULT_CLASSIFICATION} is used if this is not overridden.</p>
+     */
     @Value("${processListClassification:}")
     public String processListClassification;
 
+    /** Seconds between reports logged by DbMonitor. */
     @Value("${dbMonitorIntervalSec:60}")
     public int dbMonitorIntervalSec;
 
+    /** Whether DbMonitor reports should be produced at all. */
     @Value("${dbMonitorEnabled:true}")
     public boolean dbMonitorEnabled;
 

@@ -39,6 +39,7 @@ import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -113,6 +114,8 @@ public class EntitiesServiceTest {
     private RepositoryApi repositoryApi = mock(RepositoryApi.class);
 
     private EntitySettingQueryExecutor entitySettingQueryExecutor = mock(EntitySettingQueryExecutor.class);
+
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
 
     // gRPC servers
     @Rule
@@ -200,7 +203,9 @@ public class EntitiesServiceTest {
         final ActionSearchUtil actionSearchUtil =
             new ActionSearchUtil(
                 actionOrchestratorRpcService, actionSpecMapper,
-                paginationMapper, supplyChainFetcherFactory, groupExpander, CONTEXT_ID);
+                paginationMapper, supplyChainFetcherFactory, groupExpander,
+                    serviceProviderExpander,
+                    CONTEXT_ID);
 
         when(groupExpander.expandOids(any()))
             .thenAnswer(invocation -> invocation.getArgumentAt(0, Set.class));
@@ -547,6 +552,7 @@ public class EntitiesServiceTest {
         when(repositoryApi.entitiesRequest(Sets.newHashSet(Long.valueOf(VM_ID)))).thenReturn(minimalEntityVMRequest);
 
         Set<Long> scope = Collections.singleton(VM_ID);
+        when(serviceProviderExpander.expand(scope)).thenReturn(scope);
         when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
 
         // call the service
@@ -577,6 +583,7 @@ public class EntitiesServiceTest {
         when(repositoryApi.entitiesRequest(Sets.newHashSet(regionId))).thenReturn(minimalEntityRegionRequest);
 
         scope = Collections.singleton(regionId);
+        when(serviceProviderExpander.expand(scope)).thenReturn(scope);
         when(supplyChainFetcherFactory.expandAggregatedEntities(scope)).thenReturn(scope);
 
         final ActionApiDTO regionResult =

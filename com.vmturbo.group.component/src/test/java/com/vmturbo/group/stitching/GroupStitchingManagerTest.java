@@ -129,8 +129,8 @@ public class GroupStitchingManagerTest {
                 .count());
         final StitchingGroup stitchedGroup = result.getGroupsToAddOrUpdate()
                 .stream()
-                .filter(group -> group.getGroupDefinition().getType() == GroupType.RESOURCE &&
-                        group.getSourceId().equals(GROUP_ID))
+                .filter(group -> group.getGroupDefinition().getType() == GroupType.RESOURCE
+                        && group.getSourceId().equals(GROUP_ID))
                 .findFirst()
                 .get();
         Assert.assertEquals(Sets.newHashSet(TARGET_2, TARGET_3), stitchedGroup.getTargetIds());
@@ -140,8 +140,9 @@ public class GroupStitchingManagerTest {
 
         final StitchingGroup singleGroup = result.getGroupsToAddOrUpdate()
                 .stream()
-                .filter(group -> group.getGroupDefinition().getType() == GroupType.RESOURCE &&
-                        group.getSourceId().equals(GROUP_ID_2))
+                .filter(group -> group.getGroupDefinition().getType() == GroupType.RESOURCE && group
+                        .getSourceId()
+                        .equals(GROUP_ID_2))
                 .findFirst()
                 .get();
         Assert.assertEquals(Collections.singleton(TARGET_3), singleGroup.getTargetIds());

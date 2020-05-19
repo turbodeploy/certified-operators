@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.plan.PlanDTO.PlanStatusNotification;
 import com.vmturbo.common.protobuf.plan.PlanDTOREST.PlanServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc;
 import com.vmturbo.common.protobuf.topology.AnalysisServiceGrpc.AnalysisServiceBlockingStub;
 import com.vmturbo.components.api.server.BaseKafkaProducerConfig;
@@ -58,8 +59,8 @@ import com.vmturbo.topology.processor.api.impl.TopologyProcessorClientConfig;
         GroupClientConfig.class, CostClientConfig.class, GlobalConfig.class})
 public class PlanConfig {
 
-    @Value("${planTimeoutMins:180}")
-    private int planTimeoutMins;
+    @Value("${planTimeoutMin:180}")
+    private int planTimeoutMin;
 
     @Value("${planCleanupIntervalMin:5}")
     private int planCleanupIntervalMin;
@@ -112,9 +113,9 @@ public class PlanConfig {
                 groupClientConfig.groupChannel(),
                 userSessionConfig.userSessionContext(),
                 repositoryClientConfig.searchServiceClient(),
+                supplyChainRpcService(),
                 globalConfig.clock(),
-                planCleanupExecutor(),
-                planTimeoutMins,
+                planCleanupExecutor(), planTimeoutMin,
                 TimeUnit.MINUTES,
                 planCleanupIntervalMin,
                 TimeUnit.MINUTES);
@@ -261,6 +262,11 @@ public class PlanConfig {
                 new PlanInstanceCompletionListener(planInstanceQueue());
         planDao().addStatusListener(listener);
         return listener;
+    }
+
+    @Bean
+    public SupplyChainServiceGrpc.SupplyChainServiceBlockingStub supplyChainRpcService() {
+        return SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
     }
 
     @Bean

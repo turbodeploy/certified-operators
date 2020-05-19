@@ -373,6 +373,11 @@ public class UuidMapper implements RepositoryListener {
         public Set<ApiEntityType> getEntityTypes() {
             return Collections.unmodifiableSet(entityOidsByType.keySet());
         }
+
+        @Nonnull
+        public Map<ApiEntityType, Set<Long>> getEntityOidsByType() {
+            return entityOidsByType;
+        }
     }
 
     /**
@@ -958,7 +963,8 @@ public class UuidMapper implements RepositoryListener {
                                             Collections.singletonMap(
                                                     entityInfo.getEntityType(),
                                                     Collections.singleton(oid)))
-                                    .orElse(Collections.emptyMap()));
+                                    .orElseGet(() -> getCachedPlanInfo().map(CachedPlanInfo::getEntityOidsByType)
+                                            .orElse(Collections.emptyMap())));
         }
 
         /**

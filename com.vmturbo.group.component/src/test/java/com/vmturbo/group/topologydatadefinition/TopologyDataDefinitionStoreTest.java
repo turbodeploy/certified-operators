@@ -120,8 +120,8 @@ public class TopologyDataDefinitionStoreTest {
         // Test that the automated entity definition was properly created.
         assertEquals(AUTOMATED_TOPO_DATA_DEF, automatedTopoDataDefEntry.getDefinition());
         assertTrue(automatedTopoDataDefEntry.hasId());
-        assertTrue(manualTopoDataDefEntry.getId() !=
-            automatedTopoDataDefEntry.getId());
+        assertTrue(manualTopoDataDefEntry.getId()
+            != automatedTopoDataDefEntry.getId());
 
         // Test that we can't create the same automated entity definition again.
         expectedException.expect(DuplicateNameException.class);
@@ -173,7 +173,7 @@ public class TopologyDataDefinitionStoreTest {
                 updatedManualDef);
         assertTrue(optUpdatedEntry.isPresent());
         assertEquals(newGroupId, optUpdatedEntry.get().getDefinition().getManualEntityDefinition()
-            .getAssociatedGroup().getId());
+            .getAssociatedEntities(0).getAssociatedGroup().getId());
         assertEquals(manualTopoDataDefEntry.getId(), optUpdatedEntry.get().getId());
 
         // Check that we can't update a definition with a non existent OID.

@@ -512,6 +512,9 @@ public class TopologyConverter {
                     // Allow creation of traderTOs for traders discarded due to state or entityType.
                     // We will remove them traderTO set after scoping but before sending to market.
                     if (SKIPPED_ENTITY_STATES.contains(entity.getEntityState())) {
+                        logger.debug("Skipping trader creation for entity oid = {}, name = {}, type = {}, "
+                                        + "state = {} because of state.", entity.getOid(), entity.getDisplayName(),
+                                EntityType.forNumber(entityType), entity.getEntityState());
                         skippedEntities.put(entity.getOid(), entity);
                     }
                     entityOidToDto.put(entity.getOid(), entity);
@@ -2986,7 +2989,17 @@ public class TopologyConverter {
         // Remove all skipped traders as we don't want to send them to market
         // and only needed them for scoping.
         for (long skippedEntityOid : skippedEntities.keySet()) {
-            traderTOs.remove(oidToOriginalTraderTOMap.get(skippedEntityOid));
+            final TraderTO traderTO = oidToOriginalTraderTOMap.get(skippedEntityOid);
+            if (traderTO != null) {
+                traderTOs.remove(traderTO);
+                final Set<Long> shoppingListsOids = traderTO.getShoppingListsList().stream().map(ShoppingListTO::getOid)
+                        .collect(Collectors.toSet());
+                logger.debug("Remove following ShoppingListTOs {} from cloudVmComputeShoppingListIDs, because traderTO {} is skipped",
+                        () -> shoppingListsOids.stream().map(String::valueOf).collect(Collectors.joining(",")),
+                        () -> traderTO.getDebugInfoNeverUseInCode());
+                cloudVmComputeShoppingListIDs.removeAll(shoppingListsOids);
+
+            }
         }
     }
 

@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.commons.collections.CollectionUtils;
+import org.apache.commons.collections4.CollectionUtils;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -19,6 +19,7 @@ import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.PaginationMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.action.ActionApiInputDTO;
@@ -47,6 +48,7 @@ public class ActionSearchUtil {
     private final SupplyChainFetcherFactory supplyChainFetcherFactory;
     private final long realtimeTopologyContextId;
     private final GroupExpander groupExpander;
+    private final ServiceProviderExpander serviceProviderExpander;
 
     public ActionSearchUtil(
             @Nonnull ActionsServiceBlockingStub actionOrchestratorRpc,
@@ -54,12 +56,14 @@ public class ActionSearchUtil {
             @Nonnull PaginationMapper paginationMapper,
             @Nonnull SupplyChainFetcherFactory supplyChainFetcherFactory,
             @Nonnull GroupExpander groupExpander,
+            @Nonnull ServiceProviderExpander serviceProviderExpander,
             long realtimeTopologyContextId) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpc);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.supplyChainFetcherFactory = Objects.requireNonNull(supplyChainFetcherFactory);
         this.groupExpander = Objects.requireNonNull(groupExpander);
+        this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
     }
 
@@ -83,10 +87,14 @@ public class ActionSearchUtil {
                                                       @Nonnull ActionPaginationRequest paginationRequest)
             throws  InterruptedException, OperationFailedException,
                     UnsupportedActionException, ExecutionException, ConversionException {
-        final Set<Long> scope = groupExpander.expandOids(ImmutableSet.of(scopeId.oid()));
+        Set<Long> scope = groupExpander.expandOids(ImmutableSet.of(scopeId.oid()));
         if (scope.isEmpty()) {
             return paginationRequest.finalPageResponse(Collections.emptyList(), 0);
         }
+
+        // expand service providers to regions, expandServiceProviders will return a set of all
+        // regions and original non serviceProvider scopes.
+        scope = serviceProviderExpander.expand(scope);
 
         final Set<Long> expandedScope;
         // if the field "relatedEntityTypes" is not empty, then we need to fetch additional

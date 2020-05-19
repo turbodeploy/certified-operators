@@ -148,6 +148,12 @@ public class ServiceConfig {
     @Value("${deploymentMode:SERVER}")
     private DeploymentMode deploymentMode;
 
+    /**
+     * Configuration used to enable/disable ui reporting section.
+     */
+    @Value("${enableReporting:false}")
+    private boolean enableReporting;
+
     @Value("${apiPaginationDefaultLimit:100}")
     private int apiPaginationDefaultLimit;
 
@@ -156,6 +162,12 @@ public class ServiceConfig {
 
     @Value("${apiPaginationDefaultSortCommodity:priceIndex}")
     private String apiPaginationDefaultSortCommodity;
+
+    /**
+     * Feature flag. If it is true than ExecutionSchedule settings are not displayed in UI.
+     */
+    @Value("${hideExecutionScheduleSetting:true}")
+    private boolean hideExecutionScheduleSetting;
 
     /**
      * We allow autowiring between different configuration objects, but not for a bean.
@@ -197,14 +209,20 @@ public class ServiceConfig {
                                   communicationConfig.repositoryApi(),
                                   communicationConfig.getRealtimeTopologyContextId(),
                                   actionStatsQueryExecutor(),
-                                  mapperConfig.uuidMapper());
+                                  mapperConfig.uuidMapper(),
+                                  communicationConfig.serviceProviderExpander(),
+                                  actionSearchUtil(),
+                                  marketsService(),
+                                  communicationConfig.supplyChainFetcher(),
+                                  apiPaginationMaxLimit);
     }
 
     @Bean
     public AdminService adminService() {
         return new AdminService(clusterService(), keyValueStoreConfig.keyValueStore(),
             communicationConfig.clusterMgr(), communicationConfig.serviceRestTemplate(),
-            websocketConfig.websocketHandler(), BuildProperties.get(), this.deploymentMode);
+            websocketConfig.websocketHandler(), BuildProperties.get(), this.deploymentMode,
+                this.enableReporting);
     }
 
     @Bean
@@ -332,7 +350,8 @@ public class ServiceConfig {
                 communicationConfig.thinTargetCache(),
                 entitySettingQueryExecutor(),
                 mapperConfig.groupFilterMapper(),
-                businessAccountRetriever());
+                businessAccountRetriever(),
+                communicationConfig.serviceProviderExpander());
     }
 
     @Bean
@@ -375,6 +394,7 @@ public class ServiceConfig {
                 planEntityStatsFetcher(),
                 communicationConfig.searchServiceBlockingStub(),
                 actionSearchUtil(),
+                entitySettingQueryExecutor(),
                 communicationConfig.getRealtimeTopologyContextId());
     }
 
@@ -503,7 +523,7 @@ public class ServiceConfig {
                 communicationConfig.historyRpcService(),
                 mapperConfig.settingsMapper(),
                 mapperConfig.settingManagerMappingLoader().getMapping(),
-                settingsPoliciesService());
+                settingsPoliciesService(), hideExecutionScheduleSetting);
     }
 
     @Bean
@@ -666,7 +686,8 @@ public class ServiceConfig {
             communicationConfig.supplyChainFetcher(),
             userSessionContext(),
             communicationConfig.repositoryApi(),
-            mapperConfig.buyRiScopeHandler());
+            mapperConfig.buyRiScopeHandler(),
+            communicationConfig.thinTargetCache());
     }
 
     @Bean
@@ -823,6 +844,7 @@ public class ServiceConfig {
             mapperConfig.paginationMapper(),
             communicationConfig.supplyChainFetcher(),
             communicationConfig.groupExpander(),
+            communicationConfig.serviceProviderExpander(),
             communicationConfig.getRealtimeTopologyContextId());
     }
 

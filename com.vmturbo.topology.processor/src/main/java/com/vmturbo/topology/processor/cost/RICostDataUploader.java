@@ -154,7 +154,7 @@ public class RICostDataUploader {
         long requestHash = requestBuilder.build().hashCode();
         if (requestHash != lastProcessedHash) {
             // set the topology ID after calculating the hash, so it doesn't affect the hash calc
-            requestBuilder.setTopologyId(topologyInfo.getTopologyId());
+            requestBuilder.setTopologyContextId(topologyInfo.getTopologyId());
             requestBuilder.setChecksum(requestHash);
             requestBuilder.setCreatedTime(System.currentTimeMillis());
 

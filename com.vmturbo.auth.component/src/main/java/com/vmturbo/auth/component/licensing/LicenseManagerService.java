@@ -292,7 +292,7 @@ public class LicenseManagerService extends LicenseManagerServiceImplBase {
             // if any were store, fire a "license added" event.
             if (numStored > 0) {
                 publishEvent(LicenseManagementEventType.LICENSE_ADDED);
-                systemLicenseNotification("Added new licens.", "Successfully added new license");
+                systemLicenseNotification("Added new license.", "Successfully added new license");
             }
         }
     }

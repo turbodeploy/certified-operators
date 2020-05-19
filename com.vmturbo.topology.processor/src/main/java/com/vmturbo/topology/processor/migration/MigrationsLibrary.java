@@ -1,10 +1,7 @@
 package com.vmturbo.topology.processor.migration;
 
-
-import java.util.HashMap;
 import java.util.Objects;
 import java.util.SortedMap;
-import java.util.TreeMap;
 
 import javax.annotation.Nonnull;
 
@@ -65,23 +62,28 @@ public class MigrationsLibrary {
     }
 
     public SortedMap<String, Migration> getMigrationsList(){
-        SortedMap<String, Migration> migrationsMap = new TreeMap<>();
-        migrationsMap.put("V_01_00_00__Probe_Metadata_Change_Migration",
-                new V_01_00_00__Probe_Metadata_Change_Migration(probeStore, dslContext,
-                        statsHistoryClient, identityServiceUnderlyingStore, identityProvider));
-        migrationsMap.put("V_01_00_01__Vim_Probe_Storage_Browsing_Migration",
+        ImmutableSortedMap.Builder<String, Migration> builder =
+            ImmutableSortedMap.<String, Migration>naturalOrder();
+        builder.put("V_01_00_00__Probe_Metadata_Change_Migration",
+            new V_01_00_00__Probe_Metadata_Change_Migration(probeStore,
+                dslContext, statsHistoryClient,
+                identityServiceUnderlyingStore,
+                identityProvider))
+            .put("V_01_00_01__Vim_Probe_Storage_Browsing_Migration",
                 new V_01_00_01__Vim_Probe_Storage_Browsing_Migration(probeStore,
-                        identityServiceUnderlyingStore, identityProvider));
-        migrationsMap.put("V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration",
-                new V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration(keyValueStore));
-        migrationsMap.put("V_01_00_03__Target_Oid_Replace_Ip_With_Address",
+                    identityServiceUnderlyingStore,
+                    identityProvider))
+            .put("V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration",
+                new V_01_00_02__TargetSpec_Fix_Derived_Targets_Migration(keyValueStore))
+            .put("V_01_00_03__Target_Oid_Replace_Ip_With_Address",
                 new V_01_00_03__Target_Oid_Replace_Ip_With_Address(probeStore, targetStore,
-                        targetIdentityStore));
-        migrationsMap.put("V_01_00_04__Remove_Orphaned_Targets_Migration",
-                new V_01_00_04__RemoveOrphanedTargetsMigration(targetStore, probeStore, targetDao));
-        migrationsMap.put("V_01_00_05__Add_UI_Category_and_license_To_Probes_Migration",
-                new V_01_00_05__Add_UI_Category_and_license_To_Probes_Migration(keyValueStore));
-
-        return migrationsMap;
+                    targetIdentityStore))
+            .put("V_01_00_04__Remove_Orphaned_Targets_Migration",
+                new V_01_00_04__RemoveOrphanedTargetsMigration(targetStore, probeStore, targetDao))
+            .put("V_01_00_05__Standalone_AWS_Billing",
+                new V_01_00_05__Standalone_AWS_Billing(keyValueStore, identityProvider))
+            .put("V_01_01_01__Add_UI_Category_and_license_To_Probes_Migration",
+                        new V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration(keyValueStore));;
+        return builder.build();
     }
 }

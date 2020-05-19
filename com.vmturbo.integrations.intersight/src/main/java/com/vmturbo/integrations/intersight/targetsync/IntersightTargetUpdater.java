@@ -147,8 +147,7 @@ public class IntersightTargetUpdater {
                 .filter(service -> Objects.equals(IWO_SERVICE_OBJECT_TYPE, service.getObjectType()))
                 .filter(target::needsUpdate)
                 .map(service -> service.status(target.getNewStatusEnum(service))) // update status enum
-                .map(service -> service.statusErrorReason(StatusEnum.CONNECTED ==
-                        service.getStatus() ? "" : target.tp().getStatus())) // update err string
+                .map(service -> service.statusErrorReason(target.getNewStatusErrorReason(service))) // update err string
                 .count();
         if (changedCount > 0) {
             // Correct the ClassId field in the target object because the Intersight Java SDK
@@ -163,7 +162,13 @@ public class IntersightTargetUpdater {
             final AssetTarget editableTarget = json.deserialize(editedJson, AssetTarget.class);
 
             final AssetApi assetApi = new AssetApi(apiClient);
-            assetApi.updateAssetTarget(target.intersight().getMoid(), editableTarget, null);
+            try {
+                assetApi.updateAssetTarget(target.intersight().getMoid(), editableTarget, null);
+            } catch (ApiException e) {
+                logger.error("Attempted to update target {} status to {} but getting an error: {}",
+                        target.intersight().getMoid(), target.tp().getStatus(), e.getResponseBody());
+                throw e;
+            }
             logger.info("Updated target {} status to {}", target.intersight().getMoid(), target.tp().getStatus());
         }
     }

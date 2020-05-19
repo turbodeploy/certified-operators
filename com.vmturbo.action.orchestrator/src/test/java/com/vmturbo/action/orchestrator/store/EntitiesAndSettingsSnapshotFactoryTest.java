@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Sets;
@@ -40,6 +41,8 @@ import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChain;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode;
 import com.vmturbo.common.protobuf.repository.SupplyChainProto.SupplyChainNode.MemberList;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoMoles.SupplyChainServiceMole;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto;
+import com.vmturbo.common.protobuf.schedule.ScheduleProtoMoles.ScheduleServiceMole;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingFilter;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
@@ -68,16 +71,19 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
     private static final long ENTITY_ID = 1L;
     private static final String VM_CLASSIC_ENTITY_TYPE = "VirtualMachine";
     private static final Long ASSOCIATED_RESOURCE_GROUP_ID = 123L;
+    private static final Long SCHEDULE_ID = 304L;
+    private static final String SCHEDULE_DISPLAY_NAME = "TestSchedule";
 
     private SettingPolicyServiceMole spServiceSpy = spy(new SettingPolicyServiceMole());
     private RepositoryServiceMole repoServiceSpy = spy(new RepositoryServiceMole());
     private GroupServiceMole groupServiceSpy = spy(new GroupServiceMole());
     private SupplyChainServiceMole supplyChainServiceSpy = spy(new SupplyChainServiceMole());
+    private ScheduleServiceMole scheduleServiceSpy = spy(new ScheduleServiceMole());
 
     @Rule
     public GrpcTestServer grpcTestServer =
             GrpcTestServer.newServer(spServiceSpy, repoServiceSpy, groupServiceSpy,
-                    supplyChainServiceSpy);
+                    supplyChainServiceSpy, scheduleServiceSpy);
 
     private EntitiesAndSettingsSnapshotFactory entitySettingsCache;
 
@@ -133,6 +139,10 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
             .putEntityGroup(ENTITY_ID,
                 Groupings.newBuilder().addGroupId(ASSOCIATED_RESOURCE_GROUP_ID).build())
             .build());
+
+        when(scheduleServiceSpy.getSchedules(ScheduleProto.GetSchedulesRequest.newBuilder().build()))
+            .thenReturn(Collections.singletonList(ScheduleProto.Schedule.newBuilder().setId(SCHEDULE_ID)
+                .setDisplayName(SCHEDULE_DISPLAY_NAME).build()));
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
             Collections.singleton(ENTITY_ID), REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);

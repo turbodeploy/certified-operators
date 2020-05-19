@@ -50,18 +50,18 @@ public class TopologyEntityConstructor {
      * with the reference to the new one.
      *
      * @param template template
-     * @param topology topology
      * @param originalTopologyEntity original TopologyEntity
      * @param isReplaced is replaced
      * @param identityProvider identity provider
+     * @param entityType entity type
      * @return topology entities
      * @throws TopologyEntityConstructorException error creating topology
      *             entities
      */
     @Nonnull
-    public Collection<TopologyEntityDTO.Builder> generateTopologyEntityBuilder(
-            @Nonnull Template template, @Nullable TopologyEntity.Builder originalTopologyEntity,
-            boolean isReplaced, @Nonnull IdentityProvider identityProvider)
+    public TopologyEntityDTO.Builder generateTopologyEntityBuilder(@Nonnull Template template,
+            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
+            @Nonnull IdentityProvider identityProvider, int entityType)
             throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder result = TopologyEntityDTO.newBuilder()
                 .setEntityState(EntityState.POWERED_ON).setAnalysisSettings(AnalysisSettings
@@ -84,12 +84,13 @@ public class TopologyEntityConstructor {
         }
 
         result.setDisplayName(displayName);
+        result.setEntityType(entityType);
 
-        return Collections.singletonList(result);
+        return result;
     }
 
     @Nonnull
-    protected static Double getTemplateValue(@Nonnull Map<String, String> templateMap,
+    public static Double getTemplateValue(@Nonnull Map<String, String> templateMap,
             @Nonnull String fieldName) throws TopologyEntityConstructorException {
         String valueStr = templateMap.get(fieldName);
 
@@ -341,13 +342,27 @@ public class TopologyEntityConstructor {
      * @return A Map which key is template field name and value is template
      *         field value.
      */
-    public static Map<String, String> createFieldNameValueMap(
+    protected static Map<String, String> createFieldNameValueMap(
             @Nonnull final List<TemplateResource> templateResources) {
         final List<TemplateField> fields = getTemplateField(templateResources);
         // Since for one templateSpec, its field name is unique. There should be
         // no conflicts.
         return fields.stream()
                 .collect(Collectors.toMap(TemplateField::getName, TemplateField::getValue));
+    }
+
+    /**
+     * Get all template fields from template resources and generate a mapping
+     * from template field name to template field value.
+     *
+     * @param template template
+     * @param categoryName category name
+     * @return A Map which key is template field name and value is template
+     *         field value.
+     */
+    public static Map<String, String> createFieldNameValueMap(@Nonnull Template template,
+            @Nonnull ResourcesCategoryName categoryName) {
+        return createFieldNameValueMap(getTemplateResources(template, categoryName));
     }
 
     /**
@@ -440,15 +455,15 @@ public class TopologyEntityConstructor {
     }
 
     /**
-     * Create commodity sold DTO. {@link CommoditySoldDTO} from template is not
-     * resizeable.
+     * Create commodity sold DTO.
      *
-     * @param commodityType commodity type.
-     * @param capacity capacity.
+     * @param commodityType commodity type
+     * @param capacity capacity
+     * @param isResizable is resizable
      * @return {@link CommoditySoldDTO}
      */
     public static CommoditySoldDTO createCommoditySoldDTO(int commodityType,
-            @Nullable Double capacity) {
+            @Nullable Double capacity, boolean isResizable) {
         final CommoditySoldDTO.Builder builder = CommoditySoldDTO.newBuilder();
         builder.setActive(true).setCommodityType(CommodityType.newBuilder().setType(commodityType));
 
@@ -456,8 +471,21 @@ public class TopologyEntityConstructor {
             builder.setCapacity(capacity);
         }
 
-        builder.setIsResizeable(false);
+        builder.setIsResizeable(isResizable);
         return builder.build();
+    }
+
+    /**
+     * Create commodity sold DTO. {@link CommoditySoldDTO} from template is not
+     * resizeable.
+     *
+     * @param commodityType commodity type
+     * @param capacity capacity
+     * @return {@link CommoditySoldDTO}
+     */
+    public static CommoditySoldDTO createCommoditySoldDTO(int commodityType,
+            @Nullable Double capacity) {
+        return createCommoditySoldDTO(commodityType, capacity, false);
     }
 
     /**
@@ -468,7 +496,7 @@ public class TopologyEntityConstructor {
      * @return {@link CommoditySoldDTO}
      */
     public static CommoditySoldDTO createCommoditySoldDTO(int commodityType) {
-        return createCommoditySoldDTO(commodityType, null);
+        return createCommoditySoldDTO(commodityType, null, false);
     }
 
     /**
@@ -477,19 +505,20 @@ public class TopologyEntityConstructor {
      * @param topologyEntityBuilder builder of TopologyEntity.
      * @param fieldNameValueMap a Map which key is template field name and value
      *            is field value.
+     * @param isResizable is commodity resizable
      * @throws TopologyEntityConstructorException error processing template
      */
     protected static void addStorageCommoditiesSold(
             @Nonnull final TopologyEntityDTO.Builder topologyEntityBuilder,
-            @Nonnull Map<String, String> fieldNameValueMap)
+            @Nonnull Map<String, String> fieldNameValueMap, boolean isResizable)
             throws TopologyEntityConstructorException {
         Double diskSize = getTemplateValue(fieldNameValueMap, TemplateProtoUtil.STORAGE_DISK_SIZE);
         Double diskIops = getTemplateValue(fieldNameValueMap, TemplateProtoUtil.STORAGE_DISK_IOPS);
 
         CommoditySoldDTO storageAmoutCommodity = createCommoditySoldDTO(
-                CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, diskSize);
+                CommodityDTO.CommodityType.STORAGE_AMOUNT_VALUE, diskSize, isResizable);
         CommoditySoldDTO storageAccessCommodity = createCommoditySoldDTO(
-                CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, diskIops);
+                CommodityDTO.CommodityType.STORAGE_ACCESS_VALUE, diskIops, isResizable);
 
         // Since storage templates don't have a latency value, but VMs do buy a latency commodity,
         // a sold commodity is added. Capacity is left unset - StorageLatencyPostStitchingOperation
@@ -500,8 +529,8 @@ public class TopologyEntityConstructor {
         // provisioned commodities. By leaving capacities unset, they will be set later in the
         // topology pipeline when settings are available by the
         // OverprovisionCapacityPostStitchingOperation.
-        CommoditySoldDTO storageProvisionedCommodity =
-            createCommoditySoldDTO(CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE);
+        CommoditySoldDTO storageProvisionedCommodity = createCommoditySoldDTO(
+                CommodityDTO.CommodityType.STORAGE_PROVISIONED_VALUE, null, isResizable);
 
         topologyEntityBuilder
             .addCommoditySoldList(storageAccessCommodity)
@@ -546,12 +575,13 @@ public class TopologyEntityConstructor {
                         diskSize);
 
         CommoditiesBoughtFromProvider.Builder commoditiesBoughtGroup = CommoditiesBoughtFromProvider
-                .newBuilder().setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE);
+                .newBuilder().setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                .setProviderId(providerId);
 
         commoditiesBoughtGroup.addCommodityBought(storageAmoutCommodity)
                 .addCommodityBought(storageAccessCommodity)
                 .addCommodityBought(storageLatencyCommodity)
-                .addCommodityBought(storageProvisionedCommodity).setProviderId(providerId);
+                .addCommodityBought(storageProvisionedCommodity);
 
         topologyEntityBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtGroup.build());
     }

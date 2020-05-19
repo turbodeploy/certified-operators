@@ -26,9 +26,11 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.Mockito;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 
 import com.vmturbo.api.component.ApiTestUtils;
@@ -37,6 +39,9 @@ import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
+import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor.ActionStatsQuery;
 import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQuery;
@@ -84,13 +89,23 @@ public class ActionsServiceTest {
 
     private UuidMapper uuidMapper = mock(UuidMapper.class);
 
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
+
     ActionsServiceGrpc.ActionsServiceBlockingStub actionsRpcService;
 
     private ActionSpecMapper actionSpecMapper;
 
+    private ActionSearchUtil actionSearchUtil;
+
+    private MarketsService marketsService;
+
+    private SupplyChainFetcherFactory supplyChainFetcherFactory;
+
     private final long REALTIME_TOPOLOGY_ID = 777777L;
 
     private final String UUID = "12345";
+
+    private final int maxInnerPagination = 500;
 
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsServiceBackend);
@@ -100,15 +115,18 @@ public class ActionsServiceTest {
 
     @Before
     public void setup() throws IOException {
-
         // set up a mock Actions RPC server
         actionSpecMapper = Mockito.mock(ActionSpecMapper.class);
+        actionSearchUtil = Mockito.mock(ActionSearchUtil.class);
+        marketsService = Mockito.mock(MarketsService.class);
+        supplyChainFetcherFactory = Mockito.mock(SupplyChainFetcherFactory.class);
         actionsRpcService = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
 
         // set up the ActionsService to test
         actionsServiceUnderTest = new ActionsService(actionsRpcService, actionSpecMapper,
             repositoryApi, REALTIME_TOPOLOGY_ID,
-            actionStatsQueryExecutor, uuidMapper);
+            actionStatsQueryExecutor, uuidMapper, serviceProviderExpander,
+            actionSearchUtil, marketsService, supplyChainFetcherFactory, maxInnerPagination);
     }
 
     /**
@@ -173,6 +191,8 @@ public class ActionsServiceTest {
             .setDisplayName("First Entity")
             .build()));
         when(repositoryApi.entitiesRequest(Collections.singleton(1L))).thenReturn(req);
+
+        when(serviceProviderExpander.expand(any())).thenReturn(ImmutableSet.of(3L, 1L));
 
         final Map<String, EntityStatsApiDTO> statsByUuid =
             actionsServiceUnderTest.getActionStatsByUuidsQuery(actionScopesApiInputDTO).stream()

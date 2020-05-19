@@ -52,6 +52,8 @@ public class InvolvedEntitiesExpander {
      */
     public static final List<String> PROPAGATED_ARM_ENTITY_TYPES = Arrays.asList(
         ApiEntityType.APPLICATION_COMPONENT.apiStr(),
+        ApiEntityType.CONTAINER.apiStr(),
+        ApiEntityType.CONTAINER_POD.apiStr(),
         ApiEntityType.VIRTUAL_MACHINE.apiStr(),
         ApiEntityType.DATABASE_SERVER.apiStr(),
         ApiEntityType.VIRTUAL_VOLUME.apiStr(),

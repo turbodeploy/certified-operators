@@ -1,10 +1,10 @@
 package com.vmturbo.topology.processor.group.settings;
 
 import static com.google.common.base.Preconditions.checkNotNull;
-import static com.vmturbo.common.protobuf.ListUtil.mergeTwoSortedListsAndRemoveDuplicates;
 
-import java.text.MessageFormat;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -42,13 +43,13 @@ import com.vmturbo.common.protobuf.schedule.ScheduleServiceGrpc.ScheduleServiceB
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceStub;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettings.SettingToPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.ListSettingPoliciesRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.SearchSettingSpecsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
-import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.Context;
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequest.SettingsChunk;
@@ -57,8 +58,11 @@ import com.vmturbo.common.protobuf.setting.SettingServiceGrpc.SettingServiceBloc
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.SettingDTOUtil;
+import com.vmturbo.platform.sdk.common.util.Pair;
+import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
@@ -100,7 +104,7 @@ public class EntitySettingsResolver {
 
     /**
      * Create a new settings manager.
-     *  @param settingPolicyServiceClient The service to use to retrieve setting policy definitions.
+     * @param settingPolicyServiceClient The service to use to retrieve setting policy definitions.
      * @param groupServiceClient The service to use to retrieve group definitions.
      * @param settingServiceClient The service to use to retrieve setting service definitions.
      * @param settingPolicyServiceAsyncStub The service to use to retrieve setting service
@@ -120,10 +124,9 @@ public class EntitySettingsResolver {
         this.settingPolicyServiceAsyncStub = Objects.requireNonNull(settingPolicyServiceAsyncStub);
         this.scheduleServiceBlockingStub = Objects.requireNonNull(scheduleServiceBlockingStub);
         this.chunkSize = chunkSize;
-        this.settingSpecNameToSettingResolver = ImmutableMap.of(
-            EntitySettingSpecs.ExcludedTemplates.getSettingName(),
-            SettingResolver.sortedSetOfOidUnionSettingResolver
-        );
+        this.settingSpecNameToSettingResolver =
+                ImmutableMap.of(EntitySettingSpecs.ExcludedTemplates.getSettingName(),
+                        SettingResolver.tiebreakerSettingResolver);
     }
 
     /**
@@ -193,12 +196,15 @@ public class EntitySettingsResolver {
         consistentScalingManager.buildScalingGroups(topologyGraph, groupResolver,
             userSettingsByEntityAndName);
 
+        // Convert proto settings into topology processor settings
+        final Map<SettingPolicy, Collection<TopologyProcessorSetting<?>>> policyToSettingsInPolicy =
+                convertSettingsToTopologyProcessorSettings(userAndDiscoveredSettingPolicies);
+
         // For each group, apply the settings from the SettingPolicies associated with the group
         // to the resolved entities
-        userAndDiscoveredSettingPolicies.forEach(settingPolicy -> {
-            resolveAllEntitySettings(settingPolicy, groups,
-                userSettingsByEntityAndName, settingSpecNameToSettingSpecs, schedules);
-        });
+        policyToSettingsInPolicy.forEach(
+                (key, value) -> resolveAllEntitySettings(key, value, groups,
+                        userSettingsByEntityAndName, settingSpecNameToSettingSpecs, schedules));
 
         final List<SettingPolicy> defaultSettingPolicies =
                 SettingDTOUtil.extractDefaultSettingPolicies(policyById.values());
@@ -229,6 +235,85 @@ public class EntitySettingsResolver {
         return new GraphWithSettings(topologyGraph, settings, defaultSettingPoliciesById);
     }
 
+    @Nonnull
+    private Map<SettingPolicy, Collection<TopologyProcessorSetting<?>>> convertSettingsToTopologyProcessorSettings(
+            @Nonnull List<SettingPolicy> userAndDiscoveredSettingPolicies) {
+        final Map<SettingPolicy, Collection<TopologyProcessorSetting<?>>> resultMap =
+                new HashMap<>();
+
+        for (SettingPolicy settingPolicy : Objects.requireNonNull(
+                userAndDiscoveredSettingPolicies)) {
+            final List<Setting> settingsList = settingPolicy.getInfo().getSettingsList();
+            final List<Setting> actionModeSettings = new ArrayList<>();
+            final Map<String, Setting> executionScheduleSettings = new HashMap<>();
+            final List<Setting> otherSettings = new ArrayList<>();
+
+            // distribute settings into different groups
+            for (Setting setting : settingsList) {
+                final String settingName = setting.getSettingSpecName();
+                if (EntitySettingSpecs.isExecutionScheduleSetting(settingName)) {
+                    executionScheduleSettings.put(settingName, setting);
+                } else if (EntitySettingSpecs.isActionModeSetting(settingName)) {
+                    actionModeSettings.add(setting);
+                } else {
+                    otherSettings.add(setting);
+                }
+            }
+
+            // group dependent ActionMode and ExecutionSchedule settings
+            final List<List<Setting>> correspondingSettings =
+                    groupDependentSettings(actionModeSettings, executionScheduleSettings);
+
+            final List<TopologyProcessorSetting<?>> combinedSettings =
+                    correspondingSettings.stream()
+                    .map(TopologyProcessorSettingsConverter::toTopologyProcessorSetting)
+                    .collect(Collectors.toList());
+
+            final List<TopologyProcessorSetting<?>> singleSettings = otherSettings.stream()
+                    .map(setting -> TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                            Collections.singleton(setting)))
+                    .collect(Collectors.toList());
+
+            final List<TopologyProcessorSetting<?>> topologyProcessorSettings =
+                    Stream.of(combinedSettings, singleSettings)
+                            .flatMap(Collection::stream)
+                            .collect(Collectors.toList());
+
+            resultMap.put(settingPolicy, topologyProcessorSettings);
+        }
+
+        return resultMap;
+    }
+
+    /**
+     * Combine dependent ActionMode and ExecutionSchedule setting in order to transform them into
+     * {@link ActionModeExecutionScheduleTopologyProcessorSetting}.
+     *
+     * @param actionModeSettings actionMode setting
+     * @param executionScheduleSettings executionSchedule setting
+     * @return collection of combined dependent settings
+     */
+    @Nonnull
+    private List<List<Setting>> groupDependentSettings(@Nonnull List<Setting> actionModeSettings,
+            @Nonnull Map<String, Setting> executionScheduleSettings) {
+        final List<List<Setting>> relatedSettings = new ArrayList<>();
+        for (Setting actionModeSetting : actionModeSettings) {
+            final String executionScheduleSpecName =
+                    EntitySettingSpecs.getActionModeToExecutionScheduleSettings()
+                            .get(actionModeSetting.getSettingSpecName());
+            final Setting correspondingExecutionSchedule =
+                    executionScheduleSettings.get(executionScheduleSpecName);
+            if (correspondingExecutionSchedule != null) {
+                relatedSettings.add(
+                        Arrays.asList(actionModeSetting, correspondingExecutionSchedule));
+            } else {
+                // there is no corresponding execution schedule setting
+                relatedSettings.add(Collections.singletonList(actionModeSetting));
+            }
+        }
+        return relatedSettings;
+    }
+
     /**
      * Resolve settings for entities in a group. If the settings use the same spec and have
      * different values, select a winner. If one setting is discovered and one is user-defined,
@@ -237,6 +322,7 @@ public class EntitySettingsResolver {
      * Otherwise use the spec's tie-breaker to resolve.
      *
      * @param settingPolicy The setting policy to apply.
+     * @param settingsInPolicy List of settings from policy in topology processor representation
      * @param resolvedGroups Resolved groups by ID.
      * @param userSettingsByEntityAndName The return parameter which
      *             maps an entityId with its associated settings indexed by the
@@ -246,6 +332,7 @@ public class EntitySettingsResolver {
      */
     @VisibleForTesting
     void resolveAllEntitySettings(@Nonnull final SettingPolicy settingPolicy,
+                                  @Nonnull final Collection<TopologyProcessorSetting<?>> settingsInPolicy,
                                   @Nonnull final Map<Long, ResolvedGroup> resolvedGroups,
                                   @Nonnull Map<Long, Map<String, SettingAndPolicyIdRecord>> userSettingsByEntityAndName,
                                   @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecs,
@@ -275,7 +362,7 @@ public class EntitySettingsResolver {
                 Map<String, SettingAndPolicyIdRecord> settingsByName =
                     userSettingsByEntityAndName.computeIfAbsent(oid, key -> new HashMap<>());
 
-                settingPolicy.getInfo().getSettingsList().forEach(nextSetting -> {
+                settingsInPolicy.forEach(nextSetting -> {
                     final String specName = nextSetting.getSettingSpecName();
                     final long nextSettingPolicyId = settingPolicy.getId();
                     final boolean hasSchedule = settingPolicy.getInfo().hasScheduleId();
@@ -335,15 +422,20 @@ public class EntitySettingsResolver {
                 @Nonnull final SettingOverrides settingOverrides) {
 
         final EntitySettings.Builder entitySettingsBuilder =
-            EntitySettings.newBuilder()
-                .setEntityOid(entity.getOid());
-        userSettings.forEach(settingRecord ->
-            entitySettingsBuilder.addUserSettings(
-                EntitySettings.SettingToPolicyId.newBuilder()
-                    .setSetting(settingRecord.getSetting())
-                    .addAllSettingPolicyId(settingRecord.getSettingPolicyIdList())
-                    .build())
-        );
+                EntitySettings.newBuilder().setEntityOid(entity.getOid());
+
+        // transform topology processor settings into protobuf settings
+        userSettings.forEach(settingRecord -> {
+            List<SettingToPolicyId> collect =
+                    TopologyProcessorSettingsConverter.toProtoSettings(settingRecord.getSetting())
+                            .stream()
+                            .map(setting -> SettingToPolicyId.newBuilder()
+                                    .setSetting(setting)
+                                    .addAllSettingPolicyId(settingRecord.getSettingPolicyIdList())
+                                    .build())
+                            .collect(Collectors.toList());
+            entitySettingsBuilder.addAllUserSettings(collect);
+        });
 
         // Override user settings.
         settingOverrides.overrideSettings(entity.getTopologyEntityDtoBuilder(), entitySettingsBuilder);
@@ -362,9 +454,11 @@ public class EntitySettingsResolver {
      * @param topologyInfo The information about the topology which was used to resolve
      *                    the settings.
      * @param entitiesSettings List of EntitySettings messages
+     * @param graph The topology graph
      */
     public void sendEntitySettings(@Nonnull final TopologyInfo topologyInfo,
-                                   @Nonnull final Collection<EntitySettings> entitiesSettings) {
+                                   @Nonnull final Collection<EntitySettings> entitiesSettings,
+                                   @Nonnull final TopologyGraph<TopologyEntity> graph) {
         final CountDownLatch finishLatch = new CountDownLatch(1);
         // For now, don't upload settings for non-realtime topologies.
         StreamObserver<UploadEntitySettingsResponse> responseObserver =
@@ -392,24 +486,33 @@ public class EntitySettingsResolver {
                 }
             };
 
-        if (topologyInfo.getTopologyType().equals(TopologyType.REALTIME)) {
-            StreamObserver<UploadEntitySettingsRequest> requestObserver =
-                    settingPolicyServiceAsyncStub.uploadEntitySettings(responseObserver);
-            try {
+        StreamObserver<UploadEntitySettingsRequest> requestObserver =
+                settingPolicyServiceAsyncStub.uploadEntitySettings(responseObserver);
+        try {
+            if (!TopologyDTOUtil.isPlan(topologyInfo)) {
                 streamEntitySettingsRequest(topologyInfo, entitiesSettings, requestObserver);
-            } catch (RuntimeException e) {
-                // Cancel RPC
-                requestObserver.onError(e);
-                throw e;
+            } else {
+                // Topology is a plan topology. Save the settings in the group component.
+                // Only send settings for VMs to the group component.
+                List<EntitySettings> vmSettings = entitiesSettings.stream().filter(e -> {
+                    TopologyEntity entity = graph.getEntity(e.getEntityOid()).orElse(null);
+                    return entity != null &&
+                            entity.getEntityType() == EntityType.VIRTUAL_MACHINE.getValue();
+                }).collect(Collectors.toList());
+                streamEntitySettingsRequest(topologyInfo, vmSettings, requestObserver);
             }
-            requestObserver.onCompleted();
-            try {
-                // block until we get a response or an exception occurs.
-                finishLatch.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();  // set interrupt flag
-                logger.error("Interrupted while waiting for response", e);
-            }
+        } catch (RuntimeException e) {
+            // Cancel RPC
+            requestObserver.onError(e);
+            throw e;
+        }
+        requestObserver.onCompleted();
+        try {
+            // block until we get a response or an exception occurs.
+            finishLatch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();  // set interrupt flag
+            logger.error("Interrupted while waiting for response", e);
         }
     }
 
@@ -549,25 +652,35 @@ public class EntitySettingsResolver {
     @VisibleForTesting
     public static class SettingAndPolicyIdRecord {
 
-        private Setting setting;
+        private TopologyProcessorSetting<?> setting;
         private Set<Long> settingPolicyIdList;
         private SettingPolicy.Type type;
         private boolean scheduled;
 
-        public SettingAndPolicyIdRecord(@Nonnull final Setting setting, final long settingPolicyId,
-                                 @Nonnull final SettingPolicy.Type type, final boolean scheduled) {
-            set(setting, settingPolicyId, type, scheduled);
+        /**
+         * Constructor of {@link SettingAndPolicyIdRecord}.
+         *
+         * @param setting topologyProcessor setting value
+         * @param settingPolicyId setting policy id
+         * @param type type of setting policy
+         * @param scheduled define is scheduled setting policy or not
+         */
+        public SettingAndPolicyIdRecord(@Nonnull final TopologyProcessorSetting<?> setting,
+                final long settingPolicyId, @Nonnull final SettingPolicy.Type type,
+                final boolean scheduled) {
+            set(setting, Collections.singleton(settingPolicyId), type, scheduled);
         }
 
-        void set(final Setting setting, long settingPolicyId, SettingPolicy.Type type, boolean scheduled) {
+        void set(final TopologyProcessorSetting<?> setting, Collection<Long> settingPolicyIds,
+                SettingPolicy.Type type, boolean scheduled) {
             this.setting = setting;
             this.settingPolicyIdList = new HashSet<>(1);
-            this.settingPolicyIdList.add(settingPolicyId);
+            this.settingPolicyIdList.addAll(settingPolicyIds);
             this.type = type;
             this.scheduled = scheduled;
         }
 
-        Setting getSetting() {
+        TopologyProcessorSetting<?> getSetting() {
             return setting;
         }
 
@@ -581,14 +694,6 @@ public class EntitySettingsResolver {
 
         boolean isScheduled() {
             return scheduled;
-        }
-
-        void setSetting(final Setting setting) {
-            this.setting = setting;
-        }
-
-        void addSettingPolicyId(final long settingPolicyId) {
-            this.settingPolicyIdList.add(settingPolicyId);
         }
     }
 
@@ -610,7 +715,7 @@ public class EntitySettingsResolver {
          */
         Optional<SettingAndPolicyIdRecord> resolve(
             SettingAndPolicyIdRecord existingRecord,
-            Setting nextSetting,
+            TopologyProcessorSetting<?> nextSetting,
             long nextSettingPolicyId, boolean nextIsScheduled,
             SettingPolicy.Type nextType,
             Map<String, SettingSpec> settingSpecNameToSettingSpecs);
@@ -640,7 +745,7 @@ public class EntitySettingsResolver {
                 return Optional.empty();
             } else if (existingType == SettingPolicy.Type.DISCOVERED &&
                 nextType == SettingPolicy.Type.USER) {
-                existingRecord.set(nextSetting, nextSettingPolicyId, nextType, nextIsScheduled);
+                existingRecord.set(nextSetting, Collections.singleton(nextSettingPolicyId), nextType, nextIsScheduled);
             }
             return Optional.of(existingRecord);
         };
@@ -656,7 +761,7 @@ public class EntitySettingsResolver {
                 (!existingSettingHasSchedule && !nextIsScheduled)) {
                 return Optional.empty();
             } else if (!existingSettingHasSchedule) {
-                existingRecord.set(nextSetting, nextSettingPolicyId, nextType, true);
+                existingRecord.set(nextSetting, Collections.singleton(nextSettingPolicyId), nextType, true);
             }
             return Optional.of(existingRecord);
         };
@@ -667,42 +772,20 @@ public class EntitySettingsResolver {
         SettingResolver tiebreakerSettingResolver =
                 (existingRecord, nextSetting, nextSettingPolicyId,
                  nextIsScheduled, nextType, settingSpecNameToSettingSpecs) -> {
-            final Setting resultSetting = applyTiebreaker(nextSetting, existingRecord.getSetting(),
-                settingSpecNameToSettingSpecs);
-            if (resultSetting != existingRecord.getSetting()) {
-                existingRecord.set(resultSetting, nextSettingPolicyId, nextType, nextIsScheduled);
-            }
-            return Optional.of(existingRecord);
-        };
-
-        /**
-         * This resolver merges two sorted sets of oid of two settings with UNION SettingTiebreaker.
-         */
-        SettingResolver sortedSetOfOidUnionSettingResolver =
-                (existingRecord, nextSetting, nextSettingPolicyId,
-                 nextIsScheduled, nextType, settingSpecNameToSettingSpecs) -> {
-            final Setting existingSetting = existingRecord.getSetting();
-            SettingResolver.commonChecks(existingSetting, nextSetting, settingSpecNameToSettingSpecs);
-            Preconditions.checkArgument(
-                settingSpecNameToSettingSpecs.get(existingSetting.getSettingSpecName())
-                    .getEntitySettingSpec().getTiebreaker() == SettingTiebreaker.UNION,
-                "Settings should have UNION SettingTiebreaker.");
-            Preconditions.checkArgument(existingSetting.hasSortedSetOfOidSettingValue(),
-                MessageFormat.format("Settings {0} and {1} have wrong settingValue {2}",
-                    existingSetting, nextSetting, existingSetting.getValueCase()));
-
-            // Update existing record.
-            final List<Long> sortedOids1 = existingSetting.getSortedSetOfOidSettingValue().getOidsList();
-            final List<Long> sortedOids2 = nextSetting.getSortedSetOfOidSettingValue().getOidsList();
-            final List<Long> sortedOids = mergeTwoSortedListsAndRemoveDuplicates(sortedOids1, sortedOids2);
-            existingRecord.setSetting(Setting.newBuilder()
-                .setSettingSpecName(existingSetting.getSettingSpecName())
-                .setSortedSetOfOidSettingValue(
-                    SortedSetOfOidSettingValue.newBuilder().addAllOids(sortedOids)).build());
-            // SettingPolicyIds are in a certain order because
-            // the order of setting policies associated with every group is certain.
-            if (nextSettingPolicyId != 0L) {
-                existingRecord.addSettingPolicyId(nextSettingPolicyId);
+            final Pair<TopologyProcessorSetting<?>, Boolean>
+                    resolvedPair = applyTiebreaker(nextSetting, existingRecord.getSetting(),
+                            settingSpecNameToSettingSpecs);
+            final TopologyProcessorSetting<?> winnerSetting = resolvedPair.getFirst();
+            if (winnerSetting != existingRecord.getSetting()) {
+                final Boolean isMergedSettingValuesFromSeveralPolicies = resolvedPair.getSecond();
+                final Set<Long> associatedPolicies = new HashSet<>();
+                associatedPolicies.add(nextSettingPolicyId);
+                // if winner setting merged values from several settings than we save link to all
+                // policies
+                if (isMergedSettingValuesFromSeveralPolicies) {
+                    associatedPolicies.addAll(existingRecord.getSettingPolicyIdList());
+                }
+                existingRecord.set(winnerSetting, associatedPolicies, nextType, nextIsScheduled);
             }
             return Optional.of(existingRecord);
         };
@@ -727,85 +810,59 @@ public class EntitySettingsResolver {
          *
          * <p>The tie-breaker to resolve conflict is defined in the SettingSpec.
          *
-         * @param setting1 Setting message
-         * @param setting2 Setting message
+         * @param newSetting Setting message
+         * @param existingSetting Setting message
          * @param settingNameToSettingSpecs Mapping from SettingSpecName to SettingSpec
          * @return Resolved setting which won the tieBreaker
          */
-        static Setting applyTiebreaker(@Nonnull final Setting setting1, @Nonnull final Setting setting2,
-                                       @Nonnull final Map<String, SettingSpec> settingNameToSettingSpecs) {
-            SettingResolver.commonChecks(setting1, setting2, settingNameToSettingSpecs);
-            String specName = setting1.getSettingSpecName();
+        static Pair<TopologyProcessorSetting<?>, Boolean> applyTiebreaker(
+                @Nonnull final TopologyProcessorSetting<?> newSetting,
+                @Nonnull final TopologyProcessorSetting<?> existingSetting,
+                @Nonnull final Map<String, SettingSpec> settingNameToSettingSpecs) {
+            SettingResolver.commonChecks(newSetting, existingSetting, settingNameToSettingSpecs);
+            String specName = newSetting.getSettingSpecName();
             SettingSpec settingSpec = settingNameToSettingSpecs.get(specName);
 
             // Verified above that both settings are of same type. Hence they should
             // both have the same tie-breaker. So just extract it from one of the setting.
-            SettingTiebreaker tieBreaker = settingSpec.getEntitySettingSpec().getTiebreaker();
-            int ret = compareSettingValues(setting1, setting2, settingSpec);
-            switch (tieBreaker) {
-                case BIGGER:
-                    return (ret >= 0) ? setting1 : setting2;
-                case SMALLER:
-                    return (ret <= 0) ? setting1 : setting2;
-                default:
-                    // shouldn't reach here.
-                    throw new IllegalArgumentException("Illegal tiebreaker value : " + tieBreaker);
-            }
+            final SettingTiebreaker tieBreaker = settingSpec.getEntitySettingSpec().getTiebreaker();
+            return defineWinnerSetting(newSetting, existingSetting, settingSpec,
+                    tieBreaker);
         }
 
         /**
-         * Compare two setting values.
+         * Compare two setting values and define winner depend on tiebreaker value.
          *
          * <p>No validation is done in this method. Assumes all the
          * input types and values are correct.
          *
-         * @param setting1 Setting message
-         * @param setting2 Setting message
-         * @param settingSpec SettingSpec definiton referred by the setting
+         * @param newSetting Topology processor setting representation
+         * @param existingSetting Topology processor setting representation
+         * @param settingSpec SettingSpec definition referred by the setting
          *                     messages. Both input settings should have the same
          *                     settingSpec name
+         * @param tieBreaker tiebreaker value
          *
-         * @return Positive, negative or zero integer where setting1 value is
-         *         greater than, smaller than or equal to setting2 value respectively.
+         * @return winner setting
          *
          */
-        static int compareSettingValues(@Nonnull final Setting setting1,
-                                        @Nonnull final Setting setting2,
-                                        @Nonnull final SettingSpec settingSpec) {
-            // Maybe it's better to create special types which extend java
-            // primitive type objects
-            switch (setting1.getValueCase()) {
-                case BOOLEAN_SETTING_VALUE:
-                    return Boolean.compare(
-                        setting1.getBooleanSettingValue().getValue(),
-                        setting2.getBooleanSettingValue().getValue());
-                case NUMERIC_SETTING_VALUE:
-                    return Float.compare(
-                        setting1.getNumericSettingValue().getValue(),
-                        setting2.getNumericSettingValue().getValue());
-                case STRING_SETTING_VALUE:
-                    return setting1.getStringSettingValue().getValue()
-                        .compareTo(setting2.getStringSettingValue().getValue());
-                case ENUM_SETTING_VALUE:
-                    return SettingDTOUtil.compareEnumSettingValues(
-                        setting1.getEnumSettingValue(),
-                        setting2.getEnumSettingValue(),
-                        settingSpec.getEnumSettingValueType());
-                default:
-                    throw new IllegalArgumentException("Illegal setting value type: "
-                        + setting1.getValueCase());
-            }
+        static Pair<TopologyProcessorSetting<?>, Boolean> defineWinnerSetting(
+                @Nonnull final TopologyProcessorSetting newSetting,
+                @Nonnull final TopologyProcessorSetting existingSetting,
+                @Nonnull final SettingSpec settingSpec, @Nonnull SettingTiebreaker tieBreaker) {
+            return existingSetting.resolveConflict(newSetting, tieBreaker, settingSpec);
         }
 
         /**
          * Check before we resolve two settings.
          *
-         * @param setting1 one setting
-         * @param setting2 the other setting
+         * @param setting1 one topology processor setting
+         * @param setting2 the other topology processor setting
          * @param settingSpecNameToSettingSpecs mapping from settingSpecName to associated SettingSpec
          */
-        static void commonChecks(@Nonnull final Setting setting1, @Nonnull final Setting setting2,
-                                 @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecs) {
+        static void commonChecks(@Nonnull final TopologyProcessorSetting<?> setting1,
+                @Nonnull final TopologyProcessorSetting<?> setting2,
+                @Nonnull final Map<String, SettingSpec> settingSpecNameToSettingSpecs) {
             Preconditions.checkArgument(!settingSpecNameToSettingSpecs.isEmpty(), "Empty setting specs");
 
             String specName1 = setting1.getSettingSpecName();
@@ -813,12 +870,12 @@ public class EntitySettingsResolver {
 
             Preconditions.checkArgument(specName1.equals(specName2),
                 "Settings have different spec names");
-            Preconditions.checkArgument(setting1.getValueCase() == setting2.getValueCase(),
-                "Settings have different value types");
             Preconditions.checkArgument(settingSpecNameToSettingSpecs.get(specName1).hasEntitySettingSpec(),
                 "SettingSpec should be of type EntitySettingSpec");
             Preconditions.checkArgument(settingSpecNameToSettingSpecs.get(specName2).hasEntitySettingSpec(),
                 "SettingSpec should be of type EntitySettingSpec");
+            Preconditions.checkArgument(setting1.getClass().equals(setting2.getClass()),
+                    "Compared topology processor settings should be represented as objects of the same class");
         }
     }
 }

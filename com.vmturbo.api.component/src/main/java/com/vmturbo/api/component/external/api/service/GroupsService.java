@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -55,6 +56,7 @@ import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.DefaultCloudGroupProducer;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ObjectsPage;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.component.external.api.util.action.ActionStatsQueryExecutor;
@@ -214,6 +216,8 @@ public class GroupsService implements IGroupsService {
 
     private final BusinessAccountRetriever businessAccountRetriever;
 
+    private final ServiceProviderExpander serviceProviderExpander;
+
     GroupsService(@Nonnull final ActionsServiceBlockingStub actionOrchestratorRpcService,
                   @Nonnull final GroupServiceBlockingStub groupServiceRpc,
                   @Nonnull final GroupMapper groupMapper,
@@ -234,7 +238,8 @@ public class GroupsService implements IGroupsService {
                   @Nonnull final ThinTargetCache thinTargetCache,
                   @Nonnull final EntitySettingQueryExecutor entitySettingQueryExecutor,
                   @Nonnull final GroupFilterMapper groupFilterMapper,
-                  @Nonnull final BusinessAccountRetriever businessAccountRetriever) {
+                  @Nonnull final BusinessAccountRetriever businessAccountRetriever,
+                  @Nonnull final ServiceProviderExpander serviceProviderExpander) {
         this.actionOrchestratorRpc = Objects.requireNonNull(actionOrchestratorRpcService);
         this.groupServiceRpc = Objects.requireNonNull(groupServiceRpc);
         this.groupMapper = Objects.requireNonNull(groupMapper);
@@ -256,6 +261,7 @@ public class GroupsService implements IGroupsService {
         this.entitySettingQueryExecutor = entitySettingQueryExecutor;
         this.groupFilterMapper = Objects.requireNonNull(groupFilterMapper);
         this.businessAccountRetriever = Objects.requireNonNull(businessAccountRetriever);
+        this.serviceProviderExpander = Objects.requireNonNull(serviceProviderExpander);
     }
 
     /**
@@ -461,10 +467,12 @@ public class GroupsService implements IGroupsService {
             // use the entitySettingQueryExecutor for now. We could probably optimize the call a bit
             // since we're only expecting a limited result, but since this is an "undocumented API"
             // right now, not going to worry about performance yet.
-            Optional<SettingApiDTO> optionalSetting = entitySettingQueryExecutor.getEntitySettings(
-                    uuidMapper.fromUuid(groupUuid),
-                    false,
-                    Collections.singleton(settingUuid))
+            Optional<SettingApiDTO> optionalSetting = entitySettingQueryExecutor
+                    .getEntitySettings(
+                            uuidMapper.fromUuid(groupUuid),
+                            false,
+                            Collections.singleton(settingUuid),
+                            null)
                     .stream()
                     .map(settingManager -> settingManager.getSettings())
                     .flatMap(List::stream)
@@ -496,7 +504,7 @@ public class GroupsService implements IGroupsService {
             return entitySettingQueryExecutor.getEntitySettings(
                     uuidMapper.fromUuid(groupUuid),
                     false,
-                    settingsManagerMapping.getSettingNamesForManagers(Collections.singleton(settingManagerUuid)))
+                    settingsManagerMapping.getSettingNamesForManagers(Collections.singleton(settingManagerUuid)), null)
                     .stream()
                         .map(SettingsManagerApiDTO::getSettings)
                         .flatMap(List::stream)
@@ -1071,7 +1079,7 @@ public class GroupsService implements IGroupsService {
      *
      * @param filterList the list of filter criteria to apply.
      * @param paginationRequest Contains the limit, the order and a potential cursor
-     * @param groupType Contains the type of the group members
+     * @param groupEntityTypes Contains set of entityTypes of the group members
      * @param environmentType type of the environment to include in response, if null, all are included
      * @param scopes all result groups should be within this list of scopes, which can be entity or group
      * @param includeAllGroupClasses true if the search should return all types of groups, not just
@@ -1087,7 +1095,7 @@ public class GroupsService implements IGroupsService {
     @Nonnull
     public SearchPaginationResponse getPaginatedGroupApiDTOs(final List<FilterApiDTO> filterList,
                                                              final SearchPaginationRequest paginationRequest,
-                                                             final String groupType,
+                                                             @Nullable final Set<String> groupEntityTypes,
                                                              @Nullable EnvironmentType environmentType,
                                                              @Nullable List<String> scopes,
                                                              final boolean includeAllGroupClasses)
@@ -1095,8 +1103,31 @@ public class GroupsService implements IGroupsService {
             InterruptedException {
         final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR,
                 filterList, scopes, includeAllGroupClasses).build();
-        final List<GroupAndMembers> groupsWithMembers;
-        if (groupType != null) {
+        final List<GroupAndMembers> groupsWithMembers = new LinkedList<GroupAndMembers>();
+        if (groupEntityTypes != null && !groupEntityTypes.isEmpty()) {
+            final List<GroupAndMembers> rawGroups = groupExpander.getGroupsWithMembers(groupsRequest);
+            Set<MemberType> groupMemberTypes = mapEntityTypesToMemberTypes(groupEntityTypes);
+            for (GroupAndMembers groupAndMembers: rawGroups) {
+                if (groupMatchMemberType(groupAndMembers.group().getDefinition(), groupMemberTypes)) {
+                    groupsWithMembers.add(groupAndMembers);
+                }
+            }
+
+        } else {
+            groupsWithMembers.addAll(groupExpander.getGroupsWithMembers(groupsRequest));
+        }
+        // Paginate the response and return it.
+        return nextGroupPage(groupsWithMembers, paginationRequest, environmentType);
+    }
+
+    /**
+     * Maps list of entityTypes to {@link MemberType}.
+     *
+     * @param groupEntityTypes Set of entityTypes to map
+     * @return Set of {@link MemberType} mapped from groupEntityTypes
+     */
+    private static Set<MemberType> mapEntityTypesToMemberTypes(Set<String> groupEntityTypes) {
+        return groupEntityTypes.stream().map(groupType -> {
             final MemberType groupMembersType;
             if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(groupType)) {
                 // group of groups, for example: group of Clusters, group of ResourceGroups
@@ -1109,18 +1140,8 @@ public class GroupsService implements IGroupsService {
                         .setEntity(ApiEntityType.fromString(groupType).typeNumber())
                         .build();
             }
-            final List<GroupAndMembers> rawGroups = groupExpander.getGroupsWithMembers(groupsRequest);
-            groupsWithMembers = new ArrayList<>(rawGroups.size());
-            for (GroupAndMembers groupAndMembers: rawGroups) {
-                if (groupMatchMemberType(groupAndMembers.group().getDefinition(), groupMembersType)) {
-                    groupsWithMembers.add(groupAndMembers);
-                }
-            }
-        } else {
-            groupsWithMembers = groupExpander.getGroupsWithMembers(groupsRequest);
-        }
-        // Paginate the response and return it.
-        return nextGroupPage(groupsWithMembers, paginationRequest, environmentType);
+            return groupMembersType;
+        }).collect(Collectors.toSet());
     }
 
     /**
@@ -1131,28 +1152,27 @@ public class GroupsService implements IGroupsService {
      * @return whether group has members with the expected type
      */
     private static boolean groupMatchMemberType(@Nonnull GroupDefinition group,
-            @Nonnull MemberType groupMembersType) {
+            @Nonnull Set<MemberType> groupMembersType) {
         if (group.hasStaticGroupMembers()) {
             // static group
             return group.getStaticGroupMembers()
                     .getMembersByTypeList()
                     .stream()
-                    .anyMatch(staticMembersByType -> staticMembersByType.getType()
-                            .equals(groupMembersType));
+                    .anyMatch(staticMembersByType -> groupMembersType.contains(staticMembersByType.getType()));
         } else if (group.hasGroupFilters()) {
             // dynamic group of groups
             return group.getGroupFilters()
                     .getGroupFilterList()
                     .stream()
-                    .anyMatch(groupFilter -> groupFilter.getGroupType() ==
-                            groupMembersType.getGroup());
+                    .anyMatch(groupFilter ->
+                            groupMembersType.contains(groupFilter.getGroupType()));
         } else if (group.hasEntityFilters()) {
             // dynamic group of entities
             return group.getEntityFilters()
                     .getEntityFilterList()
                     .stream()
-                    .anyMatch(entityFilter -> entityFilter.getEntityType() ==
-                            groupMembersType.getEntity());
+                    .anyMatch(entityFilter ->
+                            groupMembersType.contains(entityFilter.getEntityType()));
         } else {
             return false;
         }
@@ -1190,7 +1210,8 @@ public class GroupsService implements IGroupsService {
      * @throws OperationFailedException when input filters do not apply to group type.
      * @throws ConversionException If the input filters cannot be converted.
      */
-    private GetGroupsRequest.Builder getGroupsRequestForFilters(
+    @VisibleForTesting
+    GetGroupsRequest.Builder getGroupsRequestForFilters(
             @Nonnull GroupType groupType,
             @Nonnull List<FilterApiDTO> filterList,
             @Nullable List<String> scopes,
@@ -1555,10 +1576,19 @@ public class GroupsService implements IGroupsService {
 
         // use seedUuids (entity + group) to find entities of related type using supply chain
         if (!seedUuids.isEmpty()) {
+
+            // expand service providers to regions, expandServiceProviders will return a set of all
+            // regions and original non serviceProvider scopes. if found an empty list then expand
+            // using supplychain
+            final Set<Long> expandedScopes = serviceProviderExpander.expand(seedUuids.stream()
+                    .map(Long::parseLong)
+                    .collect(Collectors.toSet()));
+            final Set<String> entityOrGroupsIds = expandedScopes.stream().map(s -> Long.toString(s)).collect(Collectors.toSet());
+
             final Map<String, SupplyChainNode> supplyChainForScope =
                 supplyChainFetcherFactory.newNodeFetcher()
                     .topologyContextId(realtimeTopologyContextId)
-                    .addSeedUuids(seedUuids)
+                    .addSeedUuids(entityOrGroupsIds)
                     .entityTypes(relatedEntityTypes)
                     .apiEnvironmentType(environmentType)
                     .fetch();

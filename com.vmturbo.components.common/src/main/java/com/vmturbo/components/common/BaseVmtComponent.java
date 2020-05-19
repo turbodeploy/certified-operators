@@ -9,6 +9,8 @@ import java.net.UnknownHostException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -199,7 +201,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
 
     // the max message size (in bytes) that the GRPC server for this component will accept. Default
     // value is 4194304 bytes (or 4 MB) which is the GRPC default behavior.
-    @Value("${server.grpcMaxMessageBytes:4194304}")
+    @Value("${server.grpcMaxMessageBytes:12000000}")
     private int grpcMaxMessageBytes;
 
     @Value("${enableMemoryMonitor:false}")
@@ -363,7 +365,15 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                 if (!reqInitialization.isEmpty()) {
                     setStatus(ExecutionStatus.INITIALIZING_DATA);
                     logger.info("Starting initializations for {} beans", reqInitialization.size());
-                    for (final Entry<String, RequiresDataInitialization> entry : reqInitialization.entrySet()) {
+                    final Map<String, RequiresDataInitialization> sortedInitialization =
+                        new LinkedHashMap<>();
+                    // sort the initializations based on priorities
+                    reqInitialization.entrySet()
+                        .stream()
+                        .sorted(Map.Entry.comparingByValue(Comparator.comparing(RequiresDataInitialization::priority).reversed()))
+                        .forEachOrdered(entry -> sortedInitialization.put(entry.getKey(),
+                            entry.getValue()));
+                    for (final Entry<String, RequiresDataInitialization> entry : sortedInitialization.entrySet()) {
                         try {
                             logger.info("Running initialization for bean: {}", entry.getKey());
                             entry.getValue().initialize();
@@ -376,7 +386,7 @@ public abstract class BaseVmtComponent implements IVmtComponent,
                             }
                         }
                     }
-                    logger.info("Finished running initializations for {} beans.", reqInitialization.size());
+                    logger.info("Finished running initializations for {} beans.", sortedInitialization.size());
                 }
 
                 this.onStartComponent();

@@ -24,7 +24,7 @@ import com.vmturbo.topology.processor.probes.ProbeStore;
 /**
  * Migration for existing probes. It's needed to add new probe properties: uiProbeCategory and license.
  */
-public class V_01_00_05__Add_UI_Category_and_license_To_Probes_Migration extends AbstractMigration {
+public class V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration extends AbstractMigration {
 
     /**
      * The structure to store probe UI categories and license.
@@ -38,11 +38,11 @@ public class V_01_00_05__Add_UI_Category_and_license_To_Probes_Migration extends
     private final ObjectMapper mapper;
 
     /**
-     * Create an instance of {@link V_01_00_05__Add_UI_Category_and_license_To_Probes_Migration}.
+     * Create an instance of {@link V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration}.
      *
      * @param keyValueStore from which to get persisted probes.
      */
-    public V_01_00_05__Add_UI_Category_and_license_To_Probes_Migration(final KeyValueStore keyValueStore) {
+    public V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration(final KeyValueStore keyValueStore) {
         this.keyValueStore = keyValueStore;
         this.mapper = new ObjectMapper();
 

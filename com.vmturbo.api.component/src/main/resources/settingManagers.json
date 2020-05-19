@@ -30,6 +30,7 @@
         "delete",
         "resize",
         "provision",
+        "provisionIsDisabled",
         "activate",
         "reconfigure",
         "resizeVcpuUpInBetweenThresholds",
@@ -43,6 +44,25 @@
         "enforceNonDisruptive",
         "useHypervisorMetricsForResizing",
         "disableAllActions",
+        "shopTogether",
+        "moveExecutionSchedule",
+        "businessUserMoveExecutionSchedule",
+        "storageMoveExecutionSchedule",
+        "resizeExecutionSchedule",
+        "resizeVcpuUpInBetweenThresholdsExecutionSchedule",
+        "resizeVcpuDownInBetweenThresholdsExecutionSchedule",
+        "resizeVcpuAboveMaxThresholdExecutionSchedule",
+        "resizeVcpuBelowMinThresholdExecutionSchedule",
+        "resizeVmemUpInBetweenThresholdsExecutionSchedule",
+        "resizeVmemDownInBetweenThresholdsExecutionSchedule",
+        "resizeVmemAboveMaxThresholdExecutionSchedule",
+        "resizeVmemBelowMinThresholdExecutionSchedule",
+        "suspendExecutionSchedule",
+        "suspendIsDisabledExecutionSchedule",
+        "deleteExecutionSchedule",
+        "provisionExecutionSchedule",
+        "reconfigureExecutionSchedule",
+        "activateExecutionSchedule",
         "shopTogether",
         "resizeUpHeap",
         "resizeDownHeap",
@@ -139,6 +159,7 @@
         "heapUtilization",
         "collectionTimeUtilization",
         "RATE_OF_RESIZE",
+        "containerRateOfResize",
         "percentileAggressivenessBusinessUser",
         "percentileAggressivenessVirtualMachine",
         "minObservationPeriodVirtualMachine",
@@ -272,6 +293,12 @@
         "rhelByol",
         "slesByol",
         "windowsByol"
+      ]
+    },
+    "telemetrymanager": {
+      "displayName": "Telemetry Manager",
+      "settings": [
+        "telemetryEnabled"
       ]
     }
   }

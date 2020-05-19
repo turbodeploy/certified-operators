@@ -66,6 +66,7 @@ import com.vmturbo.api.component.external.api.mapper.aspect.EntityAspectMapper;
 import com.vmturbo.api.component.external.api.util.BusinessAccountRetriever;
 import com.vmturbo.api.component.external.api.util.GroupExpander;
 import com.vmturbo.api.component.external.api.util.ObjectsPage;
+import com.vmturbo.api.component.external.api.util.ServiceProviderExpander;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory.SupplyChainNodeFetcherBuilder;
 import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
@@ -220,6 +221,7 @@ public class GroupsServiceTest {
     private FilterApiDTO groupFilterApiDTO = new FilterApiDTO();
     private FilterApiDTO clusterFilterApiDTO = new FilterApiDTO();
     private BusinessAccountRetriever businessAccountRetriever;
+    private final ServiceProviderExpander serviceProviderExpander = mock(ServiceProviderExpander.class);
 
     @Rule
     public GrpcTestServer grpcServer =
@@ -242,6 +244,7 @@ public class GroupsServiceTest {
                 new ActionSearchUtil(
                         actionOrchestratorRpcService, actionSpecMapper,
                         paginationMapper, supplyChainFetcherFactory, groupExpander,
+                        serviceProviderExpander,
                         CONTEXT_ID);
         final SettingsMapper settingsMapper = mock(SettingsMapper.class);
         this.businessAccountRetriever = Mockito.mock(BusinessAccountRetriever.class);
@@ -266,7 +269,8 @@ public class GroupsServiceTest {
                 settingsMapper,
                 targetCache, entitySettingQueryExecutor,
                 groupFilterMapper,
-                businessAccountRetriever) {
+                businessAccountRetriever,
+                serviceProviderExpander) {
             @Override
             protected String getUsername() {
                 return "testUser";
@@ -1346,8 +1350,7 @@ public class GroupsServiceTest {
     }
 
     /**
-     * Test that getPaginatedGroupApiDTOs works as expected for both groups of entities (group of
-     * VMs) and groups of groups (group of clusters).
+     * Test that getPaginatedGroupApiDTOs works with multiple groupTypes.
      *
      * @throws Exception any error happens
      */
@@ -1442,7 +1445,7 @@ public class GroupsServiceTest {
         // search for group of clusters
         SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
                 Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
-                "Cluster", null, Lists.newArrayList(GroupsService.USER_GROUPS), false);
+                Collections.singleton("Cluster"), null, Lists.newArrayList(GroupsService.USER_GROUPS), false);
 
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
@@ -1451,8 +1454,8 @@ public class GroupsServiceTest {
 
         // search for group of VMs
         response = groupsService.getPaginatedGroupApiDTOs(Collections.emptyList(),
-                new SearchPaginationRequest(null, null, true, null), "VirtualMachine", null,
-                Lists.newArrayList(GroupsService.USER_GROUPS), false);
+                new SearchPaginationRequest(null, null, true, null), Collections.singleton("VirtualMachine"), null,
+                Collections.singletonList(GroupsService.USER_GROUPS), false);
         assertThat(response.getRestResponse().getBody().stream()
                 .map(BaseApiDTO::getUuid)
                 .map(Long::valueOf)
@@ -1467,5 +1470,79 @@ public class GroupsServiceTest {
             .map(Long::valueOf)
             .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId(),
                 groupOfClusters.getId(), clusterOfVMs.getId()));
+    }
+
+    /**
+     * Test that getPaginatedGroupApiDTOs works as expected for both groups of entities (group of
+     * VMs) and groups of groups (group of clusters).
+     *
+     * @throws Exception any error happens
+     */
+    @Test
+    public void testGetPaginatedGroupApiDTOsWithMultipleGroupTypes() throws Exception {
+        //GIVEN
+        final Grouping groupOfVMs = Grouping.newBuilder()
+                .setId(11L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(EntityType.VIRTUAL_MACHINE_VALUE)))))
+                .build();
+        final GroupAndMembers group1 = ImmutableGroupAndMembers.builder()
+                .group(groupOfVMs)
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build();
+
+        final Grouping groupOfPMs = Grouping.newBuilder()
+                .setId(12L)
+                .setDefinition(GroupDefinition.newBuilder()
+                        .setType(GroupType.REGULAR)
+                        .setStaticGroupMembers(StaticMembers.newBuilder()
+                                .addMembersByType(StaticMembersByType.newBuilder()
+                                        .setType(MemberType.newBuilder()
+                                                .setEntity(EntityType.PHYSICAL_MACHINE_VALUE)))))
+                .build();
+
+        final GroupAndMembers group2 = ImmutableGroupAndMembers.builder()
+                .group(groupOfPMs)
+                .members(Collections.emptyList())
+                .entities(Collections.emptyList())
+                .build();
+
+        when(groupFilterMapper.apiFilterToGroupFilter(eq(GroupType.REGULAR),
+                eq(LogicalOperator.AND),
+                eq(Collections.emptyList()))).thenReturn(GroupFilter.newBuilder()
+                .setGroupType(GroupType.REGULAR).build());
+        GetGroupsRequest expectedRequest = GetGroupsRequest.newBuilder()
+                .setGroupFilter(GroupFilter.newBuilder()
+                        .setGroupType(GroupType.REGULAR)
+                        .setOriginFilter(OriginFilter.newBuilder()
+                                .addOrigin(Type.USER)))
+                .build();
+        when(groupExpander.getGroupsWithMembers(expectedRequest)).thenReturn(
+                Arrays.asList(group1, group2));
+
+        GroupApiDTO groupApiDTO1 = new GroupApiDTO();
+        groupApiDTO1.setUuid(String.valueOf(groupOfVMs.getId()));
+        GroupApiDTO groupApiDTO2 = new GroupApiDTO();
+        groupApiDTO2.setUuid(String.valueOf(groupOfPMs.getId()));
+
+        mappedGroups.put(11L, groupApiDTO1);
+        mappedGroups.put(12L, groupApiDTO2);
+
+        Set<String> groupEntityTypes = new HashSet(Arrays.asList("VirtualMachine", "PhysicalMachine"));
+
+        //WHEN
+        SearchPaginationResponse response = groupsService.getPaginatedGroupApiDTOs(
+                Collections.emptyList(), new SearchPaginationRequest(null, null, true, null),
+                groupEntityTypes, null, Lists.newArrayList(GroupsService.USER_GROUPS), false);
+        //THEN
+        assertThat(response.getRestResponse().getBody().stream()
+                .map(BaseApiDTO::getUuid)
+                .map(Long::valueOf)
+                .collect(Collectors.toList()), containsInAnyOrder(groupOfVMs.getId(), groupOfPMs.getId()));
     }
 }

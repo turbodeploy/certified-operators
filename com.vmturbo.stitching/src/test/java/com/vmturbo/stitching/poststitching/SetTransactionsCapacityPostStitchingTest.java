@@ -71,7 +71,8 @@ public class SetTransactionsCapacityPostStitchingTest {
         TopologyEntity provider = seller(1L, Optional.empty(),
                 Optional.of(initialCapacity));
         testSetCapacityValue(provider, false, settingCapacityValue, initialCapacity);
-        testSetCapacityValue(provider, true, settingCapacityValue, initialCapacity);
+        // autoset is true but no value from db and the used value is o so expecting 0 capacity
+        testSetCapacityValue(provider, true, 0.0, initialCapacity);
     }
 
     /**
@@ -85,7 +86,7 @@ public class SetTransactionsCapacityPostStitchingTest {
         // to replace capacity value
         TopologyEntity provider = seller(1L, Optional.of(initialCapacity),
                 Optional.of(settingCapacityValue * 2d));
-        testSetCapacityValue(provider,true, settingCapacityValue * 2d,
+        testSetCapacityValue(provider,false, settingCapacityValue * 2d,
                 settingCapacityValue * 2d);
     }
 

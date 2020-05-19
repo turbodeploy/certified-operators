@@ -22,6 +22,15 @@ public interface RequiresDataInitialization {
     void initialize() throws InitializationException;
 
     /**
+     * Get the priority of the initialization. Classes with higher priority will be initialized
+     * first.
+     * @return the priority
+     */
+    default int priority() {
+        return -1;
+    }
+
+    /**
      * Exception thrown when an initialization operation fails.
      */
     class InitializationException extends Exception {

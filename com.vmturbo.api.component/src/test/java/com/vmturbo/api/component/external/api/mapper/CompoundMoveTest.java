@@ -3,15 +3,19 @@ package com.vmturbo.api.component.external.api.mapper;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anySetOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executors;
-
-import javax.annotation.Nonnull;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -34,7 +38,6 @@ import com.vmturbo.api.dto.action.ActionApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
 import com.vmturbo.api.enums.ActionType;
 import com.vmturbo.api.enums.EntityState;
-import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -48,7 +51,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.Compliance;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.RIBuyContextFetchServiceGrpc;
 import com.vmturbo.common.protobuf.cost.ReservedInstanceUtilizationCoverageServiceGrpc;
@@ -117,6 +119,8 @@ public class CompoundMoveTest {
 
     private final ServiceEntityMapper serviceEntityMapper = mock(ServiceEntityMapper.class);
 
+    private final VirtualVolumeAspectMapper virtualVolumeAspectMapper = mock(VirtualVolumeAspectMapper.class);
+
     @Before
     public void setup() throws Exception {
         final List<PolicyResponse> policyResponses = ImmutableList.of(
@@ -148,9 +152,12 @@ public class CompoundMoveTest {
         final SearchRequest emptySearchReq = ApiTestUtils.mockEmptySearchReq();
         when(repositoryApi.getRegion(any())).thenReturn(emptySearchReq);
 
+        when(virtualVolumeAspectMapper.mapVirtualMachines(anySetOf(Long.class), anyLong())).thenReturn(Collections.emptyMap());
+        when(virtualVolumeAspectMapper.mapUnattachedVirtualVolumes(anySetOf(Long.class), anyLong())).thenReturn(Optional.empty());
+
         actionSpecMappingContextFactory = new ActionSpecMappingContextFactory(policyService,
                 Executors.newCachedThreadPool(new ThreadFactoryBuilder().build()), repositoryApi,
-                mock(EntityAspectMapper.class), mock(VirtualVolumeAspectMapper.class),
+                mock(EntityAspectMapper.class), virtualVolumeAspectMapper,
                 REAL_TIME_TOPOLOGY_CONTEXT_ID, null, null, serviceEntityMapper,
                 supplyChainService, Mockito.mock(PoliciesService.class));
 
@@ -159,6 +166,7 @@ public class CompoundMoveTest {
         ReservedInstanceUtilizationCoverageServiceGrpc.ReservedInstanceUtilizationCoverageServiceBlockingStub
                 reservedInstanceUtilizationCoverageServiceBlockingStub =
                 ReservedInstanceUtilizationCoverageServiceGrpc.newBlockingStub(grpcServer.getChannel());
+
         mapper = new ActionSpecMapper(
                 actionSpecMappingContextFactory,
                 serviceEntityMapper,
@@ -171,19 +179,17 @@ public class CompoundMoveTest {
                 REAL_TIME_TOPOLOGY_CONTEXT_ID);
         IdentityGenerator.initPrefix(0);
 
-        final MultiEntityRequest multiReq = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO(TARGET_NAME, TARGET_ENTITY_ID, EntityType.VIRTUAL_MACHINE_VALUE),
-            topologyEntityDTO(PM1_NAME, PM1_ID, EntityType.PHYSICAL_MACHINE_VALUE),
-            topologyEntityDTO(PM2_NAME, PM2_ID, EntityType.PHYSICAL_MACHINE_VALUE),
-            topologyEntityDTO(ST1_NAME, ST1_ID, EntityType.STORAGE_VALUE),
-            topologyEntityDTO(ST2_NAME, ST2_ID, EntityType.STORAGE_VALUE),
-            topologyEntityDTO(VOL1_NAME, VOL1_ID, EntityType.VIRTUAL_VOLUME_VALUE)));
+        final MultiEntityRequest multiReq = ApiTestUtils.mockMultiEntityReq(topologyEntityDTOList(Lists.newArrayList(
+            new TestEntity(TARGET_NAME, TARGET_ENTITY_ID, EntityType.VIRTUAL_MACHINE_VALUE),
+                new TestEntity(PM1_NAME, PM1_ID, EntityType.PHYSICAL_MACHINE_VALUE),
+                new TestEntity(PM2_NAME, PM2_ID, EntityType.PHYSICAL_MACHINE_VALUE),
+                new TestEntity(ST1_NAME, ST1_ID, EntityType.STORAGE_VALUE),
+                new TestEntity(ST2_NAME, ST2_ID, EntityType.STORAGE_VALUE),
+                new TestEntity(VOL1_NAME, VOL1_ID, EntityType.VIRTUAL_VOLUME_VALUE),
+                new TestEntity(DC_NAME, DATACENTER_ID, EntityType.DATACENTER_VALUE),
+                new TestEntity(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE))));
 
-        final MultiEntityRequest multiReq2 = ApiTestUtils.mockMultiEntityReq(Lists.newArrayList(
-            topologyEntityDTO(DC_NAME, DATACENTER_ID, EntityType.DATACENTER_VALUE),
-                topologyEntityDTO(DC2_NAME, DATACENTER2_ID, EntityType.DATACENTER_VALUE)));
-
-        when(repositoryApi.entitiesRequest(any())).thenReturn(multiReq, multiReq2, multiReq);
+        when(repositoryApi.entitiesRequest(any())).thenReturn(multiReq);
     }
 
     private GetMultiSupplyChainsResponse makeGetMultiSupplyChainResponse(long entityOid,
@@ -201,21 +207,42 @@ public class CompoundMoveTest {
             .build();
     }
 
-    private ApiPartialEntity topologyEntityDTO(@Nonnull final String displayName, long oid,
-                                               int entityType) {
-        ApiPartialEntity api = ApiPartialEntity.newBuilder()
-            .setOid(oid)
-            .setDisplayName(displayName)
-            .setEntityType(entityType)
-            .build();
+    /**
+     * A Test class to store information about entity, used for testing only.
+     */
+    final class TestEntity {
+        public String displayName;
+        public long oid;
+        public int entityType;
 
-        final ServiceEntityApiDTO mappedE = new ServiceEntityApiDTO();
-        mappedE.setDisplayName(displayName);
-        mappedE.setUuid(Long.toString(oid));
-        mappedE.setClassName(ApiEntityType.fromType(entityType).apiStr());
-        when(serviceEntityMapper.toServiceEntityApiDTO(api)).thenReturn(mappedE);
+        TestEntity(String displayName, long oid, int entityType) {
+            this.displayName = displayName;
+            this.oid = oid;
+            this.entityType = entityType;
+        }
+    }
 
-        return api;
+    private List<ApiPartialEntity> topologyEntityDTOList(List<TestEntity> testEntities) {
+        Map<Long, ServiceEntityApiDTO> map = new HashMap<>();
+
+        List<ApiPartialEntity> resp = testEntities.stream().map(testEntity -> {
+            final ServiceEntityApiDTO mappedE = new ServiceEntityApiDTO();
+            mappedE.setDisplayName(testEntity.displayName);
+            mappedE.setUuid(Long.toString(testEntity.oid));
+            mappedE.setClassName(ApiEntityType.fromType(testEntity.entityType).apiStr());
+            map.put(testEntity.oid, mappedE);
+
+            ApiPartialEntity entity = ApiPartialEntity.newBuilder()
+                    .setOid(testEntity.oid)
+                    .setDisplayName(testEntity.displayName)
+                    .setEntityType(testEntity.entityType)
+                    .build();
+            when(serviceEntityMapper.toServiceEntityApiDTO(entity)).thenReturn(mappedE);
+            return entity;
+        }).collect(Collectors.toList());
+
+        when(serviceEntityMapper.toServiceEntityApiDTOMap(any())).thenReturn(map);
+        return resp;
     }
 
     /**

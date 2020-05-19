@@ -310,10 +310,17 @@ public class PlanTopologyScopeEditor {
                 }
             }
 
-            // pull in inboundAssociatedEntities of VMs so as to not skip entities like vVolume
-            // that doesnt buy/sell commodities
+            // Pull in outBoundAssociatedEntities for VMs and inBoundAssociatedEntities for Storage
+            // so as to not skip entities like vVolume that don't buy/sell commodities.
             if (entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                 entity.getOutboundAssociatedEntities().forEach(e -> {
+                    final long oid = e.getOid();
+                    if (!scopedTopologyOIDs.contains(oid)) {
+                        suppliersToExpand.tryAdd(oid);
+                    }
+                });
+            } else if (entity.getEntityType() == EntityType.STORAGE_VALUE) {
+                entity.getInboundAssociatedEntities().forEach(e -> {
                     final long oid = e.getOid();
                     if (!scopedTopologyOIDs.contains(oid)) {
                         suppliersToExpand.tryAdd(oid);
@@ -352,6 +359,8 @@ public class PlanTopologyScopeEditor {
             final Stream<TopologyEntity> associatedEntities;
             if (buyer.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                 associatedEntities = Stream.concat(potentialSellers, buyer.getOutboundAssociatedEntities().stream());
+            } else if (buyer.getEntityType() == EntityType.STORAGE_VALUE) {
+                associatedEntities = Stream.concat(potentialSellers, buyer.getInboundAssociatedEntities().stream());
             } else {
                 associatedEntities = potentialSellers;
             }

@@ -20,9 +20,12 @@ import com.vmturbo.group.IdentityProviderConfig;
 import com.vmturbo.group.api.SettingMessages.SettingNotification;
 import com.vmturbo.group.api.SettingsUpdatesReciever;
 import com.vmturbo.group.group.GroupConfig;
+import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
+import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
 
 @Configuration
-@Import({GroupComponentDBConfig.class, IdentityProviderConfig.class, GroupConfig.class, BaseKafkaProducerConfig.class})
+@Import({GroupComponentDBConfig.class, IdentityProviderConfig.class, GroupConfig.class,
+        BaseKafkaProducerConfig.class, PlanOrchestratorClientConfig.class})
 public class SettingConfig {
 
     @Autowired
@@ -33,6 +36,9 @@ public class SettingConfig {
 
     @Autowired
     private GroupConfig groupConfig;
+
+    @Autowired
+    private PlanOrchestratorClientConfig planOrchestratorClientConfig;
 
     @Value("${createDefaultSettingPolicyRetryIntervalSec}")
     public long createDefaultSettingPolicyRetryIntervalSec;
@@ -94,5 +100,16 @@ public class SettingConfig {
     @Bean
     public EntitySettingStore entitySettingStore() {
         return new EntitySettingStore(realtimeTopologyContextId, settingStore());
+    }
+
+    /**
+     * Listener for plan deletion.
+     *
+     * @return The listener.
+     */
+    @Bean
+    public PlanGarbageDetector settingPlanGarbageDetector() {
+        final SettingPlanGarbageCollector collector = new SettingPlanGarbageCollector(settingStore());
+        return planOrchestratorClientConfig.newPlanGarbageDetector(collector);
     }
 }

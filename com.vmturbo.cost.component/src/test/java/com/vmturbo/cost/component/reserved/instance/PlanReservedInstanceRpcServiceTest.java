@@ -205,7 +205,7 @@ public class PlanReservedInstanceRpcServiceTest {
         final UploadRIDataRequest insertRiRequest =
                         UploadRIDataRequest
                                         .newBuilder()
-                                        .setTopologyId(planId)
+                                        .setTopologyContextId(planId)
                                         .addAllReservedInstanceBought(planReservedInstanceBought)
                                         .build();
 

@@ -216,11 +216,8 @@ class DiscoveredGroupInterpreter {
         groupDefinition.setType(GroupProtoUtil.getGroupType(sdkDTO));
         groupDefinition.setDisplayName(GroupProtoUtil.extractDisplayName(sdkDTO));
 
-        // set tags
-        if (sdkDTO.getTagsMap() != null) {
-            groupDefinition.setTags(
-                    SdkToTopologyEntityConverter.convertGroupTags(sdkDTO.getTagsMap()));
-        }
+        // set tags for group
+        SdkToTopologyEntityConverter.convertGroupTags(sdkDTO).ifPresent(groupDefinition::setTags);
 
         if (sdkDTO.hasOwner()) {
             final Optional<Long> ownerForResourceGroup =

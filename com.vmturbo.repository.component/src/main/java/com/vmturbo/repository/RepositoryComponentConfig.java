@@ -227,6 +227,13 @@ public class RepositoryComponentConfig {
                         .useProtocol(Protocol.HTTP_VPACK)
                         .build();
             });
+            // If we are not able to connect to arango, db.exists() returns false, and we try to create the
+            // database. But the database might already exist. It's just that we can't connect.
+            // To check if we can connect, try to get the driver version. If we are not able to
+            // connect to arango, an exception will be thrown right here.
+            driver.getVersion();
+            // We will get here if we are able to connect. Then check if database exists or not.
+            // If it does not exist, create it.
             ArangoDatabase db = driver.db(getArangoDatabaseName());
             if (!db.exists()) {
                 logger.info("Arango DB {} does not exist. Creating database.", getArangoDatabaseName());
@@ -253,7 +260,10 @@ public class RepositoryComponentConfig {
         } catch (ArangoDBException adbe) {
             // We will treat "duplicate name" errors as harmless -- this means someone
             // else may have already created our database.
-            if (adbe.getErrorNum() == ArangoError.ERROR_ARANGO_DUPLICATE_NAME) {
+            // Cast ERROR_ARANGO_DUPLICATE_NAME primitive int to Integer because we have seen cases
+            // where the error number of the ArangoDBException can be a null Integer and comparison
+            // with a primitive int will then throw NPE.
+            if (adbe.getErrorNum() == (Integer)ArangoError.ERROR_ARANGO_DUPLICATE_NAME) {
                 logger.info("Database {} already created.", getArangoDatabaseName());
             } else {
                 // we'll re-throw the other errors.

@@ -624,7 +624,7 @@ public class StatsMapper {
      *        given statApiInput
      */
     @Nonnull
-    StatsFilter newPeriodStatsFilter(@Nullable final StatPeriodApiInputDTO statApiInput,
+    public StatsFilter newPeriodStatsFilter(@Nullable final StatPeriodApiInputDTO statApiInput,
                                              final boolean requestProjectedHeadroom) {
         final StatsFilter.Builder filterRequestBuilder = StatsFilter.newBuilder()
             .setRequestProjectedHeadroom(requestProjectedHeadroom);

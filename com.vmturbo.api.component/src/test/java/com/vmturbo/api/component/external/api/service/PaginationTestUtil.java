@@ -3,12 +3,10 @@ package com.vmturbo.api.component.external.api.service;
 import static org.mockito.Matchers.any;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.api.enums.EntityDetailType;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -18,6 +16,7 @@ import com.vmturbo.api.dto.action.ActionApiInputDTO;
 import com.vmturbo.api.dto.group.GroupApiDTO;
 import com.vmturbo.api.dto.statistic.EntityStatsApiDTO;
 import com.vmturbo.api.dto.statistic.StatScopesApiInputDTO;
+import com.vmturbo.api.enums.EntityDetailType;
 import com.vmturbo.api.enums.EnvironmentType;
 import com.vmturbo.api.pagination.ActionPaginationRequest;
 import com.vmturbo.api.pagination.ActionPaginationRequest.ActionPaginationResponse;
@@ -45,21 +44,22 @@ public class PaginationTestUtil {
                                                           List<String> types,
                                                           List<String> scopes,
                                                           String state,
-                                                          String groupType,
+                                                          List<String> groupTypes,
                                                           EnvironmentType envType,
                                                           List<String> probeTypes,
                                                           EntityDetailType entityDetailType) throws Exception {
-        final ArgumentCaptor<List<BaseApiDTO>> resultCaptor =
-                ArgumentCaptor.forClass((Class)List.class);
+        final ArgumentCaptor<List<BaseApiDTO>> resultCaptor = ArgumentCaptor.forClass((Class)List.class);
+
         final SearchPaginationRequest paginationRequest = Mockito.mock(SearchPaginationRequest.class);
-        Mockito.when(paginationRequest.allResultsResponse(any()))
-                .thenReturn(Mockito.mock(SearchPaginationResponse.class));
+
+        Mockito.when(paginationRequest.allResultsResponse(any())).thenReturn(Mockito.mock(SearchPaginationResponse.class));
+
         searchService.getSearchResults(
                 query,
                 types,
                 scopes,
                 state,
-                Collections.singletonList(groupType),
+                groupTypes,
                 envType,
                 entityDetailType,
                 paginationRequest,

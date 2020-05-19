@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 
+import org.apache.commons.lang.time.DateUtils;
 import org.jooq.Condition;
 import org.jooq.Field;
 import org.jooq.Record1;
@@ -248,9 +249,12 @@ public class TimeRange {
                                 timestampsInRange = Collections.singletonList(closestTimestamp.get());
                             }
                         } else {
-                            if (timeFrame == TimeFrame.MONTH && statsFilter.getStartDate() == statsFilter.getEndDate()) {
-                                resolvedStartTime = resolveDateForMonthlyTimeFrame(statsFilter.getStartDate());
-                                resolvedEndTime = resolvedStartTime;
+                            if (timeFrame == TimeFrame.MONTH) {
+                                resolvedStartTime = statsFilter.getStartDate();
+                                // Set resolvedEndTime to the last day of the month because the
+                                // date in the stats_by_month table is always set to the last day
+                                // of the month.
+                                resolvedEndTime = resolveDateForMonthlyTimeFrame(statsFilter.getEndDate());
                             } else {
                                 resolvedStartTime = statsFilter.getStartDate();
                                 resolvedEndTime = statsFilter.getEndDate();
@@ -273,20 +277,16 @@ public class TimeRange {
 
             /**
              * Convert given timestamp to end of month date to query the db.
-             * Sometimes, a timestamp meant to query monthly data will not match any records because
-             * the timestamp sent by the UI is for the first day of the month,
-             * while the monthly stats data is always saved with the last date of the month.
-             * This happens when a monthly timestamp returned from a prior query appears in a subsequent correlated query,
-             * since in responding to the first query, the timestamp was adjusted to beginning-of-month for presentation purposes.
-             * @param startDate date to resolve.
-             * @return date to end of month date w.r.t given startDate.
+             *
+             * @param date date to resolve.
+             * @return date of the last day of the month date w.r.t given date.
              */
-            private long resolveDateForMonthlyTimeFrame(long startDate) {
+            private long resolveDateForMonthlyTimeFrame(long date) {
                 Calendar cal = Calendar.getInstance();
                 cal.setTimeZone(TimeZone.getTimeZone("UTC"));
-                cal.setTime(new Date(startDate));
-                cal.add(Calendar.MONTH, 1);
-                cal.add(Calendar.DATE, -1);
+                cal.setTime(new Date(date));
+                int lastDayOfMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
+                cal.set(Calendar.DAY_OF_MONTH, lastDayOfMonth);
                 return cal.getTimeInMillis();
             }
 
@@ -361,11 +361,17 @@ public class TimeRange {
                     // in daily and monthly tables
                     TimeFrame timeFrame = requiredTimeFrame.orElseGet(() ->
                             timeFrameCalculator.millis2TimeFrame(statsFilter.getStartDate()));
+                    long startDate = statsFilter.getStartDate();
+                    long endDate = statsFilter.getEndDate();
                     if (requestsHeadroomStats(statsFilter) && (
                             timeFrame == TimeFrame.LATEST || timeFrame == TimeFrame.HOUR)) {
                         timeFrame = TimeFrame.DAY;
+                        if (startDate == endDate) {
+                            endDate = DateUtils.truncate(new Date(endDate), Calendar.DATE).getTime();
+                        }
+                        startDate = DateUtils.truncate(new Date(startDate), Calendar.DATE).getTime();
                     }
-                    if (statsFilter.getStartDate() == statsFilter.getEndDate()) {
+                    if (startDate == endDate) {
                         // equal timestamps, resolve to latest prior (or equal) timestamp in timeframe table
                         final Timestamp latest = getMaxTimestamp(statsFilter.getStartDate(),
                                 clusterId, statsFilter, timeFrame);
@@ -377,8 +383,7 @@ public class TimeRange {
                     } else {
                         // both times given, but they're different
                         final List<Timestamp> available = getClusterTimestamps(timeFrame,
-                                statsFilter.getStartDate(), statsFilter.getEndDate(),
-                                clusterId, statsFilter);
+                            startDate, endDate, clusterId, statsFilter);
                         if (available.size() > 0) {
                             result = new TimeRange(
                                     available.get(0).getTime(), statsFilter.getEndDate(),

@@ -211,27 +211,28 @@ public class ActionTest {
 
     @Test
     public void testInvalidateAction() throws UnsupportedActionException {
-        doReturn(ActionMode.MANUAL).when(actionModeCalculator)
-            .calculateActionMode(moveAction, entitySettingsCache);
+        doReturn(ActionModeCalculator.ModeAndSchedule.of(ActionMode.MANUAL)).when(actionModeCalculator)
+            .calculateActionModeAndExecutionSchedule(moveAction, entitySettingsCache);
 
         assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
 
         // Action mode calculator should have been called the first call to getMode()
         verify(actionModeCalculator, times(1))
-            .calculateActionMode(moveAction, entitySettingsCache);
+            .calculateActionModeAndExecutionSchedule(moveAction, entitySettingsCache);
 
         // Subsequent calls to getMode shouldn't fall through to the action mode calculator.
         assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
         assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
         verify(actionModeCalculator, times(1))
-            .calculateActionMode(moveAction, entitySettingsCache);
+            .calculateActionModeAndExecutionSchedule(moveAction, entitySettingsCache);
 
         // Invalidate
         moveAction.refreshAction(entitySettingsCache);
 
         // The next call to getMode() should result in another call to actionModeCalculator
         assertThat(moveAction.getMode(), is(ActionMode.MANUAL));
-        verify(actionModeCalculator, times(2)).calculateActionMode(moveAction, entitySettingsCache);
+        verify(actionModeCalculator, times(2))
+            .calculateActionModeAndExecutionSchedule(moveAction, entitySettingsCache);
     }
 
     @Test

@@ -1,4 +1,4 @@
-package com.vmturbo.repository.listener.realtime;
+package com.vmturbo.components.api;
 
 import javax.annotation.concurrent.NotThreadSafe;
 

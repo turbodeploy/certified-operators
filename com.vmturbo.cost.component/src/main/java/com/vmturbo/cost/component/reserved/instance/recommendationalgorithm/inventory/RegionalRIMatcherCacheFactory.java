@@ -5,6 +5,7 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.component.reserved.instance.recommendationalgorithm.ReservedInstancePurchaseConstraints;
 
@@ -37,14 +38,17 @@ public class RegionalRIMatcherCacheFactory {
      *
      * @param cloudTopology The cloud topology associated with a round of analysis.
      * @param purchaseConstraints The purchase constraints for the analysis.
+     * @param topologyInfo The info about the topology.
      * @return A newly created instance of {@link RegionalRIMatcherCache}.
      */
     public RegionalRIMatcherCache createNewCache(@Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                                                 @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints) {
+                                                 @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+                                                 @Nonnull TopologyInfo topologyInfo) {
         return new RegionalRIMatcherCache(
-            riSpecMatcherFactory,
-            riInventoryMatcherFactory,
-            cloudTopology,
-            purchaseConstraints);
+                riSpecMatcherFactory,
+                riInventoryMatcherFactory,
+                cloudTopology,
+                purchaseConstraints,
+                topologyInfo);
     }
 }

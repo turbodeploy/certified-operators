@@ -40,7 +40,7 @@ import com.vmturbo.topology.processor.stitching.StitchingOperationStore;
  * probes.
  */
 @ThreadSafe
-public class RemoteProbeStore implements ProbeStore, RequiresDataInitialization {
+public class RemoteProbeStore implements ProbeStore {
 
     @GuardedBy("dataLock")
     private final KeyValueStore keyValueStore;
@@ -90,6 +90,7 @@ public class RemoteProbeStore implements ProbeStore, RequiresDataInitialization 
 
     @Override
     public void initialize() {
+        logger.debug("initialize");
         this.probeInfos.clear();
         // Load ProbeInfo persisted in Consul.
         Map<String, String> persistedProbeInfos = this.keyValueStore.getByPrefix(PROBE_KV_STORE_PREFIX);

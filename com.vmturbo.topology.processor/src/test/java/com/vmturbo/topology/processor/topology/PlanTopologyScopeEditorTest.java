@@ -669,7 +669,8 @@ public class PlanTopologyScopeEditorTest {
 
     /**
      * Scenario: scope on vm2 which consumes pm2 on dc1, st1 on da1. The vm2 hosts no application at all.
-     * Expected: the entities in scope should be dc1, da1, pm1, pm2, st1, vm2
+     * Expected: the entities in scope should be dc1, da1, pm1, pm2, st1, vm2, and virtualVolume
+     *           who st1 is providing.
      *
      * @throws Exception An exception thrown when a stage of the pipeline fails.
      */
@@ -686,7 +687,12 @@ public class PlanTopologyScopeEditorTest {
         TopologyGraph<TopologyEntity> result = planTopologyScopeEditor
                 .indexBasedScoping(index, graph, groupResolver, planScope, PlanProjectType.USER);
         result.entities().forEach(e -> System.out.println(e.getOid() + " "));
-        assertEquals(6, result.size());
+        assertEquals(7, result.size());
+
+        // Ensure virtual volume is included in scope due to storage.
+        assertTrue(result.entities().filter(entity -> entity.getEntityType()
+            == EntityType.VIRTUAL_VOLUME_VALUE)
+                .collect(Collectors.toList()).size() == 1);
     }
 
     /**

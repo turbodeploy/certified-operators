@@ -234,7 +234,8 @@ public class ReservedInstancesService implements IReservedInstancesService {
                                 .addAllScopeSeedOids(scope.getScopeOids())
                                 .build()).getReservedInstanceBoughtList();
             } else {
-                return Collections.emptySet();
+                throw new IllegalArgumentException(String.format("%s is illegal argument. "
+                        + "Should be a valid numeric id.", scope.oid()));
             }
         }
     }

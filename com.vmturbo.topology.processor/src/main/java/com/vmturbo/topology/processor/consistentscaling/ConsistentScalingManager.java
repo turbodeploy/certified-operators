@@ -1,6 +1,7 @@
 package com.vmturbo.topology.processor.consistentscaling;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -30,15 +31,14 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
-import com.vmturbo.topology.processor.group.discovery.InterpretedGroup;
 import com.vmturbo.topology.processor.group.settings.EntitySettingsResolver.SettingAndPolicyIdRecord;
+import com.vmturbo.topology.processor.group.settings.TopologyProcessorSettingsConverter;
 
 /**
  * This manages the grouping of entities into consistent scaling groups.
@@ -53,9 +53,6 @@ public class ConsistentScalingManager {
     // Maps Group ID + CSP type to internal scaling group
     private Map<String, ScalingGroup> groups = new HashMap<>();
 
-    // List of discovered groups that have consistent scaling enabled via mediation (e.g., AWS
-    // ASGs, Azure availability sets and scale sets).
-    private Set<String> discoveredGroups = new HashSet<>();
     // List of entities that are consistent scaling due to policy
     private List<ScalingGroupMember> enabledEntities = new ArrayList<>();
     // List of entities that are not consistent scaling due to policy
@@ -112,7 +109,9 @@ public class ConsistentScalingManager {
                         .setStringSettingValue(StringSettingValue.newBuilder()
                             .setValue(groupName)).build();
                     SettingAndPolicyIdRecord settingAndPolicyIdRecord =
-                        new SettingAndPolicyIdRecord(setting, 0L, Type.USER, false);
+                        new SettingAndPolicyIdRecord(TopologyProcessorSettingsConverter.toTopologyProcessorSetting(
+                                Collections.singletonList(setting)), 0L,
+                                Type.USER, false);
                     policies.put(EntitySettingSpecs.ScalingGroupMembership.getSettingName(),
                         settingAndPolicyIdRecord);
                 });
@@ -198,13 +197,6 @@ public class ConsistentScalingManager {
     }
 
     /**
-     * Clear discovered groups.
-     */
-    public void clearDiscoveredGroups() {
-        discoveredGroups.clear();
-    }
-
-    /**
      * Generate a group key based on the group's UUID and the CSP of the ServiceEntity.
      *
      * @param grouping the group for which to generate a key
@@ -276,10 +268,10 @@ public class ConsistentScalingManager {
     }
 
     /**
-     * Build internal scaling groups.  This combines the list of discovered groups with consistent
-     * scaling with entities that are configured as consistent scaling via policy and builds scaling
-     * groups, and merges groups as user groups with common entities are encountered.  Due to this
-     * merging, an entity can only be a member of a single scaling group.
+     * Build internal scaling groups.  This combines the entities configured as consistent scaling
+     * via policy and builds scaling groups, and merges groups as user groups with common entities
+     * are encountered.  Due to this merging, an entity can only be a member of a single scaling
+     * group.
      *
      * @param graph        the topology
      * @param groupingList List of known groups
@@ -291,23 +283,6 @@ public class ConsistentScalingManager {
         if (!config_.isEnabled()) {
             return;
         }
-        // Iterate over all groups and identify those that have consistent scaling enabled in
-        // the probe.  Add the members of those groups to the enabled list.
-        groupingList.forEachRemaining(grouping -> {
-            // If this group is a consistent scaling group, add its members to the enabled list.
-            if (discoveredGroups.contains(grouping.getDefinition().getDisplayName())) {
-                grouping
-                    .getDefinition()
-                    .getStaticGroupMembers()
-                    .getMembersByTypeList().forEach(g -> {
-                        g.getMembersList().forEach(oid -> {
-                            graph.getEntity(oid).ifPresent(entity -> {
-                                enabledEntities.add(new ScalingGroupMember(grouping, entity));
-                            });
-                        });
-                    });
-            }
-        });
 
         // Remove all entities that have consistent scaling explicitly disabled via policy and
         // add the rest to scaling groups.
@@ -352,26 +327,6 @@ public class ConsistentScalingManager {
         buildScalingGroups(graph, groupResolver.getGroupServiceClient()
             .getGroups(GetGroupsRequest.newBuilder().setGroupFilter(groupFilter).build()),
             settings);
-    }
-
-    /**
-     * Add a discovered scaling group.  This notes the name of groups that have been discovered that
-     * have the consistent scaling setting in the SDK DTO set to true.  This is currently set on AWS
-     * ASGs, Azure Availability and Scale Sets, and Kubernetes replica sets/deployments.  Since this
-     * setting is lost in the group uploader stage, we note the group names for later use in the
-     * entity settings resolution stage to determine which entities are in a scaling group.
-     *
-     * @param group discovered group.
-     */
-    public void addDiscoveredGroup(InterpretedGroup group) {
-        if (!config_.isEnabled()) {
-            return;
-        }
-        logger.debug("CSM adding an InterpretedGroup: {}", group);
-        CommonDTO.GroupDTO dto = group.getOriginalSdkGroup();
-        if (dto.getIsConsistentResizing()) {
-            discoveredGroups.add(dto.getDisplayName());
-        }
     }
 
     /**

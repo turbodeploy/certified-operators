@@ -2,6 +2,8 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   name: xls.charts.helm.k8s.io
+  annotations:
+    "api-approved.kubernetes.io": "https://github.com/operator-framework/operator-sdk/pull/2703"
 spec:
   group: charts.helm.k8s.io
   names:
@@ -10,6 +12,8 @@ spec:
     plural: xls
     singular: xl
   scope: Namespaced
+  subresources:
+    status: {}
   version: v1
   versions:
     # Each version can be enabled/disabled by Served flag.
@@ -81,6 +85,8 @@ spec:
                   type: object
                 tolerations:
                   description: Global pod tolerations array
+                  items:
+                    type: object
                   type: array
                 affinity:
                   description: Global pod affinity list
@@ -112,6 +118,7 @@ spec:
                     fsGroup:
                       description: Group ID used for persisent volumes globally.
                       type: integer
+                  type: object
                 ingress:
                   description: Certificate Manager configuration options
                   properties:
@@ -134,7 +141,9 @@ spec:
                           certificate:
                             description: The certificate in pem format
                             type: string
+                        type: object
                       type: array
+                  type: object
                 certmanager:
                   description: Certificate Manager configuration options
                   properties:
@@ -144,9 +153,11 @@ spec:
                     issuer:
                       description: The name of the certification issuer
                       type: string
+                  type: object
                 elk:
                   description: Install ELK stack
                   type: boolean
+              type: object
 
             # Enable Platform
             nginxingress:
@@ -154,6 +165,7 @@ spec:
                 enabled:
                   description: Enable nginx ingress
                   type: boolean
+              type: object
             istioingress:
               properties:
                 enabled:
@@ -164,21 +176,28 @@ spec:
                   properties:
                     match:
                       description: Istio match statement
+                      items:
+                        type: object
                       type: array
                     route:
                       description: Istio route statement
+                      items:
+                        type: object
                       type: array
-                  type: array
+                  type: object
+              type: object
             platform:
               properties:
                 enabled:
                   description: Enable platform components
                   type: boolean
+              type: object
             control:
               properties:
                 enabled:
                   description: Enable platform licensed components
                   type: boolean
+              type: object
             datacloud:
               properties:
                 enabled:
@@ -199,6 +218,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 sevone:
                   properties:
                     transport:
@@ -210,26 +230,28 @@ spec:
                             DE_PROJECT_ID:
                               description: Sevone datacloud project id
                               type: string
+                          type: object
+                      type: object
+                  type: object
+              type: object
             kubeturbo:
               properties:
                 enabled:
                   description: Enable kubeturbo for the local k8s cluster
                   type: boolean
+              type: object
             prometurbo:
               properties:
                 enabled:
                   description: Enable prometurbo for the local prometheus server
                   type: boolean
+              type: object
             metron:
               properties:
                 enabled:
                   description: Enable experimental time series data collection.
                   type: boolean
-            training:
-              properties:
-                enabled:
-                  description: Enable experimental machine learning component.
-                  type: boolean
+              type: object
 
             # Configure platform
             arangodb:
@@ -249,6 +271,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 persistence:
                   description: arangodb persistence options
                   properties:
@@ -261,6 +284,8 @@ spec:
                     dump:
                       description: arangodb dump persistent volume size
                       type: string
+                  type: object
+              type: object
             consul:
               properties:
                 annotations:
@@ -278,6 +303,8 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
+              type: object
             db:
               properties:
                 annotations:
@@ -295,12 +322,15 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 persistence:
                   description: MariaDB persistence options
                   properties:
                     size:
                       description: MariaDB persistent volume size
                       type: string
+                  type: object
+              type: object
             influxdb:
               properties:
                 annotations:
@@ -318,12 +348,15 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 persistence:
                   description: influxdb persistence options
                   properties:
                     size:
                       description: influxdb persistent volume size
                       type: string
+                  type: object
+              type: object
             kafka:
               properties:
                 annotations:
@@ -341,18 +374,22 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 java:
                   description: kafka java options
                   properties:
                     options:
                       description: kafka java options value
                       type: string
+                  type: object
                 persistence:
                   description: kafka persistence options
                   properties:
                     size:
                       description: kafka persistent volume size
                       type: string
+                  type: object
+              type: object
             rsyslog:
               properties:
                 annotations:
@@ -370,8 +407,11 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 env:
                   description: optional environment variables for syslog
+                  items:
+                    type: object
                   type: array
                 persistence:
                   description: rsyslog persistence options
@@ -382,6 +422,8 @@ spec:
                     auditsize:
                       description: influxdb audit persistent volume size
                       type: string
+                  type: object
+              type: object
             zookeeper:
               properties:
                 annotations:
@@ -399,6 +441,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 resources:
                   description: component resource configuration
                   properties:
@@ -408,43 +451,50 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
-
+                      type: object
+                  type: object
+              type: object
             # Enable opensource observability
             loki:
               properties:
                 enabled:
                   description: Enable grafana loki
                   type: boolean
+              type: object
             promtail:
               properties:
                 enabled:
                   description: Enable promtail log collection
                   type: boolean
+              type: object
             fluent-bit:
               properties:
                 enabled:
                   description: Enable fluent log collection
                   type: boolean
+              type: object
             prometheus:
               properties:
                 enabled:
                   description: Enable prometheus
                   type: boolean
+              type: object
             prometheus-mysql-exporter:
               properties:
                 enabled:
                   description: Enable prometheus mysql exporter
                   type: boolean
+                mysql:
+                  description: Enable prometheus mysql exporter
                   properties:
-                    mysql:
-                      description: Enable prometheus mysql exporter
-                      properties:
-                        user:
-                          description: username for the mysql exporter
-                          type: string
-                        pass:
-                          description: password for the mysql exporter
-                          type: string
+                    user:
+                      description: username for the mysql exporter
+                      type: string
+                    pass:
+                      description: password for the mysql exporter
+                      type: string
+                  type: object
+              type: object
             grafana:
               properties:
                 enabled:
@@ -453,21 +503,25 @@ spec:
                 adminPassword:
                   description: Configure grafana admin password
                   type: string
+              type: object
             chronograf:
               properties:
                 enabled:
                   description: Enable chronograf
                   type: boolean
+              type: object
             timescaledb:
               properties:
                 enabled:
                   description: Enable timescaledb with postgress backend
                   type: boolean
+              type: object
             jaeger:
               properties:
                 enabled:
                   description: Enable jaeger tracing
                   type: boolean
+              type: object
 
             # Enable mediation
             actionscript:
@@ -475,216 +529,259 @@ spec:
                 enabled:
                   description: Enable actionscript mediation
                   type: boolean
+              type: object
             aix:
               properties:
                 enabled:
                   description: Enable AIX mediation
                   type: boolean
+              type: object
             appdynamics:
               properties:
                 enabled:
                   description: Enable AppDynamics mediation
                   type: boolean
+              type: object
             appinsights:
               properties:
                 enabled:
                   description: Enable Azure App Insights mediation
                   type: boolean
+              type: object
             aws:
               properties:
                 enabled:
                   description: Enable AWS mediation
                   type: boolean
+              type: object
             awslambda:
               properties:
                 enabled:
                   description: Enable AWS Lambda mediation
                   type: boolean
+              type: object
             azure:
               properties:
                 enabled:
                   description: Enable Azure mediation
                   type: boolean
+              type: object
             baremetal:
               properties:
                 enabled:
                   description: Enable baremetal mediation
                   type: boolean
+              type: object
             cloudfoundry:
               properties:
                 enabled:
                   description: Enable Cloud Foundry mediation
                   type: boolean
+              type: object
             compellent:
               properties:
                 enabled:
                   description: Enable Compellent mediation
                   type: boolean
+              type: object
             datadog:
               properties:
                 enabled:
                   description: Enable Datadog mediation
                   type: boolean
+              type: object
             dynatrace:
               properties:
                 enabled:
                   description: Enable Dynatrace mediation
                   type: boolean
+              type: object
             gcp:
               properties:
                 enabled:
                   description: Enable GCP mediation
                   type: boolean
+              type: object
             hpe3par:
               properties:
                 enabled:
                   description: Enable HPE 3PAR mediation
                   type: boolean
+              type: object
             hds:
               properties:
                 enabled:
                   description: Enable Hitachi Data Systems mediation
                   type: boolean
+              type: object
             horizon:
               properties:
                 enabled:
                   description: Enable VMware Horizon mediation
                   type: boolean
+              type: object
             hyperflex:
               properties:
                 enabled:
                   description: Enable Hyperflex mediation
                   type: boolean
+              type: object
             hyperv:
               properties:
                 enabled:
                   description: Enable Microsoft HyperV mediation
                   type: boolean
+              type: object
             intersight:
               properties:
                 enabled:
                   description: Enable Cisco Intersight mediation
                   type: boolean
+              type: object
             istio:
               properties:
                 enabled:
                   description: Enable Istio mediation
                   type: boolean
+              type: object
             mssql:
               properties:
                 enabled:
                   description: Enable Microsoft SQL Server mediation
                   type: boolean
+              type: object
             netapp:
               properties:
                 enabled:
                   description: Enable NetApp mediation
                   type: boolean
+              type: object
             netflow:
               properties:
                 enabled:
                   description: Enable netflow mediation
                   type: boolean
+              type: object
             newrelic:
               properties:
                 enabled:
                   description: Enable New Relic mediation
                   type: boolean
+              type: object
             nutanix:
               properties:
                 enabled:
                   description: Enable Nutanix mediation
                   type: boolean
+              type: object
             oneview:
               properties:
                 enabled:
                   description: Enable HPE OneView mediation
                   type: boolean
+              type: object
             openstack:
               properties:
                 enabled:
                   description: Enable Openstack mediation
                   type: boolean
+              type: object
             pivotal:
               properties:
                 enabled:
                   description: Enable Pivotal mediation
                   type: boolean
+              type: object
             pure:
               properties:
                 enabled:
                   description: Enable Pure mediation
                   type: boolean
+              type: object
             rhv:
               properties:
                 enabled:
                   description: Enable Red Hat Virtualization mediation
                   type: boolean
+              type: object
             scaleio:
               properties:
                 enabled:
                   description: Enable EMC ScaleIO mediation
                   type: boolean
+              type: object
             snmp:
               properties:
                 enabled:
                   description: Enable SNMP mediation
                   type: boolean
+              type: object
             terraform:
               properties:
                 enabled:
                   description: Enable Terraform mediation
                   type: boolean
+              type: object
             tetration:
               properties:
                 enabled:
                   description: Enable Cisco Tetration mediation
                   type: boolean
+              type: object
             ucs:
               properties:
                 enabled:
                   description: Enable Cisco UCS mediation
                   type: boolean
+              type: object
             ucsdirector:
               properties:
                 enabled:
                   description: Enable Cisco UCS Director mediation
                   type: boolean
+              type: object
             vcd:
               properties:
                 enabled:
                   description: Enable VMware Cloud Director mediation
                   type: boolean
+              type: object
             vcenter:
               properties:
                 enabled:
                   description: Enable VMware vCenter mediation
                   type: boolean
+              type: object
             vmax:
               properties:
                 enabled:
                   description: Enable EMC VMAX mediation
                   type: boolean
+              type: object
             vmm:
               properties:
                 enabled:
                   description: Enable Microsoft VMM mediation
                   type: boolean
+              type: object
             vplex:
               properties:
                 enabled:
                   description: Enable EMC VPLEX mediation
                   type: boolean
+              type: object
             wmi:
               properties:
                 enabled:
                   description: Enable WMI mediation
                   type: boolean
+              type: object
             xtremio:
               properties:
                 enabled:
                   description: Enable EMC XtremIO mediation
                   type: boolean
+              type: object
 
             # Resource limits - Core Services
             action-orchestrator:
@@ -704,6 +801,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -719,6 +817,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             api:
               properties:
                 annotations:
@@ -736,6 +837,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -751,6 +853,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             auth:
               properties:
                 annotations:
@@ -768,6 +873,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -783,6 +889,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             clustermgr:
               properties:
                 annotations:
@@ -800,6 +909,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -815,6 +925,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             cost:
               properties:
                 annotations:
@@ -832,6 +945,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -847,6 +961,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             group:
               properties:
                 annotations:
@@ -864,6 +981,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -879,6 +997,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             history:
               properties:
                 annotations:
@@ -896,6 +1017,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -911,6 +1033,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             market:
               properties:
                 annotations:
@@ -928,6 +1053,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -943,6 +1069,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             plan-orchestrator:
               properties:
                 annotations:
@@ -960,6 +1089,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -975,6 +1105,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             repository:
               properties:
                 annotations:
@@ -992,6 +1125,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1007,6 +1141,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             topology-processor:
               properties:
                 annotations:
@@ -1024,6 +1161,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1039,6 +1177,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
 
             # Resources limits - Probes
             mediation-actionscript:
@@ -1058,6 +1199,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1073,6 +1215,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-aix:
               properties:
                 annotations:
@@ -1090,6 +1235,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1105,6 +1251,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-appdynamics:
               properties:
                 annotations:
@@ -1122,6 +1271,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1137,6 +1287,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-appinsights:
               properties:
                 annotations:
@@ -1154,6 +1307,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1169,6 +1323,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-aws:
               properties:
                 annotations:
@@ -1186,6 +1343,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1201,6 +1359,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-awsbilling:
               properties:
                 annotations:
@@ -1218,6 +1379,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1233,6 +1395,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-awscost:
               properties:
                 annotations:
@@ -1250,6 +1415,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1265,6 +1431,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-awslambda:
               properties:
                 annotations:
@@ -1282,6 +1451,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1297,6 +1467,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-azure:
               properties:
                 annotations:
@@ -1314,6 +1487,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1329,6 +1503,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-azurecost:
               properties:
                 annotations:
@@ -1346,6 +1523,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1361,6 +1539,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-azureea:
               properties:
                 annotations:
@@ -1378,6 +1559,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1393,6 +1575,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-azuresp:
               properties:
                 annotations:
@@ -1410,6 +1595,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1425,6 +1611,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-azurevolumes:
               properties:
                 annotations:
@@ -1442,6 +1631,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1457,6 +1647,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-baremetal:
               properties:
                 annotations:
@@ -1474,6 +1667,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1489,6 +1683,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-cloudfoundry:
               properties:
                 annotations:
@@ -1506,6 +1703,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1521,6 +1719,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-compellent:
               properties:
                 annotations:
@@ -1538,6 +1739,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1553,6 +1755,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-customdata:
               properties:
                 annotations:
@@ -1570,6 +1775,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1585,6 +1791,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-datadog:
               properties:
                 annotations:
@@ -1602,6 +1811,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1617,6 +1827,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-dynatrace:
               properties:
                 annotations:
@@ -1634,6 +1847,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1649,6 +1863,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-gcp:
               properties:
                 annotations:
@@ -1666,6 +1883,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1681,6 +1899,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-gcpcost:
               properties:
                 annotations:
@@ -1698,6 +1919,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1713,6 +1935,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-hds:
               properties:
                 annotations:
@@ -1730,6 +1955,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1745,6 +1971,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-horizon:
               properties:
                 annotations:
@@ -1762,6 +1991,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1777,6 +2007,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-hpe3par:
               properties:
                 annotations:
@@ -1794,6 +2027,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1809,6 +2043,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-hyperflex:
               properties:
                 annotations:
@@ -1826,6 +2063,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1841,6 +2079,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-hyperv:
               properties:
                 annotations:
@@ -1858,6 +2099,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1873,6 +2115,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-intersight:
               properties:
                 annotations:
@@ -1890,6 +2135,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1905,6 +2151,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-intersighthyperflex:
               properties:
                 annotations:
@@ -1922,6 +2171,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1937,6 +2187,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-intersightucs:
               properties:
                 annotations:
@@ -1954,6 +2207,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -1969,6 +2223,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-istio:
               properties:
                 annotations:
@@ -1986,6 +2243,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2001,6 +2259,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-mssql:
               properties:
                 annotations:
@@ -2018,6 +2279,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2033,6 +2295,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-netapp:
               properties:
                 annotations:
@@ -2050,6 +2315,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2065,6 +2331,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-netflow:
               properties:
                 annotations:
@@ -2082,6 +2351,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2097,6 +2367,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-newrelic:
               properties:
                 annotations:
@@ -2114,6 +2387,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2129,6 +2403,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-nutanix:
               properties:
                 annotations:
@@ -2146,6 +2423,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2161,6 +2439,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-oneview:
               properties:
                 annotations:
@@ -2178,6 +2459,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2193,6 +2475,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-openstack:
               properties:
                 annotations:
@@ -2210,6 +2495,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2225,6 +2511,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-pivotal:
               properties:
                 annotations:
@@ -2242,6 +2531,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2257,6 +2547,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-pure:
               properties:
                 annotations:
@@ -2274,6 +2567,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2289,6 +2583,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-rhv:
               properties:
                 annotations:
@@ -2306,6 +2603,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2321,6 +2619,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-scaleio:
               properties:
                 annotations:
@@ -2338,6 +2639,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2353,6 +2655,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-snmp:
               properties:
                 annotations:
@@ -2370,6 +2675,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2385,6 +2691,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-terraform:
               properties:
                 annotations:
@@ -2402,6 +2711,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2417,6 +2727,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-tetration:
               properties:
                 annotations:
@@ -2434,6 +2747,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2449,6 +2763,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-ucs:
               properties:
                 annotations:
@@ -2466,6 +2783,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2481,6 +2799,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-ucsdirector:
               properties:
                 annotations:
@@ -2498,6 +2819,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2513,6 +2835,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-vcd:
               properties:
                 annotations:
@@ -2530,6 +2855,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2545,6 +2871,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-vcenter:
               properties:
                 annotations:
@@ -2562,6 +2891,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2577,6 +2907,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-vcenterbrowsing:
               properties:
                 annotations:
@@ -2594,6 +2927,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2609,6 +2943,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-vmax:
               properties:
                 annotations:
@@ -2626,6 +2963,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2641,6 +2979,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-vmm:
               properties:
                 annotations:
@@ -2658,6 +2999,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2673,6 +3015,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-vplex:
               properties:
                 annotations:
@@ -2690,6 +3035,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2705,6 +3051,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-wmi:
               properties:
                 annotations:
@@ -2722,6 +3071,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2737,6 +3087,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
             mediation-xtremio:
               properties:
                 annotations:
@@ -2754,6 +3107,7 @@ spec:
                     pullPolicy:
                       description: component image pull policy
                       type: string
+                  type: object
                 javaComponentOptions:
                   description: component additional java options
                   type: string
@@ -2769,6 +3123,9 @@ spec:
                         memory:
                           description: component memory limits
                           type: string
+                      type: object
+                  type: object
+              type: object
 
             # Custom properties for component configuration
             properties:
@@ -2857,3 +3214,5 @@ spec:
                 topology-processor:
                   description: topology-processor property overrides
                   type: object
+              type: object
+          type: object

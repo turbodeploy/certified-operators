@@ -2,13 +2,19 @@ package com.vmturbo.action.orchestrator.action;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
@@ -17,6 +23,7 @@ import org.junit.Test;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ModeAndSchedule;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -34,6 +41,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Provision;
 import com.vmturbo.common.protobuf.action.ActionDTO.Reconfigure;
 import com.vmturbo.common.protobuf.action.ActionDTO.Resize;
 import com.vmturbo.common.protobuf.action.ActionDTO.Scale;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto;
+import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
@@ -65,6 +74,20 @@ public class ActionModeCalculatorTest {
     private static final EnumSettingValue DISABLED = EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()).build();
     private static final EnumSettingValue AUTOMATIC = EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()).build();
 
+    private static final long VM_ID = 122L;
+    private static final long SCHEDULE_ID = 505L;
+    private static final long SCHEDULE_ID_2 = 606L;
+    private static final long SCHEDULE_ID_3 = 707L;
+    private static final String SCHEDULE_DISPLAY_NAME = "TestSchedule";
+    private static final String TIMEZONE_ID = "America/Toronto";
+    private static final String USER_NAME = "testUser";
+    private static final long MAY_2_2020_5_47 = 1588441640000L;
+    private static final long MAY_2_2020_6_47 = 1588445240000L;
+    private static final long JAN_7_2020_12 = 1578441640000L;
+    private static final long JAN_8_202_1 = 1578445240000L;
+    private static final long ACTION_OID = 10289L;
+    private static final long AN_HOUR_IN_MILLIS = 3600000L;
+
     @Test
     public void testSettingHostMove() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
@@ -88,8 +111,8 @@ public class ActionModeCalculatorTest {
                                 .build()));
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         // Should use the value from settings.
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
-                is(ActionMode.AUTOMATIC));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ActionModeCalculator.ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     @Test
@@ -107,8 +130,9 @@ public class ActionModeCalculatorTest {
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-                is(ActionMode.valueOf(EntitySettingSpecs.Move.getSettingSpec().getEnumSettingValueType().getDefault())));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+                is(ModeAndSchedule.of(ActionMode.valueOf(
+                    EntitySettingSpecs.Move.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
     @Test
@@ -134,8 +158,8 @@ public class ActionModeCalculatorTest {
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         // Should use the value from settings.
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
-                is(ActionMode.AUTOMATIC));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     @Test
@@ -152,8 +176,9 @@ public class ActionModeCalculatorTest {
                                         .setType(EntityType.STORAGE_VALUE)))))
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-                is(ActionMode.valueOf(EntitySettingSpecs.StorageMove.getSettingSpec().getEnumSettingValueType().getDefault())));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+                is(ModeAndSchedule.of(ActionMode.valueOf(
+                    EntitySettingSpecs.StorageMove.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
     @Test
@@ -192,8 +217,8 @@ public class ActionModeCalculatorTest {
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         // Should choose the more conservative one.
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
-                is(ActionMode.MANUAL));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.MANUAL)));
     }
 
     @Test
@@ -221,8 +246,8 @@ public class ActionModeCalculatorTest {
         final ActionMode expectedDefaultMode = storageMoveDefaultMode.compareTo(hostMoveDefaultMode) < 0 ? storageMoveDefaultMode : hostMoveDefaultMode;
         Action aoAction = new Action(action, 1L, actionModeCalculator);
 
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-                is(expectedDefaultMode));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+                is(ModeAndSchedule.of(expectedDefaultMode)));
     }
 
     @Test
@@ -243,8 +268,8 @@ public class ActionModeCalculatorTest {
                                 .build()));
         final Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
-                is(ActionMode.AUTOMATIC));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     @Test
@@ -256,8 +281,8 @@ public class ActionModeCalculatorTest {
                                 .setType(1))))
                 .build();
         final Action aoAction = new Action(action, 1L, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-                is(ActionMode.RECOMMEND));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+                is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
     @Test
@@ -277,8 +302,8 @@ public class ActionModeCalculatorTest {
                                 .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
-                is(ActionMode.AUTOMATIC));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     @Test
@@ -291,8 +316,9 @@ public class ActionModeCalculatorTest {
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-            is(ActionMode.valueOf(EntitySettingSpecs.Resize.getSettingSpec().getEnumSettingValueType().getDefault())));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+            is(ModeAndSchedule.of(ActionMode.valueOf(
+                EntitySettingSpecs.Resize.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
     @Test
@@ -312,8 +338,8 @@ public class ActionModeCalculatorTest {
                             .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
-                is(ActionMode.AUTOMATIC));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     @Test
@@ -325,8 +351,9 @@ public class ActionModeCalculatorTest {
                                 .setType(1))))
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-                is(ActionMode.valueOf(EntitySettingSpecs.Reconfigure.getSettingSpec().getEnumSettingValueType().getDefault())));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+                is(ModeAndSchedule.of(ActionMode.valueOf(
+                    EntitySettingSpecs.Reconfigure.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
     @Test
@@ -346,8 +373,8 @@ public class ActionModeCalculatorTest {
                                 .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
-                is(ActionMode.AUTOMATIC));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     @Test
@@ -360,8 +387,9 @@ public class ActionModeCalculatorTest {
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-                is(ActionMode.valueOf(EntitySettingSpecs.Provision.getSettingSpec().getEnumSettingValueType().getDefault())));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+                is(ModeAndSchedule.of(ActionMode.valueOf(
+                    EntitySettingSpecs.Provision.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
     @Test
@@ -381,8 +409,8 @@ public class ActionModeCalculatorTest {
                                 .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
-                is(ActionMode.AUTOMATIC));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     @Test
@@ -395,8 +423,9 @@ public class ActionModeCalculatorTest {
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-                is(ActionMode.valueOf(EntitySettingSpecs.Activate.getSettingSpec().getEnumSettingValueType().getDefault())));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+                is(ModeAndSchedule.of(ActionMode.valueOf(
+                    EntitySettingSpecs.Activate.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
     @Test
@@ -417,8 +446,8 @@ public class ActionModeCalculatorTest {
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
-                is(ActionMode.AUTOMATIC));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+                is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     @Test
@@ -431,8 +460,9 @@ public class ActionModeCalculatorTest {
             .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-            is(ActionMode.valueOf(EntitySettingSpecs.Suspend.getSettingSpec().getEnumSettingValueType().getDefault())));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+            is(ModeAndSchedule.of(ActionMode.valueOf(
+                EntitySettingSpecs.Suspend.getSettingSpec().getEnumSettingValueType().getDefault()))));
     }
 
     @Test
@@ -452,8 +482,8 @@ public class ActionModeCalculatorTest {
                     .build()));
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, entitiesCache),
-            is(ActionMode.AUTOMATIC));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
     }
 
     @Test
@@ -465,8 +495,8 @@ public class ActionModeCalculatorTest {
                     .setType(1))))
             .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null),
-            is(ActionMode.RECOMMEND));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+            is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
     @Test
@@ -474,7 +504,8 @@ public class ActionModeCalculatorTest {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder())
                 .build();
         Action aoAction = new Action(action, 1L, actionModeCalculator);
-        assertThat(actionModeCalculator.calculateActionMode(aoAction, null), is(ActionMode.RECOMMEND));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
+            is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
     /**
@@ -487,15 +518,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testResizeDownWithHotAddAndNonDisruptiveEnabled() {
-        long vmId = 122L;
         boolean hotAddSupported = true;
         boolean nonDisruptiveSetting = true;
-        Action resizeDownAction = getResizeDownAction(vmId);
+        Action resizeDownAction = getResizeDownAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.MANUAL);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeDownAction, entitiesCache), is(ActionMode.RECOMMEND));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeDownAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
     /**
@@ -508,15 +539,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testResizeDownWithHotAddDisabledAndNonDisruptiveEnabled() {
-        long vmId = 122L;
         boolean hotAddSupported = false;
         boolean nonDisruptiveSetting = true;
-        Action resizeDownAction = getResizeDownAction(vmId);
+        Action resizeDownAction = getResizeDownAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.MANUAL);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeDownAction, entitiesCache), is(ActionMode.RECOMMEND));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeDownAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
     /**
@@ -529,15 +560,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testResizeDownWithHotAddEnableNonDisruptiveDisabled() {
-        long vmId = 122L;
         boolean hotAddSupported = true;
         boolean nonDisruptiveSetting = false;
-        Action resizeDownAction = getResizeDownAction(vmId);
+        Action resizeDownAction = getResizeDownAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.MANUAL);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeDownAction, entitiesCache), is(ActionMode.MANUAL));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeDownAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.MANUAL)));
     }
 
     /**
@@ -550,15 +581,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testResizeDownWithHotAddDisableNonDisruptiveDisabled() {
-        long vmId = 122L;
         boolean hotAddSupported = false;
         boolean nonDisruptiveSetting = false;
-        Action resizeDownAction = getResizeDownAction(vmId);
+        Action resizeDownAction = getResizeDownAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.MANUAL);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeDownAction, entitiesCache), is(ActionMode.MANUAL));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeDownAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.MANUAL)));
     }
 
     /**
@@ -571,15 +602,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testResizeDownDisabledAndNonDisruptiveEnabled() {
-        long vmId = 122L;
         boolean hotAddSupported = true;
         boolean nonDisruptiveSetting = true;
-        Action resizeDownAction = getResizeDownAction(vmId);
+        Action resizeDownAction = getResizeDownAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.DISABLED);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeDownAction, entitiesCache), is(ActionMode.DISABLED));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeDownAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.DISABLED)));
     }
 
     /**
@@ -592,15 +623,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testResizeDownDisabledAndNonDisruptiveDisabled() {
-        long vmId = 122L;
         boolean hotAddSupported = true;
         boolean nonDisruptiveSetting = false;
-        Action resizeDownAction = getResizeDownAction(vmId);
+        Action resizeDownAction = getResizeDownAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.DISABLED);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeDownAction, entitiesCache), is(ActionMode.DISABLED));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeDownAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.DISABLED)));
     }
 
     /**
@@ -613,15 +644,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testResizeUpWithHotAddAndNonDisruptiveEnabled() {
-        long vmId = 122L;
         boolean hotAddSupported = true;
         boolean nonDisruptiveSetting = true;
-        Action resizeDownAction = getResizeUpAction(vmId);
+        Action resizeDownAction = getResizeUpAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.MANUAL);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeDownAction, entitiesCache), is(ActionMode.MANUAL));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeDownAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.MANUAL)));
     }
 
     /**
@@ -634,15 +665,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testResizeUpWithoutHotAddAndNonDisruptiveEnabled() {
-        long vmId = 122L;
         boolean hotAddSupported = false;
         boolean nonDisruptiveSetting = true;
-        Action resizeUpAction = getResizeUpAction(vmId);
+        Action resizeUpAction = getResizeUpAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.MANUAL);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeUpAction, entitiesCache), is(ActionMode.RECOMMEND));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
 
     /**
@@ -655,15 +686,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testResizeUpWithHotAddNonDisruptiveDisabled() {
-        long vmId = 122L;
         boolean hotAddSupported = true;
         boolean nonDisruptiveSetting = false;
-        Action resizeUpAction = getResizeUpAction(vmId);
+        Action resizeUpAction = getResizeUpAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.MANUAL);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeUpAction, entitiesCache), is(ActionMode.MANUAL));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.MANUAL)));
     }
 
     /**
@@ -676,15 +707,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testResizeUpWithoutHotAddNonDisruptiveDisabled() {
-        long vmId = 122L;
         boolean hotAddSupported = false;
         boolean nonDisruptiveSetting = false;
-        Action resizeUpAction = getResizeUpAction(vmId);
+        Action resizeUpAction = getResizeUpAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.MANUAL);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeUpAction, entitiesCache), is(ActionMode.MANUAL));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.MANUAL)));
     }
 
     /**
@@ -697,15 +728,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testDisableResizeUpWithNonDisrputiveEnabled() {
-        long vmId = 122L;
         boolean hotAddSupported = true;
         boolean nonDisruptiveSetting = true;
-        Action resizeUpAction = getResizeUpAction(vmId);
+        Action resizeUpAction = getResizeUpAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.DISABLED);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeUpAction, entitiesCache), is(ActionMode.DISABLED));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.DISABLED)));
     }
 
     /**
@@ -718,15 +749,15 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testDisableResizeUpWithNonDisrputiveDisabled() {
-        long vmId = 122L;
         boolean hotAddSupported = true;
         boolean nonDisruptiveSetting = false;
-        Action resizeUpAction = getResizeUpAction(vmId);
+        Action resizeUpAction = getResizeUpAction(VM_ID);
         final Map<String, Setting> settingsForEntity = getSettingsForVM(nonDisruptiveSetting, com.vmturbo.api.enums.ActionMode.DISABLED);
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
-        when(entitiesCache.getEntityFromOid(vmId)).thenReturn(Optional.of(getVMEntity(vmId, hotAddSupported)));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, hotAddSupported)));
 
-        assertThat(actionModeCalculator.calculateActionMode(resizeUpAction, entitiesCache), is(ActionMode.DISABLED));
+        assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache),
+            is(ModeAndSchedule.of(ActionMode.DISABLED)));
     }
 
     /**
@@ -734,7 +765,6 @@ public class ActionModeCalculatorTest {
      */
     @Test
     public void testSpecsApplicableToActionForVMs() {
-        long vmId = 122L;
         long targetId = 7L;
         final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
             com.vmturbo.api.enums.ActionMode.DISABLED);
@@ -752,7 +782,7 @@ public class ActionModeCalculatorTest {
                     .setType(EntityType.VIRTUAL_MACHINE_VALUE)).setCommodityAttribute(CommodityAttribute.RESERVED).setCommodityType(CommodityType.newBuilder()
                     .setType(CommodityDTO.CommodityType.MEM_VALUE).build()))
         ).build();
-        when(entitiesCache.getSettingsForEntity(vmId)).thenReturn(settingsForEntity);
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
 
         // VStorage commodities do not have a specific setting. We always return a RECOMMENDED
         // action mode
@@ -895,7 +925,7 @@ public class ActionModeCalculatorTest {
 
     private Action getResizeUpAction(long vmId) {
         final ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
-            .setId(10289)
+            .setId(ACTION_OID)
             .setSupportingLevel(SupportLevel.SUPPORTED)
             .setExplanation(Explanation.newBuilder()
                 .setResize(ResizeExplanation.newBuilder()
@@ -974,4 +1004,585 @@ public class ActionModeCalculatorTest {
             .addCommoditySold(vMEM)
             .build();
     }
+
+    /**
+     * This tests determining the mode of an action which is automatic and has execution window in
+     * the future.
+     */
+    @Test
+    public void testResizeWithAutomaticSchedule() {
+        // ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.AUTOMATIC);
+        List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+
+        final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(2);
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence).build())
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.RECOMMEND));
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID));
+        assertThat(modeAndSchedule.getSchedule().getScheduleDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertThat(modeAndSchedule.getSchedule().getScheduleTimeZoneId(), is(TIMEZONE_ID));
+        assertNull(modeAndSchedule.getSchedule().getAcceptingUser());
+        assertThat(modeAndSchedule.getSchedule().getExecutionWindowActionMode(),
+            is(ActionMode.AUTOMATIC));
+        assertThat(modeAndSchedule.getSchedule().getScheduleStartTimestamp(), is(nextOccurrence));
+        assertThat(modeAndSchedule.getSchedule().getScheduleEndTimestamp(),
+            is(nextOccurrence + AN_HOUR_IN_MILLIS));
+        assertNotNull(modeAndSchedule.getSchedule().toString());
+        assertTrue(modeAndSchedule.getSchedule().equals(modeAndSchedule.getSchedule()));
+
+        // ACT
+        ActionDTO.ActionSpec.ActionSchedule translatedAction =
+            modeAndSchedule.getSchedule().getTranslation();
+
+        // ASSERT
+        assertThat(translatedAction.getScheduleId(), is(SCHEDULE_ID));
+        assertThat(translatedAction.getScheduleDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertThat(translatedAction.getScheduleTimezoneId(), is(TIMEZONE_ID));
+        assertFalse(translatedAction.hasAcceptingUser());
+        assertThat(translatedAction.getExecutionWindowActionMode(), is(ActionMode.AUTOMATIC));
+        assertThat(translatedAction.getStartTimestamp(), is(nextOccurrence));
+        assertThat(translatedAction.getEndTimestamp(),
+            is(nextOccurrence + AN_HOUR_IN_MILLIS));
+    }
+
+
+    /**
+     * This tests determining the mode of an action which is automated and has execution window in
+     * the future.
+     */
+    @Test
+    public void testResizeWithManualSchedule() {
+        //ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.MANUAL);
+        List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+
+        final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(1);
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence).build())
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.MANUAL));
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID));
+        assertThat(modeAndSchedule.getSchedule().getScheduleDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertThat(modeAndSchedule.getSchedule().getScheduleTimeZoneId(), is(TIMEZONE_ID));
+        assertNull(modeAndSchedule.getSchedule().getAcceptingUser());
+        assertThat(modeAndSchedule.getSchedule().getExecutionWindowActionMode(),
+            is(ActionMode.MANUAL));
+        assertThat(modeAndSchedule.getSchedule().getScheduleStartTimestamp(), is(nextOccurrence));
+        assertThat(modeAndSchedule.getSchedule().getScheduleEndTimestamp(),
+            is(nextOccurrence + AN_HOUR_IN_MILLIS));
+        assertNotNull(modeAndSchedule.getSchedule().toString());
+        assertTrue(modeAndSchedule.getSchedule().equals(modeAndSchedule.getSchedule()));
+
+        //ACT
+        ActionDTO.ActionSpec.ActionSchedule translatedAction =
+            modeAndSchedule.getSchedule().getTranslation();
+
+        // ASSERT
+        assertThat(translatedAction.getScheduleId(), is(SCHEDULE_ID));
+        assertThat(translatedAction.getScheduleDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertThat(translatedAction.getScheduleTimezoneId(), is(TIMEZONE_ID));
+        assertFalse(translatedAction.hasAcceptingUser());
+        assertThat(translatedAction.getExecutionWindowActionMode(), is(ActionMode.MANUAL));
+        assertThat(translatedAction.getStartTimestamp(), is(nextOccurrence));
+        assertThat(translatedAction.getEndTimestamp(),
+            is(nextOccurrence + AN_HOUR_IN_MILLIS));
+
+        // ARRANGE
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.of(USER_NAME));
+
+        // ACT
+        modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+        translatedAction = modeAndSchedule.getSchedule().getTranslation();
+
+        // ASSERT
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.RECOMMEND));
+        assertThat(modeAndSchedule.getSchedule().getAcceptingUser(), is(USER_NAME));
+        assertThat(translatedAction.getAcceptingUser(), is(USER_NAME));
+
+    }
+
+    /**
+     * Test the case when we select a mode for an action which has an associated schedule where
+     * the schedule is unknown in the system. The mode calculator should choose recommend mode
+     * for this action.
+     */
+    @Test
+    public void testResizeWithUnknownSchedule() {
+        //ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.MANUAL);
+        List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getScheduleMap()).thenReturn(Collections.emptyMap());
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+        assertThat(modeAndSchedule, is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
+    }
+
+    /**
+     * Test the case when we select a mode for an action which has an associated schedule where
+     * the schedule is has no future occurrence and is not currently active in the system. The mode
+     * calculator should choose recommend mode for this action.
+     */
+    @Test
+    public void testResizeWithScheduleWithNoFutureOccurrence() {
+        //ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.MANUAL);
+        List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.RECOMMEND));
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID));
+        assertThat(modeAndSchedule.getSchedule().getScheduleDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertThat(modeAndSchedule.getSchedule().getScheduleTimeZoneId(), is(TIMEZONE_ID));
+        assertNull(modeAndSchedule.getSchedule().getAcceptingUser());
+        assertThat(modeAndSchedule.getSchedule().getExecutionWindowActionMode(),
+            is(ActionMode.MANUAL));
+        assertNull(modeAndSchedule.getSchedule().getScheduleStartTimestamp());
+        assertNull(modeAndSchedule.getSchedule().getScheduleEndTimestamp());
+    }
+
+    /**
+     * Test the case when we select a mode for an action which has an associated schedule where
+     * the schedule is active and the policy for resize is automatic. The mode
+     * calculator should choose automatic mode for this action.
+     */
+    @Test
+    public void testResizeWithAutomaticModeInSchedule() {
+        // ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.AUTOMATIC);
+        List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+
+        final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(1);
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence).build())
+            .setActive(ScheduleProto.Schedule.Active.newBuilder().setRemainingActiveTimeMs(150000L))
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.AUTOMATIC));
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID));
+        assertThat(modeAndSchedule.getSchedule().getScheduleDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertThat(modeAndSchedule.getSchedule().getScheduleTimeZoneId(), is(TIMEZONE_ID));
+        assertNull(modeAndSchedule.getSchedule().getAcceptingUser());
+        assertThat(modeAndSchedule.getSchedule().getExecutionWindowActionMode(), is(ActionMode.AUTOMATIC));
+        assertThat(modeAndSchedule.getSchedule().getScheduleStartTimestamp(), is(nextOccurrence));
+        assertThat(modeAndSchedule.getSchedule().getScheduleEndTimestamp(),
+            is(currentTime + 150000L));
+    }
+
+    /**
+     * Test the case when we select a mode for an action which has an associated schedule where
+     * the schedule is active and the policy for resize is manual. The action has not been
+     * accepted yet. The mode calculator should choose manual mode for this action.
+     */
+    @Test
+    public void testResizeWithManualModeInScheduleNotAccepted() {
+        // ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.MANUAL);
+        List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+
+        final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(1);
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence).build())
+            .setActive(ScheduleProto.Schedule.Active.newBuilder().setRemainingActiveTimeMs(150000L))
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.MANUAL));
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID));
+        assertThat(modeAndSchedule.getSchedule().getScheduleDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertThat(modeAndSchedule.getSchedule().getScheduleTimeZoneId(), is(TIMEZONE_ID));
+        assertNull(modeAndSchedule.getSchedule().getAcceptingUser());
+        assertThat(modeAndSchedule.getSchedule().getExecutionWindowActionMode(), is(ActionMode.MANUAL));
+        assertThat(modeAndSchedule.getSchedule().getScheduleStartTimestamp(), is(nextOccurrence));
+        assertThat(modeAndSchedule.getSchedule().getScheduleEndTimestamp(),
+            is(currentTime + 150000L));
+    }
+
+    /**
+     * Test the case when we select a mode for an action which has an associated schedule where
+     * the schedule is active and the policy for resize is manual. The action has been accepted.
+     * The mode calculator should choose automatic mode for this action.
+     */
+    @Test
+    public void testResizeWithManualModeInScheduleAccepted() {
+        // ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.MANUAL);
+        List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.of(USER_NAME));
+
+        final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(1);
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence).build())
+            .setActive(ScheduleProto.Schedule.Active.newBuilder().setRemainingActiveTimeMs(150000L))
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getMode(), is(ActionMode.MANUAL));
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID));
+        assertThat(modeAndSchedule.getSchedule().getScheduleDisplayName(), is(SCHEDULE_DISPLAY_NAME));
+        assertThat(modeAndSchedule.getSchedule().getScheduleTimeZoneId(), is(TIMEZONE_ID));
+        assertThat(modeAndSchedule.getSchedule().getAcceptingUser(), is(USER_NAME));
+        assertThat(modeAndSchedule.getSchedule().getExecutionWindowActionMode(), is(ActionMode.MANUAL));
+        assertThat(modeAndSchedule.getSchedule().getScheduleStartTimestamp(), is(nextOccurrence));
+        assertThat(modeAndSchedule.getSchedule().getScheduleEndTimestamp(),
+            is(currentTime + 150000L));
+    }
+
+    /**
+     * This tests the case that there are multiple schedules associated with an action. None of
+     * these schedules are active. We should associated the schedule with closer activation to
+     * the action.
+     */
+    @Test
+    public void testResizeWithMultipleSchedulesNoneActive() {
+        // ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.AUTOMATIC);
+        List<Long> scheduleIds = Arrays.asList(SCHEDULE_ID, SCHEDULE_ID_2);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+
+        final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(2);
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence).build())
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        final long nextOccurrence2 = currentTime + TimeUnit.DAYS.toMillis(1);
+        ScheduleProto.Schedule actionSchedule2 = actionSchedule.toBuilder()
+            .setId(SCHEDULE_ID_2)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence2).build())
+            .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID,
+            actionSchedule, SCHEDULE_ID_2, actionSchedule2));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID_2));
+    }
+
+    /**
+     * This tests the case that there are multiple schedules associated with an action. One of
+     * these schedules is currently active. We should select the action which is currently active
+     * and associate it with schedule
+     */
+    @Test
+    public void testResizeWithMultipleSchedulesOneActive() {
+        // ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.AUTOMATIC);
+        List<Long> scheduleIds = Arrays.asList(SCHEDULE_ID, SCHEDULE_ID_2);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+
+        final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(2);
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence).build())
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        ScheduleProto.Schedule actionSchedule2 = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID_2)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setActive(ScheduleProto.Schedule.Active.newBuilder().setRemainingActiveTimeMs(150000L))
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID,
+            actionSchedule, SCHEDULE_ID_2, actionSchedule2));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID_2));
+    }
+
+    /**
+     * This tests the case that there are two schedules associated with an action. Two of
+     * these schedules is currently active. We should select the action which stays active for a
+     * longer period of time.
+     */
+    @Test
+    public void testResizeWithMultipleSchedulesBothActive() {
+        // ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.AUTOMATIC);
+        List<Long> scheduleIds = Arrays.asList(SCHEDULE_ID, SCHEDULE_ID_2);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+
+        final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(2);
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence).build())
+            .setActive(ScheduleProto.Schedule.Active.newBuilder().setRemainingActiveTimeMs(100000L))
+            .setStartTime(JAN_7_2020_12)
+            .setEndTime(JAN_8_202_1)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        ScheduleProto.Schedule actionSchedule2 = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID_2)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setActive(ScheduleProto.Schedule.Active.newBuilder().setRemainingActiveTimeMs(150000L))
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID,
+            actionSchedule, SCHEDULE_ID_2, actionSchedule2));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID_2));
+    }
+
+    /**
+     * This tests the case that there are three schedules associated with an action. One of the
+     * schedules have no next occurrence and is not active, the second one has next occurrence but
+     * is not active and third one is active. We should select the third schedule
+     */
+    @Test
+    public void testResizeWithThreeSchedules() {
+        // ARRANGE
+        final Map<String, Setting> settingsForEntity = getSettingsForVM(false,
+            com.vmturbo.api.enums.ActionMode.AUTOMATIC);
+        List<Long> scheduleIds = Arrays.asList(SCHEDULE_ID, SCHEDULE_ID_2, SCHEDULE_ID_3);
+        settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
+        when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
+        long currentTime = System.currentTimeMillis();
+        when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
+        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+
+
+        ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setStartTime(JAN_7_2020_12)
+            .setEndTime(JAN_8_202_1)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(1);
+        ScheduleProto.Schedule actionSchedule2 = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID_2)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence).build())
+            .setStartTime(MAY_2_2020_5_47)
+            .setEndTime(MAY_2_2020_6_47)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        final long nextOccurrence3 = currentTime + TimeUnit.DAYS.toMillis(2);
+        ScheduleProto.Schedule actionSchedule3 = ScheduleProto.Schedule.newBuilder()
+            .setId(SCHEDULE_ID_3)
+            .setDisplayName(SCHEDULE_DISPLAY_NAME)
+            .setNextOccurrence(ScheduleProto
+                .Schedule.NextOccurrence.newBuilder().setStartTime(nextOccurrence3).build())
+            .setActive(ScheduleProto.Schedule.Active.newBuilder().setRemainingActiveTimeMs(100000L))
+            .setStartTime(JAN_7_2020_12)
+            .setEndTime(JAN_8_202_1)
+            .setTimezoneId(TIMEZONE_ID)
+            .build();
+
+        when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID,
+            actionSchedule, SCHEDULE_ID_2, actionSchedule2, SCHEDULE_ID_3, actionSchedule3));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
+        // ACT
+        ModeAndSchedule modeAndSchedule = actionModeCalculator
+            .calculateActionModeAndExecutionSchedule(resizeUpAction, entitiesCache);
+
+        // ASSERT
+        assertThat(modeAndSchedule.getSchedule().getScheduleId(), is(SCHEDULE_ID_3));
+    }
+
+    private Map<String, Setting> createScheduleSettings(List<Long> scheduleIds) {
+        Setting vCpuUpInBetweenThresholds = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholdsExecutionSchedule.getSettingName())
+            .setSortedSetOfOidSettingValue(SettingProto.SortedSetOfOidSettingValue.newBuilder().addAllOids(scheduleIds).build())
+            .build();
+        return ImmutableMap.of(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholdsExecutionSchedule.getSettingName(),
+            vCpuUpInBetweenThresholds);
+    }
+
 }

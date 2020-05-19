@@ -1,22 +1,19 @@
 package com.vmturbo.api.component.communication;
 
-import static java.util.Collections.singletonList;
-
 import java.time.Duration;
-import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
-import javax.servlet.http.HttpServletRequest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensaml.core.xml.XMLObject;
 import org.opensaml.core.xml.schema.XSAny;
 import org.opensaml.core.xml.schema.XSString;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -24,6 +21,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.saml2.provider.service.authentication.OpenSamlAuthenticationProvider;
 import org.springframework.security.saml2.provider.service.authentication.Saml2Authentication;
 import org.springframework.security.saml2.provider.service.authentication.Saml2AuthenticationToken;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import com.vmturbo.auth.api.authorization.jwt.JWTAuthorizationVerifier;
@@ -37,13 +35,10 @@ public class SamlAuthenticationProvider extends RestAuthenticationProvider {
     /**
      * The logger.
      */
-    private static final Logger logger =
-            LogManager.getLogger(SamlAuthenticationProvider.class);
+    private static final Logger logger = LogManager.getLogger(SamlAuthenticationProvider.class);
     private static final Pattern PATTERN = Pattern.compile("^http", Pattern.CASE_INSENSITIVE);
     private final IComponentJwtStore componentJwtStore;
     private final OpenSamlAuthenticationProvider authProvider;
-    @Autowired
-    private HttpServletRequest request;
 
     /**
      * Construct the authentication provider.
@@ -69,6 +64,7 @@ public class SamlAuthenticationProvider extends RestAuthenticationProvider {
         //      <saml:AttributeStatement>
         //         <saml:Attribute Name="group" NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:basic">
         //            <saml:AttributeValue xsi:type="xs:string">turbo_admin_group</saml:AttributeValue>
+        //             <saml:AttributeValue xsi:type="xs:string">turbo_observer_group</saml:AttributeValue>
         //         </saml:Attribute>
         //      </saml:AttributeStatement>
         authProvider.setAuthoritiesExtractor(assertion -> assertion.getAttributeStatements()
@@ -76,10 +72,10 @@ public class SamlAuthenticationProvider extends RestAuthenticationProvider {
                 .flatMap(statement -> statement.getAttributes().stream())
                 .filter(attribute -> externalGroupTag.equalsIgnoreCase(attribute.getName()))
                 .flatMap(attribute -> attribute.getAttributeValues().stream())
-                .findFirst()
-                .flatMap(xmlObject -> getAttributeValue(xmlObject))
-                .map(groupName -> singletonList(new SimpleGrantedAuthority(groupName)))
-                .orElse(Collections.EMPTY_LIST));
+                .map(xmlObject -> getAttributeValue(xmlObject))
+                .filter(Optional::isPresent)
+                .map(group -> new SimpleGrantedAuthority(group.get()))
+                .collect(Collectors.toList()));
     }
 
     private static Optional<String> getAttributeValue(final @Nonnull XMLObject object) {
@@ -111,30 +107,32 @@ public class SamlAuthenticationProvider extends RestAuthenticationProvider {
     public Authentication authenticate(Authentication authentication)
             throws AuthenticationException {
         if (authentication instanceof Saml2AuthenticationToken) {
-
             Saml2AuthenticationToken authenticationToken =
                     convert((Saml2AuthenticationToken)authentication);
             Saml2Authentication saml2Authentication =
                     (Saml2Authentication)authProvider.authenticate(authenticationToken);
 
             final String username = saml2Authentication.getName();
-            // only support one external group.
-            final Optional<String> groupOpt = saml2Authentication.getAuthorities()
+            final List<String> groups = saml2Authentication.getAuthorities()
                     .stream()
                     .map(authority -> authority.getAuthority())
-                    .findFirst();
+                    .collect(Collectors.toList());
 
-            final Authentication authorizationToken1 =
-                    SecurityContextHolder.getContext().getAuthentication();
+            final Authentication authToken = SecurityContextHolder.getContext().getAuthentication();
             String remoteIpAddress = "unknown";
-            if (authorizationToken1 instanceof CustomSamlAuthenticationToken) {
-                remoteIpAddress =
-                        ((CustomSamlAuthenticationToken)authorizationToken1).getRemoteIpAddress();
+            if (authToken instanceof CustomSamlAuthenticationToken) {
+                remoteIpAddress = ((CustomSamlAuthenticationToken)authToken).getRemoteIpAddress();
                 logger.trace("remote IP address is:  " + remoteIpAddress);
                 SecurityContextHolder.getContext().setAuthentication(null);
             }
-
-            return super.authorize(username, groupOpt, remoteIpAddress, componentJwtStore);
+            try {
+                return groups.size() > 1
+                        ? super.authorize(username, groups.toArray(new String[0]), remoteIpAddress, componentJwtStore)
+                        : super.authorize(username, groups.stream().findFirst(), remoteIpAddress, componentJwtStore);
+            } catch (HttpServerErrorException.InternalServerError e) {
+                // avoid showing stacktrace
+                throw new CustomAuthenticationException(e.getMessage());
+            }
         } else if (authentication instanceof CustomSamlAuthenticationToken) {
             logger.trace("Request is CustomSamlAuthenticationToken, cleaning it up.");
             SecurityContextHolder.getContext().setAuthentication(null);
@@ -156,5 +154,14 @@ public class SamlAuthenticationProvider extends RestAuthenticationProvider {
     public boolean supports(Class<?> authentication) {
         return Saml2AuthenticationToken.class.isAssignableFrom(authentication) ||
                 CustomSamlAuthenticationToken.class.isAssignableFrom(authentication);
+    }
+
+    /**
+     * Customize Spring exception to avoid showing stacktrace.
+     */
+    private class CustomAuthenticationException extends AuthenticationException {
+        CustomAuthenticationException(String message) {
+            super(message);
+        }
     }
 }

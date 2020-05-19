@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -25,9 +26,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.tag.Tag;
 import com.vmturbo.common.protobuf.tag.Tag.TagValuesDTO;
 import com.vmturbo.common.protobuf.tag.Tag.Tags;
-import com.vmturbo.common.protobuf.tag.Tag.Tags.Builder;
 import com.vmturbo.common.protobuf.topology.StitchingErrors;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
@@ -73,6 +74,7 @@ import com.vmturbo.topology.processor.conversions.typespecific.StorageInfoMapper
 import com.vmturbo.topology.processor.conversions.typespecific.TypeSpecificInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualMachineInfoMapper;
 import com.vmturbo.topology.processor.conversions.typespecific.VirtualVolumeInfoMapper;
+import com.vmturbo.topology.processor.conversions.typespecific.WorkloadControllerInfoMapper;
 import com.vmturbo.topology.processor.stitching.ResoldCommodityCache;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingEntity;
 
@@ -112,6 +114,7 @@ public class SdkToTopologyEntityConverter {
                     .put(EntityType.VIRTUAL_VOLUME, new VirtualVolumeInfoMapper())
                     .put(EntityType.DESKTOP_POOL, new DesktopPoolInfoMapper())
                     .put(EntityType.BUSINESS_USER, new BusinessUserMapper())
+                    .put(EntityType.WORKLOAD_CONTROLLER, new WorkloadControllerInfoMapper())
                     .build();
 
     private static final Set<CommodityDTO.CommodityType> DSPM_OR_DATASTORE =
@@ -1086,17 +1089,37 @@ public class SdkToTopologyEntityConverter {
     /**
      * Convert tags related to group.
      *
-     * @param tagsMap contains information about tag names and appropriate tag values
-     * @return converted tags related to group
+     * @param groupDTO group dto being converted
+     * @return the {@link Tag.Tags} object if the group has tags and empty otherwise.
      */
     @Nonnull
-    public static Tags convertGroupTags(@Nonnull Map<String, TagValues> tagsMap) {
-        final Builder tagsBuilder = Tags.newBuilder();
-        for (Entry<String, TagValues> entry : tagsMap.entrySet()) {
-            final TagValuesDTO tagValuesDTO =
+    public static Optional<Tag.Tags> convertGroupTags(@Nonnull final CommonDTO.GroupDTO groupDTO) {
+        final Map<String, TagValuesDTO> groupTags = new HashMap<>();
+        // Add tags in the tags map such as resource group tags
+        if (groupDTO.getTagsMap() != null && groupDTO.getTagsMap().size() > 0) {
+            for (Entry<String, TagValues> entry : groupDTO.getTagsMap().entrySet()) {
+                final TagValuesDTO tagValuesDTO =
                     TagValuesDTO.newBuilder().addAllValues(entry.getValue().getValueList()).build();
-            tagsBuilder.putTags(entry.getKey(), tagValuesDTO);
+                groupTags.put(entry.getKey(), tagValuesDTO);
+            }
+            logger.trace("Tags `{}` were discovered in the tags map of discovered group `{}`.",
+                () -> Joiner.on(",").withKeyValueSeparator("=").join(groupTags),
+                () -> groupDTO.getDisplayName());
+        } else {
+            // Add VCTAGS
+            groupTags.putAll(SdkToTopologyEntityConverter.extractTags(groupDTO.getEntityPropertiesList())
+                .entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
+                    entry -> entry.getValue().build())));
+            logger.trace("Tags `{}` were discovered in the VCTAGS of discovered group `{}`.",
+                () -> Joiner.on(",").withKeyValueSeparator("=").join(groupTags),
+                () -> groupDTO.getDisplayName());
         }
-        return tagsBuilder.build();
+
+        if (groupTags.size() > 0) {
+            return Optional.of(Tag.Tags.newBuilder().putAllTags(groupTags).build());
+        }
+
+        logger.trace("No tags were found for group `{}`", () -> groupDTO.getDisplayName());
+        return Optional.empty();
     }
 }
