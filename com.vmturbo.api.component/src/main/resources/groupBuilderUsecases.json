@@ -110,14 +110,6 @@
         ]
     },
 
-    "Application" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appsByName"}]
-    },
-
-    "ApplicationServer" : {
-        "criteria" : [{"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appSrvsByName"}]
-    },
-
     "ApplicationComponent" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "appCompsByName"},
