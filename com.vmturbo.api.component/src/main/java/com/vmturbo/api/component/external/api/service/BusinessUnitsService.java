@@ -415,12 +415,13 @@ public class BusinessUnitsService implements IBusinessUnitsService {
                                                   @Nullable final List<String> aspectNames,
                                                   @Nullable final Boolean healthSummary) throws Exception {
         return supplyChainFetcherFactory.newApiDtoFetcher()
-                        .topologyContextId(realtimeTopologyContextId)
-                        .addSeedUuids(Lists.newArrayList(uuid))
-                        .includeHealthSummary(false)
-                        .entityDetailType(EntityDetailType.entity)
-                        .aspectsToInclude(aspectNames)
-                        .fetch();
+                .topologyContextId(realtimeTopologyContextId)
+                .addSeedUuids(Lists.newArrayList(uuid))
+                .includeHealthSummary(false)
+                .entityStates(entityStates)
+                .entityDetailType(EntityDetailType.entity)
+                .aspectsToInclude(aspectNames)
+                .fetch();
     }
 
     /**
