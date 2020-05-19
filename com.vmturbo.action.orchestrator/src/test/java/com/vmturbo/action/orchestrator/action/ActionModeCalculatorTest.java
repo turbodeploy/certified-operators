@@ -11,11 +11,16 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nonnull;
+
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Test;
 
 import com.google.common.collect.ImmutableMap;
@@ -88,17 +93,7 @@ public class ActionModeCalculatorTest {
 
     @Test
     public void testSettingHostMove() {
-        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-                .setMove(Move.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(7L)
-                                .setType(1))
-                        .addChanges(ChangeProvider.newBuilder()
-                                .setDestination(ActionEntity.newBuilder()
-                                        .setId(77L)
-                                        // Move to host
-                                        .setType(EntityType.PHYSICAL_MACHINE_VALUE)))))
-                .build();
+        final ActionDTO.Action action = createMoveAction(1, EntityType.PHYSICAL_MACHINE_VALUE);
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(EntitySettingSpecs.Move.getSettingName(),
@@ -115,17 +110,7 @@ public class ActionModeCalculatorTest {
 
     @Test
     public void testNoSettingHostMove() {
-        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-                .setMove(Move.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(7L)
-                                .setType(1))
-                        .addChanges(ChangeProvider.newBuilder()
-                            .setDestination(ActionEntity.newBuilder()
-                                .setId(77L)
-                                // Move to host
-                                .setType(EntityType.PHYSICAL_MACHINE_VALUE)))))
-                .build();
+        final ActionDTO.Action action = createMoveAction(1, EntityType.PHYSICAL_MACHINE_VALUE);
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
@@ -135,17 +120,7 @@ public class ActionModeCalculatorTest {
 
     @Test
     public void testSettingStorageMove() {
-        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-                .setMove(Move.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(7L)
-                                .setType(1))
-                        .addChanges(ChangeProvider.newBuilder()
-                                .setDestination(ActionEntity.newBuilder()
-                                        .setId(77L)
-                                        // Move to host
-                                        .setType(EntityType.STORAGE_VALUE)))))
-                .build();
+        final ActionDTO.Action action = createMoveAction(1, EntityType.STORAGE_VALUE);
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(EntitySettingSpecs.StorageMove.getSettingName(),
                         Setting.newBuilder()
@@ -162,17 +137,7 @@ public class ActionModeCalculatorTest {
 
     @Test
     public void testNoSettingStorageMove() {
-        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-                .setMove(Move.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(7L)
-                                .setType(1))
-                        .addChanges(ChangeProvider.newBuilder()
-                                .setDestination(ActionEntity.newBuilder()
-                                        .setId(77L)
-                                        // Move to host
-                                        .setType(EntityType.STORAGE_VALUE)))))
-                .build();
+        final ActionDTO.Action action = createMoveAction(1, EntityType.STORAGE_VALUE);
         Action aoAction = new Action(action, 1L, actionModeCalculator);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
@@ -790,6 +755,77 @@ public class ActionModeCalculatorTest {
         // settings there is also a EnforceNonDisruptive.
         assertThat(actionModeCalculator.specsApplicableToAction(memReservationAction, settingsForEntity).toArray().length,
             is(2));
+
+    }
+
+    /**
+     * Checks that {@link ActionModeCalculator#specsApplicableToAction} choose correct {@link
+     * EntitySettingSpecs} instance for the case when we want to move {@link
+     * EntityType#BUSINESS_USER} between {@link EntityType#DESKTOP_POOL}s.
+     */
+    @Test
+    public void checkSpecsApplicableToActionForBuMoves() {
+        checkSpecsApplicableToActionForMoves(EntityType.BUSINESS_USER_VALUE,
+                        EntityType.DESKTOP_POOL_VALUE, EntitySettingSpecs.BusinessUserMove);
+    }
+
+    /**
+     * Checks that {@link ActionModeCalculator#specsApplicableToAction} choose correct {@link
+     * EntitySettingSpecs} instance for the case when we want to move {@link
+     * EntityType#VIRTUAL_MACHINE} between {@link EntityType#PHYSICAL_MACHINE}s.
+     */
+    @Test
+    public void checkSpecsApplicableToActionForVmMoves() {
+        checkSpecsApplicableToActionForMoves(EntityType.VIRTUAL_MACHINE_VALUE,
+                        EntityType.PHYSICAL_MACHINE_VALUE, EntitySettingSpecs.Move);
+    }
+
+    /**
+     * Checks that {@link ActionModeCalculator#specsApplicableToAction} choose correct {@link
+     * EntitySettingSpecs} instance for the case when we want to move {@link
+     * EntityType#VIRTUAL_MACHINE} between {@link EntityType#STORAGE}s.
+     */
+    @Test
+    public void checkSpecsApplicableToActionForVmStorageMoves() {
+        checkSpecsApplicableToActionForMoves(EntityType.VIRTUAL_MACHINE_VALUE,
+                        EntityType.STORAGE_VALUE, EntitySettingSpecs.StorageMove);
+    }
+
+    private void checkSpecsApplicableToActionForMoves(int targetType, int providerType,
+                    EntitySettingSpecs modeSettingSpecs) {
+        final ActionDTO.Action moveAction = createMoveAction(targetType, providerType);
+        final Setting moveActionModeSetting = createActionModeSetting(ActionMode.RECOMMEND,
+                        modeSettingSpecs.getSettingName());
+        final String enforceNonDisruptiveSettingName =
+                        EntitySettingSpecs.EnforceNonDisruptive.getSettingName();
+        final Setting enableNonDisruptiveSetting = Setting.newBuilder().setSettingSpecName(
+                        enforceNonDisruptiveSettingName)
+                        .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                        .build();
+        final String moveSettingSpecName = EntitySettingSpecs.Move.getSettingName();
+        final Map<String, Setting> settingsForTargetEntity = new HashMap<>();
+        settingsForTargetEntity.put(modeSettingSpecs.getSettingName(), moveActionModeSetting);
+        settingsForTargetEntity.put(moveSettingSpecName,
+                        createActionModeSetting(ActionMode.MANUAL, moveSettingSpecName));
+        settingsForTargetEntity.put(enforceNonDisruptiveSettingName, enableNonDisruptiveSetting);
+        Assert.assertThat(actionModeCalculator
+                        .specsApplicableToAction(moveAction, settingsForTargetEntity).findAny()
+                        .get(), CoreMatchers.is(modeSettingSpecs));
+    }
+
+    @Nonnull
+    private static Setting createActionModeSetting(ActionMode mode, String settingName) {
+        return Setting.newBuilder().setSettingSpecName(settingName).setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(mode.name()).build()).build();
+    }
+
+    @Nonnull
+    private ActionDTO.Action createMoveAction(int businessUserValue, int desktopPoolValue) {
+        return actionBuilder.setInfo(ActionInfo.newBuilder().setMove(Move.newBuilder()
+                        .setTarget(ActionEntity.newBuilder().setId(7L).setType(businessUserValue))
+                        .addChanges(ChangeProvider.newBuilder()
+                                        .setDestination(ActionEntity.newBuilder().setId(77L)
+                                                        .setType(desktopPoolValue))))).build();
     }
 
     private Action getResizeDownAction(long vmId) {

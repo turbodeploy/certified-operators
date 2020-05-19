@@ -75,6 +75,11 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
  * given some user settings.
  */
 public class ActionModeCalculator {
+    private static final Map<Integer, EntitySettingSpecs>
+                    PROVIDER_ENTITY_TYPE_TO_MOVE_SETTING_SPECS =
+                    ImmutableMap.of(EntityType.STORAGE_VALUE, EntitySettingSpecs.StorageMove,
+                                    EntityType.DESKTOP_POOL_VALUE,
+                                    EntitySettingSpecs.BusinessUserMove);
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -773,16 +778,9 @@ public class ActionModeCalculator {
                 // accompanied by a storage move.
                 return action.getInfo().getMove().getChangesList().stream()
                         .map(provider -> provider.getDestination().getType())
-                        .map(destinationEntityType -> {
-                            if (destinationEntityType == EntityType.STORAGE_VALUE) {
-                                return EntitySettingSpecs.StorageMove;
-                            } else {
-                                // TODO (roman, Aug 6 2018): Should we check explicitly for
-                                // physical machine, or are there other valid non-storage destination
-                                // types for move actions?
-                                return EntitySettingSpecs.Move;
-                            }
-                        })
+                        .map(destinationEntityType -> PROVIDER_ENTITY_TYPE_TO_MOVE_SETTING_SPECS
+                                        .getOrDefault(destinationEntityType,
+                                                        EntitySettingSpecs.Move))
                         .distinct();
             case SCALE:
                 // For now we use Move policy for SCALE actions
