@@ -724,8 +724,7 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
             // get the peak to save it as max of used subtype
             double peak = commodityBoughtDTO.getPeak();
 
-            final String key = extractVolumeKey(entityDTO, commoditiesBought)
-                    .orElse(commodityBoughtDTO.getCommodityType().getKey());
+            final String key = commodityBoughtDTO.getCommodityType().getKey();
 
             Record record = dbTable.newRecord();
             historydbIO.initializeCommodityRecord(mixedCaseCommodityName, snapshotTime,
@@ -746,24 +745,6 @@ public class MarketStatsAccumulatorImpl implements MarketStatsAccumulator {
                         providerId, key, capacity, commodityBoughtDTO.getHistoricalUsed());
             }
         }
-    }
-
-    /**
-     * If the commodity bought is associated with a cloud volume, use the volume display name and
-     * vendor ID(s) if any as the commodity key. This information is required in order to associate
-     * specific commodities with specific volumes in cases when multiple volumes with the same name
-     * are associated with the same commodity type.
-     *
-     * @param entityDTO         the entity buying commodities
-     * @param commoditiesBought commodities bought, potentially associated with volume(s)
-     * @return key generated from volume information, if any is present/relevant
-     */
-    private Optional<String> extractVolumeKey(@Nonnull final TopologyEntityDTO entityDTO,
-            @Nonnull final CommoditiesBoughtFromProvider commoditiesBought) {
-        if (HistoryStatsUtils.isCloudEntity(entityDTO) && commoditiesBought.hasVolumeId()) {
-            return Optional.of(Long.toString(commoditiesBought.getVolumeId()));
-        }
-        return Optional.empty();
     }
 
     /**
