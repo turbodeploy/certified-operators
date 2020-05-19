@@ -286,5 +286,8 @@ public class HistoryAggregatorTest extends BaseGraphRelatedTest {
         @Override
         public void completeBroadcast(@Nonnull HistoryAggregationContext context)
                         throws HistoryCalculationException {}
+
+        @Override
+        public void cleanupCache(@Nonnull final List<EntityCommodityReference> commodities) {}
     }
 }

@@ -164,13 +164,23 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
                         .collect(Collectors.toList());
     }
 
+    @Override
+    public void cleanupCache(@Nonnull List<EntityCommodityReference> commodities) {
+        // remove cached history for entities that are not in current topology
+        // (the history component will keep storing data for them for retention period, in case they reappear)
+        final Set<EntityCommodityReference> refSet = new HashSet<>(commodities);
+        cache.keySet().removeIf(field -> !refSet
+            .contains(new EntityCommodityReference(field.getEntityOid(),
+                field.getCommodityType(),
+                field.getProviderOid())));
+    }
+
     protected Map<EntityCommodityFieldReference, HistoryData> getCache() {
         return cache;
     }
 
     /**
      * Gather the cache entries that have not been loaded from persistence store yet.
-     * Clean up the cache entities not present in current broadcast.
      *
      * @param commodityRefs references from the current broadcast
      * @return commodities for which data are yet to be loaded
@@ -178,13 +188,7 @@ public abstract class AbstractCachingHistoricalEditor<HistoryData extends IHisto
     @Nonnull
     protected List<EntityCommodityReference>
               gatherUninitializedCommodities(@Nonnull List<EntityCommodityReference> commodityRefs) {
-        // remove cached history for entities that are not in current topology
-        // (the history component will keep storing data for them for retention period, in case they reappear)
-        Set<EntityCommodityReference> refSet = new HashSet<>(commodityRefs);
-        cache.keySet().removeIf(field -> !refSet
-                        .contains(new EntityCommodityReference(field.getEntityOid(),
-                                                               field.getCommodityType(),
-                                                               field.getProviderOid())));
+
         // load only commodities that have no fields in the cache yet
         return commodityRefs.stream()
                         .filter(ref -> {

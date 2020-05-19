@@ -146,21 +146,15 @@ public class TimeSlotEditor extends
         List<HistoryLoadingCallable> loadingTasks = new LinkedList<>();
         final long now = getConfig().getClock().millis();
         for (Map.Entry<Integer, List<EntityCommodityReference>> period2comm : period2comms.entrySet()) {
-            List<List<EntityCommodityReference>> partitions = Lists.newArrayList();
-            // partition by entity type
-            final Collection<List<EntityCommodityReference>> commsByEnityType = period2comm.getValue()
-                .stream()
-                .collect(Collectors.groupingBy(comm -> context.getEntityType(comm.getEntityOid())))
-                .values();
             // chunk commodities of each period by configured size
-            commsByEnityType.forEach(comms -> partitions.addAll(Lists.partition(comms,
-                getConfig().getLoadingChunkSize())));
+            List<List<EntityCommodityReference>> partitions = Lists
+                .partition(period2comm.getValue(), getConfig().getLoadingChunkSize());
             for (List<EntityCommodityReference> chunk : partitions) {
                 final Pair<Long, Long> range = new Pair<>(now
-                                - period2comm.getKey() * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS,
-                                null);
+                    - period2comm.getKey() * TimeInMillisConstants.DAY_LENGTH_IN_MILLIS,
+                    null);
                 loadingTasks.add(new HistoryLoadingCallable(context,
-                                new TimeSlotLoadingTask(getStatsHistoryClient(), range), chunk));
+                    new TimeSlotLoadingTask(getStatsHistoryClient(), range), chunk));
             }
         }
         return loadingTasks;
@@ -230,19 +224,30 @@ public class TimeSlotEditor extends
                         outdatedReferences.size());
         debugLogDataValues("Time slot data before maintenance %s");
         final Stopwatch stopwatch = Stopwatch.createStarted();
+        // partition by entity type and configured chunk size
+        final Collection<List<EntityCommodityReference>> partitions = partitionCommodities(context,
+            outdatedReferences);
         try {
-            final Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> outdatedRecords =
-                            createLoadingTask(Pair.create(startMs, endMs))
-                                            .load(outdatedReferences, getConfig());
-            for (Entry<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> refToData : outdatedRecords
-                            .entrySet()) {
-                final EntityCommodityFieldReference reference = refToData.getKey();
-                final TimeSlotCommodityData timeSlotCommodityData = getCache().get(reference);
-                timeSlotCommodityData.checkpoint(Collections.singletonList(refToData.getValue()));
+            for (final List<EntityCommodityReference> partitionedOutdatedRefs : partitions) {
+                final Map<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> outdatedRecords =
+                    createLoadingTask(Pair.create(startMs, endMs))
+                        .load(partitionedOutdatedRefs, getConfig());
+                for (Entry<EntityCommodityFieldReference, List<Pair<Long, StatRecord>>> refToData : outdatedRecords
+                    .entrySet()) {
+                    final EntityCommodityFieldReference reference = refToData.getKey();
+                    final TimeSlotCommodityData timeSlotCommodityData = getCache().get(reference);
+                    if (timeSlotCommodityData == null) {
+                        // shouldn't have happened, preparation is supposed to add entries
+                        logger.error("TimeSlot maintenance: Missing historical data cache entry for {}",
+                            () -> reference);
+                        continue;
+                    }
+                    timeSlotCommodityData.checkpoint(Collections.singletonList(refToData.getValue()));
+                }
+                logger.info("Maintenance completed for '{}'ms-'{}'ms time range for '{}' references in '{}'ms",
+                    Instant.ofEpochMilli(startMs), Instant.ofEpochMilli(endMs),
+                    outdatedReferences.size(), stopwatch.elapsed(TimeUnit.MILLISECONDS));
             }
-            logger.info("Maintenance completed for '{}'ms-'{}'ms time range for '{}' references in '{}'ms",
-                            Instant.ofEpochMilli(startMs), Instant.ofEpochMilli(endMs),
-                            outdatedReferences.size(), stopwatch.elapsed(TimeUnit.MILLISECONDS));
         } catch (HistoryCalculationException e) {
             logger.error("Maintenance failed for '{}'ms-'{}'ms time range for '{}' references in '{}'ms",
                             Instant.ofEpochMilli(startMs), Instant.ofEpochMilli(endMs),

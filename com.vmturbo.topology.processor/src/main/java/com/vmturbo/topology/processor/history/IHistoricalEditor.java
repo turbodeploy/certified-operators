@@ -119,4 +119,11 @@ public interface IHistoricalEditor<Config extends HistoricalEditorConfig> {
      * @throws InterruptedException when interrupted
      */
     void completeBroadcast(@Nonnull HistoryAggregationContext context) throws HistoryCalculationException, InterruptedException;
+
+    /**
+     * Remove the cache entities not present in current broadcast.
+     *
+     * @param commodities for which data are yet to be loaded
+     */
+    void cleanupCache(@Nonnull List<EntityCommodityReference> commodities);
 }

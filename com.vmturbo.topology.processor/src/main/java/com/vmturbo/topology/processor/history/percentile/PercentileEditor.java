@@ -186,6 +186,11 @@ public class PercentileEditor extends
         return Collections.emptyList();
     }
 
+    @Override
+    public void cleanupCache(@Nonnull final List<EntityCommodityReference> commodities) {
+        // We don't need to clean up cache for percentile
+    }
+
     private void initializeCacheValues(@Nonnull HistoryAggregationContext context,
                     @Nonnull Collection<? extends EntityCommodityReference> commodityRefs) {
         // percentile data will be loaded in a single-threaded way into blobs (not chunked)
