@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.0//EN"
+        "https://checkstyle.org/dtds/suppressions_1_0.dtd">
+
+<suppressions>
+    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorNotificationSenderTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/api/util/ThinTargetCacheTest.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/dto/TargetInputFields.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/dto/InputField.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/OperationRESTApi.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/ProbeRESTApi.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorClient.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/AccountValuesWrapper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorNotificationReceiver.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/TargetRESTApi.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/OperationStatusWrapper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/TargetInfoProtobufWrapper.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorSubscription.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorClientConfig.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/TopologyReceiver.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/impl/TopologyProcessorRestClient.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/util/ThinTargetCache.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/util/ConcurrentLimitProcessingGate.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/TopologyProcessorException.java" />
+    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/api/TargetInfo.java" />
+</suppressions>
