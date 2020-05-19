@@ -291,6 +291,7 @@ public class SupplyChainsServiceTest {
         inputDTO.setTypes(Collections.singletonList(ApiEntityType.VIRTUAL_MACHINE.apiStr()));
         inputDTO.setGroupBy(Arrays.asList(EntitiesCountCriteria.businessUnit,
                 EntitiesCountCriteria.resourceGroup));
+        inputDTO.setStates(Collections.singletonList(com.vmturbo.api.enums.EntityState.ACTIVE));
         inputDTO.setUuids(Collections.singletonList(Long.toString(uuid)));
 
         final SupplyChainStat stat = SupplyChainStat.newBuilder()
@@ -309,6 +310,7 @@ public class SupplyChainsServiceTest {
         // ASSERT
         verify(supplyChainMock).addSeedUuids(inputDTO.getUuids());
         verify(supplyChainMock).entityTypes(inputDTO.getTypes());
+        verify(supplyChainMock).entityStates(inputDTO.getStates());
         verify(supplyChainMock).apiEnvironmentType(inputDTO.getEnvironmentType());
         verify(mockStatMapper).countCriteriaToGroupBy(EntitiesCountCriteria.businessUnit);
         verify(mockStatMapper).countCriteriaToGroupBy(EntitiesCountCriteria.resourceGroup);
