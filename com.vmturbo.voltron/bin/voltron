@@ -1,4 +1,5 @@
-#!/usr/bin/bash
+#!/usr/bin/env bash
+
 
 # Command-line utility to interact with voltron. Add
 # <xl workspace>/com.vmturbo.voltron/bin/voltron to your PATH, and try it out!
