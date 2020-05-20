@@ -93,7 +93,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     /**
      * Unit value used for Cloud Storage.
      */
-    protected static final float CLOUD_STORAGE_AMOUNT_UNIT_IN_BYTE = Units.GBYTE;
+    private static final float CLOUD_STORAGE_AMOUNT_UNIT_IN_BYTE = Units.GBYTE;
 
     private final String COSTCOMPONENT = "costComponent";
 
@@ -291,7 +291,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 .map(TopologyEntityDTO::getOid)
                 .flatMap(id ->
                         repositoryApi.newSearchRequest(SearchProtoUtil.neighborsOfType(
-                                id, TraversalDirection.CONNECTED_FROM, ApiEntityType.VIRTUAL_VOLUME))
+                                id, TraversalDirection.PRODUCES, ApiEntityType.VIRTUAL_VOLUME))
                                 .getFullEntities())
                 .collect(Collectors.toList());
 
@@ -303,11 +303,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             volume.getConnectedEntityListList().forEach(connectedEntity -> {
                 int connectedEntityType = connectedEntity.getConnectedEntityType();
                 Long connectedEntityId = connectedEntity.getConnectedEntityId();
-                if (connectedEntityType == EntityType.STORAGE_TIER_VALUE) {
-                    storageTierByVolumeId.put(
-                            volumeId,
-                            ServiceEntityMapper.toBasicEntity(storageTierById.get(connectedEntityId)));
-                } else if (connectedEntityType == EntityType.AVAILABILITY_ZONE_VALUE) {
+                if (connectedEntityType == EntityType.AVAILABILITY_ZONE_VALUE) {
                     // if zone exists, find region based on zone id (for aws, volume is connected to az)
                     regionByVolumeId.put(volumeId, regionByZoneId.get(connectedEntityId));
                 } else if (connectedEntityType == EntityType.REGION_VALUE) {
@@ -315,6 +311,13 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                     regionByVolumeId.put(volumeId, regionById.get(connectedEntityId));
                 }
             });
+            volume.getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(commBought -> commBought.getProviderEntityType()
+                            == EntityType.STORAGE_TIER.getNumber())
+                    .map(CommoditiesBoughtFromProvider::getProviderId)
+                    .forEach(storageTierId -> storageTierByVolumeId.put(
+                            volumeId,
+                            ServiceEntityMapper.toBasicEntity(storageTierById.get(storageTierId))));
         });
 
         // get cost stats for all volumes
@@ -328,9 +331,9 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
 
         final Map<Long, TopologyEntityDTO> vmByVolumeId = Maps.newHashMap();
         vms.forEach(vm ->
-            vm.getConnectedEntityListList().forEach(connectedEntity -> {
-                if (connectedEntity.getConnectedEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
-                    vmByVolumeId.put(connectedEntity.getConnectedEntityId(), vm);
+            vm.getCommoditiesBoughtFromProvidersList().forEach(commBought -> {
+                if (commBought.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                    vmByVolumeId.put(commBought.getProviderId(), vm);
                 }
             })
         );
@@ -381,13 +384,21 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         final Map<Long, ApiPartialEntity> regionByVolumeId = Maps.newHashMap();
 
         // mapping from volume id to vm
-        vms.forEach(vm ->
+        vms.forEach(vm -> {
+            // In old model (On Prem) volumes are attached to VMs using ConnectedTo relationship
             vm.getConnectedEntityListList().forEach(connectedEntity -> {
                 if (connectedEntity.getConnectedEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
                     vmByVolumeId.put(connectedEntity.getConnectedEntityId(), vm);
                 }
-            })
-        );
+            });
+
+            // In new model (Cloud) volumes are attached to VMs using bought commodities
+            vm.getCommoditiesBoughtFromProvidersList().forEach(commBought -> {
+                if (commBought.getProviderEntityType() == EntityType.VIRTUAL_VOLUME_VALUE) {
+                    vmByVolumeId.put(commBought.getProviderId(), vm);
+                }
+            });
+        });
 
         // fetch all the regions and create mapping from region id to region
         final Map<Long, ApiPartialEntity> regionById = fetchRegions();
@@ -415,10 +426,14 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 } else if (connectedEntityType == EntityType.AVAILABILITY_ZONE_VALUE) {
                     // volume connected to zone (aws)
                     regionByVolumeId.put(volume.getOid(), regionByZoneId.get(connectedEntityId));
-                } else if (connectedEntityType == EntityType.STORAGE_TIER_VALUE) {
-                    storageTierByVolumeId.put(volume.getOid(), storageTierById.get(connectedEntityId));
                 }
             });
+            volume.getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(commBought -> commBought.getProviderEntityType()
+                            == EntityType.STORAGE_TIER.getNumber())
+                    .map(CommoditiesBoughtFromProvider::getProviderId)
+                    .map(storageTierById::get)
+                    .forEach(storageTier -> storageTierByVolumeId.put(volume.getOid(), storageTier));
         });
 
         // get cost stats for all volumes
@@ -506,19 +521,31 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                         // in case of Azure, volume connected from Region directly.
                         regionByVolumeId.put(vol.getOid(), regionById.get(connectedEntity.getConnectedEntityId()));
                         break;
-                    case EntityType.STORAGE_TIER_VALUE:
-                        storageTierIdByVolumeId.put(vol.getOid(), connectedEntity.getConnectedEntityId());
-                        storageTierIds.add(connectedEntity.getConnectedEntityId());
-                        break;
                     default:
                         break;
                 }
             }
 
-            // find connected VMs
+            // Retrieve Storage Tier
+            final Long storageTierId = vol.getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(commoditiesBoughtFromProvider -> commoditiesBoughtFromProvider
+                            .getProviderEntityType() == EntityType.STORAGE_TIER_VALUE)
+                    .map(CommoditiesBoughtFromProvider::getProviderId)
+                    .findAny().orElse(null);
+            if (storageTierId != null) {
+                storageTierIdByVolumeId.put(vol.getOid(), storageTierId);
+                storageTierIds.add(storageTierId);
+            }
+
+            // Find connected VMs:
+            // - for Cloud case we use Produces relationship
+            // - for On Prem we use ConnectedTo until On Prem probes are switched to the new model
+            final TraversalDirection traversalDirection = storageTierId != null
+                    ? TraversalDirection.PRODUCES
+                    : TraversalDirection.CONNECTED_FROM;
             repositoryApi.newSearchRequest(
                     SearchProtoUtil.neighborsOfType(vol.getOid(),
-                            TraversalDirection.CONNECTED_FROM,
+                            traversalDirection,
                             ApiEntityType.VIRTUAL_MACHINE))
                     .getFullEntities().forEach(vm ->
                         vmByVolumeId.put(vol.getOid(), vm));
@@ -769,7 +796,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             virtualDiskApiDTO.setAttachedVirtualMachine(ServiceEntityMapper.toBasicEntity(vmDTO));
 
             for (CommoditiesBoughtFromProvider cbfp : vmDTO.getCommoditiesBoughtFromProvidersList()) {
-                if (cbfp.getVolumeId() == volume.getOid()) {
+                final long volumeOid = volume.getOid();
+                if (cbfp.getProviderId() == volumeOid || cbfp.getVolumeId() == volumeOid) {
                     for (CommodityBoughtDTO cb : cbfp.getCommodityBoughtList()) {
                         if (cb.getCommodityType().getType() == CommodityType.STORAGE_AMOUNT_VALUE) {
                             storageAmountUsed = (float)cb.getUsed();
