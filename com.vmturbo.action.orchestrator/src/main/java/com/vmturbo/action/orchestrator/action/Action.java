@@ -41,9 +41,11 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionDecision.ExecutionDecision;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
+import com.vmturbo.common.protobuf.action.ActionDTO.BuyRI;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep;
 import com.vmturbo.common.protobuf.action.ActionDTO.ExecutionStep.Status;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -390,8 +392,7 @@ public class Action implements ActionView {
 
             try {
                 final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
-                associatedAccountId = entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
-                    .map(EntityWithConnections::getOid);
+                associatedAccountId = Action.getAssociatedAccountId(recommendation, entitiesSnapshot, primaryEntity);
                 associatedResourceGroupId = entitiesSnapshot.getResourceGroupForEntity(primaryEntity);
             } catch (UnsupportedActionException e) {
                 // Shouldn't ever happen here, because we would have rejected this action
@@ -403,6 +404,20 @@ public class Action implements ActionView {
             // parameter specific to detached volumes is not needed as in plans.
             setDescription(ActionDescriptionBuilder.buildActionDescription(entitiesSnapshot,
                actionTranslation.getTranslationResultOrOriginal()));
+        }
+    }
+
+    private static Optional<Long> getAssociatedAccountId(@Nonnull final ActionDTO.Action action,
+                                                         @Nonnull final EntitiesAndSettingsSnapshot entitiesSnapshot,
+                                                         long primaryEntity) {
+        final ActionInfo actionInfo = action.getInfo();
+        switch (actionInfo.getActionTypeCase()) {
+            case BUYRI:
+                final BuyRI buyRi = actionInfo.getBuyRi();
+                return Optional.of(buyRi.getMasterAccount().getId());
+            default:
+                return entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
+                        .map(EntityWithConnections::getOid);
         }
     }
 
