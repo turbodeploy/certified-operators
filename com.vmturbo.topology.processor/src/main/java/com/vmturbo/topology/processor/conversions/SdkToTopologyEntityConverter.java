@@ -217,7 +217,6 @@ public class SdkToTopologyEntityConverter {
                     resoldCommodityCache.getIsResold(
                         targetId, entityType, commoditySold.sold.getCommodityType().getNumber())
                         .ifPresent(isResold -> builder.setIsResold(builder.getIsResold() || isResold)));
-
                 return builder.build();
             }).collect(Collectors.toList());
 
@@ -732,7 +731,6 @@ public class SdkToTopologyEntityConverter {
             TopologyDTO.CommoditySoldDTO.newBuilder()
                 .setCommodityType(commodityType(commDTO))
                 .setUsed(adjustedUsed(commDTO))
-                .setPeak(adjustedPeak(commDTO))
                 .setCapacity(commDTO.getCapacity())
                 .setIsThin(commDTO.getThin())
                 .setActive(commDTO.getActive())
@@ -742,6 +740,10 @@ public class SdkToTopologyEntityConverter {
                     .filter(prop -> prop.getName().equals(SDKConstants.AGGREGATES))
                     .flatMap(prop -> prop.getValuesList().stream())
                     .collect(Collectors.toList()));
+
+        if (commDTO.hasPeak()) {
+            retCommSoldBuilder.setPeak(adjustedPeak(commDTO));
+        }
 
         if (commDTO.hasLimit() && (commDTO.getLimit() > 0)
                 && commDTO.hasCapacity() && (commDTO.getCapacity() > 0)) {
@@ -871,7 +873,9 @@ public class SdkToTopologyEntityConverter {
         // if used and peak are not percentage based, return the values immediately
         if (!commDTO.getIsUsedPct() && !commDTO.getIsPeakPct()) {
             builder.setUsed(commDTO.getUsed());
-            builder.setPeak(commDTO.getPeak());
+            if (commDTO.hasPeak()) {
+                builder.setPeak(commDTO.getPeak());
+            }
             return;
         }
 
@@ -892,7 +896,9 @@ public class SdkToTopologyEntityConverter {
                 .map(capacity -> capacity / 100)
                 .orElse(1.0);
         builder.setUsed(commDTO.getIsUsedPct() ? commDTO.getUsed() * factor : commDTO.getUsed());
-        builder.setPeak(commDTO.getIsPeakPct() ? commDTO.getPeak() * factor : commDTO.getPeak());
+        if (commDTO.hasPeak()) {
+            builder.setPeak(commDTO.getIsPeakPct() ? commDTO.getPeak() * factor : commDTO.getPeak());
+        }
     }
 
     private static CommodityType commodityType(CommonDTO.CommodityDTOOrBuilder commDTO) {
