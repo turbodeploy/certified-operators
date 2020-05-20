@@ -2,6 +2,8 @@ package com.vmturbo.voltron;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.DatagramSocket;
+import java.net.ServerSocket;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -20,27 +22,36 @@ import org.apache.commons.lang.StringUtils;
 public class VoltronConfiguration {
     private final Set<Component> components;
     private final String dataPath;
+    private final String uxPath;
     private final boolean cleanSlate;
     private final boolean useLocalBus;
     private final boolean useInProcessGrpc;
+    private final int serverHttpPort;
+    private final int serverGrpcPort;
     private final String licensePath;
     private final Map<String, Object> globalPropertyOverrides;
     private final Map<Component, Map<String, Object>> componentPropertyOverrides;
 
     private VoltronConfiguration(Set<Component> components,
             String dataPath,
+            String uxPath,
             String licensePath,
             boolean cleanSlate,
             boolean useLocalBus,
             boolean useInProcessGrpc,
+            int serverHttpPort,
+            int serverGrpcPort,
             Map<String, Object> globalPropertyOverrides,
             Map<Component, Map<String, Object>> componentPropertyOverrides) {
         this.components = components;
         this.dataPath = dataPath;
+        this.uxPath = uxPath;
         this.licensePath = licensePath;
         this.cleanSlate = cleanSlate;
         this.useLocalBus = useLocalBus;
         this.useInProcessGrpc = useInProcessGrpc;
+        this.serverHttpPort = serverHttpPort;
+        this.serverGrpcPort = serverGrpcPort;
         this.globalPropertyOverrides = globalPropertyOverrides;
         this.componentPropertyOverrides = componentPropertyOverrides;
     }
@@ -109,6 +120,29 @@ public class VoltronConfiguration {
     }
 
     /**
+     * Get the HTTP port.
+     *
+     * @return The port, which can be used to connect to the component's HTTP server.
+     */
+    public int getServerHttpPort() {
+        return serverHttpPort;
+    }
+
+    /**
+     * Get the gRPC port.
+     *
+     * @return The port, which can be used to connect to the component's gRPC server.
+     */
+    public int getServerGrpcPort() {
+        return serverGrpcPort;
+    }
+
+    @Nonnull
+    public String getUxPath() {
+        return uxPath;
+    }
+
+    /**
      * Get the license path in this configuration (should be a path to a license file).
      *
      * @return The license path.
@@ -122,6 +156,10 @@ public class VoltronConfiguration {
      * The builder for the configuration.
      */
     public static class Builder {
+        private static final String DEFAULT_UX_PATH = Voltron.getAbsolutePath("../ux-app/.tmp");
+        private static final int DEFAULT_HHTP_PORT = 8080;
+        private static final int DEFAULT_GRPC_PORT = 9001;
+
         private final Map<String, Object> globalPropertyOverrides = new HashMap<>();
 
         private final Map<Component, Map<String, Object>> componentPropertyOverrides = new HashMap<>();
@@ -130,11 +168,17 @@ public class VoltronConfiguration {
 
         private String dataPath = null;
 
+        private String uxPath = DEFAULT_UX_PATH;
+
         private String licensePath = null;
 
         private boolean useLocalBus = true;
 
         private boolean useInProcessGrpc = true;
+
+        private int serverHttpPort = DEFAULT_HHTP_PORT;
+
+        private int serverGrpcPort = DEFAULT_GRPC_PORT;
 
         private final Set<Component> components = new HashSet<>();
 
@@ -184,6 +228,67 @@ public class VoltronConfiguration {
         @Nonnull
         public Builder setDataPath(@Nullable String dataPath) {
             this.dataPath = dataPath;
+            return this;
+        }
+
+        /**
+         * Set the UX path (this is where the UI is compiled and served from).
+         *
+         * @param uxPath Path to the UI.
+         * @return The builder, for method chaining.
+         */
+        public Builder setUxPath(@Nullable String uxPath) {
+            if (uxPath != null) {
+                this.uxPath = uxPath;
+            } else {
+                this.uxPath = DEFAULT_UX_PATH;
+            }
+            return this;
+        }
+
+        private void checkPortAvailable(int port) {
+            try (ServerSocket serverSocket = new ServerSocket(port);
+                 DatagramSocket datagramSocket = new DatagramSocket(port)) {
+                serverSocket.setReuseAddress(true);
+                datagramSocket.setReuseAddress(true);
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Port " + port + " is not available.");
+            }
+        }
+
+        /**
+         * Set the HTTP port Voltron will listen on.
+         *
+         * @param httpPort The http port.
+         * @return The builder, for method chaining.
+         * @throws IllegalArgumentException If the port is not available.
+         */
+        @Nonnull
+        public Builder setHttpPort(@Nullable Integer httpPort) {
+            if (httpPort != null) {
+                checkPortAvailable(httpPort);
+                serverHttpPort = httpPort;
+            } else {
+                serverHttpPort = DEFAULT_HHTP_PORT;
+            }
+            return this;
+        }
+
+        /**
+         * Set the gRPC port Voltron will listen on.
+         *
+         * @param grpcPort The grpc port.
+         * @return The builder, for method chaining.
+         * @throws IllegalArgumentException If the port is not available.
+         */
+        @Nonnull
+        public Builder setGrpcPort(@Nullable Integer grpcPort) {
+            if (grpcPort != null) {
+                checkPortAvailable(grpcPort);
+                serverGrpcPort = grpcPort;
+            } else {
+                serverGrpcPort = DEFAULT_GRPC_PORT;
+            }
             return this;
         }
 
@@ -297,8 +402,9 @@ public class VoltronConfiguration {
                 // By default we will start all platform components and no mediation containers.
                 addPlatformComponents();
             }
-            return new VoltronConfiguration(components, dataPath, licensePath, cleanOnExit, useLocalBus,
-                    useInProcessGrpc, globalPropertyOverrides, componentPropertyOverrides);
+            return new VoltronConfiguration(components, dataPath, uxPath, licensePath, cleanOnExit, useLocalBus,
+                    useInProcessGrpc, serverHttpPort, serverGrpcPort,
+                    globalPropertyOverrides, componentPropertyOverrides);
         }
     }
 

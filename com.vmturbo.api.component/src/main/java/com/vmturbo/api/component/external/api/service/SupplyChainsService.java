@@ -275,8 +275,7 @@ public class SupplyChainsService implements ISupplyChainsService {
             supplyChainFetcherFactory.newApiDtoFetcher()
                 .addSeedUuids(supplyChainStatsApiInputDTO.getUuids())
                 .entityTypes(supplyChainStatsApiInputDTO.getTypes())
-                // TODO (roman, Nov 14 2019): OM-52582: add support for states
-                // (for supply chain quoery as well)
+                .entityStates(supplyChainStatsApiInputDTO.getStates())
                 .apiEnvironmentType(supplyChainStatsApiInputDTO.getEnvironmentType());
         final List<SupplyChainGroupBy> groupByCriteria = new ArrayList<>();
         for (EntitiesCountCriteria criteria : CollectionUtils.emptyIfNull(supplyChainStatsApiInputDTO.getGroupBy())) {

@@ -1,5 +1,6 @@
 package com.vmturbo.voltron;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Properties;
@@ -18,8 +19,6 @@ import com.vmturbo.components.common.config.ConfigMapPropertiesReader;
  */
 class PropertyRegistry {
     private static final Logger logger = LogManager.getLogger();
-
-    private final SetOnce<PropertiesPropertySource> globalProperties = new SetOnce<>();
 
     private final String dataPath;
 
@@ -64,12 +63,12 @@ class PropertyRegistry {
         props.put("planDbPassword", "vmturbo");
         props.put("topologyProcessorDbPassword", "vmturbo");
 
-        props.put("serverHttpPort", "8080");
-        props.put("serverGrpcPort", "9001");
+        props.put("serverHttpPort", voltronConfiguration.getServerHttpPort());
+        props.put("serverGrpcPort", voltronConfiguration.getServerGrpcPort());
 
         // Mediation Component Common
-        props.put("serverAddress", "ws://localhost:8080/remoteMediation");
-        props.put("ux-path", Voltron.getAbsolutePath("../ux-app/.tmp"));
+        props.put("serverAddress", getServerAddress());
+        props.put("ux-path", getUxPath());
 
         props.put("clusterMgrRoute", Component.CLUSTERMGR.getShortName());
         props.put("authRoute", Component.AUTH.getPathPrefix());
@@ -90,6 +89,20 @@ class PropertyRegistry {
             // SQL schemas are on a per-component basis, so we don't do them here.
         }
         return props;
+    }
+
+    private String getServerAddress() {
+        return "ws://localhost:" + voltronConfiguration.getServerHttpPort() + "/remoteMediation";
+    }
+
+    private String getUxPath() {
+        String uxPath = voltronConfiguration.getUxPath();
+        File f = new File(uxPath);
+        if (!f.exists() || !f.isDirectory()) {
+            throw new IllegalArgumentException("UX path must point to a valid directory to "
+                    + "serve the UI from (e.g. ux-app/.tmp");
+        }
+        return uxPath;
     }
 
     @Nonnull

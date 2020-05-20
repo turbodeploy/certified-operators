@@ -267,13 +267,16 @@
 
     "DesktopPool" : {
       "criteria" : [
-        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "desktopPoolByName"}
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "desktopPoolByName"},
+        {"inputType": "*", "elements": "ViewPod:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "desktopPoolByViewPod"}
       ]
     },
 
     "BusinessUser" : {
       "criteria" : [
-        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "businessUserByName"}
+        {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "businessUserByName"},
+        {"inputType": "*", "elements": "DesktopPool:displayName:PRODUCES:1", "filterCategory": "entity", "filterType": "businessUserByDesktopPool"},
+        {"inputType": "*", "elements": "ViewPod:displayName:PRODUCES:BusinessUser", "filterCategory": "entity", "filterType": "businessUserByViewPod"}
       ]
     },
 
