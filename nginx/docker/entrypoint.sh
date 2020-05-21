@@ -22,6 +22,15 @@ fi
 if [ "$DNS_RESOLVER" == "" ]; then
     export DNS_RESOLVER=`cat /etc/resolv.conf | grep "nameserver" | awk '{print $2}' | tr '\n' ' '`
 fi
+
+# If the Grafana DNS name is not provided, we set it to a default string ("unset") which we will
+# check for in the nginx config.
+#
+# This needs to be in sync with the value in nginx.conf.template.
+if [ "$GRAFANA" == "" ]; then
+    export GRAFANA=unset
+fi
+
 envsubst '${API} ${GRAFANA} ${TOPOLOGY} ${DNS_RESOLVER} ${WORKER_PROCESSES} ${WORKER_CONNECTIONS}' < /etc/nginx/nginx.conf.template > /tmp/nginx.conf
 
 # If LOG_TO_STDOUT is defined in the environment, tee the output so that it is also logged to stdout.
