@@ -5,9 +5,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -54,9 +52,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.ChangeProvider;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
-import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.identity.IdentityService;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
@@ -77,11 +74,6 @@ public class LiveActionStore implements ActionStore {
     private final LiveActions actions;
 
     private final ActionHistoryDao actionHistoryDao;
-
-    /**
-     * Map containing the id of the host that went in maintenance and the corresponding topology id.
-     */
-    private final Map<Long, Long> hostsInMaintenance;
 
     /**
      * Lock protecting population of the store. Within a single "population" of the store we may
@@ -111,12 +103,14 @@ public class LiveActionStore implements ActionStore {
     private final UserSessionContext userSessionContext;
 
     private final LicenseCheckClient licenseCheckClient;
-    
+
     private final IdentityService<ActionInfo> actionIdentityService;
 
     private final Clock clock;
 
     private static final int queryTimeWindowForLastExecutedActionsMins = 60;
+
+    private final EntitiesWithNewStateCache entitiesWithNewStateCache;
 
     /**
      * A mutable (real-time) action is considered visible (from outside the Action Orchestrator's perspective)
@@ -175,7 +169,7 @@ public class LiveActionStore implements ActionStore {
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.actionIdentityService = Objects.requireNonNull(actionIdentityService);
-        this.hostsInMaintenance = new HashMap<>();
+        this.entitiesWithNewStateCache = new EntitiesWithNewStateCache(actions);
     }
 
     /**
@@ -392,9 +386,11 @@ public class LiveActionStore implements ActionStore {
                         // Need to make a copy because it's not safe to iterate otherwise.
                         actions.copy().values().stream())
                     .filter(VISIBILITY_PREDICATE), newActionIds);
-            hostsInMaintenance.entrySet().removeIf(entry -> (
-                sourceTopologyInfo.getTopologyId() > entry.getValue()));
-            clearActionsAffectingEntities(hostsInMaintenance.keySet());
+            final int deletedActions =
+                entitiesWithNewStateCache.clearActionsAndUpdateCache(sourceTopologyInfo.getTopologyId());
+            if (deletedActions > 0) {
+                severityCache.refresh(this);
+            }
 
         }
 
@@ -643,70 +639,13 @@ public class LiveActionStore implements ActionStore {
     }
 
     /**
-     * Set a host that went into maintenance and the timestamp of when this event occurred.
-     * Then clear the actions targeting those hosts.
+     * Updates the enitities with new state cache.
      *
-     * @param hostIds ids of hosts that went into maintenance.
-     * @param topologyId corresponding topology id.
+     * @param entitiesWithNewState ids of hosts that went into maintenance.
      */
-    public void clearActionsOnHosts(Set<Long> hostIds,
-                                      long topologyId) {
+    public void updateActionsBasedOnNewStates(@Nonnull final EntitiesWithNewState entitiesWithNewState) {
 
-        for (Long hostId: hostIds) {
-            this.hostsInMaintenance.put(hostId, topologyId);
-        }
-        clearActionsAffectingEntities(hostIds);
-    }
-
-    /**
-     * Collects actions that are targeting an entity and then deletes them. After removing the
-     * actions from the live action store it refreshes the severity cache. This needs to happen
-     * in two steps to ensure thread safety.
-     *
-     * @param entityIds the affected entities.
-     */
-    private void clearActionsAffectingEntities(@Nonnull final Set<Long> entityIds) {
-        if (entityIds.isEmpty()) {
-            return;
-        }
-        Set<Long> affectedActions = new HashSet<>();
-        actions.doForEachMarketAction((action) -> {
-            if (actionAffectsEntity(entityIds, action)) {
-                affectedActions.add(action.getId());
-            }
-        });
-        if (affectedActions.isEmpty()) {
-            return;
-        }
-        actions.deleteActionsById(affectedActions);
-        severityCache.refresh(this);
-    }
-
-    /**
-     * Find actions that are targeting and entity and move actions that have that entity as a
-     * destination.
-     * @param entityIds the affected entities.
-     * @param action the action to check.
-     * @return true if the action affects the entity
-     */
-    private boolean actionAffectsEntity(@Nonnull final Set<Long> entityIds,
-                                                 @Nonnull Action action) {
-        ActionInfo actionInfo = action.getRecommendation().getInfo();
-        if (actionInfo.hasMove()) {
-            for (ChangeProvider changeProvider : actionInfo.getMove().getChangesList()) {
-                if (entityIds.contains(changeProvider.getDestination().getId())) {
-                    return true;
-                }
-            }
-        }
-        try {
-            if (entityIds.contains(ActionDTOUtil.getPrimaryEntity(action.getTranslationResultOrOriginal()).getId())) {
-              return true;
-            }
-        } catch (UnsupportedActionException e) {
-            logger.warn("Unable to get primary entity for action {}", action);
-        }
-        return false;
+        entitiesWithNewStateCache.updateHostsWithNewState(entitiesWithNewState);
     }
 
     private static class Metrics {
