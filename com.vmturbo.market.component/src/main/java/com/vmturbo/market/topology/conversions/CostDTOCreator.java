@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -7,8 +8,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import javax.annotation.Nullable;
+import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
 import org.apache.logging.log4j.LogManager;
@@ -22,6 +24,7 @@ import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle.ComputePrice;
+import com.vmturbo.market.runner.cost.MarketPriceTable.CoreBasedLicensePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable.DatabasePriceBundle.DatabasePrice;
 import com.vmturbo.market.runner.cost.MarketPriceTable.StoragePriceBundle;
@@ -246,21 +249,26 @@ public class CostDTOCreator {
      * @param reservedInstanceKey reservedInstanceKey of the RI for which the CostDTO is created.
      * @param accountPricingDataByBusinessAccountOid The accountPricing to use for the specific business account.
      * @param region The region the RIDiscountedMarketTier is being created for.
-     * @param computeTier The compute tier based on which the price of the RIDiscountedMarketTier is calculated.
+     * @param computeTiersInScope The compute tier in scope of the RI.
      * @param applicableBusinessAccounts account scope of the cbtp.
      *
      * @return The CBTP cost dto.
      */
     CostDTO createCbtpCostDTO(final ReservedInstanceKey reservedInstanceKey,
                               Map<Long, AccountPricingData> accountPricingDataByBusinessAccountOid,
-                              TopologyEntityDTO region, TopologyEntityDTO computeTier,
+                              TopologyEntityDTO region,
+                              Set<TopologyEntityDTO> computeTiersInScope,
                               final Set<Long> applicableBusinessAccounts) {
         Set<CostTuple> costTupleList = new HashSet<>();
-        for (Long accountId: applicableBusinessAccounts) {
-            Set<CostTuple> cbtpCostTuples = createCbtpCostTuple(reservedInstanceKey,
-                    accountPricingDataByBusinessAccountOid.get(accountId), region,
-                    computeTier, accountId);
-            if (cbtpCostTuples != null) {
+        for (final AccountPricingData accountPricingData: accountPricingDataByBusinessAccountOid.values()) {
+
+            if (accountPricingData != null) {
+                Set<CostTuple> cbtpCostTuples = createCbtpCostTuples(
+                        reservedInstanceKey,
+                        accountPricingData,
+                        region,
+                        computeTiersInScope);
+
                 costTupleList.addAll(cbtpCostTuples);
             }
         }
@@ -291,72 +299,101 @@ public class CostDTOCreator {
     }
 
     /**
-     * Add the location and pricing info to the RI discounted market tier cost dto.
+     * Creates a cost tuple, scoped to the unique price id of the {@code accountPricingData}. The price ID
+     * of the cost tuple may differ from the scope IDs supported by the CBTP. However, the CBTP is still
+     * correctly scoped through the scope IDs and only after passing the scope filter is pricing applied.
+     * This limits the CBTP to the correct scope, while benefiting from the consolidation of pricing
+     * similar to template providers.
      *
-     * @param riKey reservedInstanceKey of the RI for which the CostDTO is created.
-     * @param accountPricingData to look up price info for the RI.
-     * @param region to which the RI belongs.
-     * @param computeTier of the RI.
-     * @param accountId for which the costTuple is being created.
-     *
-     * @return The list of cost tuples to be added to the cost dto.
+     * @param riKey The {@link ReservedInstanceKey} of the representative RI of the CBTP
+     * @param accountPricingData The {@link AccountPricingData} supported by the CBTP. The CBTP may support
+     *                           multiple unique price IDs.
+     * @param region The region of the CBTP
+     * @param computeTiersInScope The compute tiers in scope of the CBTP. The supported compute tiers are
+     *                            used to determine the reserved license rates of the CBTP.
+     * @return The set of cost tuples (one per supported OS) for the {@code accountPricingData}
      */
-    @Nullable
-    private Set<CostDTOs.CostDTO.CostTuple> createCbtpCostTuple(final ReservedInstanceKey riKey,
-                                                           final AccountPricingData
-                                                                   accountPricingData,
-                                                           final TopologyEntityDTO region,
-                                                           final TopologyEntityDTO computeTier,
-                                                           final long accountId) {
-        if (accountPricingData == null) {
-            logger.warn("Account pricing data not found for account id: {}", accountId);
-            return null;
-        }
-        Set<CostTuple> costTuples = new HashSet<>();
-        // Set deprecation factor
-        final ComputePriceBundle priceBundle = marketPriceTable.getComputePriceBundle(computeTier,
-                region.getOid(), accountPricingData);
-        final Optional<ComputePrice> templatePrice =
-                priceBundle.getPrices().stream().filter(s -> s.getOsType()
-                        .equals(riKey.getOs())).findFirst();
-        ComputePriceBundle licensePriceBundle = marketPriceTable.getReservedLicensePriceBundle(accountPricingData, region, computeTier);
-        List<ComputePrice> reservedLicensePriceList = licensePriceBundle.getPrices();
-        // If we have reserved license pricing and the pricing is not 0 then that price is set on the
-        // cbtp cost dto. If we don't have reserved license pricing, we will use fractional compute pricing.
-        if (reservedLicensePriceList.isEmpty()) {
-            CostTuple.Builder builder = CostTuple.newBuilder();
-            setZoneIdAndRegionInfo(riKey, builder);
-            Optional<CommodityType> osComm = computeTier.getCommoditySoldListList().stream()
-                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE
-                            && c.getCommodityType().getKey().equals(MarketPriceTable.OS_TYPE_MAP.inverse().get(riKey.getOs())))
-                    .map(CommoditySoldDTO::getCommodityType).findFirst();
-            builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.commoditySpecification(osComm.get()).getType() : 0);
-            if (templatePrice.isPresent()) {
-                builder.setPrice(templatePrice.get().getHourlyPrice() * riCostDeprecationFactor);
+    @Nonnull
+    private Set<CostDTOs.CostDTO.CostTuple> createCbtpCostTuples(final ReservedInstanceKey riKey,
+                                                                 final AccountPricingData accountPricingData,
+                                                                 final TopologyEntityDTO region,
+                                                                 final Set<TopologyEntityDTO> computeTiersInScope) {
+
+        Map<OSType, CostTuple.Builder> costTupleBuilderByOs = new HashMap<>();
+        Map<OSType, Double> maxComputePriceByOS = new HashMap<>();
+
+        // For each compute tier in scope of the RI, we need to send the reserved license rates
+        // as part of the cost tuple. We also iterator over the compute tiers, selecting the tier with the
+        // largest cost as the basis for the nominal fee of the CBPT (if there are no associated reserved
+        // license rates to differentiate the RIs)
+        for (TopologyEntityDTO computeTier : computeTiersInScope) {
+
+            final ComputePriceBundle computePriceBundle = marketPriceTable.getComputePriceBundle(computeTier,
+                    region.getOid(), accountPricingData);
+
+            computePriceBundle.getPrices().forEach(computePrice -> {
+                        if (computePrice.getHourlyPrice() >
+                                maxComputePriceByOS.getOrDefault(computePrice.getOsType(), 0.0)) {
+
+                            maxComputePriceByOS.put(computePrice.getOsType(), computePrice.getHourlyPrice());
+                        }
+                    });
+
+            final Set<CoreBasedLicensePriceBundle> reservedLicensePriceBundles =
+                    marketPriceTable.getReservedLicensePriceBundles(accountPricingData, computeTier)
+                            .stream()
+                            // If the RI supports a smaller set of OS types than the compute tiers in scope
+                            // of the RI, we need to filter the license price bundles to only those supported
+                            // by the RI.
+                            .filter(licenseBundle -> riKey.isPlatformFlexible() ||
+                                    licenseBundle.osType() == riKey.getOs())
+                            .collect(ImmutableSet.toImmutableSet());
+
+            for (CoreBasedLicensePriceBundle licenseBundle : reservedLicensePriceBundles) {
+
+                final CostTuple.Builder costTupleBuilder =
+                        costTupleBuilderByOs.computeIfAbsent(licenseBundle.osType(), osType ->
+                                CostTuple.newBuilder()
+                                        .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
+                                        .setLicenseCommodityType(
+                                            commodityConverter.commoditySpecification(
+                                                    licenseBundle.licenseCommodityType()).getType()));
+
+                // Is it assumed all compute tiers within scope of an RI will
+                // sell the same VCORE commodity
+                licenseBundle.vcoreCommodityType().ifPresent(commType ->
+                        costTupleBuilder.setCoreCommodityType(
+                                commodityConverter.commoditySpecification(commType).getType()));
+
+                licenseBundle.price().ifPresent(price ->
+                        costTupleBuilder.putPriceByNumCores(licenseBundle.numCores(), price));
             }
-            costTuples.add(builder.build());
-        } else {
-            // Iterate over all the reserved license prices for all licenses
-            for (ComputePrice riPrice : reservedLicensePriceList) {
-                CostTuple.Builder builder = CostTuple.newBuilder();
-                setZoneIdAndRegionInfo(riKey, builder);
-                if (riPrice.getHourlyPrice() != 0.0) {
-                    builder.setPrice(riPrice.getHourlyPrice());
-                } else {
-                    if (templatePrice.isPresent()) {
-                        builder.setPrice(templatePrice.get().getHourlyPrice() * riCostDeprecationFactor);
-                    }
-                }
-                Optional<CommodityType> osComm = computeTier.getCommoditySoldListList().stream()
-                        .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE
-                                && c.getCommodityType().getKey().equals(MarketPriceTable.OS_TYPE_MAP.inverse().get(riPrice.getOsType())))
-                        .map(CommoditySoldDTO::getCommodityType).findFirst();
-                builder.setLicenseCommodityType(osComm.isPresent() ? commodityConverter.commoditySpecification(osComm.get()).getType() : 0);
-                costTuples.add(builder.build());
-            }
         }
-        return costTuples;
+
+        costTupleBuilderByOs.forEach((osType, costTupleBuilder) -> {
+
+            // Set the zone and region scopes
+            setZoneIdAndRegionInfo(riKey, costTupleBuilder);
+
+            // If all license prices for an OS are 0, set the base price to a fractional value based
+            // on the largest compute tier. Note that the nominal fee is not used as a differentiator
+            // when a license fee is present. This is an intentional decision to not mix actual costs
+            // (the reserved license rates) with artifical costs (the nominal fees). It is unclear how
+            // to mix actual and artificial costs, when the nominal fee is based on the largest instance
+            // size supported by a CBTP and the number of sizes within each family are not uniform.
+            boolean addNominalFee = costTupleBuilder.getPriceByNumCoresMap().values()
+                    .stream()
+                    .allMatch(p -> p <= 0.0);
+            if (addNominalFee) {
+                costTupleBuilder.setPrice(maxComputePriceByOS.getOrDefault(osType, 0.0) * riCostDeprecationFactor);
+            }
+        });
+
+        return costTupleBuilderByOs.values().stream()
+                .map(CostTuple.Builder::build)
+                .collect(ImmutableSet.toImmutableSet());
     }
+
 
     /**
      * Sets the ri zone and region info on the cbtp cost dto builder.

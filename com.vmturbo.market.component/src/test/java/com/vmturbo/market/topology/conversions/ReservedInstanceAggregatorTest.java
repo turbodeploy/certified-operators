@@ -108,13 +108,13 @@ public class ReservedInstanceAggregatorTest {
                                 .build()).build()).build();
         final Set<Long> applicableBusinessAccounts = Collections.singleton((long)ACCOUNT_1);
         ReservedInstanceAggregate riAgg1 = new ReservedInstanceAggregate(riData1, riKey1,
-                computeTier, applicableBusinessAccounts);
+                computeTier, Collections.singleton(computeTier), applicableBusinessAccounts);
         ReservedInstanceAggregate riAgg2 = new ReservedInstanceAggregate(riData2, riKey2,
-                computeTier, applicableBusinessAccounts);
+                computeTier, Collections.singleton(computeTier), applicableBusinessAccounts);
         assertEquals(riAgg1, riAgg2);
 
         ReservedInstanceAggregate riAgg3 = new ReservedInstanceAggregate(riData3, riKey3,
-                computeTier, applicableBusinessAccounts);
+                computeTier, Collections.singleton(computeTier), applicableBusinessAccounts);
         assertNotEquals(riAgg1, riAgg3);
 
         Set<ReservedInstanceAggregate> aggregates = new HashSet<>();

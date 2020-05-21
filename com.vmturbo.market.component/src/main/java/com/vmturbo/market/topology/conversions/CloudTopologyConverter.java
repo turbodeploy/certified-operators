@@ -194,6 +194,25 @@ public class CloudTopologyConverter {
         return traderTOOidToMarketTier.inverse().get(checkNotNull(marketTier));
     }
 
+    @Nonnull
+    Optional<RiDiscountedMarketTier> getRIDiscountedMarketTierFromRIData(@Nonnull ReservedInstanceData riData) {
+        return riConverter.getMarketTierForRIData(riData);
+    }
+
+    /**
+     * find the oid of the RIDiscountedMarketTier for the given riData.
+     *
+     * @param riData given RI data.
+     * @return the oid of the RIDiscountedMarketTier.
+     */
+    @Nullable
+    public Long getRIDiscountedMarketTierIDFromRIData(ReservedInstanceData riData) {
+
+        return getRIDiscountedMarketTierFromRIData(riData)
+                .map(this::getTraderTOOid)
+                .orElse(null);
+    }
+
     /**
      * Get the MarketTier corresponding to the traderTO oid.
      *
@@ -332,38 +351,6 @@ public class CloudTopologyConverter {
             return null;
         }
         return primaryMarketTiers.get(0);
-    }
-
-    /**
-     * find the oid of the RIDiscountedMarketTier for the given riData.
-     * @param riData given RI data.
-     * @return the oid of the RIDiscountedMarketTier.
-     */
-    @Nullable
-    public Long getRIDiscountedMarketTierIDFromRIData(ReservedInstanceData riData) {
-        final TopologyEntityDTO region = topology.get(riData.getReservedInstanceSpec()
-            .getReservedInstanceSpecInfo().getRegionId());
-        final TopologyEntityDTO computeTier =
-            topology.get(riData.getReservedInstanceSpec()
-                .getReservedInstanceSpecInfo().getTierId());
-        final long businessAccountId = riData.getReservedInstanceBought()
-            .getReservedInstanceBoughtInfo().getBusinessAccountId();
-        final Optional<GroupAndMembers> billingFamilyGroup = cloudTopology
-            .getBillingFamilyForEntity(businessAccountId);
-        if (!billingFamilyGroup.isPresent()) {
-            logger.error("Billing family group not found for RI Data: {}",
-                riData.getReservedInstanceBought());
-        }
-        final long billingFamilyId = billingFamilyGroup.map(group ->
-            group.group().getId()).orElse(businessAccountId);
-        final ReservedInstanceKey riKey = new ReservedInstanceKey(riData,
-            computeTier.getTypeSpecificInfo().getComputeTier().getFamily(),
-            billingFamilyId);
-        final ReservedInstanceAggregate riAggregate =
-            new ReservedInstanceAggregate(riData, riKey, computeTier,
-                Collections.emptySet());
-        return getTraderTOOid(new RiDiscountedMarketTier(computeTier,
-            region, riAggregate));
     }
 
     /**

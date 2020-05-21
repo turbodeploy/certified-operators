@@ -51,6 +51,7 @@ class CloudTestEntityFactory {
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                         .setComputeTier(ComputeTierInfo.newBuilder()
                                 .setFamily(FAMILY_NAME)
+                                .setNumCores(1)
                                 .build()).build())
                 .addAllCommoditySoldList(createComputeTierSoldCommodities());
         if (connectToRegion) {

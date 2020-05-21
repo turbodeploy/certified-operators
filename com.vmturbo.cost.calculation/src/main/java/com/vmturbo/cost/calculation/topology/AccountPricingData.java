@@ -127,7 +127,7 @@ public class AccountPricingData<T> {
      * @param burstableCPU if a license support burstableCPU.
      * @return the matching license price
      */
-    private Optional<LicensePrice> getReservedLicensePrice(OSType os, int numCores,
+    public Optional<LicensePrice> getReservedLicensePrice(OSType os, int numCores,
             final boolean burstableCPU) {
         return getLicensePrice(reservedLicensePrices, os, numCores, burstableCPU);
     }
