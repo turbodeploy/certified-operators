@@ -323,7 +323,8 @@ public class TopologyEntitiesHandler {
             // Update replay actions
             analysis.setReplayActions(new ReplayActions(
                 secondRoundActions.stream()
-                    .filter(action -> !(action instanceof ProvisionByDemand))
+                    .filter(action -> action instanceof ProvisionBySupply
+                        || action instanceof Activate)
                     .collect(Collectors.toList()), // porting ProvisionByDemand not supported yet!
                 actions.stream()
                     .filter(action -> action instanceof Deactivate)
