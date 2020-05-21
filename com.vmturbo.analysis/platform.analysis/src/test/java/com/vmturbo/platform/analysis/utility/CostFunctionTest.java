@@ -459,7 +459,7 @@ public class CostFunctionTest {
 
         // Create CBTP
         Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy, true,
-                regionId, 0);
+                regionId, 0, 0);
         traderOids.put(cbtp_m5Large, 2L);
 
         // Create a new TP which sells to CBTP
@@ -541,7 +541,7 @@ public class CostFunctionTest {
 
         // Create CBTP
         Trader cbtp_m5Large = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy, true,
-                regionId, 0);
+                regionId, 0, 0);
 
         // Create a new TP which sells to CBTP
         Trader m5LargeTP = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
@@ -621,11 +621,11 @@ public class CostFunctionTest {
 
         // CBTP with zone scope 11
         Trader m5LargeCbtpZone11 = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy,
-                false, zone11, 0);
+                false, zone11, 0, 0);
         traderOids.put(m5LargeCbtpZone11, 2L);
         // CBTP with zone scope 13
         Trader m5LargetCbtpZone13 = TestUtils.setAndGetCBTP(m5Large, "cbtp_m5Large", economy,
-                false, zone13, 0);
+                false, zone13, 0, 0);
         traderOids.put(m5LargetCbtpZone13, 3L);
 
         m5LargeTP.getSettings().setQuoteFunction(QuoteFunctionFactory.budgetDepletionRiskBasedQuoteFunction());
@@ -706,11 +706,11 @@ public class CostFunctionTest {
 
         // CBTP with Account id 3333L
         Trader m5LargetCbtpAccount1 = TestUtils.setAndGetCBTP(m5LargePrice, "cbtp_m5Large", economy,
-                false, 0, cbtpBusinessAccountId);
+                false, 0, cbtpBusinessAccountId, priceId);
         traderOids.put(m5LargetCbtpAccount1, 2L);
         // CBTP with Account id 24L and priceId 1111L
         Trader m5LargetCbtpAccount2 = TestUtils.setAndGetCBTP(m5LargePrice, "cbtp_m5Large", economy,
-                false, 0, priceId);
+                false, 0, vmBusinessAccountId, priceId);
         traderOids.put(m5LargetCbtpAccount2, 3L);
 
         m5LargeTP.getSettings().setQuoteFunction(QuoteFunctionFactory

@@ -57,7 +57,13 @@ message CostDTO {
             int64 region_id = 4;
             int64 zone_id = 5;
         }
+
+        // The core commodity and price_by_num_cores map are used to represent core-based license
+        // fees for a CBTP, in which the license fee is based on the matching TP of the buyer.
+        optional int32 core_commodity_type = 6;
+        map<int64, double> price_by_num_cores = 7;
     }
+
 
     message StorageTierCostDTO {
         // the commodity specification to min and max capacity limitation mapping
