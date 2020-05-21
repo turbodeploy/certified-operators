@@ -21,6 +21,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.immutables.value.Value.Immutable;
 
 import com.vmturbo.common.protobuf.CostProtoUtil;
 import com.vmturbo.common.protobuf.cost.Pricing.DbTierOnDemandPriceTable;
@@ -39,6 +40,7 @@ import com.vmturbo.platform.analysis.protobuf.CostDTOs.CostDTO.StorageTierCostDT
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEngine;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DeploymentType;
@@ -47,6 +49,7 @@ import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.PricingDTO.ComputeTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList;
 import com.vmturbo.platform.sdk.common.PricingDTO.DatabaseTierPriceList.DatabaseTierConfigPrice;
+import com.vmturbo.platform.sdk.common.PricingDTO.LicensePriceEntry.LicensePrice;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price;
 import com.vmturbo.platform.sdk.common.PricingDTO.Price.Unit;
 import com.vmturbo.platform.sdk.common.PricingDTO.StorageTierPriceList;
@@ -478,6 +481,54 @@ public class MarketPriceTable {
     }
 
 
+    public Set<CoreBasedLicensePriceBundle> getReservedLicensePriceBundles(@Nonnull AccountPricingData accountPricingData,
+                                                                           @Nonnull TopologyEntityDTO tier) {
+
+
+        final DiscountApplicator<TopologyEntityDTO> discountApplicator = accountPricingData.getDiscountApplicator();
+        final double discount = (1.0 - discountApplicator.getDiscountPercentage(tier).getValue());
+
+        final int numCores = tier.getTypeSpecificInfo().getComputeTier().getNumCores();
+        final boolean burstableCPU = tier.getTypeSpecificInfo().getComputeTier().getBurstableCPU();
+
+        final Optional<TopologyDTO.CommodityType> vcoreCommodityTime = tier.getCommoditySoldListList().stream()
+                .filter(c -> c.getCommodityType().getType() == CommodityType.NUM_VCORE_VALUE)
+                .map(CommoditySoldDTO::getCommodityType)
+                .findAny();
+
+
+        return entityInfoExtractor.getComputeTierConfig(tier).map(computeTierConfig ->
+            tier.getCommoditySoldListList().stream()
+                    .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                    .map(CommoditySoldDTO::getCommodityType)
+                    .map(licenseCommodityType -> {
+
+                        final OSType osType = OS_TYPE_MAP.get(licenseCommodityType.getKey());
+
+                        final Optional<LicensePrice> reservedLicensePrice =
+                                accountPricingData.getReservedLicensePrice(osType, numCores, burstableCPU);
+
+                        final Optional<Double> discountedPrice = reservedLicensePrice.map(LicensePrice::getPrice)
+                                .map(Price::getPriceAmount)
+                                .map(CurrencyAmount::getAmount)
+                                .map(fullPrice -> fullPrice * discount);
+
+
+                        final ImmutableCoreBasedLicensePriceBundle.Builder bundleBuilder =
+                                ImmutableCoreBasedLicensePriceBundle.builder()
+                                        .osType(osType)
+                                        .licenseCommodityType(licenseCommodityType)
+                                        .numCores(numCores)
+                                        .isBurstableCPU(burstableCPU);
+
+                        vcoreCommodityTime.ifPresent(bundleBuilder::vcoreCommodityType);
+                        discountedPrice.ifPresent(bundleBuilder::price);
+
+                        return bundleBuilder.build();
+                    }).collect(Collectors.<CoreBasedLicensePriceBundle>toSet()))
+
+                .orElse(Collections.emptySet());
+    }
 
     /**
      * A bundle of of possible prices for a (storage tier, region) combination. The possible
@@ -764,4 +815,52 @@ public class MarketPriceTable {
         }
     }
 
+
+    /**
+     * A pricing bundle for core-based license rates.
+     */
+    @Immutable
+    public interface CoreBasedLicensePriceBundle {
+
+        /**
+         * The license commodity type of the license bundle.
+         * @return The license commodity type
+         */
+        TopologyDTO.CommodityType licenseCommodityType();
+
+        /**
+         * The vcore commodity type of the license rate. If the vcore commodity type is empty, it
+         * indicates the compute tier does not sell the appropriate commodity to have core-based license
+         * rates properly calculated in the market.
+         * @return The {@link CommodityType#NUM_VCORE} commodity type or {@link Optional#empty()},
+         * if the associated tier does not sell the commodity.
+         */
+        Optional<TopologyDTO.CommodityType> vcoreCommodityType();
+
+        /**
+         * The {@link OSType} of the license bundle.
+         * @return The {@link OSType} of the license bundle.
+         */
+        OSType osType();
+
+        /**
+         * The number of core for the license bundle.
+         * @return The number of core for the license bundle.
+         */
+        int numCores();
+
+        /**
+         * Indicates whether the license bundle is for burstable CPU tiers.
+         * @return True, if the associated tier supports burstable CPU. False otherwise.
+         */
+        boolean isBurstableCPU();
+
+        /**
+         * The price for the license bundle. If there is no rate for the configuration (tier, os, core
+         * count), the price will be empty. In this case, an empty price is used to indicate support
+         * for the {@link OSType}.
+         * @return The price for the license bundle.
+         */
+        Optional<Double> price();
+    }
 }

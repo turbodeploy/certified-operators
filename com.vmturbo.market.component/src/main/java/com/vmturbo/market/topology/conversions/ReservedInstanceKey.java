@@ -21,6 +21,7 @@ public class ReservedInstanceKey {
     private final String family;
     private final long riBoughtId;
     private final boolean instanceSizeFlexible;
+    private final boolean platformFlexible;
     private final long accountScopeId;
     private final boolean shared;
 
@@ -64,7 +65,8 @@ public class ReservedInstanceKey {
         final ReservedInstanceBoughtInfo riBoughtInfo = riData.getReservedInstanceBought()
                 .getReservedInstanceBoughtInfo();
         this.tenancy = riSpec.getTenancy();
-        this.os = riSpec.getOs();
+        this.platformFlexible = riSpec.getPlatformFlexible();
+        this.os = platformFlexible ? OSType.UNKNOWN_OS : riSpec.getOs();
         this.regionId = riSpec.getRegionId();
         this.family = family;
         this.zoneId = riBoughtInfo.getAvailabilityZoneId();
@@ -133,5 +135,9 @@ public class ReservedInstanceKey {
 
     boolean isInstanceSizeFlexible() {
         return instanceSizeFlexible;
+    }
+
+    boolean isPlatformFlexible() {
+        return platformFlexible;
     }
 }
