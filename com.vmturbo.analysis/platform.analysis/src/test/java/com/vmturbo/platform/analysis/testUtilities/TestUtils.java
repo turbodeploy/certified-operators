@@ -678,12 +678,13 @@ public class TestUtils {
      * @return an instance of Trader.
      */
     public static Trader setAndGetCBTP(double cost, String name, Economy economy,
-                                       boolean regional, long locationId, long accountScopeId) {
+                                       boolean regional, long locationId, long accountScopeId,
+                                       long priceId) {
         double riDeprecationFactor = 0.0000001;
         Trader cbtp = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
                         Arrays.asList(TestUtils.CPU, TestUtils.COUPON_COMMODITY),
                 new double[] {3000, 2}, true, true, name);
-        final BalanceAccount account = new BalanceAccount(0.0, 100000000d, 24, 0);
+        final BalanceAccount account = new BalanceAccount(0.0, 100000000d, 24, priceId);
         final Context context;
         if (regional) {
             context = new Context(locationId, 0L, account);
@@ -695,7 +696,8 @@ public class TestUtils {
         CbtpCostDTO.Builder cbtpBundleBuilder = createCbtpBundleBuilder(
                 TestUtils.COUPON_COMMODITY.getBaseType(), cost * riDeprecationFactor, 50,
                regional, locationId);
-        final CostTuple.Builder costTuple = CostTuple.newBuilder();
+        final CostTuple.Builder costTuple = CostTuple.newBuilder()
+                .setBusinessAccountId(priceId);
         if (regional) {
             costTuple.setRegionId(locationId);
         } else {
