@@ -680,7 +680,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVStorageRecommendation);
 
-        Assert.assertEquals("Resize up VStorage for Virtual Machine vm1_test from 1.953 GB to 3.906 GB", description);
+        Assert.assertEquals("Resize up VStorage for Virtual Machine vm1_test from 2 GB to 4 GB", description);
     }
 
     /**
@@ -781,12 +781,12 @@ public class ActionDescriptionBuilderTest {
         when(entitySettingsCache.getEntityFromOid(eq(dbsId))).thenReturn(
                 createEntity(dbsId, EntityType.DATABASE_SERVER_VALUE, "sqlServer1"));
         ActionDTO.Action resizeDBMem = makeRec(makeResizeInfo(dbsId,
-                CommodityDTO.CommodityType.DB_MEM_VALUE, 1622744.0f, 1445841.0f),
+                CommodityDTO.CommodityType.DB_MEM_VALUE, 15857614.848f, 6159335.424f),
                 SupportLevel.SUPPORTED).build();
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, resizeDBMem);
         Assert.assertEquals(description,
-                "Resize down DB Mem for Database Server sqlServer1 from 1.548 GB to 1.379 GB");
+                "Resize down DB Mem for Database Server sqlServer1 from 15 GB to 6 GB");
     }
 
     @Test
