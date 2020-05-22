@@ -24,7 +24,6 @@ import com.google.common.collect.Sets;
 import com.google.gson.Gson;
 
 import org.apache.commons.collections4.CollectionUtils;
-import org.apache.commons.collections4.SetUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -37,6 +36,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
@@ -121,6 +121,7 @@ public class TopologyEditor {
      *                We ignore those.
      * @param topologyInfo Information describing the topology and its context.
      * @param groupResolver The resolver to use when resolving group membership.
+     * @throws GroupResolutionException when a group by a migration source/destination is not resolved
      */
     public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
                              @Nonnull final List<ScenarioChange> changes,
@@ -201,27 +202,9 @@ public class TopologyEditor {
                 }
             } else if (change.hasTopologyMigration()) {
                 // also consider on-prem migration use case
-                Set<Long> entitiesToMigrate = Sets.newHashSet();
-                boolean areGroups = true;
-                final List<TopologyMigration.MigrationReference> migratingEntities =
-                        change.getTopologyMigration().getSourceList();
-
-                Map<Boolean, Set<Long>> areGroupsToSourceOids = migratingEntities.stream()
-                        .collect(Collectors.groupingBy(aSource -> aSource.hasGroupType(),
-                                Collectors.mapping(TopologyMigration.MigrationReference::getOid, Collectors.toSet())));
-
-                if (CollectionUtils.isNotEmpty(areGroupsToSourceOids.get(areGroups))) {
-                    // Add the members of expanded groups
-                    for (Long groupOid : areGroupsToSourceOids.get(areGroups)) {
-                        entitiesToMigrate.addAll(
-                                groupResolver.resolve(groupIdToGroupMap.get(groupOid), topologyGraph)
-                                        .getAllEntities());
-                    }
-                }
-                if (CollectionUtils.isNotEmpty(areGroupsToSourceOids.get(!areGroups))) {
-                    // Add individual entities
-                    entitiesToMigrate.addAll(areGroupsToSourceOids.get(!areGroups));
-                }
+                TopologyMigration topologyMigration = change.getTopologyMigration();
+                Set<Long> entitiesToMigrate = expandAndFlattenReferences(
+                        topologyMigration.getSourceList(), groupIdToGroupMap, groupResolver, topologyGraph);
                 // This is a map of <entity OID to copy> to <number of copies to create>. In this case, each OID will be
                 // mapped to the value 1 because we only ever want to create a single copy of each source entity to
                 // simulate a cloud migration.
@@ -230,8 +213,42 @@ public class TopologyEditor {
                                 // recursively get providers- get volumes associated with VMs, and storages associated with
                                 // volumes to render the Storage Tier Mapping table in plan results
                                 getProvidersRecursive(entityToMigrate, topology).stream())
+                        .distinct()
                         .collect(Collectors.toMap(Function.identity(), d -> 1L));
                 entityAdditions.putAll(additions);
+
+                if (topologyMigration.getRemoveNonMigratingWorkloads()) {
+                    Set<Long> destinations = expandAndFlattenReferences(
+                            topologyMigration.getDestinationList(), groupIdToGroupMap, groupResolver, topologyGraph);
+
+                    Set<Integer> entityRemovalTypes = Sets.newHashSet(
+                            EntityType.VIRTUAL_VOLUME_VALUE,
+                            EntityType.VIRTUAL_MACHINE_VALUE,
+                            EntityType.DATABASE_VALUE,
+                            EntityType.DATABASE_SERVER_VALUE);
+
+                    // Azure - workloads directly connected to regions, and zones that workloads are connected from
+                    entitiesToRemove.addAll(
+                            getAggregatedEntitiesForRemoval(
+                                    destinations,
+                                    entityRemovalTypes,
+                                    topologyGraph));
+
+                    // Get zones associated with target regions
+                    Set<Long> destinationZoneOids = getOwnedEntities(
+                            destinations,
+                            Sets.newHashSet(EntityType.AVAILABILITY_ZONE_VALUE),
+                            topologyGraph);
+
+                    // AWS - workloads connected to availability zones
+                    if (CollectionUtils.isNotEmpty(destinationZoneOids)) {
+                        entitiesToRemove.addAll(
+                                getAggregatedEntitiesForRemoval(
+                                        destinationZoneOids,
+                                        entityRemovalTypes,
+                                        topologyGraph));
+                    }
+                }
             } else if (change.hasTopologyRemoval()) {
                 final TopologyRemoval removal = change.getTopologyRemoval();
                 int targetType = removal.getTargetEntityType();
@@ -357,7 +374,86 @@ public class TopologyEditor {
     }
 
     /**
-     * Add entities into a map with entity oid as key and the number of copied to be clones as value
+     * Given a collection of {@link MigrationReference}, resolve the members of all groups and return a new collection
+     * of all entities in the given scope.
+     *
+     * @param migrationReferences a collection of entities/groups to migrate from/to
+     * @param groupIdToGroupMap a map of OID to {@link Grouping} representing all groups in the source/destination scopes
+     * @param groupResolver a {@link GroupResolver} reference used to expand group membership
+     * @param topologyGraph used in tandem with {@param groupResolver} to expand group membership
+     * @return a set of all entities represented by {@param migrationReferences}
+     * @throws GroupResolutionException when a group by a migration source/destination is not resolved
+     */
+    private Set<Long> expandAndFlattenReferences(@Nonnull final List<MigrationReference> migrationReferences,
+                                                 @Nonnull final Map<Long, Grouping> groupIdToGroupMap,
+                                                 @Nonnull final GroupResolver groupResolver,
+                                                 @Nonnull final TopologyGraph<TopologyEntity> topologyGraph)
+            throws GroupResolutionException {
+        boolean areGroups = true;
+        Map<Boolean, Set<Long>> areGroupsToEntityOids = migrationReferences.stream()
+                .collect(Collectors.groupingBy(reference -> reference.hasGroupType(),
+                        Collectors.mapping(MigrationReference::getOid, Collectors.toSet())));
+
+        Set<Long> migrationEntities = Sets.newHashSet();
+        if (CollectionUtils.isNotEmpty(areGroupsToEntityOids.get(areGroups))) {
+            // Add the members of expanded groups
+            for (Long groupOid : areGroupsToEntityOids.get(areGroups)) {
+                migrationEntities.addAll(
+                        groupResolver.resolve(groupIdToGroupMap.get(groupOid), topologyGraph)
+                                .getAllEntities());
+            }
+        }
+        if (CollectionUtils.isNotEmpty(areGroupsToEntityOids.get(!areGroups))) {
+            // Add individual entities
+            migrationEntities.addAll(areGroupsToEntityOids.get(!areGroups));
+        }
+        return migrationEntities;
+    }
+
+    /**
+     * Return a set of entities owned by the set of {@param seedOids} provided, of a type specified by
+     * {@param connectedEntityTypesToGather}. This implementation assumes no groups are included in {@param seedOids}.
+     *
+     * @param seedOids a set of entity OIDs
+     * @param connectedEntityTypesToGather a set of numeric entity types for which to retrieve entity OIDs
+     * @param topologyGraph a {@link TopologyGraph} data structure representing the topology being operated on
+     * @return a map of numeric {@link EntityType} to the OIDs that correspond to it
+     */
+    @Nonnull
+    private Set<Long> getOwnedEntities(
+            @Nonnull final Set<Long> seedOids,
+            @Nonnull final Set<Integer> connectedEntityTypesToGather,
+            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
+        return topologyGraph.getEntities(seedOids)
+                .flatMap(topologyEntity -> topologyEntity.getOwnedEntities().stream())
+                .filter(topologyEntity -> connectedEntityTypesToGather.contains(topologyEntity.getEntityType()))
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Using {@param topologyGraph}, get all entities aggregated by those specified by {@param seedOids} of a type specified
+     * in {@param workloadTypes}, and return their OIDs for removal.
+     *
+     * @param seedOids if an entity is connected to one of the entities represented by this set, remove it
+     * @param workloadTypes all entity types to target for removal
+     * @param topologyGraph a {@link TopologyGraph} data structure representing the topology being operated on
+     * @return a set of entities connected from {@param seedOids} of a type represented by {@param workloadTypes}
+     */
+    @Nonnull
+    private Set<Long> getAggregatedEntitiesForRemoval(
+            @Nonnull final Set<Long> seedOids,
+            @Nonnull final Set<Integer> workloadTypes,
+            @Nonnull final TopologyGraph<TopologyEntity> topologyGraph) {
+        return topologyGraph.getEntities(seedOids)
+                .flatMap(topologyEntity -> topologyGraph.getAggregatedEntities(topologyEntity)
+                        .filter(aggregatedEntity -> workloadTypes.contains(aggregatedEntity.getEntityType())))
+                .map(TopologyEntity::getOid)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Add entities into a map with entity oid as key and the number of copied to be clones as value.
      *
      * @param targetType the target entity type
      * @param additionCount the number of clones to be added

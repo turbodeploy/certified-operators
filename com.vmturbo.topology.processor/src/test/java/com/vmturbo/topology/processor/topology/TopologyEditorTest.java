@@ -55,6 +55,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Edit;
@@ -66,6 +67,7 @@ import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
+import com.vmturbo.repository.api.RepositoryClient;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.GroupResolver;
@@ -271,7 +273,8 @@ public class TopologyEditorTest {
     public void setup() {
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class)))
             .thenAnswer(invocation -> cloneId++);
-        topologyEditor = new TopologyEditor(identityProvider, templateConverterFactory,
+        topologyEditor = new TopologyEditor(identityProvider,
+                templateConverterFactory,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
@@ -282,14 +285,15 @@ public class TopologyEditorTest {
      */
     @Test
     public void testTopologyMigrationVMClone() throws Exception {
-        final long migrationSourceGroupId = 11;
-        final long migrationDestinationGroupId = 12;
+        final long migrationSourceGroupId = 1000;
+        final long migrationDestinationGroupId = 2000;
         final MigrationReference migrationSourceGroup = MigrationReference.newBuilder()
                 .setOid(migrationSourceGroupId)
                 .setGroupType(CommonDTOREST.GroupDTO.GroupType.REGULAR.getValue()).build();
         final MigrationReference migrationDestinationGroup = MigrationReference.newBuilder()
                 .setOid(migrationDestinationGroupId)
-                .setEntityType(EntityType.REGION_VALUE).build();
+                .setGroupType(CommonDTOREST.GroupDTO.GroupType.REGULAR.getValue()).build();
+
         final long pmId = 2;
         final long pmCloneId = 200;
         final long vmId = 3;
@@ -310,8 +314,13 @@ public class TopologyEditorTest {
                 ))
                 .setId(migrationSourceGroupId)
                 .build();
+        final long regionId = 11;
         final Grouping destinationGroup = Grouping.newBuilder()
-                .setDefinition(GroupDefinition.getDefaultInstance())
+                .setDefinition(GroupDefinition.newBuilder().setStaticGroupMembers(
+                        GroupDTO.StaticMembers.newBuilder().addMembersByType(
+                                GroupDTO.StaticMembers.StaticMembersByType.newBuilder().addMembers(regionId).build()
+                        ).build()
+                ))
                 .setId(migrationDestinationGroupId)
                 .build();
         final TopologyEntity.Builder pmEntity = TopologyEntityUtils
@@ -333,10 +342,45 @@ public class TopologyEditorTest {
                 .topologyEntity(s2Id, 0, 0, "S2", EntityType.STORAGE);
         final TopologyEntity.Builder volumeEntity2 = TopologyEntityUtils
                 .topologyEntity(vv2Id, 0, 0, "VV2", EntityType.VIRTUAL_VOLUME, s2Id);
-
         final TopologyEntity.Builder vmEntity = TopologyEntityUtils
                 .topologyEntity(vmId, 0, 0, "VM", EntityType.VIRTUAL_MACHINE, pmId, vv1Id, vv2Id);
         vmEntity.addProvider(pmEntity);
+
+        // region connected VM
+        final long vmToRemoveFromTargetRegionId = 8;
+        final TopologyEntity.Builder regionConnectedEntityToRemove = TopologyEntityUtils
+                .topologyEntity(vmToRemoveFromTargetRegionId, 0, 0, "regionVM", EntityType.VIRTUAL_MACHINE);
+        ConnectedEntity regionConnectedEntity = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(regionId)
+                .setConnectedEntityType(EntityType.REGION_VALUE)
+                .setConnectionType(ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION)
+                .build();
+        regionConnectedEntityToRemove.getEntityBuilder().addConnectedEntityList(regionConnectedEntity);
+
+        final long zoneId = 9;
+        final TopologyEntity.Builder zone = TopologyEntityUtils
+                .topologyEntity(zoneId, 0, 0, "zone", EntityType.AVAILABILITY_ZONE);
+
+        final long vmToRemoveFromZoneId = 10;
+        final TopologyEntity.Builder zoneConnectedEntityToRemove = TopologyEntityUtils
+                .topologyEntity(vmToRemoveFromZoneId, 0, 0, "zoneVM", EntityType.VIRTUAL_MACHINE);
+        ConnectedEntity zoneConnectedEntityAggregatedBy = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(zoneId)
+                .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                .setConnectionType(ConnectedEntity.ConnectionType.AGGREGATED_BY_CONNECTION)
+                .build();
+        zoneConnectedEntityToRemove.getEntityBuilder().addConnectedEntityList(zoneConnectedEntityAggregatedBy);
+
+        ConnectedEntity zoneConnectedEntityOwns = ConnectedEntity.newBuilder()
+                .setConnectedEntityId(zoneId)
+                .setConnectedEntityType(EntityType.AVAILABILITY_ZONE_VALUE)
+                .setConnectionType(ConnectedEntity.ConnectionType.OWNS_CONNECTION)
+                .build();
+
+
+        final TopologyEntity.Builder region = TopologyEntityUtils
+                .topologyEntity(regionId, 0, 0, "region", EntityType.REGION);
+        region.getEntityBuilder().addConnectedEntityList(zoneConnectedEntityOwns);
 
         final Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
         topology.put(pmId, pmEntity);
@@ -346,16 +390,25 @@ public class TopologyEditorTest {
         topology.put(vv2Id, volumeEntity2);
         topology.put(s2Id, storageEntity2);
 
+        topology.put(regionId, region);
+        topology.put(zoneId, zone);
+        topology.put(vmToRemoveFromTargetRegionId, regionConnectedEntityToRemove);
+        topology.put(vmToRemoveFromZoneId, zoneConnectedEntityToRemove);
+
         when(groupServiceSpy.getGroups(any())).thenReturn(Lists.newArrayList(sourceGroup, destinationGroup));
         when(groupResolver.resolve(eq(sourceGroup), isA(TopologyGraph.class)))
                 .thenReturn(resolvedGroup(sourceGroup, ApiEntityType.VIRTUAL_MACHINE, vmId));
+        when(groupResolver.resolve(eq(destinationGroup), isA(TopologyGraph.class)))
+                .thenReturn(resolvedGroup(destinationGroup, ApiEntityType.REGION, regionId));
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class)))
                 .thenReturn(vmCloneId, pmCloneId, vv1CloneId, s1CloneId, vv2CloneId, s2CloneId);
 
-        assertEquals(6, topology.size());
+        assertEquals(10, topology.size());
+
         topologyEditor.editTopology(topology, Lists.newArrayList(migrateVm), topologyInfo, groupResolver);
 
-        assertEquals(12, topology.size());
+        assertEquals(16, topology.size());
+
         assertTrue(topology.containsKey(vmId));
         assertTrue(topology.containsKey(vmCloneId));
         assertTrue(topology.containsKey(pmId));
@@ -363,6 +416,11 @@ public class TopologyEditorTest {
 
         assertTrue(topology.containsKey(s1CloneId));
         assertTrue(topology.containsKey(s2CloneId));
+
+        assertTrue(regionConnectedEntityToRemove.getEntityBuilder().hasEdit()
+                && regionConnectedEntityToRemove.getEntityBuilder().getEdit().hasRemoved());
+        assertTrue(zoneConnectedEntityToRemove.getEntityBuilder().hasEdit()
+                && zoneConnectedEntityToRemove.getEntityBuilder().getEdit().hasRemoved());
     }
 
     /**
