@@ -171,6 +171,7 @@ public class MapperConfig {
     public ScenarioMapper scenarioMapper() {
         return new ScenarioMapper(communicationConfig.repositoryApi(),
                 templatesUtils(),
+                serviceConfig.settingsService(),
                 settingManagerMappingLoader().getMapping(),
                 settingsMapper(),
                 serviceConfig.policiesService(),

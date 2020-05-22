@@ -51,6 +51,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDT
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingValueEntityTypeKey;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
+import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -76,6 +77,7 @@ import com.vmturbo.api.enums.DestinationEntityType;
 import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -201,6 +203,8 @@ public class ScenarioMapper {
 
     private final TemplatesUtils templatesUtils;
 
+    private final SettingsService settingsService;
+
     private final RepositoryApi repositoryApi;
 
     private final SettingsManagerMapping settingsManagerMapping;
@@ -217,6 +221,7 @@ public class ScenarioMapper {
 
     public ScenarioMapper(@Nonnull final RepositoryApi repositoryApi,
                           @Nonnull final TemplatesUtils templatesUtils,
+                          @Nonnull final SettingsService settingsService,
                           @Nonnull final SettingsManagerMapping settingsManagerMapping,
                           @Nonnull final SettingsMapper settingsMapper,
                           @Nonnull final PoliciesService policiesService,
@@ -225,10 +230,11 @@ public class ScenarioMapper {
                           @Nonnull final UuidMapper uuidMapper) {
 
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
-        this.policiesService = Objects.requireNonNull(policiesService);
         this.templatesUtils = Objects.requireNonNull(templatesUtils);
+        this.settingsService = Objects.requireNonNull(settingsService);
         this.settingsManagerMapping = Objects.requireNonNull(settingsManagerMapping);
         this.settingsMapper = Objects.requireNonNull(settingsMapper);
+        this.policiesService = Objects.requireNonNull(policiesService);
         this.groupRpcService = Objects.requireNonNull(groupRpcService);
         this.groupMapper = Objects.requireNonNull(groupMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
@@ -245,11 +251,13 @@ public class ScenarioMapper {
      * @throws InvalidOperationException e.g in case if alleviate pressure plan, if we don't get
      *         cluster information.
      * @throws IllegalArgumentException when constraint is of an unsupported configuration
+     * @throws UnknownObjectException if an invalid setting manager UUID is provided
      */
     @Nonnull
     public ScenarioInfo toScenarioInfo(final String name,
                                        @Nonnull final ScenarioApiDTO dto)
-            throws OperationFailedException, InvalidOperationException, IllegalArgumentException {
+            throws OperationFailedException, InvalidOperationException, IllegalArgumentException,
+                UnknownObjectException {
         final ScenarioInfo.Builder infoBuilder = ScenarioInfo.newBuilder();
         if (name != null) {
             infoBuilder.setName(name);
@@ -1113,7 +1121,7 @@ public class ScenarioMapper {
     @Nonnull
     private List<ScenarioChange> getTopologyChanges(final TopologyChangesApiDTO topoChanges,
                                                     @Nonnull final Set<Long> templateIds)
-            throws IllegalArgumentException {
+            throws IllegalArgumentException, UnknownObjectException {
         if (topoChanges == null) {
             return Collections.emptyList();
         }
@@ -1135,6 +1143,8 @@ public class ScenarioMapper {
             changes.add(getShopTogetherChange());
             // 2. Create the migration change
             changes.add(getTopologyMigrationChange(migrateObjects));
+            // 3. Create the RI Buy configuration
+            changes.add(getRiSettings());
         }
 
         return changes.build();
@@ -1230,6 +1240,21 @@ public class ScenarioMapper {
                                                 .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true).build())
                                                 .build())
                                 .build()).build();
+    }
+
+    /**
+     * Create a {@link ScenarioChange} representing an {@link RISetting} loaded with the current real-time RI purchase
+     * settings. This is required in the MCP context for initiating and providing setting values to the RI buy algorithm.
+     *
+     * @return a {@link ScenarioChange} representing the current real-time RI purchase settings
+     * @throws UnknownObjectException if an invalid setting manager UUID is provided
+     */
+    public ScenarioChange getRiSettings() throws UnknownObjectException {
+        List<SettingApiDTO> settingApiDTOs =
+                this.settingsService.getSettingsByUuid("reservedinstancemanager").stream()
+                        .map(d -> (SettingApiDTO)d)
+                        .collect(Collectors.toList());
+        return buildRISettingChanges(settingApiDTOs);
     }
 
     /**

@@ -54,6 +54,7 @@ import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingApiDT
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper.SettingValueEntityTypeKey;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
 import com.vmturbo.api.component.external.api.service.PoliciesService;
+import com.vmturbo.api.component.external.api.service.SettingsService;
 import com.vmturbo.api.component.external.api.util.TemplatesUtils;
 import com.vmturbo.api.dto.BaseApiDTO;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
@@ -78,6 +79,7 @@ import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.api.enums.DestinationEntityType;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
+import com.vmturbo.api.exceptions.UnknownObjectException;
 import com.vmturbo.api.utils.DateTimeUtil;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
@@ -112,6 +114,8 @@ import com.vmturbo.common.protobuf.search.CloudType;
 import com.vmturbo.common.protobuf.setting.SettingProto.NumericSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
+import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingServiceMole;
+import com.vmturbo.common.protobuf.stats.StatsMoles;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
@@ -139,12 +143,16 @@ public class ScenarioMapperTest {
 
     private GroupServiceMole groupServiceMole = spy(new GroupServiceMole());
 
+    private SettingServiceMole settingServiceMole = spy(new SettingServiceMole());
+
+    private SettingsService settingsService;
+
     private SettingsManagerMapping settingsManagerMapping = mock(SettingsManagerMapping.class);
 
     private SettingsMapper settingsMapper = mock(SettingsMapper.class);
 
     @Rule
-    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(groupServiceMole);
+    public GrpcTestServer grpcTestServer = GrpcTestServer.newServer(settingServiceMole, spy(new StatsMoles.StatsHistoryServiceMole()), groupServiceMole);
 
     private GroupMapper groupMapper = mock(GroupMapper.class);
 
@@ -159,6 +167,7 @@ public class ScenarioMapperTest {
         repositoryApi = Mockito.mock(RepositoryApi.class);
         templatesUtils = Mockito.mock(TemplatesUtils.class);
         policiesService = Mockito.mock(PoliciesService.class);
+        settingsService = Mockito.mock(SettingsService.class);
         groupRpcService = GroupServiceGrpc.newBlockingStub(grpcTestServer.getChannel());
         contextMock = mock(ScenarioChangeMappingContext.class);
         uuidMapper = mock(UuidMapper.class);
@@ -168,12 +177,13 @@ public class ScenarioMapperTest {
         when(repositoryApi.entitiesRequest(any())).thenReturn(req);
 
         scenarioMapper = new ScenarioMapper(repositoryApi,
-                templatesUtils, settingsManagerMapping, settingsMapper,
+                templatesUtils, settingsService, settingsManagerMapping, settingsMapper,
                 policiesService, groupRpcService, groupMapper, uuidMapper);
+        when(settingsService.getSettingsByUuid(any())).thenReturn(Lists.newArrayList());
     }
 
     @Test
-    public void testAdditionChange() throws OperationFailedException {
+    public void testAdditionChange() throws OperationFailedException, UnknownObjectException {
         AddObjectApiDTO dto = new AddObjectApiDTO();
         dto.setProjectionDays(Collections.singletonList(2));
         dto.setTarget(entity(1));
@@ -199,7 +209,7 @@ public class ScenarioMapperTest {
      * @throws OperationFailedException when an operation fails
      */
     @Test
-    public void testMigrationChange() throws OperationFailedException {
+    public void testMigrationChange() throws OperationFailedException, UnknownObjectException {
         long sourceVmOid = 1;
         BaseApiDTO source = new BaseApiDTO();
         source.setUuid(String.valueOf(sourceVmOid));
@@ -228,7 +238,7 @@ public class ScenarioMapperTest {
         ScenarioInfo info = getScenarioInfo(name, scenarioApiDTO);
         assertEquals(name, info.getName());
 
-        assertEquals(2, info.getChangesCount());
+        assertEquals(3, info.getChangesCount());
         List<ScenarioChange> changes = info.getChangesList();
 
         SettingOverride settingOverride = changes.get(0).getSettingOverride();
@@ -386,10 +396,11 @@ public class ScenarioMapperTest {
      *
      * @throws InvalidOperationException from toScenarioInfo, not expected
      * @throws OperationFailedException from toScenarioInfo, not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
     public void getScopeFromScopeDtoWithoutClassNameAndDisplayName()
-            throws InvalidOperationException, OperationFailedException {
+            throws InvalidOperationException, OperationFailedException, UnknownObjectException {
         BaseApiDTO inputScopeDto = new BaseApiDTO();
         inputScopeDto.setUuid("1");
         ApiId apiIdMock = mock(ApiId.class);
@@ -415,10 +426,11 @@ public class ScenarioMapperTest {
      *
      * @throws InvalidOperationException from toScenarioInfo, not expected
      * @throws OperationFailedException from toScenarioInfo, not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test(expected = IllegalArgumentException.class)
     public void getScopeFromScopeDtoWithWrongClassName()
-            throws InvalidOperationException, OperationFailedException {
+            throws InvalidOperationException, OperationFailedException, UnknownObjectException {
         BaseApiDTO inputScopeDto = new BaseApiDTO();
         inputScopeDto.setUuid("1");
         inputScopeDto.setClassName("WrongClassName");
@@ -439,10 +451,11 @@ public class ScenarioMapperTest {
      *
      * @throws InvalidOperationException from toScenarioInfo, not expected
      * @throws OperationFailedException from toScenarioInfo, not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test(expected = IllegalArgumentException.class)
     public void getScopeFromScopeDtoWithoutUuid()
-            throws InvalidOperationException, OperationFailedException {
+            throws InvalidOperationException, OperationFailedException, UnknownObjectException {
         BaseApiDTO inputScopeDto = new BaseApiDTO();
         inputScopeDto.setClassName("Entity");
         inputScopeDto.setClassName("Entity 1");
@@ -457,8 +470,14 @@ public class ScenarioMapperTest {
         // illegal argument exception expected since the input scope does not have a uuid
     }
 
+    /**
+     * Tests the templateAddtionChange.
+     *
+     * @throws OperationFailedException from toScenarioInfo, not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
+     */
     @Test
-    public void testTemplateAdditionChange() throws OperationFailedException {
+    public void testTemplateAdditionChange() throws OperationFailedException, UnknownObjectException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         AddObjectApiDTO dto = new AddObjectApiDTO();
         dto.setProjectionDays(Collections.singletonList(2));
@@ -488,8 +507,14 @@ public class ScenarioMapperTest {
 
     }
 
+    /**
+     * Test the removal change.
+     *
+     * @throws OperationFailedException from toScenarioInfo, not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
+     */
     @Test
-    public void testRemovalChange() throws OperationFailedException {
+    public void testRemovalChange() throws OperationFailedException, UnknownObjectException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         RemoveObjectApiDTO dto = new RemoveObjectApiDTO();
         dto.setProjectionDay(2);
@@ -510,9 +535,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testInvalidChange() throws OperationFailedException {
+    public void testInvalidChange() throws OperationFailedException, UnknownObjectException {
         ScenarioApiDTO scenarioDto = new ScenarioApiDTO();
         scenarioDto.setScope(Collections.singletonList(entity(1)));
         ApiId apiIdMock = mock(ApiId.class);
@@ -527,9 +553,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testReplaceChange() throws OperationFailedException {
+    public void testReplaceChange() throws OperationFailedException, UnknownObjectException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
         ReplaceObjectApiDTO dto = new ReplaceObjectApiDTO();
         dto.setProjectionDay(5);
@@ -552,9 +579,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testMultiplesChanges() throws OperationFailedException {
+    public void testMultiplesChanges() throws OperationFailedException, UnknownObjectException {
         AddObjectApiDTO addDto = new AddObjectApiDTO();
         addDto.setProjectionDays(Collections.singletonList(5));
         addDto.setTarget(entity(1));
@@ -584,9 +612,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testSettingOverride() throws OperationFailedException {
+    public void testSettingOverride() throws OperationFailedException, UnknownObjectException {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
         SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
@@ -612,9 +641,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testSettingOverridePlanSettingMapping() throws OperationFailedException {
+    public void testSettingOverridePlanSettingMapping() throws OperationFailedException, UnknownObjectException {
         final SettingApiDTO<String> setting = createStringSetting("foo", "value");
 
         SettingValueEntityTypeKey key = SettingsMapper.getSettingValueEntityTypeKey(setting);
@@ -640,9 +670,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testSettingOverrideUnknownSetting() throws OperationFailedException {
+    public void testSettingOverrideUnknownSetting() throws OperationFailedException, UnknownObjectException {
         final SettingApiDTO<String> setting = createStringSetting("unknown", "value");
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.singletonList(setting), null);
         assertThat(scenarioInfo.getChangesCount(), is(0));
@@ -674,9 +705,10 @@ public class ScenarioMapperTest {
      *
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoWithoutConfigChanges() throws OperationFailedException {
+    public void testToScenarioInfoWithoutConfigChanges() throws OperationFailedException, UnknownObjectException {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setConfigChanges(null);
         final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
@@ -688,9 +720,10 @@ public class ScenarioMapperTest {
      *
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoWithEmptyConfigChanges() throws OperationFailedException {
+    public void testToScenarioInfoWithEmptyConfigChanges() throws OperationFailedException, UnknownObjectException {
         final ScenarioInfo scenarioInfo = getScenarioInfo((List<SettingApiDTO<String>>)null, null);
         Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
     }
@@ -700,9 +733,10 @@ public class ScenarioMapperTest {
      *
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoWithEmptyAutomationSettingsList() throws OperationFailedException {
+    public void testToScenarioInfoWithEmptyAutomationSettingsList() throws OperationFailedException, UnknownObjectException {
         final ScenarioApiDTO decommissionHostPlanDto = new ScenarioApiDTO();
         decommissionHostPlanDto.setConfigChanges(null);
         decommissionHostPlanDto.setType(DECOMMISSION_HOST_SCENARIO_TYPE);
@@ -720,9 +754,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoUtilizationLevel() throws OperationFailedException {
+    public void testToScenarioInfoUtilizationLevel() throws OperationFailedException, UnknownObjectException {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         loadChanges.setUtilizationList(ImmutableList.of(createUtilizationApiDto(20)));
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
@@ -870,9 +905,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoBaselineChanges() throws OperationFailedException {
+    public void testToScenarioInfoBaselineChanges() throws OperationFailedException, UnknownObjectException {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         long testbaselineDate = 123456789;
         loadChanges.setBaselineDate(String.valueOf(testbaselineDate));
@@ -885,9 +921,11 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoUtilizationLevelEmptyLoadChanges() throws OperationFailedException {
+    public void testToScenarioInfoUtilizationLevelEmptyLoadChanges()
+            throws OperationFailedException, UnknownObjectException {
         final LoadChangesApiDTO loadChanges = new LoadChangesApiDTO();
         final ScenarioInfo scenarioInfo = getScenarioInfo(Collections.emptyList(), loadChanges);
         Assert.assertEquals(0, scenarioInfo.getChangesList().size());
@@ -940,8 +978,17 @@ public class ScenarioMapperTest {
     }
 
 
+    /**
+     * Gets a {@link ScenarioInfo} object given settings.
+     *
+     * @param automationSettings settings to apply
+     * @param loadChangesApiDTO load changes to apply
+     * @return a new {@link ScenarioInfo} object
+     * @throws OperationFailedException not expected
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
+     */
     private ScenarioInfo getScenarioInfo(@Nonnull List<SettingApiDTO<String>> automationSettings,
-            @Nonnull LoadChangesApiDTO loadChangesApiDTO) throws OperationFailedException {
+            @Nonnull LoadChangesApiDTO loadChangesApiDTO) throws OperationFailedException, UnknownObjectException {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         final ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
         configChanges.setAutomationSettingList(automationSettings);
@@ -950,7 +997,8 @@ public class ScenarioMapperTest {
         return getScenarioInfo("name", dto);
     }
 
-    private ScenarioInfo getScenarioInfo(String scenarioName, ScenarioApiDTO dto) throws OperationFailedException {
+    private ScenarioInfo getScenarioInfo(String scenarioName, ScenarioApiDTO dto)
+            throws OperationFailedException, UnknownObjectException {
         ScenarioInfo scenarioInfo = null;
         try {
             scenarioInfo = scenarioMapper.toScenarioInfo(scenarioName, dto);
@@ -1231,9 +1279,10 @@ public class ScenarioMapperTest {
     /**
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testAdditionFromGroup() throws OperationFailedException {
+    public void testAdditionFromGroup() throws OperationFailedException, UnknownObjectException {
         final Grouping group = Grouping.newBuilder().setId(1)
                 .setDefinition(GroupDefinition.getDefaultInstance())
                 .build();
@@ -1316,9 +1365,10 @@ public class ScenarioMapperTest {
      *
      * @throws OperationFailedException UuidMapper throws, one of the underlying operations
      * required to map the UUID to an {@link UuidMapper.ApiId} fails
+     * @throws UnknownObjectException when a setting manger is not found by the uuid specified
      */
     @Test
-    public void testToScenarioInfoForAlleviatePressurePlan() throws OperationFailedException {
+    public void testToScenarioInfoForAlleviatePressurePlan() throws OperationFailedException, UnknownObjectException {
         final ScenarioApiDTO dto = scenarioApiForAlleviatePressurePlan(1000, 2000);
 
         final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);

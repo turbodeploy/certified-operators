@@ -210,8 +210,8 @@ public class TopologyEditor {
                 // simulate a cloud migration.
                 final Map<Long, Long> additions = entitiesToMigrate.stream()
                         .flatMap(entityToMigrate ->
-                                // recursively get providers- get volumes associated with VMs, and storages associated with
-                                // volumes to render the Storage Tier Mapping table in plan results
+                                // recursively get providers- get volumes associated with VMs, and storages associated
+                                // with volumes to render the Storage Tier Mapping table in plan results
                                 getProvidersRecursive(entityToMigrate, topology).stream())
                         .distinct()
                         .collect(Collectors.toMap(Function.identity(), d -> 1L));
