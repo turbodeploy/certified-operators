@@ -23,10 +23,10 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
+import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.history.ingesters.common.IChunkProcessor.ChunkDisposition;
-import com.vmturbo.history.utils.MultiStageTimer;
-import com.vmturbo.history.utils.MultiStageTimer.AsyncTimer;
-import com.vmturbo.history.utils.MultiStageTimer.Detail;
 
 /**
  * This class manages the processing of data broadcasts, each consisting of a sequence of objects
@@ -294,8 +294,8 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                     // if we get here and no processor got deactivated, then we are complete
                     completelyProcessed = activeProcessors.size() == allProcessors.size();
                 } catch (InterruptedException e) {
-                    logger.error("Interrupted while processing chunk #{} from {}; " +
-                                    "abandoning remainder of broadcast",
+                    logger.error("Interrupted while processing chunk #{} from {}; "
+                                    + "abandoning remainder of broadcast",
                             chunkNo, infoSummary, e);
                     // don't hide the fact that we got interrupted
                     Thread.currentThread().interrupt();
@@ -415,8 +415,8 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                     dispositions.put(processor, processor.getDispositionOnTimeout());
                 } catch (InterruptedException e) {
                     logger.warn(
-                            "Chunk processor {} was interrupted procesing chunk #{} of {}; " +
-                                    "other processors that have not completed will be canceled.",
+                            "Chunk processor {} was interrupted procesing chunk #{} of {}; "
+                                    + "other processors that have not completed will be canceled.",
                             processor.getLabel(), chunkNo, infoSummary);
                     // don't hide the fact that this thread has been interrupted
                     Thread.currentThread().interrupt();
@@ -484,8 +484,8 @@ public abstract class AbstractChunkedBroadcastProcessor<T, InfoT, StateT, Result
                     cp.finish(objectCount, interrupted, infoSummary);
                 } catch (InterruptedException e) {
                     logger.warn(
-                            "Chunk processor {} interrupted during finish processing for  {}; " +
-                                    "other processors will be advised",
+                            "Chunk processor {} interrupted during finish processing for  {}; "
+                                    + "other processors will be advised",
                             cp.getLabel(), infoSummary, e);
                     interrupted = true;
                     Thread.currentThread().interrupt();

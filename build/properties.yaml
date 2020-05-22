@@ -47,6 +47,9 @@ defaultProperties:
         # string, with individual settings separated by "&". No initial "&" or "?" should appear
         mariadbDriverProperties: useServerPrepStmts=true
         mysqlDriverProperties:
+    extractor:
+        dbHost: timescaledb
+        dbPort: 5432
     action-orchestrator:
         identityGeneratorPrefix: 9
         actionPaginationDefaultLimit: 100
