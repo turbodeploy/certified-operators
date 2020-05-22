@@ -274,11 +274,7 @@ public class Resizer {
                                                   double rateOfRightSize) {
         // If the current capacity is already above the raw material's capacity, do not resize up further.
         double finalDesiredIncrement = Double.MAX_VALUE;
-        // If the current capacity is already greater than or equal to the capacity upper bound,
-        // then the capacity upper bound does not matter. Make it Double.MAX_VALUE.
-        double capacityUpperBound = resizeCommodity.getEffectiveCapacity() >= resizeCommodity.getSettings().getCapacityUpperBound()
-                ? Double.MAX_VALUE
-                : resizeCommodity.getSettings().getCapacityUpperBound();
+        double capacityUpperBound = resizeCommodity.getSettings().getCapacityUpperBound();
         double maxAmount = capacityUpperBound - resizeCommodity.getEffectiveCapacity();
         if (logger.isTraceEnabled() || seller.isDebugEnabled()) {
             logger.info("The max amount we can resize up {}/{} is {}. This is derived from currentCapacity {} and capacity upper bound {}",
