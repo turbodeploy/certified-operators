@@ -112,6 +112,8 @@ datacloud:
   enabled: false
 intersight-integration:
   enabled: false
+extractor:
+  enabled: false
 
 grafana:
   adminUser: turbonomic-root

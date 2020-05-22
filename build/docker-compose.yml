@@ -621,7 +621,7 @@ services:
   timescaledb:
     image: timescale/timescaledb:latest-pg12
     environment:
-      POSTGRES_USER: root
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: vmturbo
     volumes:
       - timescale-data:/var/lib/postresql/data

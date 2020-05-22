@@ -127,6 +127,8 @@ datacloud:
   enabled: false
 intersight-integration:
   enabled: false
+extractor:
+  enabled: false
 
 # Enable mediation
 actionscript:

@@ -89,6 +89,10 @@ dependencies:
     repository: file://../services/topology-processor
     version: 0.1.0
     condition: platform.enabled
+  - name: extractor
+    repository: file://../services/extractor
+    version: 0.1.0
+    condition: extractor.enabled # todo: change to platform.enabled once XLR/search is ready
 
 # Logging dependencies
   - name: elasticsearch
