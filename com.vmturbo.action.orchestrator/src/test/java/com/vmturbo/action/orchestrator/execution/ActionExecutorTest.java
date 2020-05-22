@@ -33,6 +33,7 @@ import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecu
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionState;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory.DefaultSynchronousExecutionStateFactory;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.Move;
@@ -87,11 +88,16 @@ public class ActionExecutorTest {
     private final ActionDTO.Action testAction =
         testActionBuilder.buildMoveAction(targetEntityId, 2L, 1, 3L, 1);
 
+    private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+
     @Before
     public void setup() {
         MockitoAnnotations.initMocks(this);
+        // license check client by default will act as if a valid license is installed.
+        when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
         // The class under test
-        actionExecutor = new ActionExecutor(server.getChannel(), executionStateFactory, 1, TimeUnit.HOURS);
+        actionExecutor = new ActionExecutor(server.getChannel(), executionStateFactory, 1,
+                TimeUnit.HOURS, licenseCheckClient);
     }
 
     /**
@@ -333,4 +339,12 @@ public class ActionExecutorTest {
         verify(state2, never()).complete(any());
     }
 
+    /**
+     * Verify that an action can't be completed when the license is invalid.
+     */
+    @Test(expected = ExecutionStartException.class)
+    public void testActionWithInvalidLicense() throws ExecutionStartException {
+        when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(false);
+        actionExecutor.execute(targetId, testAction, workflowOpt);
+    }
 }

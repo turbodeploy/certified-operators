@@ -23,6 +23,7 @@ import com.vmturbo.action.orchestrator.topology.TpEntitiesWithNewStateListener;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
@@ -41,7 +42,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
     ActionTranslationConfig.class,
     PlanOrchestratorClientConfig.class,
     TopologyProcessorConfig.class,
-    UserSessionConfig.class})
+    UserSessionConfig.class,
+    LicenseCheckClientConfig.class})
 public class ActionStoreConfig {
 
     @Autowired
@@ -76,6 +78,9 @@ public class ActionStoreConfig {
 
     @Autowired
     private UserSessionConfig userSessionConfig;
+
+    @Autowired
+    private LicenseCheckClientConfig licenseCheckClientConfig;
 
     @Value("${entityTypeRetryIntervalMillis}")
     private long entityTypeRetryIntervalMillis;
@@ -139,7 +144,8 @@ public class ActionStoreConfig {
             actionStatsConfig.actionsStatistician(),
             actionTranslationConfig.actionTranslator(),
             actionOrchestratorGlobalConfig.actionOrchestratorClock(),
-            userSessionConfig.userSessionContext());
+            userSessionConfig.userSessionContext(),
+            licenseCheckClientConfig.licenseCheckClient());
     }
 
     @Bean

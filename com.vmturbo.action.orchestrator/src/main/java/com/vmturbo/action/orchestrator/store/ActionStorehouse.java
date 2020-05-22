@@ -117,6 +117,8 @@ public class ActionStorehouse {
             } catch (RuntimeException e) {
                 logger.info("Unable to execute automated actions: ", e);
             }
+        } else {
+            logger.debug("Store type {} does not allow execution -- will not check for automated actions.", store.getStoreTypeName());
         }
         // severity cache must be refreshed after actions change (see EntitySeverityCache javadoc)
         store.getEntitySeverityCache().refresh(store);

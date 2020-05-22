@@ -57,6 +57,7 @@ import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
@@ -141,12 +142,16 @@ public class LiveActionStoreTest {
 
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
+    private LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
+        // license check client will default to acting as if a valid license is installed.
+        when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, targetSelector,
             probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
-            actionTranslator, clock, userSessionContext);
+            actionTranslator, clock, userSessionContext, licenseCheckClient);
 
         when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -190,6 +195,25 @@ public class LiveActionStoreTest {
         when(snapshot.getEntityFromOid(eq(hostD)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(hostD,
                 EntityType.PHYSICAL_MACHINE.getNumber()));
+    }
+
+    /**
+     * Verify that execution is allowed when the license is valid.
+     */
+    @Test
+    public void testValidLicense() {
+        when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
+        assertTrue(actionStore.allowsExecution());
+    }
+
+
+    /**
+     * Verify that execution is disallowed when the license is invalid.
+     */
+    @Test
+    public void testInvalidLicense() {
+        when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(false);
+        assertFalse(actionStore.allowsExecution());
     }
 
     @Test
@@ -275,7 +299,7 @@ public class LiveActionStoreTest {
         ActionStore actionStore = new LiveActionStore(
                 new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
                 targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, clock, userSessionContext);
+                actionsStatistician, actionTranslator, clock, userSessionContext, licenseCheckClient);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

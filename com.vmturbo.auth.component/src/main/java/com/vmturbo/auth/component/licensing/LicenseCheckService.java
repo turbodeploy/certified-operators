@@ -297,6 +297,8 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         }
 
         // we have licenses -- convert them to model licenses, validate them, and merge them together.
+        // we'll use this "combined" license to determine active features and detect invalid license
+        // combinations.
         License aggregateLicense = LicenseDTOUtils.combineLicenses(licenseDTOs);
 
         // get the workload count
@@ -305,7 +307,7 @@ public class LicenseCheckService extends LicenseCheckServiceImplBase implements 
         // at this point we have the aggregate license and workload count. Combine them to create
         // the license summary.
         LicenseSummary licenseSummary
-                = LicenseDTOUtils.licenseToLicenseSummary(aggregateLicense, isOverLimit);
+                = LicenseDTOUtils.createLicenseSummary(aggregateLicense, isOverLimit);
         // publish the news!!
         publishNewLicenseSummary(licenseSummary);
     }

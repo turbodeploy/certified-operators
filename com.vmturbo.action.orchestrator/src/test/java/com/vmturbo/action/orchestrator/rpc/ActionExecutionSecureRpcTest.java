@@ -66,6 +66,7 @@ import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.authorization.kvstore.AuthStore;
 import com.vmturbo.auth.api.authorization.kvstore.IAuthStore;
 import com.vmturbo.auth.api.authorization.scoping.EntityAccessScope;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.auth.test.JwtContextUtil;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
@@ -137,6 +138,8 @@ public class ActionExecutionSecureRpcTest {
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
     private final EntitiesAndSettingsSnapshotFactory snapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
+
+    private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
     private final ActionsRpcService actionsRpcService =
         new ActionsRpcService(clock,
@@ -221,7 +224,8 @@ public class ActionExecutionSecureRpcTest {
         // mock action store
         actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
             actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-            actionHistoryDao, actionsStatistician, actionTranslator, clock, userSessionContext));
+            actionHistoryDao, actionsStatistician, actionTranslator, clock, userSessionContext,
+                licenseCheckClient));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");
