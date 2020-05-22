@@ -31,6 +31,10 @@ global:
 #  externalKafka: xl-kafka.us-east-1.elb.amazonaws.com
 #  externalSyslog: a608c38591a9f11e9ad190efbcf8c7e5-1236730884.us-east-1.elb.amazonaws.com
   elk: false
+
+  # Set to "true" to enable on-prem XLR and reporting.
+  enableXlr: false
+
 #  debug: true
   dev_options: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
 #  storageClassName: default
@@ -61,8 +65,6 @@ platform:
   enabled: true
 control:
   enabled: true
-reporting:
-  enabled: false
 metron:
   enabled: false
 kubeturbo:
@@ -82,22 +84,6 @@ prometheus:
   enabled: false
 prometheus-mysql-exporter:
   enabled: false
-grafana:
-  adminPassword: admin
-  grafana.ini:
-    database:
-      # TODO - Use postgres instead of sqlite.
-      type: sqlite3
-    users:
-      # Disallow explicit user creation.
-      allow_sign_up: false
-      auto_assign_org_role: "Editor"
-    auth.proxy:
-      enabled: true
-    server:
-      # This needs to be in sync with the UI, and the NGINX configuration.
-      root_url: "https://%(domain)s/reports"
-      serve_from_sub_path: true
 chronograf:
   enabled: false
 timescaledb:
@@ -128,6 +114,24 @@ intersight-integration:
   enabled: false
 extractor:
   enabled: false
+
+grafana:
+  adminUser: turbonomic-root
+  adminPassword: admin
+  grafana.ini:
+    database:
+      # TODO - Use postgres instead of sqlite.
+      type: sqlite3
+    users:
+      # Disallow explicit user creation.
+      allow_sign_up: false
+      auto_assign_org_role: "Editor"
+    auth.proxy:
+      enabled: true
+    server:
+      # This needs to be in sync with the UI, and the NGINX configuration.
+      root_url: "https://%(domain)s/reports"
+      serve_from_sub_path: true
 
 # Enable mediation
 actionscript:
@@ -193,8 +197,6 @@ pure:
 rhv:
   enabled: false
 scaleio:
-  enabled: false
-servicenow:
   enabled: false
 snmp:
   enabled: false

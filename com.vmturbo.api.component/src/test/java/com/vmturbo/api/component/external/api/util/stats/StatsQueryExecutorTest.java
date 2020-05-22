@@ -78,7 +78,6 @@ public class StatsQueryExecutorTest {
     final StatsQueryContext statsQueryContext = mock(StatsQueryContext.class);
 
     private static final long MILLIS = 1_000_000;
-    private static final String COOLING = "Cooling";
 
     @Before
     public void setup() throws OperationFailedException {
@@ -331,11 +330,6 @@ public class StatsQueryExecutorTest {
         assertThat(snapshotApiDTO.getStatistics(), containsInAnyOrder(stat1, stat2));
     }
 
-    /**
-     * Test cooling and power display enable in general.
-     *
-     * @throws Exception exception thrown during test
-     */
     @Test
     public void testCoolingPowerStatsRequestAll() throws Exception {
         StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
@@ -348,7 +342,7 @@ public class StatsQueryExecutorTest {
         when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
         when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(true);
 
-        final StatApiDTO stat1 = stat(COOLING);
+        final StatApiDTO stat1 = stat("Cooling");
         final StatApiDTO stat2 = stat("foo");
         StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
         StatSnapshotApiDTO snapshot2 = snapshotWithStats(MILLIS, stat2);
@@ -394,7 +388,7 @@ public class StatsQueryExecutorTest {
         when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
         stats = executor.getAggregateStats(scope, period);
         assertFalse(stats.get(0).getStatistics().stream()
-            .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+            .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
 
         // If all entities were discovered by fabric, then show cooling and power.
         when(groupInfo.getEntityIds()).thenReturn(Sets.newHashSet(host1.getOid()));
@@ -402,7 +396,7 @@ public class StatsQueryExecutorTest {
         when(repositoryApi.entitiesRequest(any())).thenReturn(multiEntityRequest);
         stats = executor.getAggregateStats(scope, period);
         assertTrue(stats.get(0).getStatistics().stream()
-            .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+            .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
 
         /*
          * Scope is an entity
@@ -415,13 +409,13 @@ public class StatsQueryExecutorTest {
         when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L));
         stats = executor.getAggregateStats(scope, period);
         assertFalse(stats.get(0).getStatistics().stream()
-            .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+            .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
 
         // if host is stitched, then show cooling and power.
         when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L, 2L));
         stats = executor.getAggregateStats(scope, period);
         assertTrue(stats.get(0).getStatistics().stream()
-            .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+            .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
 
         /*
          * Scope is market
@@ -432,68 +426,11 @@ public class StatsQueryExecutorTest {
         // if it's market, then do not show cooling and power.
         stats = executor.getAggregateStats(scope, period);
         assertFalse(stats.get(0).getStatistics().stream()
-            .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
+            .anyMatch(stat -> "Cooling".equalsIgnoreCase(stat.getName())));
     }
 
     /**
-     * Test cooling and power display enable for different types of probe category.
-     *
-     * @throws Exception exception thrown during test
-     */
-    @Test
-    public void testProbePowerStatsRequestAll() throws Exception {
-        when(expandedScope.getGlobalScope()).thenReturn(Optional.empty());
-        when(expandedScope.getScopeOids()).thenReturn(Collections.singleton(111L));
-        when(expandedScope.getExpandedOids()).thenReturn(Collections.singleton(111L));
-
-        // One of the queries is applicable.
-        when(statsSubQuery1.applicableInContext(statsQueryContext)).thenReturn(true);
-        when(statsSubQuery2.applicableInContext(statsQueryContext)).thenReturn(true);
-
-        final StatApiDTO stat1 = stat(COOLING);
-        StatSnapshotApiDTO snapshot1 = snapshotWithStats(MILLIS, stat1);
-        when(statsSubQuery1.getAggregateStats(any(), any()))
-                .thenReturn(Collections.singletonList(snapshot1));
-
-        // Create a list of targets.
-        List<ThinTargetInfo> thinTargetInfos = Lists.newArrayList(
-                ImmutableThinTargetInfo.builder().oid(1L).displayName("target1").isHidden(false).probeInfo(
-                        ImmutableThinProbeInfo.builder().oid(3L).type("probe1").category("HYPERCONVERGED").build()).build(),
-                ImmutableThinTargetInfo.builder().oid(2L).displayName("target2").isHidden(false).probeInfo(
-                        ImmutableThinProbeInfo.builder().oid(4L).type("probe2").category("HYPERVISOR").build()).build(),
-                ImmutableThinTargetInfo.builder().oid(5L).displayName("target3").isHidden(false).probeInfo(
-                ImmutableThinProbeInfo.builder().oid(7L).type("probe3").category("Fabric").build()).build());
-        when(statsQueryContext.getTargets()).thenReturn(thinTargetInfos);
-
-        /*
-         * Scope is an entity
-         */
-        when(scope.isGroup()).thenReturn(false);
-        when(scope.isEntity()).thenReturn(true);
-        when(scope.getScopeTypes()).thenReturn(Optional.of(ImmutableSet.of(
-                ApiEntityType.CHASSIS)));
-        final StatPeriodApiInputDTO period = new StatPeriodApiInputDTO();
-
-        // if targets is not hyperconverged or fabric, then don't show cooling and power.
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(2L));
-        List<StatSnapshotApiDTO> stats = executor.getAggregateStats(scope, period);
-        assertFalse(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-        // if targets is hyperconverged or fabric, then don't show cooling and power, then show cooling and power.
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(1L));
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-        when(scope.getDiscoveringTargetIds()).thenReturn(Sets.newHashSet(5L));
-        stats = executor.getAggregateStats(scope, period);
-        assertTrue(stats.get(0).getStatistics().stream()
-                .anyMatch(stat -> COOLING.equalsIgnoreCase(stat.getName())));
-
-    }
-    /**
-     * Test creation of cloud tier stats snapshots.
+     * Test creation of cloud tier stats snapshots
      *
      * @throws Exception when testCreateCloudTierStatsSnapshot fails
      */

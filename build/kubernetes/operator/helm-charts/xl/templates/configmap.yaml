@@ -103,7 +103,7 @@ data:
         externalApiFileSystemBase: file:/swagger/
         cpuInfoCacheLifetimeHours: 8
         sessionTimeoutSeconds: 1800
-        enableReporting: {{ .Values.reporting.enabled }}
+        enableReporting: {{ .Values.global.enableXlr }}
       auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7
