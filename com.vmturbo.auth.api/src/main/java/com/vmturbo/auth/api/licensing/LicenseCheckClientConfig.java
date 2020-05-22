@@ -43,7 +43,7 @@ public class LicenseCheckClientConfig {
     public IMessageReceiver<LicenseSummary> licenseSummaryConsumer() {
         return kafkaConsumerConfig.kafkaConsumer()
                 .messageReceiverWithSettings(
-                        new TopicSettings(LicenseCheckClient.LICENSE_SUMMARY_TOPIC, StartFrom.BEGINNING),
+                        new TopicSettings(LicenseCheckClient.LICENSE_SUMMARY_TOPIC, StartFrom.LAST_COMMITTED),
                         LicenseSummary::parseFrom);
     }
 

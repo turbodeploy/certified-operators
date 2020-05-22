@@ -22,6 +22,8 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import io.grpc.Channel;
+
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -29,8 +31,6 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
-
-import io.grpc.Channel;
 
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent;
@@ -44,6 +44,7 @@ import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor.ActionE
 import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
@@ -61,8 +62,10 @@ public class AutomatedActionExecutorTest {
 
     private final Clock clock = new MutableFixedClock(1_000_000);
 
+    private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+
     private final ActionExecutor actionExecutor =
-            Mockito.spy(new ActionExecutor(channel, clock, 1, TimeUnit.HOURS));
+            Mockito.spy(new ActionExecutor(channel, clock, 1, TimeUnit.HOURS, licenseCheckClient));
     private final ActionTargetSelector actionTargetSelector =
             Mockito.mock(ActionTargetSelector.class);
     private final EntitiesAndSettingsSnapshotFactory entitySettingsCache =

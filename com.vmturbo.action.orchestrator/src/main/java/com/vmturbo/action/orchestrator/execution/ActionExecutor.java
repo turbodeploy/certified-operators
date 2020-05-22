@@ -25,6 +25,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionStateFactory.DefaultSynchronousExecutionStateFactory;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
@@ -64,22 +65,27 @@ public class ActionExecutor implements ActionExecutionListener {
 
     private final SynchronousExecutionStateFactory synchronousExecutionStateFactory;
 
+    private final LicenseCheckClient licenseCheckClient;
+
     ActionExecutor(@Nonnull final Channel topologyProcessorChannel,
                    @Nonnull final Clock clock,
                    final int executionTimeout,
-                   @Nonnull final TimeUnit executionTimeoutUnit) {
-        this(topologyProcessorChannel, new DefaultSynchronousExecutionStateFactory(clock), executionTimeout, executionTimeoutUnit);
+                   @Nonnull final TimeUnit executionTimeoutUnit,
+                   @Nonnull final LicenseCheckClient licenseCheckClient) {
+        this(topologyProcessorChannel, new DefaultSynchronousExecutionStateFactory(clock), executionTimeout, executionTimeoutUnit, licenseCheckClient);
     }
 
     @VisibleForTesting
     ActionExecutor(@Nonnull final Channel topologyProcessorChannel,
                    @Nonnull final SynchronousExecutionStateFactory executionStateFactory,
                    final int executionTimeout,
-                   @Nonnull final TimeUnit executionTimeoutUnit) {
+                   @Nonnull final TimeUnit executionTimeoutUnit,
+                   @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.actionExecutionService = ActionExecutionServiceGrpc.newBlockingStub(topologyProcessorChannel);
         this.synchronousExecutionStateFactory = executionStateFactory;
         this.executionTimeout = executionTimeout;
         this.executionTimeoutUnit = executionTimeoutUnit;
+        this.licenseCheckClient = licenseCheckClient;
     }
 
     /**
@@ -126,10 +132,18 @@ public class ActionExecutor implements ActionExecutionListener {
     public void execute(final long targetId, @Nonnull final ActionDTO.Action action,
                         @Nonnull Optional<WorkflowDTO.Workflow> workflowOpt)
             throws ExecutionStartException {
+        // pjs: make sure a license is available when it's time to execute an action
+        if (!licenseCheckClient.hasValidNonExpiredLicense()) {
+            // no valid license detected!
+            // this could be ephemeral -- e.g. a valid license could be installed, or the auth
+            // component or this component could be in the middle of starting up.
+            throw new ExecutionStartException("No valid license was detected. Will not execute the action.");
+        }
+
         Objects.requireNonNull(action);
         Objects.requireNonNull(workflowOpt);
 
-        final ActionType actionType =  ActionDTOUtil.getActionInfoActionType(action);
+        final ActionType actionType = ActionDTOUtil.getActionInfoActionType(action);
 
         final ExecuteActionRequest.Builder executionRequestBuilder = ExecuteActionRequest.newBuilder()
                 .setActionId(action.getId())

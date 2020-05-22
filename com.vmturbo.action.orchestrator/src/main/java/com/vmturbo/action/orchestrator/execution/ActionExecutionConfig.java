@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
 import com.vmturbo.action.orchestrator.action.constraint.ActionConstraintStoreFactory;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc;
 import com.vmturbo.common.protobuf.topology.ProbeActionCapabilitiesServiceGrpc.ProbeActionCapabilitiesServiceBlockingStub;
@@ -25,7 +26,8 @@ import com.vmturbo.topology.processor.api.TopologyProcessor;
 @Configuration
 @Import({ActionOrchestratorGlobalConfig.class,
         TopologyProcessorConfig.class,
-        GroupClientConfig.class})
+        GroupClientConfig.class,
+        LicenseCheckClientConfig.class})
 public class ActionExecutionConfig {
 
     @Autowired
@@ -36,6 +38,9 @@ public class ActionExecutionConfig {
 
     @Autowired
     private TopologyProcessorConfig tpConfig;
+
+    @Autowired
+    private LicenseCheckClientConfig licenseCheckClientConfig;
 
     @Value("${failedGroupUpdateDelaySeconds:10}")
     private int groupUpdateDelaySeconds;
@@ -81,7 +86,7 @@ public class ActionExecutionConfig {
                 new ActionExecutor(tpConfig.topologyProcessorChannel(),
                     globalConfig.actionOrchestratorClock(),
                     actionExecutionTimeoutMins,
-                    TimeUnit.MINUTES);
+                    TimeUnit.MINUTES, licenseCheckClientConfig.licenseCheckClient());
 
         tpConfig.topologyProcessor().addActionListener(executor);
 
