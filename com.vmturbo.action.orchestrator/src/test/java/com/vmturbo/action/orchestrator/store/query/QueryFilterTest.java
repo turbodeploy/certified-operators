@@ -181,7 +181,7 @@ public class QueryFilterTest {
                     .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                         .setInitialPlacement(InitialPlacement.getDefaultInstance()))))
                 .build();
-        final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator);
+        final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator, 2244L);
         assertTrue(new QueryFilter(ActionQueryFilter.newBuilder()
                 .addCategories(ActionCategory.EFFICIENCY_IMPROVEMENT)
                 .build(), PlanActionStore.VISIBILITY_PREDICATE).test(actionView));
@@ -201,7 +201,7 @@ public class QueryFilterTest {
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                                 .setInitialPlacement(InitialPlacement.getDefaultInstance()))))
                 .build();
-        final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator);
+        final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator, 0L);
 
         // no severity filter: should succeed
         assertTrue(new QueryFilter(ActionQueryFilter.getDefaultInstance(),
@@ -242,7 +242,7 @@ public class QueryFilterTest {
                         .addChangeProviderExplanation(ChangeProviderExplanation.newBuilder()
                                 .setInitialPlacement(InitialPlacement.getDefaultInstance()))))
                 .build();
-        final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator);
+        final ActionView actionView = new Action(action, ACTION_PLAN_ID, actionModeCalculator, 2244L);
         assertFalse(new QueryFilter(ActionQueryFilter.newBuilder()
                 .addCategories(ActionCategory.COMPLIANCE)
                 .build(), PlanActionStore.VISIBILITY_PREDICATE).test(actionView));
@@ -520,7 +520,7 @@ public class QueryFilterTest {
                 .setInfo(TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
                 .build();
 
-        return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator));
+        return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator, 2244L));
     }
 
     private ActionView notExecutableMoveAction(long id, long sourceId, int sourceType, long destId, int destType, long targetId) {
@@ -533,6 +533,6 @@ public class QueryFilterTest {
             .setInfo(TestActionBuilder.makeMoveInfo(targetId, sourceId, sourceType, destId, destType))
             .build();
 
-        return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator));
+        return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator, 2244L));
     }
 }

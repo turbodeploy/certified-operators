@@ -43,6 +43,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.communication.ITransport;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.identity.store.IdentityStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.matrix.component.TheMatrix;
@@ -88,7 +89,6 @@ import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.OperationTestUtilities.TrackingOperationListener;
 import com.vmturbo.topology.processor.operation.action.Action;
@@ -175,6 +175,9 @@ public class OperationManagerTest {
     private final ITransport<MediationServerMessage, MediationClientMessage> transport =
             Mockito.mock(ITransport.class);
 
+    /**
+     * Temporary folder rule.
+     */
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
 
@@ -183,6 +186,11 @@ public class OperationManagerTest {
             .setId("vm-1")
             .build();
 
+    /**
+     * Initializes the tests.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Before
     public void setup() throws Exception {
         entityActionDao = new EntityActionDaoImp(dsl, 100, 300,
@@ -465,7 +473,7 @@ public class OperationManagerTest {
                 .build();
 
         // Force an exception on the entitiesDiscovered call.
-        final IdentityUninitializedException exception = Mockito.mock(IdentityUninitializedException.class);
+        final IdentityServiceException exception = Mockito.mock(IdentityServiceException.class);
         Mockito.doThrow(exception)
                .when(entityStore).entitiesDiscovered(anyLong(), anyLong(), anyInt(), eq(discoveryType), any());
 
@@ -901,6 +909,11 @@ public class OperationManagerTest {
        Assert.assertTrue(deactivateEntityIds.isEmpty());
     }
 
+    /**
+     * Tests process action success.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testProcessActionSuccess() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
@@ -957,6 +970,11 @@ public class OperationManagerTest {
        Assert.assertTrue(deactivateEntityIds.isEmpty());
     }
 
+    /**
+     * Tests action discovery failure.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testActionDiscoveryFailure() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
@@ -991,6 +1009,11 @@ public class OperationManagerTest {
         Mockito.verify(operationListener, times(2)).notifyOperationState(action);
     }
 
+    /**
+     * Tests process action cancel operation.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testProcessActionCancelOperation() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
@@ -1018,6 +1041,11 @@ public class OperationManagerTest {
             CoreMatchers.containsString("Transport closed"));
     }
 
+    /**
+     * Tests processing action when target is removed.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testProcessActionTargetRemoval() throws Exception {
         final List<ActionItemDTO> actionItemDtos = actionItemDtos();
@@ -1041,6 +1069,11 @@ public class OperationManagerTest {
         Assert.assertFalse(operationManager.getInProgressAction(action.getId()).isPresent());
     }
 
+    /**
+     * Tests that expiration is checked.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void checkForExpiredOperations() throws Exception {
         operationManager.checkForExpiredOperations();
@@ -1052,6 +1085,7 @@ public class OperationManagerTest {
      * Test that a runtime exception during discovery response processing does not cause
      * us to leave the operation in a state that continues to say it is in progress.
      *
+     * @param discoveryType discovery type to test
      * @throws Exception If something goes wrong.
      */
     @Test

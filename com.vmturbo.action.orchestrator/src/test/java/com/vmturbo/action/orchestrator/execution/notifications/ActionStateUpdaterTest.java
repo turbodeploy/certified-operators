@@ -90,7 +90,7 @@ public class ActionStateUpdaterTest {
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
         when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(entitySettingsCache.getResourceGroupForEntity(anyLong())).thenReturn(Optional.empty());
-        testAction = new Action(recommendation, 4, actionModeCalculator);
+        testAction = new Action(recommendation, 4, actionModeCalculator, 2244L);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
         testAction = makeTestAction(actionId);
@@ -98,7 +98,7 @@ public class ActionStateUpdaterTest {
     }
 
     private Action makeTestAction(final long actionId) throws UnsupportedActionException {
-        Action testAction = new Action(recommendation.toBuilder().setId(actionId).build(), 4, actionModeCalculator);
+        Action testAction = new Action(recommendation.toBuilder().setId(actionId).build(), 4, actionModeCalculator, 2244L);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entitySettingsCache, testAction);
         testAction.getActionTranslation().setPassthroughTranslationSuccess();
         testAction.refreshAction(entitySettingsCache);
@@ -159,7 +159,8 @@ public class ActionStateUpdaterTest {
                 serializedAction.getCurrentState().getNumber(),
                 serializedAction.getActionDetailData(),
                 serializedAction.getAssociatedAccountId(),
-                serializedAction.getAssociatedResourceGroupId());
+                serializedAction.getAssociatedResourceGroupId(),
+                2244L);
     }
 
 
@@ -195,7 +196,8 @@ public class ActionStateUpdaterTest {
             serializedAction.getCurrentState().getNumber(),
             serializedAction.getActionDetailData(),
             serializedAction.getAssociatedAccountId(),
-            serializedAction.getAssociatedResourceGroupId());
+            serializedAction.getAssociatedResourceGroupId(),
+                2244L);
     }
 
     /**
@@ -230,7 +232,8 @@ public class ActionStateUpdaterTest {
             serializedAction.getActionDecision(),
             serializedAction.getExecutionStep(),
             serializedAction.getCurrentState().getNumber(),
-            serializedAction.getActionDetailData(), null, null);
+            serializedAction.getActionDetailData(), null, null,
+                2244L);
     }
 
     /**
@@ -276,7 +279,8 @@ public class ActionStateUpdaterTest {
             serializedAction.getActionDecision(),
             serializedAction.getExecutionStep(),
             serializedAction.getCurrentState().getNumber(),
-                serializedAction.getActionDetailData(), null, null);
+                serializedAction.getActionDetailData(), null, null,
+                serializedAction.getRecommendationOid());
         SerializationState serializedAction2 = new SerializationState(testAction);
         verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
             recommendation,
@@ -285,7 +289,8 @@ public class ActionStateUpdaterTest {
             serializedAction2.getActionDecision(),
             serializedAction2.getExecutionStep(),
             serializedAction2.getCurrentState().getNumber(),
-                serializedAction2.getActionDetailData(), null, null);
+                serializedAction2.getActionDetailData(), null, null,
+                serializedAction2.getRecommendationOid());
     }
 
     /**

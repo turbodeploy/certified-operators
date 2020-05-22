@@ -31,6 +31,7 @@ public interface ActionHistoryDao {
      *                         other topology-related data).
      * @param associatedAccountId The ID of the associated business account, if any.
      * @param associatedResourceGroupId The ID of the associated resource group, if any.
+     * @param recommendationOid OID of market recommendation
      * @return action history, if created
      */
     @Nonnull
@@ -44,7 +45,8 @@ public interface ActionHistoryDao {
             int currentState,
             @Nullable byte[] actionDetailData,
             @Nullable Long associatedAccountId,
-            @Nullable Long associatedResourceGroupId);
+            @Nullable Long associatedResourceGroupId,
+            long recommendationOid);
 
     /**
      * Returns all the existing action history between 'startDate' and 'endDate'.

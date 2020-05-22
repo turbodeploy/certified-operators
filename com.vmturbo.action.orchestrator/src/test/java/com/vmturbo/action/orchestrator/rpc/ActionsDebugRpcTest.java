@@ -67,7 +67,9 @@ public class ActionsDebugRpcTest {
     @Test
     public void testOverwriteActions() throws Exception {
         when(actionStorehouse.storeActions(eq(actionPlan))).thenReturn(actionStore);
-        final ActionView actionView = new Action(actionPlan.getActionList().get(0), actionPlan.getId(), actionModeCalculator);
+        final ActionView actionView =
+                new Action(actionPlan.getActionList().get(0), actionPlan.getId(),
+                        actionModeCalculator, 1L);
         when(actionStore.getActionViews()).thenReturn(
             new MapBackedActionViews(ImmutableMap.of(actionView.getId(), actionView)));
 

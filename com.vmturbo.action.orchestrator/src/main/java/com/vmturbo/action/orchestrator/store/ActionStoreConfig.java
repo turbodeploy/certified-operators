@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -20,10 +21,15 @@ import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.topology.TpEntitiesWithNewStateListener;
+import com.vmturbo.action.orchestrator.store.identity.ActionInfoModel;
+import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
+import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
+import com.vmturbo.action.orchestrator.store.identity.RecommendationIdentityStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
 import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.group.api.GroupClientConfig;
 import com.vmturbo.plan.orchestrator.api.impl.PlanGarbageDetector;
 import com.vmturbo.plan.orchestrator.api.impl.PlanOrchestratorClientConfig;
@@ -132,6 +138,27 @@ public class ActionStoreConfig {
             entitySettingsCache());
     }
 
+    /**
+     * Identity store for market recommendations.
+     *
+     * @return identity store
+     */
+    @Bean
+    public RecommendationIdentityStore recommendationIdentityStore() {
+        return new RecommendationIdentityStore(databaseConfig.dsl());
+    }
+
+    /**
+     * Identity service for market recommendations.
+     *
+     * @return identity service
+     */
+    @Bean
+    public IdentityServiceImpl<ActionInfo, ActionInfoModel> actionIdentityService() {
+        return new IdentityServiceImpl<>(recommendationIdentityStore(),
+                new ActionInfoModelCreator(), Clock.systemUTC(), 24 * 3600 * 1000);
+    }
+
     @Bean
     public IActionStoreFactory actionStoreFactory() {
         return new ActionStoreFactory(actionFactory(),
@@ -145,7 +172,8 @@ public class ActionStoreConfig {
             actionTranslationConfig.actionTranslator(),
             actionOrchestratorGlobalConfig.actionOrchestratorClock(),
             userSessionConfig.userSessionContext(),
-            licenseCheckClientConfig.licenseCheckClient());
+            licenseCheckClientConfig.licenseCheckClient(),
+            actionIdentityService());
     }
 
     @Bean

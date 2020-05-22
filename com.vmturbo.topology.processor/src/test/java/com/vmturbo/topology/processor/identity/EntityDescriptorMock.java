@@ -19,6 +19,12 @@ public class EntityDescriptorMock implements EntityDescriptor {
 
     private final List<PropertyDescriptor> heuristicPropertiers;
 
+    /**
+     * Constructs entity descriptor mock.
+     *
+     * @param identifyingPropertiers identifying properties
+     * @param heuristicPropertiers heuristic properties
+     */
     public EntityDescriptorMock(List<String> identifyingPropertiers,
                                 List<String> heuristicPropertiers) {
         this.identifyingPropertiers = composePropertySet(identifyingPropertiers);
@@ -26,6 +32,13 @@ public class EntityDescriptorMock implements EntityDescriptor {
         this.heuristicPropertiers = composePropertySet(heuristicPropertiers);
     }
 
+    /**
+     * Constructs entity descriptor mock.
+     *
+     * @param nonVolatileProperties non-volatile properties
+     * @param volatileProperties volatile properties
+     * @param heuristicProperties euristic properties
+     */
     public EntityDescriptorMock(List<String> nonVolatileProperties,
                                 List<String> volatileProperties,
                                 List<String> heuristicProperties) {
@@ -38,14 +51,14 @@ public class EntityDescriptorMock implements EntityDescriptor {
     @Override
     @Nonnull
     public List<PropertyDescriptor> getVolatileProperties(
-            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) {
         return volatilePropertiers;
     }
 
     @Override
     @Nonnull
     public List<PropertyDescriptor> getIdentifyingProperties(
-            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) {
         return identifyingPropertiers;
     }
 
@@ -64,10 +77,16 @@ public class EntityDescriptorMock implements EntityDescriptor {
     @Override
     @Nonnull
     public List<PropertyDescriptor> getHeuristicProperties(
-            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) {
         return heuristicPropertiers;
     }
 
+    /**
+     * Composes property set.
+     *
+     * @param properties properties
+     * @return property descriptors
+     */
     public static List<PropertyDescriptor> composePropertySet(@Nonnull List<String> properties) {
         final AtomicInteger idCounter = new AtomicInteger(0);
         return properties.stream()

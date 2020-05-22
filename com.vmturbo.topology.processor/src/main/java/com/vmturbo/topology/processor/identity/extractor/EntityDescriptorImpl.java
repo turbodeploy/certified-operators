@@ -10,7 +10,6 @@ import com.google.common.collect.ImmutableList;
 import com.vmturbo.topology.processor.identity.EntityDescriptor;
 import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
 import com.vmturbo.topology.processor.identity.HeuristicsDescriptor;
-import com.vmturbo.topology.processor.identity.IdentityWrongSetException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 
 /**
@@ -21,6 +20,13 @@ public class EntityDescriptorImpl implements EntityDescriptor {
     private final List<PropertyDescriptor> volatileProperties;
     private final List<PropertyDescriptor> heuristicProperties;
 
+    /**
+     * Constructs entity descriptor.
+     *
+     * @param identifyingProperties identifying properties
+     * @param volatileProperties volatile properties
+     * @param heuristicProperties heuristic properties
+     */
     public EntityDescriptorImpl(@Nonnull List<PropertyDescriptor> identifyingProperties,
             @Nonnull List<PropertyDescriptor> volatileProperties,
             @Nonnull List<PropertyDescriptor> heuristicProperties) {
@@ -32,21 +38,21 @@ public class EntityDescriptorImpl implements EntityDescriptor {
     @Override
     @Nonnull
     public List<PropertyDescriptor> getIdentifyingProperties(
-            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) {
         return identifyingProperties;
     }
 
     @Override
     @Nonnull
     public List<PropertyDescriptor> getVolatileProperties(
-            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) {
         return volatileProperties;
     }
 
     @Override
     @Nonnull
     public List<PropertyDescriptor> getHeuristicProperties(
-            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException {
+            @Nonnull EntityMetadataDescriptor metadataDescriptor) {
         return heuristicProperties;
     }
 

@@ -44,6 +44,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 
 /**
@@ -147,10 +148,12 @@ public class ActionOrchestratorDiagnosticsTest {
 
     @Test
     public void testTwoActions() throws Exception {
-        final Action action1 = actionFactory.newAction(
-                ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L);
-        final Action action2 = actionFactory.newAction(
-                ActionOrchestratorTestUtils.createMoveRecommendation(2), 0L);
+        final Action action1 =
+                actionFactory.newAction(ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L,
+                        IdentityGenerator.next());
+        final Action action2 =
+                actionFactory.newAction(ActionOrchestratorTestUtils.createMoveRecommendation(2), 0L,
+                        IdentityGenerator.next());
         when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder().put(realtimeTopologyContextId, actionStore).build()
         );
@@ -175,8 +178,9 @@ public class ActionOrchestratorDiagnosticsTest {
         final ActionStore newStore = mock(ActionStore.class);
         final EntitySeverityCache severityCache = mock(EntitySeverityCache.class);
 
-        final Action action = actionFactory.newAction(
-            ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L);
+        final Action action =
+                actionFactory.newAction(ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L,
+                        IdentityGenerator.next());
         when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder()
                 .put(planTopologyContextId, planStore)
@@ -204,14 +208,18 @@ public class ActionOrchestratorDiagnosticsTest {
         final ActionStore planStore = mock(ActionStore.class);
         final EntitySeverityCache planSeverityCache = mock(EntitySeverityCache.class);
 
-        final Action action1 = actionFactory.newAction(
-            ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L);
-        final Action action2 = actionFactory.newAction(
-            ActionOrchestratorTestUtils.createMoveRecommendation(2), 0L);
-        final Action action3 = actionFactory.newAction(
-            ActionOrchestratorTestUtils.createMoveRecommendation(3), 0L);
-        final Action action4 = actionFactory.newAction(
-            ActionOrchestratorTestUtils.createMoveRecommendation(4), 0L);
+        final Action action1 =
+                actionFactory.newAction(ActionOrchestratorTestUtils.createMoveRecommendation(1), 0L,
+                        IdentityGenerator.next());
+        final Action action2 =
+                actionFactory.newAction(ActionOrchestratorTestUtils.createMoveRecommendation(2), 0L,
+                        IdentityGenerator.next());
+        final Action action3 =
+                actionFactory.newAction(ActionOrchestratorTestUtils.createMoveRecommendation(3), 0L,
+                        IdentityGenerator.next());
+        final Action action4 =
+                actionFactory.newAction(ActionOrchestratorTestUtils.createMoveRecommendation(4), 0L,
+                        IdentityGenerator.next());
         when(actionStorehouse.getAllStores()).thenReturn(
             ImmutableMap.<Long, ActionStore>builder()
                 .put(realtimeTopologyContextId, actionStore)
@@ -256,7 +264,7 @@ public class ActionOrchestratorDiagnosticsTest {
     private void testSingleAction(@Nullable final Consumer<Action> actionModifier)
             throws Exception {
         final ActionDTO.Action rec = ActionOrchestratorTestUtils.createMoveRecommendation(1);
-        final Action action = actionFactory.newAction(rec, 0L);
+        final Action action = actionFactory.newAction(rec, 0L, IdentityGenerator.next());
         final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(snapshot.getResourceGroupForEntity(anyLong())).thenReturn(Optional.empty());

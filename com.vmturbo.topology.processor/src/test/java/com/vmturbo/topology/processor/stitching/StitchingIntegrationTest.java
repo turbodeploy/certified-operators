@@ -25,6 +25,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -39,10 +40,7 @@ import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
 import com.vmturbo.topology.processor.targets.Target;
@@ -77,11 +75,17 @@ public abstract class StitchingIntegrationTest {
 
     protected final Clock clock = mock(Clock.class);
 
+    /**
+     * GRPC service rule.
+     */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsRpcSpy);
 
+    /**
+     * Initializes the tests.
+     */
     @Before
-    public void integrationSetup() throws Exception {
+    public void integrationSetup() {
         final StatsHistoryServiceBlockingStub statsServiceClient =
                 StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
         postStitchingOperationLibrary =
@@ -107,8 +111,7 @@ public abstract class StitchingIntegrationTest {
     }
 
     protected void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId)
-            throws IdentityUninitializedException, IdentityMetadataMissingException,
-            IdentityProviderException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
                 Mockito.eq(probeId),

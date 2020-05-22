@@ -49,6 +49,7 @@ import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServic
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -93,12 +94,14 @@ public class ActionOrchestratorTestUtils {
 
     @Nonnull
     public static Action actionFromRecommendation(final ActionDTO.Action recommendation, final long actionPlanId) {
-        return new Action(recommendation, actionPlanId, actionModeCalculator);
+        return new Action(recommendation, actionPlanId, actionModeCalculator,
+                IdentityGenerator.next());
     }
 
     @Nonnull
     public static Action createMoveAction(final long actionId, final long actionPlanId) {
-        return new Action(createMoveRecommendation(actionId), actionPlanId, actionModeCalculator);
+        return new Action(createMoveRecommendation(actionId), actionPlanId, actionModeCalculator,
+                IdentityGenerator.next());
     }
 
     @Nonnull

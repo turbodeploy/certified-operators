@@ -10,7 +10,6 @@ import javax.annotation.Nullable;
 
 import com.vmturbo.topology.processor.identity.EntityDescriptor;
 import com.vmturbo.topology.processor.identity.EntityMetadataDescriptor;
-import com.vmturbo.topology.processor.identity.IdentityWrongSetException;
 import com.vmturbo.topology.processor.identity.PropertyDescriptor;
 
 /**
@@ -55,13 +54,11 @@ public class HeuristicsMatcher {
      * @param descriptor The entity in question.
      * @param metadata The metadata for the entity.
      * @return The {@code true} if matched.
-     *
-     * @exception IdentityWrongSetException In case the required properties aren't available.
      */
     public boolean locateMatch(@Nullable Iterable<PropertyDescriptor> heuristicsLast,
                     @Nonnull Iterable<PropertyDescriptor> heuristicsNow,
                     @Nonnull EntityDescriptor descriptor,
-                    @Nonnull EntityMetadataDescriptor metadata) throws IdentityWrongSetException {
+                    @Nonnull EntityMetadataDescriptor metadata) {
         // We do not have a previous incarnation, return null.
         if (heuristicsLast == null) {
             return false;

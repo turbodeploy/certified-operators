@@ -94,27 +94,27 @@ public class ActionTest {
         when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         setEntitiesOIDs();
-        moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         moveAction.getActionTranslation().setPassthroughTranslationSuccess();
         moveAction.refreshAction(entitySettingsCache);
         resizeStorageAction = new Action(storageResizeRecommendation, actionPlanId,
-            actionModeCalculator);
+            actionModeCalculator, 2244L);
         resizeStorageAction.getActionTranslation().setPassthroughTranslationSuccess();
         resizeStorageAction.refreshAction(entitySettingsCache);
-        resizeVmAction = new Action(vmResizeRecommendation, actionPlanId, actionModeCalculator);
+        resizeVmAction = new Action(vmResizeRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         resizeVmAction.refreshAction(entitySettingsCache);
-        deactivateAction = new Action(deactivateRecommendation, actionPlanId, actionModeCalculator);
+        deactivateAction = new Action(deactivateRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         deactivateAction.getActionTranslation().setPassthroughTranslationSuccess();
         deactivateAction.refreshAction(entitySettingsCache);
-        activateAction = new Action(activateRecommendation, actionPlanId, actionModeCalculator);
+        activateAction = new Action(activateRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         activateAction.getActionTranslation().setPassthroughTranslationSuccess();
         activateAction.refreshAction(entitySettingsCache);
         storageMoveAction =
-                new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator);
+                new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         storageMoveAction.getActionTranslation().setPassthroughTranslationSuccess();
         storageMoveAction.refreshAction(entitySettingsCache);
         reconfigureAction =
-                new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator);
+                new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         reconfigureAction.refreshAction(entitySettingsCache);
         reconfigureAction.getActionTranslation().setPassthroughTranslationSuccess();
     }
@@ -204,7 +204,7 @@ public class ActionTest {
     public void testDetermineExecutabilityNotExecutable() {
         final ActionDTO.Action recommendation = moveAction.getRecommendation().toBuilder()
             .setExecutable(false).build();
-        final Action notExecutable = new Action(recommendation, 1, actionModeCalculator);
+        final Action notExecutable = new Action(recommendation, 1, actionModeCalculator, 2244L);
 
         assertFalse(notExecutable.determineExecutability());
     }
@@ -255,24 +255,24 @@ public class ActionTest {
         moveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
                         SupportLevel.SHOW_ONLY).build();
-        moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, 2244L);
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.SHOW_ONLY).build();
-        deactivateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        deactivateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, 2245L);
         activateRecommendation =
                 makeRec(makeActivateInfo(11L), SupportLevel.SHOW_ONLY).build();
-        activateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        activateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, 2246L);
         storageResizeRecommendation =
                 makeRec(makeStorageResizeInfo(11L), SupportLevel.SHOW_ONLY).build();
-        resizeStorageAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        resizeStorageAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, 2247L);
         storageMoveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 44L, 2, 55L, 2),
                         SupportLevel.SHOW_ONLY).build();
         storageMoveAction =
-                new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator);
+                new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator, 2248L);
         reconfigureRecommendation =
                 makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.SHOW_ONLY).build();
-        reconfigureAction = new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator);
+        reconfigureAction = new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator, 2248L);
 
         Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
                 .put("resize", makeSetting("resize", ActionMode.AUTOMATIC))
@@ -299,24 +299,24 @@ public class ActionTest {
         moveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
                         SupportLevel.UNSUPPORTED).build();
-        moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        moveAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(11L), SupportLevel.UNSUPPORTED).build();
-        deactivateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        deactivateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         activateRecommendation =
                 makeRec(makeActivateInfo(11L), SupportLevel.UNSUPPORTED).build();
-        activateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        activateAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         storageResizeRecommendation = makeRec(makeStorageResizeInfo(11L), SupportLevel.UNSUPPORTED).build();
-        resizeStorageAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator);
+        resizeStorageAction = new Action(moveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         storageMoveRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 44L, 2, 55L, 2),
                         SupportLevel.UNSUPPORTED).build();
         storageMoveAction =
-                new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator);
+                new Action(storageMoveRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
         reconfigureRecommendation =
                 makeRec(makeReconfigureInfo(11L, 22L), SupportLevel.UNSUPPORTED).build();
         reconfigureAction =
-                new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator);
+                new Action(reconfigureRecommendation, actionPlanId, actionModeCalculator, IdentityGenerator.next());
 
         Map<String, Setting> settings = ImmutableMap.<String, Setting>builder()
                 .put("resize", makeSetting("resize", ActionMode.RECOMMEND))
@@ -384,12 +384,12 @@ public class ActionTest {
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
                         SupportLevel.SUPPORTED).build();
         final Action supportedAction = new Action(supportedRecommendation, actionPlanId,
-                actionModeCalculator);
+                actionModeCalculator, IdentityGenerator.next());
         final ActionDTO.Action unsupportedRecommendation =
                 makeRec(TestActionBuilder.makeMoveInfo(11L, 22L, 1, 33L, 1),
                         SupportLevel.UNSUPPORTED).build();
         final Action unsupportedAction = new Action(unsupportedRecommendation, actionPlanId,
-                actionModeCalculator);
+                actionModeCalculator, IdentityGenerator.next());
 
         when(entitySettingsCache.getSettingsForEntity(eq(11L)))
                 .thenReturn(Collections.emptyMap());

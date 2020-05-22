@@ -590,7 +590,7 @@ class LiveActions implements QueryableActionViews {
      * market and the values are an ordered queue of the corresponding domain model {@link Action}s.
      */
     static class RecommendationTracker implements Iterable<Action> {
-        final Map<ActionInfo, Queue<Action>> recommendations = new HashMap<>();
+        final Map<Long, Queue<Action>> recommendations = new HashMap<>();
 
         /**
          * Add an action to the tracker. Inserts an entry at the back of the queue
@@ -599,11 +599,10 @@ class LiveActions implements QueryableActionViews {
          * @param action The action to add to the tracker.
          */
         void add(@Nonnull final Action action) {
-            final ActionInfo info = action.getRecommendation().getInfo();
-            Queue<Action> actions = recommendations.get(info);
+            Queue<Action> actions = recommendations.get(action.getRecommendationOid());
             if (actions == null) {
                 actions = new LinkedList<>();
-                recommendations.put(info, actions);
+                recommendations.put(action.getRecommendationOid(), actions);
             }
 
             actions.add(action);
@@ -613,14 +612,14 @@ class LiveActions implements QueryableActionViews {
          *  Remove and return the action which matches the given
          *  ActionInfo.
          *
-         * @param info ActionInfo
+         * @param actionInfoId ActionInfo id - the id of the market recommendation
          * @return Action which has the ActionInfo info
          *
          * If the action exists, it is removed from the queue
          * and returned to the caller.
          */
-        Optional<Action> take(@Nonnull final ActionInfo info) {
-            Queue<Action> actions = recommendations.get(info);
+        Optional<Action> take(long actionInfoId) {
+            Queue<Action> actions = recommendations.get(actionInfoId);
             if (actions == null) {
                 return Optional.empty();
             } else {

@@ -14,6 +14,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -21,14 +22,14 @@ import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mockito;
-
-import com.google.common.collect.ImmutableMap;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
@@ -58,6 +59,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
@@ -120,6 +122,7 @@ public class ActionExecutionRpcTest {
     private final LiveActionsStatistician statistician = mock(LiveActionsStatistician.class);
 
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
+    private IdentityServiceImpl actionIdentityService;
 
     private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
@@ -152,6 +155,9 @@ public class ActionExecutionRpcTest {
     @Before
     public void setup() {
         IdentityGenerator.initPrefix(0);
+        actionIdentityService = Mockito.mock(IdentityServiceImpl.class);
+        Mockito.when(actionIdentityService.getOidsForObjects(Mockito.any()))
+                .thenReturn(Arrays.asList(1L, 2L, 3L, 4L, 5L, 6L, 7L));
 
         ActionTargetInfo targetInfo = ImmutableActionTargetInfo.builder()
             .supportingLevel(SupportLevel.SUPPORTED)
@@ -168,7 +174,7 @@ public class ActionExecutionRpcTest {
             Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 actionTargetSelector, probeCapabilityCache,
                 entitySettingsCache, actionHistoryDao, statistician, actionTranslator,
-                clock, userSessionContext, licenseCheckClient));
+                clock, userSessionContext, licenseCheckClient, actionIdentityService));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -404,10 +410,10 @@ public class ActionExecutionRpcTest {
         ActionsServiceBlockingStub actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(
                 grpcServer.getChannel());
         IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
-        actionStoreSpy =
-            Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-                actionHistoryDao, statistician, actionTranslator, clock, userSessionContext, licenseCheckClient));
+        actionStoreSpy = Mockito.spy(
+                new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, actionTargetSelector,
+                        probeCapabilityCache, entitySettingsCache, actionHistoryDao, statistician,
+                        actionTranslator, clock, userSessionContext, licenseCheckClient, actionIdentityService));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

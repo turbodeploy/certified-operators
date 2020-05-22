@@ -98,8 +98,8 @@ public class PlanActionStoreTest {
          */
         @Nonnull
         @Override
-        public Action newAction(@Nonnull final ActionDTO.Action recommendation, long actionPlanId) {
-            return spy(new Action(recommendation, actionPlanId, actionModeCalculator));
+        public Action newAction(@Nonnull final ActionDTO.Action recommendation, long actionPlanId, long recommendationOid) {
+            return spy(new Action(recommendation, actionPlanId, actionModeCalculator, recommendationOid));
         }
 
         @Nonnull
@@ -109,7 +109,7 @@ public class PlanActionStoreTest {
                 @Nullable final Long associatedAccountId,
                 @Nullable final Long associatedResourceGroupId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId,
-                    actionModeCalculator, description, associatedAccountId, associatedResourceGroupId));
+                    actionModeCalculator, description, associatedAccountId, associatedResourceGroupId, 2244L));
         }
     }
 
@@ -138,7 +138,7 @@ public class PlanActionStoreTest {
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
-                        actionModeCalculator, "Move VM from H1 to H2", 321L, 121L);
+                        actionModeCalculator, "Move VM from H1 to H2", 321L, 121L, 2244L);
             });
         setEntitiesOIDs();
         when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {

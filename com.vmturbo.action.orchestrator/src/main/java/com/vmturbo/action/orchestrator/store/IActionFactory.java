@@ -19,11 +19,12 @@ public interface IActionFactory {
      *
      * @param recommendation The market recommendation for the action in the environment.
      * @param actionPlanId The ID of the ActionPlan the recommendation was a part of.
+     * @param recommendationOid OID of market recommendation
      * @return A new {@link Action} instance.
      */
     @Nonnull
     Action newAction(@Nonnull ActionDTO.Action recommendation,
-                     long actionPlanId);
+                     long actionPlanId, long recommendationOid);
 
     /**
      * Create a new Action instance. This method is used when creating {@link Action}s to represent

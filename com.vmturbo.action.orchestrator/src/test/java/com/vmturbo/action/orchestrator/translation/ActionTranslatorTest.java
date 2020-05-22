@@ -102,7 +102,7 @@ public class ActionTranslatorTest {
 
     @Test
     public void testTranslateMovePassthrough() {
-        final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
+        final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator, 2244L);
         translator.translate(Stream.of(move), mock(EntitiesAndSettingsSnapshot.class)).findFirst().get();
         assertEquals(move.getTranslationStatus(), TranslationStatus.TRANSLATION_SUCCEEDED);
     }
@@ -110,7 +110,7 @@ public class ActionTranslatorTest {
     @Test
     public void testTranslateResizeMemoryPassthrough() {
         final Action resize = new Action(
-            ActionOrchestratorTestUtils.createResizeRecommendation(1, CommodityType.VMEM), actionPlanId, actionModeCalculator);
+            ActionOrchestratorTestUtils.createResizeRecommendation(1, CommodityType.VMEM), actionPlanId, actionModeCalculator, 2244L);
         translator.translate(Stream.of(resize), mock(EntitiesAndSettingsSnapshot.class)).findFirst().get();
         assertEquals(resize.getTranslationStatus(), TranslationStatus.TRANSLATION_SUCCEEDED);
     }
@@ -142,7 +142,7 @@ public class ActionTranslatorTest {
         when(mockSnapshot.getToologyContextId()).thenReturn(actionPlanId);
         final Action resize = new Action(
             ActionOrchestratorTestUtils.createResizeRecommendation(1, VM_TARGET_ID,
-                CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VCPU_MHZ), actionPlanId, actionModeCalculator);
+                CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VCPU_MHZ), actionPlanId, actionModeCalculator, 2244L);
 
         translator.translate(Stream.of(resize), mockSnapshot).findFirst().get();
         assertEquals(TranslationStatus.TRANSLATION_FAILED, resize.getTranslationStatus());
@@ -156,7 +156,7 @@ public class ActionTranslatorTest {
             .thenReturn(Optional.of(Status.INTERNAL.asException()));
         final Action resize = new Action(
             ActionOrchestratorTestUtils.createResizeRecommendation(1, VM_TARGET_ID,
-                CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VCPU_MHZ), actionPlanId, actionModeCalculator);
+                CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VCPU_MHZ), actionPlanId, actionModeCalculator, 2244L);
         when(mockSnapshot.getEntityFromOid(VM_TARGET_ID)).thenReturn(Optional.of(
             ActionPartialEntity.newBuilder()
                 .setOid(VM_TARGET_ID)
@@ -170,7 +170,7 @@ public class ActionTranslatorTest {
     @Test
     public void testTranslateMixedActionTypes() {
         final Action resize = setupDefaultResizeAction();
-        final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(4), actionPlanId, actionModeCalculator);
+        final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(4), actionPlanId, actionModeCalculator, 2244L);
 
         assertEquals(2, translator.translate(Stream.of(resize, move), mockSnapshot).count());
         final ActionDTO.Action translatedResize = resize.getActionTranslation().getTranslatedRecommendation().get();
@@ -189,7 +189,7 @@ public class ActionTranslatorTest {
     @Test
     public void testAlreadyTranslatedDoesNotCallService() {
         final Action resize = setupDefaultResizeAction();
-        final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(4), actionPlanId, actionModeCalculator);
+        final Action move = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(4), actionPlanId, actionModeCalculator, 2244L);
         resize.getActionTranslation().setPassthroughTranslationSuccess();
 
         assertEquals(2, translator.translate(Stream.of(resize, move), mockSnapshot).count());
@@ -198,7 +198,7 @@ public class ActionTranslatorTest {
 
     @Test
     public void testToSpecWithoutDecision() {
-        final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
+        final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator, 2244L);
         action.setDescription("Move VM1 from PM1 to PM2");
         final ActionSpec spec = translator.translateToSpec(action);
 
@@ -211,7 +211,7 @@ public class ActionTranslatorTest {
 
     @Test
     public void testToSpecWithDecision() {
-        final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
+        final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator, 2244L);
         final long clearingPlanId = 5;
         action.receive(new ActionEvent.NotRecommendedEvent(clearingPlanId));
         action.setDescription("Move VM1 from PM1 to PM2");
@@ -230,7 +230,7 @@ public class ActionTranslatorTest {
 
     @Test
     public void testToSpecUntranslated() {
-        final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
+        final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator, 2244L);
         action.setDescription("Move VM1 from PM1 to PM2");
         final ActionSpec spec = translator.translateToSpec(action);
         assertEquals(action.getRecommendation(), spec.getRecommendation());
@@ -238,7 +238,7 @@ public class ActionTranslatorTest {
 
     @Test
     public void testToSpecTranslationFailed() {
-        final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
+        final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator, 2244L);
         action.getActionTranslation().setTranslationFailure();
         action.setDescription("Move VM1 from PM1 to PM2");
         final ActionSpec spec = translator.translateToSpec(action);
@@ -248,7 +248,7 @@ public class ActionTranslatorTest {
 
     @Test
     public void testToSpecTranslationSucceeded() {
-        final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator);
+        final Action action = new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId, actionModeCalculator, 2244L);
         final ActionDTO.Action translatedRecommendation = ActionOrchestratorTestUtils.createMoveRecommendation(2);
         action.getActionTranslation().setTranslationSuccess(translatedRecommendation);
 
@@ -269,7 +269,7 @@ public class ActionTranslatorTest {
         SecurityContextHolder.getContext().setAuthentication(null);
         final Action action = Mockito.spy(
                 new Action(ActionOrchestratorTestUtils.createMoveRecommendation(1), actionPlanId,
-                        actionModeCalculator));
+                        actionModeCalculator, 2244L));
         // Roles, initial action mode, expected action mode.
         Stream.of(new Object[][]{
                 {null, ActionMode.DISABLED, ActionMode.DISABLED},
@@ -317,7 +317,7 @@ public class ActionTranslatorTest {
                         .setIsPrimaryChangeProviderExplanation(true)
                         .setCompliance(Compliance.newBuilder()
                         .addReasonSettings(reasonSetting1))))).build(),
-            actionPlanId, actionModeCalculator);
+            actionPlanId, actionModeCalculator, 2244L);
 
         // Move action with a compliance explanation which is not primary.
         Action moveAction2 = new Action(ActionDTO.Action.newBuilder()
@@ -329,7 +329,7 @@ public class ActionTranslatorTest {
                         .setIsPrimaryChangeProviderExplanation(false)
                         .setCompliance(Compliance.newBuilder()
                             .addReasonSettings(reasonSetting2))))).build(),
-            actionPlanId, actionModeCalculator);
+            actionPlanId, actionModeCalculator, 2245L);
 
         Action reconfigureAction = new Action(ActionDTO.Action.newBuilder()
             .setId(0).setInfo(ActionInfo.newBuilder())
@@ -337,7 +337,7 @@ public class ActionTranslatorTest {
             .setExplanation(Explanation.newBuilder()
                 .setReconfigure(ReconfigureExplanation.newBuilder()
                     .addReasonSettings(reasonSetting3))).build(),
-            actionPlanId, actionModeCalculator);
+            actionPlanId, actionModeCalculator, 2246L);
 
         // Return a list of SettingPolicies only when
         // the input request has reasonSetting1 and reasonSetting3 as the idFilter.
@@ -380,7 +380,7 @@ public class ActionTranslatorTest {
 
         return new Action(ActionOrchestratorTestUtils
             .createResizeRecommendation(1, VM_TARGET_ID, CommodityType.VCPU, OLD_VCPU_MHZ, NEW_VCPU_MHZ),
-            actionPlanId, actionModeCalculator);
+            actionPlanId, actionModeCalculator, 2244L);
     }
 
     /* Host CPU 2k (MHZ)
@@ -411,7 +411,7 @@ public class ActionTranslatorTest {
 
         return new Action(ActionOrchestratorTestUtils
                 .createResizeRecommendation(1, VM_TARGET_ID, CommodityType.VCPU, 4000, 2500),
-                actionPlanId, actionModeCalculator);
+                actionPlanId, actionModeCalculator, 2244L);
     }
 
     private void verifyDefaultTranslatedResize(ActionDTO.Action translatedResize) {

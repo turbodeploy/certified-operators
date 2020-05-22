@@ -344,7 +344,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     serializedAction.getCurrentState().getNumber(),
                     serializedAction.getActionDetailData(),
                     serializedAction.getAssociatedAccountId(),
-                    serializedAction.getAssociatedResourceGroupId()
+                    serializedAction.getAssociatedResourceGroupId(),
+                    serializedAction.getRecommendationOid()
             );
         } catch (RuntimeException e) {
             logger.error(e.getMessage());

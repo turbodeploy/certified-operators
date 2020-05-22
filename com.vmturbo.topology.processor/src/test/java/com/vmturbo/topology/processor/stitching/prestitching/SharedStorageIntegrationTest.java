@@ -35,6 +35,7 @@ import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
@@ -49,10 +50,7 @@ import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.probes.ProbeStore;
 import com.vmturbo.topology.processor.probes.StandardProbeOrdering;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
@@ -68,7 +66,7 @@ import com.vmturbo.topology.processor.targets.TargetStore;
 /**
  * Integration test for shared storage.
  *
- * Loads a minified topology containing overlapping storages and runs preStitching on them to verify that
+ * <p>Loads a minified topology containing overlapping storages and runs preStitching on them to verify that
  * storages are merged as desired.
  */
 public class SharedStorageIntegrationTest {
@@ -106,9 +104,15 @@ public class SharedStorageIntegrationTest {
     private final String sharedStorageId = "9bd4ee88-99c64661";
     private final String sharedDiskArrayId = "DiskArray-9bd4ee88-99c64661";
 
+    /**
+     * gRPC service rule.
+     */
     @Rule
     public GrpcTestServer grpcServer = GrpcTestServer.newServer(statsRpcSpy);
 
+    /**
+     * Initializes the tests.
+     */
     @Before
     public void setup() {
         statsServiceClient = StatsHistoryServiceGrpc.newBlockingStub(grpcServer.getChannel());
@@ -125,7 +129,9 @@ public class SharedStorageIntegrationTest {
     /**
      * Merging shared storages: [
      * STORAGE 9bd4ee88-99c64661 QS1:NFSShare oid-72192369194440 tgt-72203478139616 cnsms-3 prvds-1,
-     * STORAGE 9bd4ee88-99c64661 QS1:NFSShare oid-72192369194440 tgt-72226908063456 cnsms-5 prvds-1
+     * STORAGE 9bd4ee88-99c64661 QS1:NFSShare oid-72192369194440 tgt-72226908063456 cnsms-5 prvds-1].
+     *
+     * @throws Exception on exceptions occurred
      */
     @Test
     public void testSharedStorageCalculation() throws Exception {
@@ -213,8 +219,7 @@ public class SharedStorageIntegrationTest {
 
     private void addEntities(@Nonnull final Map<Long, EntityDTO> entities, final long targetId,
                              final long discoveryTime)
-            throws IdentityUninitializedException, IdentityMetadataMissingException,
-            IdentityProviderException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException {
         final long probeId = 0;
         when(identityProvider.getIdsForEntities(
             eq(probeId), eq(new ArrayList<>(entities.values()))))
