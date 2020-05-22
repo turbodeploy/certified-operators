@@ -43,6 +43,10 @@
             <groupId>org.mariadb.jdbc</groupId>
             <artifactId>mariadb-java-client</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
         <!-- Recognized by Boot, automatically executed during startup. Uses the same path as in generate sources
         Benefit: You don't run into the danger that the jOOQ code doesn't fit the database -->
         <dependency>
@@ -56,6 +60,11 @@
         <dependency>
             <groupId>com.vmturbo</groupId>
             <artifactId>auth-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.immutables</groupId>
+            <artifactId>value</artifactId>
+            <scope>compile</scope>
         </dependency>
         <!-- END Database-related dependencies -->
     </dependencies>

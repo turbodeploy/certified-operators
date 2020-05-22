@@ -62,6 +62,7 @@ import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator.TranslationExecutor;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -120,6 +121,8 @@ public class ActionExecutionRpcTest {
 
     private final UserSessionContext userSessionContext = mock(UserSessionContext.class);
 
+    private final LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
+
     private static final long ACTION_PLAN_ID = 2;
     private static final long TOPOLOGY_CONTEXT_ID = 3;
     private static final long ACTION_ID = 9999;
@@ -160,12 +163,12 @@ public class ActionExecutionRpcTest {
         });
         when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(targetInfo);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
-
+        when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
         actionStoreSpy =
             Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 actionTargetSelector, probeCapabilityCache,
                 entitySettingsCache, actionHistoryDao, statistician, actionTranslator,
-                clock, userSessionContext));
+                clock, userSessionContext, licenseCheckClient));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -404,7 +407,7 @@ public class ActionExecutionRpcTest {
         actionStoreSpy =
             Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-                actionHistoryDao, statistician, actionTranslator, clock, userSessionContext));
+                actionHistoryDao, statistician, actionTranslator, clock, userSessionContext, licenseCheckClient));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

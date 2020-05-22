@@ -161,6 +161,7 @@ public class LicenseDTOUtils {
     static public License combineLicenses(Collection<LicenseDTO> licenseDTOs) {
         // we have licenses -- convert them to model licenses, validate them, and merge them together.
         License aggregateLicense = new License();
+
         for (LicenseDTO licenseDTO : licenseDTOs) {
             License license = LicenseDTOUtils.licenseDTOtoLicense(licenseDTO);
             license.setErrorReasons(LicenseDTOUtils.validateXLLicense(license));
@@ -174,11 +175,11 @@ public class LicenseDTOUtils {
     /**
      * Convert a {@link License } to a {@link LicenseSummary} object.
      *
-     * @param aggregateLicense The source aggregate license object.
+     * @param aggregateLicense An aggregate license created by merging all of the valid licenses.
      * @param isOverLimit true, if the workload count is over the license limit.
      * @return A shiny new LicenseSummary.
      */
-    static public LicenseSummary licenseToLicenseSummary(ILicense aggregateLicense, boolean isOverLimit) {
+    static public LicenseSummary createLicenseSummary(ILicense aggregateLicense, boolean isOverLimit) {
         LicenseSummary.Builder summaryBuilder = LicenseSummary.newBuilder();
 
         if (StringUtils.isNotBlank(aggregateLicense.getExpirationDate())) {

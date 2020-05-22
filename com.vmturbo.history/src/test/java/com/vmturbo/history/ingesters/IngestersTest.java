@@ -22,12 +22,12 @@ import javax.annotation.Nonnull;
 import org.junit.Test;
 
 import com.vmturbo.communication.chunking.RemoteIterator;
+import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.history.ingesters.common.AbstractChunkedBroadcastProcessor;
 import com.vmturbo.history.ingesters.common.ChunkedBroadcastProcessorConfig;
 import com.vmturbo.history.ingesters.common.IChunkProcessor;
 import com.vmturbo.history.ingesters.common.IChunkProcessorFactory;
 import com.vmturbo.history.ingesters.common.ImmutableChunkedBroadcastProcessorConfig;
-import com.vmturbo.history.utils.MultiStageTimer;
 
 /**
  * Tests of the Ingester framework.

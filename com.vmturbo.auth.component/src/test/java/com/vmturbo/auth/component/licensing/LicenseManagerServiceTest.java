@@ -226,7 +226,7 @@ public class LicenseManagerServiceTest {
 
         // create a license summary out of all the licenses we have now
         License combinedLicense = LicenseDTOUtils.combineLicenses(licenseManagerService.getLicenses());
-        LicenseSummary licenseSummary = LicenseDTOUtils.licenseToLicenseSummary(combinedLicense, false);
+        LicenseSummary licenseSummary = LicenseDTOUtils.createLicenseSummary(combinedLicense, false);
         // verify old features no longer available
         Assert.assertFalse(licenseSummary.getFeatureList().contains("Feature"));
         // verify new features ARE avaialble

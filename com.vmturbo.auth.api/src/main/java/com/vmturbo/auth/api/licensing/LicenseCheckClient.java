@@ -121,9 +121,27 @@ public class LicenseCheckClient extends ComponentNotificationReceiver<LicenseSum
         return false;
     }
 
+    /**
+     * Return true if we know that there is at least one valid installed. It may be expired though.
+     *
+     * @return true if the license is valid. false if no valid license was detected, or the license
+     * check client hasn't finished initialization yet.
+     */
     public boolean hasValidLicense() {
         if (lastLicenseSummary != null) {
             return lastLicenseSummary.getIsValid();
+        }
+        return false;
+    }
+
+    /**
+     * Return true if we know that there is at least one valid and non-expired license installed.
+     * @return true if a valid and non-expired license is known to be installed. false if not
+     * found, or the license check client hasn't finished initialization yet.
+     */
+    public boolean hasValidNonExpiredLicense() {
+        if (lastLicenseSummary != null) {
+            return lastLicenseSummary.getIsValid() && (!lastLicenseSummary.getIsExpired());
         }
         return false;
     }

@@ -43,6 +43,7 @@ import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.Prerequisite;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -104,6 +105,8 @@ public class LiveActionStore implements ActionStore {
 
     private final UserSessionContext userSessionContext;
 
+    private final LicenseCheckClient licenseCheckClient;
+
     private final Clock clock;
 
     private static final int queryTimeWindowForLastExecutedActionsMins = 60;
@@ -133,7 +136,8 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final LiveActionsStatistician liveActionsStatistician,
                            @Nonnull final ActionTranslator actionTranslator,
                            @Nonnull final Clock clock,
-                           @Nonnull final UserSessionContext userSessionContext) {
+                           @Nonnull final UserSessionContext userSessionContext,
+                           @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache();
@@ -146,6 +150,7 @@ public class LiveActionStore implements ActionStore {
         this.actionsStatistician = Objects.requireNonNull(liveActionsStatistician);
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.hostsInMaintenance = new HashMap<>();
     }
 
@@ -484,7 +489,8 @@ public class LiveActionStore implements ActionStore {
      */
     @Override
     public boolean allowsExecution() {
-        return true;
+        // if the license is invalid, then disallow execution.
+        return licenseCheckClient.hasValidNonExpiredLicense();
     }
 
     /**

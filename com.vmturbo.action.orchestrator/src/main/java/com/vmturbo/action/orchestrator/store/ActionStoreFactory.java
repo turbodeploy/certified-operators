@@ -13,6 +13,7 @@ import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 
 /**
  * A factory for creating {@link ActionStore}s.
@@ -48,6 +49,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final UserSessionContext userSessionContext;
 
+    private final LicenseCheckClient licenseCheckClient;
+
     /**
      * Create a new ActionStoreFactory.
      */
@@ -61,7 +64,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final LiveActionsStatistician actionsStatistician,
                               @Nonnull final ActionTranslator actionTranslator,
                               @Nonnull final Clock clock,
-                              @Nonnull final UserSessionContext userSessionContext) {
+                              @Nonnull final UserSessionContext userSessionContext,
+                              @Nonnull final LicenseCheckClient licenseCheckClient) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
         this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
@@ -73,6 +77,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.clock = Objects.requireNonNull(clock);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
     }
 
     /**
@@ -86,7 +91,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         if (topologyContextId == realtimeTopologyContextId) {
             return new LiveActionStore(actionFactory, topologyContextId,
                 actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, clock, userSessionContext);
+                actionsStatistician, actionTranslator, clock, userSessionContext, licenseCheckClient);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 entitySettingsCache, actionTranslator, realtimeTopologyContextId, actionTargetSelector);

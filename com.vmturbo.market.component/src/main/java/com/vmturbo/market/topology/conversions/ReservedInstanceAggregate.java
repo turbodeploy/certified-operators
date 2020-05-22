@@ -1,5 +1,6 @@
 package com.vmturbo.market.topology.conversions;
 
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -12,6 +13,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,6 +48,7 @@ public class ReservedInstanceAggregate {
     // tier in the family that this RI belongs to. For non-instance size flexible RIs, the
     // compute tier of the RI.
     private final TopologyEntityDTO computeTier;
+    private final Set<TopologyEntityDTO> computeTiersInScope;
 
     // A map of the RI Bought id to the coupon usage information
     private final Map<Long, RICouponInfo> riCouponInfoMap = new HashMap<>();
@@ -57,11 +60,13 @@ public class ReservedInstanceAggregate {
     ReservedInstanceAggregate(@Nonnull final ReservedInstanceData riData,
                               @Nonnull final ReservedInstanceKey riKey,
                               @Nonnull final TopologyEntityDTO computeTier,
+                              @Nonnull final Set<TopologyEntityDTO> computeTiersInScope,
                               @Nonnull final Set<Long> applicableBusinessAccounts) {
         this.riKey = Objects.requireNonNull(riKey);
         this.computeTier = Objects.requireNonNull(computeTier);
         platformFlexible = riData.getReservedInstanceSpec().getReservedInstanceSpecInfo()
                 .getPlatformFlexible();
+        this.computeTiersInScope = ImmutableSet.copyOf(computeTiersInScope);
         this.applicableBusinessAccounts = applicableBusinessAccounts;
     }
 
@@ -69,8 +74,8 @@ public class ReservedInstanceAggregate {
         return riKey;
     }
 
-    private Set<ReservedInstanceData> getConstituentRIs() {
-        return constituentRIs;
+    public Set<ReservedInstanceData> getConstituentRIs() {
+        return Collections.unmodifiableSet(constituentRIs);
     }
 
     void addConstituentRi(ReservedInstanceData riData,
@@ -87,6 +92,10 @@ public class ReservedInstanceAggregate {
 
     TopologyEntityDTO getComputeTier() {
         return computeTier;
+    }
+
+    public Set<TopologyEntityDTO> getComputeTiersInScope() {
+        return computeTiersInScope;
     }
 
     @Override
