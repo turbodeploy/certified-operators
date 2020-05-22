@@ -31,8 +31,6 @@ global:
 #  externalKafka: xl-kafka.us-east-1.elb.amazonaws.com
 #  externalSyslog: a608c38591a9f11e9ad190efbcf8c7e5-1236730884.us-east-1.elb.amazonaws.com
   elk: false
-  # Set to true to enable on-prem XLR (reporting).
-  enableXlr: false
 #  debug: true
   dev_options: "-agentlib:jdwp=transport=dt_socket,address=0.0.0.0:8000,server=y,suspend=n"
 #  storageClassName: default
@@ -63,6 +61,8 @@ platform:
   enabled: true
 control:
   enabled: true
+reporting:
+  enabled: false
 metron:
   enabled: false
 kubeturbo:
@@ -83,7 +83,6 @@ prometheus:
 prometheus-mysql-exporter:
   enabled: false
 grafana:
-  adminUser: turbonomic-root
   adminPassword: admin
   grafana.ini:
     database:
