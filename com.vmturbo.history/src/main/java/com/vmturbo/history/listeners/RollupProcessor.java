@@ -48,6 +48,9 @@ import org.jooq.exception.DataAccessException;
 import org.jooq.impl.DSL;
 
 import com.vmturbo.commons.TimeFrame;
+import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
+import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.history.db.EntityType;
 import com.vmturbo.history.db.HistorydbIO;
 import com.vmturbo.history.db.RetentionPolicy;
@@ -60,9 +63,6 @@ import com.vmturbo.history.schema.abstraction.tables.MarketStatsByDay;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByHour;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsByMonth;
 import com.vmturbo.history.schema.abstraction.tables.MarketStatsLatest;
-import com.vmturbo.history.utils.MultiStageTimer;
-import com.vmturbo.history.utils.MultiStageTimer.AsyncTimer;
-import com.vmturbo.history.utils.MultiStageTimer.Detail;
 
 /**
  * This class performs rollups of stats entity and market stats data in the database, and it can
@@ -238,8 +238,8 @@ public class RollupProcessor {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (TimeoutException e) {
-                logger.warn("Timed out during repartitioning of table {}; " +
-                        "repartition may still complete normally", tf.getLeft());
+                logger.warn("Timed out during repartitioning of table {}; "
+                        + "repartition may still complete normally", tf.getLeft());
             } catch (ExecutionException e) {
                 logger.error("Error during repartitioning of table {}: {}",
                         tf.getLeft().getName(), e.toString());
@@ -391,8 +391,8 @@ public class RollupProcessor {
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     } catch (TimeoutException e) {
-                        logger.warn("Timed out during rollup activity for table {}; " +
-                                "rollup may still complete normally", tf.getLeft());
+                        logger.warn("Timed out during rollup activity for table {}; "
+                                + "rollup may still complete normally", tf.getLeft());
                     } catch (ExecutionException e) {
                         logger.error("Error during rollup activity for table {}: {}",
                                 tf.getLeft().getName(), e.toString());
