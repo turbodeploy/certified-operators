@@ -37,14 +37,18 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
                         EntityType.CONTAINER_SPEC,
                         EntitySettingSpecs.PercentileAggressivenessContainerSpec,
                         EntityType.VIRTUAL_MACHINE,
-                        EntitySettingSpecs.PercentileAggressivenessVirtualMachine);
+                        EntitySettingSpecs.PercentileAggressivenessVirtualMachine,
+                        EntityType.DATABASE,
+                        EntitySettingSpecs.PercentileAggressivenessDatabase);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_MAX_OBSERVATION_PERIOD = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
                         EntitySettingSpecs.MaxObservationPeriodBusinessUser,
                         EntityType.CONTAINER_SPEC,
                         EntitySettingSpecs.MaxObservationPeriodContainerSpec,
                         EntityType.VIRTUAL_MACHINE,
-                        EntitySettingSpecs.MaxObservationPeriodVirtualMachine);
+                        EntitySettingSpecs.MaxObservationPeriodVirtualMachine,
+                        EntityType.DATABASE,
+                        EntitySettingSpecs.MaxObservationPeriodDatabase);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_MIN_OBSERVATION_PERIOD =
             ImmutableMap.of(EntityType.CONTAINER_SPEC,
                             EntitySettingSpecs.MinObservationPeriodContainerSpec,

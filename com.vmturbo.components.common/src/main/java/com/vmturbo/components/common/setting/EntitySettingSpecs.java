@@ -298,9 +298,10 @@ public enum EntitySettingSpecs {
     /**
      * Storage utilization threshold.
      */
-    StorageAmountUtilization("storageAmountUtilization", "Storage Amount Utilization",
+    StorageAmountUtilization("storageAmountUtilization", "Scaling Target Storage Amount Utilization",
             Collections.singletonList(CategoryPathConstants.UTILIZATION_THRESHOLDS), SettingTiebreaker.SMALLER,
-            EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.STORAGE_CONTROLLER),
+            EnumSet.of(EntityType.STORAGE, EntityType.DISK_ARRAY, EntityType.STORAGE_CONTROLLER,
+                    EntityType.DATABASE),
             numeric(0f, 100f, 90f),
             true),
 
@@ -319,7 +320,7 @@ public enum EntitySettingSpecs {
     /**
      * DTU utilization threshold.
      */
-    DTUUtilization("dtuUtilization", "DTU Utilization",
+    DTUUtilization("dtuUtilization", "Scaling Target DTU Utilization",
             Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.DATABASE),
             numeric(0f, 100f, 70.0f), true),
@@ -417,6 +418,15 @@ public enum EntitySettingSpecs {
         numeric(0.0f, 7.0f, 1.0f), true),
 
     /**
+     * Aggressiveness for Databases.
+     */
+    PercentileAggressivenessDatabase("percentileAggressivenessDatabase",
+            SettingConstants.AGGRESSIVENESS,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE),
+            numeric(90.0f, 99.0f, 95.0f), true),
+
+    /**
      * Min observation period for business user.
      */
     MinObservationPeriodVirtualMachine("minObservationPeriodVirtualMachine",
@@ -460,6 +470,15 @@ public enum EntitySettingSpecs {
                                      Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
                                      SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DESKTOP_POOL),
                                      numeric(3, 30, 7), true),
+
+    /**
+     *  Max observation period for Databases.
+     */
+    MaxObservationPeriodDatabase("maxObservationPeriodDatabase",
+            SettingConstants.MAX_OBSERVATION_PERIOD,
+            Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+            SettingTiebreaker.BIGGER, EnumSet.of(EntityType.DATABASE),
+            numeric(3.0f, 30.0f, 14.0f), true),
 
     /**
      * Resize target Utilization for Image CPU.
