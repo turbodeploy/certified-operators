@@ -81,10 +81,13 @@ public class PlanTopologyScopeEditor {
      *
      * @param topologyInfo the topologyInfo which contains topology relevant properties
      * @param graph the topology entity graph
+     * @param cloneEntityOids Oids of source entities that were cloned, used in MPC plan.
      * @return {@link TopologyGraph} topology entity graph after applying scope.
      */
-    public TopologyGraph<TopologyEntity> scopeCloudTopology(@Nonnull final TopologyInfo topologyInfo,
-                                                            @Nonnull final TopologyGraph<TopologyEntity> graph) {
+    public TopologyGraph<TopologyEntity> scopeCloudTopology(
+            @Nonnull final TopologyInfo topologyInfo,
+            @Nonnull final TopologyGraph<TopologyEntity> graph,
+            @Nonnull final Set<Long> cloneEntityOids) {
         // from the seed list keep accounts, regions, and workloads only
         final Set<Long> seedIds =
             topologyInfo.getScopeSeedOidsList().stream()
@@ -93,7 +96,8 @@ public class PlanTopologyScopeEditor {
                                                     EntityType.forNumber(e.getEntityType())))
                                     .orElse(false))
                 .collect(Collectors.toCollection(HashSet::new));
-
+        // Add oids of the clones of any source entities to the seed set as well.
+        seedIds.addAll(cloneEntityOids);
         // for all VMs in the seed, we should bring the connected volumes to the seed
         // and for all volumes in the seed, we should bring the connected VMs
         final Set<Long> connectedVMsAndVVIds = new HashSet<>();

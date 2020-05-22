@@ -1,6 +1,7 @@
 
 package com.vmturbo.topology.processor.topology;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -121,12 +122,15 @@ public class TopologyEditor {
      *                We ignore those.
      * @param topologyInfo Information describing the topology and its context.
      * @param groupResolver The resolver to use when resolving group membership.
-     * @throws GroupResolutionException when a group by a migration source/destination is not resolved
+     * @throws GroupResolutionException Thrown when we could not resolve groups.
+     * @return Collection of clone entity oids.
      */
-    public void editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
-                             @Nonnull final List<ScenarioChange> changes,
-                             @Nonnull final TopologyInfo topologyInfo,
-                             @Nonnull final GroupResolver groupResolver) throws GroupResolutionException {
+    @Nonnull
+    public Collection<Long> editTopology(@Nonnull final Map<Long, TopologyEntity.Builder> topology,
+                                         @Nonnull final List<ScenarioChange> changes,
+                                         @Nonnull final TopologyInfo topologyInfo,
+                                         @Nonnull final GroupResolver groupResolver)
+            throws GroupResolutionException {
         // Set shopTogether to false for all entities if it's not a alleviate pressure plan,
         // so SNM is not performed by default.
         // 1. For full scope custom plan,
@@ -160,6 +164,8 @@ public class TopologyEditor {
         final Map<Long, Grouping> groupIdToGroupMap = getGroups(changes);
         final TopologyGraph<TopologyEntity> topologyGraph =
             TopologyEntityTopologyGraphCreator.newGraph(topology);
+        // Map of source entity ids to the corresponding clone ids, which we save in topology info.
+        Map<Long, Long> sourceToCloneOids = new HashMap<>();
 
         for (ScenarioChange change : changes) {
             if (change.hasTopologyAddition()) {
@@ -205,6 +211,10 @@ public class TopologyEditor {
                 TopologyMigration topologyMigration = change.getTopologyMigration();
                 Set<Long> entitiesToMigrate = expandAndFlattenReferences(
                         topologyMigration.getSourceList(), groupIdToGroupMap, groupResolver, topologyGraph);
+
+                sourceToCloneOids.putAll(entitiesToMigrate.stream()
+                        .collect(Collectors.toMap(sourceId -> sourceId, sourceId -> 0L)));
+
                 // This is a map of <entity OID to copy> to <number of copies to create>. In this case, each OID will be
                 // mapped to the value 1 because we only ever want to create a single copy of each source entity to
                 // simulate a cloud migration.
@@ -324,9 +334,11 @@ public class TopologyEditor {
                 for (int i = 0; i < addCount; ++i) {
                     // Create the new entity being added, but set the plan origin so these added
                     // entities aren't counted in plan "current" stats
-                    TopologyEntityDTO.Builder clone =
-                        clone(entity.getEntityBuilder(), identityProvider, i, topology)
-                            .setOrigin(entityOrigin);
+                    TopologyEntityDTO.Builder clone = clone(entity.getEntityBuilder(),
+                            identityProvider, i, topology).setOrigin(entityOrigin);
+                    if (sourceToCloneOids.containsKey(entity.getOid())) {
+                        sourceToCloneOids.put(entity.getOid(), clone.getOid());
+                    }
                     // Set shop together true for added VMs
                     if (clone.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
                         clone.getAnalysisSettingsBuilder().setShopTogether(true);
@@ -342,7 +354,6 @@ public class TopologyEditor {
                 }
             }
         });
-
         // Prepare any entities that are getting removed as part of the plan, for removal from the
         // analysis topology. This process will unplace any current buyers of these entities
         // commodities, then mark the entities as "removed", so they can be removed from the Analysis
@@ -371,6 +382,11 @@ public class TopologyEditor {
                         entity.setOrigin(entityOrigin);
                         topology.put(entity.getOid(), TopologyEntity.newBuilder(entity));
                     });
+        // Return the cloned source oids to topologyInfo so that they can be set into the
+        // context and accessed by later stages.
+        logger.debug("For plan {}, added source -> clone entity oid mapping: {}",
+                topologyInfo.getTopologyContextId(), sourceToCloneOids);
+        return sourceToCloneOids.values();
     }
 
     /**

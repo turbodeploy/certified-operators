@@ -1,6 +1,10 @@
 package com.vmturbo.topology.processor.topology.pipeline;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
@@ -29,6 +33,12 @@ public class TopologyPipelineContext {
     private final StitchingJournalContainer stitchingJournalContainer;
     private final ConsistentScalingManager consistentScalingManager;
 
+    /**
+     * Some plans (like MCP) clone source entity oids. The oids of these clones are stored here,
+     * so that some of the rest of plan pipeline stages can use it.
+     */
+    private final Set<Long> cloneEntityOids;
+
     public TopologyPipelineContext(@Nonnull final GroupResolver groupResolver,
                                    @Nonnull final TopologyInfo topologyInfo,
                                    @Nonnull final ConsistentScalingManager consistentScalingManager) {
@@ -36,6 +46,7 @@ public class TopologyPipelineContext {
         this.topologyInfoBuilder = Objects.requireNonNull(TopologyInfo.newBuilder(topologyInfo));
         this.stitchingJournalContainer = new StitchingJournalContainer();
         this.consistentScalingManager = consistentScalingManager;
+        cloneEntityOids = new HashSet<>();
     }
 
     @Nonnull
@@ -50,6 +61,26 @@ public class TopologyPipelineContext {
 
     public void editTopologyInfo(Consumer<Builder> editFunction) {
         editFunction.accept(topologyInfoBuilder);
+    }
+
+    /**
+     * Sets the set of clone entity oids in this context.
+     *
+     * @param cloneOids Set of clone entity oids.
+     */
+    public void setCloneEntityOids(@Nonnull final Collection<Long> cloneOids) {
+        cloneEntityOids.clear();
+        cloneEntityOids.addAll(cloneOids);
+    }
+
+    /**
+     * Gets the set of clone entity oids.
+     *
+     * @return Set of clone entity oids.
+     */
+    @Nonnull
+    public Set<Long> getCloneEntityOids() {
+        return Collections.unmodifiableSet(cloneEntityOids);
     }
 
     public String getTopologyTypeName() {

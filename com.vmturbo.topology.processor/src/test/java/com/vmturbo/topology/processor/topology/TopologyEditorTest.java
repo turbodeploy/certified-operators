@@ -6,12 +6,14 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -27,6 +29,7 @@ import java.util.stream.Stream;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.gson.Gson;
@@ -36,6 +39,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.ArgumentMatcher;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
@@ -69,10 +73,12 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTOREST;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
+import com.vmturbo.topology.processor.consistentscaling.ConsistentScalingManager;
 import com.vmturbo.topology.processor.group.GroupResolver;
 import com.vmturbo.topology.processor.group.ResolvedGroup;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.template.TemplateConverterFactory;
+import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineContext;
 
 /**
  * Unit tests for {@link ScenarioChange}.
@@ -101,7 +107,7 @@ public class TopologyEditorTest {
         .setType(CommodityDTO.CommodityType.VMEM_VALUE).build();
     private static final CommodityType VMPM = CommodityType.newBuilder()
         .setType(CommodityDTO.CommodityType.VMPM_ACCESS_VALUE).build();
-
+    private TopologyPipelineContext context;
     private static final TopologyEntity.Builder vm = TopologyEntityUtils.topologyEntityBuilder(
         TopologyEntityDTO.newBuilder()
             .setOid(vmId)
@@ -268,10 +274,17 @@ public class TopologyEditorTest {
             .setTopologyType(TopologyType.PLAN)
             .build();
 
+    /**
+     * How many times is the dummy clone id to be compared to the entity id.
+     */
+    private static final long CLONE_ID_MULTIPLIER = 100;
+
     @Before
     public void setup() {
         when(identityProvider.getCloneId(any(TopologyEntityDTO.class)))
             .thenAnswer(invocation -> cloneId++);
+        context = new TopologyPipelineContext(groupResolver, topologyInfo,
+                mock(ConsistentScalingManager.class));
         topologyEditor = new TopologyEditor(identityProvider,
                 templateConverterFactory,
                 GroupServiceGrpc.newBlockingStub(grpcServer.getChannel()));
@@ -294,9 +307,9 @@ public class TopologyEditorTest {
                 .setGroupType(CommonDTOREST.GroupDTO.GroupType.REGULAR.getValue()).build();
 
         final long pmId = 2;
-        final long pmCloneId = 200;
+        final long pmCloneId = pmId * CLONE_ID_MULTIPLIER;
         final long vmId = 3;
-        final long vmCloneId = 300;
+        final long vmCloneId = vmId * CLONE_ID_MULTIPLIER;
         final ScenarioChange migrateVm = ScenarioChange.newBuilder()
                 .setTopologyMigration(TopologyMigration.newBuilder()
                         .addSource(migrationSourceGroup)
@@ -326,13 +339,13 @@ public class TopologyEditorTest {
                 .topologyEntity(pmId, 0, 0, "PM", EntityType.PHYSICAL_MACHINE);
         // Volumes/Storages
         final long vv1Id = 4;
-        final long vv1CloneId = 400;
+        final long vv1CloneId = vv1Id * CLONE_ID_MULTIPLIER;
         final long s1Id = 5;
-        final long s1CloneId = 500;
+        final long s1CloneId = s1Id * CLONE_ID_MULTIPLIER;
         final long vv2Id = 6;
-        final long vv2CloneId = 600;
+        final long vv2CloneId = vv2Id * CLONE_ID_MULTIPLIER;
         final long s2Id = 7;
-        final long s2CloneId = 700;
+        final long s2CloneId = s2Id * CLONE_ID_MULTIPLIER;
         final TopologyEntity.Builder storageEntity1 = TopologyEntityUtils
                 .topologyEntity(s1Id, 0, 0, "S1", EntityType.STORAGE);
         final TopologyEntity.Builder volumeEntity1 = TopologyEntityUtils
@@ -399,12 +412,16 @@ public class TopologyEditorTest {
                 .thenReturn(resolvedGroup(sourceGroup, ApiEntityType.VIRTUAL_MACHINE, vmId));
         when(groupResolver.resolve(eq(destinationGroup), isA(TopologyGraph.class)))
                 .thenReturn(resolvedGroup(destinationGroup, ApiEntityType.REGION, regionId));
-        when(identityProvider.getCloneId(any(TopologyEntityDTO.class)))
-                .thenReturn(vmCloneId, pmCloneId, vv1CloneId, s1CloneId, vv2CloneId, s2CloneId);
+        // Make sure the right clone id is returned when a specific entity build is being cloned.
+        ImmutableSet.of(vmCloneId, pmCloneId, vv1CloneId, s1CloneId, vv2CloneId, s2CloneId)
+                .forEach(cloneId -> {
+                    when(identityProvider.getCloneId(argThat(new EntityDtoMatcher(cloneId))))
+                            .thenReturn(cloneId);
+                });
 
         assertEquals(10, topology.size());
-
-        topologyEditor.editTopology(topology, Lists.newArrayList(migrateVm), topologyInfo, groupResolver);
+        Collection<Long> clonedSourceVms = topologyEditor.editTopology(topology,
+                Lists.newArrayList(migrateVm), topologyInfo, groupResolver);
 
         assertEquals(16, topology.size());
 
@@ -420,6 +437,45 @@ public class TopologyEditorTest {
                 && regionConnectedEntityToRemove.getEntityBuilder().getEdit().hasRemoved());
         assertTrue(zoneConnectedEntityToRemove.getEntityBuilder().hasEdit()
                 && zoneConnectedEntityToRemove.getEntityBuilder().getEdit().hasRemoved());
+
+        // Verify that the cloned source VM id has been added to the addedEntityOids.
+        assertFalse(clonedSourceVms.isEmpty());
+        assertTrue(clonedSourceVms.contains(vmCloneId));
+    }
+
+    /**
+     * Helper class to enable matching of entity DTO builders with the associated clone ids.
+     */
+    static class EntityDtoMatcher extends ArgumentMatcher<TopologyEntityDTO> {
+        /**
+         * Id of the cloned entity.
+         */
+        private final long cloneId;
+
+        /**
+         * Makes up a matcher.
+         *
+         * @param cloneId Id of cloned entity.
+         */
+        EntityDtoMatcher(final long cloneId) {
+            this.cloneId = cloneId;
+        }
+
+        /**
+         * Used to match an entity DTO builder with the cloneId for this matcher.
+         *
+         * @param input TopologyEntityDTO.Builder instance.
+         * @return Whether builder's id matches the clone id of this matcher, goes by the
+         * assumption that entityId x multiple = cloneId.
+         */
+        @Override
+        public boolean matches(Object input) {
+            if (!(input instanceof TopologyEntityDTO.Builder)) {
+                return false;
+            }
+            TopologyEntityDTO.Builder dtoBuilder = (TopologyEntityDTO.Builder)input;
+            return dtoBuilder.getOid() * CLONE_ID_MULTIPLIER == cloneId;
+        }
     }
 
     /**

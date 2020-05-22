@@ -558,7 +558,8 @@ public class Stages {
             // added or removed during editing.
             final GroupResolver groupResolver = new GroupResolver(searchResolver, groupServiceClient);
             try {
-                topologyEditor.editTopology(input, changes, getContext().getTopologyInfo(), groupResolver);
+                getContext().setCloneEntityOids(topologyEditor.editTopology(input, changes,
+                        getContext().getTopologyInfo(), groupResolver));
             } catch (GroupResolutionException e) {
                 throw new PipelineStageException(e);
             }
@@ -888,7 +889,7 @@ public class Stages {
         public Status passthrough(@Nonnull final TopologyGraph<TopologyEntity> input) {
             final PolicyApplicator.Results applicationResults =
                     policyManager.applyPolicies(input, getContext().getGroupResolver(), changes,
-                    getContext().getTopologyInfo());
+                    getContext().getTopologyInfo(), getContext().getCloneEntityOids());
             final StringJoiner statusMsg = new StringJoiner("\n")
                 .setEmptyValue("No policies to apply.");
             final boolean errors = applicationResults.getErrors().size() > 0;
@@ -1463,7 +1464,8 @@ public class Stages {
                                 " from topology of size " + graph.size()));
             } else {
                 // cloud plans
-                result = planTopologyScopeEditor.scopeCloudTopology(topologyInfo, graph);
+                result = planTopologyScopeEditor.scopeCloudTopology(topologyInfo, graph,
+                        getContext().getCloneEntityOids());
                 return StageResult.withResult(result)
                                 .andStatus(Status.success("PlanScopingStage: Constructed a scoped topology of size "
                                                 + result.size() + " from topology of size " + graph.size()));

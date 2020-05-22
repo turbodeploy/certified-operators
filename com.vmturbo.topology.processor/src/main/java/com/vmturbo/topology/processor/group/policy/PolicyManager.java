@@ -152,12 +152,14 @@ public class PolicyManager {
      * @param groupResolver The resolver for the groups that the policy applies to.
      * @param changes list of plan changes to be applied to the policies
      * @param topologyInfo Information about the topology under construction.
+     * @param cloneEntityOids Oids of source entities that were cloned, used in MPC plan.
      * @return Map from (type of policy) -> (num of policies of the type)
      */
     public PolicyApplicator.Results applyPolicies(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                                   @Nonnull final GroupResolver groupResolver,
                                                   @Nonnull final List<ScenarioChange> changes,
-                                                  @Nonnull final TopologyInfo topologyInfo) {
+                                                  @Nonnull final TopologyInfo topologyInfo,
+                                                  @Nonnull final Set<Long> cloneEntityOids) {
         try (DataMetricTimer timer = POLICY_APPLICATION_SUMMARY.startTimer()) {
             final long startTime = System.currentTimeMillis();
             final List<Policy> livePolicies = new ArrayList<>();

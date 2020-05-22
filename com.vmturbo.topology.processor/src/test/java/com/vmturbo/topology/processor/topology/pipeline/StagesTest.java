@@ -189,9 +189,10 @@ public class StagesTest {
         when(cloudScopingStage.getContext()).thenReturn(context);
         when(context.getStitchingJournalContainer()).thenReturn(container);
         when(context.getTopologyInfo()).thenReturn(cloudTopologyInfo);
-        when(scopeEditor.scopeCloudTopology(cloudTopologyInfo, graph)).thenReturn(graph);
+        when(scopeEditor.scopeCloudTopology(cloudTopologyInfo, graph, Collections.emptySet()))
+                .thenReturn(graph);
         cloudScopingStage.execute(graph);
-        verify(scopeEditor).scopeCloudTopology(cloudTopologyInfo, graph);
+        verify(scopeEditor).scopeCloudTopology(cloudTopologyInfo, graph, Collections.emptySet());
     }
 
     @Test
@@ -411,12 +412,14 @@ public class StagesTest {
         when(results.getAppliedCounts()).thenReturn(Collections.emptyMap());
         when(results.getAddedCommodityCounts()).thenReturn(Collections.emptyMap());
 
-        when(policyManager.applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()), any()))
+        when(policyManager.applyPolicies(eq(topologyGraph), eq(groupResolver),
+                eq(Collections.emptyList()), any(), any()))
             .thenReturn(results);
 
         policyStage.execute(topologyGraph);
 
-        verify(policyManager).applyPolicies(eq(topologyGraph), eq(groupResolver), eq(Collections.emptyList()), any());
+        verify(policyManager).applyPolicies(eq(topologyGraph), eq(groupResolver),
+                eq(Collections.emptyList()), any(), any());
     }
 
     /**

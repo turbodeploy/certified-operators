@@ -572,7 +572,8 @@ public class PlanTopologyScopeEditorTest {
                         .setPlanInfo(PlanTopologyInfo.newBuilder().setPlanType("OPTIMIZE_CLOUD").build())
                         .addAllScopeSeedOids(oidsList)
                         .build();
-        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeCloudTopology(cloudTopologyInfo, graph);
+        final TopologyGraph<TopologyEntity> result = planTopologyScopeEditor.scopeCloudTopology(
+                cloudTopologyInfo, graph, Collections.emptySet());
         Assert.assertEquals(expectedEntities.size(), result.size());
         expectedEntities.forEach(entity -> assertTrue(entity.getOid() + " is missing", result.getEntity(entity.getOid())
                         .isPresent()));
