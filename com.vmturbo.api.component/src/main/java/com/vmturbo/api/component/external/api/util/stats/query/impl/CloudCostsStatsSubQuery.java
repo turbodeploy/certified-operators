@@ -12,7 +12,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,7 +48,6 @@ import com.vmturbo.api.component.external.api.util.BuyRiScopeHandler;
 import com.vmturbo.api.component.external.api.util.SupplyChainFetcherFactory;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryContextFactory.StatsQueryContext.TimeWindow;
-import com.vmturbo.api.component.external.api.util.stats.StatsQueryExecutor;
 import com.vmturbo.api.component.external.api.util.stats.StatsQueryScopeExpander.GlobalScope;
 import com.vmturbo.api.component.external.api.util.stats.query.StatsSubQuery;
 import com.vmturbo.api.component.external.api.util.stats.query.SubQuerySupportedStats;
@@ -859,31 +857,26 @@ public class CloudCostsStatsSubQuery implements StatsSubQuery {
      */
     @VisibleForTesting
     AccountExpenseQueryScope.Builder getAccountScopeBuilder(@Nonnull final StatsQueryContext context) {
-        Set<Long> entitiesInScope = new HashSet<>();
         final AccountExpenseQueryScope.Builder scopeBuilder = AccountExpenseQueryScope.newBuilder();
         if (userSessionContext.isUserObserver() && userSessionContext.isUserScoped()) {
             return scopeBuilder;
         }
         // If the scoped entity/entities are business accounts - use the as scope
-        if (StatsQueryExecutor.scopeHasBusinessAccounts(context.getInputScope())) {
-            // a scope can be a specific business account / billing family / group of accounts,
-            // or global scope (cloud page)
-            if (context.getInputScope().isGroup()) {
-                // The input scope is a group, i.e a billing family or a temporary group of accounts
-                if (context.getInputScope().getCachedGroupInfo().isPresent()) {
-                    entitiesInScope.addAll(context.getInputScope().getCachedGroupInfo().get().getEntityIds());
-                }
-            } else {
-                // The input scope is a business account
-                entitiesInScope.add(context.getInputScope().oid());
-            }
-        }
-
-        if (!entitiesInScope.isEmpty()) {
-            scopeBuilder.setSpecificAccounts(IdList.newBuilder()
-                    .addAllAccountIds(entitiesInScope));
-        } else {
+        final Set<Long> businessAccounts =
+                context.getInputScope().getScopeEntitiesByType().getOrDefault(
+                        ApiEntityType.BUSINESS_ACCOUNT, Collections.emptySet());
+        if (businessAccounts.isEmpty()) {
             scopeBuilder.setAllAccounts(true);
+        } else {
+            final IdList.Builder accountsIdList = IdList.newBuilder();
+            repositoryApi.entitiesRequest(businessAccounts)
+                    .getFullEntities()
+                    .filter(e -> e.hasTypeSpecificInfo() && e.getTypeSpecificInfo()
+                            .hasBusinessAccount() && e.getTypeSpecificInfo()
+                            .getBusinessAccount()
+                            .hasAssociatedTargetId())
+                    .forEach(e -> accountsIdList.addAccountIds(e.getOid()));
+            scopeBuilder.setSpecificAccounts(accountsIdList);
         }
         return scopeBuilder;
     }

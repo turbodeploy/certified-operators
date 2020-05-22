@@ -1,7 +1,6 @@
 package com.vmturbo.api.component.external.api.util.stats.query.impl;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -10,6 +9,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
@@ -27,9 +28,12 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
+import com.vmturbo.api.component.ApiTestUtils;
 import com.vmturbo.api.component.communication.RepositoryApi;
+import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper;
 import com.vmturbo.api.component.external.api.mapper.UuidMapper.ApiId;
@@ -68,6 +72,9 @@ import com.vmturbo.common.protobuf.cost.CostServiceGrpc;
 import com.vmturbo.common.protobuf.cost.CostServiceGrpc.CostServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.BusinessAccountInfo;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -1059,47 +1066,64 @@ public class CloudCostsStatsSubQueryTest {
 
     @Test
     public void testBusinessAccountScope() {
-        UuidMapper.ApiId inputScope = mock(UuidMapper.ApiId.class);
-        when(inputScope.isRealtimeMarket()).thenReturn(false);
-        when(inputScope.isGroup()).thenReturn(false);
-        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
-        when(inputScope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)));
-        when(inputScope.oid()).thenReturn(ACCOUNT_ID_1);
-
+        final UuidMapper.ApiId inputScope = mock(UuidMapper.ApiId.class);
+        final Set<Long> businessAccounts = Collections.singleton(ACCOUNT_ID_1);
+        when(inputScope.getScopeEntitiesByType()).thenReturn(
+                ImmutableMap.of(ApiEntityType.BUSINESS_ACCOUNT, businessAccounts));
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(inputScope);
-
-        Cost.AccountExpenseQueryScope.Builder scopeBuilder = query.getAccountScopeBuilder(context);
-
+        final TopologyEntityDTO businessAccount1 = TopologyEntityDTO.newBuilder().setEntityType(
+                EntityType.BUSINESS_ACCOUNT_VALUE).setOid(ACCOUNT_ID_1).setTypeSpecificInfo(
+                TypeSpecificInfo.newBuilder()
+                        .setBusinessAccount(
+                                BusinessAccountInfo.newBuilder().setAssociatedTargetId(1))).build();
+        final MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiFullEntityReq(
+                Collections.singletonList(businessAccount1));
+        Mockito.when(repositoryApi.entitiesRequest(businessAccounts)).thenReturn(
+                multiEntityRequest);
+        final Cost.AccountExpenseQueryScope.Builder scopeBuilder = query.getAccountScopeBuilder(
+                context);
         Assert.assertFalse(scopeBuilder.getAllAccounts());
         Assert.assertEquals(1, scopeBuilder.getSpecificAccounts().getAccountIdsCount());
         Assert.assertEquals(ACCOUNT_ID_1, scopeBuilder.getSpecificAccounts().getAccountIds(0));
     }
 
+    /**
+     * Test for {@link CloudCostsStatsSubQuery#getAccountScopeBuilder(StatsQueryContext)}.
+     */
     @Test
     public void testBillingFamilyScope() {
-        UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
-        when(cachedGroupInfo.getEntityIds()).thenReturn(Sets.newHashSet(ACCOUNT_ID_1, ACCOUNT_ID_2));
+        final UuidMapper.CachedGroupInfo cachedGroupInfo = mock(UuidMapper.CachedGroupInfo.class);
+        when(cachedGroupInfo.getEntityIds()).thenReturn(
+                Sets.newHashSet(ACCOUNT_ID_1, ACCOUNT_ID_2));
 
-        UuidMapper.ApiId inputScope = mock(UuidMapper.ApiId.class);
-        when(inputScope.isRealtimeMarket()).thenReturn(false);
-        when(inputScope.isGroup()).thenReturn(true);
-        when(inputScope.getCachedGroupInfo()).thenReturn(Optional.of(cachedGroupInfo));
-        when(inputScope.getScopeTypes())
-                .thenReturn(Optional.of(Collections.singleton(ApiEntityType.BUSINESS_ACCOUNT)));
-        when(inputScope.oid()).thenReturn(BILLING_FAMILY_ID);
-        when(inputScope.isResourceGroupOrGroupOfResourceGroups()).thenReturn(false);
+        final UuidMapper.ApiId inputScope = mock(UuidMapper.ApiId.class);
+
+        final Set<Long> businessAccounts = ImmutableSet.of(ACCOUNT_ID_1, ACCOUNT_ID_2);
+        Mockito.when(inputScope.getScopeEntitiesByType()).thenReturn(
+                ImmutableMap.of(ApiEntityType.BUSINESS_ACCOUNT, businessAccounts));
 
         final StatsQueryContext context = mock(StatsQueryContext.class);
         when(context.getInputScope()).thenReturn(inputScope);
 
-        Cost.AccountExpenseQueryScope.Builder scopeBuilder = query.getAccountScopeBuilder(context);
-
+        final TopologyEntityDTO businessAccount1 = TopologyEntityDTO.newBuilder().setEntityType(
+                EntityType.BUSINESS_ACCOUNT_VALUE).setOid(ACCOUNT_ID_1).setTypeSpecificInfo(
+                TypeSpecificInfo.newBuilder()
+                        .setBusinessAccount(
+                                BusinessAccountInfo.newBuilder().setAssociatedTargetId(1))).build();
+        final TopologyEntityDTO businessAccount2 = TopologyEntityDTO.newBuilder().setEntityType(
+                EntityType.BUSINESS_ACCOUNT_VALUE).setOid(ACCOUNT_ID_2).build();
+        final MultiEntityRequest multiEntityRequest = ApiTestUtils.mockMultiFullEntityReq(
+                Arrays.asList(businessAccount1, businessAccount2));
+        Mockito.when(repositoryApi.entitiesRequest(businessAccounts)).thenReturn(
+                multiEntityRequest);
+        final Cost.AccountExpenseQueryScope.Builder scopeBuilder = query.getAccountScopeBuilder(
+                context);
         Assert.assertFalse(scopeBuilder.getAllAccounts());
-        Assert.assertEquals(2, scopeBuilder.getSpecificAccounts().getAccountIdsCount());
-        assertThat(scopeBuilder.getSpecificAccounts().getAccountIdsList(),
-                containsInAnyOrder(ACCOUNT_ID_1, ACCOUNT_ID_2));
+        Assert.assertEquals(
+                "If scope is a billing family, then scope should be resolved up to discovered accounts.",
+                Collections.singletonList(ACCOUNT_ID_1),
+                scopeBuilder.getSpecificAccounts().getAccountIdsList());
     }
 
     /**
