@@ -33,6 +33,8 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanation;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
@@ -48,6 +50,7 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator.TopologyCostCalculatorFactory;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
@@ -107,9 +110,15 @@ public class WastedFilesAnalysisTest {
             builder.setDisplayName("Vol-" + oid)
                 .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
                     .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                    .setStorageAccessCapacity(10f)
-                    .setStorageAmountCapacity(20f)
                     .setAttachmentState(attachmentState)))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()))
+                    .setCapacity(20))
+                .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+                    .setCommodityType(CommodityType.newBuilder()
+                        .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber()))
+                    .setCapacity(10))
                 .setAnalysisSettings(AnalysisSettings.newBuilder()
                     .setDeletable(deletable));
         }

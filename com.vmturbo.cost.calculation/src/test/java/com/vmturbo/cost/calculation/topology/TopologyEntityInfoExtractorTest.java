@@ -11,6 +11,8 @@ import java.util.Optional;
 
 import org.junit.Test;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.IpAddress;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.OS;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -19,11 +21,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Compute
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
+import com.vmturbo.commons.Units;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.ComputeTierConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.DatabaseConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.NetworkConfig;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor.VirtualVolumeConfig;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DatabaseEdition;
@@ -41,7 +45,7 @@ public class TopologyEntityInfoExtractorTest {
     private static final String VM_IP = "1.1.1.1";
     private static final float STORAGE_ACCESS_CAP = 5;
     private static final float STORAGE_AMOUNT_CAP = 6;
-    private static final float IO_THROUGHPUT_CAP = 8;
+    private static final float IO_THROUGHPUT_CAP_KB = 8192;
     private static final int COMPUTE_NUM_OF_COUPONS = 7;
     private static final double DELTA = 1e-10;
     private static final long DEFAULT_ID = 0;
@@ -84,11 +88,19 @@ public class TopologyEntityInfoExtractorTest {
         .setEntityType(EntityType.VIRTUAL_VOLUME_VALUE)
         .setOid(DEFAULT_ID)
         .setTypeSpecificInfo(TypeSpecificInfo.newBuilder()
-            .setVirtualVolume(VirtualVolumeInfo.newBuilder()
-                .setStorageAccessCapacity(STORAGE_ACCESS_CAP)
-                .setStorageAmountCapacity(STORAGE_AMOUNT_CAP)
-                .setIoThroughputCapacity(IO_THROUGHPUT_CAP)
-                .build()))
+            .setVirtualVolume(VirtualVolumeInfo.getDefaultInstance()))
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()))
+            .setCapacity(STORAGE_AMOUNT_CAP))
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber()))
+            .setCapacity(STORAGE_ACCESS_CAP))
+        .addCommoditySoldList(CommoditySoldDTO.newBuilder()
+            .setCommodityType(CommodityType.newBuilder()
+                    .setType(CommodityDTO.CommodityType.IO_THROUGHPUT.getNumber()))
+            .setCapacity(IO_THROUGHPUT_CAP_KB))
         .build();
 
     private static final TopologyEntityDTO EMPTY_VIRTUAL_VOLUME = TopologyEntityDTO.newBuilder()
@@ -192,7 +204,7 @@ public class TopologyEntityInfoExtractorTest {
     public void testExtractDatabaseConfig() {
         Optional<DatabaseConfig> dbConfigOptional = entityInfoExtractor.getDatabaseConfig(DB);
         assertTrue(dbConfigOptional.isPresent());
-        final DatabaseConfig dbConfig = dbConfigOptional.orElseGet(null);
+        final DatabaseConfig dbConfig = dbConfigOptional.orElse(null);
         assertNotNull(dbConfig);
         assertThat(dbConfig.getEngine(), is(DatabaseEngine.SQLSERVER));
         assertThat(dbConfig.getEdition(), is(DatabaseEdition.STANDARD));
@@ -220,7 +232,7 @@ public class TopologyEntityInfoExtractorTest {
         assertTrue(volumeConfig.isPresent());
         assertEquals(STORAGE_ACCESS_CAP, volumeConfig.get().getAccessCapacityMillionIops(), DELTA);
         assertEquals(STORAGE_AMOUNT_CAP / 1024, volumeConfig.get().getAmountCapacityGb(), DELTA);
-        assertEquals(IO_THROUGHPUT_CAP, volumeConfig.get().getIoThroughputCapacityMBps(), DELTA);
+        assertEquals(IO_THROUGHPUT_CAP_KB / Units.KBYTE, volumeConfig.get().getIoThroughputCapacityMBps(), DELTA);
     }
 
     @Test

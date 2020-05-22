@@ -4,6 +4,10 @@ import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
@@ -11,13 +15,17 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.Databas
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
 import com.vmturbo.cost.calculation.integration.EntityInfoExtractor;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.Units;
 
 /**
  * An {@link EntityInfoExtractor} for {@link TopologyEntityDTO}, to be used when running the cost
  * library in the cost component.
  */
 public class TopologyEntityInfoExtractor implements EntityInfoExtractor<TopologyEntityDTO> {
+
+    private static final Logger logger = LogManager.getLogger();
 
     @Override
     public int getEntityType(@Nonnull final TopologyEntityDTO entity) {
@@ -78,9 +86,9 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         if (entity.getTypeSpecificInfo().hasVirtualVolume()) {
             final VirtualVolumeInfo volumeConfig = entity.getTypeSpecificInfo().getVirtualVolume();
             return Optional.of(new VirtualVolumeConfig(
-                    volumeConfig.getStorageAccessCapacity(),
-                    volumeConfig.getStorageAmountCapacity(),
-                    volumeConfig.getIoThroughputCapacity(),
+                    getCommodityCapacity(entity, CommodityType.STORAGE_ACCESS),
+                    getCommodityCapacity(entity, CommodityType.STORAGE_AMOUNT),
+                    getCommodityCapacity(entity, CommodityType.IO_THROUGHPUT) / Units.KBYTE,
                     volumeConfig.getIsEphemeral(),
                     volumeConfig.hasRedundancyType() ? volumeConfig.getRedundancyType() : null));
         } else {
@@ -116,4 +124,18 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
         return Optional.empty();
     }
 
+    private static float getCommodityCapacity(
+            @Nonnull final TopologyEntityDTO volume,
+            @Nonnull final CommodityType commodityType) {
+        final Optional<Double> capacity = volume.getCommoditySoldListList().stream()
+                .filter(commodity -> commodity.getCommodityType().getType()
+                        == commodityType.getNumber())
+                .map(CommoditySoldDTO::getCapacity)
+                .findAny();
+        if (!capacity.isPresent()) {
+            logger.error("Missing commodity {} for volume {} (OID: {})", commodityType,
+                    volume.getDisplayName(), volume.getOid());
+        }
+        return capacity.orElse(0D).floatValue();
+    }
 }

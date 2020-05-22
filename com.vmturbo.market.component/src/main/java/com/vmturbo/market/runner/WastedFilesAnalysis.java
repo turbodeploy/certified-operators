@@ -31,6 +31,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.DeleteExplanatio
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.market.MarketNotification.AnalysisStatusNotification.AnalysisState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity;
@@ -42,6 +43,7 @@ import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.journal.CostJournal;
 import com.vmturbo.cost.calculation.topology.TopologyCostCalculator;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
@@ -146,9 +148,7 @@ public class WastedFilesAnalysis {
                     .filter(topoEntity -> topoEntity.getEntityType() == EntityType.VIRTUAL_VOLUME_VALUE)
                     .filter(topoEntity -> topoEntity.hasTypeSpecificInfo())
                     .filter(topoEntity -> topoEntity.getTypeSpecificInfo().hasVirtualVolume())
-                    .filter(topoEntity -> (topoEntity.getTypeSpecificInfo().getVirtualVolume()
-                        .hasStorageAmountCapacity() &&
-                        topoEntity.getTypeSpecificInfo().getVirtualVolume().getStorageAmountCapacity() > 0)
+                    .filter(topoEntity -> getStorageAmountCapacity(topoEntity) > 0
                         || topoEntity.getTypeSpecificInfo().getVirtualVolume().getFilesCount() > 0)
                     .filter(topoEntity -> getVolumeProviders(topoEntity)
                         .anyMatch(providerId -> !storagesToIgnoreWastedFiles.contains(providerId)))
@@ -178,6 +178,14 @@ public class WastedFilesAnalysis {
             + startTime.getValue().get().until(completionTime.getValue().get(),
             ChronoUnit.SECONDS) + " seconds");
         return true;
+    }
+
+    private static double getStorageAmountCapacity(@Nonnull final TopologyEntityDTO entity) {
+        return entity.getCommoditySoldListList().stream()
+                .filter(commodity -> commodity.getCommodityType().getType()
+                        == CommodityType.STORAGE_AMOUNT.getNumber())
+                .map(CommoditySoldDTO::getCapacity)
+                .findAny().orElse(0D);
     }
 
     /**

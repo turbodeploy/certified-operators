@@ -60,6 +60,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatHistoricalEpoch;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -811,16 +812,8 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             }
         }
 
-        // commodity capacity
-        float storageAmountCapacity = 0.0f;
-        float storageAccessCapacity = 0.0f;
-        float ioThroughputCapacity = 0.0f;
         if (volume.hasTypeSpecificInfo() && volume.getTypeSpecificInfo().hasVirtualVolume()) {
             VirtualVolumeInfo volumeInfo = volume.getTypeSpecificInfo().getVirtualVolume();
-            storageAmountCapacity = volumeInfo.getStorageAmountCapacity();
-            storageAccessCapacity = volumeInfo.getStorageAccessCapacity();
-            // Capacity is in MiB/s, but commodity is in KiB/s
-            ioThroughputCapacity = (float)(volumeInfo.getIoThroughputCapacity() * Units.KBYTE);
             if (volumeInfo.hasSnapshotId()) {
                 virtualDiskApiDTO.setSnapshotId(volumeInfo.getSnapshotId());
             }
@@ -850,6 +843,9 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         if (volumeCostStatById.containsKey(volume.getOid())) {
             statDTOs.addAll(volumeCostStatById.get(volume.getOid()));
         }
+        float storageAmountCapacity = getCommodityCapacity(volume, CommodityType.STORAGE_AMOUNT);
+        float storageAccessCapacity = getCommodityCapacity(volume, CommodityType.STORAGE_ACCESS);
+        float ioThroughputCapacity = getCommodityCapacity(volume, CommodityType.IO_THROUGHPUT);
         // storage amount stats
         // Note: Different units are used for ON-PERM and CLOUD.  But for api requires
         //       the same commodity type.
@@ -880,6 +876,16 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
             populateUnattachedHistoryInfo(volume, virtualDiskApiDTO);
         }
         return virtualDiskApiDTO;
+    }
+
+    private static float getCommodityCapacity(
+            @Nonnull final TopologyEntityDTO volume,
+            @Nonnull final CommodityType commodityType) {
+        return volume.getCommoditySoldListList().stream()
+                .filter(commodity -> commodity.getCommodityType().getType()
+                        == commodityType.getNumber())
+                .map(CommoditySoldDTO::getCapacity)
+                .findAny().orElse(0D).floatValue();
     }
 
     private void populateUnattachedHistoryInfo(final TopologyEntityDTO volume,
