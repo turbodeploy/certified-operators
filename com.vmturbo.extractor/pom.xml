@@ -137,5 +137,9 @@
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>extractor-schema</artifactId>
+        </dependency>
     </dependencies>
 </project>

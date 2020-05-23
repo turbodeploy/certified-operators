@@ -413,6 +413,10 @@
             <groupId>com.vmturbo</groupId>
             <artifactId>system-notification-receiver</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>extractor-schema</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>io.opentracing</groupId>

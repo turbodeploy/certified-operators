@@ -1,7 +1,5 @@
 package com.vmturbo.extractor;
 
-import static com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess.READ_ONLY;
-
 import org.jooq.SQLDialect;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -9,6 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
 import com.vmturbo.sql.utils.DbEndpoint;
+import com.vmturbo.sql.utils.DbEndpoint.DbEndpointAccess;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.sql.utils.SQLDatabaseConfig2;
 
@@ -42,6 +41,6 @@ public class ExtractorDbConfig {
     @Bean
     public DbEndpoint queryEndpoint() throws UnsupportedDialectException {
         return sqlDatabaseConfig2.secondaryDbEndpoint("q", SQLDialect.POSTGRES)
-                .like(ingesterEndpoint()).withAccess(READ_ONLY).noMigration();
+                .like(ingesterEndpoint()).withAccess(DbEndpointAccess.READ_ONLY).noMigration();
     }
 }

@@ -281,6 +281,7 @@
             <id>extractor</id>
             <modules>
                 <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.topology.graph</module>
             </modules>
         </profile>
@@ -333,6 +334,7 @@
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
+                <module>../com.vmturbo.extractor.schema</module>
             </modules>
         </profile>
 
@@ -867,6 +869,7 @@
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -950,6 +953,7 @@
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -1051,6 +1055,7 @@
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
                 <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -1713,6 +1718,11 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>io.fabric8</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <version>0.33.0</version>
+            </plugin>
         </plugins>
     </build>
 
@@ -1793,6 +1803,11 @@
             <dependency>
                 <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.history.schema</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
+                <artifactId>extractor-schema</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
