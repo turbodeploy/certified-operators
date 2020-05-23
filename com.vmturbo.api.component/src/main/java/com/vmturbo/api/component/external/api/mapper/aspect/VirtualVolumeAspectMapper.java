@@ -919,7 +919,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
         final GetMostRecentStatRequest request = GetMostRecentStatRequest.newBuilder()
                 .setCommodityName(StringConstants.STORAGE_AMOUNT)
                 .setEntityType(StringConstants.VIRTUAL_MACHINE)
-                .setCommodityKey(Long.toString(volume.getOid()))
+                .setProviderId(Long.toString(volume.getOid()))
                 .build();
         final GetMostRecentStatResponse response = executeGetMostRecentStatQuery(request, volume);
         logger.debug("Unattached volume history for volume: {}, request: {}, response: {}",

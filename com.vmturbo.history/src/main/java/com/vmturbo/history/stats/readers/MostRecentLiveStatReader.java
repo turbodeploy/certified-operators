@@ -1,6 +1,6 @@
 package com.vmturbo.history.stats.readers;
 
-import static com.vmturbo.common.protobuf.utils.StringConstants.COMMODITY_KEY;
+import static com.vmturbo.common.protobuf.utils.StringConstants.PRODUCER_UUID;
 import static com.vmturbo.common.protobuf.utils.StringConstants.PROPERTY_TYPE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.SNAPSHOT_TIME;
 import static com.vmturbo.common.protobuf.utils.StringConstants.UUID;
@@ -23,6 +23,7 @@ import org.jooq.Record;
 import org.jooq.Result;
 import org.jooq.Select;
 import org.jooq.Table;
+import org.jooq.impl.DSL;
 
 import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatHistoricalEpoch;
@@ -59,13 +60,13 @@ public class MostRecentLiveStatReader {
     }
 
     /**
-     * Returns the most recent statistic for the given commodityType and commodityKey from the
+     * Returns the most recent statistic for the given commodityType and providerId from the
      * statistics tables determined by entityClassName. For example, entityClassName
-     * VirtualMachine will look up statistics from the vm_stats_* set of tables.
+     * VirtualMachine will look up statistics from the vm_stats_by_day and vm_stats_by_month tables.
      *
      * @param entityClassName whose tables the statistic should be retrieved from.
      * @param commodityType for which the most recent statistic is sought.
-     * @param commodityKey of the commodity for which the most recent statistic is sought.
+     * @param providerId of the commodity for which the most recent statistic is sought.
      * @param streamObserver to check if client has cancelled the request.
      * @return Optional of GetMostRecentStatResponse.Builder or empty if no statistics are found.
      */
@@ -73,7 +74,7 @@ public class MostRecentLiveStatReader {
     public Optional<GetMostRecentStatResponse.Builder> getMostRecentStat(
         @Nonnull final String entityClassName,
         @Nonnull final String commodityType,
-        @Nonnull final String commodityKey,
+        @Nonnull final String providerId,
         @Nullable final ServerCallStreamObserver streamObserver) {
 
         final EntityType entityType = EntityType.get(entityClassName);
@@ -81,15 +82,15 @@ public class MostRecentLiveStatReader {
                 .asList(
                 // 1. daily table query
                 () -> retrieveMostRecentStat(createQuery(entityType.getDayTable().get(),
-                    commodityType, commodityKey), StatHistoricalEpoch.DAY),
+                    commodityType, providerId), StatHistoricalEpoch.DAY),
                 // 2. monthly table query
                 () -> retrieveMostRecentStat(createQuery(entityType.getMonthTable().get(),
-                        commodityType, commodityKey), StatHistoricalEpoch.MONTH)
+                        commodityType, providerId), StatHistoricalEpoch.MONTH)
         );
         for (final Supplier<Optional<GetMostRecentStatResponse.Builder>> query : orderedQueries) {
             if (streamObserver != null && streamObserver.isCancelled()) {
                 logger.debug("Client cancelled GetMostRecentStat request for volume id: {}",
-                    commodityKey);
+                    providerId);
                 return Optional.empty();
             }
             final Optional<GetMostRecentStatResponse.Builder> result = query.get();
@@ -125,27 +126,30 @@ public class MostRecentLiveStatReader {
         }
     }
 
+    @Nullable
     private GetMostRecentStatResponse.Builder createResponseBuilder(
             final Record record, final StatHistoricalEpoch epoch) {
-        return GetMostRecentStatResponse.newBuilder()
+        if (record.get(UUID) != null && record.get(SNAPSHOT_TIME) != null) {
+            return GetMostRecentStatResponse.newBuilder()
                 .setEpoch(epoch)
                 .setEntityUuid(Long.parseLong(String.valueOf(record.get(UUID))))
                 .setSnapshotDate(((Timestamp)record.get(SNAPSHOT_TIME)).getTime());
+        }
+        return null;
     }
 
     private Select<?> createQuery(final Table<?> table,
                                   final String commodityType,
-                                  final String commodityKey) {
+                                  final String providerId) {
         final List<Condition> conditions = Arrays.asList(
                 JooqUtils.getStringField(table, PROPERTY_TYPE)
                         .eq(commodityType),
-                JooqUtils.getStringField(table, COMMODITY_KEY)
-                        .eq(commodityKey)
+                JooqUtils.getStringField(table, PRODUCER_UUID)
+                        .eq(providerId)
         );
         return HistorydbIO.getJooqBuilder()
-                .select(field(UUID), field(SNAPSHOT_TIME))
+                .select(field(UUID), DSL.max(field(SNAPSHOT_TIME)).as(SNAPSHOT_TIME))
                 .from(table)
-                .where(conditions)
-                .orderBy(JooqUtils.getTimestampField(table, SNAPSHOT_TIME).desc());
+                .where(conditions);
     }
 }
