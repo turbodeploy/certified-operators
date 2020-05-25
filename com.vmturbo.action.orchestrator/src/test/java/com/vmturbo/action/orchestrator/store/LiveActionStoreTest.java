@@ -44,6 +44,7 @@ import org.mockito.Mockito;
 import org.mockito.internal.matchers.apachecommons.ReflectionEquals;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
@@ -153,6 +154,8 @@ public class LiveActionStoreTest {
 
     private LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
+    private final AcceptedActionsDAO acceptedActionsStore = mock(AcceptedActionsDAO.class);
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
@@ -163,8 +166,9 @@ public class LiveActionStoreTest {
                 new IdentityServiceImpl(idDataStore, new ActionInfoModelCreator(),
                         Clock.systemUTC(), 1000);
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, targetSelector,
-            probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
-            actionTranslator, clock, userSessionContext, licenseCheckClient, actionIdentityService);
+                probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
+                actionTranslator, clock, userSessionContext, licenseCheckClient,
+                acceptedActionsStore, actionIdentityService);
 
         when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -174,6 +178,7 @@ public class LiveActionStoreTest {
                     .build()));
         });
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
         setEntitiesOIDs();
         IdentityGenerator.initPrefix(0);
     }
@@ -309,10 +314,11 @@ public class LiveActionStoreTest {
     public void testPopulateNotRecommendedAreClearedAndRemoved() throws Exception {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
-        ActionStore actionStore = new LiveActionStore(
-                new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
-                targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, clock, userSessionContext, licenseCheckClient, actionIdentityService);
+        ActionStore actionStore =
+                new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
+                        targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                        actionsStatistician, actionTranslator, clock, userSessionContext,
+                        licenseCheckClient, acceptedActionsStore, actionIdentityService);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 

@@ -34,11 +34,14 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionView;
+import com.vmturbo.action.orchestrator.exception.AcceptedActionStoreOperationException;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.QueryFilterFactory;
 import com.vmturbo.action.orchestrator.store.query.QueryFilter;
@@ -72,9 +75,11 @@ public class LiveActionsTest {
     private final QueryFilterFactory queryFilterFactory = mock(QueryFilterFactory.class);
 
     private UserSessionContext userSessionContext = mock(UserSessionContext.class);
+    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
 
     private LiveActions liveActions =
-        new LiveActions(actionHistoryDao, clock, queryFilterFactory, userSessionContext);
+            new LiveActions(actionHistoryDao, acceptedActionsStore, clock, queryFilterFactory,
+                    userSessionContext);
 
     /**
      * Static tests initialization.
@@ -126,6 +131,8 @@ public class LiveActionsTest {
         final Action action3 = ActionOrchestratorTestUtils.createMoveAction(3, 2);
         final EntitiesAndSettingsSnapshot entityCacheSnapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entityCacheSnapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(entityCacheSnapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
+
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,action1);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot,action2);
@@ -140,6 +147,38 @@ public class LiveActionsTest {
 
         assertThat(liveActions.getAll().collect(Collectors.toList()),
             containsInAnyOrder(action2, action3));
+    }
+
+    /**
+     * Tests updating latest recommendation time for accepted actions.
+     *
+     * @throws AcceptedActionStoreOperationException if something goes wrong while operating
+     * in DAO layer
+     */
+    @Test
+    public void testUpdateLatestRecommendationTimeForAcceptedActions()
+            throws AcceptedActionStoreOperationException {
+        final Action action1 = ActionOrchestratorTestUtils.createMoveAction(1, 2);
+        final Action action2 = ActionOrchestratorTestUtils.createMoveAction(2, 2);
+        final EntitiesAndSettingsSnapshot entityCacheSnapshot =
+                mock(EntitiesAndSettingsSnapshot.class);
+        when(entityCacheSnapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(entityCacheSnapshot.getAcceptingUserForAction(action1.getRecommendationOid())).thenReturn(
+                Optional.of("administrator"));
+        when(entityCacheSnapshot.getAcceptingUserForAction(action2.getRecommendationOid())).thenReturn(
+                Optional.empty());
+
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot, action1);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entityCacheSnapshot, action2);
+
+        liveActions.updateMarketActions(Collections.emptyList(), Arrays.asList(action1, action2),
+                entityCacheSnapshot);
+
+        assertThat(liveActions.getAll().collect(Collectors.toList()),
+                containsInAnyOrder(action1, action2));
+        Mockito.verify(acceptedActionsStore)
+                .updateLatestRecommendationTime(Collections.singletonList(action1.getRecommendationOid()));
+        Mockito.verifyNoMoreInteractions(acceptedActionsStore);
     }
 
     @Test

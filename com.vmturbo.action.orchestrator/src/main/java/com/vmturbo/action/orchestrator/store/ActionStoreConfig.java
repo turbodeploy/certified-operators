@@ -3,7 +3,10 @@ package com.vmturbo.action.orchestrator.store;
 import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +16,8 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorDBConfig;
 import com.vmturbo.action.orchestrator.ActionOrchestratorGlobalConfig;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsStore;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDaoImpl;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
@@ -103,6 +108,12 @@ public class ActionStoreConfig {
     @Value("${realtimeTopologyContextId}")
     private Long realtimeTopologyContextId;
 
+    @Value("${minsActionAcceptanceTTL:1440}")
+    private long minsActionAcceptanceTTL;
+
+    @Value("${minsFrequencyOfCleaningAcceptedActionsStore:60}")
+    private long minsFrequencyOfCleaningAcceptedActionsStore;
+
     @Bean
     public IActionFactory actionFactory() {
         return new ActionFactory(actionModeCalculator());
@@ -116,7 +127,7 @@ public class ActionStoreConfig {
             tpConfig.realtimeTopologyContextId(),
             repositoryClientConfig.topologyAvailabilityTracker(),
             minsToWaitForTopology,
-            TimeUnit.MINUTES);
+            TimeUnit.MINUTES, acceptedActionsStore());
     }
 
     @Bean
@@ -172,8 +183,24 @@ public class ActionStoreConfig {
             actionTranslationConfig.actionTranslator(),
             actionOrchestratorGlobalConfig.actionOrchestratorClock(),
             userSessionConfig.userSessionContext(),
+            acceptedActionsStore(),
             licenseCheckClientConfig.licenseCheckClient(),
             actionIdentityService());
+    }
+
+    /**
+     * Creates instance of {@link RegularAcceptedActionsStoreCleaner} which has internal logic
+     * of regularly checking accepted actions and deleting expired acceptances.
+     *
+     * @return instance of {@link RegularAcceptedActionsStoreCleaner}.
+     */
+    @Bean
+    public RegularAcceptedActionsStoreCleaner regularAcceptedActionsStoreCleaner() {
+        final ThreadFactory threadFactory =
+                new ThreadFactoryBuilder().setNameFormat("acceptedActions-cleaner-%d").build();
+        return new RegularAcceptedActionsStoreCleaner(
+                Executors.newSingleThreadScheduledExecutor(threadFactory), acceptedActionsStore(),
+                minsActionAcceptanceTTL, minsFrequencyOfCleaningAcceptedActionsStore);
     }
 
     @Bean
@@ -214,5 +241,15 @@ public class ActionStoreConfig {
     @Bean
     public ActionHistoryDao actionHistory() {
         return new ActionHistoryDaoImpl(databaseConfig.dsl(), actionModeCalculator());
+    }
+
+    /**
+     * Creates DAO implementation for working with accepted actions.
+     *
+     * @return instance of {@link AcceptedActionsDAO}
+     */
+    @Bean
+    public AcceptedActionsDAO acceptedActionsStore() {
+        return new AcceptedActionsStore(databaseConfig.dsl());
     }
 }

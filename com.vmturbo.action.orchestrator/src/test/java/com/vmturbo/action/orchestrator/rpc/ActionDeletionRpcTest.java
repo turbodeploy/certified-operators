@@ -7,13 +7,15 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.util.Optional;
 
+import io.grpc.Status.Code;
+
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 
-import io.grpc.Status.Code;
-
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
@@ -23,7 +25,6 @@ import com.vmturbo.action.orchestrator.store.ActionStore;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.ActionStorehouse.StoreDeletionException;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory;
-import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -45,6 +46,7 @@ public class ActionDeletionRpcTest {
     private final WorkflowStore workflowStore = mock(WorkflowStore.class);
     private final HistoricalActionStatReader statReader = mock(HistoricalActionStatReader.class);
     private final CurrentActionStatReader liveStatReader = mock(CurrentActionStatReader.class);
+    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
 
     private final long topologyContextId = 3;
 
@@ -62,7 +64,7 @@ public class ActionDeletionRpcTest {
             workflowStore,
             statReader,
             liveStatReader,
-            userSessionContext);
+            userSessionContext, acceptedActionsStore);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
