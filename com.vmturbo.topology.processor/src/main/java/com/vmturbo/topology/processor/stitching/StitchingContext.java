@@ -21,16 +21,14 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.EntityToAdd;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 
@@ -337,7 +335,7 @@ public class StitchingContext {
                 });
             }
             return newTopologyEntities;
-        } catch (IdentityUninitializedException | IdentityMetadataMissingException | IdentityProviderException e) {
+        } catch (IdentityServiceException e) {
             throw new IllegalStateException("Exception while adding new entities to stitching graph: " + e);
         }
     }

@@ -247,4 +247,13 @@ public interface ActionView {
      */
     @Nonnull
     String getDescription();
+
+    /**
+     * Return a market recommendation OID. This OID is used for distinguishing between different
+     * action recommended by market. All the actions with the same recommendation OIDs are treated
+     * as logically equal market recommendations.
+     *
+     * @return market recommendation OID
+     */
+    long getRecommendationOid();
 }

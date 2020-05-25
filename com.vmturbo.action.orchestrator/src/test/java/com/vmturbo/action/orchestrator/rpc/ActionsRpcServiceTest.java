@@ -120,7 +120,8 @@ public class ActionsRpcServiceTest {
             new ActionTranslation(action),
             ASSOCIATED_ID_ACCT,
             ASSOCIATED_RESOURCE_GROUP_ID,
-            actionDescription.getBytes());
+            actionDescription.getBytes(),
+                2244L);
         return spy(new Action(orchestratorAction, actionModeCalculator));
     }
 
@@ -137,6 +138,6 @@ public class ActionsRpcServiceTest {
                         .build())
                 .build();
 
-        return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator));
+        return spy(new Action(action, ACTION_PLAN_ID, actionModeCalculator, 2244L));
     }
 }
