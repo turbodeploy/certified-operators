@@ -53,6 +53,7 @@ public class NotificationsConfig {
             actionStoreConfig.actionStorehouse(),
             apiConfig.actionOrchestratorNotificationSender(),
             actionStoreConfig.actionHistory(),
+            actionStoreConfig.acceptedActionsStore(),
             actionExecutionConfig.actionExecutor(),
             workflowConfig.workflowStore(),
             tpConfig.realtimeTopologyContextId(),

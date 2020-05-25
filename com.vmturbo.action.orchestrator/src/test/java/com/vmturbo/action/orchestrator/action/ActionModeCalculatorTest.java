@@ -19,14 +19,14 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
 
-import org.hamcrest.CoreMatchers;
-import org.junit.Assert;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
-import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ModeAndSchedule;
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import org.junit.Test;
 
+import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ModeAndSchedule;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -946,11 +946,13 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.AUTOMATIC);
         List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        final Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
 
         final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(2);
         ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
@@ -964,7 +966,6 @@ public class ActionModeCalculatorTest {
             .build();
 
         when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator
@@ -1011,11 +1012,13 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.MANUAL);
         List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        final Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
 
         final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(1);
         ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
@@ -1029,7 +1032,6 @@ public class ActionModeCalculatorTest {
             .build();
 
         when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator
@@ -1064,7 +1066,7 @@ public class ActionModeCalculatorTest {
             is(nextOccurrence + AN_HOUR_IN_MILLIS));
 
         // ARRANGE
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.of(USER_NAME));
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.of(USER_NAME));
 
         // ACT
         modeAndSchedule = actionModeCalculator
@@ -1090,13 +1092,14 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.MANUAL);
         List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        final Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
         when(entitiesCache.getScheduleMap()).thenReturn(Collections.emptyMap());
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator
@@ -1116,11 +1119,13 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.MANUAL);
         List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        final Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
         ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
             .setId(SCHEDULE_ID)
             .setDisplayName(SCHEDULE_DISPLAY_NAME)
@@ -1130,7 +1135,6 @@ public class ActionModeCalculatorTest {
             .build();
 
         when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator
@@ -1160,11 +1164,13 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.AUTOMATIC);
         List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        final Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
 
         final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(1);
         ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
@@ -1179,7 +1185,6 @@ public class ActionModeCalculatorTest {
             .build();
 
         when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator
@@ -1209,11 +1214,13 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.MANUAL);
         List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
 
         final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(1);
         ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
@@ -1228,7 +1235,6 @@ public class ActionModeCalculatorTest {
             .build();
 
         when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator
@@ -1258,11 +1264,13 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.MANUAL);
         List<Long> scheduleIds = Collections.singletonList(SCHEDULE_ID);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.of(USER_NAME));
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.of(USER_NAME));
 
         final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(1);
         ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
@@ -1277,7 +1285,6 @@ public class ActionModeCalculatorTest {
             .build();
 
         when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID, actionSchedule));
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator
@@ -1307,11 +1314,13 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.AUTOMATIC);
         List<Long> scheduleIds = Arrays.asList(SCHEDULE_ID, SCHEDULE_ID_2);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
 
         final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(2);
         ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
@@ -1333,7 +1342,6 @@ public class ActionModeCalculatorTest {
 
         when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID,
             actionSchedule, SCHEDULE_ID_2, actionSchedule2));
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator
@@ -1355,11 +1363,13 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.AUTOMATIC);
         List<Long> scheduleIds = Arrays.asList(SCHEDULE_ID, SCHEDULE_ID_2);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        final Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
 
         final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(2);
         ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
@@ -1383,7 +1393,6 @@ public class ActionModeCalculatorTest {
 
         when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID,
             actionSchedule, SCHEDULE_ID_2, actionSchedule2));
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator
@@ -1405,11 +1414,13 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.AUTOMATIC);
         List<Long> scheduleIds = Arrays.asList(SCHEDULE_ID, SCHEDULE_ID_2);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        final Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
 
         final long nextOccurrence = currentTime + TimeUnit.DAYS.toMillis(2);
         ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
@@ -1434,7 +1445,6 @@ public class ActionModeCalculatorTest {
 
         when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID,
             actionSchedule, SCHEDULE_ID_2, actionSchedule2));
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator
@@ -1456,11 +1466,13 @@ public class ActionModeCalculatorTest {
             com.vmturbo.api.enums.ActionMode.AUTOMATIC);
         List<Long> scheduleIds = Arrays.asList(SCHEDULE_ID, SCHEDULE_ID_2, SCHEDULE_ID_3);
         settingsForEntity.putAll(createScheduleSettings(scheduleIds));
+        Action resizeUpAction = getResizeUpAction(VM_ID);
+
         when(entitiesCache.getSettingsForEntity(VM_ID)).thenReturn(settingsForEntity);
         when(entitiesCache.getEntityFromOid(VM_ID)).thenReturn(Optional.of(getVMEntity(VM_ID, false)));
         long currentTime = System.currentTimeMillis();
         when(entitiesCache.getPopulationTimestamp()).thenReturn(currentTime);
-        when(entitiesCache.getAcceptingUserForAction(ACTION_OID)).thenReturn(Optional.empty());
+        when(entitiesCache.getAcceptingUserForAction(resizeUpAction.getRecommendationOid())).thenReturn(Optional.empty());
 
 
         ScheduleProto.Schedule actionSchedule = ScheduleProto.Schedule.newBuilder()
@@ -1496,7 +1508,6 @@ public class ActionModeCalculatorTest {
 
         when(entitiesCache.getScheduleMap()).thenReturn(ImmutableMap.of(SCHEDULE_ID,
             actionSchedule, SCHEDULE_ID_2, actionSchedule2, SCHEDULE_ID_3, actionSchedule3));
-        Action resizeUpAction = getResizeUpAction(VM_ID);
 
         // ACT
         ModeAndSchedule modeAndSchedule = actionModeCalculator

@@ -14,7 +14,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -32,6 +34,7 @@ import org.junit.Test;
 import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
@@ -68,6 +71,7 @@ import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.AcceptActionResponse;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
@@ -76,12 +80,14 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.api.test.MutableFixedClock;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 
 /**
  * Tests for action execution RPCs.
@@ -97,6 +103,7 @@ public class ActionExecutionRpcTest {
 
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
@@ -143,7 +150,7 @@ public class ActionExecutionRpcTest {
             workflowStore,
             statReader,
             liveStatReader,
-            userSessionContext);
+            userSessionContext, acceptedActionsStore);
 
     private final SettingPolicyServiceMole settingPolicyServiceMole = new SettingPolicyServiceMole();
 
@@ -170,11 +177,11 @@ public class ActionExecutionRpcTest {
         when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(targetInfo);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
-        actionStoreSpy =
-            Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-                actionTargetSelector, probeCapabilityCache,
-                entitySettingsCache, actionHistoryDao, statistician, actionTranslator,
-                clock, userSessionContext, licenseCheckClient, actionIdentityService));
+        actionStoreSpy = Mockito.spy(
+                new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, actionTargetSelector,
+                        probeCapabilityCache, entitySettingsCache, actionHistoryDao, statistician,
+                        actionTranslator, clock, userSessionContext, licenseCheckClient,
+                        acceptedActionsStore, actionIdentityService));
 
         actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(grpcServer.getChannel());
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
@@ -198,6 +205,7 @@ public class ActionExecutionRpcTest {
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
@@ -208,6 +216,100 @@ public class ActionExecutionRpcTest {
         assertTrue(response.hasActionSpec());
         assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
         assertEquals(ActionState.IN_PROGRESS, response.getActionSpec().getActionState());
+        Mockito.verifyZeroInteractions(acceptedActionsStore);
+    }
+
+    /**
+     * Tests persisting acceptance for action with execution schedule window.
+     *
+     * @throws Exception If anything goes wrong.
+     */
+    @Test
+    public void testPersistingAcceptanceForActionWithExecutionSchedule() throws Exception {
+        final long actionTargetId = 4L;
+        final long executionScheduleId = 111L;
+        final ActionDTO.Action recommendation =
+                ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID,
+                        actionTargetId, 1, 1, 2, 1);
+        final ScheduleProto.Schedule executionSchedule =
+                ActionOrchestratorTestUtils.createActiveSchedule(executionScheduleId);
+
+        final ActionPlan plan = actionPlan(recommendation);
+        final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(
+                snapshot);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getSettingsForEntity(eq(actionTargetId))).thenReturn(
+                ActionOrchestratorTestUtils.makeActionModeAndExecutionScheduleSetting(
+                        ActionMode.MANUAL, Collections.singleton(executionScheduleId)));
+        when(snapshot.getScheduleMap()).thenReturn(
+                ImmutableMap.of(executionScheduleId, executionSchedule));
+        when(snapshot.getSettingPoliciesForEntity(actionTargetId)).thenReturn(
+                new ImmutableMap.Builder<String, Collection<Long>>().put(
+                        EntitySettingSpecs.Move.getSettingName(), Collections.singletonList(22L))
+                        .put(EntitySettingSpecs.MoveExecutionSchedule.getSettingName(),
+                                Collections.singleton(23L))
+                        .build());
+
+        actionStorehouse.storeActions(plan);
+        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
+                .setActionId(ACTION_ID)
+                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                .build();
+        final AcceptActionResponse response =
+                actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
+
+        Assert.assertFalse(response.hasError());
+        Assert.assertTrue(response.hasActionSpec());
+        Assert.assertEquals(ACTION_ID, response.getActionSpec().getRecommendation().getId());
+        final Action action = actionStoreSpy.getAction(ACTION_ID).get();
+        Mockito.verify(acceptedActionsStore)
+                .persistAcceptedAction(Mockito.eq(action.getRecommendationOid()),
+                        Mockito.any(LocalDateTime.class), Mockito.any(String.class),
+                        Mockito.any(LocalDateTime.class), Mockito.any(String.class),
+                        Mockito.anyCollectionOf(Long.class));
+        // check that for accepted actions updated accepting user
+        Assert.assertEquals("SYSTEM", action.getSchedule().get().getAcceptingUser());
+    }
+
+    /**
+     * Failed to persist acceptance for action if there are no associated policies.
+     */
+    @Test
+    public void testFailedPersistingAcceptance() {
+        final long actionTargetId = 4L;
+        final long executionScheduleId = 111L;
+        final ActionDTO.Action recommendation =
+                ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID, actionTargetId, 1,
+                        1, 2, 1);
+        final ScheduleProto.Schedule executionSchedule =
+                ActionOrchestratorTestUtils.createActiveSchedule(executionScheduleId);
+
+        final ActionPlan plan = actionPlan(recommendation);
+        final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
+        ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(
+                snapshot);
+        when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getSettingsForEntity(eq(actionTargetId))).thenReturn(
+                ActionOrchestratorTestUtils.makeActionModeAndExecutionScheduleSetting(
+                        ActionMode.MANUAL, Collections.singleton(executionScheduleId)));
+        when(snapshot.getScheduleMap()).thenReturn(
+                ImmutableMap.of(executionScheduleId, executionSchedule));
+
+        actionStorehouse.storeActions(plan);
+        final SingleActionRequest acceptActionRequest = SingleActionRequest.newBuilder()
+                .setActionId(ACTION_ID)
+                .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
+                .build();
+        final AcceptActionResponse response =
+                actionOrchestratorServiceClient.acceptAction(acceptActionRequest);
+
+        Assert.assertTrue(response.hasError());
+        Assert.assertThat(response.getError(), CoreMatchers.containsString(
+                "Failed to persist acceptance for action " + ACTION_ID));
+        Mockito.verifyZeroInteractions(acceptedActionsStore);
     }
 
     /**
@@ -226,6 +328,7 @@ public class ActionExecutionRpcTest {
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
@@ -264,6 +367,7 @@ public class ActionExecutionRpcTest {
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
@@ -290,6 +394,7 @@ public class ActionExecutionRpcTest {
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
@@ -347,6 +452,7 @@ public class ActionExecutionRpcTest {
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
         when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
 
@@ -404,7 +510,7 @@ public class ActionExecutionRpcTest {
                     workflowStore,
                     statReader,
                     liveStatReader,
-                    userSessionContext);
+                    userSessionContext, acceptedActionsStore);
         GrpcTestServer grpcServer = GrpcTestServer.newServer(actionsRpcService);
         grpcServer.start();
         ActionsServiceBlockingStub actionOrchestratorServiceClient = ActionsServiceGrpc.newBlockingStub(
@@ -413,7 +519,8 @@ public class ActionExecutionRpcTest {
         actionStoreSpy = Mockito.spy(
                 new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, actionTargetSelector,
                         probeCapabilityCache, entitySettingsCache, actionHistoryDao, statistician,
-                        actionTranslator, clock, userSessionContext, licenseCheckClient, actionIdentityService));
+                        actionTranslator, clock, userSessionContext, licenseCheckClient,
+                        acceptedActionsStore, actionIdentityService));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
 
         actionStorehouse.storeActions(plan);

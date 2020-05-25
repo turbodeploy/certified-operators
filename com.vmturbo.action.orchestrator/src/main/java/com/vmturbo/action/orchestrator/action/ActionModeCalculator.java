@@ -340,7 +340,7 @@ public class ActionModeCalculator {
             () -> action);
 
         final String acceptedBy =
-            entitiesCache.getAcceptingUserForAction(action.getId()).orElse(null);
+            entitiesCache.getAcceptingUserForAction(action.getRecommendationOid()).orElse(null);
 
         // Select the schedule that we use for the action
         final ActionSchedule selectedSchedule = createActionSchedule(scheduleIds, chosenMode,
@@ -376,7 +376,7 @@ public class ActionModeCalculator {
                     + "schedule `{}` for the action has next no occurrence.", () -> action,
                 () -> actionSchedule);
             selectedMode = ActionMode.RECOMMEND;
-        } else if (scheduleStartTimestamp == null || scheduleEndTimestamp < scheduleStartTimestamp ) {
+        } else if (actionSchedule.isActiveSchedule()) {
             // If the selected schedule is active and the action is accepted or chosen mode is
             // automated accept it.
             if (chosenMode == ActionMode.AUTOMATIC) {

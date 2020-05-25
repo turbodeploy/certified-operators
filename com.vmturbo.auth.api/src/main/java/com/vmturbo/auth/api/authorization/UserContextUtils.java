@@ -3,6 +3,8 @@ package com.vmturbo.auth.api.authorization;
 import java.util.List;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.jwt.SecurityConstant;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
@@ -49,5 +51,18 @@ public class UserContextUtils {
     public static Optional<Boolean> currentUserHasRole(String roleName) {
         return getCurrentUserRoles().map(
                 strings -> strings.stream().anyMatch(roleName::equalsIgnoreCase));
+    }
+
+    /**
+     * Get name of current user.
+     *
+     * @return the current user name or default "SYSTEM" value.
+     */
+    @Nonnull
+    public static String getCurrentUserName() {
+        final String userName = SAMLUserUtils.getAuthUserDTO()
+                .map(AuthUserDTO::getUser)
+                .orElse(SecurityConstant.USER_ID_CTX_KEY.get());
+        return userName != null ? userName : "SYSTEM";
     }
 }

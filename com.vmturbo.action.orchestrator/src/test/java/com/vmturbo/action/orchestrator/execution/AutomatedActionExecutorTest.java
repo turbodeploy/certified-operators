@@ -22,6 +22,8 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+import javax.annotation.Nonnull;
+
 import io.grpc.Channel;
 
 import org.junit.After;
@@ -37,6 +39,8 @@ import com.vmturbo.action.orchestrator.action.ActionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionTranslation;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
@@ -134,6 +138,7 @@ public class AutomatedActionExecutorTest {
 
         actionMap.put(99L, nonAutoAction);
         when(nonAutoAction.getMode()).thenReturn(ActionMode.MANUAL);
+        when(nonAutoAction.getSchedule()).thenReturn(Optional.empty());
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
@@ -148,7 +153,7 @@ public class AutomatedActionExecutorTest {
 
 
         final ActionDTO.Action unsupportedRec = makeActionRec(99L, ActionInfo.newBuilder().build());
-        setUpMocks(unsupportedAction, 99L, unsupportedRec);
+        setUpMocksForAutomaticAction(unsupportedAction, 99L, unsupportedRec);
 
         automatedActionExecutor.executeAutomatedFromStore(actionStore);
 
@@ -172,7 +177,7 @@ public class AutomatedActionExecutorTest {
         final ActionDTO.Action crossTargetRec = makeActionRec(actionId,
                 makeMoveInfo(entityId1, pmType, crossTargetEntity, pmType, entityId2));
 
-        setUpMocks(crossTargetAction, actionId, crossTargetRec);
+        setUpMocksForAutomaticAction(crossTargetAction, actionId, crossTargetRec);
         // Map this action to target #1
         when(actionTargetSelector.getTargetsForActions(any(), any()))
             .thenReturn(Collections.singletonMap(actionId, actionTargetInfo(targetId1)));
@@ -216,7 +221,7 @@ public class AutomatedActionExecutorTest {
         final ActionTranslation translation = new ActionTranslation(rec);
         translation.setTranslationFailure();
 
-        setUpMocks(failedTranslationAction, 99L, rec);
+        setUpMocksForAutomaticAction(failedTranslationAction, 99L, rec);
         // Map this action to target #1
         when(actionTargetSelector.getTargetsForActions(any(), any()))
             .thenReturn(Collections.singletonMap(99L, actionTargetInfo(targetId1)));
@@ -251,7 +256,7 @@ public class AutomatedActionExecutorTest {
 
         final ActionTranslation translation = new ActionTranslation(rec);
         translation.setPassthroughTranslationSuccess();
-        setUpMocks(failedExecuteAction, 99L, rec);
+        setUpMocksForAutomaticAction(failedExecuteAction, 99L, rec);
         // Map this action to target #1
         when(actionTargetSelector.getTargetsForActions(any(), any()))
             .thenReturn(Collections.singletonMap(99L, actionTargetInfo(targetId1)));
@@ -293,7 +298,7 @@ public class AutomatedActionExecutorTest {
 
         final ActionTranslation translation = new ActionTranslation(rec);
         translation.setPassthroughTranslationSuccess();
-        setUpMocks(goodAction, actionId, rec);
+        setUpMocksForAutomaticAction(goodAction, actionId, rec);
         // Map this action to target #1
         when(actionTargetSelector.getTargetsForActions(any(), any()))
             .thenReturn(Collections.singletonMap(actionId, actionTargetInfo(targetId1)));
@@ -324,20 +329,21 @@ public class AutomatedActionExecutorTest {
         final Action nonAutoAction = Mockito.mock(Action.class);
         actionMap.put(99L, nonAutoAction);
         when(nonAutoAction.getMode()).thenReturn(ActionMode.MANUAL);
+        when(nonAutoAction.getSchedule()).thenReturn(Optional.empty());
         when(nonAutoAction.getWorkflow(workflowStore)).thenReturn(Optional.empty());
 
         final Action unsupportedAction = Mockito.mock(Action.class);
         final long unsupportedId = 98;
         final ActionDTO.Action unsupportedRec =
                 makeActionRec(unsupportedId, ActionInfo.newBuilder().build());
-        setUpMocks(unsupportedAction, unsupportedId, unsupportedRec);
+        setUpMocksForAutomaticAction(unsupportedAction, unsupportedId, unsupportedRec);
 
         final Action crossTargetAction = Mockito.mock(Action.class);
         final long crossTargetId = 97;
         final ActionDTO.Action crossTargetRec =
                 makeActionRec(crossTargetId,
                     makeMoveInfo(entityId1, pmType, crossTargetEntity, pmType, entityId2));
-        setUpMocks(crossTargetAction, crossTargetId, crossTargetRec);
+        setUpMocksForAutomaticAction(crossTargetAction, crossTargetId, crossTargetRec);
 
         final Action failedTranslationAction = Mockito.mock(Action.class);
         final long noTransId = 96;
@@ -346,7 +352,7 @@ public class AutomatedActionExecutorTest {
                     makeMoveInfo(crossTargetEntity, 1, 555L, 1, 666L));
         final ActionTranslation badTrans = new ActionTranslation(noTransRec);
         badTrans.setTranslationFailure();
-        setUpMocks(failedTranslationAction, noTransId, noTransRec);
+        setUpMocksForAutomaticAction(failedTranslationAction, noTransId, noTransRec);
         when(failedTranslationAction.getActionTranslation()).thenReturn(badTrans);
 
         final Action failedExecuteAction = Mockito.mock(Action.class);
@@ -357,7 +363,7 @@ public class AutomatedActionExecutorTest {
                         makeMoveInfo(crossTargetEntity, pmType, 555L, pmType, 666L));
         final ActionTranslation execFailTrans = new ActionTranslation(execFailRec);
         execFailTrans.setPassthroughTranslationSuccess();
-        setUpMocks(failedExecuteAction, execFailId, execFailRec);
+        setUpMocksForAutomaticAction(failedExecuteAction, execFailId, execFailRec);
         when(failedExecuteAction.getActionTranslation()).thenReturn(execFailTrans);
         Mockito.doThrow(new ExecutionStartException("EPIC FAIL!!!!"))
                 .when(actionExecutor).executeSynchronously(targetId2, execFailRec, workflowOpt);
@@ -369,7 +375,7 @@ public class AutomatedActionExecutorTest {
                     makeMoveInfo(entityId1, pmType, entityId2, pmType, entityId3));
         final ActionTranslation goodTrans = new ActionTranslation(goodRec);
         goodTrans.setPassthroughTranslationSuccess();
-        setUpMocks(goodAction, goodId, goodRec);
+        setUpMocksForAutomaticAction(goodAction, goodId, goodRec);
         when(goodAction.getActionTranslation()).thenReturn(goodTrans);
         when(goodAction.getWorkflow(workflowStore)).thenReturn(Optional.empty());
 
@@ -476,6 +482,7 @@ public class AutomatedActionExecutorTest {
         when(testAction.getId()).thenReturn(actionId);
         when(testAction.getState()).thenReturn(ActionState.READY);
         when(testAction.getMode()).thenReturn(ActionMode.AUTOMATIC);
+        when(testAction.getSchedule()).thenReturn(Optional.empty());
         when(testAction.getRecommendation()).thenReturn(testRecommendation);
         when(testAction.determineExecutability()).thenReturn(true);
         List<ActionExecutionTask> actionFutures =
@@ -489,6 +496,70 @@ public class AutomatedActionExecutorTest {
                 automatedActionExecutor.executeAutomatedFromStore(actionStore);
         assertThat(actionFutures.size(), is(0));
         Mockito.verify(testExecutor, never()).submit(mockCallable);
+    }
+
+    /**
+     * Test that automatically start execution for manually accepted action with active execution
+     * schedule.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testExecutionOfManuallyAccepted() throws Exception {
+        final Action manualAcceptedAction = Mockito.mock(Action.class);
+        final long actionId = 1;
+        final ActionDTO.Action recommendation =
+                makeActionRec(actionId, makeMoveInfo(entityId1, pmType, entityId2, pmType, entityId3));
+
+        final ActionTranslation translation = new ActionTranslation(recommendation);
+        translation.setPassthroughTranslationSuccess();
+
+        setUpMocksForManuallyAcceptedAction(manualAcceptedAction, actionId, recommendation, true);
+
+        // Map this action to target #1
+        when(actionTargetSelector.getTargetsForActions(any(), any())).thenReturn(Collections.singletonMap(actionId, actionTargetInfo(targetId1)));
+        when(manualAcceptedAction.getActionTranslation()).thenReturn(translation);
+
+        automatedActionExecutor.executeAutomatedFromStore(actionStore);
+
+        executorService.shutdown();
+        executorService.awaitTermination(timeout, unit);
+
+        InOrder order = Mockito.inOrder(manualAcceptedAction);
+        order.verify(manualAcceptedAction).receive(isA(ManualAcceptanceEvent.class));
+        order.verify(manualAcceptedAction).receive(isA(BeginExecutionEvent.class));
+
+        Mockito.verifyZeroInteractions(channel);
+        Mockito.verify(actionStore).getActions();
+        Mockito.verify(actionStore).allowsExecution();
+        Mockito.verify(actionTargetSelector).getTargetsForActions(any(), any());
+        Mockito.verify(actionExecutor).executeSynchronously(targetId1, recommendation, workflowOpt);
+        Mockito.verifyNoMoreInteractions(actionStore, actionExecutor, actionTargetSelector);
+    }
+
+    /**
+     * Test that we don't start execution for manually accepted action if execution schedule
+     * window is not active.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testAwaitingExecutionManuallyAcceptedAction() throws Exception {
+        final Action manualAcceptedAction = Mockito.mock(Action.class);
+        final long actionId = 1;
+        final ActionDTO.Action recommendation =
+                makeActionRec(actionId, makeMoveInfo(entityId1, pmType, entityId2, pmType, entityId3));
+
+        final ActionTranslation translation = new ActionTranslation(recommendation);
+        translation.setPassthroughTranslationSuccess();
+        setUpMocksForManuallyAcceptedAction(manualAcceptedAction, actionId, recommendation, false);
+
+        automatedActionExecutor.executeAutomatedFromStore(actionStore);
+
+        executorService.shutdown();
+        executorService.awaitTermination(timeout, unit);
+
+        Mockito.verify(manualAcceptedAction, Mockito.never()).receive(isA(ManualAcceptanceEvent.class));
     }
 
     private ActionDTO.Action makeActionRec(long actionId, ActionInfo info) {
@@ -515,9 +586,28 @@ public class AutomatedActionExecutorTest {
                     destId, destType).build();
     }
 
+    private void setUpMocksForAutomaticAction(@Nonnull Action action, long id,
+            @Nonnull ActionDTO.Action recommendation) {
+        setUpMocks(action, id, recommendation);
+        when(action.getMode()).thenReturn(ActionMode.AUTOMATIC);
+        when(action.getSchedule()).thenReturn(Optional.empty());
+    }
+
+    private void setUpMocksForManuallyAcceptedAction(@Nonnull Action action, long id,
+            @Nonnull ActionDTO.Action recommendation, boolean isActiveExecutionSchedule) {
+        setUpMocks(action, id, recommendation);
+        when(action.getMode()).thenReturn(ActionMode.MANUAL);
+
+        // configure action schedule
+        final ActionSchedule schedule = mock(ActionSchedule.class);
+        when(schedule.isActiveSchedule()).thenReturn(isActiveExecutionSchedule);
+        when(schedule.getAcceptingUser()).thenReturn("administrator");
+
+        when(action.getSchedule()).thenReturn(Optional.of(schedule));
+    }
+
     private void setUpMocks(Action action, long id, ActionDTO.Action rec) {
         actionMap.put(id, action);
-        when(action.getMode()).thenReturn(ActionMode.AUTOMATIC);
         when(action.getId()).thenReturn(id);
         when(action.getRecommendation()).thenReturn(rec);
         when(action.determineExecutability()).thenReturn(true);

@@ -55,8 +55,10 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
      * Constructs action history DAO.
      *
      * @param dsl database access context
+     * @param actionModeCalculator calculates action mode
      */
-    public ActionHistoryDaoImpl(@Nonnull final DSLContext dsl, @Nonnull ActionModeCalculator actionModeCalculator) {
+    public ActionHistoryDaoImpl(@Nonnull final DSLContext dsl,
+            @Nonnull ActionModeCalculator actionModeCalculator) {
         this.dsl = Objects.requireNonNull(dsl);
         this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
     }

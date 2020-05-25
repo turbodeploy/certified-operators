@@ -27,7 +27,9 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AutomaticAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
+import com.vmturbo.action.orchestrator.action.ActionEvent.ManualAcceptanceEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.PrepareExecutionEvent;
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor.SynchronousExecutionException;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.state.machine.UnexpectedEventException;
@@ -100,11 +102,12 @@ public class AutomatedActionExecutor {
      * @param allActions action objects
      * @return map of target id to the set of action ids directed at the target
      */
-    private Map<Long, Set<Long>> mapActionsToTarget(Map<Long, Action> allActions) {
+    private Map<Long, Set<Long>> mapActionsToTarget(
+            Map<Long, ActionExecutionReadinessDetails> allActions) {
         final Map<Long, Set<Long>> result = new HashMap<>();
         final Map<Long, ActionTargetInfo> targetIdsForActions =
                 actionTargetSelector.getTargetsForActions(allActions.values().stream()
-                    .map(Action::getRecommendation), entitySettingsCache.emptySnapshot());
+                    .map(el -> el.getAction().getRecommendation()), entitySettingsCache.emptySnapshot());
         for (Entry<Long, ActionTargetInfo> targetIdForActionEntry : targetIdsForActions.entrySet()) {
             final Long actionId = targetIdForActionEntry.getKey();
             final ActionTargetInfo targetInfo = targetIdForActionEntry.getValue();
@@ -118,8 +121,9 @@ public class AutomatedActionExecutor {
     }
 
     /**
-     * Execute all actions in store that are in Automatic mode.
-     * subject to queueing and/or throttling
+     * Execute all actions in store that are in Automatic mode or manually accepted (MANUAL mode)
+     * with activated execution schedule.
+     * Subject to queueing and/or throttling.
      *
      * @param store ActionStore containing all actions
      */
@@ -127,12 +131,12 @@ public class AutomatedActionExecutor {
         if (!store.allowsExecution()) {
             return Collections.emptyList();
         }
-        Map<Long, Action> autoActions = store.getActions().entrySet().stream()
-                .filter(entry -> entry.getValue().getMode().equals(ActionMode.AUTOMATIC)
-                            && entry.getValue().determineExecutability())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        final Map<Long, ActionExecutionReadinessDetails> autoActions = store.getActions().values().stream()
+                .map(this::getActionExecutionReadinessDetails)
+                .filter(ActionExecutionReadinessDetails::isReadyForExecution)
+                .collect(Collectors.toMap(k -> k.getAction().getId(), v -> v));
 
-        Map<Long, Set<Long>> actionsByTarget = mapActionsToTarget(autoActions);
+        final Map<Long, Set<Long>> actionsByTarget = mapActionsToTarget(autoActions);
 
         //remove any actions for which target retrieval failed
         List<Long> toRemove = new ArrayList<>();
@@ -142,9 +146,10 @@ public class AutomatedActionExecutor {
                 .filter(entry -> !validActions.contains(entry.getKey()))
                 .map(Entry::getValue)
                 .forEach(failed -> {
-                    String errorMsg = String.format(TARGET_RESOLUTION_MSG, failed.getId());
-                    failed.receive(new FailureEvent(errorMsg));
-                    toRemove.add(failed.getId());
+                    final Action action = failed.getAction();
+                    String errorMsg = String.format(TARGET_RESOLUTION_MSG, action.getId());
+                    action.receive(new FailureEvent(errorMsg));
+                    toRemove.add(action.getId());
                 });
         toRemove.forEach(autoActions::remove);
 
@@ -184,9 +189,14 @@ public class AutomatedActionExecutor {
 
                 // Process the action.
                 final Long actionId = actionIt.next();
-                final Action action = autoActions.get(actionId);
+                final ActionExecutionReadinessDetails actionExecutionReadinessDetails = autoActions.get(actionId);
+                final Action action = actionExecutionReadinessDetails.getAction();
                 try {
-                    action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
+                    if (actionExecutionReadinessDetails.isAutomaticallyAccepted()) {
+                        action.receive(new AutomaticAcceptanceEvent(userNameAndUuid, targetId));
+                    } else {
+                        action.receive(new ManualAcceptanceEvent(userNameAndUuid, targetId));
+                    }
                 } catch (UnexpectedEventException ex) {
                     // log the error and continue with the execution of next action.
                     logger.error("Illegal state transition for action {}", action, ex);
@@ -251,6 +261,34 @@ public class AutomatedActionExecutor {
         return actionsToBeExecuted;
     }
 
+    /**
+     * Handle is action ready for execution or not and if it's ready than how action was accepted
+     * (automatically or manually).
+     *
+     * @param action action
+     * @return wrapper for action with information about execution readiness detail.
+     */
+    private ActionExecutionReadinessDetails getActionExecutionReadinessDetails(
+            @Nonnull Action action) {
+        boolean isReadyForExecution = false;
+        boolean isAutomaticallyAccepted = false;
+        final ActionMode actionMode = action.getMode();
+        final Optional<ActionSchedule> scheduleOpt = action.getSchedule();
+        if (actionMode == ActionMode.AUTOMATIC) {
+            isReadyForExecution = true;
+            isAutomaticallyAccepted = true;
+        }
+        if (scheduleOpt.isPresent() && actionMode == ActionMode.MANUAL && scheduleOpt.get()
+                .isActiveSchedule() && scheduleOpt.get().getAcceptingUser() != null) {
+            isReadyForExecution = true;
+        }
+        if (isReadyForExecution && !action.determineExecutability()) {
+            isReadyForExecution = false;
+        }
+        return new ActionExecutionReadinessDetails(action, isReadyForExecution,
+                isAutomaticallyAccepted);
+    }
+
     public static class ActionExecutionTask {
 
         private final Action action;
@@ -267,6 +305,58 @@ public class AutomatedActionExecutor {
 
         public Future<Action> getFuture() {
             return future;
+        }
+    }
+
+    /**
+     * Helper class contains information about action, execution readiness status and acceptor
+     * mode (automatically accepted by system or manually by user).
+     */
+    public static class ActionExecutionReadinessDetails {
+        private Action action;
+        private boolean isReadyForExecution;
+        private boolean isAutomaticallyAccepted;
+
+        /**
+         * Constructor of {@link ActionExecutionReadinessDetails}.
+         *
+         * @param action the action representation
+         * @param isReadyForExecution status of readiness for execution
+         * @param isAutomaticallyAccepted defines action accepted automatically or manual by user
+         */
+        public ActionExecutionReadinessDetails(@Nonnull Action action, boolean isReadyForExecution,
+                boolean isAutomaticallyAccepted) {
+            this.action = action;
+            this.isReadyForExecution = isReadyForExecution;
+            this.isAutomaticallyAccepted = isAutomaticallyAccepted;
+        }
+
+        /**
+         * Return action.
+         *
+         * @return {@link Action}
+         */
+        @Nonnull
+        public Action getAction() {
+            return action;
+        }
+
+        /**
+         * Return execution readiness status for action.
+         *
+         * @return true if action is ready for execution, otherwise false.
+         */
+        public boolean isReadyForExecution() {
+            return isReadyForExecution;
+        }
+
+        /**
+         * Return information about action acceptance mode.
+         *
+         * @return true if action accepted automatically, otherwise false (accepted manually)
+         */
+        public boolean isAutomaticallyAccepted() {
+            return isAutomaticallyAccepted;
         }
     }
 }

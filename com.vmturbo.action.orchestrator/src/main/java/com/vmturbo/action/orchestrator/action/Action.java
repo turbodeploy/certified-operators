@@ -1,11 +1,16 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,6 +59,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -161,6 +167,8 @@ public class Action implements ActionView {
     private Optional<Long> associatedAccountId = Optional.empty();
 
     private Optional<Long> associatedResourceGroupId = Optional.empty();
+
+    private Collection<Long> associatedSettingsPolicies;
 
     /**
      * The state of the action. The state of an action transitions due to certain system events.
@@ -400,7 +408,10 @@ public class Action implements ActionView {
 
             try {
                 final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
-                associatedAccountId = Action.getAssociatedAccountId(recommendation, entitiesSnapshot, primaryEntity);
+                associatedSettingsPolicies =
+                        getAssociatedPolicies(entitiesSnapshot, primaryEntity);
+                associatedAccountId = entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
+                    .map(EntityWithConnections::getOid);
                 associatedResourceGroupId = entitiesSnapshot.getResourceGroupForEntity(primaryEntity);
             } catch (UnsupportedActionException e) {
                 // Shouldn't ever happen here, because we would have rejected this action
@@ -427,6 +438,37 @@ public class Action implements ActionView {
                 return entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
                         .map(EntityWithConnections::getOid);
         }
+    }
+
+    @Nonnull
+    private Set<Long> getAssociatedPolicies(@Nonnull EntitiesAndSettingsSnapshot entitiesSnapshot,
+            long primaryEntity) {
+        final Map<String, Collection<Long>> settingPoliciesForEntity =
+                entitiesSnapshot.getSettingPoliciesForEntity(primaryEntity);
+        final Set<Long> policiesAssociatedWithAction = new HashSet<>();
+        final List<String> specApplicableToAction =
+                actionModeCalculator.specsApplicableToAction(getRecommendation(),
+                        entitiesSnapshot.getSettingsForEntity(primaryEntity))
+                        .map(EntitySettingSpecs::getSettingName)
+                        .collect(Collectors.toList());
+        for (String settingName : specApplicableToAction) {
+            final Collection<Long> policies = settingPoliciesForEntity.get(settingName);
+            if (policies != null) {
+                policiesAssociatedWithAction.addAll(policies);
+            }
+            // also check execution schedule settings because specsApplicableToAction don't have
+            // information about them
+            final String executionScheduleSetting =
+                    EntitySettingSpecs.getActionModeToExecutionScheduleSettings().get(settingName);
+            if (executionScheduleSetting != null) {
+                final Collection<Long> executionSchedulePolicies =
+                        settingPoliciesForEntity.get(executionScheduleSetting);
+                if (executionSchedulePolicies != null) {
+                    policiesAssociatedWithAction.addAll(executionSchedulePolicies);
+                }
+            }
+        }
+        return policiesAssociatedWithAction;
     }
 
     /**
@@ -585,6 +627,17 @@ public class Action implements ActionView {
     @Override
     public Optional<ActionSchedule> getSchedule() {
         return Optional.ofNullable(schedule);
+    }
+
+    @Override
+    public void setSchedule(@Nonnull ActionSchedule actionSchedule) {
+        this.schedule = actionSchedule;
+    }
+
+    @Nonnull
+    @Override
+    public Collection<Long> getAssociatedSettingsPolicies() {
+        return associatedSettingsPolicies != null ? associatedSettingsPolicies : Collections.emptyList();
     }
 
     /**

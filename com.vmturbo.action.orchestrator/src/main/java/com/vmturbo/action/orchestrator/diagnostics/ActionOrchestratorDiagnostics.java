@@ -24,7 +24,6 @@ import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
 import com.vmturbo.components.common.diagnostics.DiagsRestorable;
-import com.vmturbo.components.common.diagnostics.DiagsZipReader;
 
 /**
  * Represents the diagnostics of the action

@@ -26,6 +26,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup;
+import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingGroup.SettingPolicyId;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope;
 import com.vmturbo.common.protobuf.setting.SettingProto.EntitySettingScope.EntityTypeSet;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
@@ -38,7 +39,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-
 
 /**
  * Utilities for dealing with messages defined in {@link SettingProto} (Setting.proto).
@@ -60,18 +60,24 @@ public final class SettingDTOUtil {
      * @return A map of (entity id) -> (setting spec name) -> (setting for that entity and spec name).
      */
     @Nonnull
-    public static Map<Long, Map<String, Setting>> indexSettingsByEntity(
+    public static Map<Long, Map<String, SettingAndPolicies>> indexSettingsByEntity(
             @Nonnull final Stream<EntitySettingGroup> settingGroups) {
-        final Map<Long, Map<String, Setting>> settingsByEntityAndName = new HashMap<>();
+        final Map<Long, Map<String, SettingAndPolicies>> settingsAndPoliciesByEntityAndName =
+                new HashMap<>();
         final Map<Long, Set<String>> entitiesWithMultipleSettings = new HashMap<>();
         settingGroups.forEach(settingGroup -> {
             final Setting setting = settingGroup.getSetting();
+            final List<Long> associatedPolicies = settingGroup.getPolicyIdList()
+                    .stream()
+                    .map(SettingPolicyId::getPolicyId)
+                    .collect(Collectors.toList());
             settingGroup.getEntityOidsList().forEach(entityId -> {
-                final Map<String, Setting> settingsForEntity =
-                    settingsByEntityAndName.computeIfAbsent(entityId, k -> new HashMap<>());
-                final Setting existingSetting = settingsForEntity.putIfAbsent(
-                    setting.getSettingSpecName(), setting);
-                if (existingSetting != null) {
+                final Map<String, SettingAndPolicies> settingsForEntity =
+                    settingsAndPoliciesByEntityAndName.computeIfAbsent(entityId, k -> new HashMap<>());
+                final SettingAndPolicies existingSettingAndPolicies = settingsForEntity.putIfAbsent(
+                    setting.getSettingSpecName(), new SettingAndPolicies(setting,
+                                associatedPolicies));
+                if (existingSettingAndPolicies != null) {
                     entitiesWithMultipleSettings.computeIfAbsent(entityId, k -> new HashSet<>())
                         .add(setting.getSettingSpecName());
                 }
@@ -83,7 +89,7 @@ public final class SettingDTOUtil {
                 " We always chose the first encountered value. {}", entitiesWithMultipleSettings);
         }
 
-        return settingsByEntityAndName;
+        return settingsAndPoliciesByEntityAndName;
     }
 
     /**
