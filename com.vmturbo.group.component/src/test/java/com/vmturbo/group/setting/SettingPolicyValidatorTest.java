@@ -6,10 +6,16 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+
+import com.google.common.collect.Lists;
 
 import org.jooq.exception.DataAccessException;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -326,7 +332,7 @@ public class SettingPolicyValidatorTest {
     }
 
     @Test(expected = InvalidItemException.class)
-    public void testEnumSettingInvalid() throws InvalidItemException{
+    public void testEnumSettingInvalid() throws InvalidItemException {
         when(specStore.getSettingSpec(eq(SPEC_NAME))).thenReturn(Optional.of(newEntitySettingSpec()
                 .setEnumSettingValueType(EnumSettingValueType.newBuilder()
                         .addEnumValues("1").addEnumValues("2"))
@@ -637,4 +643,33 @@ public class SettingPolicyValidatorTest {
                 .setBooleanSettingValueType(BooleanSettingValueType.getDefaultInstance());
     }
 
+    /**
+     * Validate default policies defined in {@link EntitySettingSpecs}.
+     */
+    @Test
+    public void testDefaultPoliciesFromSpec() {
+        DefaultSettingPolicyValidator validator = new DefaultSettingPolicyValidator(
+                new EnumBasedSettingSpecStore(), mock(IGroupStore.class));
+
+            List<InvalidItemException> exceptions = Lists.newArrayList();
+        List<SettingSpec> settings = Arrays.stream(EntitySettingSpecs.values()).map(
+                EntitySettingSpecs::getSettingSpec).collect(Collectors.toList());
+        Collection<SettingPolicyInfo> policies =
+                DefaultSettingPolicyCreator.defaultSettingPoliciesFromSpecs(settings).values();
+        for (SettingPolicyInfo policy : policies) {
+            try {
+                validator.validateSettingPolicy(policy, Type.DEFAULT);
+            } catch (InvalidItemException e) {
+                exceptions.add(e);
+            }
+        }
+        Assert.assertTrue(invalidItemMessages(exceptions), exceptions.isEmpty());
+    }
+
+    private String invalidItemMessages(List<InvalidItemException> exceptions) {
+        return "Invalid policies found:\n" + exceptions.stream()
+                .map(Exception::getMessage)
+                .collect(Collectors.joining("\n"));
+
+    }
 }
