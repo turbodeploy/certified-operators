@@ -106,7 +106,8 @@ public enum EntitySettingSpecs {
      */
     Resize("resize", "Resize", Collections.emptyList(), SettingTiebreaker.SMALLER,
             EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER,
-                            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL),
+                            EntityType.DISK_ARRAY, EntityType.LOGICAL_POOL,
+                    EntityType.DATABASE_SERVER),
             actionExecutionModeSetToManual(), true),
 
     /**
@@ -139,7 +140,7 @@ public enum EntitySettingSpecs {
     ResizeExecutionSchedule("resizeExecutionSchedule", "Execution schedule for Resize",
             Collections.emptyList(), SettingTiebreaker.UNION,
             EnumSet.of(EntityType.STORAGE, EntityType.CONTAINER, EntityType.DISK_ARRAY,
-                    EntityType.LOGICAL_POOL, EntityType.APPLICATION_SERVER,
+                    EntityType.LOGICAL_POOL,
                     EntityType.DATABASE_SERVER), sortedSetOfOid(Type.ENTITY), true),
 
     /**
