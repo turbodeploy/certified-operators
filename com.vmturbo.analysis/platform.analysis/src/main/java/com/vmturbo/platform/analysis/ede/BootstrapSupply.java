@@ -186,8 +186,8 @@ public class BootstrapSupply {
                     } else {
                         CommoditySpecification commSpec = commSpecs.isEmpty() ? null
                                         : commSpecs.get(0);
-                        newSeller = provisionOrActivateTrader(sellerThatFits, mkt, allActions,
-                                        economy, commSpec);
+                        newSeller = provisionOrActivateTrader(sellerThatFits, sl.getBasket(),
+                                                                allActions, economy, commSpec);
                     }
                     if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                         logger.info("The seller " + sellerDebugInfo + " was"
@@ -531,7 +531,7 @@ public class BootstrapSupply {
                     if (!sellerThatFits.getState().isActive()) {
                         // if sellerThatFits is inactive, pass in the activated seller
                         provisionedRelatedActions.add((new Activate(economy, sellerThatFits,
-                                market, sellerThatFits, null)).take());
+                                market.getBasket(), sellerThatFits, null)).take());
                     }
                     traderList.add(sellerThatFits);
                     slList.add(sl);
@@ -622,14 +622,15 @@ public class BootstrapSupply {
      * </p>
      *
      * @param sellerThatFits is the {@link Trader} that when cloned can fit the buyer
-     * @param market is the {@link Market} in which the sellerThatFits sells
+     * @param triggeringBasket is the {@link Basket} of the {@link Market} in which the
+     *                         sellerThatFits sells
      * @param actions the list of {@link Action}s generated during bootstrap
      * @param economy the {@link Economy} for which we want to guarantee enough supply.
      * @param commSpec commodity that led to provision or activation.
      * @return a {@link Trader} the activated/provisioned trader
      */
     private static Trader provisionOrActivateTrader(Trader sellerThatFits,
-                        Market market, List<Action> actions, Economy economy,
+                        @NonNull Basket triggeringBasket, List<Action> actions, Economy economy,
                         CommoditySpecification commSpec) {
         Action action;
         Trader newSeller;
@@ -640,8 +641,9 @@ public class BootstrapSupply {
             newSeller = ((ProvisionBySupply)action).getProvisionedSeller();
             actions.addAll(((ProvisionBySupply)action).getSubsequentActions());
         } else {
-            action = new Activate(economy, sellerThatFits, market, sellerThatFits, commSpec)
-                            .take();
+            action =
+                new Activate(economy, sellerThatFits, triggeringBasket, sellerThatFits, commSpec)
+                    .take();
             actions.add(action);
             newSeller = sellerThatFits;
         }
@@ -831,8 +833,8 @@ public class BootstrapSupply {
                         CommoditySpecification commoditySpecWithInfiniteQuote =
                                         commoditySpecsWithInfiniteQuote.isEmpty()
                                             ? null : commoditySpecsWithInfiniteQuote.get(0);
-                        provisionedSeller = provisionOrActivateTrader(sellerThatFits, market,
-                            allActions, economy, commoditySpecWithInfiniteQuote);
+                        provisionedSeller = provisionOrActivateTrader(sellerThatFits,
+                            sl.getBasket(), allActions, economy, commoditySpecWithInfiniteQuote);
                     }
                     // provisionedSeller may not be a clone of the sellerThatFits in the case of
                     // resizeThroughSupplier so ensure that the provisionedSeller is added to this

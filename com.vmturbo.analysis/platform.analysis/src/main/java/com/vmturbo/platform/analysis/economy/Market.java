@@ -5,22 +5,16 @@ import static com.google.common.base.Preconditions.checkArgument;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
-import java.util.AbstractMap.SimpleEntry;
 
 import org.checkerframework.checker.javari.qual.PolyRead;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
-
-import com.vmturbo.platform.analysis.ede.Placement;
-import com.vmturbo.platform.analysis.pricefunction.QuoteFunctionFactory;
-import com.vmturbo.platform.analysis.translators.AnalysisToProtobuf;
 
 /**
  * A trading place where a particular basket of goods is sold and bought.
@@ -77,7 +71,7 @@ public final class Market implements Serializable {
      * @param basketToAssociate The basket to associate with the new market. It it referenced and
      *                          not copied.
      */
-    public Market(@NonNull Basket basketToAssociate) {
+    Market(@NonNull Basket basketToAssociate) {
         basket_ = basketToAssociate;
     }
 

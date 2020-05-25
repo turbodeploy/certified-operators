@@ -10,16 +10,16 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ObjectArrays;
+import com.google.common.collect.Ordering;
+import com.google.common.hash.Hasher;
+import com.google.common.hash.Hashing;
+
 import org.apache.commons.lang3.StringUtils;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
-
-import com.google.common.collect.ObjectArrays;
-import com.google.common.collect.Ordering;
-import com.google.common.hash.Hasher;
-import com.google.common.hash.Hashing;
 
 /**
  * A set of commodity specifications specifying the commodities a trader may try to buy or sell.
@@ -317,7 +317,7 @@ public final class Basket implements Comparable<@NonNull @ReadOnly Basket>, Iter
     @Override
     @Pure
     public boolean equals(@ReadOnly Basket this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof Basket)) {
+        if (!(other instanceof Basket)) {
             return false;
         }
         Basket otherBasket = (Basket)other;

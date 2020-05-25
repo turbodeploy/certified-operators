@@ -344,7 +344,7 @@ public final class GuaranteedBuyerHelper {
                                 deactivate.getTarget().getDebugInfoNeverUseInCode());
                     }
                     Deactivate deactivateAction = new Deactivate(deactivate.getEconomy(), trader,
-                            entry.getValue());
+                            entry.getValue().getBasket());
                     deactivate.getSubsequentActions().add(deactivateAction.take());
                     deactivate.getSubsequentActions()
                             .addAll(deactivateAction.getSubsequentActions());

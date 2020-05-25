@@ -576,17 +576,22 @@ public class CostFunctionFactory {
 
         double discountedCost = 0;
         double numCouponsToPayFor = 0;
+
         if (availableCoupons > 0) {
+
             if (couponCommSoldByTp.getCapacity() != 0) {
-                double templateCostPerCoupon = singleVmTemplateCost / couponCommSoldByTp.getCapacity();
+                final double matchingTpCouponCapacity = couponCommSoldByTp.getCapacity();
+                final double templateCostPerCoupon = singleVmTemplateCost / matchingTpCouponCapacity;
                 // Assuming 100% discount for the portion of requested coupons satisfied by the CBTP
                 numCouponsToPayFor = Math.max(0, (requestedCoupons - availableCoupons));
-                if (costTuple != null && costTuple.getPrice() != 0) {
-                    discountedCost = Math.max(costTuple.getPrice(),
-                            numCouponsToPayFor * templateCostPerCoupon);
-                } else {
-                    discountedCost = numCouponsToPayFor * templateCostPerCoupon;
-                }
+
+
+                final double numCouponsCovered = requestedCoupons - numCouponsToPayFor;
+                final double cbtpResellerRate = calculateCbtpResellerPrice(costTuple, destTP);
+                final double cbtpResellerCost = cbtpResellerRate * (numCouponsCovered / matchingTpCouponCapacity);
+
+                discountedCost = numCouponsToPayFor * templateCostPerCoupon + cbtpResellerCost;
+
             } else {
                 logger.warn("Coupon commodity sold by {} has 0 capacity.",
                         destTP.getDebugInfoNeverUseInCode());
@@ -607,6 +612,38 @@ public class CostFunctionFactory {
                     buyer.getTotalRequestedCoupons(economy, seller),
                     currentCoverage + requestedCoupons - numCouponsToPayFor, economy);
         }
+    }
+
+
+    /**
+     * Calculates the price for a CBTP, based on reselling TP commodities. The price calculation takes
+     * into account a general reseller fee as part of the CBTP, which may represent the nominal fee
+     * used to "size" CBTPs, as well as a core-based license fee based on the destination TP.
+     *
+     * @param costTuple The {@link CostTuple} of the CBTP
+     * @param matchingTp The destination template provider the CBTP will resell
+     * @return The price/rate of the CBTP. This price does not take into account the coupons bought
+     * on the CBTP and is therefore representative of the rate, not cost.
+     */
+    private static double calculateCbtpResellerPrice(@NonNull CostTuple costTuple,
+                                                     @NonNull Trader matchingTp) {
+
+        double corePrice = 0.0;
+
+        if (costTuple.hasCoreCommodityType() && costTuple.getCoreCommodityType() >= 0) {
+            final int indexOfCoreCommodity =
+                    matchingTp.getBasketSold().indexOf(costTuple.getCoreCommodityType());
+
+            final CommoditySold coreCommSoldByMatchingTp = (indexOfCoreCommodity  >= 0) ?
+                    matchingTp.getCommoditiesSold().get(indexOfCoreCommodity) : null;
+
+            if (coreCommSoldByMatchingTp != null) {
+                final long coreCapacity = Math.round(coreCommSoldByMatchingTp.getCapacity());
+                corePrice = costTuple.getPriceByNumCoresMap().getOrDefault(coreCapacity, 0.0);
+            }
+        }
+
+        return costTuple.getPrice() + corePrice;
     }
 
     /**
@@ -669,6 +706,7 @@ public class CostFunctionFactory {
         }
 
         final BalanceAccount balanceAccount = buyerContext.getBalanceAccount();
+        final long priceId = balanceAccount.getPriceId();
         final long regionId = buyerContext.getRegionId();
         final long zoneId = buyerContext.getZoneId();
 
@@ -678,12 +716,11 @@ public class CostFunctionFactory {
                 || cbtpScopeId.equals(balanceAccount.getId())) {
             // costTable will be indexed using zone id, if the CBTP is scoped to a zone.
             // Otherwise the costTable will be indexed using the region id.
-            // We use businessAccountId = 0 as this field is not set for CBTP cost tuples.
-            CostTuple costTuple = costTable.getTuple(regionId, 0, licenseTypeKey);
+            CostTuple costTuple = costTable.getTuple(regionId, priceId, licenseTypeKey);
             if (costTuple != null) {
                 return costTuple;
             }
-            costTuple = costTable.getTuple(zoneId, 0, licenseTypeKey);
+            costTuple = costTable.getTuple(zoneId, priceId, licenseTypeKey);
             if (costTuple != null) {
                 return costTuple;
             }
@@ -847,6 +884,7 @@ public class CostFunctionFactory {
 
         return costFunction;
     }
+
 
     /**
      * Create {@link CostFunction} by extracting data from {@link StorageTierCostDTO}

@@ -7,15 +7,17 @@ import java.util.function.IntFunction;
 
 import javax.annotation.Nullable;
 
+import com.google.common.base.Preconditions;
+import com.google.common.hash.Hashing;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.base.Preconditions;
-import com.google.common.hash.Hashing;
+import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
-import com.vmturbo.platform.analysis.economy.Market;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
 
@@ -25,24 +27,23 @@ import com.vmturbo.platform.analysis.economy.TraderState;
 public class Activate extends StateChangeBase { // inheritance for code reuse
 
     private final @NonNull Trader modelSeller_;
-    private final @NonNull Economy economy_;
     private @Nullable CommoditySpecification reasonCommodity;
     // Constructors
 
     /**
      * Constructs a new Activate action with the specified target.
      *
+     * @param economy The economy containing <b>target</b>.
      * @param target The trader that will be activated as a result of taking {@code this} action.
-     * @param sourceMarket The market that benefits from activating target.
+     * @param triggeringBasket The basket of the market that benefits from activating target.
      * @param modelSeller The trader whose high profits led to activation.
      * @param commCausingActivation commodity that led to activation
      */
-    public Activate(@NonNull Economy economy, @NonNull Trader target, @NonNull Market sourceMarket,
-                    @NonNull Trader modelSeller,
+    public Activate(@NonNull Economy economy, @NonNull Trader target,
+                    @NonNull Basket triggeringBasket, @NonNull Trader modelSeller,
                     @Nullable CommoditySpecification commCausingActivation) {
-        super(target, sourceMarket);
+        super(economy, target, triggeringBasket);
         modelSeller_ = modelSeller;
-        economy_ = economy;
         reasonCommodity = commCausingActivation;
     }
 
@@ -54,14 +55,6 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
    @Pure
    public @NonNull Trader getModelSeller(@ReadOnly Activate this) {
        return modelSeller_;
-   }
-
-    /**
-    * Returns the economy in which the trader will be added.
-    */
-   @Pure
-   public @NonNull Economy getEconomy(@ReadOnly Activate this) {
-       return economy_;
    }
 
    @Override
@@ -101,6 +94,27 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
         return this;
     }
 
+    @Override
+    public @NonNull Activate port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        return new Activate(destinationEconomy, destinationTrader.apply(getTarget()),
+            getTriggeringBasket(), destinationTrader.apply(getModelSeller()), getReason());
+    }
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently an activate is considered valid iff the model seller is cloneable and inactive.
+     * </p>
+     */
+    // TODO: Do we want to check if some other trader is cloneable or if this one is activate-able?
+    @Override
+    public boolean isValid() {
+        return getModelSeller().getSettings().isCloneable() && !getTarget().getState().isActive();
+    }
+
     // TODO: update description and reason when we create the corresponding matrix.
     @Override
     public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
@@ -122,7 +136,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
                                        @NonNull IntFunction<@NonNull String> commodityType,
                                        @NonNull IntFunction<@NonNull String> traderType) {
         return new StringBuilder()
-            .append("To satisfy increased demand for ").append(getSourceMarket().getBasket())
+            .append("To satisfy increased demand for ").append(getTriggeringBasket())
             .append(".").toString(); // TODO: print basket in human-readable form.
     }
 
@@ -132,13 +146,13 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Override
     @Pure
     public boolean equals(@ReadOnly Activate this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof Activate)) {
+        if (!(other instanceof Activate)) {
             return false;
         }
         Activate otherActivate = (Activate)other;
         return otherActivate.getEconomy() == getEconomy()
                         && otherActivate.getTarget() == getTarget()
-                        && otherActivate.getSourceMarket() == getSourceMarket()
+                        && otherActivate.getTriggeringBasket().equals(getTriggeringBasket())
                         && otherActivate.getModelSeller() == getModelSeller();
     }
 
@@ -149,7 +163,7 @@ public class Activate extends StateChangeBase { // inheritance for code reuse
     @Pure
     public int hashCode() {
         return Hashing.md5().newHasher().putInt(getEconomy().hashCode())
-                        .putInt(getTarget().hashCode()).putInt(getSourceMarket().hashCode())
+                        .putInt(getTarget().hashCode()).putInt(getTriggeringBasket().hashCode())
                         .putInt(getModelSeller().hashCode()).hash().asInt();
     }
 

@@ -9,14 +9,19 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Set;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.Sets;
+
+import junitparams.JUnitParamsRunner;
+import junitparams.Parameters;
+import junitparams.naming.TestCaseName;
+
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
-import com.google.common.collect.Sets;
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.analysis.actions.Action;
 import com.vmturbo.platform.analysis.actions.ActionImpl;
@@ -51,10 +56,6 @@ import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySpecificati
 import com.vmturbo.platform.analysis.protobuf.EconomyDTOs.TraderTO;
 import com.vmturbo.platform.analysis.testUtilities.TestUtils;
 import com.vmturbo.platform.analysis.topology.Topology;
-
-import junitparams.JUnitParamsRunner;
-import junitparams.Parameters;
-import junitparams.naming.TestCaseName;
 
 /**
  * A test case for the {@link AnalysisToProtobuf} class.
@@ -187,7 +188,7 @@ public class AnalysisToProtobufTest {
         } catch (Exception e) {
 
         }
-        Action activate = new Activate(e, pm1, e.getMarket(basketBought1), pm2, TestUtils.CPU);
+        Action activate = new Activate(e, pm1, basketBought1, pm2, TestUtils.CPU);
         ActionTO activateTO = ActionTO.newBuilder().setActivate(ActivateTO.newBuilder()
                         .setTraderToActivate(2l).setModelSeller(3l)
                         .setMostExpensiveCommodity(((Activate)activate)
@@ -202,7 +203,7 @@ public class AnalysisToProtobufTest {
                         .setIsNotExecutable(false)
                         .build();
 
-        Action deactivate = new Deactivate(e, vm2, e.getMarket(basketBought1));
+        Action deactivate = new Deactivate(e, vm2, basketBought1);
         ActionTO deActionTO = ActionTO.newBuilder().setDeactivate(DeactivateTO.newBuilder()
                         .setTraderToDeactivate(1l)
                         .addTriggeringBasket(CommoditySpecificationTO.newBuilder().setType(100)
