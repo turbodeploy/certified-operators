@@ -37,8 +37,6 @@ import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInst
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpecInfo;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
@@ -75,25 +73,6 @@ public class SMAInput {
      * List of input contexts.
      */
     public final List<SMAInputContext> inputContexts;
-
-    // map to convert commodity sold key to OSType.
-    static Map<String, OSType> nameToOSType = new HashMap<>();
-
-    static {
-        nameToOSType.put("LINUX",                  OSType.LINUX);
-        nameToOSType.put("LINUX_SQL_ENTERPRISE",   OSType.LINUX_WITH_SQL_ENTERPRISE);
-        nameToOSType.put("LINUX_SQL_STANDARD",     OSType.LINUX_WITH_SQL_STANDARD);
-        nameToOSType.put("LINUX_SQL_WEB",          OSType.LINUX_WITH_SQL_WEB);
-        nameToOSType.put("RHEL",                   OSType.RHEL);
-        nameToOSType.put("SUSE",                   OSType.SUSE);
-        nameToOSType.put("WINDOWS",                OSType.WINDOWS);
-        nameToOSType.put("WINDOWS_BYOL",           OSType.WINDOWS_BYOL);
-        nameToOSType.put("WINDOWS_SERVER",         OSType.WINDOWS_SERVER);
-        nameToOSType.put("WINDOWS_SERVER_BURST",   OSType.WINDOWS_SERVER_BURST);
-        nameToOSType.put("WINDOWS_SQL_ENTERPRISE", OSType.WINDOWS_WITH_SQL_ENTERPRISE);
-        nameToOSType.put("WINDOWS_SQL_STANDARD",   OSType.WINDOWS_WITH_SQL_STANDARD);
-        nameToOSType.put("WINDOWS_SQL_WEB",        OSType.WINDOWS_WITH_SQL_WEB);
-    }
 
     /**
      * Constructor for SMAInput.
@@ -733,20 +712,10 @@ public class SMAInput {
      * @return list of osTypes that are sold as commodities.
      */
     private Set<OSType> computeOsTypes(TopologyEntityDTO entity) {
-        Set<OSType> osTypes = new HashSet<>();
-        for (CommoditySoldDTO commoditySold : entity.getCommoditySoldListList()) {
-            CommodityType commodityType = commoditySold.getCommodityType();
-            if (commodityType.getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE) {
-                String osTypeName = commodityType.getKey();
-                OSType osType = convertToOSType(osTypeName);
-                osTypes.add(osType);
-            }
-        }
-        return osTypes;
-    }
-
-    private OSType convertToOSType(String value) {
-        return nameToOSType.getOrDefault(value.toUpperCase(), OSType.UNKNOWN_OS);
+        return entity.getCommoditySoldListList().stream()
+                .filter(c -> c.getCommodityType().getType() == CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                .map(c -> MarketPriceTable.OS_TYPE_MAP.getOrDefault(c.getCommodityType().getKey(), OSType.UNKNOWN_OS))
+                .collect(Collectors.toSet());
     }
 
     /**
