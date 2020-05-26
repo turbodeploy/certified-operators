@@ -305,8 +305,6 @@ public class Analysis {
         }
         final List<AnalysisType> analysisTypeList = topologyInfo.getAnalysisTypeList();
         final boolean isBuyRIImpactAnalysis = analysisTypeList.contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
-        // TODO: Remove this, set to true for testing only!!!
-//        final boolean isMigrateToCloud = true;
         final boolean isMigrateToCloud = (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
                 .equals(StringConstants.CLOUD_MIGRATION_PLAN));
         final boolean isM2AnalysisEnabled = analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS);
