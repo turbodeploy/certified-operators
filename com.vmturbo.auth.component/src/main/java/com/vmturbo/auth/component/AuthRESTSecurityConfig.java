@@ -15,6 +15,7 @@ import org.springframework.security.web.firewall.DefaultHttpFirewall;
 
 import com.vmturbo.auth.api.SpringSecurityConfig;
 import com.vmturbo.auth.api.auditing.AuditLog;
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.auth.component.handler.GlobalExceptionHandler;
 import com.vmturbo.auth.component.policy.UserPolicy;
 import com.vmturbo.auth.component.policy.UserPolicy.LoginPolicy;
@@ -100,11 +101,15 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
             .permitAll()
             .and()
             .authorizeRequests()
-            .antMatchers("/securestorage/getSqlDBRootPassword/**")
+            .antMatchers(DBPasswordUtil.SECURESTORAGE_PATH + DBPasswordUtil.SQL_DB_ROOT_PASSWORD_PATH + "/**")
             .permitAll()
             .and()
             .authorizeRequests()
-            .antMatchers("/securestorage/getSqlDBRootUsername/**")
+            .antMatchers(DBPasswordUtil.SECURESTORAGE_PATH + DBPasswordUtil.SQL_DB_ROOT_USERNAME_PATH + "/**")
+            .permitAll()
+            .and()
+            .authorizeRequests()
+            .antMatchers(DBPasswordUtil.SECURESTORAGE_PATH + DBPasswordUtil.POSTGRES_DB_ROOT_USERNAME_PATH + "/**")
             .permitAll()
             .and()
             .authorizeRequests()
@@ -112,11 +117,11 @@ public class AuthRESTSecurityConfig extends WebSecurityConfigurerAdapter {
             .permitAll()
             .and()
             .authorizeRequests()
-            .antMatchers("/securestorage/getArangoDBRootPassword/**")
+            .antMatchers(DBPasswordUtil.SECURESTORAGE_PATH + DBPasswordUtil.ARANGO_DB_ROOT_PASSWORD_PATH + "/**")
             .permitAll()
             .and()
             .authorizeRequests()
-            .antMatchers("/securestorage/getInfluxDBRootPassword/**")
+            .antMatchers(DBPasswordUtil.SECURESTORAGE_PATH + DBPasswordUtil.INFLUX_DB_ROOT_PASSWORD_PATH + "/**")
             .permitAll()
             .and()
             .authorizeRequests()
