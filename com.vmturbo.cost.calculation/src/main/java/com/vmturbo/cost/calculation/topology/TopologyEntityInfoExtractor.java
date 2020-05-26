@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.DatabaseInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
@@ -132,10 +133,23 @@ public class TopologyEntityInfoExtractor implements EntityInfoExtractor<Topology
                         == commodityType.getNumber())
                 .map(CommoditySoldDTO::getCapacity)
                 .findAny();
-        if (!capacity.isPresent()) {
-            logger.error("Missing commodity {} for volume {} (OID: {})", commodityType,
+        if (!capacity.isPresent() && !isEphemeralVolume(volume)) {
+            // This is not an error for AWS ephemeral (instance store) volumes because they have no
+            // Storage Access and IO Throughput commodities.
+            logger.warn("Missing commodity {} for volume {} (OID: {})", commodityType,
                     volume.getDisplayName(), volume.getOid());
         }
         return capacity.orElse(0D).floatValue();
+    }
+
+    private static boolean isEphemeralVolume(@Nonnull final TopologyEntityDTO volume) {
+        if (!volume.hasTypeSpecificInfo()) {
+            return false;
+        }
+        final TypeSpecificInfo typeSpecificInfo = volume.getTypeSpecificInfo();
+        if (!typeSpecificInfo.hasVirtualVolume()) {
+            return false;
+        }
+        return typeSpecificInfo.getVirtualVolume().getIsEphemeral();
     }
 }
