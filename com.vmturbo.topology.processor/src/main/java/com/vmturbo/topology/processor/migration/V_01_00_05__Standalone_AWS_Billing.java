@@ -20,6 +20,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
@@ -209,7 +210,8 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
      * @return map from probe ID to probe type
      */
     @Nullable
-    private boolean updateProbes(KeyValueStore keyValueStore) {
+    @VisibleForTesting
+    protected boolean updateProbes(KeyValueStore keyValueStore) {
         logger.debug("Starting probe migration.");
         boolean succeeded = true;
         // get the JSON for all the previously stored probes
@@ -227,7 +229,12 @@ public class V_01_00_05__Standalone_AWS_Billing extends AbstractMigration {
                 logger.trace("probeId={} unable to read JSON!", probeId);
                 continue;
             }
-            String probeType = json.get("probeType").getAsString();
+            JsonElement probeElement = json.get("probeType");
+            // Skip probe property entries.
+            if (probeElement == null) {
+                continue;
+            }
+            final String probeType = probeElement.getAsString();
             if (!PROBE_TYPES_ALL_AWS.contains(probeType)) {
                 logger.trace("probeId={} probeType='{}' not an AWS probe", probeId, probeType);
                 continue;

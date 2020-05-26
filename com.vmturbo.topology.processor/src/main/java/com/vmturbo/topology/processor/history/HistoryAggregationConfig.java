@@ -64,6 +64,8 @@ public class HistoryAggregationConfig {
     private String percentileBucketsImageStorage;
     @Value("${historyAggregation.grpcChannelMaxMessageSizeKb:204800}")
     private int grpcChannelMaxMessageSizeKb;
+    @Value("${historyAggregation.grpcTimeSlotChannelMaxMessageSizeKb:20480}")
+    private int grpcTimeSlotChannelMaxMessageSizeKb;
     @Value("${historyAggregation.grpcStreamTimeoutSec:300}")
     private int grpcStreamTimeoutSec;
     @Value("${historyAggregation.blobReadWriteChunkSizeKb:128}")
@@ -100,7 +102,8 @@ public class HistoryAggregationConfig {
      */
     @Bean
     public StatsHistoryServiceBlockingStub historyClient() {
-        return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig.historyChannel());
+        return StatsHistoryServiceGrpc.newBlockingStub(historyClientConfig
+            .historyChannelWithMaxMessageSize((int)(grpcTimeSlotChannelMaxMessageSizeKb * Units.KBYTE)));
     }
 
     /**

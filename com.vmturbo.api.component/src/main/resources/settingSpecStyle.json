@@ -56,6 +56,48 @@
                 ]
             }
         },
+      "percentileAggressivenessContainerSpec": {
+        "range": {
+          "step": 1,
+          "labels": [
+            "Less Aggressive",
+            "Recommended",
+            "More Aggressive",
+            "Most Aggressive",
+            "100th Percentile",
+            "99th Percentile",
+            "95th Percentile",
+            "90th Percentile"
+          ],
+          "customStepValues": [
+            100,
+            99,
+            95,
+            90
+          ]
+        }
+      },
+      "minObservationPeriodContainerSpec": {
+        "range": {
+          "step": 1,
+          "labels": [
+            "More Elastic",
+            "",
+            "",
+            "Less Elastic",
+            "None",
+            "1 day",
+            "3 days",
+            "7 days"
+          ],
+          "customStepValues": [
+            0,
+            1,
+            3,
+            7
+          ]
+        }
+      },
       "minObservationPeriodVirtualMachine": {
         "range": {
           "step": 1,
@@ -78,6 +120,24 @@
         }
       },
       "maxObservationPeriodBusinessUser": {
+        "range": {
+          "step": 1,
+          "labels": [
+            "Less Elastic",
+            "Recommended",
+            "More Elastic",
+            "Last 90 Days",
+            "Last 30 Days",
+            "Last 7 Days"
+          ],
+          "customStepValues": [
+            90,
+            30,
+            7
+          ]
+        }
+      },
+      "maxObservationPeriodContainerSpec": {
         "range": {
           "step": 1,
           "labels": [

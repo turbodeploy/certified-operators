@@ -91,8 +91,8 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_BUYRI("Buy {0} {1} RIs for {2} in {3}"),
         ACTION_DESCRIPTION_ALLOCATE("Increase RI coverage for {0} in {1}"),
         CONTAINER_VCPU_MHZ("{0,number,integer} MHz"),
-        SIMPLE_GB("{0} GB"),
-        SIMPLE("{0}");
+        SIMPLE_GB("{0, number, integer} GB"),
+        SIMPLE("{0, number, integer}");
 
         private final ThreadLocal<MessageFormat> messageFormat;
 
@@ -111,6 +111,7 @@ public class ActionDescriptionBuilder {
         new ImmutableMap.Builder<CommodityDTO.CommodityType, Long>()
             .put(CommodityDTO.CommodityType.VMEM, Units.KBYTE)
             .put(CommodityDTO.CommodityType.STORAGE_AMOUNT, Units.MBYTE)
+            .put(CommodityDTO.CommodityType.STORAGE_PROVISIONED, Units.MBYTE)
             .put(CommodityDTO.CommodityType.HEAP, Units.KBYTE)
             .put(CommodityDTO.CommodityType.MEM, Units.KBYTE)
             .put(CommodityDTO.CommodityType.DB_MEM, Units.KBYTE)

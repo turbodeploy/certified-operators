@@ -39,6 +39,7 @@ import org.jooq.exception.DataAccessException;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
 import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.matrix.component.external.MatrixInterface;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionExecutionDTO;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
@@ -76,10 +77,7 @@ import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumperImpl;
 import com.vmturbo.topology.processor.discoverydumper.TargetDumpingSettings;
 import com.vmturbo.topology.processor.entity.EntityStore;
 import com.vmturbo.topology.processor.group.discovery.DiscoveredGroupUploader;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.notification.SystemNotificationProducer;
 import com.vmturbo.topology.processor.operation.action.Action;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
@@ -1121,8 +1119,7 @@ public class OperationManager implements ProbeStoreListener, TargetStoreListener
                 }
             }
             operationComplete(discovery, success, response.getErrorDTOList());
-        } catch (IdentityUninitializedException | IdentityMetadataMissingException |
-                IdentityProviderException | RuntimeException e) {
+        } catch (IdentityServiceException | RuntimeException e) {
             final String messageDetail = e.getLocalizedMessage() != null
                 ? e.getLocalizedMessage()
                 : e.getClass().getSimpleName();

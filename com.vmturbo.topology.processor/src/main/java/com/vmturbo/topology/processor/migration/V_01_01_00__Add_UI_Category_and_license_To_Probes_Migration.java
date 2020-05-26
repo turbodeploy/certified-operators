@@ -168,8 +168,8 @@ public class V_01_01_00__Add_UI_Category_and_license_To_Probes_Migration extends
         //    For some probes the license can be null.
         // 4. If it's unknown probe then use probeCategory as uiProbeCategory.
         // 5. Create a new json and update keyValueStore
-        logger.debug("Start probes migration: add 'uiProbeCategory' and 'license' properties " +
-                "if don't exist");
+        logger.debug("Start probes migration: add 'uiProbeCategory' and 'license' properties "
+                + "if don't exist");
         String msg = "All probes were updated. Upgrade finished.";
         MigrationStatus status = MigrationStatus.SUCCEEDED;
         final Map<String, String> persistedProbes =

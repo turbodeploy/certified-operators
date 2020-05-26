@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -47,6 +48,10 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
     Map<Long, ReservedInstanceData> riDataMap = new HashMap<>();
+    
+    final Map<ReservedInstanceData, RiDiscountedMarketTier> marketTierByRIData = new HashMap<>();
+
+
     ReservedInstanceConverter(TopologyInfo topologyInfo, CommodityConverter commodityConverter,
                          @Nonnull CostDTOCreator costDTOCreator,
                          @Nonnull TierExcluder tierExcluder,
@@ -65,6 +70,7 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
         // create RI aggregates from the RIs bought
         Collection<ReservedInstanceAggregate> riAggregates = aggregator.aggregate(topologyInfo);
         riDataMap = aggregator.getRIDataMap();
+        marketTierByRIData.clear();
 
         Map<TraderTO.Builder, MarketTier> traderTOs = new HashMap<>();
         // iterate over all the aggregated RI objects and creates CBTPs out of them
@@ -88,7 +94,8 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                                     .setCloudCost(costDTOCreator
                                             .createCbtpCostDTO(riAggregate.getRiKey(),
                                                     accountPricingDataByBusinessAccountOid,
-                                                    region, computeTier,
+                                                    region,
+                                                    riAggregate.getComputeTiersInScope(),
                                                     riAggregate.getApplicableBusinessAccount()))
                                     .build()))
                     .setQuoteFactor(1)
@@ -107,8 +114,23 @@ public class ReservedInstanceConverter extends ComputeTierConverter {
                     .setDebugInfoNeverUseInCode(debugInfo)
                     .addAllCommoditiesSold(commoditiesSoldList(computeTier, region, marketTier));
             traderTOs.put(traderTOBuilder, marketTier);
+
+            riAggregate.getConstituentRIs().forEach(riData ->
+                    marketTierByRIData.put(riData, marketTier));
         }
         return traderTOs;
+    }
+
+    /**
+     * Determines the {@link RiDiscountedMarketTier} associated with an {@link ReservedInstanceData}
+     * instance.
+     *
+     * @param riData The target {@link ReservedInstanceData}.
+     * @return An {@link Optional} containing the {@link RiDiscountedMarketTier} representing the
+     * {@link ReservedInstanceData} in the market.
+     */
+    public Optional<RiDiscountedMarketTier> getMarketTierForRIData(@Nonnull ReservedInstanceData riData) {
+        return Optional.ofNullable(marketTierByRIData.get(riData));
     }
 
     /**

@@ -124,9 +124,12 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
                 logger.info("Background loading process started for '{}' commodities.",
                                 recentCommodities::size);
             }
-            final Collection<List<EntityCommodityReference>> chunksToSchedule =
-                            new ArrayList<>(Lists.partition(new ArrayList<>(recentCommodities),
-                                            getConfig().getLoadingChunkSize()));
+
+            // we need to partition by entity type because we request history for multiples entity
+            // types, e.g. DESKTOP_POOL, BUSINESS_USER.
+            // History component does not support pagination by multiple entity types hence the split
+            final Collection<List<EntityCommodityReference>> chunksToSchedule  =
+                partitionCommodities(context, recentCommodities);
             chunksToSchedule.addAll(checkScheduledTasks());
             if (attemptsExceeded()) {
                 closeResources("Attempts",
@@ -263,6 +266,26 @@ public abstract class AbstractBackgroundLoadingHistoricalEditor<HistoryData exte
      */
     protected boolean isRunning() {
         return !running.isEmpty();
+    }
+
+
+    /**
+     * Partition commodities by entity type and configured load size.
+     *
+     * @param context Invocation context i.e current graph
+     * @param commRefs Commodities to be processed
+     * @return Commodity references partitioned by entity type
+     */
+    @Nonnull
+    protected Collection<List<EntityCommodityReference>> partitionCommodities(
+            @Nonnull final HistoryAggregationContext context,
+            @Nonnull final Collection<EntityCommodityReference> commRefs) {
+        final Collection<List<EntityCommodityReference>> chunksToSchedule = new ArrayList<>();
+        commRefs.stream()
+            .collect(Collectors.groupingBy(comm -> context.getEntityType(comm.getEntityOid())))
+            .values().forEach(comms -> chunksToSchedule.addAll(Lists.partition(comms,
+                                                                getConfig().getLoadingChunkSize())));
+        return chunksToSchedule;
     }
 
 }

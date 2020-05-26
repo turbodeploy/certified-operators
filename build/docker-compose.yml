@@ -43,6 +43,7 @@ volumes:
   nginx-data: *localdriver
   nginx-run: *localdriver
   nginx-home: *localdriver
+  timescale-data: *localdriver
 
 services:
   rsyslog:
@@ -235,6 +236,7 @@ services:
       - "${NGINX_HTTPS_PORT}"
     environment:
       API: api
+      GRAFANA: grafana
       TOPOLOGY: topology-processor
       DNS_RESOLVER: 127.0.0.11
     volumes:
@@ -588,6 +590,44 @@ services:
       JVM_TYPE: "${JVM_TYPE}"
       kafkaServers: ${KAFKA_SERVERS}
     mem_limit: ${COST_MEM_LIMIT_MB}M
+
+  extractor:
+    extends:
+      file: common-services.yml
+      service: dev-component
+    image: turbonomic/extractor:${XL_VERSION}
+    ports:
+      - "${EXTRACTOR_PORT}"
+      - "${EXTRACTOR_DEBUG_PORT}"
+    depends_on:
+      - timescaledb
+      - kafka1
+      - auth
+    environment:
+      component_type: extractor
+      instance_id: extractor-1
+      logging.level.com.vmturbo.extractor: info # change to debug to enable more debugging output
+      JAVA_COMPONENT_OPTS: "${EXTRACTOR_SYSTEM_PROPERTIES}"
+      JAVA_BASE_OPTS: "${JAVA_BASE_OPTS}"
+      JAVA_DEBUG: "${EXTRACTOR_DEBUG_DEBUG}${DEBUG_ALL}"
+      JAVA_DEBUG_OPTS: "${JAVA_DEBUG_OPTS}"
+      JAVA_ENV_OPTS: "${JAVA_ENV_OPTS}"
+      JAVA_CACHE_OPTS: "${JAVA_CACHE_OPTS}"
+      JAVA_OPTS: "${JAVA_OPTS}"
+      JVM_TYPE: "${JVM_TYPE}"
+      kafkaServers: ${KAFKA_SERVERS}
+    mem_limit: ${EXTRACTOR_MEM_LIMIT_MB}M
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg12
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: vmturbo
+    volumes:
+      - timescale-data:/var/lib/postresql/data
+    ports:
+      - 5432:5432
+    mem_limit: ${TIMESCALE_MEM_LIMIT_MB}M
 
   integration-intersight:
     extends:

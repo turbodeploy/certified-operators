@@ -17,6 +17,8 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.common.collect.ImmutableSet;
+
 import com.vmturbo.common.protobuf.cost.Cost;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceBought.ReservedInstanceBoughtInfo.ReservedInstanceScopeInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.AnalysisType;
@@ -129,8 +131,17 @@ class ReservedInstanceAggregator {
                                     applicableBusinessAccounts.addAll(
                                             reservedInstanceScopeInfo.getApplicableBusinessAccountIdList());
                                 }
-                                return new ReservedInstanceAggregate(riData, riKey,
-                                        computeTier.get(), applicableBusinessAccounts);
+
+                                final Set<TopologyEntityDTO> computeTiersInScope = riKey.isInstanceSizeFlexible() ?
+                                        ImmutableSet.copyOf(
+                                                getComputeTiersByFamily(riKey.getFamily(), familyToComputeTiers)) :
+                                        Collections.singleton(computeTier.get());
+
+                                return new ReservedInstanceAggregate(riData,
+                                        riKey,
+                                        computeTier.get(),
+                                        computeTiersInScope,
+                                        applicableBusinessAccounts);
                             });
                     final double usedCoupons = couponsUsedByRi.getOrDefault(riBoughtId, 0d);
                     logger.trace("Adding constituent RI: {} with usedCoupons: {} to RI Aggregate:" +

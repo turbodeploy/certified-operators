@@ -99,6 +99,8 @@ public enum UICommodityType {
     NUM_DISK("NumDisk", CommodityType.NUM_DISK, "Num Disk"),
     /** The commodity NUMBER_COMSUMERS. */
     NUMBER_CONSUMERS("NumberConsumers", CommodityType.NUMBER_CONSUMERS, "Number Consumers"),
+    /** The commodity NUM_VCORE. */
+    NUM_VCORE("NumVCore", CommodityType.NUM_VCORE, "Num VCore"),
     /** The commodity POOL_CPU. */
     POOL_CPU("PoolCPU", CommodityType.POOL_CPU, "Pool CPU"),
     /** The commodity POOL_MEM. */

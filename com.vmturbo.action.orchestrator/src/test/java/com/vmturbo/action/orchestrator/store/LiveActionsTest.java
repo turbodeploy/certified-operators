@@ -37,6 +37,7 @@ import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -62,6 +63,7 @@ import com.vmturbo.common.protobuf.action.InvolvedEntityCalculation;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.identity.ArrayOidSet;
 import com.vmturbo.components.common.identity.OidSet;
@@ -72,6 +74,8 @@ public class LiveActionsTest {
     public ExpectedException expectedException = ExpectedException.none();
 
     private ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+
+    private EntitiesAndSettingsSnapshot entitiesCache = mock(EntitiesAndSettingsSnapshot.class);
 
     private Clock clock = new MutableFixedClock(1_000_000);
 
@@ -99,6 +103,14 @@ public class LiveActionsTest {
                     oids, InvolvedEntityCalculation.INCLUDE_ALL_INVOLVED_ENTITIES);
             }
         );
+    }
+
+    /**
+     * Static tests initialization.
+     */
+    @BeforeClass
+    public static void initClass() {
+        IdentityGenerator.initPrefix(0);
     }
 
     @Test

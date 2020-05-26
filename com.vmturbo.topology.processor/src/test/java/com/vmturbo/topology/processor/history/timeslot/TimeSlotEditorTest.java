@@ -20,7 +20,6 @@ import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
@@ -45,9 +44,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.stitching.EntityCommodityReference;
-import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.TopologyEntity.Builder;
-import com.vmturbo.topology.graph.TopologyGraph;
 import com.vmturbo.topology.processor.group.settings.GraphWithSettings;
 import com.vmturbo.topology.processor.history.BaseGraphRelatedTest;
 import com.vmturbo.topology.processor.history.CommodityField;
@@ -121,66 +118,6 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
 
         // should have 2 tasks - for ref1 and ref3
         Assert.assertEquals(2, tasks.size());
-    }
-
-    /**
-     * Test the sold commodity historical value update when broadcast is completed.
-     * @throws InterruptedException when interrupted
-     * @throws HistoryCalculationException when failed
-     */
-    @Test
-    public void testSoldCommodityUpdateOnCompleteBroadcst()
-            throws InterruptedException, HistoryCalculationException {
-        final TopologyEntity dp1 = mockEntity(EntityType.DESKTOP_POOL_VALUE, OID1,
-                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.POOL_CPU_VALUE).build(),
-                SOLD_CAPACITY, 0d, null, null, null, null, true);
-
-        final TopologyEntity dp2 = mockEntity(EntityType.DESKTOP_POOL_VALUE, OID2,
-                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.POOL_MEM_VALUE).build(),
-                SOLD_CAPACITY, 0d, null, null, null, null, true);
-
-        final TopologyEntity dp3 = mockEntity(EntityType.DESKTOP_POOL_VALUE, OID3,
-                CommodityType.newBuilder().setType(CommodityDTO.CommodityType.POOL_STORAGE_VALUE).build(),
-                SOLD_CAPACITY, 0d, null, null, null, null, true);
-
-        Map<Long, Builder> topologyBuilderMap = new HashMap<>();
-        Map<Long, EntitySettings> entitySettings = new HashMap<>();
-
-        final TopologyGraph<TopologyEntity> graph = mockGraph(ImmutableSet.of(dp1, dp2, dp3));
-        addEntityWithSetting(OID1,
-                EntityType.DESKTOP_POOL_VALUE,
-                EntitySettingSpecs.DailyObservationWindowDesktopPool,
-                SLOTS.ordinal(),
-                topologyBuilderMap, entitySettings);
-        addEntityWithSetting(OID2,
-                EntityType.DESKTOP_POOL_VALUE,
-                EntitySettingSpecs.DailyObservationWindowDesktopPool,
-                SLOTS.ordinal(),
-                topologyBuilderMap, entitySettings);
-        addEntityWithSetting(OID3,
-                EntityType.DESKTOP_POOL_VALUE,
-                EntitySettingSpecs.DailyObservationWindowDesktopPool,
-                SLOTS.ordinal(),
-                topologyBuilderMap, entitySettings);
-        GraphWithSettings graphWithSettings = new GraphWithSettings(graph,
-                entitySettings,
-                Collections.emptyMap());
-
-        HistoryAggregationContext context = new HistoryAggregationContext(topologyInfo,
-                        graphWithSettings, false);
-        TimeslotEditorCacheAccess editor =
-                        new TimeslotEditorCacheAccess(config, null, backgroundLoadingPool,
-                                        TimeSlotLoadingTask::new);
-        editor.completeBroadcast(context);
-
-        // verify used
-        Assert.assertNotNull(dp1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed());
-        Assert.assertEquals(SLOTS.ordinal(), dp1.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getTimeSlotCount());
-        Assert.assertNotNull(dp2.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed());
-        Assert.assertEquals(SLOTS.ordinal(), dp2.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getTimeSlotCount());
-        Assert.assertNotNull(dp3.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed());
-        Assert.assertEquals(SLOTS.ordinal(), dp3.getTopologyEntityDtoBuilder().getCommoditySoldList(0).getHistoricalUsed().getTimeSlotCount());
-
     }
 
     /**
@@ -366,7 +303,7 @@ public class TimeSlotEditorTest extends BaseGraphRelatedTest {
                         createContext(ImmutableMap.of(ref1, Pair.create(10F, 100F), ref2,
                                         Pair.create(195F, 200F), ref3, Pair.create(95F, 100F)));
         doCalculations(editor, contextToGraph2.getFirst());
-        Assert.assertEquals(getTimeSlots(ref1, contextToGraph2.getSecond()).get(0), 0.3F, 0.0001);
+        Assert.assertEquals(getTimeSlots(ref1, contextToGraph2.getSecond()).get(0), 10F, 0.0001);
     }
 
     private void doCalculations(TimeslotEditorCacheAccess editor,

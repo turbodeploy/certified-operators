@@ -33,16 +33,22 @@ public class PercentileHistoricalEditorConfig extends CachingHistoricalEditorCon
     private static final Map<EntityType, EntitySettingSpecs> TYPE_AGGRESSIVENESS = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
                         EntitySettingSpecs.PercentileAggressivenessBusinessUser,
+                        EntityType.CONTAINER_SPEC,
+                        EntitySettingSpecs.PercentileAggressivenessContainerSpec,
                         EntityType.VIRTUAL_MACHINE,
                         EntitySettingSpecs.PercentileAggressivenessVirtualMachine);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_MAX_OBSERVATION_PERIOD = ImmutableMap
                     .of(EntityType.BUSINESS_USER,
                         EntitySettingSpecs.MaxObservationPeriodBusinessUser,
+                        EntityType.CONTAINER_SPEC,
+                        EntitySettingSpecs.MaxObservationPeriodContainerSpec,
                         EntityType.VIRTUAL_MACHINE,
                         EntitySettingSpecs.MaxObservationPeriodVirtualMachine);
     private static final Map<EntityType, EntitySettingSpecs> TYPE_MIN_OBSERVATION_PERIOD =
-            ImmutableMap.of(EntityType.VIRTUAL_MACHINE,
-                    EntitySettingSpecs.MinObservationPeriodVirtualMachine);
+            ImmutableMap.of(EntityType.CONTAINER_SPEC,
+                            EntitySettingSpecs.MinObservationPeriodContainerSpec,
+                            EntityType.VIRTUAL_MACHINE,
+                            EntitySettingSpecs.MinObservationPeriodVirtualMachine);
     private final Map<CommodityType, PercentileBuckets> buckets = new HashMap<>();
     private final int maintenanceWindowHours;
     private final int grpcStreamTimeoutSec;

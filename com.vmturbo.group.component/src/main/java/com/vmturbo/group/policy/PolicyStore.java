@@ -259,9 +259,12 @@ public class PolicyStore implements DiagsRestorable {
                     .stream()
                     .map(record -> record.value1() + "(" + record.value2() + ")")
                     .collect(Collectors.joining(","));
-            logger.info(
-                    "Removing the following user-defined placement policies because of removal" +
-                            " of groups {} they are create on top of: {}", groupIds, userPolicies);
+            if (!userPolicies.isEmpty()) {
+                logger.info(
+                        "Removing the following user-defined placement policies because of removal"
+                                + " of groups {} they are create on top of: [{}]", groupIds,
+                        userPolicies);
+            }
             final int rowsDeleeted = context.deleteFrom(Tables.POLICY)
                     .where(Tables.POLICY.ID.in(context.select(Tables.POLICY_GROUP.POLICY_ID)
                             .from(Tables.POLICY_GROUP)

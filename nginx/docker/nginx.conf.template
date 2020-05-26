@@ -200,6 +200,37 @@ http {
             access_log  /var/log/nginx/access.log  upstream_ws;
         }
 
+        # Proxying the report-related route, and redirecting to Grafana.
+        location /reports {
+            set $grafana_servers $GRAFANA;
+
+            # If grafana's URL is not provider, return a 404. This should never happen in a
+            # real deployment.
+            #
+            # The "unset" string is specified in entrypoint.sh string as the value when no grafana
+            # environment variable is present.
+            if ($grafana_servers = unset) {
+                return 404;
+            }
+
+            # If it is set, then pass through to grafana.
+            proxy_pass         http://$grafana_servers:3000;
+            proxy_set_header   Host $http_host;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header   X-WEBAUTH-USER reports-viewer;
+            rewrite       ^/reports/?(.*) /$1 break;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 6000s;
+            proxy_intercept_errors on;
+
+            ## Include all add_header directives for the report location block since we need to override the defaults.
+            ## IMPORTANT: any "add_headers" for this location block must be placed inside this inclusion file directly
+            include /etc/nginx/includes/report-headers.conf;
+
+            access_log  /var/log/nginx/access.log  upstream_ws;
+        }
+
         location /swagger/external {
             set $api_servers $API;
             proxy_pass         http://$api_servers:8080;

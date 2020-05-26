@@ -10,12 +10,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 
+import com.vmturbo.auth.component.RepositoryClientConfig;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc;
+import com.vmturbo.common.protobuf.search.SearchServiceGrpc.SearchServiceBlockingStub;
 import com.vmturbo.group.api.GroupClientConfig;
-import com.vmturbo.repository.api.impl.RepositoryClientConfig;
 
 /**
  *
@@ -50,13 +52,22 @@ public class UserScopeServiceConfig {
     }
 
     @Bean
+    public SearchServiceBlockingStub searchServiceClient() {
+        return SearchServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    /**
+     * User scope service bean.
+     * @return
+     */
+    @Bean
     public UserScopeService userScopeService() {
         UserScopeService userScopeService = new UserScopeService(groupRpcService(),
-                supplyChainRpcService(), repositoryClientConfig.searchServiceClient(), clock());
+                supplyChainRpcService(), searchServiceClient(), clock());
         if (!userScopeServiceCacheEnabled) {
             userScopeService.setCacheEnabled(userScopeServiceCacheEnabled);
         }
-        repositoryClientConfig.repository().addListener(userScopeService);
+        repositoryClientConfig.repositoryListener().addListener(userScopeService);
         return userScopeService;
     }
 

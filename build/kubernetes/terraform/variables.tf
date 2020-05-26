@@ -129,6 +129,10 @@ variable "netflow" {
   default = false
 }
 
+variable "nutanix" {
+  default = false
+}
+
 variable "oneview" {
   default = false
 }

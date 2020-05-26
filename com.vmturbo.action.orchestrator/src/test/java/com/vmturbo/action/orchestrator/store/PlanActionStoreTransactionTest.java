@@ -143,7 +143,7 @@ public class PlanActionStoreTransactionTest {
 
         // The attempt to store actions should fail.
         List<Action> actions = actionPlan.getActionList().stream()
-            .map(action -> actionFactory.newAction(action, actionPlan.getId()))
+            .map(action -> actionFactory.newAction(action, actionPlan.getId(), 2244L))
             .collect(Collectors.toList());
         assertFalse(actionStore.overwriteActions(ImmutableMap.of(ActionPlanType.MARKET, actions)));
 

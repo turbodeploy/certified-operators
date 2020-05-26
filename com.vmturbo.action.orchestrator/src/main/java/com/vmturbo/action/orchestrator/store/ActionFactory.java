@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 
 /**
  * A factory for creating actions.
@@ -25,8 +26,8 @@ public class ActionFactory implements IActionFactory {
     @Override
     @Nonnull
     public Action newAction(@Nonnull final ActionDTO.Action recommendation,
-                            final long actionPlanId) {
-        return new Action(recommendation, actionPlanId, actionModeCalculator);
+                            final long actionPlanId, long recommendationOid) {
+        return new Action(recommendation, actionPlanId, actionModeCalculator, recommendationOid);
     }
 
     /**
@@ -41,6 +42,7 @@ public class ActionFactory implements IActionFactory {
                                 @Nullable final Long associatedAccountId,
                                 @Nullable final Long associatedResourceGroupId) {
         return new Action(recommendation, recommendationTime, actionPlanId,
-            actionModeCalculator, description, associatedAccountId, associatedResourceGroupId);
+            actionModeCalculator, description, associatedAccountId, associatedResourceGroupId,
+                IdentityGenerator.next());
     }
 }

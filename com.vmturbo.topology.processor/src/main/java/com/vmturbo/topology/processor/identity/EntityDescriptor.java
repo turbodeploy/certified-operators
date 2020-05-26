@@ -15,33 +15,30 @@ public interface EntityDescriptor {
      *
      * @param metadataDescriptor The entity metadata descriptor.
      * @return The "non-volatile identifying" property set.
-     * @exception IdentityWrongSetException In case the required properties aren't available.
      */
     @Nonnull
     List<PropertyDescriptor> getIdentifyingProperties(
-            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException;
+            @Nonnull EntityMetadataDescriptor metadataDescriptor);
 
     /**
      * Returns the "volatile identifying" property set.
      *
      * @param metadataDescriptor The entity metadata descriptor.
      * @return The "volatile identifying" property set.
-     * @exception IdentityWrongSetException In case the required properties aren't available.
      */
     @Nonnull
     List<PropertyDescriptor> getVolatileProperties(
-            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException;
+            @Nonnull EntityMetadataDescriptor metadataDescriptor);
 
     /**
      * Returns the "heuristic" property set.
      *
      * @param metadataDescriptor The entity metadata descriptor.
      * @return The "heuristic" property set.
-     * @exception IdentityWrongSetException In case the required properties aren't available.
      */
     @Nonnull
     List<PropertyDescriptor> getHeuristicProperties(
-            @Nonnull EntityMetadataDescriptor metadataDescriptor) throws IdentityWrongSetException;
+            @Nonnull EntityMetadataDescriptor metadataDescriptor);
 
     /**
      * Returns the Heuristics descriptor.

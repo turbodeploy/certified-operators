@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <artifactId>Turbonomic-XL</artifactId>
+        <groupId>com.vmturbo</groupId>
+        <version>7.21.200-EA1</version>
+        <relativePath>../build/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>extractor-schema</artifactId>
+
+    <properties>
+        <db.username>postgres</db.username>
+        <db.password>vmturbo</db.password>
+        <db.schema>extractor_${maven.build.timestamp}</db.schema>
+        <target.db.schema>extractor</target.db.schema>
+        <db.driver>org.postgresql.Driver</db.driver>
+    </properties>
+
+    <build>
+
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <!-- generate a unique schema name for this build -->
+                        <id>set-db-name</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>timestamp-property</goal>
+                        </goals>
+                        <configuration>
+                            <name>db.schema</name>
+                            <pattern>'${project.name}'-yyyyMMddHHmmssSS</pattern>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>migrate</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>migrate</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>clean-db</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <url>jdbc:postgresql://localhost:${db.port}/</url>
+                    <user>${db.username}</user>
+                    <password>${db.password}</password>
+                    <locations>
+                        <location>filesystem:${basedir}/src/main/resources/db/migration</location>
+                    </locations>
+                    <schemas>
+                        <schema>${db.schema}</schema>
+                    </schemas>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jooq</groupId>
+                <artifactId>jooq-codegen-maven</artifactId>
+
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+
+                <configuration>
+                    <jdbc>
+                        <driver>${db.driver}</driver>
+                        <url>jdbc:postgresql://localhost:${db.port}/</url>
+                        <user>${db.username}</user>
+                        <password>${db.password}</password>
+                    </jdbc>
+
+                    <generator>
+                        <database>
+                            <name>org.jooq.meta.postgres.PostgresDatabase</name>
+                            <schemaVersionProvider>SELECT CONCAT_WS('_', '${target.db.schema}',
+                                MAX(version)) from "${db.schema}".schema_version
+                            </schemaVersionProvider>
+                            <includes>.*</includes>
+                            <excludes>schema_version</excludes>
+                            <schemata>
+                                <schema>
+                                    <inputSchema>${db.schema}</inputSchema>
+                                    <outputSchema>${target.db.schema}</outputSchema>
+                                </schema>
+                            </schemata>
+                        </database>
+                        <generate>
+                            <pojos>true</pojos>
+                        </generate>
+                        <target>
+                            <packageName>com.vmturbo.extractor.schema</packageName>
+                            <directory>${project.build.directory}/generated-sources/jooq</directory>
+                        </target>
+                    </generator>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>io.fabric8</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>start-tsdb</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>start</goal>
+                        </goals>
+                        <configuration>
+                            <showLogs>true</showLogs>
+                            <images>
+                                <image>
+                                    <alias>tsdb</alias>
+                                    <name>timescale/timescaledb:latest-pg12</name>
+                                    <run>
+                                        <!--
+                                        pattern needs to start with "maven-" so jenkins builds
+                                        will properly clean up leaked contianers
+                                        -->
+                                        <containerNamePattern>maven-%a-%i</containerNamePattern>
+                                        <ports>
+                                            <port>db.port:5432</port>
+                                        </ports>
+                                        <env>
+                                            <POSTGRES_USER>${db.username}</POSTGRES_USER>
+                                            <POSTGRES_PASSWORD>${db.password}</POSTGRES_PASSWORD>
+                                        </env>
+                                        <wait>
+                                            <log>
+                                                <!--
+                                                CDATA prevents intellij from wrapping the search
+                                                string, which would break things.
+                                                We wait for a message that shows that timescale
+                                                is ready, and we wait to see it twice, since the
+                                                container's entry-point script includes an internal
+                                                restart.
+                                                -->
+                                                <![CDATA[(?s)TimescaleDB background worker launcher connected to shared catalogs.*TimescaleDB background worker launcher connected to shared catalogs]]>
+                                            </log>
+                                            <time>30000</time>
+                                        </wait>
+                                    </run>
+                                </image>
+                            </images>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>stop-tsdb</id>
+                        <phase>process-sources</phase>
+                        <goals>
+                            <goal>stop</goal>
+                        </goals>
+                        <configuration>
+                            <images>
+                                <image>
+                                    <name>timescale/timescaledb:latest-pg12</name>
+                                </image>
+                            </images>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jooq</groupId>
+            <artifactId>jooq</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.vmturbo</groupId>
+            <artifactId>sql-utils</artifactId>
+        </dependency>
+    </dependencies>
+</project>

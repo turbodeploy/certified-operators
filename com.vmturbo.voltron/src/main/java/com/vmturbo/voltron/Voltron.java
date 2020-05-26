@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nonnull;
@@ -42,6 +43,7 @@ import org.springframework.web.context.ContextLoaderListener;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.DispatcherServlet;
 
+import com.vmturbo.clustermgr.ClusterMgrService;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.api.grpc.ComponentGrpcServer;
 import com.vmturbo.components.common.BaseVmtComponent;
@@ -183,6 +185,17 @@ public class Voltron extends BaseVmtComponent {
         return fullPath.toString();
     }
 
+
+    static void initializeClustermgr(@Nonnull final VoltronContext context) {
+        // Initialize clusterMgr. This prevents the continual popup asking you whether
+        // or not you are willing to enable telemetry. Without flagging clustermgr
+        // as initialized this popup will appear on every new page you navigate
+        // to in the UI.
+        Optional.ofNullable(context.getComponents().get(Component.CLUSTERMGR)).ifPresent(clustermgr ->
+            clustermgr.getBean(ClusterMgrService.class)
+                .setClusterKvStoreInitialized(true));
+    }
+
     /**
      * Start Voltron.
      * @param namespace The namespace to use. This namespace will propagate to all data folders, and
@@ -196,6 +209,8 @@ public class Voltron extends BaseVmtComponent {
         System.setProperty("com.vmturbo.keydir", Paths.get(config.getDataPath(), namespace, "keydir").toString());
         System.setProperty("useInProcess", Boolean.toString(config.isUseInProcessGrpc()));
         System.setProperty("useLocalBus", Boolean.toString(config.isUseLocalBus()));
+        System.setProperty(BaseVmtComponent.PROP_serverHttpPort, Integer.toString(config.getServerHttpPort()));
+        System.setProperty(ComponentGrpcServer.PROP_SERVER_GRPC_PORT, Integer.toString(config.getServerGrpcPort()));
 
         final SetOnce<VoltronContext> voltronContext = new SetOnce<>();
         final Zarkon onEnterDemolisher = new Zarkon(namespace, config, voltronContext);
@@ -223,13 +238,15 @@ public class Voltron extends BaseVmtComponent {
                  RefreshController refreshCtrl = v.rootContext.getBean(RefreshController.class);
                  refreshCtrl.setComponentContexts(v.getComponents());
              });
+
+            voltronContext.getValue().ifPresent(Voltron::initializeClustermgr);
         } catch (Exception e) {
             logger.error("Voltron failed to start up. Will demolish data. Error:", e);
         }
 
         if (config.isUseInProcessGrpc()) {
             // Start up a real gRPC server for voltron-cli use.
-            final ServerBuilder serverBuilder = NettyServerBuilder.forPort(9001);
+            final ServerBuilder serverBuilder = NettyServerBuilder.forPort(config.getServerGrpcPort());
             ComponentGrpcServer.get().getServiceDefinitions().forEach(serverBuilder::addService);
             serverBuilder.addService(ProtoReflectionService.newInstance());
             Server server = serverBuilder.build();

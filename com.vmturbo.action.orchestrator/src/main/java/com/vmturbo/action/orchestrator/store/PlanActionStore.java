@@ -42,11 +42,14 @@ import com.vmturbo.action.orchestrator.action.ActionTranslation.TranslationStatu
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
 import com.vmturbo.action.orchestrator.db.tables.records.MarketActionRecord;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector.ActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -55,6 +58,7 @@ import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 
 /**
  * {@inheritDoc}
@@ -144,6 +148,8 @@ public class PlanActionStore implements ActionStore {
 
     private final ActionTranslator actionTranslator;
 
+    private final ActionTargetSelector actionTargetSelector;
+
     /**
      * Create a new {@link PlanActionStore}.
      *
@@ -154,6 +160,7 @@ public class PlanActionStore implements ActionStore {
      * @param repositoryService used for constructing the EntitySeverityCache.
      * @param actionTranslator the action translator class
      * @param realtimeTopologyContextId real time topology id
+     * @param actionTargetSelector For calculating target specific action pre-requisites
      */
     public PlanActionStore(@Nonnull final IActionFactory actionFactory,
                            @Nonnull final DSLContext dsl,
@@ -162,7 +169,8 @@ public class PlanActionStore implements ActionStore {
                            @Nonnull final RepositoryServiceBlockingStub repositoryService,
                            @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
                            @Nonnull final ActionTranslator actionTranslator,
-                           final long realtimeTopologyContextId) {
+                           final long realtimeTopologyContextId,
+                           @Nonnull ActionTargetSelector actionTargetSelector) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.dsl = dsl;
         this.actionPlanIdByActionPlanType = Maps.newHashMap();
@@ -172,6 +180,7 @@ public class PlanActionStore implements ActionStore {
         this.entitySettingsCache = entitySettingsCache;
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.actionTargetSelector = actionTargetSelector;
     }
 
     /**
@@ -440,9 +449,14 @@ public class PlanActionStore implements ActionStore {
             snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve, realtimeTopologyContextId);
         }
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
+        final List<ActionDTO.Action> actionsStream = new ArrayList<>(actions.size());
 
-        final Stream<Action> translatedActions = actionTranslator.translate(actions.stream()
-                .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId())),
+        Map<Long, ActionTargetInfo> actionTargetInfo = actionTargetSelector.getTargetsForActions(actions.stream(), snapshot);
+        Stream<ActionDTO.Action> actionStream = actions.stream().map(
+            action -> action.toBuilder().addAllPrerequisite(actionTargetInfo.get(action.getId()).prerequisites()).build());
+
+        final Stream<Action> translatedActions = actionTranslator.translate(actionStream
+            .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId(), IdentityGenerator.next())),
             snapshot);
 
         final List<ActionAndInfo> translatedActionsToAdd = new ArrayList<>();
@@ -580,6 +594,7 @@ public class PlanActionStore implements ActionStore {
         private final long realtimeTopologyContextId;
         private final SupplyChainServiceBlockingStub supplyChainService;
         private final RepositoryServiceBlockingStub repositoryService;
+        private final ActionTargetSelector actionTargetSelector;
 
         public StoreLoader(@Nonnull final DSLContext dsl,
                            @Nonnull final IActionFactory actionFactory,
@@ -588,7 +603,8 @@ public class PlanActionStore implements ActionStore {
                            @Nonnull final ActionTranslator actionTranslator,
                            final long realtimeTopologyContextId,
                            @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
-                           @Nonnull final RepositoryServiceBlockingStub repositoryService) {
+                           @Nonnull final RepositoryServiceBlockingStub repositoryService,
+                           @Nonnull final ActionTargetSelector actionTargetSelector) {
             this.dsl = Objects.requireNonNull(dsl);
             this.actionFactory = Objects.requireNonNull(actionFactory);
             this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
@@ -597,6 +613,7 @@ public class PlanActionStore implements ActionStore {
             this.realtimeTopologyContextId = realtimeTopologyContextId;
             this.supplyChainService = supplyChainService;
             this.repositoryService = repositoryService;
+            this.actionTargetSelector = actionTargetSelector;
         }
 
         /**
@@ -615,7 +632,8 @@ public class PlanActionStore implements ActionStore {
                                 k -> new PlanActionStore(actionFactory, dsl,
                                     actionPlan.getTopologyContextId(),
                                     supplyChainService, repositoryService,
-                                    entitySettingsCache, actionTranslator, realtimeTopologyContextId));
+                                    entitySettingsCache, actionTranslator,
+                                    realtimeTopologyContextId, actionTargetSelector));
                         store.setupPlanInformation(actionPlan);
                     });
                 return planActionStoresByTopologyContextId.values().stream().collect(Collectors.toList());

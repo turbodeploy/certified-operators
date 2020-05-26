@@ -55,8 +55,10 @@ import com.vmturbo.cost.calculation.integration.CloudTopology;
 import com.vmturbo.cost.calculation.topology.AccountPricingData;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.group.api.ImmutableGroupAndMembers;
+import com.vmturbo.market.runner.cost.ImmutableCoreBasedLicensePriceBundle;
 import com.vmturbo.market.runner.cost.MarketPriceTable;
 import com.vmturbo.market.runner.cost.MarketPriceTable.ComputePriceBundle;
+import com.vmturbo.market.runner.cost.MarketPriceTable.CoreBasedLicensePriceBundle;
 import com.vmturbo.market.topology.RiDiscountedMarketTier;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommodityBoughtTO;
 import com.vmturbo.platform.analysis.protobuf.CommodityDTOs.CommoditySoldTO;
@@ -92,12 +94,47 @@ public class ReservedInstanceConverterTest {
     private AccountPricingData accountPricingData = mock(AccountPricingData.class);
     private MarketPriceTable marketPriceTable = mock(MarketPriceTable.class);
     private Map<Long, AccountPricingData> accountPricingDataByBusinessAccountMap;
-    private ComputePriceBundle reservedLicenseBundle = ComputePriceBundle.newBuilder()
-            .addPrice(accountPricingOid, OSType.WINDOWS_BYOL, 0.003, true)
-            .addPrice(accountPricingOid, OSType.LINUX_WITH_SQL_ENTERPRISE, 0.001, true)
-            .addPrice(accountPricingOid, OSType.WINDOWS, 0.009, true)
-            .addPrice(accountPricingOid, OSType.RHEL, 0.011, true)
-            .build();
+    private Set<CoreBasedLicensePriceBundle> reservedLicenseBundle = ImmutableSet.of(
+            ImmutableCoreBasedLicensePriceBundle
+                    .builder()
+                    .licenseCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                            .build())
+                    .isBurstableCPU(false)
+                    .osType(OSType.WINDOWS_BYOL)
+                    .numCores(1)
+                    .price(.003)
+                    .build(),
+            ImmutableCoreBasedLicensePriceBundle
+                    .builder()
+                    .licenseCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                            .build())
+                    .isBurstableCPU(false)
+                    .osType(OSType.LINUX_WITH_SQL_ENTERPRISE)
+                    .numCores(1)
+                    .price(0.001)
+                    .build(),
+            ImmutableCoreBasedLicensePriceBundle
+                    .builder()
+                    .licenseCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                            .build())
+                    .isBurstableCPU(false)
+                    .osType(OSType.WINDOWS)
+                    .numCores(1)
+                    .price(0.009)
+                    .build(),
+            ImmutableCoreBasedLicensePriceBundle
+                    .builder()
+                    .licenseCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                            .build())
+                    .isBurstableCPU(false)
+                    .osType(OSType.RHEL)
+                    .numCores(1)
+                    .price(0.011)
+                    .build());
 
     /**
      * Initializes ReservedInstanceConverter instance.
@@ -116,9 +153,15 @@ public class ReservedInstanceConverterTest {
                 mock(TierExcluder.class), cloudTopology);
         when(marketPriceTable.getComputePriceBundle(any(), anyLong(), any()))
                 .thenReturn(ComputePriceBundle.newBuilder().build());
-        when(marketPriceTable.getReservedLicensePriceBundle(any(), any(), any()))
-                .thenReturn(ComputePriceBundle.newBuilder().addPrice(accountPricingOid, OSType.LINUX,
-                        0.00, true).build());
+        when(marketPriceTable.getReservedLicensePriceBundles(any(), any()))
+                .thenReturn(Collections.singleton(ImmutableCoreBasedLicensePriceBundle.builder()
+                        .licenseCommodityType(CommodityType.newBuilder()
+                            .setType(CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE)
+                            .build())
+                        .isBurstableCPU(false)
+                        .osType(OSType.LINUX)
+                        .numCores(1)
+                        .build()));
         accountPricingDataByBusinessAccountMap = new HashMap<>();
         accountPricingDataByBusinessAccountMap.put(businessAccountOid, accountPricingData);
         accountPricingDataByBusinessAccountMap.put(businessAccount2Oid, accountPricingData);
@@ -314,15 +357,15 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testRIPricingInCbtpCostDTOWithReservedLicensePricing() {
-        when(marketPriceTable.getReservedLicensePriceBundle(accountPricingData, topology.get(REGION_ID)
-                ,mockComputeTier())).thenReturn(reservedLicenseBundle);
+        when(marketPriceTable.getReservedLicensePriceBundles(accountPricingData, mockComputeTier()))
+                .thenReturn(reservedLicenseBundle);
         final List<TraderTO> traders = createMarketTierTraderTOs(true, false, false);
         final TraderTO traderTO = traders.iterator().next();
         final CostDTO costDTO = traderTO.getSettings().getQuoteFunction().getRiskBased().getCloudCost();
         Assert.assertTrue(costDTO.hasCbtpResourceBundle());
         final CbtpCostDTO cbtpCostDTO = costDTO.getCbtpResourceBundle();
         Assert.assertFalse(cbtpCostDTO.getCostTupleListList().isEmpty());
-        Assert.assertEquals(cbtpCostDTO.getCostTupleListList().size(), 4);
+        Assert.assertEquals(cbtpCostDTO.getCostTupleListList().size(), 5);
         Optional<CostTuple> costTuple = cbtpCostDTO.getCostTupleListList().stream().filter(s -> s.getLicenseCommodityType() == 1).findFirst();
         accountPricingDataByBusinessAccountMap.clear();
     }
@@ -333,8 +376,8 @@ public class ReservedInstanceConverterTest {
      */
     @Test
     public void testRIPricingInCbtpCostDTOWithReservedLicenseandFractionalPricing() {
-        when(marketPriceTable.getReservedLicensePriceBundle(accountPricingData, topology.get(REGION_ID)
-                ,mockComputeTier())).thenReturn(reservedLicenseBundle);
+        when(marketPriceTable.getReservedLicensePriceBundles(accountPricingData, mockComputeTier()))
+                .thenReturn(reservedLicenseBundle);
         ComputePriceBundle bundle = ComputePriceBundle.newBuilder().addPrice(accountPricingOid, OSType.LINUX, 0.007, true).build();
         when(marketPriceTable.getComputePriceBundle(mockComputeTier(), REGION_ID, accountPricingData)).thenReturn(bundle);
         final List<TraderTO> traders = createMarketTierTraderTOs(true, false, false);
@@ -446,7 +489,7 @@ public class ReservedInstanceConverterTest {
         boughtInfoBuilder.setReservedInstanceScopeInfo(scopeInfoBuilder);
         boughtRiBuilder.setReservedInstanceBoughtInfo(boughtInfoBuilder.build());
         final ReservedInstanceSpecInfo riInfo = ReservedInstanceSpecInfo.newBuilder()
-                .setPlatformFlexible(false)
+                .setPlatformFlexible(true)
                 .setOs(osType)
                 .setSizeFlexible(isf)
                 .setRegionId(regionId)
@@ -470,6 +513,7 @@ public class ReservedInstanceConverterTest {
         when(aggregate.getRiKey()).thenReturn(riKey);
         when(aggregate.isPlatformFlexible()).thenReturn(platformFlexible);
         when(aggregate.getComputeTier()).thenReturn(computeTier);
+        when(aggregate.getComputeTiersInScope()).thenReturn(Collections.singleton(computeTier));
         when(riDiscountedTier.getRiAggregate()).thenReturn(aggregate);
         return riDiscountedTier;
     }

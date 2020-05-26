@@ -1103,16 +1103,13 @@ public class GroupsService implements IGroupsService {
             InterruptedException {
         final GetGroupsRequest groupsRequest = getGroupsRequestForFilters(GroupType.REGULAR,
                 filterList, scopes, includeAllGroupClasses).build();
-        final List<GroupAndMembers> groupsWithMembers = new LinkedList<GroupAndMembers>();
+        final List<GroupAndMembers> groupsWithMembers = new LinkedList<>();
         if (groupEntityTypes != null && !groupEntityTypes.isEmpty()) {
             final List<GroupAndMembers> rawGroups = groupExpander.getGroupsWithMembers(groupsRequest);
-            Set<MemberType> groupMemberTypes = mapEntityTypesToMemberTypes(groupEntityTypes);
-            for (GroupAndMembers groupAndMembers: rawGroups) {
-                if (groupMatchMemberType(groupAndMembers.group().getDefinition(), groupMemberTypes)) {
-                    groupsWithMembers.add(groupAndMembers);
-                }
-            }
-
+            Predicate<GroupDefinition> memberTypePredicate = memberTypePredicate(groupEntityTypes);
+            rawGroups.stream()
+                .filter(g -> memberTypePredicate.test(g.group().getDefinition()))
+                .forEachOrdered(groupsWithMembers::add);
         } else {
             groupsWithMembers.addAll(groupExpander.getGroupsWithMembers(groupsRequest));
         }
@@ -1121,61 +1118,56 @@ public class GroupsService implements IGroupsService {
     }
 
     /**
-     * Maps list of entityTypes to {@link MemberType}.
+     * Create a predicate which will test whether a {@link GroupDefinition} contains the desired
+     * entity types.
      *
      * @param groupEntityTypes Set of entityTypes to map
-     * @return Set of {@link MemberType} mapped from groupEntityTypes
+     * @return The predicate, which will return true if its input contains ANY of the desired types.
      */
-    private static Set<MemberType> mapEntityTypesToMemberTypes(Set<String> groupEntityTypes) {
-        return groupEntityTypes.stream().map(groupType -> {
-            final MemberType groupMembersType;
+    @Nonnull
+    private static Predicate<GroupDefinition> memberTypePredicate(@Nonnull final Set<String> groupEntityTypes) {
+        final Set<GroupType> acceptableGroupTypes = new HashSet<>();
+        final Set<Integer> acceptableEntityTypes = new HashSet<>();
+        groupEntityTypes.forEach(groupType -> {
             if (GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.containsKey(groupType)) {
                 // group of groups, for example: group of Clusters, group of ResourceGroups
-                groupMembersType = MemberType.newBuilder()
-                        .setGroup(GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(groupType))
-                        .build();
+                acceptableGroupTypes.add(GroupMapper.API_GROUP_TYPE_TO_GROUP_TYPE.get(groupType));
             } else {
                 // group of entities
-                groupMembersType = MemberType.newBuilder()
-                        .setEntity(ApiEntityType.fromString(groupType).typeNumber())
-                        .build();
+                acceptableEntityTypes.add(ApiEntityType.fromString(groupType).typeNumber());
             }
-            return groupMembersType;
-        }).collect(Collectors.toSet());
-    }
+        });
 
-    /**
-     * Method determine whether a group is expected to have members of the specified type.
-     *
-     * @param group group to test
-     * @param groupMembersType member type to expect
-     * @return whether group has members with the expected type
-     */
-    private static boolean groupMatchMemberType(@Nonnull GroupDefinition group,
-            @Nonnull Set<MemberType> groupMembersType) {
-        if (group.hasStaticGroupMembers()) {
-            // static group
-            return group.getStaticGroupMembers()
-                    .getMembersByTypeList()
-                    .stream()
-                    .anyMatch(staticMembersByType -> groupMembersType.contains(staticMembersByType.getType()));
-        } else if (group.hasGroupFilters()) {
-            // dynamic group of groups
-            return group.getGroupFilters()
-                    .getGroupFilterList()
-                    .stream()
-                    .anyMatch(groupFilter ->
-                            groupMembersType.contains(groupFilter.getGroupType()));
-        } else if (group.hasEntityFilters()) {
-            // dynamic group of entities
-            return group.getEntityFilters()
-                    .getEntityFilterList()
-                    .stream()
-                    .anyMatch(entityFilter ->
-                            groupMembersType.contains(entityFilter.getEntityType()));
-        } else {
-            return false;
-        }
+        return group -> {
+            if (group.hasStaticGroupMembers()) {
+                // static group
+                return group.getStaticGroupMembers()
+                        .getMembersByTypeList()
+                        .stream()
+                        .anyMatch(staticMembersByType -> {
+                            MemberType memberType = staticMembersByType.getType();
+                            if (memberType.hasGroup()) {
+                                return acceptableGroupTypes.contains(memberType.getGroup());
+                            } else {
+                                return acceptableEntityTypes.contains(memberType.getEntity());
+                            }
+                        });
+            } else if (group.hasGroupFilters()) {
+                // dynamic group of groups
+                return group.getGroupFilters()
+                        .getGroupFilterList()
+                        .stream()
+                        .anyMatch(groupFilter -> acceptableGroupTypes.contains(groupFilter.getGroupType()));
+            } else if (group.hasEntityFilters()) {
+                // dynamic group of entities
+                return group.getEntityFilters()
+                        .getEntityFilterList()
+                        .stream()
+                        .anyMatch(entityFilter -> acceptableEntityTypes.contains(entityFilter.getEntityType()));
+            } else {
+                return false;
+            }
+        };
     }
 
     /**

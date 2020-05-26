@@ -21,6 +21,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -33,6 +34,8 @@ import org.flywaydb.core.Flyway;
 import org.jooq.DSLContext;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,9 +49,12 @@ import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.db.tables.pojos.MarketAction;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
+import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
@@ -98,8 +104,8 @@ public class PlanActionStoreTest {
          */
         @Nonnull
         @Override
-        public Action newAction(@Nonnull final ActionDTO.Action recommendation, long actionPlanId) {
-            return spy(new Action(recommendation, actionPlanId, actionModeCalculator));
+        public Action newAction(@Nonnull final ActionDTO.Action recommendation, long actionPlanId, long recommendationOid) {
+            return spy(new Action(recommendation, actionPlanId, actionModeCalculator, recommendationOid));
         }
 
         @Nonnull
@@ -109,7 +115,7 @@ public class PlanActionStoreTest {
                                     @Nullable final Long associatedAccountId,
                                     @Nullable final Long associatedResourceGroupId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId,
-                actionModeCalculator, description, associatedAccountId, associatedResourceGroupId));
+                    actionModeCalculator, description, associatedAccountId, associatedResourceGroupId, 2244L));
         }
     }
 
@@ -121,6 +127,7 @@ public class PlanActionStoreTest {
     private final EntitiesAndSettingsSnapshotFactory entitiesSnapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
+    ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
 
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
 
@@ -135,7 +142,8 @@ public class PlanActionStoreTest {
         flyway.migrate();
         actionStore = new PlanActionStore(spyActionFactory, dsl, firstContextId,
             null, null,
-            entitiesSnapshotFactory, actionTranslator, realtimeId);
+            entitiesSnapshotFactory, actionTranslator, realtimeId,
+            actionTargetSelector);
 
         // Enforce that all actions created with this factory get the same recommendation time
         // so that actions can be easily compared.
@@ -144,15 +152,21 @@ public class PlanActionStoreTest {
             invocation -> {
                 Object[] args = invocation.getArguments();
                 return new Action((ActionDTO.Action) args[0], actionRecommendationTime, (Long) args[2],
-                    actionModeCalculator, "Move VM from H1 to H2", 321L, 121L);
+                        actionModeCalculator, "Move VM from H1 to H2", 321L, 121L, 2244L);
             });
         setEntitiesOIDs();
+        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
+            Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
+            return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action ->
+                ImmutableActionTargetInfo.builder()
+                    .targetId(100L).supportingLevel(SupportLevel.SUPPORTED).build()));
+        });
     }
 
     public void setEntitiesOIDs() {
-        when(entitiesSnapshotFactory.newSnapshot(any(), anyLong())).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), any(), anyLong())).thenReturn(snapshot);
         // Hack: if plan source topology is not available, the fall back on realtime.
-        when(entitiesSnapshotFactory.newSnapshot(any(), eq(realtimeId))).thenReturn(snapshot);
+        when(entitiesSnapshotFactory.newSnapshot(any(), any(), eq(realtimeId))).thenReturn(snapshot);
         for (long i=1; i<10;i++) {
             createMockEntity(i,EntityType.VIRTUAL_MACHINE.getNumber());
         }
@@ -360,7 +374,7 @@ public class PlanActionStoreTest {
     public void testStoreLoaderWithNoStores() {
         List<ActionStore> loadedStores =
             new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
-                null, null).loadActionStores();
+                null, null, actionTargetSelector).loadActionStores();
 
         assertTrue(loadedStores.isEmpty());
     }
@@ -382,14 +396,15 @@ public class PlanActionStoreTest {
         final ActionPlan buyRIActionPlan2 = buyRIActionPlan(3L, secondContextId, actionList(9));
         PlanActionStore actionStore2 = new PlanActionStore(spyActionFactory, dsl, secondContextId,
             null, null,
-            entitiesSnapshotFactory, actionTranslator, realtimeId);
+            entitiesSnapshotFactory, actionTranslator, realtimeId,
+            actionTargetSelector);
         actionStore2.populateRecommendedActions(buyRIActionPlan2);
         expectedActionStores.put(secondContextId, actionStore2);
 
         // Load the stores from DB
         List<ActionStore> loadedStores =
             new PlanActionStore.StoreLoader(dsl, actionFactory, actionModeCalculator, entitiesSnapshotFactory, actionTranslator, realtimeId,
-                null, null).loadActionStores();
+            null, null, actionTargetSelector).loadActionStores();
         loadedStores.forEach(store -> actualActionStores.put(store.getTopologyContextId(), store));
 
         // Assert that what we load from DB is the same as what we setup initially

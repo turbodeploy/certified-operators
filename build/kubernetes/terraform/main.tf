@@ -138,6 +138,11 @@ resource "helm_release" "xl" {
   }
 
   set {
+    name  = "nutanix.enabled"
+    value = "${var.nutanix ? true : false}"
+  }
+
+  set {
     name  = "netflow.enabled"
     value = "${var.netflow ? true : false}"
   }

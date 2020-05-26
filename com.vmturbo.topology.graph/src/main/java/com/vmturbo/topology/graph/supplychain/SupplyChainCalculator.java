@@ -172,7 +172,7 @@ public class SupplyChainCalculator {
      * the supply chain traversal.
      */
     @Immutable
-    static class TraversalState {
+    public static class TraversalState {
         private long entityId;
         private TraversalMode traversalMode;
         private int depth;
@@ -184,7 +184,7 @@ public class SupplyChainCalculator {
          * @param traversalMode traversal mode related to the traversal state
          * @param depth depth of traversal
          */
-        TraversalState(long entityId, @Nonnull TraversalMode traversalMode, int depth) {
+        public TraversalState(long entityId, @Nonnull TraversalMode traversalMode, int depth) {
             this.entityId = entityId;
             this.traversalMode = traversalMode;
             this.depth = depth;
@@ -207,7 +207,7 @@ public class SupplyChainCalculator {
     /**
      * Mode of traversing in a traversal state.
      */
-    enum TraversalMode {
+    public enum TraversalMode {
         /**
          * We are traversing an entity that belongs to the seed.
          */

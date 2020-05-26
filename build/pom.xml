@@ -125,6 +125,7 @@
         <copy.rename.plugin.version>1.0.1</copy.rename.plugin.version>
 
         <mariadb.client.version>2.3.0</mariadb.client.version>
+        <postgresql.client.version>42.2.12</postgresql.client.version>
 
         <reactor.version>3.0.4.RELEASE</reactor.version>
 
@@ -278,6 +279,15 @@
         </profile>
 
         <profile>
+            <id>extractor</id>
+            <modules>
+                <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
+                <module>../com.vmturbo.topology.graph</module>
+            </modules>
+        </profile>
+
+        <profile>
             <id>topology-processor</id>
             <modules>
                 <module>../com.vmturbo.auth.api</module>
@@ -325,6 +335,7 @@
                 <module>../com.vmturbo.auth.api</module>
                 <module>../com.vmturbo.api.component</module>
                 <module>../com.vmturbo.system.notification.receiver</module>
+                <module>../com.vmturbo.extractor.schema</module>
             </modules>
         </profile>
 
@@ -382,6 +393,7 @@
                 <module>../com.vmturbo.mediation.udt</module>
                 <module>../com.vmturbo.mediation.udt.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
+                <module>../com.vmturbo.mediation.servicenow.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.terraform.component</module>
@@ -867,6 +879,8 @@
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -951,6 +965,8 @@
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -1051,6 +1067,8 @@
                 <module>../com.vmturbo.repository.api</module>
                 <module>../com.vmturbo.repository.component</module>
                 <module>../com.vmturbo.ml.datastore</module>
+                <module>../com.vmturbo.extractor</module>
+                <module>../com.vmturbo.extractor.schema</module>
                 <module>../com.vmturbo.integrations.intersight</module>
                 <module>../com.vmturbo.stitching</module>
                 <module>../com.vmturbo.topology.graph</module>
@@ -1133,6 +1151,7 @@
                 <module>../com.vmturbo.mediation.pure.component</module>
                 <module>../com.vmturbo.mediation.rhv.component</module>
                 <module>../com.vmturbo.mediation.scaleio.component</module>
+                <module>../com.vmturbo.mediation.servicenow.component</module>
                 <module>../com.vmturbo.mediation.storagestressprobe.component</module>
                 <module>../com.vmturbo.mediation.stressprobe.component</module>
                 <module>../com.vmturbo.mediation.terraform.component</module>
@@ -1714,6 +1733,11 @@
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
+            <plugin>
+                <groupId>io.fabric8</groupId>
+                <artifactId>docker-maven-plugin</artifactId>
+                <version>0.33.0</version>
+            </plugin>
         </plugins>
     </build>
 
@@ -1798,6 +1822,11 @@
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
+                <artifactId>extractor-schema</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vmturbo</groupId>
                 <artifactId>com.vmturbo.identity</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -1862,7 +1891,7 @@
                 <groupId>com.vmturbo</groupId>
                 <artifactId>sql-test-utils</artifactId>
                 <scope>test</scope>
-                <version>7.21.200-SNAPSHOT</version>
+                <version>${project.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.vmturbo</groupId>
@@ -2517,6 +2546,12 @@
             </dependency>
 
             <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql.client.version}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>org.apache.sshd</groupId>
                 <artifactId>sshd-core</artifactId>
                 <version>${sshd.core.version}</version>
@@ -2836,6 +2871,11 @@
                 <groupId>net.sf.trove4j</groupId>
                 <artifactId>trove4j</artifactId>
                 <version>3.0.3</version>
+            </dependency>
+            <dependency>
+                <groupId>it.unimi.dsi</groupId>
+                <artifactId>fastutil</artifactId>
+                <version>8.3.1</version>
             </dependency>
             <dependency>
                 <groupId>commons-validator</groupId>

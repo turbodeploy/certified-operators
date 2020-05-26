@@ -237,6 +237,24 @@ public interface CloudCostDataProvider {
                     != null && topology.get(reservedInstanceSpec
                     .getReservedInstanceSpecInfo().getRegionId()) != null;
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(reservedInstanceSpec.getId(), reservedInstanceBought.getId());
+        }
+
+        @Override
+        public boolean equals(final Object o) {
+            if (o instanceof ReservedInstanceData) {
+                final ReservedInstanceData otherRIData = (ReservedInstanceData)o;
+                if (reservedInstanceSpec.getId() == otherRIData.reservedInstanceSpec.getId() &&
+                        reservedInstanceBought.getId() == otherRIData.reservedInstanceBought.getId()) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
     }
 
     /**

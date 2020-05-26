@@ -551,6 +551,15 @@ public enum EntitySettingSpecs {
             numeric(90.0f, 100.0f, 95.0f), true),
 
     /**
+     * Aggressiveness for container spec.
+     */
+    PercentileAggressivenessContainerSpec("percentileAggressivenessContainerSpec",
+        SettingConstants.AGGRESSIVENESS,
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.BIGGER, EnumSet.of(EntityType.CONTAINER_SPEC),
+        numeric(90.0f, 100.0f, 99.0f), true),
+
+    /**
      * Aggressiveness for virtual machine.
      */
     PercentileAggressivenessVirtualMachine("percentileAggressivenessVirtualMachine",
@@ -558,6 +567,15 @@ public enum EntitySettingSpecs {
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.VIRTUAL_MACHINE),
             numeric(90.0f, 100.0f, 95.0f), true),
+
+    /**
+     * Min observation period for container spec.
+     */
+    MinObservationPeriodContainerSpec("minObservationPeriodContainerSpec",
+        "Min Observation Period",
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.BIGGER, EnumSet.of(EntityType.CONTAINER_SPEC),
+        numeric(0.0f, 7.0f, 1.0f), true),
 
     /**
      * Min observation period for business user.
@@ -576,6 +594,15 @@ public enum EntitySettingSpecs {
             Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
             SettingTiebreaker.BIGGER, EnumSet.of(EntityType.BUSINESS_USER),
             numeric(7.0f, 90.0f, 30.0f), true),
+
+    /**
+     * Max observation period for container spec.
+     */
+    MaxObservationPeriodContainerSpec("maxObservationPeriodContainerSpec",
+        SettingConstants.MAX_OBSERVATION_PERIOD,
+        Collections.singletonList(CategoryPathConstants.RESIZE_RECOMMENDATIONS_CONSTANTS),
+        SettingTiebreaker.BIGGER, EnumSet.of(EntityType.CONTAINER_SPEC),
+        numeric(7.0f, 90.0f, 30.0f), true),
 
     /**
      * Max observation period for virtual machine.

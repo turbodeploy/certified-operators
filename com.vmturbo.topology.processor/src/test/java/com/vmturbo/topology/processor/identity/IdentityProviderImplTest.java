@@ -10,9 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.Writer;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 
@@ -25,6 +23,7 @@ import org.mockito.Mockito;
 
 import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.kvstore.MapKeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
@@ -45,6 +44,9 @@ import com.vmturbo.topology.processor.util.Probes;
 public class IdentityProviderImplTest {
 
     private static final String SAME_ID = "same-id";
+    /**
+     * Expected exception rule.
+     */
     @Rule
     public final ExpectedException exception = ExpectedException.none();
 
@@ -56,6 +58,11 @@ public class IdentityProviderImplTest {
 
     private ProbeInfoCompatibilityChecker compatibilityChecker = mock(ProbeInfoCompatibilityChecker.class);
 
+    /**
+     * Initializes the tests.
+     *
+     * @throws Exception on exception occurred
+     */
     @Before
     public void setup() throws Exception {
         keyValueStore = new MapKeyValueStore();
@@ -67,6 +74,9 @@ public class IdentityProviderImplTest {
         baseProbeInfo = Probes.defaultProbe;
     }
 
+    /**
+     * Tests constructor initializes identity generator.
+     */
     @Test
     public void testConstructorInitializesIdentityGenerator() {
         final long idGenPrefix = IdentityGenerator.MAXPREFIX - 1;
@@ -115,6 +125,11 @@ public class IdentityProviderImplTest {
         assertNotEquals(probeId, identityProvider.getProbeId(diffProbe));
     }
 
+    /**
+     * Tests when probe ID is incompatible.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test(expected = IdentityProviderException.class)
     public void testGetProbeIdIncompatible() throws Exception {
         // pre-register the base probe
@@ -212,10 +227,13 @@ public class IdentityProviderImplTest {
     /**
      * Test getting entity ID's when the probe discovering the
      * entity doesn't have any metadata for that probe type.
+     *
+     * @throws IdentityServiceException on errors assigning OIDs occur.
+     * @throws IdentityProviderException on errors providing OIDs occur
      */
     @Test
-    public void testGetEntityIdNoMetadata() throws IdentityUninitializedException,
-        IdentityMetadataMissingException, IdentityProviderException {
+    public void testGetEntityIdNoMetadata()
+            throws IdentityServiceException, IdentityProviderException {
         long probeId = identityProvider.getProbeId(baseProbeInfo);
 
         EntityDTO entity = EntityDTO.newBuilder()
@@ -223,7 +241,7 @@ public class IdentityProviderImplTest {
                 .setId("test")
                 .build();
 
-        exception.expect(IdentityMetadataMissingException.class);
+        exception.expect(IdentityServiceException.class);
         assertTrue(identityProvider.getIdsForEntities(probeId,
             Collections.singletonList(entity)).isEmpty());
     }
@@ -271,14 +289,14 @@ public class IdentityProviderImplTest {
         assertEquals(probeId, newInstance.getProbeId(baseProbeInfo));
     }
 
+    /**
+     * Tests get entity id from identity service throwing exception.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testGetEntityIdIdSvcOperationException() throws Exception {
-        testGetEntityIdIdSvcException(new IdentityServiceOperationException(""));
-    }
-
-    @Test
-    public void testGetEntityIdIdSvcWrongSetException() throws Exception {
-        testGetEntityIdIdSvcException(new IdentityWrongSetException(""));
+        testGetEntityIdIdSvcException(new IdentityServiceException(""));
     }
 
     /**
@@ -290,7 +308,7 @@ public class IdentityProviderImplTest {
      */
     private void testGetEntityIdIdSvcException(Exception e) throws Exception {
         IdentityService identityService = mock(IdentityService.class);
-        when(identityService.getEntityOIDs(any()))
+        when(identityService.getOidsForObjects(any()))
                 .thenThrow(e);
         IdentityProvider provider = new IdentityProviderImpl(identityService,
             new MapKeyValueStore(), compatibilityChecker, 0L);
@@ -308,10 +326,13 @@ public class IdentityProviderImplTest {
                 .setId("test")
                 .build();
 
-        exception.expect(IdentityProviderException.class);
+        exception.expect(IdentityServiceException.class);
         provider.getIdsForEntities(probeId, Collections.singletonList(entity));
     }
 
+    /**
+     * Tests restoring with bad JSON format.
+     */
     @Test(expected = IllegalArgumentException.class)
     public void testBadJsonRestore1() {
         final IdentityService identityService = mock(IdentityService.class);
@@ -320,6 +341,9 @@ public class IdentityProviderImplTest {
         providerImpl.restoreDiags(ImmutableList.of("blah", "", ""));
     }
 
+    /**
+     * Tests restoring with bad JSON format.
+     */
     @Test(expected = IllegalArgumentException.class)
     public void testBadJsonRestore2() {
         final IdentityService identityService = mock(IdentityService.class);
@@ -328,6 +352,9 @@ public class IdentityProviderImplTest {
         providerImpl.restoreDiags(ImmutableList.of("{}", "blah", ""));
     }
 
+    /**
+     * Tests restoring with wrong number of lines.
+     */
     @Test(expected = IllegalArgumentException.class)
     public void testWrongLinesRestore() {
         final IdentityService identityService = mock(IdentityService.class);
@@ -336,6 +363,11 @@ public class IdentityProviderImplTest {
         providerImpl.restoreDiags(Collections.emptyList());
     }
 
+    /**
+     * Tests restoring from backup.
+     *
+     * @throws Exception on exception occurred
+     */
     @Test
     public void testBackupRestore() throws Exception {
         final IdentityService identityService = mock(IdentityService.class);
@@ -355,7 +387,7 @@ public class IdentityProviderImplTest {
                 .build();
 
         final long probeId = providerImpl.getProbeId(probeInfo);
-        when(identityService.getEntityOIDs(any())).thenReturn(Collections.singletonList(7L));
+        when(identityService.getOidsForObjects(any())).thenReturn(Collections.singletonList(7L));
 
         final Map<Long, EntityDTO> idMap =
                 providerImpl.getIdsForEntities(probeId, Collections.singletonList(entity));

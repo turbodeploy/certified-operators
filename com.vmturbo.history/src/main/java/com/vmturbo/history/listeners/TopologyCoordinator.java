@@ -35,6 +35,8 @@ import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.chunking.RemoteIterator;
 import com.vmturbo.components.api.client.RemoteIteratorDrain;
+import com.vmturbo.components.common.utils.MultiStageTimer;
+import com.vmturbo.components.common.utils.MultiStageTimer.Detail;
 import com.vmturbo.history.SharedMetrics;
 import com.vmturbo.history.api.StatsAvailabilityTracker;
 import com.vmturbo.history.api.StatsAvailabilityTracker.TopologyContextType;
@@ -49,8 +51,6 @@ import com.vmturbo.history.ingesters.live.LiveTopologyIngester;
 import com.vmturbo.history.ingesters.live.ProjectedLiveTopologyIngester;
 import com.vmturbo.history.ingesters.plan.PlanTopologyIngester;
 import com.vmturbo.history.ingesters.plan.ProjectedPlanTopologyIngester;
-import com.vmturbo.history.utils.MultiStageTimer;
-import com.vmturbo.history.utils.MultiStageTimer.Detail;
 import com.vmturbo.market.component.api.AnalysisSummaryListener;
 import com.vmturbo.market.component.api.PlanAnalysisTopologyListener;
 import com.vmturbo.market.component.api.ProjectedTopologyListener;
@@ -355,9 +355,9 @@ public class TopologyCoordinator extends TopologyListenerBase
                     }
                 }
             } else {
-                logger.error("Ingestion timed out waiting to be scheduled for processing, " +
-                        "so skipping it; this could indicate a serious issue with topology " +
-                        "processing in history component");
+                logger.error("Ingestion timed out waiting to be scheduled for processing, "
+                        + "so skipping it; this could indicate a serious issue with topology "
+                        + "processing in history component");
                 processingStatus.skip(flavor, info, topologyLabel);
                 IngestionMetrics.SAFETY_VALVE_ACTIVATION_COUNTER
                         .labels(SafetyValve.SKIP_TOPOLOGY.getLabel(), topologyLabel)

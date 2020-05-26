@@ -1,5 +1,6 @@
 package com.vmturbo.action.orchestrator.store;
 
+import java.time.Clock;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -20,9 +21,15 @@ import com.vmturbo.action.orchestrator.execution.AutomatedActionExecutor;
 import com.vmturbo.action.orchestrator.stats.ActionStatsConfig;
 import com.vmturbo.action.orchestrator.topology.TopologyProcessorConfig;
 import com.vmturbo.action.orchestrator.topology.TpEntitiesWithNewStateListener;
+import com.vmturbo.action.orchestrator.store.identity.ActionInfoModel;
+import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
+import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
+import com.vmturbo.action.orchestrator.store.identity.RecommendationIdentityStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslationConfig;
 import com.vmturbo.action.orchestrator.workflow.config.WorkflowConfig;
 import com.vmturbo.auth.api.authorization.UserSessionConfig;
+import com.vmturbo.auth.api.licensing.LicenseCheckClientConfig;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc;
 import com.vmturbo.group.api.GroupClientConfig;
@@ -43,7 +50,8 @@ import com.vmturbo.repository.api.impl.RepositoryClientConfig;
     ActionTranslationConfig.class,
     PlanOrchestratorClientConfig.class,
     TopologyProcessorConfig.class,
-    UserSessionConfig.class})
+    UserSessionConfig.class,
+    LicenseCheckClientConfig.class})
 public class ActionStoreConfig {
 
     @Autowired
@@ -78,6 +86,9 @@ public class ActionStoreConfig {
 
     @Autowired
     private UserSessionConfig userSessionConfig;
+
+    @Autowired
+    private LicenseCheckClientConfig licenseCheckClientConfig;
 
     @Value("${entityTypeRetryIntervalMillis}")
     private long entityTypeRetryIntervalMillis;
@@ -130,6 +141,27 @@ public class ActionStoreConfig {
     }
 
     /**
+     * Identity store for market recommendations.
+     *
+     * @return identity store
+     */
+    @Bean
+    public RecommendationIdentityStore recommendationIdentityStore() {
+        return new RecommendationIdentityStore(databaseConfig.dsl());
+    }
+
+    /**
+     * Identity service for market recommendations.
+     *
+     * @return identity service
+     */
+    @Bean
+    public IdentityServiceImpl<ActionInfo, ActionInfoModel> actionIdentityService() {
+        return new IdentityServiceImpl<>(recommendationIdentityStore(),
+                new ActionInfoModelCreator(), Clock.systemUTC(), 24 * 3600 * 1000);
+    }
+
+    /**
      * Returns the {@link ActionStoreFactory} bean.
      *
      * @return the {@link ActionStoreFactory} bean.
@@ -150,6 +182,8 @@ public class ActionStoreConfig {
             .withUserSessionContext(userSessionConfig.userSessionContext())
             .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
             .withRepositoryService(RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
+            .withLicenseCheckClient(licenseCheckClientConfig.licenseCheckClient())
+            .withActionIdentityService(actionIdentityService())
             .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
             .build();
     }

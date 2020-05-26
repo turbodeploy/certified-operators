@@ -8,17 +8,15 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 
+import com.google.common.collect.Maps;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 
-import com.google.common.collect.Maps;
-
-import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
-import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -289,7 +287,7 @@ public class RangeAwareResizeParameterizedTests {
                     .setOldCapacity(oldCapacity)
                     .setNewCapacity(newCapacity)))
             .build();
-        Action action = new Action(recommendation, 1l, actionModeCalculator);
+        Action action = new Action(recommendation, 1L, actionModeCalculator, 2233L);
         action.getActionTranslation().setPassthroughTranslationSuccess();
         when(entitySettingsCache.getSettingsForEntity(7L)).thenReturn(rangeAwareSettingsForEntity);
         ActionModeCalculator.ModeAndSchedule actualMode = actionModeCalculator.calculateActionModeAndExecutionSchedule(action,

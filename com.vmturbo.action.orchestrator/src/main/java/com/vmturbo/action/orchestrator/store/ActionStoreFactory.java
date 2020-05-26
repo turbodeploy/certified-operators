@@ -11,8 +11,11 @@ import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
 import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
+import com.vmturbo.identity.IdentityService;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
+import com.vmturbo.auth.api.licensing.LicenseCheckClient;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.SupplyChainServiceGrpc.SupplyChainServiceBlockingStub;
 
@@ -55,6 +58,10 @@ public class ActionStoreFactory implements IActionStoreFactory {
 
     private final InvolvedEntitiesExpander involvedEntitiesExpander;
 
+    private final LicenseCheckClient licenseCheckClient;
+
+    private final IdentityService<ActionInfo> actionIdentityService;
+
     /**
      * To create a new ActionStoreFactory, use the {@link #newBuilder()}.
      *
@@ -74,7 +81,45 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.userSessionContext = Objects.requireNonNull(builder.userSessionContext);
         this.supplyChainService = Objects.requireNonNull(builder.supplyChainService);
         this.repositoryService = Objects.requireNonNull(builder.repositoryService);
+        this.licenseCheckClient = Objects.requireNonNull(builder.licenseCheckClient);
+        this.actionIdentityService = Objects.requireNonNull(builder.actionIdentityService);
         this.involvedEntitiesExpander = Objects.requireNonNull(builder.involvedEntitiesExpander);
+    }
+
+    /**
+     * Create a new ActionStoreFactory.
+     *
+     * @param userSessionContext user session context
+     * @param actionIdentityService identity service to assign OIDs to actions
+     */
+    public ActionStoreFactory(@Nonnull final IActionFactory actionFactory,
+                              final long realtimeTopologyContextId,
+                              @Nonnull final DSLContext databaseDslContext,
+                              @Nonnull final ActionHistoryDao actionHistoryDao,
+                              @Nonnull final ActionTargetSelector actionTargetSelector,
+                              @Nonnull final ProbeCapabilityCache probeCapabilityCache,
+                              @Nonnull final EntitiesAndSettingsSnapshotFactory entitySettingsCache,
+                              @Nonnull final LiveActionsStatistician actionsStatistician,
+                              @Nonnull final ActionTranslator actionTranslator,
+                              @Nonnull final Clock clock,
+                              @Nonnull final UserSessionContext userSessionContext,
+                              @Nonnull final LicenseCheckClient licenseCheckClient,
+                              @Nonnull final IdentityService<ActionInfo> actionIdentityService,
+                              @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {
+        this.actionFactory = Objects.requireNonNull(actionFactory);
+        this.realtimeTopologyContextId = realtimeTopologyContextId;
+        this.databaseDslContext = Objects.requireNonNull(databaseDslContext);
+        this.actionHistoryDao = actionHistoryDao;
+        this.actionTargetSelector = actionTargetSelector;
+        this.entitySettingsCache = Objects.requireNonNull(entitySettingsCache);
+        this.actionsStatistician = Objects.requireNonNull(actionsStatistician);
+        this.probeCapabilityCache = Objects.requireNonNull(probeCapabilityCache);
+        this.actionTranslator = Objects.requireNonNull(actionTranslator);
+        this.clock = Objects.requireNonNull(clock);
+        this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
+        this.actionIdentityService = Objects.requireNonNull(actionIdentityService);
+        this.involvedEntitiesExpander = Objects.requireNonNull(involvedEntitiesExpander);
     }
 
     /**
@@ -87,10 +132,10 @@ public class ActionStoreFactory implements IActionStoreFactory {
     public ActionStore newStore(final long topologyContextId) {
         if (topologyContextId == realtimeTopologyContextId) {
             return new LiveActionStore(actionFactory, topologyContextId,
-                supplyChainService, repositoryService,
-                actionTargetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                supplyChainService, repositoryService, actionTargetSelector,
+                probeCapabilityCache, entitySettingsCache, actionHistoryDao,
                 actionsStatistician, actionTranslator, clock, userSessionContext,
-                involvedEntitiesExpander);
+                licenseCheckClient, actionIdentityService, involvedEntitiesExpander);
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 supplyChainService, repositoryService,
@@ -131,6 +176,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private UserSessionContext userSessionContext;
         private SupplyChainServiceBlockingStub supplyChainService;
         private RepositoryServiceBlockingStub repositoryService;
+        private LicenseCheckClient licenseCheckClient;
+        private IdentityService<ActionInfo> actionIdentityService;
         private InvolvedEntitiesExpander involvedEntitiesExpander;
 
         private Builder() {
@@ -276,6 +323,28 @@ public class ActionStoreFactory implements IActionStoreFactory {
          */
         public Builder withRepositoryService(@Nonnull RepositoryServiceBlockingStub repositoryService) {
             this.repositoryService = repositoryService;
+            return this;
+        }
+
+        /**
+         * Sets the licenseCheckClient on this builder.
+         *
+         * @param licenseCheckClient the licenseCheckClient.
+         * @return the same builder with the licenseCheckClient set.
+         */
+        public Builder withLicenseCheckClient(@Nonnull LicenseCheckClient licenseCheckClient) {
+            this.licenseCheckClient = licenseCheckClient;
+            return this;
+        }
+
+        /**
+         * Sets the actionIdentityService on this builder.
+         *
+         * @param actionIdentityService the actionIdentityService.
+         * @return the same builder with the actionIdentityService set.
+         */
+        public Builder withActionIdentityService(@Nonnull IdentityService<ActionInfo> actionIdentityService) {
+            this.actionIdentityService = actionIdentityService;
             return this;
         }
 

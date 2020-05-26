@@ -43,6 +43,7 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.topology.ActionExecution.ExecuteActionRequest;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionResponseState;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
@@ -61,10 +62,7 @@ import com.vmturbo.topology.processor.api.TopologyProcessorDTO.TargetSpec;
 import com.vmturbo.topology.processor.api.dto.InputField;
 import com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter;
 import com.vmturbo.topology.processor.entity.EntityStore;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.operation.action.ActionMessageHandler;
 import com.vmturbo.topology.processor.probes.AccountValueAdaptor;
 import com.vmturbo.topology.processor.probes.ProbeException;
@@ -89,13 +87,22 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     private FakeRepositoryClient repositoryClientFake;
 
     private static final String FIELD_NAME = FakeRemoteMediation.TGT_ID;
-
+    /**
+     * Expected exception rule.
+     */
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
-
+    /**
+     * Temporary folder rule.
+     */
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
 
+    /**
+     * Initializes the tests.
+     *
+     * @throws Exception on exceptinos occurred
+     */
     @Before
     public void initClient() throws Exception {
         System.setProperty("com.vmturbo.keydir", testFolder.newFolder().getAbsolutePath());
@@ -533,6 +540,11 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         return request.getActionId();
     }
 
+    /**
+     * Test move action failure.
+     *
+     * @throws Exception on exception occurred
+     */
     @Test
     public void testFailMove() throws Exception {
         final long actionId = startMove();
@@ -559,6 +571,11 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
         Assert.assertEquals(actionId, failure.getActionId());
     }
 
+    /**
+     * Tests succeeded move action.
+     *
+     * @throws Exception on exceptions occurred
+     */
     @Test
     public void testSuccessMove() throws Exception {
         final long actionId = startMove();
@@ -645,8 +662,7 @@ public class ClientApiCallsTest extends AbstractApiCallsTest {
     private void addEntities(final long probeId,
                              final long targetId,
                              Map<Long, EntityDTO> entities)
-            throws IdentityUninitializedException, IdentityMetadataMissingException,
-            IdentityProviderException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException {
         Mockito.doReturn(entities)
                 .when(identityProviderSpy)
                 .getIdsForEntities(Mockito.eq(probeId),

@@ -2,15 +2,18 @@ package com.vmturbo.topology.processor.migration;
 
 import static com.vmturbo.platform.sdk.common.util.SDKProbeType.AWS;
 import static com.vmturbo.platform.sdk.common.util.SDKProbeType.AWS_BILLING;
+import static com.vmturbo.topology.processor.probes.ProbeStore.PROBE_KV_STORE_PREFIX;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableMap;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -336,5 +339,22 @@ public class V_01_00_05__Standalone_AWS_BillingTest {
 
         boolean succeeded = migration.updateIdentityProvider(probeIdString, probeType, probeInfoString, "junk");
         assertFalse(succeeded);
+    }
+
+    /**
+     * Test migration works when we encounter a folder containing probe properties.
+     */
+    @Test
+    public void testProbeProperty() {
+        final KeyValueStore localKvStore = Mockito.mock(KeyValueStore.class);
+        final IdentityProvider localIdenityProvider = Mockito.mock(IdentityProvider.class);
+        V_01_00_05__Standalone_AWS_Billing localMigration = new V_01_00_05__Standalone_AWS_Billing(localKvStore,
+                localIdenityProvider);
+        Map<String, String> sampleKVStoreEntries = ImmutableMap.of(
+                PROBE_KV_STORE_PREFIX.concat("/73462156846800"), probeInfoString,
+                PROBE_KV_STORE_PREFIX.concat("/73462156846801"), new JsonObject().toString(),
+                PROBE_KV_STORE_PREFIX.concat("/73462156846800/"), new JsonObject().toString());
+        Mockito.when(localKvStore.getByPrefix(PROBE_KV_STORE_PREFIX)).thenReturn(sampleKVStoreEntries);
+        localMigration.updateProbes(localKvStore);
     }
 }

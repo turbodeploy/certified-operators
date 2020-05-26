@@ -62,11 +62,11 @@ public class AbstractCachingHistoricalEditorTest {
 
     @Before
     public void setUp() {
-        cref1 = createCommRef(1l, 5);
-        cref2 = createCommRef(2l, 6);
-        cref3 = createCommRef(3l, 7);
-        cref4 = createCommRef(4l, ABOVE_DB_VALUE);
-        cref5 = createCommRef(5l, 9);
+        cref1 = createCommRef(1l, 5, 1);
+        cref2 = createCommRef(2l, 6, 1);
+        cref3 = createCommRef(3l, 7, 1);
+        cref4 = createCommRef(4l, ABOVE_DB_VALUE, 2);
+        cref5 = createCommRef(5l, 9, 2);
         allComms = ImmutableList.of(cref1, cref2, cref3, cref4, cref5);
         seenCommRefs = new HashSet<>();
         entity2commref = new HashMap<>();
@@ -194,13 +194,13 @@ public class AbstractCachingHistoricalEditorTest {
                         .orElseThrow(() -> new IllegalStateException("Unexpected test setup"));
     }
 
-    private EntityCommodityReference createCommRef(long oid, double used) {
+    private EntityCommodityReference createCommRef(long oid, double used, int entityType) {
         CommodityType ct = CommodityType.newBuilder().setType(1).build();
         TopologyEntity entity = Mockito.mock(TopologyEntity.class);
         Mockito.when(entity.getOid()).thenReturn(oid);
-        Mockito.when(entity.getEntityType()).thenReturn(1);
+        Mockito.when(entity.getEntityType()).thenReturn(entityType);
         TopologyEntityDTO.Builder entityBuilder = TopologyEntityDTO.newBuilder();
-        entityBuilder.setOid(oid).setEntityType(1);
+        entityBuilder.setOid(oid).setEntityType(entityType);
         entityBuilder.addCommoditySoldListBuilder().setUsed(used);
         Mockito.when(entity.getTopologyEntityDtoBuilder()).thenReturn(entityBuilder);
         EntityCommodityReference commref = new EntityCommodityReference(entity.getOid(), ct, null);

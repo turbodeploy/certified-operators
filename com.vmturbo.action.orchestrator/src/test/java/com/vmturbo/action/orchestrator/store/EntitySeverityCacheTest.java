@@ -673,7 +673,7 @@ public class EntitySeverityCacheTest {
 
     @Nonnull
     private ActionView actionView(ActionDTO.Action recommendation) {
-        return actionFactory.newAction(recommendation, ACTION_PLAN_ID);
+        return actionFactory.newAction(recommendation, ACTION_PLAN_ID, IdentityGenerator.next());
     }
 
     private static ActionDTO.Action executableMove(final long targetId,

@@ -11,19 +11,25 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import javax.annotation.Nonnull;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.hamcrest.CoreMatchers;
+import org.junit.Assert;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator.ModeAndSchedule;
+import org.junit.Test;
+
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
@@ -90,18 +96,8 @@ public class ActionModeCalculatorTest {
 
     @Test
     public void testSettingHostMove() {
-        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-                .setMove(Move.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(7L)
-                                .setType(1))
-                        .addChanges(ChangeProvider.newBuilder()
-                                .setDestination(ActionEntity.newBuilder()
-                                        .setId(77L)
-                                        // Move to host
-                                        .setType(EntityType.PHYSICAL_MACHINE_VALUE)))))
-                .build();
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        final ActionDTO.Action action = createMoveAction(1, EntityType.PHYSICAL_MACHINE_VALUE);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 223L);
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(EntitySettingSpecs.Move.getSettingName(),
                         Setting.newBuilder()
@@ -117,18 +113,8 @@ public class ActionModeCalculatorTest {
 
     @Test
     public void testNoSettingHostMove() {
-        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-                .setMove(Move.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(7L)
-                                .setType(1))
-                        .addChanges(ChangeProvider.newBuilder()
-                            .setDestination(ActionEntity.newBuilder()
-                                .setId(77L)
-                                // Move to host
-                                .setType(EntityType.PHYSICAL_MACHINE_VALUE)))))
-                .build();
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        final ActionDTO.Action action = createMoveAction(1, EntityType.PHYSICAL_MACHINE_VALUE);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 445L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
@@ -137,17 +123,7 @@ public class ActionModeCalculatorTest {
 
     @Test
     public void testSettingStorageMove() {
-        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-                .setMove(Move.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(7L)
-                                .setType(1))
-                        .addChanges(ChangeProvider.newBuilder()
-                                .setDestination(ActionEntity.newBuilder()
-                                        .setId(77L)
-                                        // Move to host
-                                        .setType(EntityType.STORAGE_VALUE)))))
-                .build();
+        final ActionDTO.Action action = createMoveAction(1, EntityType.STORAGE_VALUE);
         when(entitiesCache.getSettingsForEntity(7L)).thenReturn(
                 ImmutableMap.of(EntitySettingSpecs.StorageMove.getSettingName(),
                         Setting.newBuilder()
@@ -155,7 +131,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 55L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         // Should use the value from settings.
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
@@ -164,18 +140,8 @@ public class ActionModeCalculatorTest {
 
     @Test
     public void testNoSettingStorageMove() {
-        final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder()
-                .setMove(Move.newBuilder()
-                        .setTarget(ActionEntity.newBuilder()
-                                .setId(7L)
-                                .setType(1))
-                        .addChanges(ChangeProvider.newBuilder()
-                                .setDestination(ActionEntity.newBuilder()
-                                        .setId(77L)
-                                        // Move to host
-                                        .setType(EntityType.STORAGE_VALUE)))))
-                .build();
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        final ActionDTO.Action action = createMoveAction(1, EntityType.STORAGE_VALUE);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2343L);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
                     EntitySettingSpecs.StorageMove.getSettingSpec().getEnumSettingValueType().getDefault()))));
@@ -214,7 +180,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.MANUAL.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 23L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         // Should choose the more conservative one.
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
@@ -244,7 +210,7 @@ public class ActionModeCalculatorTest {
         final ActionMode hostMoveDefaultMode =
                 ActionMode.valueOf(EntitySettingSpecs.Move.getSettingSpec().getEnumSettingValueType().getDefault());
         final ActionMode expectedDefaultMode = storageMoveDefaultMode.compareTo(hostMoveDefaultMode) < 0 ? storageMoveDefaultMode : hostMoveDefaultMode;
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 234234L);
 
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(expectedDefaultMode)));
@@ -266,7 +232,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        final Action aoAction = new Action(action, 1L, actionModeCalculator);
+        final Action aoAction = new Action(action, 1L, actionModeCalculator, 23432);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
@@ -280,7 +246,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        final Action aoAction = new Action(action, 1L, actionModeCalculator);
+        final Action aoAction = new Action(action, 1L, actionModeCalculator, 2343L);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
@@ -300,7 +266,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 444L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
@@ -314,7 +280,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 44L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
             is(ModeAndSchedule.of(ActionMode.valueOf(
@@ -336,7 +302,7 @@ public class ActionModeCalculatorTest {
                             .setEnumSettingValue(EnumSettingValue.newBuilder()
                                             .setValue(ActionMode.AUTOMATIC.name()))
                             .build()));
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 4545L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
@@ -350,7 +316,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
                     EntitySettingSpecs.Reconfigure.getSettingSpec().getEnumSettingValueType().getDefault()))));
@@ -371,7 +337,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
@@ -385,7 +351,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
@@ -407,7 +373,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
                 is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
@@ -421,7 +387,7 @@ public class ActionModeCalculatorTest {
                                 .setId(7L)
                                 .setType(1))))
                 .build();
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
                 is(ModeAndSchedule.of(ActionMode.valueOf(
@@ -443,7 +409,7 @@ public class ActionModeCalculatorTest {
                                 .setEnumSettingValue(EnumSettingValue.newBuilder()
                                         .setValue(ActionMode.AUTOMATIC.name()))
                                 .build()));
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
@@ -458,7 +424,7 @@ public class ActionModeCalculatorTest {
                     .setId(7L)
                     .setType(1))))
             .build();
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
             is(ModeAndSchedule.of(ActionMode.valueOf(
@@ -480,7 +446,7 @@ public class ActionModeCalculatorTest {
                     .setEnumSettingValue(EnumSettingValue.newBuilder()
                         .setValue(ActionMode.AUTOMATIC.name()))
                     .build()));
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         aoAction.getActionTranslation().setPassthroughTranslationSuccess();
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, entitiesCache),
             is(ModeAndSchedule.of(ActionMode.AUTOMATIC)));
@@ -494,7 +460,7 @@ public class ActionModeCalculatorTest {
                     .setId(7L)
                     .setType(1))))
             .build();
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
             is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
@@ -503,7 +469,7 @@ public class ActionModeCalculatorTest {
     public void testUnsetActionType() {
         final ActionDTO.Action action = actionBuilder.setInfo(ActionInfo.newBuilder())
                 .build();
-        Action aoAction = new Action(action, 1L, actionModeCalculator);
+        Action aoAction = new Action(action, 1L, actionModeCalculator, 2244L);
         assertThat(actionModeCalculator.calculateActionModeAndExecutionSchedule(aoAction, null),
             is(ModeAndSchedule.of(ActionMode.RECOMMEND)));
     }
@@ -792,6 +758,77 @@ public class ActionModeCalculatorTest {
         // settings there is also a EnforceNonDisruptive.
         assertThat(actionModeCalculator.specsApplicableToAction(memReservationAction, settingsForEntity).toArray().length,
             is(2));
+
+    }
+
+    /**
+     * Checks that {@link ActionModeCalculator#specsApplicableToAction} choose correct {@link
+     * EntitySettingSpecs} instance for the case when we want to move {@link
+     * EntityType#BUSINESS_USER} between {@link EntityType#DESKTOP_POOL}s.
+     */
+    @Test
+    public void checkSpecsApplicableToActionForBuMoves() {
+        checkSpecsApplicableToActionForMoves(EntityType.BUSINESS_USER_VALUE,
+                        EntityType.DESKTOP_POOL_VALUE, EntitySettingSpecs.BusinessUserMove);
+    }
+
+    /**
+     * Checks that {@link ActionModeCalculator#specsApplicableToAction} choose correct {@link
+     * EntitySettingSpecs} instance for the case when we want to move {@link
+     * EntityType#VIRTUAL_MACHINE} between {@link EntityType#PHYSICAL_MACHINE}s.
+     */
+    @Test
+    public void checkSpecsApplicableToActionForVmMoves() {
+        checkSpecsApplicableToActionForMoves(EntityType.VIRTUAL_MACHINE_VALUE,
+                        EntityType.PHYSICAL_MACHINE_VALUE, EntitySettingSpecs.Move);
+    }
+
+    /**
+     * Checks that {@link ActionModeCalculator#specsApplicableToAction} choose correct {@link
+     * EntitySettingSpecs} instance for the case when we want to move {@link
+     * EntityType#VIRTUAL_MACHINE} between {@link EntityType#STORAGE}s.
+     */
+    @Test
+    public void checkSpecsApplicableToActionForVmStorageMoves() {
+        checkSpecsApplicableToActionForMoves(EntityType.VIRTUAL_MACHINE_VALUE,
+                        EntityType.STORAGE_VALUE, EntitySettingSpecs.StorageMove);
+    }
+
+    private void checkSpecsApplicableToActionForMoves(int targetType, int providerType,
+                    EntitySettingSpecs modeSettingSpecs) {
+        final ActionDTO.Action moveAction = createMoveAction(targetType, providerType);
+        final Setting moveActionModeSetting = createActionModeSetting(ActionMode.RECOMMEND,
+                        modeSettingSpecs.getSettingName());
+        final String enforceNonDisruptiveSettingName =
+                        EntitySettingSpecs.EnforceNonDisruptive.getSettingName();
+        final Setting enableNonDisruptiveSetting = Setting.newBuilder().setSettingSpecName(
+                        enforceNonDisruptiveSettingName)
+                        .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true))
+                        .build();
+        final String moveSettingSpecName = EntitySettingSpecs.Move.getSettingName();
+        final Map<String, Setting> settingsForTargetEntity = new HashMap<>();
+        settingsForTargetEntity.put(modeSettingSpecs.getSettingName(), moveActionModeSetting);
+        settingsForTargetEntity.put(moveSettingSpecName,
+                        createActionModeSetting(ActionMode.MANUAL, moveSettingSpecName));
+        settingsForTargetEntity.put(enforceNonDisruptiveSettingName, enableNonDisruptiveSetting);
+        Assert.assertThat(actionModeCalculator
+                        .specsApplicableToAction(moveAction, settingsForTargetEntity).findAny()
+                        .get(), CoreMatchers.is(modeSettingSpecs));
+    }
+
+    @Nonnull
+    private static Setting createActionModeSetting(ActionMode mode, String settingName) {
+        return Setting.newBuilder().setSettingSpecName(settingName).setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(mode.name()).build()).build();
+    }
+
+    @Nonnull
+    private ActionDTO.Action createMoveAction(int businessUserValue, int desktopPoolValue) {
+        return actionBuilder.setInfo(ActionInfo.newBuilder().setMove(Move.newBuilder()
+                        .setTarget(ActionEntity.newBuilder().setId(7L).setType(businessUserValue))
+                        .addChanges(ChangeProvider.newBuilder()
+                                        .setDestination(ActionEntity.newBuilder().setId(77L)
+                                                        .setType(desktopPoolValue))))).build();
     }
 
     /**
@@ -918,7 +955,7 @@ public class ActionModeCalculatorTest {
                 .setOldCapacity(4)
                 .setNewCapacity(2)))
             .build();
-        Action action = new Action(recommendation, 1L, actionModeCalculator);
+        Action action = new Action(recommendation, 1L, actionModeCalculator, 2244L);
         action.getActionTranslation().setPassthroughTranslationSuccess();
         return action;
     }
@@ -944,7 +981,7 @@ public class ActionModeCalculatorTest {
                     .setOldCapacity(2)
                     .setNewCapacity(4)))
                 .build();
-        Action action = new Action(recommendation, 1L, actionModeCalculator);
+        Action action = new Action(recommendation, 1L, actionModeCalculator, 2244L);
         action.getActionTranslation().setPassthroughTranslationSuccess();
         return action;
     }

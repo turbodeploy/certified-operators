@@ -13,11 +13,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.history.db.bulk.BulkInserterFactory;
 import com.vmturbo.history.db.bulk.BulkInserterFactoryStats;
 import com.vmturbo.history.db.bulk.BulkInserterStats;
 import com.vmturbo.history.db.bulk.SimpleBulkLoaderFactory;
-import com.vmturbo.history.utils.MultiStageTimer;
 
 /**
  * Base class for topology ingesters.

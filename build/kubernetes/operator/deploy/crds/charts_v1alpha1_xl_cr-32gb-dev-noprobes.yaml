@@ -72,6 +72,8 @@ spec:
     enabled: false
   netflow:
     enabled: false
+  nutanix:
+    enabled: false
   oneview:
     enabled: false
   openstack:
@@ -277,6 +279,10 @@ spec:
       limits:
         memory: 512Mi
   mediation-netflow:
+    resources:
+      limits:
+        memory: 512Mi
+  mediation-nutanix:
     resources:
       limits:
         memory: 512Mi

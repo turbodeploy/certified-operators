@@ -1,4 +1,4 @@
-package com.vmturbo.history.utils;
+package com.vmturbo.components.common.utils;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -467,8 +467,9 @@ public class MultiStageTimer {
         @Nonnull
         synchronized Duration getTotalDuration() {
             return segments.stream()
-                .map(Segment::getDuration)
-                .reduce(Duration.ZERO, Duration::plus);
+                    .map(Segment::getDuration)
+                    .filter(Objects::nonNull)
+                    .reduce(Duration.ZERO, Duration::plus);
         }
 
         /**

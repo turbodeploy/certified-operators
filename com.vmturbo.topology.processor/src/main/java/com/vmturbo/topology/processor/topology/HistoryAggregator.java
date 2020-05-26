@@ -128,11 +128,11 @@ public class HistoryAggregator {
         try {
             // submit the preparation tasks and wait for completion
             executeTasks(context, commsToUpdate, IHistoricalEditor::createPreparationTasks,
-                         true, "chunked prepare", LOAD_HISTORY_SUMMARY_METRIC);
+                         true, true, "chunked prepare", LOAD_HISTORY_SUMMARY_METRIC);
 
             // submit the calculation tasks and wait for completion
             executeTasks(context, commsToUpdate, IHistoricalEditor::createCalculationTasks,
-                         false, "calculate", CALCULATE_HISTORY_SUMMARY_METRIC);
+                         false, false, "calculate", CALCULATE_HISTORY_SUMMARY_METRIC);
         } catch (RejectedExecutionException | InterruptedException | ExecutionException e) {
             Throwable reason = e;
             // any failure of a mandatory sub-task stops everything (typically first failure to load from db)
@@ -198,6 +198,7 @@ public class HistoryAggregator {
                              List<EntityCommodityReference>,
                              List<? extends Callable<List<Output>>>> tasksCreator,
                          boolean splitByEntityType,
+                         boolean cleanupCache,
                          @Nonnull String description,
                          @Nonnull DataMetricSummary metric)
                      throws InterruptedException, RejectedExecutionException, ExecutionException {
@@ -214,6 +215,10 @@ public class HistoryAggregator {
                 List<Future<List<Output>>> editorFutures = futures
                                 .computeIfAbsent(editor, v -> new LinkedList<>());
                 if (!CollectionUtils.isEmpty(editorComms)) {
+                    // remove commodities not present in current broadcast if needed
+                    if (cleanupCache) {
+                        editor.cleanupCache(editorComms);
+                    }
                     // if requested, partition eligible commodities by entity type
                     final Collection<List<EntityCommodityReference>> partitionedComms;
                     if (splitByEntityType) {
