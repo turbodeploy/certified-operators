@@ -1,6 +1,7 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
@@ -153,6 +154,23 @@ public interface ActionView {
     Optional<ActionSchedule> getSchedule();
 
     /**
+     * Sets the schedule for action. We should have this method in order to update
+     * information about schedule (i.e. acceptingUser) when action was accepted manually.
+     *
+     * @param schedule the execution schedule associated for this action
+     */
+    void setSchedule(@Nonnull ActionSchedule schedule);
+
+    /**
+     * Gets the list of associated policies for this action.
+     * If there are no associated policies then return empty collection.
+     *
+     * @return the list of associated policies ids for this action
+     */
+    @Nonnull
+    Collection<Long> getAssociatedSettingsPolicies();
+
+    /**
      * Get the severity of the action. Currently, the severity of an action
      * is determined solely by its category; hence the default method.
      *
@@ -247,4 +265,13 @@ public interface ActionView {
      */
     @Nonnull
     String getDescription();
+
+    /**
+     * Return a market recommendation OID. This OID is used for distinguishing between different
+     * action recommended by market. All the actions with the same recommendation OIDs are treated
+     * as logically equal market recommendations.
+     *
+     * @return market recommendation OID
+     */
+    long getRecommendationOid();
 }

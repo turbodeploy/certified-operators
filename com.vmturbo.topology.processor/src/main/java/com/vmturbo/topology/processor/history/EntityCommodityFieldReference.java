@@ -15,6 +15,7 @@ import com.vmturbo.stitching.EntityCommodityReference;
 @Immutable
 public class EntityCommodityFieldReference extends EntityCommodityReference {
     private final CommodityField field;
+    private volatile EntityCommodityFieldReference liveEntityReference;
 
     /**
      * Construct the field reference from a commodity reference and field marker.
@@ -59,6 +60,49 @@ public class EntityCommodityFieldReference extends EntityCommodityReference {
     @Nonnull
     public CommodityField getField() {
         return field;
+    }
+
+    /**
+     * Returns the commodity field reference in the live topology.
+     *
+     * @param context History aggregation context.
+     * @return The commodity field reference in live topology.
+     */
+    @Nonnull
+    public EntityCommodityFieldReference getLiveTopologyFieldReference(
+                                                    @Nonnull HistoryAggregationContext context) {
+        if (liveEntityReference == null) {
+            synchronized (this) {
+                if (liveEntityReference == null) {
+                    liveEntityReference = buildLiveTopologyReference(context);
+                }
+            }
+        }
+        return liveEntityReference;
+    }
+
+    @Nonnull
+    private EntityCommodityFieldReference buildLiveTopologyReference(
+                                                    @Nonnull HistoryAggregationContext context) {
+        // If this is live topology return this
+        if (!context.isPlan()) {
+            return this;
+        }
+
+        final long entityId = getEntityOid();
+        final Long providerId = getProviderOid();
+
+        // Find the live topology entity id for the plan entity
+        final long liveEntityId = context.getClonedFromEntityOid(entityId).orElse(entityId);
+        final Long liveProviderId = context.getClonedFromEntityOid(providerId).orElse(providerId);
+
+        // If the live topology ids are different create a reference with those
+        if (entityId != liveEntityId || !Objects.equals(providerId, liveProviderId)) {
+            return new EntityCommodityFieldReference(liveEntityId, getCommodityType(),
+                liveProviderId, field);
+        }
+
+        return this;
     }
 
     @Override

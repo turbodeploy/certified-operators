@@ -6,7 +6,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -17,7 +16,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -26,6 +24,7 @@ import java.util.stream.Collectors;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
 import com.google.protobuf.InvalidProtocolBufferException;
+
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusException;
@@ -39,6 +38,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
+import com.vmturbo.common.protobuf.action.ActionDTO.CancelQueuedActionsRequest;
+import com.vmturbo.common.protobuf.action.ActionDTO.RemoveActionsAcceptancesRequest;
 import com.vmturbo.common.protobuf.action.ActionDTOMoles.ActionsServiceMole;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.setting.SettingProto.BooleanSettingValue;
@@ -519,8 +520,15 @@ public class SettingPolicyRpcServiceTest {
                 .descriptionContains(Long.toString(id)));
     }
 
+    /**
+     * Test that after deleting settingPolicy we cancel queued actions and remove acceptance for
+     * actions associated with this policy.
+     *
+     * @throws Exception if something goes wrong
+     */
     @Test
-    public void testDeletePolicyCheckCancelActionsInvocation() throws Exception {
+    public void testDeletePolicyCheckCancelActionsInvocationAndRemovingAcceptance()
+            throws Exception {
         final StreamObserver<DeleteSettingPolicyResponse> responseObserver =
                 (StreamObserver<DeleteSettingPolicyResponse>)mock(StreamObserver.class);
         transactionProvider.getSettingPolicyStore()
@@ -530,7 +538,12 @@ public class SettingPolicyRpcServiceTest {
                 .setId(automationSettingPolicy.getId())
                 .build(), responseObserver);
 
-        verify(actionServiceMole).cancelQueuedActions(any());
+        verify(actionServiceMole).cancelQueuedActions(
+                CancelQueuedActionsRequest.getDefaultInstance());
+        verify(actionServiceMole).removeActionsAcceptances(
+                RemoveActionsAcceptancesRequest.newBuilder()
+                        .setPolicyId(automationSettingPolicy.getId())
+                        .build());
     }
 
     @Test

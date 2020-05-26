@@ -103,7 +103,7 @@ data:
         externalApiFileSystemBase: file:/swagger/
         cpuInfoCacheLifetimeHours: 8
         sessionTimeoutSeconds: 1800
-        enableReporting: {{ .Values.global.enableXlr }}
+        enableReporting: {{ .Values.reporting.enabled }}
       auth:
         dbSchemaName: auth
         identityGeneratorPrefix: 7
@@ -422,6 +422,11 @@ data:
         historyAggregation.percentileMaintenanceWindowHours: 24
         # Whether to enable consistent scaling
         consistentScalingEnabled: true
+      extractor:
+        dbHost: timescaledb
+        dbPort: 5432
+        # todo: remove after we extend auth to support postgres
+        dbRootUserName: postgres
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}

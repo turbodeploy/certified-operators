@@ -11,19 +11,13 @@ import static org.mockito.Mockito.when;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.mockito.Mockito;
 
 import io.grpc.Context;
 import io.grpc.ManagedChannel;
@@ -33,8 +27,18 @@ import io.grpc.Status.Code;
 import io.grpc.inprocess.InProcessChannelBuilder;
 import io.grpc.inprocess.InProcessServerBuilder;
 
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
+
 import com.vmturbo.action.orchestrator.ActionOrchestratorComponent;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator.ActionPaginatorFactory;
@@ -56,6 +60,7 @@ import com.vmturbo.action.orchestrator.store.IActionFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreFactory;
 import com.vmturbo.action.orchestrator.store.IActionStoreLoader;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
+import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.action.orchestrator.workflow.store.WorkflowStore;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
@@ -80,6 +85,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.SingleActionRequest;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc.ActionsServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcRuntimeExceptionMatcher;
 import com.vmturbo.components.api.test.MutableFixedClock;
 import com.vmturbo.components.common.identity.ArrayOidSet;
@@ -114,6 +120,7 @@ public class ActionExecutionSecureRpcTest {
     private final ActionTranslator actionTranslator = ActionOrchestratorTestUtils.passthroughTranslator();
     private final ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
+    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final IActionStoreFactory actionStoreFactory = mock(IActionStoreFactory.class);
     private final IActionStoreLoader actionStoreLoader = mock(IActionStoreLoader.class);
     private final AutomatedActionExecutor executor = mock(AutomatedActionExecutor.class);
@@ -152,13 +159,14 @@ public class ActionExecutionSecureRpcTest {
             workflowStore,
             statReader,
             currentActionStatReader,
-            userSessionContext);
+            userSessionContext, acceptedActionsStore);
     private ActionsServiceBlockingStub actionOrchestratorServiceClient;
     private ActionsServiceBlockingStub actionOrchestratorServiceClientWithInterceptor;
     private ActionStore actionStoreSpy;
     private Server secureGrpcServer;
     private ManagedChannel channel;
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
+    private IdentityServiceImpl actionIdentityService;
 
     // utility for creating / interacting with a debugging JWT context
     JwtContextUtil jwtContextUtil;
@@ -174,6 +182,15 @@ public class ActionExecutionSecureRpcTest {
         // redirect output stream to PrintStream, so we can verify the audit output.
         System.setOut(new PrintStream(outputStream));
     }
+
+    /**
+     * Static test initializer.
+     */
+    @BeforeClass
+    public static void staticInit() {
+        IdentityGenerator.initPrefix(0);
+    }
+
     private static ActionPlan actionPlan(ActionDTO.Action recommendation) {
         return ActionPlan.newBuilder()
             .setId(ACTION_PLAN_ID)
@@ -221,11 +238,22 @@ public class ActionExecutionSecureRpcTest {
         when(actionTargetSelector.getTargetForAction(any(), any())).thenReturn(targetInfo);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
+        actionIdentityService = Mockito.mock(IdentityServiceImpl.class);
+        Mockito.when(actionIdentityService.getOidsForObjects(Mockito.any())).thenAnswer(invocation -> {
+            final int size = invocation.getArgumentAt(0, List.class).size();
+            final List<Long> result = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                result.add(IdentityGenerator.next());
+            }
+            return result;
+        });
+
         // mock action store
-        actionStoreSpy = Mockito.spy(new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID,
-            actionTargetSelector, probeCapabilityCache, entitySettingsCache,
-            actionHistoryDao, actionsStatistician, actionTranslator, clock, userSessionContext,
-                licenseCheckClient));
+        actionStoreSpy = Mockito.spy(
+                new LiveActionStore(actionFactory, TOPOLOGY_CONTEXT_ID, actionTargetSelector,
+                        probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                        actionsStatistician, actionTranslator, clock, userSessionContext,
+                        licenseCheckClient, acceptedActionsStore, actionIdentityService));
         when(actionStoreFactory.newStore(anyLong())).thenReturn(actionStoreSpy);
         when(actionStoreLoader.loadActionStores()).thenReturn(Collections.emptyList());
         when(actionStoreFactory.getContextTypeName(anyLong())).thenReturn("foo");

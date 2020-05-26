@@ -44,6 +44,7 @@ import org.mockito.Mockito;
 import org.mockito.internal.matchers.apachecommons.ReflectionEquals;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionEvent.NotRecommendedEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
@@ -55,11 +56,17 @@ import com.vmturbo.action.orchestrator.execution.ProbeCapabilityCache;
 import com.vmturbo.action.orchestrator.stats.LiveActionsStatistician;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.store.LiveActions.RecommendationTracker;
+import com.vmturbo.action.orchestrator.store.identity.ActionInfoModel;
+import com.vmturbo.action.orchestrator.store.identity.ActionInfoModelCreator;
+import com.vmturbo.action.orchestrator.store.identity.IdentityDataStore;
+import com.vmturbo.action.orchestrator.store.identity.IdentityServiceImpl;
+import com.vmturbo.action.orchestrator.store.identity.InMemoryIdentityStore;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.auth.api.authorization.UserSessionContext;
 import com.vmturbo.auth.api.licensing.LicenseCheckClient;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
@@ -90,7 +97,7 @@ public class LiveActionStoreTest {
     private final int vmType = 1;
 
     private final ActionHistoryDao actionHistoryDao = mock(ActionHistoryDao.class);
-
+    private IdentityServiceImpl<ActionInfo, ActionInfoModel> actionIdentityService;
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -105,8 +112,10 @@ public class LiveActionStoreTest {
          */
         @Nonnull
         @Override
-        public Action newAction(@Nonnull final ActionDTO.Action recommendation, long actionPlanId) {
-            return spy(new Action(recommendation, actionPlanId, actionModeCalculator));
+        public Action newAction(@Nonnull final ActionDTO.Action recommendation, long actionPlanId,
+                long recommendationOid) {
+            return spy(new Action(recommendation, actionPlanId, actionModeCalculator,
+                    recommendationOid));
         }
 
         @Nonnull
@@ -115,7 +124,8 @@ public class LiveActionStoreTest {
                                     long actionPlanId, String description,
                 @Nullable final Long associatedAccountId, @Nullable final Long associatedResourceGroupId) {
             return spy(new Action(recommendation, recommendationTime, actionPlanId,
-                actionModeCalculator, description, associatedAccountId, associatedResourceGroupId));
+                    actionModeCalculator, description, associatedAccountId,
+                    associatedResourceGroupId, IdentityGenerator.next()));
         }
     }
 
@@ -144,14 +154,21 @@ public class LiveActionStoreTest {
 
     private LicenseCheckClient licenseCheckClient = mock(LicenseCheckClient.class);
 
+    private final AcceptedActionsDAO acceptedActionsStore = mock(AcceptedActionsDAO.class);
+
     @SuppressWarnings("unchecked")
     @Before
     public void setup() {
         // license check client will default to acting as if a valid license is installed.
         when(licenseCheckClient.hasValidNonExpiredLicense()).thenReturn(true);
+        final IdentityDataStore<ActionInfoModel> idDataStore = new InMemoryIdentityStore<>();
+        this.actionIdentityService =
+                new IdentityServiceImpl(idDataStore, new ActionInfoModelCreator(),
+                        Clock.systemUTC(), 1000);
         actionStore = new LiveActionStore(spyActionFactory, TOPOLOGY_CONTEXT_ID, targetSelector,
-            probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
-            actionTranslator, clock, userSessionContext, licenseCheckClient);
+                probeCapabilityCache, entitySettingsCache, actionHistoryDao, actionsStatistician,
+                actionTranslator, clock, userSessionContext, licenseCheckClient,
+                acceptedActionsStore, actionIdentityService);
 
         when(targetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
             Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
@@ -161,6 +178,7 @@ public class LiveActionStoreTest {
                     .build()));
         });
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
+        when(snapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
         setEntitiesOIDs();
         IdentityGenerator.initPrefix(0);
     }
@@ -296,10 +314,11 @@ public class LiveActionStoreTest {
     public void testPopulateNotRecommendedAreClearedAndRemoved() throws Exception {
         // Can't use spies when checking for action state because action state machine will call
         // methods in the original action, not in the spy.
-        ActionStore actionStore = new LiveActionStore(
-                new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
-                targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
-                actionsStatistician, actionTranslator, clock, userSessionContext, licenseCheckClient);
+        ActionStore actionStore =
+                new LiveActionStore(new ActionFactory(actionModeCalculator), TOPOLOGY_CONTEXT_ID,
+                        targetSelector, probeCapabilityCache, entitySettingsCache, actionHistoryDao,
+                        actionsStatistician, actionTranslator, clock, userSessionContext,
+                        licenseCheckClient, acceptedActionsStore, actionIdentityService);
 
         ActionDTO.Action.Builder firstMove = move(vm1, hostA, vmType, hostB, vmType);
 
@@ -587,7 +606,10 @@ public class LiveActionStoreTest {
                                                 Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
         when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
-        Action filteredActionSpy = spy(new Action(secondMove.build(), 1L, actionModeCalculator));
+        final long secondOid = actionIdentityService.getOidsForObjects(
+                Collections.singletonList(secondMove.getInfo())).iterator().next();
+        final Action filteredActionSpy =
+                spy(new Action(secondMove.build(), 1L, actionModeCalculator, secondOid));
         when(filteredActionSpy.getState()).thenReturn(ActionState.SUCCEEDED);
         when(actionHistoryDao.getActionHistoryByDate(any(), any()))
                 .thenReturn(Collections.singletonList(filteredActionSpy));
@@ -655,7 +677,7 @@ public class LiveActionStoreTest {
             eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId()),
             eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyId()));
         verify(spyActionFactory).newAction(any(),
-            eq(firstPlanId));
+            eq(firstPlanId), Mockito.anyLong());
         assertEquals(1, actionStore.size());
     }
 
@@ -930,7 +952,7 @@ public class LiveActionStoreTest {
         ActionFactory actionFactory = new ActionFactory(actionModeCalculator);
         List<Action> actions = ImmutableList.of(move1, move2, move3, move4, move5)
             .stream()
-            .map(action -> actionFactory.newAction(action, firstPlanId))
+            .map(action -> actionFactory.newAction(action, firstPlanId, 334L))
             .collect(Collectors.toList());
 
         // Now test the recommendation tracker structure.
@@ -941,7 +963,7 @@ public class LiveActionStoreTest {
             RecommendationTracker recommendations = new RecommendationTracker();
             actions.forEach(action -> recommendations.add(action));
             Action actionToRemove = actions.get(i);
-            recommendations.take(actionToRemove.getRecommendation().getInfo());
+            recommendations.take(334L);
             Set<Long> actionIdsRemaining =
                 actions.stream()
                     .map(a -> a.getId())

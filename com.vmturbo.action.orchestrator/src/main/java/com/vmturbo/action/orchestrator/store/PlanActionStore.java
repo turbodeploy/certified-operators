@@ -49,13 +49,13 @@ import com.vmturbo.action.orchestrator.store.query.MapBackedActionViews;
 import com.vmturbo.action.orchestrator.store.query.QueryableActionViews;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo.ActionTypeCase;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlan.ActionPlanType;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 
 /**
  * {@inheritDoc}
@@ -455,13 +455,14 @@ public class PlanActionStore implements ActionStore {
         }
 
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
+        final List<ActionDTO.Action> actionsStream = new ArrayList<>(actions.size());
 
         Map<Long, ActionTargetInfo> actionTargetInfo = actionTargetSelector.getTargetsForActions(actions.stream(), snapshot);
         Stream<ActionDTO.Action> actionStream = actions.stream().map(
             action -> action.toBuilder().addAllPrerequisite(actionTargetInfo.get(action.getId()).prerequisites()).build());
 
         final Stream<Action> translatedActions = actionTranslator.translate(actionStream
-            .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId())),
+            .map(recommendedAction -> actionFactory.newAction(recommendedAction, planData.getId(), IdentityGenerator.next())),
             snapshot);
 
         final List<ActionAndInfo> translatedActionsToAdd = new ArrayList<>();

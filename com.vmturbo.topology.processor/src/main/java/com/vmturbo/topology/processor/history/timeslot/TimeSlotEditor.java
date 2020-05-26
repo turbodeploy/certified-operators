@@ -131,6 +131,13 @@ public class TimeSlotEditor extends
     public List<? extends Callable<List<EntityCommodityFieldReference>>> createPreparationTasks(
                     @Nonnull HistoryAggregationContext context,
                     @Nonnull List<EntityCommodityReference> commodityRefs) {
+        if (context.isPlan()) {
+            // Convert the reference to live topology references
+            commodityRefs = commodityRefs.stream()
+                .map(ref -> ref.getLiveTopologyCommodityReference(context::getClonedFromEntityOid))
+                .collect(Collectors.toList());
+        }
+
         if (!hasEnoughHistoricalData(context, commodityRefs)) {
             return Collections.emptyList();
         }

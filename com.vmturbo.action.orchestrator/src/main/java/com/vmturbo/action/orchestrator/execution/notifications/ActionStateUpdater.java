@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionEvent.AfterFailureEvent;
@@ -17,6 +18,7 @@ import com.vmturbo.action.orchestrator.action.ActionEvent.FailureEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.ProgressEvent;
 import com.vmturbo.action.orchestrator.action.ActionEvent.SuccessEvent;
 import com.vmturbo.action.orchestrator.action.ActionHistoryDao;
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.api.ActionOrchestratorNotificationSender;
 import com.vmturbo.action.orchestrator.execution.ActionExecutor;
@@ -56,6 +58,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
 
     private final ActionHistoryDao actionHistoryDao;
 
+    private final AcceptedActionsDAO acceptedActionsStore;
+
     /**
      * Used to execute actions (by sending them to Topology Processor).
      */
@@ -79,19 +83,23 @@ public class ActionStateUpdater implements ActionExecutionListener {
      * Create a new {@link ActionStateUpdater}.
      * @param actionStorehouse The storehouse in which to look up actions as notifications are received.
      * @param notificationSender The API backend to send notifications to.
+     * @param actionHistoryDao dao layer persists information about executed actions
+     * @param acceptedActionsStore dao layer works with acceptances for actions
      * @param actionExecutor to execute actions (by sending them to Topology Processor)
      * @param workflowStore the store for all the known {@link WorkflowDTO.Workflow} items
      * @param realtimeTopologyContextId The ID of the topology context for realtime market analysis
      * @param failedCloudVMGroupProcessor to process failed actions and add VM entities to a group.
      */
     public ActionStateUpdater(@Nonnull final ActionStorehouse actionStorehouse,
-                              @Nonnull final ActionOrchestratorNotificationSender notificationSender,
-                              @Nonnull final ActionHistoryDao actionHistoryDao,
-                              @Nonnull final ActionExecutor actionExecutor,
-                              @Nonnull final WorkflowStore workflowStore,
-                              final long realtimeTopologyContextId, final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor) {
+            @Nonnull final ActionOrchestratorNotificationSender notificationSender,
+            @Nonnull final ActionHistoryDao actionHistoryDao,
+            @Nonnull final AcceptedActionsDAO acceptedActionsStore,
+            @Nonnull final ActionExecutor actionExecutor,
+            @Nonnull final WorkflowStore workflowStore, final long realtimeTopologyContextId,
+            final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor) {
         this.actionStorehouse = Objects.requireNonNull(actionStorehouse);
         this.actionHistoryDao = Objects.requireNonNull(actionHistoryDao);
+        this.acceptedActionsStore = acceptedActionsStore;
         this.notificationSender = Objects.requireNonNull(notificationSender);
         this.actionExecutor = Objects.requireNonNull(actionExecutor);
         this.workflowStore = Objects.requireNonNull(workflowStore);
@@ -178,6 +186,7 @@ public class ActionStateUpdater implements ActionExecutionListener {
                 case SUCCEEDED:
                     // If the action transitions to the SUCCEEDED state, notify the rest of the system
                     logger.info("Action executed successfully: {}", action);
+                    removeAcceptanceForSuccessfullyExecutedAction(action);
                     try {
                         notificationSender.notifyActionSuccess(actionSuccess);
                     } catch (CommunicationException | InterruptedException e) {
@@ -190,6 +199,20 @@ public class ActionStateUpdater implements ActionExecutionListener {
             }
         } else {
             logger.error("Unable to mark success for " + actionSuccess);
+        }
+    }
+
+    /**
+     * Remove acceptance for action if it was manually accepted and had execution scheduled window.
+     *
+     * @param action executed action
+     */
+    private void removeAcceptanceForSuccessfullyExecutedAction(Action action) {
+        final Optional<ActionSchedule> actionSchedule = action.getSchedule();
+        if (actionSchedule.isPresent() && actionSchedule.get().getAcceptingUser() != null) {
+            acceptedActionsStore.deleteAcceptedAction(action.getRecommendationOid());
+            logger.debug("Acceptance was removed for successfully executed action - {}.",
+                    action.toString());
         }
     }
 
@@ -344,7 +367,8 @@ public class ActionStateUpdater implements ActionExecutionListener {
                     serializedAction.getCurrentState().getNumber(),
                     serializedAction.getActionDetailData(),
                     serializedAction.getAssociatedAccountId(),
-                    serializedAction.getAssociatedResourceGroupId()
+                    serializedAction.getAssociatedResourceGroupId(),
+                    serializedAction.getRecommendationOid()
             );
         } catch (RuntimeException e) {
             logger.error(e.getMessage());

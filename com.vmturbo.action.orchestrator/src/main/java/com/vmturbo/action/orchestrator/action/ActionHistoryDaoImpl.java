@@ -55,8 +55,10 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
      * Constructs action history DAO.
      *
      * @param dsl database access context
+     * @param actionModeCalculator calculates action mode
      */
-    public ActionHistoryDaoImpl(@Nonnull final DSLContext dsl, @Nonnull ActionModeCalculator actionModeCalculator) {
+    public ActionHistoryDaoImpl(@Nonnull final DSLContext dsl,
+            @Nonnull ActionModeCalculator actionModeCalculator) {
         this.dsl = Objects.requireNonNull(dsl);
         this.actionModeCalculator = Objects.requireNonNull(actionModeCalculator);
     }
@@ -79,7 +81,8 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             @Nonnull final int currentState,
             @Nullable final byte[] actionDetailData,
             @Nullable final Long associatedAccountId,
-            @Nullable final Long associatedResourceGroupId) {
+            @Nullable final Long associatedResourceGroupId,
+            long recommendationOid) {
         final LocalDateTime curTime = LocalDateTime.now();
         String userName = SecurityConstant.USER_ID_CTX_KEY.get();
         if (userName == null) {
@@ -96,7 +99,8 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
                 currentState,
                 userName,
                 actionDetailData,
-                associatedAccountId, associatedResourceGroupId);
+                associatedAccountId, associatedResourceGroupId,
+                recommendationOid);
         dsl.newRecord(ACTION_HISTORY, actionHistory).store();
         return actionHistory;
     }
@@ -133,6 +137,7 @@ public class ActionHistoryDaoImpl implements ActionHistoryDao {
             new ActionTranslation(actionHistory.getRecommendation()),
             actionHistory.getAssociatedAccountId(),
             actionHistory.getAssociatedResourceGroupId(),
-            actionHistory.getActionDetailData()), actionModeCalculator);
+            actionHistory.getActionDetailData(),
+            actionHistory.getRecommendationOid()), actionModeCalculator);
     }
 }

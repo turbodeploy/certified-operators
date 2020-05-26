@@ -3,8 +3,6 @@ package com.vmturbo.topology.processor.entity;
 import static com.vmturbo.topology.processor.conversions.SdkToTopologyEntityConverter.entityState;
 
 import java.time.Clock;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,14 +33,13 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 
-import org.apache.commons.collections4.MultiValuedMap;
-import org.apache.commons.collections4.multimap.HashSetValuedHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.CommodityBought;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityOrigin;
@@ -53,10 +50,7 @@ import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.Entity.PerTargetInfo;
-import com.vmturbo.topology.processor.identity.IdentityMetadataMissingException;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
-import com.vmturbo.topology.processor.identity.IdentityProviderException;
-import com.vmturbo.topology.processor.identity.IdentityUninitializedException;
 import com.vmturbo.topology.processor.stitching.StitchingContext;
 import com.vmturbo.topology.processor.stitching.StitchingEntityData;
 import com.vmturbo.topology.processor.stitching.TopologyStitchingGraph;
@@ -472,17 +466,14 @@ public class EntityStore {
      * @param entityDTOList The list of discovered {@link EntityDTO}s.
      * @return A map from OID to {@link EntityDTO}. If multiple {@link EntityDTO}s map to the
      *         same OID only one of them will appear in this map.
-     * @throws EntitiesValidationException If the input list contains {@link EntityDTO}s that
-     *      contain illegal values that we don't have workarounds for.
-     * @throws IdentityProviderException If during id assignment, those assignments cannot be
+     * @throws IdentityServiceException If during id assignment, those assignments cannot be
      *                                   persisted.
      */
     @Nonnull
     private Map<Long, EntityDTO> assignIdsToEntities(final long probeId,
                                                      final long targetId,
                                                      @Nonnull final List<EntityDTO> entityDTOList)
-        throws IdentityUninitializedException,
-                    IdentityMetadataMissingException, IdentityProviderException {
+        throws IdentityServiceException {
         // There may be duplicate entries (though that's a bug in the probes),
         // and we should deal with that without throwing exceptions.
         final Map<Long, EntityDTO> finalEntitiesById = new HashMap<>();
@@ -632,18 +623,12 @@ public class EntityStore {
      *                  request, which is used to indicate relative timing of the discovery order
      * @param discoveryType type of the discovery
      * @param entityDTOList The discovered {@link EntityDTO} objects.
-     * @throws IdentityUninitializedException If the identity service is uninitialized, and we are
-     *  unable to assign IDs to discovered entities.
-     * @throws IdentityMetadataMissingException if asked to assign an ID to an {@link EntityDTO}
-     *         for which there is no identity metadata.
-     * @throws IdentityProviderException If during id assignment, those assignments cannot be
-     *         persisted.
+     * @throws IdentityServiceException If error occurred assigning OIDs
      * @throws TargetNotFoundException if no target exists with the provided targetId
      */
     public void entitiesDiscovered(final long probeId, final long targetId, final int messageId,
         @Nonnull DiscoveryType discoveryType, @Nonnull final List<EntityDTO> entityDTOList)
-            throws IdentityUninitializedException, IdentityMetadataMissingException,
-                    IdentityProviderException, TargetNotFoundException {
+            throws IdentityServiceException, TargetNotFoundException {
         // this applies to all discovery types, since there may be new entities in incremental response
         final Map<Long, EntityDTO> entitiesById =
             assignIdsToEntities(probeId, targetId, entityDTOList);

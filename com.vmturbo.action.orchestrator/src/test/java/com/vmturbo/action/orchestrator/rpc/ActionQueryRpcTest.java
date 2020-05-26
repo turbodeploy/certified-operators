@@ -30,6 +30,10 @@ import java.util.stream.StreamSupport;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.collect.ImmutableMap;
+
+import io.grpc.Status.Code;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -37,11 +41,8 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.mockito.Mockito;
 
-import com.google.common.collect.ImmutableMap;
-
-import io.grpc.Status.Code;
-
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
 import com.vmturbo.action.orchestrator.action.ActionPaginator;
@@ -132,17 +133,19 @@ public class ActionQueryRpcTest {
     private final UserSessionContext userSessionContext = Mockito.mock(UserSessionContext.class);
 
     private final Clock clock = new MutableFixedClock(1_000_000);
+    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
+
 
     private ActionsRpcService actionsRpcService = new ActionsRpcService(clock,
             actionStorehouse, actionExecutor, actionTargetSelector, entitySettingsCache,
             actionTranslator, paginatorFactory, workflowStore,
-            historicalStatReader, liveStatReader, userSessionContext);
+            historicalStatReader, liveStatReader, userSessionContext, acceptedActionsStore);
 
     private ActionsRpcService actionsRpcServiceWithFailedTranslator = new ActionsRpcService(clock,
             actionStorehouse, actionExecutor, actionTargetSelector, entitySettingsCache,
             actionTranslatorWithFailedTranslation, paginatorFactory,
             workflowStore, historicalStatReader, liveStatReader,
-            userSessionContext);
+            userSessionContext, acceptedActionsStore);
 
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
@@ -261,7 +264,7 @@ public class ActionQueryRpcTest {
         final long id = 11l;
         Action resizeAction = new Action(ActionOrchestratorTestUtils
                 .createResizeRecommendation(1, id, CommodityType.VCPU, 5000,
-                        2500), actionPlanId, actionModeCalculator);
+                        2500), actionPlanId, actionModeCalculator, 123L);
         resizeAction.setDescription("Resize down vcpu for VM1 from 5 to 2.5");
         final Resize newResize = ActionDTO.Resize.newBuilder()
                 .setCommodityType(TopologyDTO.CommodityType.newBuilder().setType(CommodityType.VCPU.getNumber()))
@@ -579,7 +582,8 @@ public class ActionQueryRpcTest {
         // Need to add "moveActions" to the ID to avoid having ovelapping IDs.
         LongStream.range(0, resizeActions).map(actionNum -> moveActions + actionNum).forEach(i -> {
             final ActionView actionView = new Action(
-                ActionOrchestratorTestUtils.createResizeRecommendation(i, CommodityType.VMEM), actionPlanId, actionModeCalculator);
+                    ActionOrchestratorTestUtils.createResizeRecommendation(i, CommodityType.VMEM),
+                    actionPlanId, actionModeCalculator, 124L);
             actionViewMap.put(actionView.getId(), actionView);
         });
 
@@ -661,10 +665,11 @@ public class ActionQueryRpcTest {
     @Test
     public void testGetActionCountsByEntity() throws Exception {
         final long actionPlanId = 10;
-        final ActionView visibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                1, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator));
+        final ActionView visibleAction = spy(new Action(
+                ActionOrchestratorTestUtils.createMoveRecommendation(1, 7, 77, 1, 777, 1),
+                actionPlanId, actionModeCalculator, 234L));
         final ActionView invisibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator));
+                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator, 234L));
         final MapBackedActionViews actionViews = new MapBackedActionViews(ImmutableMap.of(
                 visibleAction.getId(), visibleAction,
                 invisibleAction.getId(), invisibleAction));
@@ -724,17 +729,17 @@ public class ActionQueryRpcTest {
         final LocalDateTime date = LocalDateTime.now();
         final LocalDateTime startOfDay = date.toLocalDate().atStartOfDay();
         final ActionView visibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                1, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator));
+                1, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator, 222L));
         when(visibleAction.getRecommendationTime())
                .thenReturn(date);
         final ActionView visibleQueuedAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                3, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator));
+                3, 7, 77, 1, 777, 1), actionPlanId, actionModeCalculator, 223L));
         when(visibleQueuedAction.getRecommendationTime())
                 .thenReturn(date);
         when(visibleQueuedAction.getState())
                 .thenReturn(ActionState.QUEUED);
         final ActionView invisibleAction = spy(new Action(ActionOrchestratorTestUtils.createMoveRecommendation(
-                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator));
+                2, 8, 88, 1, 888, 1), actionPlanId, actionModeCalculator, 224L));
         final Map<Long, ActionView> actionViews = ImmutableMap.of(
                 visibleAction.getId(), visibleAction,
                 visibleQueuedAction.getId(), visibleQueuedAction,

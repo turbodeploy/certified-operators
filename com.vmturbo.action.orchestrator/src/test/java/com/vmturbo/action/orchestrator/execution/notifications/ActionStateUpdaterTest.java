@@ -13,13 +13,18 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
+import com.vmturbo.action.orchestrator.action.AcceptedActionsDAO;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.Action.SerializationState;
 import com.vmturbo.action.orchestrator.action.ActionEvent.BeginExecutionEvent;
@@ -48,6 +53,8 @@ import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionFailure;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionProgress;
 import com.vmturbo.common.protobuf.action.ActionNotificationDTO.ActionSuccess;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.ActionsLost.ActionIds;
 
@@ -65,14 +72,16 @@ public class ActionStateUpdaterTest {
     private final FailedCloudVMGroupProcessor failedCloudVMGroupProcessor = mock(FailedCloudVMGroupProcessor.class);
     private final long realtimeTopologyContextId = 0;
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
+    private final AcceptedActionsDAO acceptedActionsStore = Mockito.mock(AcceptedActionsDAO.class);
     private final ActionStateUpdater actionStateUpdater =
-            new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao, actionExecutorMock, workflowStoreMock, realtimeTopologyContextId, failedCloudVMGroupProcessor);
-
-    private final long actionId = 123456;
+            new ActionStateUpdater(actionStorehouse, notificationSender, actionHistoryDao,
+                    acceptedActionsStore, actionExecutorMock, workflowStoreMock,
+                    realtimeTopologyContextId, failedCloudVMGroupProcessor);
+    private final long actionId1 = 123456;
     private final long actionId2 = 12345667;
     private final long notFoundId = 99999;
     private final ActionDTO.Action recommendation = ActionDTO.Action.newBuilder()
-        .setId(actionId)
+        .setId(actionId1)
         .setDeprecatedImportance(0)
         .setSupportingLevel(SupportLevel.SUPPORTED)
         .setInfo(TestActionBuilder.makeMoveInfo(3, 2, 1, 1, 1))
@@ -90,15 +99,17 @@ public class ActionStateUpdaterTest {
             .thenReturn(makeActionModeSetting(ActionMode.MANUAL));
         when(entitySettingsCache.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         when(entitySettingsCache.getResourceGroupForEntity(anyLong())).thenReturn(Optional.empty());
-        testAction = new Action(recommendation, 4, actionModeCalculator);
         when(actionStorehouse.getStore(eq(realtimeTopologyContextId))).thenReturn(Optional.of(actionStore));
         when(actionStore.getAction(eq(notFoundId))).thenReturn(Optional.empty());
-        testAction = makeTestAction(actionId);
-        testAction2 = makeTestAction(actionId2);
+        testAction = makeTestAction(actionId1, recommendation);
+        testAction2 = makeTestAction(actionId2, recommendation);
     }
 
-    private Action makeTestAction(final long actionId) throws UnsupportedActionException {
-        Action testAction = new Action(recommendation.toBuilder().setId(actionId).build(), 4, actionModeCalculator);
+    private Action makeTestAction(final long actionId, ActionDTO.Action actionRecommendation,
+            final long recommendationId) throws UnsupportedActionException {
+        final Action testAction =
+                new Action(actionRecommendation.toBuilder().setId(actionId).build(), 4,
+                        actionModeCalculator, recommendationId);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(entitySettingsCache, testAction);
         testAction.getActionTranslation().setPassthroughTranslationSuccess();
         testAction.refreshAction(entitySettingsCache);
@@ -109,10 +120,15 @@ public class ActionStateUpdaterTest {
         return testAction;
     }
 
+    private Action makeTestAction(final long actionId, ActionDTO.Action actionRecommendation)
+            throws UnsupportedActionException {
+        return makeTestAction(actionId, actionRecommendation, 2244L);
+    }
+
     @Test
     public void testOnActionProgress() throws Exception {
         ActionProgress progress = ActionProgress.newBuilder()
-            .setActionId(actionId)
+            .setActionId(actionId1)
             .setProgressPercentage(33)
             .setDescription("Moving vm from foo to bar")
             .build();
@@ -140,7 +156,7 @@ public class ActionStateUpdaterTest {
     @Test
     public void testOnActionSuccess() throws Exception {
         ActionSuccess success = ActionSuccess.newBuilder()
-            .setActionId(actionId)
+            .setActionId(actionId1)
             .setSuccessDescription("Success!")
             .build();
 
@@ -159,9 +175,58 @@ public class ActionStateUpdaterTest {
                 serializedAction.getCurrentState().getNumber(),
                 serializedAction.getActionDetailData(),
                 serializedAction.getAssociatedAccountId(),
-                serializedAction.getAssociatedResourceGroupId());
+                serializedAction.getAssociatedResourceGroupId(),
+                2244L);
+        verify(acceptedActionsStore, Mockito.never()).deleteAcceptedAction(
+                testAction.getRecommendationOid());
     }
 
+    /**
+     * Tests removing acceptance for successfully executed action with schedule.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testOnActionSuccessActionWithSchedule() throws Exception {
+        // initialize
+        final long actionWithScheduleId = 12L;
+        final long recommendationId = 224L;
+        final long actionTargetId = 4L;
+        final long executionScheduleId = 111L;
+        final ActionDTO.Action actionRecommendation = ActionDTO.Action.newBuilder()
+                .setId(actionWithScheduleId)
+                .setDeprecatedImportance(0)
+                .setSupportingLevel(SupportLevel.SUPPORTED)
+                .setInfo(TestActionBuilder.makeMoveInfo(actionTargetId, 2, 1, 1, 1))
+                .setExplanation(Explanation.newBuilder().build())
+                .build();
+        final ScheduleProto.Schedule executionSchedule =
+                ActionOrchestratorTestUtils.createActiveSchedule(executionScheduleId);
+        final Map<Long, Schedule> scheduleMap =
+                ImmutableMap.of(executionScheduleId, executionSchedule);
+
+        when(entitySettingsCache.getSettingsForEntity(eq(actionTargetId))).thenReturn(
+                ActionOrchestratorTestUtils.makeActionModeAndExecutionScheduleSetting(
+                        ActionMode.MANUAL, Collections.singleton(executionScheduleId)));
+        when(entitySettingsCache.getAcceptingUserForAction(recommendationId)).thenReturn(
+                Optional.of("admin"));
+        when(entitySettingsCache.getScheduleMap()).thenReturn(scheduleMap);
+
+        final Action actionWithExecutionSchedule =
+                makeTestAction(actionWithScheduleId, actionRecommendation, recommendationId);
+
+        final ActionSuccess success = ActionSuccess.newBuilder()
+                .setActionId(actionWithScheduleId)
+                .setSuccessDescription("Success!")
+                .build();
+
+        actionStateUpdater.onActionSuccess(success);
+        assertEquals(ActionState.SUCCEEDED, actionWithExecutionSchedule.getState());
+        assertEquals(Status.SUCCESS,
+                actionWithExecutionSchedule.getCurrentExecutableStep().get().getStatus());
+        verify(notificationSender).notifyActionSuccess(success);
+        verify(acceptedActionsStore).deleteAcceptedAction(actionWithExecutionSchedule.getRecommendationOid());
+    }
 
     @Test
     public void testActionSuccessNotFound() throws Exception {
@@ -177,7 +242,7 @@ public class ActionStateUpdaterTest {
     @Test
     public void testOnActionFailed() throws Exception {
         ActionFailure failure = ActionFailure.newBuilder()
-            .setActionId(actionId)
+            .setActionId(actionId1)
             .setErrorDescription("Failure!")
             .build();
 
@@ -195,7 +260,8 @@ public class ActionStateUpdaterTest {
             serializedAction.getCurrentState().getNumber(),
             serializedAction.getActionDetailData(),
             serializedAction.getAssociatedAccountId(),
-            serializedAction.getAssociatedResourceGroupId());
+            serializedAction.getAssociatedResourceGroupId(),
+                2244L);
     }
 
     /**
@@ -207,19 +273,19 @@ public class ActionStateUpdaterTest {
     public void testSomeActionsLost() throws Exception {
         ActionsLost actionsLost = ActionsLost.newBuilder()
             .setLostActionId(ActionIds.newBuilder()
-                .addActionIds(actionId))
+                .addActionIds(actionId1))
             .build();
         final QueryableActionViews views = mock(QueryableActionViews.class);
-        when(views.get(Collections.singletonList(actionId))).thenReturn(Stream.of(testAction));
+        when(views.get(Collections.singletonList(actionId1))).thenReturn(Stream.of(testAction));
         when(actionStore.getActionViews()).thenReturn(views);
 
         actionStateUpdater.onActionsLost(actionsLost);
 
-        verify(views).get(Collections.singletonList(actionId));
+        verify(views).get(Collections.singletonList(actionId1));
         assertEquals(ActionState.FAILED, testAction.getState());
         assertEquals(Status.FAILED, testAction.getCurrentExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionFailure(ActionFailure.newBuilder()
-            .setActionId(actionId)
+            .setActionId(actionId1)
             .setErrorDescription("Topology Processor lost action state.")
             .build());
         SerializationState serializedAction = new SerializationState(testAction);
@@ -230,7 +296,8 @@ public class ActionStateUpdaterTest {
             serializedAction.getActionDecision(),
             serializedAction.getExecutionStep(),
             serializedAction.getCurrentState().getNumber(),
-            serializedAction.getActionDetailData(), null, null);
+            serializedAction.getActionDetailData(), null, null,
+                2244L);
     }
 
     /**
@@ -261,7 +328,7 @@ public class ActionStateUpdaterTest {
         assertEquals(Status.FAILED, testAction.getCurrentExecutableStep().get().getStatus());
         assertEquals(Status.FAILED, testAction2.getCurrentExecutableStep().get().getStatus());
         verify(notificationSender).notifyActionFailure(ActionFailure.newBuilder()
-            .setActionId(actionId)
+            .setActionId(actionId1)
             .setErrorDescription("Topology Processor lost action state.")
             .build());
         verify(notificationSender).notifyActionFailure(ActionFailure.newBuilder()
@@ -276,7 +343,8 @@ public class ActionStateUpdaterTest {
             serializedAction.getActionDecision(),
             serializedAction.getExecutionStep(),
             serializedAction.getCurrentState().getNumber(),
-                serializedAction.getActionDetailData(), null, null);
+                serializedAction.getActionDetailData(), null, null,
+                serializedAction.getRecommendationOid());
         SerializationState serializedAction2 = new SerializationState(testAction);
         verify(actionHistoryDao).persistActionHistory(recommendation.getId(),
             recommendation,
@@ -285,7 +353,8 @@ public class ActionStateUpdaterTest {
             serializedAction2.getActionDecision(),
             serializedAction2.getExecutionStep(),
             serializedAction2.getCurrentState().getNumber(),
-                serializedAction2.getActionDetailData(), null, null);
+                serializedAction2.getActionDetailData(), null, null,
+                serializedAction2.getRecommendationOid());
     }
 
     /**

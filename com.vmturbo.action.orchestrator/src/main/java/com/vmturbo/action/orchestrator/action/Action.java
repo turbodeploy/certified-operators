@@ -1,11 +1,16 @@
 package com.vmturbo.action.orchestrator.action;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -54,6 +59,7 @@ import com.vmturbo.common.protobuf.setting.SettingProto;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.EntityWithConnections;
 import com.vmturbo.common.protobuf.workflow.WorkflowDTO;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -162,6 +168,8 @@ public class Action implements ActionView {
 
     private Optional<Long> associatedResourceGroupId = Optional.empty();
 
+    private Collection<Long> associatedSettingsPolicies;
+
     /**
      * The state of the action. The state of an action transitions due to certain system events.
      * The initial state is determined by the action mode.
@@ -183,6 +191,8 @@ public class Action implements ActionView {
      * The ID of the action plan to which this action's recommendation belongs.
      */
     private final long actionPlanId;
+
+    private final long recommendationOid;
 
     private static final DataMetricGauge IN_PROGRESS_ACTION_COUNTS_GAUGE = DataMetricGauge.builder()
         .withName("ao_in_progress_action_counts")
@@ -218,7 +228,7 @@ public class Action implements ActionView {
      * @param actionModeCalculator used to calculate the automation mode of the action
      */
     public Action(@Nonnull final SerializationState savedState,
-                  @Nonnull final ActionModeCalculator actionModeCalculator) {
+            @Nonnull final ActionModeCalculator actionModeCalculator) {
         this.recommendation = savedState.recommendation;
         this.actionPlanId = savedState.actionPlanId;
         this.currentExecutableStep = Optional.ofNullable(ExecutableStep.fromExecutionStep(savedState.executionStep));
@@ -238,6 +248,7 @@ public class Action implements ActionView {
             //  the data used to build the action description instead of the description itself.
             this.description = new String(savedState.getActionDetailData());
         }
+        this.recommendationOid = savedState.getRecommendationOid();
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
@@ -246,7 +257,8 @@ public class Action implements ActionView {
                   @Nonnull final ActionModeCalculator actionModeCalculator,
                   @Nullable final String description,
                   @Nullable final Long associatedAccountId,
-                  @Nullable final Long associatedResourceGroupId) {
+                  @Nullable final Long associatedResourceGroupId,
+            long recommendationOid) {
         this.recommendation = recommendation;
         this.actionTranslation = new ActionTranslation(this.recommendation);
         this.actionPlanId = actionPlanId;
@@ -260,15 +272,17 @@ public class Action implements ActionView {
         this.description = description;
         this.associatedAccountId = Optional.ofNullable(associatedAccountId);
         this.associatedResourceGroupId = Optional.ofNullable(associatedResourceGroupId);
+        this.recommendationOid = recommendationOid;
     }
 
     public Action(@Nonnull final ActionDTO.Action recommendation,
-                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator) {
+                  final long actionPlanId, @Nonnull final ActionModeCalculator actionModeCalculator,
+            long recommendationOid) {
         // This constructor is used by LiveActionStore, so passing null to 'description' argument
         // or the 'associatedAccountId' or to "associatedResourceGroup" is not hurtful since the
         // description will be formed at a later stage during refreshAction.
         this(recommendation, LocalDateTime.now(), actionPlanId, actionModeCalculator, null, null,
-                null);
+                null, recommendationOid);
     }
 
     /**
@@ -292,13 +306,6 @@ public class Action implements ActionView {
         synchronized (recommendationLock) {
             if (recommendation == null) {
                 throw new IllegalStateException("Action has no recommendation.");
-            }
-
-            if (!newRecommendation.getInfo().equals(this.recommendation.getInfo())) {
-                throw new IllegalArgumentException(
-                    "Updated recommendation must have the same ActionInfo!\n" +
-                        "Before:\n" + this.recommendation.getInfo() + "\nAfter:\n" +
-                        newRecommendation.getInfo());
             }
             this.recommendation = newRecommendation.toBuilder()
                     // It's important to keep the same ID - that's the whole point of
@@ -375,9 +382,18 @@ public class Action implements ActionView {
     }
 
     /**
+     * Returns OID of recommendation for this action.
+     *
+     * @return recommendation OID
+     */
+    public long getRecommendationOid() {
+        return recommendationOid;
+    }
+
+    /**
      * Refreshes the currently saved action mode and sets the action description
-     * <p>
-     * This should only be called during live action plan processing, after the
+     *
+     * <p>This should only be called during live action plan processing, after the
      * {@link EntitiesAndSettingsSnapshotFactory} is updated with the new snapshot of the settings
      * and entities needed to resolve action modes and form the action description.
      */
@@ -392,7 +408,10 @@ public class Action implements ActionView {
 
             try {
                 final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
-                associatedAccountId = Action.getAssociatedAccountId(recommendation, entitiesSnapshot, primaryEntity);
+                associatedSettingsPolicies =
+                        getAssociatedPolicies(entitiesSnapshot, primaryEntity);
+                associatedAccountId = entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
+                    .map(EntityWithConnections::getOid);
                 associatedResourceGroupId = entitiesSnapshot.getResourceGroupForEntity(primaryEntity);
             } catch (UnsupportedActionException e) {
                 // Shouldn't ever happen here, because we would have rejected this action
@@ -419,6 +438,37 @@ public class Action implements ActionView {
                 return entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
                         .map(EntityWithConnections::getOid);
         }
+    }
+
+    @Nonnull
+    private Set<Long> getAssociatedPolicies(@Nonnull EntitiesAndSettingsSnapshot entitiesSnapshot,
+            long primaryEntity) {
+        final Map<String, Collection<Long>> settingPoliciesForEntity =
+                entitiesSnapshot.getSettingPoliciesForEntity(primaryEntity);
+        final Set<Long> policiesAssociatedWithAction = new HashSet<>();
+        final List<String> specApplicableToAction =
+                actionModeCalculator.specsApplicableToAction(getRecommendation(),
+                        entitiesSnapshot.getSettingsForEntity(primaryEntity))
+                        .map(EntitySettingSpecs::getSettingName)
+                        .collect(Collectors.toList());
+        for (String settingName : specApplicableToAction) {
+            final Collection<Long> policies = settingPoliciesForEntity.get(settingName);
+            if (policies != null) {
+                policiesAssociatedWithAction.addAll(policies);
+            }
+            // also check execution schedule settings because specsApplicableToAction don't have
+            // information about them
+            final String executionScheduleSetting =
+                    EntitySettingSpecs.getActionModeToExecutionScheduleSettings().get(settingName);
+            if (executionScheduleSetting != null) {
+                final Collection<Long> executionSchedulePolicies =
+                        settingPoliciesForEntity.get(executionScheduleSetting);
+                if (executionSchedulePolicies != null) {
+                    policiesAssociatedWithAction.addAll(executionSchedulePolicies);
+                }
+            }
+        }
+        return policiesAssociatedWithAction;
     }
 
     /**
@@ -577,6 +627,17 @@ public class Action implements ActionView {
     @Override
     public Optional<ActionSchedule> getSchedule() {
         return Optional.ofNullable(schedule);
+    }
+
+    @Override
+    public void setSchedule(@Nonnull ActionSchedule actionSchedule) {
+        this.schedule = actionSchedule;
+    }
+
+    @Nonnull
+    @Override
+    public Collection<Long> getAssociatedSettingsPolicies() {
+        return associatedSettingsPolicies != null ? associatedSettingsPolicies : Collections.emptyList();
     }
 
     /**
@@ -1107,6 +1168,8 @@ public class Action implements ActionView {
 
         private final ActionSchedule schedule;
 
+        private final long recommendationOid;
+
         /**
          * We don't really need to save the category because it can be extracted from the
          * recommendation, but saving it anyway so that we know what got extracted - and
@@ -1127,6 +1190,7 @@ public class Action implements ActionView {
             this.associatedResourceGroupId = action.getAssociatedResourceGroupId().orElse(null);
             this.actionDetailData = action.getDescription().getBytes();
             this.schedule = action.getSchedule().orElse(null);
+            this.recommendationOid = action.getRecommendationOid();
         }
 
         public SerializationState(final long actionPlanId,
@@ -1138,7 +1202,8 @@ public class Action implements ActionView {
                                   @Nonnull ActionTranslation actionTranslation,
                                   @Nullable Long associatedAccountId,
                                   @Nullable Long associatedResourceGroupId,
-                                  @Nullable byte[] actionDetailData) {
+                                  @Nullable byte[] actionDetailData,
+                                  @Nullable long recommendationOid) {
             this.actionPlanId = actionPlanId;
             this.recommendation = recommendation;
             this.recommendationTime = recommendationTime;
@@ -1152,6 +1217,11 @@ public class Action implements ActionView {
             this.associatedResourceGroupId = associatedResourceGroupId;
             this.actionDetailData = actionDetailData;
             this.schedule = null;
+            this.recommendationOid = recommendationOid;
+        }
+
+        public long getRecommendationOid() {
+            return recommendationOid;
         }
     }
 

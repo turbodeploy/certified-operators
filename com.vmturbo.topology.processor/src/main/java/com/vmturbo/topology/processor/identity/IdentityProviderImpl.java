@@ -26,6 +26,7 @@ import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.ComponentGsonFactory;
 import com.vmturbo.components.common.diagnostics.DiagnosticsAppender;
 import com.vmturbo.components.common.diagnostics.DiagnosticsException;
+import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.kvstore.KeyValueStore;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
@@ -119,6 +120,7 @@ public class IdentityProviderImpl implements IdentityProvider {
      * @param identityService The identity service to use when identifying service entities
      * @param keyValueStore The key value store where identity information that needs to be persisted is stored
      * @param identityGeneratorPrefix The prefix used to initialize the {@link IdentityGenerator}
+     * @param compatibilityChecker compatibility checker
      */
     public IdentityProviderImpl(@Nonnull final IdentityService identityService,
                                 @Nonnull final KeyValueStore keyValueStore,
@@ -214,8 +216,7 @@ public class IdentityProviderImpl implements IdentityProvider {
      */
     @Override
     public Map<Long, EntityDTO> getIdsForEntities(final long probeId,
-                                                  @Nonnull final List<EntityDTO> entityDTOs)
-            throws IdentityUninitializedException, IdentityMetadataMissingException, IdentityProviderException {
+            @Nonnull final List<EntityDTO> entityDTOs) throws IdentityServiceException {
         Objects.requireNonNull(entityDTOs);
         /* We expect that the probe is already registered.
          * There is a small window in getProbeId() where concurrent calls could
@@ -244,17 +245,15 @@ public class IdentityProviderImpl implements IdentityProvider {
                 // If we are unable to assign an OID for an entity, abandon the attempt.
                 // One missing entity OID spoils the entire batch because of how tangled the relationships
                 // between entities are.
-                throw new IdentityMetadataMissingException(probeId, dto.getEntityType());
+                throw new IdentityServiceException(
+                        "Probe " + probeId + " sends entities of type " + dto.getEntityType()
+                                + " but provides no related " + "identity metadata.");
             }
         }
 
         final List<Long> ids;
         synchronized (identityServiceLock) {
-            try {
-                ids = identityService.getEntityOIDs(entryData);
-            } catch (IdentityWrongSetException | IdentityServiceOperationException e) {
-                throw new IdentityProviderException("Failed to assign IDs to entities.", e);
-            }
+            ids = identityService.getOidsForObjects(entryData);
         }
 
         final Map<Long, EntityDTO> retMap = new HashMap<>();

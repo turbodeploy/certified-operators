@@ -441,6 +441,6 @@ public class FailedCloudVMGroupProcessorTest {
 
 
     private Action makeAction(ActionDTO.Action action) {
-        return new Action(action, 4, actionModeCalculator);
+        return new Action(action, 4, actionModeCalculator, 1L);
     }
 }

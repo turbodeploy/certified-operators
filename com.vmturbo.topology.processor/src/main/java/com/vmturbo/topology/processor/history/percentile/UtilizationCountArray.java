@@ -125,7 +125,7 @@ public class UtilizationCountArray {
             logger.warn("Skipping negative percentile usage point {} for {}", usage, key);
             return;
         }
-        if (endTimestamp == 0 || remove && timestamp > startTimestamp) {
+        if (startTimestamp == 0 || remove && timestamp > startTimestamp) {
             startTimestamp = timestamp;
         }
         if (usage > newCapacity) {

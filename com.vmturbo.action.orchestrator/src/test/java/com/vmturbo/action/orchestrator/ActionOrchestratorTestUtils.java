@@ -1,10 +1,12 @@
 package com.vmturbo.action.orchestrator;
 
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,13 +45,18 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTOUtil;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule;
+import com.vmturbo.common.protobuf.schedule.ScheduleProto.Schedule.Active;
 import com.vmturbo.common.protobuf.setting.SettingProto.EnumSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProto.Setting;
+import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
 import com.vmturbo.common.protobuf.setting.SettingProtoMoles.SettingPolicyServiceMole;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ActionPartialEntity;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.components.api.test.GrpcTestServer;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
@@ -93,12 +100,14 @@ public class ActionOrchestratorTestUtils {
 
     @Nonnull
     public static Action actionFromRecommendation(final ActionDTO.Action recommendation, final long actionPlanId) {
-        return new Action(recommendation, actionPlanId, actionModeCalculator);
+        return new Action(recommendation, actionPlanId, actionModeCalculator,
+                IdentityGenerator.next());
     }
 
     @Nonnull
     public static Action createMoveAction(final long actionId, final long actionPlanId) {
-        return new Action(createMoveRecommendation(actionId), actionPlanId, actionModeCalculator);
+        return new Action(createMoveRecommendation(actionId), actionPlanId, actionModeCalculator,
+                IdentityGenerator.next());
     }
 
     @Nonnull
@@ -189,6 +198,32 @@ public class ActionOrchestratorTestUtils {
                 .build());
     }
 
+    /**
+     * Create actionMode and executionSchedule settings.
+     *
+     * @param mode action mode
+     * @param executionScheduleIds collection of schedule ids
+     * @return map of setting spec to setting
+     */
+    public static Map<String, Setting> makeActionModeAndExecutionScheduleSetting(
+            @Nonnull ActionMode mode, @Nonnull Collection<Long> executionScheduleIds) {
+        final Setting actionModeSetting = Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
+                .setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(mode.toString()).build())
+                .build();
+        final Setting executionScheduleSetting = Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.MoveExecutionSchedule.getSettingName())
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                        .addAllOids(executionScheduleIds)
+                        .build())
+                .build();
+        return new ImmutableMap.Builder<String, Setting>()
+                .put(EntitySettingSpecs.Move.getSettingName(), actionModeSetting)
+                .put(EntitySettingSpecs.MoveExecutionSchedule.getSettingName(), executionScheduleSetting)
+                .build();
+    }
+
     public static Optional<ActionPartialEntity> createTopologyEntityDTO(Long Oid, int entityType) {
         return Optional.of(ActionPartialEntity.newBuilder()
             .setOid(Oid)
@@ -231,6 +266,7 @@ public class ActionOrchestratorTestUtils {
         when(entityCacheSnapshot.getEntityFromOid(eq(actionDestinationId)))
             .thenReturn((ActionOrchestratorTestUtils.createTopologyEntityDTO(actionDestinationId,
                 primaryChange.getDestination().getType())));
+        when(entityCacheSnapshot.getAcceptingUserForAction(anyLong())).thenReturn(Optional.empty());
     }
 
     public static ActionEntity createActionEntity(long id) {
@@ -294,5 +330,25 @@ public class ActionOrchestratorTestUtils {
                                     .collect(Collectors.toList())).build())
                             .collect(Collectors.toList())).build())
                     .collect(Collectors.toList()))).build();
+    }
+
+    /**
+     * Creates active schedule.
+     *
+     * @param executionScheduleId the schedule it
+     * @return the instance of schedule
+     */
+    @Nonnull
+    public static Schedule createActiveSchedule(long executionScheduleId) {
+        return Schedule.newBuilder()
+                .setId(executionScheduleId)
+                .setDisplayName("testSchedule")
+                .setNextOccurrence(
+                        Schedule.NextOccurrence.newBuilder().setStartTime(1589799600L).build())
+                .setActive(Active.newBuilder().setRemainingActiveTimeMs(2000))
+                .setStartTime(1589796000L)
+                .setEndTime(1589824800)
+                .setTimezoneId("America/Toronto")
+                .build();
     }
 }

@@ -6,7 +6,6 @@
 <suppressions>
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/operation/OperationTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/operation/OperationMessageHandlerTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/operation/OperationManagerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/operation/OperationTestUtilities.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/topology/CommoditiesEditorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/topology/pipeline/EntityCounterTest.java" />
@@ -54,9 +53,7 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/stitching/integration/UCSStitchingIntegrationTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/stitching/integration/KubernetesPrometheusStitchingIntegrationTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/stitching/StitchingTestUtils.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/stitching/StitchingIntegrationTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/stitching/prestitching/CreateVolumePreStitchingOperationTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/stitching/prestitching/SharedStorageIntegrationTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/stitching/prestitching/StorageVolumePreStitchingOperationTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/stitching/prestitching/SharedStorageTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/stitching/prestitching/RemoveNonMarketEntitiesPreStitchingOperationTest.java" />
@@ -68,12 +65,10 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/stitching/StitchingManagerTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/identity/IdentityRpcServiceTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/identity/IdentityServiceTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/identity/IdentityProviderImplTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/identity/extractor/IdentifyingPropertyExtractorTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/identity/storage/EntityInMemoryProxyDescriptorConverterTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/identity/storage/IdentityServiceInMemoryUnderlyingStoreTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/identity/services/PolicyMatcherDefaultTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/identity/EntityDescriptorMock.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/util/SdkActionPolicyBuilder.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/util/Probes.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/targets/CachingTargetStoreTest.java" />
@@ -128,7 +123,6 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/group/policy/application/MustNotRunTogetherPolicyTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/group/policy/application/AtMostNPolicyTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/entity/EntityValidatorTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/entity/EntityStoreTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/cpucapacity/RemoteCpuCapacityStoreTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/controllable/EntityActionDaoImpTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/controllable/ControllableManagerTest.java" />
@@ -169,7 +163,6 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/actions/data/context/ChangeProviderContextTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/actions/data/DataRequirementSpecTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/actions/ActionExecutionRpcServiceTest.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/api/ClientApiCallsTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/api/AbstractApiCallsTest.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/api/TestApiServerConfig.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/test/java/com/vmturbo/topology/processor/api/NotificationsApiTest.java" />
@@ -274,15 +267,11 @@
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/stitching/ResoldCommodityCache.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/stitching/CommoditySoldMerger.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/ldcf/DataMetricTopology.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/IdentityProvider.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/IdentityRpcService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/IdentityMetadataMissingException.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/IdentityService.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/extractor/IdentifyingPropertyExtractor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/extractor/PropertyDescriptorImpl.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/extractor/EntityDescriptorImpl.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/IdentityProviderConfig.java" />
-    <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/IdentityProviderImpl.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/storage/IdentityServiceInMemoryUnderlyingStore.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/storage/EntityInMemoryProxyDescriptor.java" />
     <suppress checks="[a-zA-Z0-9]*" files="src/main/java/com/vmturbo/topology/processor/identity/storage/IdentityDatabaseException.java" />

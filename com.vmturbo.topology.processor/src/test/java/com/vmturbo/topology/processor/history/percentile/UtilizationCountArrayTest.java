@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Rule;
 import org.junit.Test;
@@ -85,6 +86,7 @@ public class UtilizationCountArrayTest {
         addCount(counts, 1, 5);
         Assert.assertEquals(1, counts.getPercentile(20));
         Assert.assertEquals(1, counts.getPercentile(30));
+        Assert.assertThat(counts.serialize(REF).getStartTimestamp(), Matchers.is(timestamp));
     }
 
     /**
