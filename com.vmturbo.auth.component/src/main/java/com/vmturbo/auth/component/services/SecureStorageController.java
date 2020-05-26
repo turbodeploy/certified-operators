@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.vmturbo.auth.api.authentication.credentials.SAMLUserUtils;
 import com.vmturbo.auth.api.authorization.AuthorizationException;
 import com.vmturbo.auth.api.db.DBPasswordDTO;
+import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.auth.api.usermgmt.AuthUserDTO;
 import com.vmturbo.auth.component.store.ISecureStore;
 
@@ -188,7 +189,7 @@ public class SecureStorageController {
      * @throws Exception In case of an error adding user.
      */
     @ApiOperation(value = "Returns (SQL) DB root password")
-    @RequestMapping(path = "getSqlDBRootPassword",
+    @RequestMapping(path = DBPasswordUtil.SQL_DB_ROOT_PASSWORD_PATH,
                     method = RequestMethod.GET,
                     produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
@@ -203,12 +204,27 @@ public class SecureStorageController {
      * @throws Exception In case of an error getting user.
      */
     @ApiOperation(value = "Returns (SQL) DB root username")
-    @RequestMapping(path = "getSqlDBRootUsername",
+    @RequestMapping(path = DBPasswordUtil.SQL_DB_ROOT_USERNAME_PATH,
         method = RequestMethod.GET,
         produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
     public @Nonnull String getSqlDBRootUsername() throws Exception {
         return store_.getRootSqlDBUsername();
+    }
+
+    /**
+     * Returns Postgres DB root username.
+     *
+     * @return The user resource URL if successful.
+     * @throws Exception In case of an error adding user.
+     */
+    @ApiOperation(value = "Returns Postgres root username")
+    @RequestMapping(path = DBPasswordUtil.POSTGRES_DB_ROOT_USERNAME_PATH,
+            method = RequestMethod.GET,
+            produces = {MediaType.APPLICATION_JSON_VALUE})
+    @ResponseBody
+    public @Nonnull String getPostgresDBRootUsername() throws Exception {
+        return store_.getPostgresRootUsername();
     }
 
     /**
@@ -239,7 +255,7 @@ public class SecureStorageController {
      * @throws Exception In case of an error adding user.
      */
     @ApiOperation(value = "Returns Arango DB root password")
-    @RequestMapping(path = "getArangoDBRootPassword",
+    @RequestMapping(path = DBPasswordUtil.ARANGO_DB_ROOT_PASSWORD_PATH,
         method = RequestMethod.GET,
         produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody
@@ -255,7 +271,7 @@ public class SecureStorageController {
      * @throws Exception In case of an error adding user.
      */
     @ApiOperation(value = "Returns Influx DB root password")
-    @RequestMapping(path = "getInfluxDBRootPassword",
+    @RequestMapping(path = DBPasswordUtil.INFLUX_DB_ROOT_PASSWORD_PATH,
         method = RequestMethod.GET,
         produces = {MediaType.APPLICATION_JSON_VALUE})
     @ResponseBody

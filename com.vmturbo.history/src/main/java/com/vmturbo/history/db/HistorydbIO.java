@@ -73,6 +73,7 @@ import org.jooq.Record2;
 import org.jooq.Record3;
 import org.jooq.Result;
 import org.jooq.ResultQuery;
+import org.jooq.SQLDialect;
 import org.jooq.Select;
 import org.jooq.Table;
 import org.jooq.exception.DataAccessException;
@@ -382,7 +383,7 @@ public class HistorydbIO extends BasedbIO {
         if (sqlConfigObject.getRootCredentials().isPresent()) {
             return sqlConfigObject.getRootCredentials().get().getUserName();
         }
-        return dbPasswordUtil.getSqlDbRootUsername();
+        return dbPasswordUtil.getSqlDbRootUsername(SQLDialect.MYSQL.toString());
     }
 
     @Override
