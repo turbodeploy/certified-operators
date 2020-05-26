@@ -103,6 +103,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
                               @Nonnull final ActionTranslator actionTranslator,
                               @Nonnull final Clock clock,
                               @Nonnull final UserSessionContext userSessionContext,
+                              @Nonnull final SupplyChainServiceBlockingStub supplyChainService,
+                              @Nonnull final RepositoryServiceBlockingStub repositoryService,
                               @Nonnull final LicenseCheckClient licenseCheckClient,
                               @Nonnull final IdentityService<ActionInfo> actionIdentityService,
                               @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {
@@ -117,6 +119,8 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.actionTranslator = Objects.requireNonNull(actionTranslator);
         this.clock = Objects.requireNonNull(clock);
         this.userSessionContext = Objects.requireNonNull(userSessionContext);
+        this.supplyChainService = Objects.requireNonNull(supplyChainService);
+        this.repositoryService = Objects.requireNonNull(repositoryService);
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.actionIdentityService = Objects.requireNonNull(actionIdentityService);
         this.involvedEntitiesExpander = Objects.requireNonNull(involvedEntitiesExpander);
@@ -139,7 +143,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         } else {
             return new PlanActionStore(actionFactory, databaseDslContext, topologyContextId,
                 supplyChainService, repositoryService,
-                entitySettingsCache, actionTranslator, realtimeTopologyContextId);
+                entitySettingsCache, actionTranslator, realtimeTopologyContextId, actionTargetSelector);
         }
     }
 

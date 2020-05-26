@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 
@@ -32,6 +33,8 @@ import org.junit.Test;
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.execution.ActionTargetSelector;
+import com.vmturbo.action.orchestrator.execution.ImmutableActionTargetInfo;
 import com.vmturbo.action.orchestrator.store.EntitiesAndSettingsSnapshotFactory.EntitiesAndSettingsSnapshot;
 import com.vmturbo.action.orchestrator.translation.ActionTranslator;
 import com.vmturbo.common.protobuf.action.ActionDTO;
@@ -41,6 +44,7 @@ import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionPlanInfo.MarketActionPlanInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
+import com.vmturbo.commons.idgen.IdentityGenerator;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 
 /**
@@ -75,13 +79,21 @@ public class PlanActionStoreTransactionTest {
     private final EntitiesAndSettingsSnapshotFactory entitiesSnapshotFactory = mock(EntitiesAndSettingsSnapshotFactory.class);
     private final EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
     private final ActionTranslator actionTranslator = passthroughTranslator();
+    private final ActionTargetSelector actionTargetSelector = mock(ActionTargetSelector.class);
 
     private final IActionFactory actionFactory = new ActionFactory(actionModeCalculator);
     private PlanActionStore actionStore;
 
     @Before
     public void setup() {
+        IdentityGenerator.initPrefix(0);
         setEntitiesOIDs();
+        when(actionTargetSelector.getTargetsForActions(any(), any())).thenAnswer(invocation -> {
+            Stream<ActionDTO.Action> actions = invocation.getArgumentAt(0, Stream.class);
+            return actions.collect(Collectors.toMap(ActionDTO.Action::getId, action ->
+                    ImmutableActionTargetInfo.builder()
+                            .targetId(100L).supportingLevel(ActionDTO.Action.SupportLevel.SUPPORTED).build()));
+        });
     }
 
     public void setEntitiesOIDs() {
@@ -108,7 +120,7 @@ public class PlanActionStoreTransactionTest {
         MockDataProvider mockProvider = providerFailingOn("DELETE");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
             null, null,
-            entitiesSnapshotFactory, actionTranslator, realtimeId);
+            entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
 
         // The first call does not clear because there is nothing in the store yet.
         assertTrue(actionStore.populateRecommendedActions(actionPlan));
@@ -125,7 +137,7 @@ public class PlanActionStoreTransactionTest {
         MockDataProvider mockProvider = providerFailingOn("INSERT");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
             null, null,
-            entitiesSnapshotFactory, actionTranslator, realtimeId);
+            entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
 
         // The attempt to store actions should fail.
         assertFalse(actionStore.populateRecommendedActions(actionPlan));
@@ -139,7 +151,7 @@ public class PlanActionStoreTransactionTest {
         MockDataProvider mockProvider = providerFailingOn("INSERT");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
             null, null,
-            entitiesSnapshotFactory, actionTranslator, realtimeId);
+            entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
 
         // The attempt to store actions should fail.
         List<Action> actions = actionPlan.getActionList().stream()
@@ -156,7 +168,7 @@ public class PlanActionStoreTransactionTest {
         MockDataProvider mockProvider = providerFailingOn("DELETE");
         actionStore = new PlanActionStore(actionFactory, contextFor(mockProvider), topologyContextId,
             null, null,
-            entitiesSnapshotFactory, actionTranslator, realtimeId);
+            entitiesSnapshotFactory, actionTranslator, realtimeId, actionTargetSelector);
 
         // The first call does not clear because there is nothing in the store yet.
         assertTrue(actionStore.populateRecommendedActions(actionPlan));

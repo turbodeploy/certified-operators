@@ -199,7 +199,8 @@ public class ActionStoreConfig {
             actionTranslationConfig.actionTranslator(),
             realtimeTopologyContextId,
             SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
-            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()));
+            RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()),
+            actionExecutionConfig.actionTargetSelector());
     }
 
     @Bean
