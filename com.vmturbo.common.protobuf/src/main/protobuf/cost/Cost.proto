@@ -1149,6 +1149,14 @@ message DeletePlanReservedInstanceStatsResponse {
     optional bool deleted = 1;
 }
 
+message MigratedWorkloadCloudCommitmentAnalysisRequest {
+    // the topology info
+    optional .topology.TopologyInfo topologyInfo = 1;
+}
+
+message MigratedWorkloadCloudCommitmentAnalysisResponse {
+}
+
 // A service for getting reserved instance bought
 service ReservedInstanceBoughtService {
     // Get reserved instance bought by some filter condition, such as filter by region, availability zones
@@ -1275,6 +1283,14 @@ service CostService {
 
     // Delete plan entity costs
     rpc DeletePlanEntityCosts(DeletePlanEntityCostsRequest) returns (DeletePlanEntityCostsResponse);
+}
+
+// A service responsible for running a cloud commitment analysis against a migrated workload topology
+service MigratedWorkloadCloudCommitmentAnalysisService {
+
+    // Starts the migrated workload cloud commit analysis against the specified projected topology
+    rpc StartAnalysis(MigratedWorkloadCloudCommitmentAnalysisRequest) returns
+    (MigratedWorkloadCloudCommitmentAnalysisResponse);
 }
 
 // Stats Request Time Window with options for start_date and end_date.

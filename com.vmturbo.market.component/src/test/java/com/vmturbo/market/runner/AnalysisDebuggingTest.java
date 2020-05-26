@@ -5,9 +5,7 @@ import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -30,6 +28,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -275,6 +274,9 @@ public class AnalysisDebuggingTest {
             mock(WastedFilesAnalysisFactory.class);
         final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory =
                 mock(BuyRIImpactAnalysisFactory.class);
+        final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService = mock(MigratedWorkloadCloudCommitmentAnalysisService.class);
+        doNothing().when(migratedWorkloadCloudCommitmentAnalysisService).startAnalysis(any());
+
 
         final Analysis analysis = new Analysis(analysisInput.getTopologyInfo(),
             Sets.newHashSet(analysisInput.getEntitiesList()),
@@ -282,7 +284,8 @@ public class AnalysisDebuggingTest {
             Clock.systemUTC(),
             analysisConfig.build(), cloudTopologyFactory, cloudCostCalculatorFactory, priceTableFactory,
             wastedFilesAnalysisFactory, buyRIImpactAnalysisFactory, tierExcluderFactory,
-                mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory);
+                mock(AnalysisRICoverageListener.class), consistentScalingHelperFactory,
+                migratedWorkloadCloudCommitmentAnalysisService);
         return analysis;
     }
 
