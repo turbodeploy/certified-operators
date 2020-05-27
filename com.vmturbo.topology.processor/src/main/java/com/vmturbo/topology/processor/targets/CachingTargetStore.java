@@ -106,8 +106,8 @@ public class CachingTargetStore implements TargetStore, ProbeStoreListener {
      * @param identityStore The {@link IdentityStore} used to assign ids to targets.
      */
     public CachingTargetStore(@Nonnull final TargetDao targetDao,
-                       @Nonnull final ProbeStore probeStore,
-                       @Nonnull final IdentityStore<TargetSpec> identityStore) {
+                              @Nonnull final ProbeStore probeStore,
+                              @Nonnull final IdentityStore<TargetSpec> identityStore) {
         this.targetDao = targetDao;
         this.probeStore = Objects.requireNonNull(probeStore);
         this.identityStore = Objects.requireNonNull(identityStore);

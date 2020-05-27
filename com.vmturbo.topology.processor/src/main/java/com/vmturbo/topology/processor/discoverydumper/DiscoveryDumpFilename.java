@@ -28,7 +28,7 @@ import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
  */
 public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> {
 
-    private static final String GZIP_FILE_SUFFIX = ".gz";
+    private static final String L4ZIP_FILE_SUFFIX = ".l4z";
 
     /**
      * This is the information that a discovery dump name should contain:
@@ -114,15 +114,15 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
      *
      * @param dumpDirectory the directory in which discovery dumps are written.
      * @param isText decides whether to return the text or the binary format file.
-     * @param isGZipped whether the file will be gzipped, and therefore have a suffix appended to the name
+     * @param isL4ipped whether the file will be gzipped, and therefore have a suffix appended to the name
      * @return a {@link File} object that corresponds to the discovery file created by the information
      *         in the current object, given the dumping directory and the format.
      */
     @Nonnull
-    public File getFile(@Nonnull File dumpDirectory, boolean isText, boolean isGZipped) {
+    public File getFile(@Nonnull File dumpDirectory, boolean isText, boolean isL4ipped) {
         String fileName = isText ? filenameText : filenameBinary;
-        if (isGZipped) {
-            fileName += GZIP_FILE_SUFFIX;
+        if (isL4ipped) {
+            fileName += L4ZIP_FILE_SUFFIX;
         }
         return
             new File(Objects.requireNonNull(dumpDirectory), fileName);
@@ -162,8 +162,8 @@ public class DiscoveryDumpFilename implements Comparable<DiscoveryDumpFilename> 
 
         // split third part into discovery type and extension, after stripping possible gzipe extension
         String lastFilenameSection = filenameSections[2];
-        if (lastFilenameSection.endsWith(GZIP_FILE_SUFFIX)) {
-            lastFilenameSection = lastFilenameSection.substring(0, lastFilenameSection.length() - GZIP_FILE_SUFFIX.length());
+        if (lastFilenameSection.endsWith(L4ZIP_FILE_SUFFIX)) {
+            lastFilenameSection = lastFilenameSection.substring(0, lastFilenameSection.length() - L4ZIP_FILE_SUFFIX.length());
         }
         final String[] splitType = lastFilenameSection.split("\\.");
         if (splitType.length != 2) {

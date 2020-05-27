@@ -127,4 +127,5 @@ public class TargetConfig {
                 Objects.requireNonNull(targetStore()),
                 Objects.requireNonNull(kvConfig.keyValueStore()));
     }
+
 }
