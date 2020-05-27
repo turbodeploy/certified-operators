@@ -2226,13 +2226,12 @@ public class TopologyConverter {
             }
             // Create DC comm bought
             createDCCommodityBoughtForCloudEntity(providerOid, buyerOid).ifPresent(values::add);
-            if (marketMode != MarketMode.SMAOnly) {
-                // Create Coupon Comm
-                Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(providerOid, buyerOid);
-                if (coupon.isPresent()) {
-                    values.add(coupon.get());
-                    addGroupFactor = true;
-                }
+            // Create Coupon Comm
+            Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(
+                    providerOid, buyerOid);
+            if (coupon.isPresent()) {
+                values.add(coupon.get());
+                addGroupFactor = true;
             }
             // Create template exclusion commodity bought
             values.addAll(createTierExclusionCommodityBoughtForCloudEntity(providerOid, buyerOid));
@@ -2256,10 +2255,6 @@ public class TopologyConverter {
         if (TopologyConversionUtils.isVsanStorage(buyer)) {
             isMovable = false;
         }
-        if (commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE) {
-            // Turn off movable for cloud scaling group members that are not group leaders.
-            isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(buyer) > 0;
-        }
 
         if (buyer.getEnvironmentType() == EnvironmentType.CLOUD
                 && CLOUD_SCALING_ENTITY_TYPES.contains(buyer.getEntityType())) {
@@ -2277,12 +2272,30 @@ public class TopologyConverter {
         final boolean isControllable = entityOidToDto.get(buyerOid).getAnalysisSettings()
                         .getControllable() && (provider == null || (provider != null &&
                         provider.getAnalysisSettings().getControllable()));
+        isMovable = isMovable && isControllable;
+
+        final boolean addShoppingListToSMA = MarketMode.isEnableSMA(marketMode)
+                && includeByType(commBoughtGrouping.getProviderEntityType())
+                && commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE;
+
+        //SMA doesn't care about isMovable, we only use it to fill cloudVmComputeShoppingListIDs
+        //if isMovable==false, we won't add SHoppingListTo to this set and VM will remains on the
+        //same template in SMA
+        if (addShoppingListToSMA && isMovable) {
+            cloudVmComputeShoppingListIDs.add(id);
+        }
+
+        if (commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE) {
+            // Turn off movable for cloud scaling group members that are not group leaders.
+            isMovable &= addGroupFactor && consistentScalingHelper.getGroupFactor(buyer) > 0;
+        }
+
         final EconomyDTOs.ShoppingListTO.Builder economyShoppingListBuilder = EconomyDTOs.ShoppingListTO
                 .newBuilder()
                 .addAllCommoditiesBought(values)
                 .setOid(id)
                 .setStorageMoveCost(moveCost)
-                .setMovable(isMovable && isControllable);
+                .setMovable(isMovable);
         if (providerOid != null) {
             economyShoppingListBuilder.setSupplier(providerOid);
         }
@@ -2301,13 +2314,9 @@ public class TopologyConverter {
             new ShoppingListInfo(id, buyerOid, providerOid, resourceId, providerEntityType,
                     commBoughtGrouping.getCommodityBoughtList()));
 
-        if (MarketMode.isEnableSMA(marketMode)
-            && includeByType(commBoughtGrouping.getProviderEntityType())
-            && commBoughtGrouping.getProviderEntityType() == EntityType.COMPUTE_TIER_VALUE) {
-            cloudVmComputeShoppingListIDs.add(id);
-            if (marketMode == MarketMode.SMAOnly) {
-                return economyShoppingListBuilder.setMovable(false).build();
-            }
+        // in SMAOnly mode we are preventing M2 to generate actions for cloud VMs
+        if (addShoppingListToSMA && marketMode == MarketMode.SMAOnly) {
+            economyShoppingListBuilder.setMovable(false);
         }
         return economyShoppingListBuilder.build();
     }
