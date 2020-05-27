@@ -38,6 +38,7 @@ import com.vmturbo.topology.processor.topology.EphemeralEntityEditor;
 import com.vmturbo.topology.processor.topology.HistoricalEditor;
 import com.vmturbo.topology.processor.topology.HistoryAggregator;
 import com.vmturbo.topology.processor.topology.ProbeActionCapabilitiesApplicatorEditor;
+import com.vmturbo.topology.processor.topology.RequestCommodityThresholdsInjector;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ApplyClusterCommodityStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.BroadcastStage;
@@ -56,6 +57,7 @@ import com.vmturbo.topology.processor.topology.pipeline.Stages.HistoryAggregatio
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PolicyStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.PostStitchingStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ProbeActionCapabilitiesApplicatorStage;
+import com.vmturbo.topology.processor.topology.pipeline.Stages.RequestCommodityThresholdsStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ReservationStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.ScanDiscoveredSettingPoliciesStage;
 import com.vmturbo.topology.processor.topology.pipeline.Stages.SettingsApplicationStage;
@@ -136,6 +138,8 @@ public class LivePipelineFactory {
 
     private final ActionConstraintsUploader actionConstraintsUploader;
 
+    private final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector;
+
     private final EphemeralEntityEditor ephemeralEntityEditor;
 
     public LivePipelineFactory(@Nonnull final TopoBroadcastManager topoBroadcastManager,
@@ -166,6 +170,7 @@ public class LivePipelineFactory {
                                @Nonnull final LicenseCheckClient licenseCheckClient,
                                @Nonnull final ConsistentScalingManager consistentScalingManager,
                                @Nonnull final ActionConstraintsUploader actionConstraintsUploader,
+                               @Nonnull final RequestCommodityThresholdsInjector requestCommodityThresholdsInjector,
                                @Nonnull final EphemeralEntityEditor ephemeralEntityEditor) {
         this.topoBroadcastManager = topoBroadcastManager;
         this.policyManager = policyManager;
@@ -195,6 +200,7 @@ public class LivePipelineFactory {
         this.licenseCheckClient = Objects.requireNonNull(licenseCheckClient);
         this.consistentScalingManager = Objects.requireNonNull(consistentScalingManager);
         this.actionConstraintsUploader = actionConstraintsUploader;
+        this.requestCommodityThresholdsInjector = Objects.requireNonNull(requestCommodityThresholdsInjector);
         this.ephemeralEntityEditor = Objects.requireNonNull(ephemeralEntityEditor);
     }
 
@@ -279,6 +285,7 @@ public class LivePipelineFactory {
                 .addStage(new HistoryAggregationStage(historyAggregator, null, topologyInfo, null))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor))
+                .addStage(new RequestCommodityThresholdsStage(requestCommodityThresholdsInjector))
                 .addStage(new EphemeralEntityHistoryStage(ephemeralEntityEditor))
                 .addStage(new ProbeActionCapabilitiesApplicatorStage(applicatorEditor))
                 .addStage(new BroadcastStage(managers, mi))
