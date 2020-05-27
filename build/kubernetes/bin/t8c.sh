@@ -12,8 +12,10 @@ deploymentBrand=${1}
 # ip values set manually in /opt/local/etc/turbo.conf
 singleNodeIp=$(ip address show eth0 | egrep inet | egrep -v inet6 | awk '{print $2}' | awk -F/ '{print$1}')
 sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/local/etc/turbo.conf
-sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-64gb.yaml
-sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr-128gb.yaml
+for i in $(ls /opt/turbonomic/kubernetes/operator/deploy/crds/)
+do 
+  sed -i "s/10.0.2.15/${singleNodeIp}/g" /opt/turbonomic/kubernetes/operator/deploy/crds/$i
+done
 
 # Check /etc/resolv.conf
 if [[ ! -f /etc/resolv.conf || ! -s /etc/resolv.conf ]]
