@@ -412,9 +412,17 @@ public class GroupMapper {
             }
         }
 
-        final EnvironmentType environmentType =
-                EnvironmentTypeMapper.fromXLToApi(
-                    envType != null ? envType : EnvironmentTypeEnum.EnvironmentType.ON_PREM);
+        final EnvironmentTypeEnum.EnvironmentType environmentType;
+        final OptimizationMetadata optMetaData =
+                getGroupOptimizationMetaData(groupAndMembers.group());
+        if (optMetaData != null && optMetaData.hasEnvironmentType()) {
+            environmentType = optMetaData.getEnvironmentType();
+        } else if (envType != null) {
+            environmentType = envType;
+        } else {
+            // Case for group of non-cloud entities.
+            environmentType = EnvironmentTypeEnum.EnvironmentType.ON_PREM;
+        }
 
         final CloudType cloudType;
         if (cloudTypes.size() == 1) {
@@ -425,7 +433,24 @@ public class GroupMapper {
             cloudType = CloudType.UNKNOWN;
         }
 
-        return new EntityEnvironment(environmentType, cloudType);
+        return new EntityEnvironment(
+                EnvironmentTypeMapper.fromXLToApi(environmentType), cloudType);
+    }
+
+    /**
+     * Returns a {@link OptimizationMetadata} from a given {@link Grouping} object.
+     *
+     * @param group The parsed {@link Grouping} object for a given {@link GroupAndMembers}.
+     * @return A {@link OptimizationMetadata} if exists, otherwise null.
+     */
+    private OptimizationMetadata getGroupOptimizationMetaData(
+                                        @Nullable final Grouping group) {
+        if (group != null && group.hasDefinition()
+                && group.getDefinition().hasOptimizationMetadata()) {
+            return group.getDefinition().getOptimizationMetadata();
+        } else {
+            return null;
+        }
     }
 
     /**
