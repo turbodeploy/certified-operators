@@ -20,6 +20,7 @@ public class SystemLoadProfileCreator {
     private List<SystemLoadRecord> systemLoadRecordList;
     private String profileNamePostfix;
     private String profileDisplayNamePostfix;
+    private final Map<Long, String> targetOidToTargetName;
 
     /**
      * Initializes SystemLoadProfileCreator to generate system load profile.
@@ -27,15 +28,18 @@ public class SystemLoadProfileCreator {
      * @param cluster for which profile needs to be created.
      * @param systemLoadRecordList to process for profile creation.
      * @param loopbackDays for which history is considered for profile creation.
+     * @param targetOidToTargetName targetOid to targetName map.
      */
     public SystemLoadProfileCreator(@Nonnull final Grouping cluster,
                                     @Nonnull final List<SystemLoadRecord> systemLoadRecordList,
-                                    final int loopbackDays) {
+                                    final int loopbackDays,
+                                    @Nonnull final Map<Long, String> targetOidToTargetName) {
         this.cluster = cluster;
         this.systemLoadRecordList = systemLoadRecordList;
         this.profileNamePostfix = String.format("%s_HEADROOM", cluster.getDefinition().getDisplayName());
         this.profileDisplayNamePostfix = String.format("%s for last %s days",
             cluster.getDefinition().getDisplayName(), loopbackDays);
+        this.targetOidToTargetName = targetOidToTargetName;
     }
 
     /**
@@ -47,7 +51,8 @@ public class SystemLoadProfileCreator {
         Map<Operation, SystemLoadCalculatedProfile> profileMap = Maps.newHashMap();
         for (Operation op : Operation.values()) {
             SystemLoadCalculatedProfile profile = new SystemLoadCalculatedProfile(
-                op, cluster, systemLoadRecordList, profileNamePostfix, profileDisplayNamePostfix);
+                op, cluster, systemLoadRecordList, profileNamePostfix, profileDisplayNamePostfix,
+                targetOidToTargetName);
             profile.createVirtualMachineProfile();
             profileMap.put(op, profile);
         }
