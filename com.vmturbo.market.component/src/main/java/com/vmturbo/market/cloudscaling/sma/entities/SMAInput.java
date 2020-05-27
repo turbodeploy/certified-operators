@@ -145,9 +145,6 @@ public class SMAInput {
         Map<SMAContext, Set<OSType>> contextToOSTypes = new HashMap<>();
         // map from bought RI to SMA RI.
         Map<Long, SMAReservedInstance> riBoughtOidToRI = new HashMap<>();
-        // map from RI bought ID to coupons used: used to track RIs that cover VMs that are not
-        // scalable, because an action was executed.
-        Map<Long, Float> riBoughtIdToCouponsUsed = new HashMap<>();
 
         /*
          * For each virtual machines, create a VirtualMachine and partition into SMAContexts.
@@ -163,8 +160,8 @@ public class SMAInput {
                 continue;
             }
             numberVMsCreated++;
-            processVirtualMachine(vm, cloudTopology, cloudCostData, consistentScalingHelper,
-                cspFromRegion, smaContextToVMs, riBoughtIdToCouponsUsed, regionIdToOsTypeToContexts,
+            processVirtualMachine(vm, cloudTopology, consistentScalingHelper,
+                cspFromRegion, smaContextToVMs, regionIdToOsTypeToContexts,
                 contextToBusinessAccountIds, contextToOSTypes);
         }
         logger.info("{}ms to create {} VMs from {} VirtualMachines in {} contexts",
@@ -210,7 +207,7 @@ public class SMAInput {
         logger.info("process {} RIs", () -> allRIData.size());
         for (ReservedInstanceData data :allRIData ) {
             if (processReservedInstance(data, cloudTopology, computeTierOidToContextToTemplate,
-                regionIdToOsTypeToContexts, riBoughtIdToCouponsUsed, cspFromRegion,
+                regionIdToOsTypeToContexts, cspFromRegion,
                 reservedInstanceKeyIDGenerator, smaContextToRIs, riBoughtOidToRI)) {
                 numberRIsCreated++;
             }
@@ -230,8 +227,7 @@ public class SMAInput {
         for (SMAContext context :smaContexts) {
             Set<SMAVirtualMachine> vmsInContext = smaContextToVMs.get(context);
             updateVirtualMachines(vmsInContext, computeTierOidToContextToTemplate, providers,
-                    cloudTopology, context, riBoughtOidToRI,
-                    reservedInstanceKeyIDGenerator, cloudCostData);
+                    cloudTopology, context, riBoughtOidToRI, cloudCostData);
         }
         dumpContextToVMsFinal(smaContextToVMs);
         logger.info("{}ms to update SMAVirtualMachines",
@@ -256,9 +252,8 @@ public class SMAInput {
      * @param smaContextToTemplates   Map from context to set of Templates
      * @return list of input contexts
      */
-    @$VisibleForTesting
     @Nonnull
-    static List<SMAInputContext> generateInputContexts(Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs,
+    private static List<SMAInputContext> generateInputContexts(Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs,
                                                          Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs,
                                                          Map<SMAContext, Set<SMATemplate>> smaContextToTemplates) {
         List<SMAInputContext> inputContexts = new ArrayList<>();
@@ -292,25 +287,20 @@ public class SMAInput {
      * Create a SMA Virtual Machine and SMA context from a VM topology entity DTO.
      * Because scale actions do not modify region, osType or tenancy, the regionsToOsTypeToContext
      * keeps track of the what osTypes and contexts that are in a region.
-     *  @param entity                     topology entity DTO that is a VM.
+     * @param entity                     topology entity DTO that is a VM.
      * @param cloudTopology               the cloud topology to find source template.
-     * @param cloudCostData               where to find costs and RI related info.  E.g. RI coverage for a VM.
      * @param consistentScalingHelper     used to figure out the consistent scaling information.
      * @param cspFromRegion               keep track of CSP by region
      * @param smaContextToVMs             map from SMA context to set of SMA virtual machines, updated
-     * @param riBoughtIdToCouponsUsed     keep track of RI coverage of VMs that are not scalable, updated.
      * @param regionIdToOsTypeToContexts  table from region ID  to osType to set of SMAContexts, defined
      * @param contextToBusinessAccountIds map from context to set of business account IDs, defined.
      * @param contextToOSTypes            map from context to set of OSTypes.  Limits compute Tier processing. defined.
      */
-    @$VisibleForTesting
-    static void processVirtualMachine(final TopologyEntityDTO entity,
+    private void processVirtualMachine(final TopologyEntityDTO entity,
                                       final CloudTopology<TopologyEntityDTO> cloudTopology,
-                                      final CloudCostData cloudCostData,
                                       final ConsistentScalingHelper consistentScalingHelper,
                                       final CspFromRegion cspFromRegion,
                                       Map<SMAContext, Set<SMAVirtualMachine>> smaContextToVMs,
-                                      Map<Long, Float> riBoughtIdToCouponsUsed,
                                       Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
                                       Map<SMAContext, Set<Long>> contextToBusinessAccountIds,
                                       Map<SMAContext, Set<OSType>> contextToOSTypes) {
@@ -333,12 +323,7 @@ public class SMAInput {
                 () -> oid, () -> name, () -> vmInfo.getBillingType().name());
             return;
         }
-        final AnalysisSettings settings = entity.getAnalysisSettings();
-        final boolean isMovable = settings.getIsEligibleForScale() && settings.getControllable();
-        if (!isMovable) {
-            processNotEligibleForScaling(cloudCostData, oid, name, riBoughtIdToCouponsUsed);
-            return;
-        }
+
         String tenancyName = vmInfo.getTenancy().name();
         Tenancy tenancy = Tenancy.valueOf(tenancyName);
         String osName = vmInfo.getGuestOsInfo().getGuestOsType().name();
@@ -411,35 +396,6 @@ public class SMAInput {
     }
 
     /**
-     * found a VM that is not eligible for scaling, determine if covered by RIs and update the
-     * riBoughtIdToCouponsUsed map.
-     * @param cloudCostData           RI coverage of VMs
-     * @param vmOid                   VM oid
-     * @param vmName                  VM name
-     * @param riBoughtIdToCouponsUsed map from RI bought OID to coupons covering VM.
-     */
-    private static void processNotEligibleForScaling(final CloudCostData cloudCostData,
-                                              long vmOid, final String vmName,
-                                              Map<Long, Float> riBoughtIdToCouponsUsed) {
-        // check if VM is covered by one or more RIs, if so cache the RI and coupons.
-        logger.debug("processVM: VM OID={} name={} not eligible for scale", vmOid, vmName);
-        Optional<EntityReservedInstanceCoverage> optional = cloudCostData.getRiCoverageForEntity(vmOid);
-        if (optional.isPresent()) {
-            EntityReservedInstanceCoverage coverage = optional.get();
-            Map<Long, Double> couponsCoveredByRIs = coverage.getCouponsCoveredByRi();
-            for (Long riBoughtOID : couponsCoveredByRIs.keySet()) {
-                Double coupons = couponsCoveredByRIs.get(riBoughtOID);
-                Float previousCoupons = riBoughtIdToCouponsUsed.get(riBoughtOID);
-                if (previousCoupons == null) {
-                    riBoughtIdToCouponsUsed.put(riBoughtOID, coupons.floatValue());
-                } else {
-                    riBoughtIdToCouponsUsed.put(riBoughtOID, coupons.floatValue() + previousCoupons);
-                }
-            }
-        }
-    }
-
-    /**
      * For each VM, updates its current template, currentRICoverage, and providers.
      * This must be run after the compute tiers are processed and the SMATemplates are created.
      *
@@ -449,7 +405,6 @@ public class SMAInput {
      * @param cloudTopology dictionary.
      * @param context the input context the VM belongs to.
      * @param riBoughtOidToRI map from RI bought OID to created SMA RI
-     * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
      * @param cloudCostData where to find costs and RI related info.  E.g. RI coverage for a VM.
      */
     private void updateVirtualMachines(final Set<SMAVirtualMachine> vms,
@@ -458,7 +413,6 @@ public class SMAInput {
                                        final CloudTopology<TopologyEntityDTO> cloudTopology,
                                        final SMAContext context,
                                        @Nonnull final Map<Long, SMAReservedInstance> riBoughtOidToRI,
-                                       final SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator,
                                        @Nonnull final CloudCostData cloudCostData) {
         for (SMAVirtualMachine vm : vms) {
             long oid = vm.getOid();
@@ -481,11 +435,10 @@ public class SMAInput {
                 }
             }
             Set<Long> providerOids = providersList.get(oid);
-            List<SMATemplate> providers = new ArrayList<>();
+            final List<SMATemplate> providers = new ArrayList<>();
             if (providerOids == null) {
-                logger.error("updateVMs: no providers for VM ID={} name={}",
-                    oid, name);
-                vm.setNaturalTemplate(vm.getCurrentTemplate());
+                logger.warn("updateVMs: no providers for VM ID={} name={}", oid, name);
+                providers.add(vm.getCurrentTemplate());
             } else {
                 for (long providerId : providerOids) {
                     SMATemplate template = computeTierOidToContextToTemplate.get(providerId, context);
@@ -496,9 +449,10 @@ public class SMAInput {
                         providers.add(template);
                     }
                 }
-                vm.setProviders(providers);
-                vm.updateNaturalTemplateAndMinCostProviderPerFamily();
             }
+            vm.setProviders(providers);
+            vm.updateNaturalTemplateAndMinCostProviderPerFamily();
+
             Pair<SMAReservedInstance, Float> currentRICoverage = computeVmCoverage(oid, cloudCostData, riBoughtOidToRI);
             logger.debug("updateVMs: ID={} name={} RI={} currentRICoverage={}", () -> oid,
                 () -> name, () -> currentRICoverage.getFirst(), () -> currentRICoverage.getSecond());
@@ -824,19 +778,16 @@ public class SMAInput {
      * @param cloudTopology   topology to get business account and region.
      * @param computeTierOidToContextToTemplate used to look up SMATemplate given the computeTier ID
      * @param regionIdToOsTypeToContexts map from regionID to OSType to context.
-     * @param riBoughtIdToCouponsUsed map from ri Bought OID to coupons in VMs that can't scale.
      * @param cspFromRegion keep track of CSP and regions
      * @param reservedInstanceKeyIDGenerator ID generator for ReservedInstanceKey
      * @param smaContextToRIs map from context to set of RIs, to be updated
      * @param riBoughtOidToRI map from RI bought OID to created SMA RI, to be updated
      * @return true if RI is created
      */
-    @$VisibleForTesting
-    static boolean processReservedInstance(final ReservedInstanceData data,
+    private boolean processReservedInstance(final ReservedInstanceData data,
                                            final CloudTopology<TopologyEntityDTO> cloudTopology,
                                            final Table<Long, SMAContext, SMATemplate> computeTierOidToContextToTemplate,
                                            final Table<Long, OSType, Set<SMAContext>> regionIdToOsTypeToContexts,
-                                           final Map<Long, Float> riBoughtIdToCouponsUsed,
                                            final CspFromRegion cspFromRegion,
                                            final SMAReservedInstanceKeyIDGenerator reservedInstanceKeyIDGenerator,
                                            Map<SMAContext, Set<SMAReservedInstance>> smaContextToRIs,
@@ -901,20 +852,6 @@ public class SMAInput {
         ReservedInstanceKey reservedInstanceKey = new ReservedInstanceKey(data,
                 template.getFamily(), billingFamilyId);
         long riKeyId = reservedInstanceKeyIDGenerator.lookUpRIKey(reservedInstanceKey, riBoughtId);
-        /*
-         * if RI has coupons covering VMs that can't scale, update the count
-         */
-        Float usedCoupons = riBoughtIdToCouponsUsed.get(riBoughtId);
-        if (usedCoupons != null) {
-            float numberRIsUsed = usedCoupons / (float)template.getCoupons();
-            logger.info("processRI: RI bought OID={} has usedCoupons={}, reduce count by int of {}",
-            riBoughtId, usedCoupons, numberRIsUsed);
-            count = count - numberRIsUsed;
-            logger.info("processRI: RI bought OID={} has count={} == 0", riBoughtId, count);
-            if (count <= 0) {
-                return false;
-            }
-        }
 
         String templateName = template.getName();
         // Unfortunately, the probe returns ISF=true for metal templates.
