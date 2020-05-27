@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 
+import com.vmturbo.common.protobuf.action.ActionDTO;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 
@@ -125,9 +126,9 @@ public class EntitySettingsApplicatorTest {
         .build();
 
     private static final Setting RESIZE_VCPU_DOWN_DISABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
-        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
-        .build();
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+            .build();
 
     private static final Setting RESIZE_VCPU_UP_DISABLED_SETTING = Setting.newBuilder()
         .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName())
@@ -145,9 +146,9 @@ public class EntitySettingsApplicatorTest {
         .build();
 
     private static final Setting RESIZE_VMEM_DOWN_DISABLED_SETTING = Setting.newBuilder()
-        .setSettingSpecName(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName())
-        .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
-        .build();
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()))
+            .build();
 
     private static final Setting RESIZE_VMEM_UP_DISABLED_SETTING = Setting.newBuilder()
         .setSettingSpecName(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName())
@@ -200,11 +201,6 @@ public class EntitySettingsApplicatorTest {
             .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
             .build();
 
-    private static final Setting STORAGE_MOVE_MANUAL_SETTING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()))
-                    .build();
-
     private static final Setting BUSINESS_USER_MOVE_RECOMMEND_SETTING = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.BusinessUserMove.getSettingName())
             .setEnumSettingValue(
@@ -213,11 +209,6 @@ public class EntitySettingsApplicatorTest {
 
     private static final Setting MOVE_AUTOMATIC_SETTING = Setting.newBuilder()
                     .setSettingSpecName(EntitySettingSpecs.Move.getSettingName())
-                    .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
-                    .build();
-
-    private static final Setting STORAGE_MOVE_AUTOMATIC_SETTING = Setting.newBuilder()
-                    .setSettingSpecName(EntitySettingSpecs.StorageMove.getSettingName())
                     .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()))
                     .build();
 
@@ -277,12 +268,31 @@ public class EntitySettingsApplicatorTest {
             .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(20))
             .build();
 
+    EnumSettingValue AUTOMATIC = EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.AUTOMATIC.name()).build();
+
+    /**
+     * VMem min mode setting.
+     */
+    private static final Setting VMEM_MIN_MODE_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
+            .build();
+
     /**
      * VMem min setting.
      */
     private static final Setting VMEM_MIN_SETTING = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.ResizeVmemMinThreshold.getSettingName())
             .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(1024))
+            .build();
+
+
+    /**
+     * VMem Max mode setting.
+     */
+    private static final Setting VMEM_MAX_MODE_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
             .build();
 
     /**
@@ -294,11 +304,41 @@ public class EntitySettingsApplicatorTest {
             .build();
 
     /**
+     * VMem inbetween down settings.
+     */
+    Setting VMEM_INBETWEEN_DOWN_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(AUTOMATIC).build();
+
+    /**
+     * VMem inbetween up settings.
+     */
+    Setting VMEM_INBETWEEN_UP_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(AUTOMATIC).build();
+
+    /**
+     * VCPU min mode setting.
+     */
+    private static final Setting VCPU_MIN_MODE_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
+            .build();
+
+    /**
      * VCPU min setting.
      */
     private static final Setting VCPU_MIN_SETTING = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName())
             .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(10))
+            .build();
+
+    /**
+     * VCPU Max mode setting.
+     */
+    private static final Setting VCPU_MAX_MODE_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName())
+            .setEnumSettingValue(EnumSettingValue.newBuilder().setValue(ActionDTO.ActionMode.MANUAL.name()).build())
             .build();
 
     /**
@@ -308,6 +348,20 @@ public class EntitySettingsApplicatorTest {
             .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingName())
             .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(100))
             .build();
+
+    /**
+     * VMem inbetween down settings.
+     */
+    Setting VCPU_INBETWEEN_DOWN_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(AUTOMATIC).build();
+
+    /**
+     * VMem inbetween up settings.
+     */
+    Setting VCPU_INBETWEEN_UP_SETTING = Setting.newBuilder()
+            .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName())
+            .setEnumSettingValue(AUTOMATIC).build();
 
     private static final Setting.Builder RESIZE_SETTING_BUILDER = Setting.newBuilder()
             .setSettingSpecName(EntitySettingSpecs.Resize.getSettingName());
@@ -400,8 +454,8 @@ public class EntitySettingsApplicatorTest {
     public void testResizeVmemSettingDisabled() {
         final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(CommodityType.VMEM));
         applySettings(TOPOLOGY_INFO, entity, RESIZE_VMEM_DOWN_DISABLED_SETTING,
-            RESIZE_VMEM_UP_DISABLED_SETTING, RESIZE_VMEM_ABOVE_MAX_DISABLED_SETTING,
-            RESIZE_VMEM_BELOW_MIN_DISABLED_SETTING);
+                RESIZE_VMEM_UP_DISABLED_SETTING, RESIZE_VMEM_ABOVE_MAX_DISABLED_SETTING,
+                RESIZE_VMEM_BELOW_MIN_DISABLED_SETTING);
         Assert.assertEquals(false, entity.getCommoditySoldList(0).getIsResizeable());
         Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
     }
@@ -415,8 +469,8 @@ public class EntitySettingsApplicatorTest {
     public void testResizeVcpuSettingDisabled() {
         final TopologyEntityDTO.Builder entity = getEntityForResizeableTest(ImmutableList.of(true, false), Optional.ofNullable(CommodityType.VCPU));
         applySettings(TOPOLOGY_INFO, entity, RESIZE_VCPU_DOWN_DISABLED_SETTING,
-            RESIZE_VCPU_UP_DISABLED_SETTING, RESIZE_VCPU_ABOVE_MAX_DISABLED_SETTING,
-            RESIZE_VCPU_BELOW_MIN_DISABLED_SETTING);
+                RESIZE_VCPU_UP_DISABLED_SETTING, RESIZE_VCPU_ABOVE_MAX_DISABLED_SETTING,
+                RESIZE_VCPU_BELOW_MIN_DISABLED_SETTING);
         Assert.assertEquals(false, entity.getCommoditySoldList(0).getIsResizeable());
         Assert.assertEquals(false, entity.getCommoditySoldList(1).getIsResizeable());
     }
@@ -533,16 +587,18 @@ public class EntitySettingsApplicatorTest {
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator.newGraph(ImmutableMap.of(
                 entityId, topologyEntityBuilder(entity),
                 pmId, topologyEntityBuilder(pm)));
-        applySettings(TOPOLOGY_INFO, applicator, graph, entityId, VMEM_MIN_SETTING,
-                VMEM_MAX_SETTING, VCPU_MIN_SETTING, VCPU_MAX_SETTING);
+        applySettings(TOPOLOGY_INFO, applicator, graph, entityId, VMEM_MIN_SETTING, VMEM_MIN_MODE_SETTING,
+                VMEM_MAX_SETTING, VMEM_MAX_MODE_SETTING, VMEM_INBETWEEN_DOWN_SETTING, VMEM_INBETWEEN_UP_SETTING,
+                VCPU_MIN_SETTING, VCPU_MIN_MODE_SETTING, VCPU_MAX_SETTING, VCPU_MAX_MODE_SETTING,
+                VCPU_INBETWEEN_DOWN_SETTING, VCPU_INBETWEEN_UP_SETTING);
         final Thresholds vMemCommoditySoldThresholds = entity.getCommoditySoldList(0).getThresholds();
         final Thresholds vCPUCommoditySoldThresholds = entity.getCommoditySoldList(1).getThresholds();
         // VMem min is 1GB
-        Assert.assertEquals(1024 * mbToKb, vMemCommoditySoldThresholds.getMin(), DELTA);
+        Assert.assertEquals(0, vMemCommoditySoldThresholds.getMin(), DELTA);
         // VMem Max is 10GB
         Assert.assertEquals(10240 * mbToKb, vMemCommoditySoldThresholds.getMax(), DELTA);
         // VCPU min is 10 cores X 1000 (host CPU speed)
-        Assert.assertEquals(10_000, vCPUCommoditySoldThresholds.getMin(), DELTA);
+        Assert.assertEquals(0, vCPUCommoditySoldThresholds.getMin(), DELTA);
         // VCPU min is 100 cores X 1000 (host CPU speed)
         Assert.assertEquals(100_000, vCPUCommoditySoldThresholds.getMax(), DELTA);
     }
@@ -564,10 +620,13 @@ public class EntitySettingsApplicatorTest {
         final long entityId = entity.getOid();
         final TopologyGraph<TopologyEntity> graph = TopologyEntityTopologyGraphCreator
             .newGraph(ImmutableMap.of(entityId, topologyEntityBuilder(entity)));
-        applySettings(TOPOLOGY_INFO, applicator, graph, entityId, VCPU_MIN_SETTING, VCPU_MAX_SETTING);
+        applySettings(TOPOLOGY_INFO, applicator, graph, entityId, VMEM_MIN_SETTING, VMEM_MIN_MODE_SETTING,
+                VMEM_MAX_SETTING, VMEM_MAX_MODE_SETTING, VMEM_INBETWEEN_DOWN_SETTING, VMEM_INBETWEEN_UP_SETTING,
+                VCPU_MIN_SETTING, VCPU_MIN_MODE_SETTING, VCPU_MAX_SETTING, VCPU_MAX_MODE_SETTING,
+                VCPU_INBETWEEN_DOWN_SETTING, VCPU_INBETWEEN_UP_SETTING);
         final Thresholds vCPUCommoditySoldThresholds = entity.getCommoditySoldList(0).getThresholds();
-        // VCPU min is 10 cores X 200 (vm capacity / num cpu)
-        Assert.assertEquals(2000, vCPUCommoditySoldThresholds.getMin(), DELTA);
+        // VCPU minThreshold 0 because the capacity < minThreshold from policy and the action is not disabled
+        Assert.assertEquals(0, vCPUCommoditySoldThresholds.getMin(), DELTA);
         // VCPU min is 100 cores X 200 (vm capacity / num cpu)
         Assert.assertEquals(20000, vCPUCommoditySoldThresholds.getMax(), DELTA);
     }

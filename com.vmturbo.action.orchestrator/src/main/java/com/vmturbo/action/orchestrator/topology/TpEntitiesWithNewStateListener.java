@@ -1,18 +1,12 @@
 package com.vmturbo.action.orchestrator.topology;
 
-import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.vmturbo.action.orchestrator.store.ActionStorehouse;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.EntitiesWithNewState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.EntityState;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
-import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.topology.processor.api.EntitiesWithNewStateListener;
 
 /**
@@ -39,22 +33,11 @@ public class TpEntitiesWithNewStateListener implements EntitiesWithNewStateListe
 
     @Override
     public void onEntitiesWithNewState(@Nonnull final EntitiesWithNewState entitiesWithNewState) {
-        Set<Long> hostsInMaintenanceIds = getHostInMaintenanceIds(entitiesWithNewState.getTopologyEntityList());
-
-        if (actionStorehouse.getStore(realTimeTopologyContextId).isPresent() &&
-            !hostsInMaintenanceIds.isEmpty()) {
+        if (actionStorehouse.getStore(realTimeTopologyContextId).isPresent()) {
 
             LiveActionStore actionStore =
                 ((LiveActionStore)actionStorehouse.getStore(realTimeTopologyContextId).get());
-            actionStore.clearActionsOnHosts(hostsInMaintenanceIds,
-                entitiesWithNewState.getStateChangeId());
+            actionStore.updateActionsBasedOnNewStates(entitiesWithNewState);
         }
-    }
-
-    private Set<Long> getHostInMaintenanceIds(List<TopologyEntityDTO> entityDtos) {
-        return entityDtos.stream()
-            .filter(entity -> entity.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE &&
-                entity.getEntityState() == EntityState.MAINTENANCE).map(TopologyEntityDTO::getOid)
-            .collect(Collectors.toSet());
     }
 }

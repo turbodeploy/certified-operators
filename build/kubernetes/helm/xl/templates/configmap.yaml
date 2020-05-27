@@ -234,7 +234,7 @@ data:
         defaultCommodityWhitelist:
             BALLOONING,
             BUFFER_COMMODITY,
-            COLLECTION_TIME,
+            REMAINING_GC_CAPACITY,
             CONNECTION,
             COOLING,
             COUPON,
@@ -425,8 +425,6 @@ data:
       extractor:
         dbHost: timescaledb
         dbPort: 5432
-        # todo: remove after we extend auth to support postgres
-        dbRootUserName: postgres
 {{- if .Values.properties }}
     customProperties:
 {{ toYaml .Values.properties | indent 12 }}

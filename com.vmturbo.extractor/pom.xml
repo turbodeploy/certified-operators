@@ -16,7 +16,7 @@
     <properties>
         <swagger.component.name>Extractor</swagger.component.name>
         <db.url>jdbc:postgresql://localhost:5432/</db.url>
-        <db.username>root</db.username>
+        <db.username>postgres</db.username>
         <db.password>vmturbo</db.password>
         <target.db.schema>extractor</target.db.schema>
         <db.driver>org.postgresql.Driver</db.driver>
