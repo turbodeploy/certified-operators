@@ -45,6 +45,7 @@ public class SystemLoadCalculatedProfile {
     private String profileDisplayNamePostfix = null;
     private String profileName = null;
     private Optional<TemplateInfo> headroomTemplateInfo = Optional.empty();
+    private final Map<Long, String> targetOidToTargetName;
 
     /**
      * Create a VM template with the average/max of the values for all VMs in the cluster.
@@ -62,15 +63,18 @@ public class SystemLoadCalculatedProfile {
      * @param systemLoadRecordList to process for system load calculation.
      * @param profileNamePostfix used to generate profile name.
      * @param profileDisplayNamePostfix used to generate profile name.
+     * @param targetOidToTargetName targetOid to targetName map.
      */
     SystemLoadCalculatedProfile(
             @Nonnull final Operation operation, @Nonnull final Grouping cluster,
             @Nonnull final List<SystemLoadRecord> systemLoadRecordList,
-            final String profileNamePostfix, final String profileDisplayNamePostfix) {
+            final String profileNamePostfix, final String profileDisplayNamePostfix,
+            @Nonnull final Map<Long, String> targetOidToTargetName) {
         this.operation = operation;
         this.cluster = cluster;
         this.profileNamePostfix = profileNamePostfix;
         this.profileDisplayNamePostfix = profileDisplayNamePostfix;
+        this.targetOidToTargetName = targetOidToTargetName;
         createVirtualMachinesMap(systemLoadRecordList);
     }
 
@@ -225,9 +229,19 @@ public class SystemLoadCalculatedProfile {
      * @return template info based on calculated system load values.
      */
     private Optional<TemplateInfo> generateTemplateInfoFromProfile() {
+        final Optional<Long> targetId;
+        if (cluster.hasOrigin() && cluster.getOrigin().hasDiscovered() &&
+            cluster.getOrigin().getDiscovered().getDiscoveringTargetIdCount() != 0) {
+            targetId = Optional.of(cluster.getOrigin().getDiscovered().getDiscoveringTargetId(0));
+        } else {
+            targetId = Optional.empty();
+        }
+
         TemplateInfo.Builder templateInfo = TemplateInfo.newBuilder();
         //replace \ with _ in profile name, so it can be used in REST API as parameter
-        String name = operation.name() + ":" + profileDisplayNamePostfix.replaceAll("\\\\", "_");
+        String name = targetId.map(targetOidToTargetName::get)
+            .orElse(targetId.map(String::valueOf).orElse("null")) + "::" + operation.name() +
+            ":" + profileDisplayNamePostfix.replaceAll("\\\\", "_");
         this.profileName = name;
         templateInfo.setName(name);
         templateInfo.setDescription(operation.name() + ":" + profileNamePostfix.replaceAll("\\\\", "_"));
