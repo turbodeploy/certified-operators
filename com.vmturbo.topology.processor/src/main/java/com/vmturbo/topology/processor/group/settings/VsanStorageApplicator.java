@@ -36,6 +36,8 @@ import com.vmturbo.topology.graph.TopologyGraph;
 public class VsanStorageApplicator implements SettingApplicator {
     private static final Logger logger = LogManager.getLogger();
 
+    private static final double THRESHOLD_EFFECTIVE_CAPACITY = 1;
+
     private final TopologyGraph<TopologyEntity> graph;
 
     /**
@@ -148,6 +150,7 @@ public class VsanStorageApplicator implements SettingApplicator {
                                     throws EntityApplicatorException {
         final double hostCapacityReservation = getNumericSetting(settings,
                         EntitySettingSpecs.HciHostCapacityReservation);
+        final long hciHostCount = countHCIHosts(storage);
 
         CommoditySoldDTO.Builder storageAmount = getSoldStorageCommodityBuilder(
                         storage, CommodityType.STORAGE_AMOUNT);
@@ -158,12 +161,6 @@ public class VsanStorageApplicator implements SettingApplicator {
         double largestCapacity = getLargestHciHostRawDiskCapacity(storage);
         effectiveSACapacity -= largestCapacity * hostCapacityReservation;
 
-        if (effectiveSACapacity < 0) {
-            throw new EntityApplicatorException(
-                    "The effective capacity is negative or zero. hostCapacityReservation: "
-                            + hostCapacityReservation);
-        }
-
         // reduce by requested slack space
         effectiveSACapacity *= slackSpaceRatio;
 
@@ -173,13 +170,17 @@ public class VsanStorageApplicator implements SettingApplicator {
         // Adjust by compression ratio
         effectiveSACapacity *= compressionRatio;
 
+        effectiveSACapacity = checkCapacityAgainstThreshold(effectiveSACapacity,
+                CommodityType.STORAGE_AMOUNT, storage, hostCapacityReservation, hciHostCount);
+
         // Set capacity and used for Storage Amount.
         storageAmount.setUsed(storageAmount.getUsed() * compressionRatio);
         storageAmount.setCapacity(effectiveSACapacity);
 
         //Compute Storage Access capacity.
-        final long hciHostCount = countHCIHosts(storage);
-        final double totalIOPSCapacity = (hciHostCount - hostCapacityReservation) * iopsCapacityPerHost;
+        double totalIOPSCapacity = (hciHostCount - hostCapacityReservation) * iopsCapacityPerHost;
+        totalIOPSCapacity = checkCapacityAgainstThreshold(totalIOPSCapacity,
+                CommodityType.STORAGE_ACCESS, storage, hostCapacityReservation, hciHostCount);
 
         //Set capacity for sold Storage Access.
         CommoditySoldDTO.Builder storageAccess = getSoldStorageCommodityBuilder(
@@ -187,6 +188,17 @@ public class VsanStorageApplicator implements SettingApplicator {
         logger.trace("Set sold StorageAccess for {} capacity to {}, host count {}",
                 storage.getDisplayName(), totalIOPSCapacity, hciHostCount);
         storageAccess.setCapacity(totalIOPSCapacity);
+
+        //Set Storage Latency to 1 if Host Capacity reservation takes all hosts present.
+        if (hostCapacityReservation >= hciHostCount) {
+            CommoditySoldDTO.Builder storageLatency = getSoldStorageCommodityBuilder(
+                            storage, CommodityType.STORAGE_LATENCY);
+            logger.error("Setting sold Storage Latency capacity for {} to 1.0 because"
+                            + " no hosts are available. Host capacity reservation: {}."
+                            + " Number of hosts: {}", storage.getDisplayName(),
+                            hostCapacityReservation, hciHostCount);
+            storageLatency.setCapacity(THRESHOLD_EFFECTIVE_CAPACITY);
+        }
     }
 
     private void applyToStorageHosts(Builder storage, Map<EntitySettingSpecs, Setting> settings,
@@ -265,6 +277,27 @@ public class VsanStorageApplicator implements SettingApplicator {
                             .filter(comm -> comm.getCommodityType().getType() ==
                                 CommodityType.STORAGE_ACCESS.getNumber()))
                         .count();
+    }
+
+    /**
+     * Checks the computed capacity against the threshold value.
+     * @param capacity  computed capacity
+     * @param commodityType type of commodity in question
+     * @param storage   vSAN storage
+     * @param hostCapacityReservation   Host Capacity Reservation setting value
+     * @param hciHostCount  number of hosts selling commodities to vSAN storage
+     * @return  the computed capacity if it's above the threshold or the threshold value
+     */
+    private double checkCapacityAgainstThreshold(double capacity, CommodityType commodityType,
+                    Builder storage, double hostCapacityReservation, long hciHostCount)  {
+        if (capacity < THRESHOLD_EFFECTIVE_CAPACITY)    {
+            logger.error("Setting sold {} capacity for {} to 1.0 because computed capacity"
+                            + " was {}. Host capacity reservation: {}. Number of hosts: {}",
+                            commodityType, storage.getDisplayName(), capacity,
+                            hostCapacityReservation, hciHostCount);
+            return THRESHOLD_EFFECTIVE_CAPACITY;
+        }
+        return capacity;
     }
 
     private static double getNumericSetting(@Nonnull Map<EntitySettingSpecs, Setting> settings,
