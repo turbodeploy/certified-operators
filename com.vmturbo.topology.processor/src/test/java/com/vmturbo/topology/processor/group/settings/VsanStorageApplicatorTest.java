@@ -119,6 +119,18 @@ public class VsanStorageApplicatorTest {
         raid1.checkUtilizationThreshold(73.95);
     }
 
+    /**
+     * Test the situation when Host Capacity Reservation setting is equal to the number of hosts.
+     *
+     * @throws Exception any test exception
+     */
+    @Test
+    public void testAllHostsReserved() throws Exception {
+        ApplicatorResult result = runApplicator(RAID0, false, 0, 0, 4);
+        result.checkStorageAmount(32.46, 1.0 / 1024);
+        result.checkUtilizationThreshold(100);
+    }
+
     private static ApplicatorResult runApplicator(@Nonnull String fileName,
             boolean hciUseCompression,
             float hciCompressionRatio, float hciSlackSpacePercentage,
