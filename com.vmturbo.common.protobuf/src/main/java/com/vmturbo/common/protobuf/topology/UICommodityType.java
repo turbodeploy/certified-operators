@@ -25,8 +25,8 @@ public enum UICommodityType {
     BUFFER_COMMODITY("BufferCommodity", CommodityType.BUFFER_COMMODITY, "Buffer Commodity"),
     /** The commodity CLUSTER. */
     CLUSTER("ClusterCommodity", CommodityType.CLUSTER, "Cluster Commodity"),
-    /** The commodity REMAINING_GC_CAPACITY. */
-    REMAINING_GC_CAPACITY("RemainingGcCapacity", CommodityType.REMAINING_GC_CAPACITY, "Remaining GC Capacity"),
+    /** The commodity COLLECTION_TIME. */
+    COLLECTION_TIME("CollectionTime", CommodityType.COLLECTION_TIME, "Collection Time"),
     /** The commodity COOLING. */
     COOLING("Cooling", CommodityType.COOLING, "Cooling"),
     /** The commodity CONNECTION. */

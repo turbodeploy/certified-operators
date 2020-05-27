@@ -234,7 +234,7 @@ data:
         defaultCommodityWhitelist:
             BALLOONING,
             BUFFER_COMMODITY,
-            REMAINING_GC_CAPACITY,
+            COLLECTION_TIME,
             CONNECTION,
             COOLING,
             COUPON,

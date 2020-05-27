@@ -90,7 +90,7 @@ public class ModelDefinitions {
      */
     public static final Set<CommodityType> COMMODITY_TYPES_WHITELIST = ImmutableSet.<CommodityType>builder()
             .add(CommodityType.BALLOONING)
-            .add(CommodityType.REMAINING_GC_CAPACITY)
+            .add(CommodityType.COLLECTION_TIME)
             .add(CommodityType.COOLING)
             .add(CommodityType.CPU)
             .add(CommodityType.CPU_ALLOCATION)
