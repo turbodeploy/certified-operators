@@ -17,8 +17,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import io.grpc.Channel;
 
@@ -32,6 +36,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
+import com.vmturbo.common.protobuf.group.GroupDTO.Origin.Discovered;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.plan.PlanDTO;
@@ -55,17 +61,20 @@ import com.vmturbo.common.protobuf.stats.Stats.SystemLoadInfoResponse;
 import com.vmturbo.common.protobuf.stats.Stats.SystemLoadRecord;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
-import com.vmturbo.commons.idgen.IdentityGenerator;
-import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.commons.idgen.IdentityGenerator;
+import com.vmturbo.communication.CommunicationException;
+import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.plan.orchestrator.plan.NoSuchObjectException;
 import com.vmturbo.plan.orchestrator.plan.PlanDao;
 import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.headroom.ClusterHeadroomPlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
-import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.plan.orchestrator.templates.exceptions.DuplicateTemplateException;
 import com.vmturbo.plan.orchestrator.templates.exceptions.IllegalTemplateOperationException;
+import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
+import com.vmturbo.topology.processor.api.impl.TargetRESTApi.TargetInfo;
 
 /**
  * Tests for the {@link com.vmturbo.plan.orchestrator.project.PlanProjectExecutor} class.
@@ -94,15 +103,17 @@ public class PlanProjectExecutorTest {
 
     private TemplatesDao templatesDao = mock(TemplatesDao.class);
 
+    private TopologyProcessor topologyProcessor = mock(TopologyProcessor.class);
+
     @Before
-    public void setup() {
+    public void setup() throws CommunicationException {
         IdentityGenerator.initPrefix(0);
         ProjectPlanPostProcessorRegistry registry = mock(ProjectPlanPostProcessorRegistry.class);
         PlanRpcService planRpcService = mock(PlanRpcService.class);
         Channel repositoryChannel = mock(Channel.class);
         planProjectExecutor = new PlanProjectExecutor(planDao, planProjectDao, grpcServer.getChannel(),
                 planRpcService, registry, repositoryChannel, templatesDao, grpcServer.getChannel(),
-                projectNotificationSender, true);
+                projectNotificationSender, true, topologyProcessor);
         headroomExecutor = planProjectExecutor.getHeadroomExecutor();
         when(templatesDao.getFilteredTemplates(any()))
             .thenReturn(Collections.singleton(Template.newBuilder()
@@ -111,6 +122,7 @@ public class PlanProjectExecutorTest {
                     .setTemplateInfo(TemplateInfo.newBuilder()
                         .setName(StringConstants.CLUSTER_HEADROOM_DEFAULT_TEMPLATE_NAME))
                     .build()));
+        when(topologyProcessor.getAllTargets()).thenReturn(Collections.emptySet());
     }
 
     @Test
@@ -263,10 +275,11 @@ public class PlanProjectExecutorTest {
             .setDefinition(GroupDefinition.newBuilder()
                             .setDisplayName("TestCluster")
                             .setType(GroupType.COMPUTE_HOST_CLUSTER))
+                .setOrigin(Origin.newBuilder().setDiscovered(Discovered.newBuilder().addDiscoveringTargetId(500L)))
             .build();
 
         TemplateInfo templateInfo = TemplateInfo.newBuilder()
-                .setName("AVG:TestCluster for last 10 days")
+                .setName("target::AVG:TestCluster for last 10 days")
                 .build();
 
         Template template = Template.newBuilder()
@@ -278,6 +291,9 @@ public class PlanProjectExecutorTest {
 
         when(templatesDao.getClusterHeadroomTemplateForGroup(eq(12345L)))
             .thenReturn(Optional.of(template));
+
+        when(topologyProcessor.getAllTargets()).thenReturn(ImmutableSet.of(new TargetInfo(500L,
+                "target", null, null, null, null, null)));
 
         headroomExecutor.createClusterPlanInstance(Collections.singleton(groupWithHeadroomTemplateId),
                 PlanProjectScenario.getDefaultInstance(), PlanProjectType.CLUSTER_HEADROOM);
@@ -440,7 +456,7 @@ public class PlanProjectExecutorTest {
     }
 
     /**
-     * Test {@link ClusterHeadroomPlanProjectExecutor#updateClusterHeadroomTemplate(Grouping, Optional)}
+     * Test {@link ClusterHeadroomPlanProjectExecutor#updateClusterHeadroomTemplate(Grouping, Optional, Map)}
      * with sufficient systemLoad data.
      *
      * @throws NoSuchObjectException if default cluster headroom template not found
@@ -468,20 +484,21 @@ public class PlanProjectExecutorTest {
         final long avgHeadroomTemplateId = 101;
         final Template avgHeadroomTemplate = Template.newBuilder().setId(avgHeadroomTemplateId)
             .setTemplateInfo(TemplateInfo.newBuilder()
-                .setName("AVG:test_cluster for last 10 days")).build();
+                    .setName("target::AVG:test_cluster for last 10 days")).build();
 
         final Grouping cluster = Grouping.newBuilder().setId(123)
             .addExpectedTypes(MemberType.newBuilder().setEntity(ApiEntityType.PHYSICAL_MACHINE.typeNumber()))
             .setDefinition(GroupDefinition.newBuilder()
                 .setDisplayName("test_cluster")
                 .setType(GroupType.COMPUTE_HOST_CLUSTER))
+                .setOrigin(Origin.newBuilder().setDiscovered(Discovered.newBuilder().addDiscoveringTargetId(500L)))
             .build();
 
         // 1. cluster template exists in the db
         // 1.1. associated template is avg template
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(Optional.of(avgHeadroomTemplate));
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao).editTemplate(eq(avgHeadroomTemplateId), any(), any());
@@ -494,7 +511,7 @@ public class PlanProjectExecutorTest {
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(defaultHeadroomTemplate);
         when(templatesDao.createTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
@@ -509,7 +526,7 @@ public class PlanProjectExecutorTest {
             .thenReturn(Optional.of(Template.newBuilder().setId(1)
                 .setTemplateInfo(TemplateInfo.newBuilder()
                     .setName("associated template is not avg template")).build()));
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
@@ -523,7 +540,7 @@ public class PlanProjectExecutorTest {
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(Optional.empty());
         when(templatesDao.createTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
@@ -536,7 +553,7 @@ public class PlanProjectExecutorTest {
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId())).thenReturn(Optional.empty());
         when(templatesDao.createTemplate(any(), any())).thenReturn(avgHeadroomTemplate);
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, ImmutableMap.of(500L, "target"));
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
@@ -546,7 +563,7 @@ public class PlanProjectExecutorTest {
     }
 
     /**
-     * Test {@link ClusterHeadroomPlanProjectExecutor#updateClusterHeadroomTemplate(Grouping, Optional)}
+     * Test {@link ClusterHeadroomPlanProjectExecutor#updateClusterHeadroomTemplate(Grouping, Optional, Map)}
      * with insufficient systemLoad data.
      *
      * @throws NoSuchObjectException if default cluster headroom template not found
@@ -574,7 +591,7 @@ public class PlanProjectExecutorTest {
         // cluster template exists in the db, updateClusterHeadroomTemplate will not be invoked
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(Optional.of(Template.getDefaultInstance()));
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, Collections.emptyMap());
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
@@ -586,7 +603,7 @@ public class PlanProjectExecutorTest {
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(Optional.empty());
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, Collections.emptyMap());
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
@@ -598,7 +615,7 @@ public class PlanProjectExecutorTest {
         reset(groupServiceMole);
         when(templatesDao.getClusterHeadroomTemplateForGroup(cluster.getId()))
             .thenReturn(Optional.empty());
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate);
+        headroomExecutor.updateClusterHeadroomTemplate(cluster, defaultHeadroomTemplate, Collections.emptyMap());
 
         verify(templatesDao).getClusterHeadroomTemplateForGroup(cluster.getId());
         verify(templatesDao, never()).editTemplate(anyLong(), any());
@@ -607,7 +624,7 @@ public class PlanProjectExecutorTest {
     }
 
     /**
-     * Test {@link ClusterHeadroomPlanProjectExecutor#updateClusterHeadroomTemplate(Grouping, Optional)}
+     * Test {@link ClusterHeadroomPlanProjectExecutor#updateClusterHeadroomTemplate(Grouping, Optional, Map)}
      * with insufficient systemLoad data and with no default headroom template.
      *
      * @throws NoSuchObjectException if default cluster headroom template not found
@@ -627,7 +644,7 @@ public class PlanProjectExecutorTest {
             .setDefinition(GroupDefinition.newBuilder()
                 .setType(GroupType.COMPUTE_HOST_CLUSTER))
             .build();
-        headroomExecutor.updateClusterHeadroomTemplate(cluster, Optional.empty());
+        headroomExecutor.updateClusterHeadroomTemplate(cluster, Optional.empty(), Collections.emptyMap());
 
         verify(templatesDao, never()).getClusterHeadroomTemplateForGroup(anyLong());
         verify(templatesDao, never()).editTemplate(anyLong(), any());

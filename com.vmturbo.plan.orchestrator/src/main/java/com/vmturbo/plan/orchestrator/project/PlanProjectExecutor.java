@@ -2,13 +2,13 @@ package com.vmturbo.plan.orchestrator.project;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.annotations.VisibleForTesting;
 
 import io.grpc.Channel;
 import io.grpc.stub.StreamObserver;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanId;
 import com.vmturbo.common.protobuf.plan.PlanDTO.PlanInstance;
@@ -19,6 +19,7 @@ import com.vmturbo.plan.orchestrator.plan.PlanRpcService;
 import com.vmturbo.plan.orchestrator.project.headroom.ClusterHeadroomPlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.project.migration.CloudMigrationPlanProjectExecutor;
 import com.vmturbo.plan.orchestrator.templates.TemplatesDao;
+import com.vmturbo.topology.processor.api.TopologyProcessor;
 
 /**
  * This class executes a plan project
@@ -42,6 +43,7 @@ public class PlanProjectExecutor {
      * @param historyChannel history channel
      * @param projectNotifier Used to send plan project related notification updates.
      * @param headroomCalculationForAllClusters specifies how to run cluster headroom plan
+     * @param topologyProcessor a REST call to get target info
      */
     PlanProjectExecutor(@Nonnull final PlanDao planDao,
                         @Nonnull final PlanProjectDao planProjectDao,
@@ -52,11 +54,12 @@ public class PlanProjectExecutor {
                         @Nonnull final TemplatesDao templatesDao,
                         @Nonnull final Channel historyChannel,
                         @Nonnull final PlanProjectNotificationSender projectNotifier,
-                        final boolean headroomCalculationForAllClusters) {
+                        final boolean headroomCalculationForAllClusters,
+                        @Nonnull final TopologyProcessor topologyProcessor) {
 
         headroomExecutor = new ClusterHeadroomPlanProjectExecutor(planDao, groupChannel,
                 planRpcService, processorRegistry, repositoryChannel, templatesDao, historyChannel,
-                headroomCalculationForAllClusters);
+                headroomCalculationForAllClusters, topologyProcessor);
 
         cloudMigrationExecutor = new CloudMigrationPlanProjectExecutor(planDao, planProjectDao,
                 planRpcService, processorRegistry, projectNotifier);

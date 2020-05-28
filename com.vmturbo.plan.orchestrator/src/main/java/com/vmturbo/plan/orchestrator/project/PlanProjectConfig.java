@@ -113,7 +113,8 @@ public class PlanProjectConfig {
                 templatesConfig.templatesDao(),
                 historyClientConfig.historyChannel(),
                 planProjectNotificationSender(),
-                headroomCalculationForAllClusters);
+                headroomCalculationForAllClusters,
+                globalConfig.tpNotificationClient());
     }
 
     @Bean
