@@ -201,7 +201,8 @@ public class PolicyManager {
                 new ArrayList<>(reservationResults.getReservationPolicies());
 
             // Bind sources (consumers) to destinations (providers) in case of migration
-            getMigrationPolicies(changes)
+            // NOTE: the resulting BindToGroupPolicy binds cloned sources to destinations
+            getMigrationPolicies(changes, cloneEntityOids)
                 .forEach(policiesToApply::add);
 
             getServerPolicies(changes, livePolicies, groupsById, reservationResults)
@@ -272,18 +273,27 @@ public class PolicyManager {
      * provider(s) (regions).
      *
      * @param topologyMigration the object symbolizing an entity/group to migrate
+     * @param cloneEntityOids the OIDs of cloned source entities
      * @return a list of {@link ScenarioChange} corresponding to the requested cloud migration plan
      */
     @VisibleForTesting
     public PlacementPolicy enableTopologyMigration(
-            @Nonnull final TopologyMigration topologyMigration) {
+            @Nonnull final TopologyMigration topologyMigration,
+            @Nonnull final Set<Long> cloneEntityOids) {
         final int destinationEntityType = topologyMigration.getDestinationEntityType().equals(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
                 ? EntityType.VIRTUAL_MACHINE_VALUE
                 : EntityType.DATABASE_SERVER_VALUE;
-        final Grouping source = getStaticMigrationGroup(topologyMigration.getSourceList(), destinationEntityType);
+
+        final Grouping source = getStaticMigrationGroup(
+                cloneEntityOids.stream()
+                        .map(sourceId -> MigrationReference.newBuilder().setOid(sourceId).build())
+                        .collect(Collectors.toList()),
+                destinationEntityType);
         final long sourceId = source.getId();
 
-        final Grouping destination = getStaticMigrationGroup(topologyMigration.getDestinationList(), EntityType.REGION_VALUE);
+        final Grouping destination = getStaticMigrationGroup(
+                topologyMigration.getDestinationList(),
+                EntityType.PHYSICAL_MACHINE_VALUE);
         final long destinationId = destination.getId();
 
         final Policy bindToGroupPolicy = ReservationPolicyFactory.generateBindToGroupPolicy(destinationId, sourceId);
@@ -297,14 +307,17 @@ public class PolicyManager {
      * {@link BindToGroupPolicy} objects to enable them in the plan market.
      *
      * @param scenarioChanges the current list of {@link ScenarioChange} objects generated in ScenarioMapper
+     * @param cloneEntityOids the OIDs of cloned source entities
      * @return additional {@link ScenarioChange}s that should be applied in the current plan context
      */
     @VisibleForTesting
-    List<PlacementPolicy> getMigrationPolicies(@Nonnull final List<ScenarioChange> scenarioChanges) {
+    List<PlacementPolicy> getMigrationPolicies(
+            @Nonnull final List<ScenarioChange> scenarioChanges,
+            @Nonnull final Set<Long> cloneEntityOids) {
         List<PlacementPolicy> placementPolicies = Lists.newArrayList();
         for (ScenarioChange change : scenarioChanges) {
             if (change.hasTopologyMigration()) {
-                placementPolicies.add(enableTopologyMigration(change.getTopologyMigration()));
+                placementPolicies.add(enableTopologyMigration(change.getTopologyMigration(), cloneEntityOids));
             }
         }
         return placementPolicies;
