@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -32,6 +33,8 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -110,6 +113,7 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.Settin
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.MigrationReference;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.OSMigration;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
@@ -125,10 +129,13 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OsMigrationProfileOption;
 import com.vmturbo.components.common.setting.RISettingsEnum.PreferredTerm;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
@@ -191,6 +198,35 @@ public class ScenarioMapper {
     );
 
     private static final Logger logger = LogManager.getLogger();
+
+    /**
+     * Suffix for OS migration settings specifying target OS, eg "linuxTargetOs", "windowsTargetOs".
+     * etc.
+     */
+    private static final String TARGET_OS_SETTING_SUFFIX = "TargetOs";
+
+    /**
+     * Suffix for OS migration settings specifying Bring Your Own License, eg "linuxByol",
+     * "windowsByol", etc.
+     */
+    private static final String BYOL_SETTING_SUFFIX = "Byol";
+
+    /**
+     * Map from OS identifiers as used in the API DTO to those used in the Protobuf DTO.
+     */
+    private static final BiMap<OperatingSystem, OSType> apiOsToProtobufOs =
+        ImmutableBiMap.<OperatingSystem, OSType>of(
+            OperatingSystem.LINUX, OSType.LINUX,
+            OperatingSystem.RHEL, OSType.RHEL,
+            OperatingSystem.SLES, OSType.SUSE,
+            OperatingSystem.WINDOWS, OSType.WINDOWS
+        );
+
+    /**
+     * Map from OS identifiers as used in the Protobuf DTO to those used in the API DTO.
+     */
+    private static final BiMap<OSType, OperatingSystem> protobufOsToApiOs =
+        apiOsToProtobufOs.inverse();
 
     private static final List<ConstraintType> ALLEVIATE_PRESSURE_IGNORE_CONSTRAINTS = Arrays.asList(
                     ConstraintType.NetworkCommodity, ConstraintType.StorageClusterCommodity,
@@ -271,7 +307,8 @@ public class ScenarioMapper {
         // API should tell us if it is template id or not, please see (OM-26675).
         final Set<Long> templateIds = getTemplatesIds(dto.getTopologyChanges());
 
-        infoBuilder.addAllChanges(getTopologyChanges(dto.getTopologyChanges(), templateIds));
+        infoBuilder.addAllChanges(getTopologyChanges(dto.getTopologyChanges(),
+            dto.getConfigChanges(), templateIds));
         infoBuilder.addAllChanges(getConfigChanges(dto.getConfigChanges()));
         infoBuilder.addAllChanges(getPolicyChanges(dto.getConfigChanges()));
         infoBuilder.addAllChanges(getLoadChanges(dto.getLoadChanges()));
@@ -957,6 +994,7 @@ public class ScenarioMapper {
             });
         });
 
+
         if (StringUtils.isNotEmpty(awsRISetting.toString())) {
             riSetting.putRiSettingByCloudtype(CloudType.AWS.name(), awsRISetting.build());
         }
@@ -965,6 +1003,7 @@ public class ScenarioMapper {
         }
         return ScenarioChange.newBuilder().setRiSetting(riSetting).build();
     }
+
 
     /**
      * Maps {@link ConfigChangesApiDTO} to {@link ScenarioChange}.
@@ -1119,7 +1158,8 @@ public class ScenarioMapper {
     }
 
     @Nonnull
-    private List<ScenarioChange> getTopologyChanges(final TopologyChangesApiDTO topoChanges,
+    private List<ScenarioChange> getTopologyChanges(@Nonnull final TopologyChangesApiDTO topoChanges,
+                                                    @Nonnull final ConfigChangesApiDTO configChanges,
                                                     @Nonnull final Set<Long> templateIds)
             throws IllegalArgumentException, UnknownObjectException {
         if (topoChanges == null) {
@@ -1142,7 +1182,7 @@ public class ScenarioMapper {
             // 1. Set shopTogether to true (all market)
             changes.add(getShopTogetherChange());
             // 2. Create the migration change
-            changes.add(getTopologyMigrationChange(migrateObjects));
+            changes.add(getTopologyMigrationChange(migrateObjects, configChanges));
             // 3. Create the RI Buy configuration
             changes.add(getRiSettings());
         }
@@ -1289,11 +1329,14 @@ public class ScenarioMapper {
      * Create the {@link TopologyMigration} corresponding to a particular {@link MigrateObjectApiDTO}.
      *
      * @param migrateObjects the list of {@link MigrateObjectApiDTO} object from which the scenario is being created
+     * @param configChanges the list of {@link ConfigChangesApiDTO} from which to extract OS
+     *                      migration configuration
      * @return a {@link ScenarioChange} symbolizing the cloud migration
      * @throws IllegalArgumentException when either a source or destination className cannot be converted
      */
-    public static ScenarioChange getTopologyMigrationChange(final List<MigrateObjectApiDTO> migrateObjects)
-            throws IllegalArgumentException {
+    public static ScenarioChange getTopologyMigrationChange(
+        @Nonnull final List<MigrateObjectApiDTO> migrateObjects,
+        @Nonnull final ConfigChangesApiDTO configChanges) throws IllegalArgumentException {
             Set<MigrationReference> sources = Sets.newHashSet();
             Set<MigrationReference> destinations = Sets.newHashSet();
             migrateObjects.forEach(migrateObject -> {
@@ -1301,14 +1344,15 @@ public class ScenarioMapper {
                 destinations.add(getMigrationReferenceFromBaseApiDTO(migrateObject.getDestination()));
             });
 
-            MigrateObjectApiDTO firstMigrateObject = migrateObjects.get(0);
+        MigrateObjectApiDTO firstMigrateObject = migrateObjects.get(0);
             final TopologyMigration.Builder migrationBuilder = TopologyMigration.newBuilder()
                 .addAllSource(sources)
                 .addAllDestination(destinations)
                 .setDestinationEntityType(firstMigrateObject.getDestinationEntityType() == DestinationEntityType.VirtualMachine
                         ? TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE
                         : TopologyMigration.DestinationEntityType.DATABASE_SERVER)
-                .setRemoveNonMigratingWorkloads(firstMigrateObject.getRemoveNonMigratingWorkloads());
+                .setRemoveNonMigratingWorkloads(firstMigrateObject.getRemoveNonMigratingWorkloads())
+                .addAllOsMigrations(buildOsMigrations(configChanges));
 
             return ScenarioChange.newBuilder()
                     .setTopologyMigration(migrationBuilder)
@@ -1472,18 +1516,18 @@ public class ScenarioMapper {
         if (ri.containsRiSettingByCloudtype(CloudType.AWS.name())) {
             RIProviderSetting riSettingProvider = ri.getRiSettingByCloudtypeMap().get(CloudType.AWS.name());
 
-            riSettingDTOs.add(createRiSettingApiDTO(AWSPreferredOfferingClass.getSettingName(),
+            riSettingDTOs.add(createStringSettingApiDTO(AWSPreferredOfferingClass.getSettingName(),
                     riSettingProvider.getPreferredOfferingClass().name(),
                     AWSPreferredOfferingClass.getDisplayName()));
 
-            riSettingDTOs.add(createRiSettingApiDTO(AWSPreferredPaymentOption.getSettingName(),
+            riSettingDTOs.add(createStringSettingApiDTO(AWSPreferredPaymentOption.getSettingName(),
                     riSettingProvider.getPreferredPaymentOption().name(),
                     AWSPreferredPaymentOption.getDisplayName()));
 
             Optional<PreferredTerm> term = riTermMapper.valueOf(PreferredTerm
                     .getPrefferedTermEnum(riSettingProvider.getPreferredTerm())
                     .orElse(null));
-            riSettingDTOs.add(createRiSettingApiDTO(AWSPreferredTerm.getSettingName(),
+            riSettingDTOs.add(createStringSettingApiDTO(AWSPreferredTerm.getSettingName(),
                     term.map(PreferredTerm::name).orElse(null),
                     AWSPreferredTerm.getDisplayName()));
         }
@@ -1494,7 +1538,7 @@ public class ScenarioMapper {
             Optional<PreferredTerm> term = riTermMapper.valueOf(PreferredTerm
                     .getPrefferedTermEnum(riSettingProvider.getPreferredTerm())
                     .orElse(null));
-            riSettingDTOs.add(createRiSettingApiDTO(AzurePreferredTerm.getSettingName(),
+            riSettingDTOs.add(createStringSettingApiDTO(AzurePreferredTerm.getSettingName(),
                     term.map(PreferredTerm::name).orElse(null),
                     AzurePreferredTerm.getDisplayName()));
         }
@@ -1510,6 +1554,193 @@ public class ScenarioMapper {
     }
 
     /**
+     * Create OSMigration DTOs for the TopologyMigration DTO from the migration config API DTOs.
+     *
+     * @param configChanges the Configuration changes API DTO containing OS migration settings
+     * @return a list of OSMigration DTOs to be applied by the CommoditiesEditor
+     * @throws IllegalArgumentException For unrecognized migration profile options or destination
+     * OS values
+     */
+    @Nonnull
+    private static List<OSMigration> buildOsMigrations(@Nullable ConfigChangesApiDTO configChanges)
+        throws IllegalArgumentException {
+        Boolean matchToSource = null; // Have seen no specific setting yet
+        Map<String, String> osSpecificSettings = new HashMap<>();
+
+        if (configChanges != null && configChanges.getOsMigrationSettingList() != null) {
+            for (SettingApiDTO<String> setting : configChanges.getOsMigrationSettingList()) {
+                if (GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName().equals(setting.getUuid())) {
+                    switch (OsMigrationProfileOption.valueOf(setting.getValue())) {
+                        case MATCH_SOURCE_TO_TARGET_OS:
+                            // No special configuration needed, No other settings can override.
+                            return Collections.emptyList();
+                        case BYOL:
+                            // All OSes map to themselves but with BYOL set true. No other settings
+                            // can override, so we're done.
+                            return buildByolMigrations();
+                        case CUSTOM_OS:
+                            // Custom, which cannot be overridden, but we need to process the other
+                            // settings to find the details so we can't break.
+                            matchToSource = false;
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unrecognized migration OS profile option "
+                                + setting.getValue());
+                    }
+                } else if (GlobalSettingSpecs.MatchToSource.getSettingName().equals(setting.getUuid())) {
+                    // Can be overridden by selectedMigrationProfileOption but not override it.
+                    if (matchToSource == null) {
+                        matchToSource = true;
+                    }
+                } else {
+                    osSpecificSettings.put(setting.getUuid(), setting.getValue());
+                }
+            }
+        }
+
+        if (BooleanUtils.isTrue(matchToSource) || osSpecificSettings.isEmpty()) {
+            // No specific mappings are needed.
+            return Collections.emptyList();
+        }
+
+        return buildCustomOSMigrations(osSpecificSettings);
+    }
+
+    /**
+     * Map custome OS migration settings for individual operating systems to the
+     * corresponding OSMigtation protoufs.
+     *
+     * @param osSpecificSettings A map of os-specific custom settings ("xxxTargetOs"
+     *                           and "xxxByol" for each operating system name "xxx"
+     *                           in lowercase).
+     * @return The corresponding OSMigration protobufs for all OSes.
+     * @throws IllegalArgumentException if a requested destination OS type is not recognized.
+     */
+    @Nonnull
+    private static List<OSMigration> buildCustomOSMigrations(
+        @Nonnull Map<String, String> osSpecificSettings) throws IllegalArgumentException {
+         List<OSMigration> osMigrations = new ArrayList<>();
+         for (Entry<OSType, OperatingSystem> entry : protobufOsToApiOs.entrySet()) {
+             OSType targetOs = entry.getKey();
+             final String targetOsString = osSpecificSettings.get(
+                 entry.getValue().name().toLowerCase() + TARGET_OS_SETTING_SUFFIX);
+
+             if (targetOsString != null) {
+                 targetOs = apiOsNameStringToDtoName(targetOsString);
+             }
+
+             boolean byol = false;
+             final String byolString = osSpecificSettings.get(
+                 entry.getValue().name().toLowerCase() + BYOL_SETTING_SUFFIX);
+             if (byolString != null) {
+                 byol = Boolean.parseBoolean(byolString);
+             }
+
+             osMigrations.add(OSMigration.newBuilder()
+                 .setFromOs(entry.getKey()).setToOs(targetOs).setByol(byol).build());
+         }
+
+         return osMigrations;
+    }
+
+    /**
+     * Map an OS name string as used in the value of an API OS Migration configuration setting
+     * to the corresponding OSType enum. For backwards compatibility both "SLES" and "SUSE"
+     * map to OSType.SUSE, but "SLES" is the preferred name in the external API.
+     *
+     * @param osString the OS name string
+     * @return The corresponding OSType value
+     * @throws IllegalArgumentException if the OS type is not recognized.
+     */
+    @Nonnull
+    private static OSType apiOsNameStringToDtoName(@Nonnull final String osString)
+        throws IllegalArgumentException {
+        // Backward compatibility, recognize SUSE as well as SLES
+        if (OSType.SUSE.name().equals(osString)) {
+            return OSType.SUSE;
+        }
+
+        return apiOsToProtobufOs.get(OperatingSystem.valueOf(osString));
+    }
+
+    /**
+     * Build OS migrations for a full Bring Your Own License migration.
+     *
+     * @return a list of BYOL OS migrations for each supported os.
+     */
+    @Nonnull
+    private static List<OSMigration> buildByolMigrations() {
+        List<OSMigration> osMigrations = new ArrayList<>();
+        for (OSType os : protobufOsToApiOs.keySet()) {
+            osMigrations.add(OSMigration.newBuilder()
+                .setFromOs(os).setToOs(os).setByol(true).build());
+        }
+
+        return osMigrations;
+    }
+
+    /**
+     * Convert a list of {@link OSMigration} to a list of {@link SettingApiDTO}.
+     *
+     * @param osMigrations the OSMigrations to convert
+     * @return a list of {@link SettingApiDTO} suitable for passing to
+     *     {@link ConfigChangesApiDTO#setOsMigrationSettingList}
+     * @throws ConversionException if unable to map an OS to an API equivalent name.
+     */
+    @Nonnull
+    private List<SettingApiDTO<String>> createOsMigrationSettingApiDTOs(
+        @Nonnull List<OSMigration> osMigrations) throws ConversionException {
+        List<SettingApiDTO<String>> settingDTOs = new ArrayList<>();
+
+        // One or both of these must become false through the loop below
+        boolean allByol = true;
+        boolean allMatchToSource = true;
+
+        for (OperatingSystem os : OperatingSystem.values()) {
+            OSType dtoOS = apiOsToProtobufOs.get(os);
+
+            OSMigration osMigration = osMigrations.stream()
+                .filter(migration -> migration.getFromOs() == dtoOS)
+                .findAny()
+                .orElse(OSMigration.newBuilder().setFromOs(dtoOS).setToOs(dtoOS).build());
+
+            boolean sameOs = osMigration.getFromOs() == osMigration.getToOs();
+            allByol = allByol && sameOs && osMigration.getByol();
+            allMatchToSource = allMatchToSource && sameOs && !osMigration.getByol();
+
+            OperatingSystem targetOs = protobufOsToApiOs.get(osMigration.getToOs());
+            if (targetOs == null) {
+                throw new ConversionException("Cannot map scenario OS "
+                    + osMigration.getToOs().name() + " to an OS type defined in the API.");
+            }
+
+            final String settingKey = os.name().toLowerCase();
+            settingDTOs.add(createStringSettingApiDTO(settingKey + TARGET_OS_SETTING_SUFFIX,
+                targetOs.name()));
+
+            settingDTOs.add(createStringSettingApiDTO(settingKey + BYOL_SETTING_SUFFIX,
+                Boolean.toString(osMigration.getByol())));
+        }
+
+        OsMigrationProfileOption migrationOption = OsMigrationProfileOption.CUSTOM_OS;
+        if (allMatchToSource) {
+            migrationOption = OsMigrationProfileOption.MATCH_SOURCE_TO_TARGET_OS;
+        } else if (allByol) {
+            migrationOption = OsMigrationProfileOption.BYOL;
+        }
+
+        settingDTOs.add(createStringSettingApiDTO(
+            GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName(),
+            migrationOption.name()));
+
+        settingDTOs.add(createStringSettingApiDTO(
+            GlobalSettingSpecs.MatchToSource.getSettingName(),
+            Boolean.toString(allMatchToSource)));
+
+        return settingDTOs;
+    }
+
+    /**
      * Create a {@link SettingApiDTO} given a uuid, value and displayName.
      *
      * @param uuid        uuid of the setting
@@ -1517,9 +1748,9 @@ public class ScenarioMapper {
      * @param displayName displayName of the setting
      * @return {@link SettingApiDTO}
      */
-    private SettingApiDTO createRiSettingApiDTO(@Nonnull final String uuid,
-                                                @Nonnull final String value,
-                                                @Nonnull final String displayName) {
+    private SettingApiDTO createStringSettingApiDTO(@Nonnull final String uuid,
+                                                    @Nonnull final String value,
+                                                    @Nonnull final String displayName) {
         SettingApiDTO<String> settingDTO = new SettingApiDTO<>();
         settingDTO.setUuid(uuid);
         settingDTO.setValue(value);
@@ -1528,8 +1759,33 @@ public class ScenarioMapper {
         return settingDTO;
     }
 
+    /**
+     * Create a {@link SettingApiDTO} given a uuid and value. The displayName will be
+     * set to the uuid.
+     *
+     * @param uuid        uuid of the setting
+     * @param value       value of the setting
+     * @return {@link SettingApiDTO}
+     */
+    private SettingApiDTO createStringSettingApiDTO(@Nonnull final String uuid,
+                                                    @Nonnull final String value) {
+        return createStringSettingApiDTO(uuid, value, uuid);
+    }
+
+    /**
+     * Build the ConfigChangesApiDto part of a ScenarioApiDto from the given scenario changes.
+     *
+     * @param changes the scenario configuration to convert
+     * @param mappingContext a context for use in the conversion process
+     * @return the REST API representation of the configuration changes part of the scenario
+     * @throws ConversionException If it is not possible to convert the scenario to the REST
+     *     API representation
+     */
     @Nonnull
-    private ConfigChangesApiDTO buildApiConfigChanges(@Nonnull final List<ScenarioChange> changes, @Nonnull final ScenarioChangeMappingContext mappingContext) {
+    private ConfigChangesApiDTO buildApiConfigChanges(
+        @Nonnull final List<ScenarioChange> changes,
+        @Nonnull final ScenarioChangeMappingContext mappingContext)
+        throws ConversionException {
         final List<SettingApiDTO<String>> settingChanges = changes.stream()
                 .filter(ScenarioChange::hasSettingOverride)
                 .map(ScenarioChange::getSettingOverride)
@@ -1547,10 +1803,18 @@ public class ScenarioMapper {
                 .flatMap(ri -> createRiSettingApiDTOs(ri).stream())
                 .collect(Collectors.toList());
 
+        final List<SettingApiDTO<String>> osMigrationSettings = createOsMigrationSettingApiDTOs(
+            changes.stream()
+                .filter(ScenarioChange::hasTopologyMigration)
+                .map(ScenarioChange::getTopologyMigration)
+                .flatMap(tm -> tm.getOsMigrationsList().stream())
+                .collect(Collectors.toList()));
+
         final List<RemoveConstraintApiDTO> removeConstraintApiDTOS = getRemoveConstraintsDtos(allPlanChanges, mappingContext );
 
         final ConfigChangesApiDTO outputChanges = new ConfigChangesApiDTO();
 
+        outputChanges.setOsMigrationSettingList(osMigrationSettings);
         outputChanges.setRemoveConstraintList(removeConstraintApiDTOS);
         outputChanges.setAutomationSettingList(settingsManagerMapping
                 .convertToPlanSetting(settingChanges));

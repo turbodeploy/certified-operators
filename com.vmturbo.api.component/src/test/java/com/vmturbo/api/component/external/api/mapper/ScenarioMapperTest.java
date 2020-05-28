@@ -30,12 +30,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -77,6 +79,7 @@ import com.vmturbo.api.dto.target.TargetApiDTO;
 import com.vmturbo.api.dto.template.TemplateApiDTO;
 import com.vmturbo.api.enums.ConstraintType;
 import com.vmturbo.api.enums.DestinationEntityType;
+import com.vmturbo.api.exceptions.ConversionException;
 import com.vmturbo.api.exceptions.InvalidOperationException;
 import com.vmturbo.api.exceptions.OperationFailedException;
 import com.vmturbo.api.exceptions.UnknownObjectException;
@@ -105,6 +108,8 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RIProv
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.RISetting;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.SettingOverride;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.OSMigration;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyRemoval;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyReplace;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioInfo;
@@ -120,9 +125,12 @@ import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.components.common.setting.GlobalSettingSpecs;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OperatingSystem;
+import com.vmturbo.components.common.setting.OsMigrationSettingsEnum.OsMigrationProfileOption;
 import com.vmturbo.components.common.setting.RISettingsEnum;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.DemandType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.OfferingClass;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.ReservedInstanceType.PaymentOption;
 
@@ -133,6 +141,7 @@ public class ScenarioMapperTest {
     private static final String DECOMMISSION_HOST_SCENARIO_TYPE = "DECOMMISSION_HOST";
     private static final String DISABLED = "DISABLED";
     private static final String AUTOMATIC = "AUTOMATIC";
+    private static final String MISSING = "MISSING";
     private RepositoryApi repositoryApi;
 
     private TemplatesUtils templatesUtils;
@@ -2110,5 +2119,309 @@ public class ScenarioMapperTest {
                     break;
             }
         });
+    }
+
+    /**
+     * Test conversion of os migration settings from protobuf to API DTO.
+     *
+     * @throws InterruptedException should not happen.
+     * @throws ConversionException should not happen.
+     */
+    @Test
+    public void testCreateOsMigrationSettingApiDTOs()
+        throws InterruptedException, ConversionException {
+
+        // Empty mapping means match source to target
+        List<SettingApiDTO<String>> settings = convertMigrations(Collections.emptyList());
+        assertEquals(OsMigrationProfileOption.MATCH_SOURCE_TO_TARGET_OS.name(),
+            getSettingValue(settings,
+                GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("true", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertAllSameOs(settings);
+        assertAllByol(settings, false);
+
+        // If everything is explicitly mapped the same without BYOL, it's also match source to target
+
+        final List<OSType> allOS = Arrays.asList(OSType.LINUX, OSType.RHEL, OSType.SUSE, OSType.WINDOWS);
+
+        List<OSMigration> matchAll = allOS.stream().map(os -> createOsMigration(os, os, false))
+            .collect(Collectors.toList());
+
+        settings = convertMigrations(matchAll);
+        assertEquals(OsMigrationProfileOption.MATCH_SOURCE_TO_TARGET_OS.name(),
+            getSettingValue(settings,
+                GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("true", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertAllSameOs(settings);
+        assertAllByol(settings, false);
+
+        // Or if only some are present but mapped the same without BYOL
+
+        settings = convertMigrations(Arrays.asList(matchAll.get(1), matchAll.get(2)));
+        assertEquals(OsMigrationProfileOption.MATCH_SOURCE_TO_TARGET_OS.name(),
+            getSettingValue(settings,
+                GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("true", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertAllSameOs(settings);
+        assertAllByol(settings, false);
+
+        // If all are mapped to the same OS but with BYOL, it's the BYOL option
+
+        List<OSMigration> byolAll = allOS.stream().map(os -> createOsMigration(os, os, true))
+            .collect(Collectors.toList());
+
+        settings = convertMigrations(byolAll);
+        assertEquals(OsMigrationProfileOption.BYOL.name(),
+            getSettingValue(settings,
+                GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("false", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertAllSameOs(settings);
+        assertAllByol(settings, true);
+
+        // If OSes differ, it's custom
+
+        settings = convertMigrations(Arrays.asList(
+            createOsMigration(OSType.RHEL, OSType.SUSE, false)
+        ));
+
+        assertEquals(OsMigrationProfileOption.CUSTOM_OS.name(),
+        getSettingValue(settings,
+            GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("false", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertEquals("LINUX", getSettingValue(settings, "linuxTargetOs").orElse(MISSING));
+        assertEquals("SLES", getSettingValue(settings, "rhelTargetOs").orElse(MISSING));
+        assertEquals("SLES", getSettingValue(settings, "slesTargetOs").orElse(MISSING));
+        assertEquals("WINDOWS", getSettingValue(settings, "windowsTargetOs").orElse(MISSING));
+
+        assertAllByol(settings, false);
+
+        // Or if a mix of Byol and not, it's custom
+
+        settings = convertMigrations(
+            Arrays.asList(createOsMigration(OSType.RHEL, OSType.RHEL, true)));
+
+        assertEquals(OsMigrationProfileOption.CUSTOM_OS.name(),
+            getSettingValue(settings,
+                GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName()).orElse(MISSING));
+
+        assertEquals("false", getSettingValue(settings,
+            GlobalSettingSpecs.MatchToSource.getSettingName()).orElse(MISSING));
+
+        assertEquals("false", getSettingValue(settings, "linuxByol").orElse(MISSING));
+        assertEquals("true", getSettingValue(settings, "rhelByol").orElse(MISSING));
+        assertEquals("false", getSettingValue(settings, "slesByol").orElse(MISSING));
+        assertEquals("false", getSettingValue(settings, "windowsByol").orElse(MISSING));
+
+        assertAllSameOs(settings);
+    }
+
+    @Nonnull
+    private List<SettingApiDTO<String>> convertMigrations(List<OSMigration> osMigrations)
+        throws InterruptedException, ConversionException {
+
+        Scenario scenario = buildScenario(ScenarioChange.newBuilder()
+            .setTopologyMigration(TopologyMigration.newBuilder()
+                .setDestinationEntityType(TopologyMigration.DestinationEntityType.VIRTUAL_MACHINE)
+                .addAllOsMigrations(osMigrations))
+            .build());
+
+        return scenarioMapper.toScenarioApiDTO(scenario)
+            .getConfigChanges().getOsMigrationSettingList();
+    }
+
+    private Optional<String> getSettingValue(@Nonnull List<SettingApiDTO<String>> settings,
+                                             @Nonnull String name) {
+        return settings.stream()
+            .filter(setting -> name.equals(setting.getUuid())
+            && name.equals(setting.getDisplayName()))
+            .map(SettingApiDTO::getValue)
+            .findAny();
+    }
+
+    private void assertAllSameOs(List<SettingApiDTO<String>> settings) {
+        for (OperatingSystem os : OperatingSystem.values()) {
+            assertEquals(os.name(),
+                getSettingValue(settings, os.name().toLowerCase() + "TargetOs").orElse(MISSING));
+        }
+    }
+
+    private void assertAllByol(List<SettingApiDTO<String>> settings, boolean byol) {
+        for (OperatingSystem os : OperatingSystem.values()) {
+            assertEquals(Boolean.toString(byol),
+                getSettingValue(settings, os.name().toLowerCase() + "Byol").orElse(MISSING));
+        }
+    }
+
+    @Nonnull
+    private OSMigration createOsMigration(OSType fromOs, OSType toOs, boolean byol) {
+        return OSMigration.newBuilder().setFromOs(fromOs).setToOs(toOs).setByol(byol).build();
+    }
+
+    /**
+     * Tests mapping {@link TopologyChangesApiDTO} into {@link ScenarioApiDTO}.
+     *
+     * @throws OperationFailedException should not happen in this test
+     * @throws UnknownObjectException should not happen in this test
+     */
+    @Test
+    public void testOsMigrationChange() throws OperationFailedException, UnknownObjectException {
+        final Set<OSType> migratableOses = ImmutableSet.<OSType>of(
+            OSType.LINUX, OSType.RHEL, OSType.SUSE, OSType.WINDOWS);
+
+        // No settings gives default mapping with no changes
+        List<OSMigration> result = createMigrationWithOsSettings(Collections.emptyList());
+        assertEquals(0, result.size());
+
+        // Test selectedMigrationProfileOption=MATCH_SOURCE_TO_TARGET_OS with some contradictory
+        // settings that will be overridden and ignored, including matchToSource=false.
+        // When matching source to target, no OSMigrations are needed to change the defaults.
+        List<SettingApiDTO<String>> settings = Arrays.asList(
+            createStringSetting(GlobalSettingSpecs.MatchToSource.getSettingName(), "false"),
+            createStringSetting("slesTargetOs", "SLES"),
+            createStringSetting(GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName(),
+                OsMigrationProfileOption.MATCH_SOURCE_TO_TARGET_OS.name())
+        );
+        result = createMigrationWithOsSettings(Collections.emptyList());
+        assertEquals(0, result.size());
+
+        // Without the presence of selectedMigrationProfileOption, matchToSource is the next
+        // priority. Test with some contradictory per-os settings that will be
+        // overridden and ignored.
+        settings = Arrays.asList(
+            createStringSetting("slesTargetOs", "RHEL"),
+            createStringSetting("slesByol", "true"),
+            createStringSetting(GlobalSettingSpecs.MatchToSource.getSettingName(),
+                "true")
+        );
+        result = createMigrationWithOsSettings(Collections.emptyList());
+        assertEquals(0, result.size());
+
+        // Test selectedMigrationProfileOption=BYOL with some contradictory
+        // settings that will be overridden and ignored, including matchToSource=true.
+        // Every OS should be present, mapped to itsef, with BYOL set true.
+        settings = Arrays.asList(
+            createStringSetting(GlobalSettingSpecs.MatchToSource.getSettingName(), "true"),
+            createStringSetting("slesByol", "false"),
+            createStringSetting(GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName(),
+                OsMigrationProfileOption.BYOL.name())
+        );
+        result = createMigrationWithOsSettings(settings);
+
+        // Do a size check up front to make sure there are no extras not found by the below.
+        assertEquals(migratableOses.size(), result.size());
+
+        Set<OSType> byolOses = result.stream()
+            .filter(OSMigration::getByol)
+            .filter(m -> m.getFromOs() == m.getToOs())
+            .map(OSMigration::getFromOs)
+            .collect(Collectors.toSet());
+
+        assertEquals(migratableOses, byolOses);
+
+        // Test custom migrations, including that both SLES and SUSE are accepted for SUSE.
+        // Leave out Linux BYOL and windows targetOS to verify they default properly.
+        settings = Arrays.asList(
+            createStringSetting(GlobalSettingSpecs.MatchToSource.getSettingName(), "false"),
+            createStringSetting(GlobalSettingSpecs.SelectedMigrationProfileOption.getSettingName(),
+                OsMigrationProfileOption.CUSTOM_OS.name()),
+            createStringSetting("linuxTargetOs", "LINUX"),
+            createStringSetting("rhelTargetOs", "SUSE"),
+            createStringSetting("rhelByol", "true"),
+            createStringSetting("slesTargetOs", "SLES"),
+            createStringSetting("slesByol", "false"),
+            createStringSetting("windowsByol", "true")
+        );
+
+        result = createMigrationWithOsSettings(settings);
+
+        assertOsMigration(result, OSType.LINUX, OSType.LINUX, false);
+        assertOsMigration(result, OSType.RHEL, OSType.SUSE, true);
+        assertOsMigration(result, OSType.SUSE, OSType.SUSE, false);
+        assertOsMigration(result, OSType.WINDOWS, OSType.WINDOWS, true);
+    }
+
+    /**
+     * Assert that exactly one OSMigtation is present with the given fromOs,
+     * which has the expected toOs and BYOL settings.
+     *
+     * @param osMigrations the list of migrations to check
+     * @param fromOs the migrating-from OS to look for.
+     * @param toOs the migrating-to OS that it's expected to have.
+     * @param byol the BYOL setting it's expected to have.
+     */
+    private void
+    assertOsMigration(@Nonnull List<OSMigration> osMigrations,
+                      OSType fromOs, OSType toOs, boolean byol) {
+
+        List<OSMigration> matchesFromOs = osMigrations.stream()
+            .filter(osm -> osm.getFromOs() == fromOs)
+            .collect(Collectors.toList());
+
+        assertEquals(1, matchesFromOs.size());
+        OSMigration theMatch = matchesFromOs.get(0);
+
+        assertEquals(toOs, theMatch.getToOs());
+        assertEquals(byol, theMatch.getByol());
+    }
+
+    @Nonnull
+    private List<OSMigration> createMigrationWithOsSettings(
+        @Nonnull final List<SettingApiDTO<String>> osMigrations)
+        throws UnknownObjectException, OperationFailedException {
+
+        long sourceVmOid = 1;
+        BaseApiDTO source = new BaseApiDTO();
+        source.setUuid(String.valueOf(sourceVmOid));
+        source.setDisplayName("theVMs");
+        source.setClassName("VirtualMachine");
+
+        long destinationOid = 2;
+        BaseApiDTO destination = new BaseApiDTO();
+        destination.setUuid(String.valueOf(destinationOid));
+        destination.setDisplayName("theRegion");
+        destination.setClassName("Region");
+
+        MigrateObjectApiDTO dto = new MigrateObjectApiDTO();
+        dto.setSource(source);
+        dto.setDestination(destination);
+        dto.setDestinationEntityType(DestinationEntityType.VirtualMachine);
+        dto.setRemoveNonMigratingWorkloads(true);
+        dto.setProjectionDay(0);
+
+        TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
+        topoChanges.setMigrateList(Collections.singletonList(dto));
+
+        final String name = "aScenario";
+        ScenarioApiDTO scenarioApiDTO = scenarioApiDTO(topoChanges);
+        scenarioApiDTO.setType("CloudMigration");
+
+        ConfigChangesApiDTO configChanges = new ConfigChangesApiDTO();
+        scenarioApiDTO.setConfigChanges(configChanges);
+
+        configChanges.setOsMigrationSettingList(osMigrations);
+
+        ScenarioInfo info = getScenarioInfo(name, scenarioApiDTO);
+
+        return info.getChangesList().stream()
+            .filter(ScenarioChange::hasTopologyMigration)
+            .map(ScenarioChange::getTopologyMigration)
+            .findFirst()
+            .map(TopologyMigration::getOsMigrationsList)
+            .orElse(Collections.emptyList());
     }
 }
