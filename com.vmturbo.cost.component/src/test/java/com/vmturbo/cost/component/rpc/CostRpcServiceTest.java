@@ -12,6 +12,7 @@ import static org.mockito.Matchers.anySet;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -111,6 +112,7 @@ public class CostRpcServiceTest {
     private static final long MID_TIME = TIME + TimeUnit.MINUTES.toMillis(30);
     private static final double DELTA = 0.00001d; // the allowed delta between 'expected' and 'actual'
     private static final long PLAN_ID = 1234567L;
+    private static final int MAX_INNER_STAT_RECORDS = 10;
 
     private RepositoryClient repositoryClient;
     private SupplyChainServiceBlockingStub serviceBlockingStub;
@@ -260,7 +262,7 @@ public class CostRpcServiceTest {
         businessAccountHelper.storeTargetMapping(2, "Pay as you go - Engineering", ImmutableList.of(2L));
         costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore,
                         projectedEntityCostStore, planProjectedEntityCostStore, timeFrameCalculator, businessAccountHelper,
-                        clock, realTimeContextId);
+                        clock, realTimeContextId, MAX_INNER_STAT_RECORDS);
 
             repositoryClient = mock(RepositoryClient.class);
             serviceBlockingStub = SupplyChainServiceGrpc.newBlockingStub(mock(Channel.class));
@@ -1291,6 +1293,28 @@ public class CostRpcServiceTest {
                 containsInAnyOrder(builder.getCloudStatRecordList()
                         .stream().flatMap(i2 -> i2.getStatRecordsList().stream()).toArray()));
         verify(mockObserver).onCompleted();
+        verify(mockObserver).onCompleted();
+    }
+
+    /**
+     * Test that cloud cost stats are appropriately divided into chunks for streaming of response
+     * objects.
+     */
+    @Test
+    public void testCloudCostStatsChunking() throws Exception {
+        final GetCloudCostStatsRequest request = GetCloudCostStatsRequest.newBuilder()
+            .addCloudCostStatsQuery(CloudCostStatsQuery.getDefaultInstance()).build();
+        final StreamObserver<GetCloudCostStatsResponse> mockObserver = mock(StreamObserver.class);
+
+        final int expectedNumberOfChunks = 6;
+        final Map<Long, Collection<StatRecord>> snapshotToCostMap = new HashMap<>();
+        for (int i = 0; i < expectedNumberOfChunks * MAX_INNER_STAT_RECORDS; i++) {
+            snapshotToCostMap.put(TIME + i, Collections.singletonList(StatRecord.getDefaultInstance()));
+        }
+        given(entityCostStore.getEntityCostStats(any())).willReturn(snapshotToCostMap);
+
+        costRpcService.getCloudCostStats(request, mockObserver);
+        verify(mockObserver, times(expectedNumberOfChunks)).onNext(any());
         verify(mockObserver).onCompleted();
     }
 

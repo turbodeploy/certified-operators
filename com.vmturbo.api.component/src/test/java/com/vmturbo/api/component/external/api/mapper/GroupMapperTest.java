@@ -2339,7 +2339,7 @@ public class GroupMapperTest {
         final SearchPaginationRequest paginationRequest =
                 new SearchPaginationRequest("0", 2, true, "COST");
         Mockito.when(costServiceMole.getCloudCostStats(Mockito.any()))
-                .thenReturn(GetCloudCostStatsResponse.newBuilder()
+                .thenReturn(Collections.singletonList(GetCloudCostStatsResponse.newBuilder()
                         .addCloudStatRecord(CloudCostStatRecord.newBuilder()
                                 .addStatRecords(StatRecord.newBuilder()
                                         .setAssociatedEntityId(10L)
@@ -2347,7 +2347,7 @@ public class GroupMapperTest {
                                 .addStatRecords(StatRecord.newBuilder()
                                         .setAssociatedEntityId(11L)
                                         .setValues(StatValue.newBuilder().setTotal(202F))))
-                        .build());
+                        .build()));
         final List<GroupApiDTO> resultPage1 = groupMapper.toGroupApiDto(
                 Arrays.asList(groupAndMembers1, groupAndMembers2, groupAndMembers3), false,
                 paginationRequest, null).getObjects();

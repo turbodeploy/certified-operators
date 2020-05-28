@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.Currency;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -107,6 +108,7 @@ import com.vmturbo.common.protobuf.action.ActionDTOUtil;
 import com.vmturbo.common.protobuf.action.UnsupportedActionException;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum;
 import com.vmturbo.common.protobuf.cost.Cost;
+import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatRecord.StatRecord;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery;
 import com.vmturbo.common.protobuf.cost.Cost.CloudCostStatsQuery.CostSourceFilter;
@@ -1849,23 +1851,39 @@ public class ActionSpecMapper {
         GetCloudCostStatsRequest cloudCostStatsRequest = GetCloudCostStatsRequest.newBuilder()
                 .addCloudCostStatsQuery(cloudCostStatsQueryBuilder.build())
                 .build();
-        GetCloudCostStatsResponse response = costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
-        int statRecordListSize = response.getCloudStatRecordList().size();
+        final Iterator<GetCloudCostStatsResponse> response =
+            costServiceBlockingStub.getCloudCostStats(cloudCostStatsRequest);
+        final List<CloudCostStatRecord> records = new ArrayList<>();
+        int statRecordListSize = 0;
+        while (response.hasNext()) {
+            final GetCloudCostStatsResponse nextResponse = response.next();
+            statRecordListSize += nextResponse.getCloudStatRecordCount();
+            // cost stats are only required if there are exactly two records (representing
+            // Cost Before and Cost After). If there are more records, don't bother continuing to
+            // process them.
+            if (statRecordListSize > 2) {
+                break;
+            }
+            records.addAll(nextResponse.getCloudStatRecordList());
+        }
         if (statRecordListSize == 2) {
             // get real-time
-            Double onDemandCostBefore = response.getCloudStatRecord(0).getStatRecordsList()
+            Double onDemandCostBefore = records.get(0).getStatRecordsList()
                     .stream()
                     .map(StatRecord::getValues)
                     .mapToDouble(StatRecord.StatValue::getTotal)
                     .sum();
             // get projected
-            Double onDemandCostAfter = response.getCloudStatRecord(1).getStatRecordsList()
+            Double onDemandCostAfter = records.get(1).getStatRecordsList()
                     .stream()
                     .map(StatRecord::getValues)
                     .mapToDouble(StatRecord.StatValue::getTotal)
                     .sum();
             cloudResizeActionDetailsApiDTO.setOnDemandCostBefore(onDemandCostBefore.floatValue());
             cloudResizeActionDetailsApiDTO.setOnDemandCostAfter(onDemandCostAfter.floatValue());
+        } else {
+            logger.debug("Unable to provide on-demand costs before and after action for entity {}",
+                entityUuid);
         }
     }
 

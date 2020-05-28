@@ -751,7 +751,7 @@ public class PaginatedStatsExecutorTest {
 
         doReturn(Collections.singleton(entityUuid)).when(paginatedStatsGatherSpy).getExpandedScope(any());
         //Cost Stats
-        doReturn(GetCloudCostStatsResponse.getDefaultInstance()).when(costServiceMole).getCloudCostStats(any());
+        doReturn(Collections.singletonList(GetCloudCostStatsResponse.getDefaultInstance())).when(costServiceMole).getCloudCostStats(any());
 
         //Pagination and sorting process
         doReturn(Collections.singletonList(entityUuid)).when(mockPaginatedStats).getNextPageIds();
@@ -808,7 +808,7 @@ public class PaginatedStatsExecutorTest {
         doReturn(Collections.singleton(entityUuid)).when(paginatedStatsGatherSpy).getExpandedScope(any());
 
         //Cost Response
-        doReturn(costPriceResponse(costCommodity, entityUuid, statValue, snapShotDate)).when(costServiceMole).getCloudCostStats(any());
+        doReturn(Collections.singletonList(costPriceResponse(costCommodity, entityUuid, statValue, snapShotDate))).when(costServiceMole).getCloudCostStats(any());
 
         //Pagination and sorting process
         doReturn(Collections.singletonList(entityUuid)).when(mockPaginatedStats).getNextPageIds();
@@ -905,7 +905,7 @@ public class PaginatedStatsExecutorTest {
         final float statValue = 5;
 
         doReturn(historyVCPUResponse(historyCommodity, entityUuid, statValue, snapShotDate)).when(statsHistoryServiceSpy).getEntityStats(any());
-        doReturn(GetCloudCostStatsResponse.getDefaultInstance()).when(costServiceMole).getCloudCostStats(any());
+        doReturn(Collections.singletonList(GetCloudCostStatsResponse.getDefaultInstance())).when(costServiceMole).getCloudCostStats(any());
         doReturn(getMinimalEntityResponse(entityUuid)).when(paginatedStatsGatherSpy).getMinimalEntitiesForEntityList(any());
 
         //WHEN
@@ -949,7 +949,7 @@ public class PaginatedStatsExecutorTest {
         final float statValue = 5;
 
         doReturn(historyVCPUResponse(historyCommodity, entityUuid, statValue, snapShotDate)).when(statsHistoryServiceSpy).getEntityStats(any());
-        doReturn(costPriceResponse(costCommodity, entityUuid, statValue, snapShotDate)).when(costServiceMole).getCloudCostStats(any());
+        doReturn(Collections.singletonList(costPriceResponse(costCommodity, entityUuid, statValue, snapShotDate))).when(costServiceMole).getCloudCostStats(any());
         doReturn(getMinimalEntityResponse(entityUuid)).when(paginatedStatsGatherSpy).getMinimalEntitiesForEntityList(any());
 
         //WHEN
@@ -1013,7 +1013,7 @@ public class PaginatedStatsExecutorTest {
         List<EntityStatsApiDTO> entityStatsApiDTOS =
                 paginatedStatsGatherSpy.constructEntityStatsApiDTOFromResults(
                         sortedNextPageEntityIds, minimalEntityMap,
-                        GetCloudCostStatsResponse.getDefaultInstance(),
+                        Collections.emptyList(),
                         GetEntityStatsResponse.getDefaultInstance());
 
         //WHEN
@@ -1064,7 +1064,7 @@ public class PaginatedStatsExecutorTest {
         List<EntityStatsApiDTO> entityStatsApiDTOS =
                 paginatedStatsGatherSpy.constructEntityStatsApiDTOFromResults(
                         sortedNextPageEntityIds, minimalEntityMap,
-                        costPriceResponse(costCommodity, entityUuid, statValue, snapShotDate),
+                        costPriceRecords(costCommodity, entityUuid, statValue, snapShotDate),
                         historyVCPUResponse(historyCommodity, entityUuid, statValue, snapShotDate));
         //THEN
         assertTrue(entityStatsApiDTOS.size() == 1);
@@ -1246,18 +1246,24 @@ public class PaginatedStatsExecutorTest {
      * @return {@link GetCloudCostStatsResponse} response with statValue set for entityUuid
      */
     public GetCloudCostStatsResponse costPriceResponse(String commodity, long entityUuid, float statValue, long snapShotDate) {
+        return  GetCloudCostStatsResponse.newBuilder()
+            .addAllCloudStatRecord(costPriceRecords(commodity, entityUuid, statValue, snapShotDate))
+            .build();
+    }
+
+    public List<CloudCostStatRecord> costPriceRecords(String commodity, long entityUuid, float statValue, long snapShotDate) {
         CloudCostStatRecord.StatRecord statRecord = CloudCostStatRecord.StatRecord.newBuilder()
-                .setAssociatedEntityId(entityUuid)
-                .setValues(getCostStatValue(statValue))
-                .setName(commodity)
-                .build();
+            .setAssociatedEntityId(entityUuid)
+            .setValues(getCostStatValue(statValue))
+            .setName(commodity)
+            .build();
 
         CloudCostStatRecord cloudCostStatRecord =
-                CloudCostStatRecord.newBuilder()
-                        .addStatRecords(statRecord)
-                        .setSnapshotDate(snapShotDate)
-                        .build();
-        return  GetCloudCostStatsResponse.newBuilder().addCloudStatRecord(cloudCostStatRecord).build();
+            CloudCostStatRecord.newBuilder()
+                .addStatRecords(statRecord)
+                .setSnapshotDate(snapShotDate)
+                .build();
+        return Collections.singletonList(cloudCostStatRecord);
     }
 
     /**
