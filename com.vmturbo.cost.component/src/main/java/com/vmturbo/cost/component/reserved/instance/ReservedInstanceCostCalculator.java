@@ -1,7 +1,5 @@
 package com.vmturbo.cost.component.reserved.instance;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,42 +91,6 @@ public class ReservedInstanceCostCalculator {
             }
         }
         return probeRIIDToAmortizedCost;
-    }
-
-    /**
-     * This method will calculate the expiry date of input RIs and return them as a map of
-     * reserved instance probe id to the expiry date in milliseconds.
-     *
-     * @param reservedInstanceBoughtInfos List of input reserved instance bought.
-     * @param riSpecToTermMap A map from RI spec Id used in the list of input RIs to their term
-     *                        in years.
-     * @return a map from the probe id for RI bought to expiry time in millis.
-     */
-    public Map<String, Long> calculateReservedInstanceExpiryDateMillis(
-                @Nonnull final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos,
-                @Nonnull final Map<Long, Integer> riSpecToTermMap) {
-        final Map<String, Long> probeRIIDToExpiryDateInMillis = new HashMap<>();
-        for (ReservedInstanceBoughtInfo reservedInstanceBoughtInfo : reservedInstanceBoughtInfos) {
-            final long reservedInstanceExpirationMillis;
-            //if endTime is available use that instead of startTime + Duration.
-            if (reservedInstanceBoughtInfo.hasEndTime()) {
-                reservedInstanceExpirationMillis = reservedInstanceBoughtInfo.getEndTime();
-            } else {
-                if (!riSpecToTermMap.containsKey(reservedInstanceBoughtInfo.getReservedInstanceSpec())) {
-                    logger.error("The term years for RI Spec with Id {} is not provided.",
-                            reservedInstanceBoughtInfo.getReservedInstanceSpec());
-                    continue;
-                }
-                // Get the time that RI expires
-                reservedInstanceExpirationMillis = Instant
-                        .ofEpochMilli(reservedInstanceBoughtInfo.getStartTime())
-                        .plus(riSpecToTermMap.get(reservedInstanceBoughtInfo.getReservedInstanceSpec()) * 365L,
-                                ChronoUnit.DAYS).toEpochMilli();
-            }
-            probeRIIDToExpiryDateInMillis.put(reservedInstanceBoughtInfo.getProbeReservedInstanceId(),
-                    reservedInstanceExpirationMillis);
-        }
-        return probeRIIDToExpiryDateInMillis;
     }
 
     /**
