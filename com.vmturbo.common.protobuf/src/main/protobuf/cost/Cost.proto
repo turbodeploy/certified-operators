@@ -567,8 +567,11 @@ message UploadRIDataRequest {
     // The set of RI bought by the customer.
     repeated ReservedInstanceBought reserved_instance_bought = 4;
 
-    // The entity - RI coverage data
+    // Entity level reserved instance coverage.
     repeated EntityRICoverageUpload reserved_instance_coverage = 5;
+
+    // Account level reserved instance coverage.
+    repeated AccountRICoverageUpload account_level_reserved_instance_coverage = 6;
 
     // Contains the relationship about which service entity is covered by what reserved instance and
     // how many coupons are covered by each different reserved instance.
@@ -613,6 +616,21 @@ message UploadRIDataRequest {
             // The RI Coverage source for the entity
             optional RICoverageSource ri_coverage_source = 4;
         }
+    }
+
+    // Coverage of an account by reserved instances.
+    message AccountRICoverageUpload {
+        // The account ID.
+        optional int64 account_id = 1;
+
+        // Coverage by reserved instances.
+        repeated EntityRICoverageUpload.Coverage coverage = 2;
+
+        // Usage start UTC timestamp in milliseconds.
+        optional int64 usage_start_timestamp = 3;
+
+        // Usage end UTC timestamp in milliseconds.
+        optional int64 usage_end_timestamp = 4;
     }
 }
 

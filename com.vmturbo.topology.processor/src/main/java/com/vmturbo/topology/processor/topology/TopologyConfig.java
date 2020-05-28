@@ -287,6 +287,7 @@ public class TopologyConfig {
                 licenseCheckClientConfig.licenseCheckClient(),
                 consistentScalingConfig.consistentScalingManager(),
                 actionsConfig.actionConstraintsUploader(),
+                requestCommodityThresholdsInjector(),
                 ephemeralEntityEditor()
         );
     }
@@ -321,6 +322,7 @@ public class TopologyConfig {
                 historyAggregationConfig.historyAggregationStage(),
                 dmandOverriddenCommodityEditor(),
                 consistentScalingConfig.consistentScalingManager(),
+                requestCommodityThresholdsInjector(),
                 ephemeralEntityEditor()
         );
     }
@@ -399,6 +401,11 @@ public class TopologyConfig {
     @Bean
     public HistoricalEditor historicalEditor() {
         return new HistoricalEditor(historicalUtilizationDatabase(), Executors.newSingleThreadExecutor());
+    }
+
+    @Bean
+    public RequestCommodityThresholdsInjector requestCommodityThresholdsInjector() {
+        return new RequestCommodityThresholdsInjector();
     }
 
     @Bean
