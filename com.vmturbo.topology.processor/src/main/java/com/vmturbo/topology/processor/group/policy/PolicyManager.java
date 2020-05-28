@@ -245,20 +245,22 @@ public class PolicyManager {
                 .collect(Collectors.groupingBy(aSource -> aSource.hasGroupType(),
                         Collectors.mapping(MigrationReference::getOid, Collectors.toSet())));
 
-        Set<Long> groupMemberOids = Sets.newHashSet();
-        if (CollectionUtils.isNotEmpty(areGroupsToSourceOids.get(areGroups))) {
+        Set<Long> staticGroupMemberOids = Sets.newHashSet();
+        final Set<Long> groupEntities = areGroupsToSourceOids.get(areGroups);
+        if (CollectionUtils.isNotEmpty(groupEntities)) {
             // Add the members of expanded groups
             groupServiceBlockingStub.getMembers(GetMembersRequest.newBuilder()
-                    .addAllId(areGroupsToSourceOids.get(areGroups))
+                    .addAllId(groupEntities)
                     .build())
-                    .forEachRemaining(sourceGroup -> groupMemberOids.addAll(sourceGroup.getMemberIdList()));
+                    .forEachRemaining(sourceGroup -> staticGroupMemberOids.addAll(sourceGroup.getMemberIdList()));
         }
-        if (CollectionUtils.isNotEmpty(areGroupsToSourceOids.get(!areGroups))) {
+        final Set<Long> nonGroupEntities = areGroupsToSourceOids.get(!areGroups);
+        if (CollectionUtils.isNotEmpty(nonGroupEntities)) {
             // Add individual entities
-            groupMemberOids.addAll(areGroupsToSourceOids.get(!areGroups));
+            staticGroupMemberOids.addAll(nonGroupEntities);
         }
         return ReservationPolicyFactory.generateStaticGroup(
-                areGroupsToSourceOids.get(!areGroups),
+                staticGroupMemberOids,
                 destinationEntityType);
     }
 
