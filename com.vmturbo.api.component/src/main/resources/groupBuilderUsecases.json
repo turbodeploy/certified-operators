@@ -23,7 +23,8 @@
             {"inputType": "s|*", "elements": "MemberOf:ResourceGroup:displayName", "filterCategory": "entity", "filterType": "vmsByResourceGroupName", "loadOptions": true},
             {"inputType": "*", "elements": "AvailabilityZone:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByAvailabilityZoneName"},
             {"inputType": "*", "elements": "Region:displayName:AGGREGATES:VirtualMachine", "filterCategory": "entity", "filterType": "vmsByRegionName"},
-            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "vmsByCloudProvider", "loadOptions": true}
+            {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "vmsByCloudProvider", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "vmsByK8sCluster"}
         ]
     },
 
@@ -70,7 +71,9 @@
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containersByName"},
             {"inputType": "*", "elements": "ContainerPod:displayName:PRODUCES", "filterCategory": "entity", "filterType": "containersByPodName"},
-            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES", "filterCategory": "entity", "filterType": "containersByNamespace"}
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES", "filterCategory": "entity", "filterType": "containersByNamespace"},
+            {"inputType": "s|*", "elements": "WorkloadController:workloadControllerInfoRepoDTO.controllerType:PRODUCES:ContainerPod:PRODUCES", "filterCategory": "entity", "filterType": "containersByControllerKind", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "containersByK8sCluster"}
         ]
     },
 
@@ -78,14 +81,19 @@
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerPodsByName"},
             {"inputType": "*", "elements": "VirtualMachine:displayName:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByVMName"},
-            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByNamespace"}
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByNamespace"},
+            {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "containerPodsByTag", "loadOptions": true},
+            {"inputType": "s|*", "elements": "WorkloadController:workloadControllerInfoRepoDTO.controllerType:PRODUCES", "filterCategory": "entity", "filterType": "containerPodsByControllerKind", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "containerPodsByK8sCluster"}
         ]
     },
 
     "ContainerSpec" : {
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "containerSpecsByName"},
-            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:AGGREGATES:ContainerSpec", "filterCategory": "entity", "filterType": "containerSpecsByVMNamespace"}
+            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:AGGREGATES:ContainerSpec", "filterCategory": "entity", "filterType": "containerSpecsByNamespace"},
+            {"inputType": "s|*", "elements": "WorkloadController:workloadControllerInfoRepoDTO.controllerType:AGGREGATES", "filterCategory": "entity", "filterType": "containerSpecsByControllerKind", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "containerSpecsByK8sCluster"}
         ]
     },
 
@@ -93,13 +101,15 @@
         "criteria" : [
             {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "workloadControllersByName"},
             {"inputType": "*", "elements": "Namespace:displayName:PRODUCES", "filterCategory": "entity", "filterType": "workloadControllersByNamespace"},
-            {"inputType": "s|*", "elements": "workloadControllerInfoRepoDTO.controllerType", "filterCategory": "property", "filterType": "workloadControllersByKind", "loadOptions": true}
+            {"inputType": "s|*", "elements": "workloadControllerInfoRepoDTO.controllerType", "filterCategory": "property", "filterType": "workloadControllersByKind", "loadOptions": true},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "workloadControllersByK8sCluster"}
         ]
     },
 
     "Namespace" : {
         "criteria" : [
-            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "namespacesByName"}
+            {"inputType": "*", "elements": "displayName", "filterCategory": "property", "filterType": "namespacesByName"},
+            {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "namespacesByK8sCluster"}
         ]
     },
 
