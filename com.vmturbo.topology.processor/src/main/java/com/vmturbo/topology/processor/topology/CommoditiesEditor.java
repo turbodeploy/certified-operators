@@ -15,8 +15,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,6 +28,8 @@ import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration;
+import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyMigration.OSMigration;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStats;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope;
 import com.vmturbo.common.protobuf.stats.Stats.EntityStatsScope.EntityList;
@@ -39,10 +44,13 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.mediation.hybrid.cloud.common.OsType;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.topology.graph.TopologyGraph;
 
@@ -77,13 +85,18 @@ public class CommoditiesEditor {
      * @param changes to iterate over and find relevant changes (e.g baseline change).
      * @param topologyInfo to find VMs in current scope or to find plan type.
      * @param scope to get information about plan scope.
+     * @param cloneEntityOids in migration plans, the oids of cloned entities to be migrated,
      */
     public void applyCommodityEdits(@Nonnull final TopologyGraph<TopologyEntity> graph,
-                    @Nonnull final List<ScenarioChange> changes,
-                    TopologyDTO.TopologyInfo topologyInfo, @Nonnull final PlanScope scope) {
+                                    @Nonnull final List<ScenarioChange> changes,
+                                    @Nonnull TopologyInfo topologyInfo,
+                                    @Nonnull final PlanScope scope,
+                                    @Nullable final Set<Long> cloneEntityOids) {
         editCommoditiesForBaselineChanges(graph, changes, topologyInfo);
         editCommoditiesForClusterHeadroom(graph, scope, topologyInfo);
-        editCommoditiesForMigrateToCloud(graph, changes, topologyInfo);
+        if (cloneEntityOids != null) {
+            editCommoditiesForMigrateToCloud(graph, changes, cloneEntityOids);
+        }
     }
 
     /**
@@ -100,10 +113,7 @@ public class CommoditiesEditor {
             .filter(change -> change.getPlanChanges().hasHistoricalBaseline())
             .findFirst()
             .ifPresent(change -> {
-                final Set<TopologyEntity> vmSet = topologyInfo.getScopeSeedOidsList().stream()
-                    .distinct()
-                    .flatMap(oid -> findVMsInScope(graph, oid))
-                    .collect(Collectors.toSet());
+                final Set<TopologyEntity> vmSet = getPlanVms(graph, topologyInfo);
                 long baselineDate = change.getPlanChanges()
                     .getHistoricalBaseline().getBaselineDate();
                 fetchAndApplyHistoricalData(vmSet, graph, baselineDate);
@@ -113,28 +123,27 @@ public class CommoditiesEditor {
     /**
      * Change commodity values for VMs and its providers if a scenario change
      * related to migration to cloud exists.
-     *
-     * @param graph to extract entities from.
+     *  @param graph to extract entities from.
      * @param changes to iterate over and find relevant to baseline change.
-     * @param topologyInfo to find VMs in current scope.
+     * @param cloneEntityOids the oids of the entities to be migrated, cloned from the source
+     *                        entities.
      */
     private void editCommoditiesForMigrateToCloud(@Nonnull final TopologyGraph<TopologyEntity> graph,
                                                   @Nonnull final List<ScenarioChange> changes,
-                                                  TopologyDTO.TopologyInfo topologyInfo) {
+                                                  @Nonnull final Set<Long> cloneEntityOids) {
         for (ScenarioChange change : changes) {
             if (change.hasTopologyMigration()) {
-                final Set<TopologyEntity> vmSet = topologyInfo.getScopeSeedOidsList().stream()
-                    .distinct()
-                    .flatMap(oid -> findVMsInScope(graph, oid))
-                    .collect(Collectors.toSet());
+                final Map<OSType, String> licenseCommodityKeyByOS =
+                    computeLicenseCommodityKeysByOS(change.getTopologyMigration());
 
-                for (TopologyEntity vm : vmSet) {
-                    // TODO: look at vm.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType()
-                    // and the OS mapping specified in change.getTopologyMigration and
-                    // decide what key to buy instead of hardcoding Linux.
+                for (TopologyEntity vm : getCloneVMs(graph, cloneEntityOids)) {
+                    String licenseCommodityKey = licenseCommodityKeyByOS.getOrDefault(
+                        vm.getTypeSpecificInfo().getVirtualMachine().getGuestOsInfo().getGuestOsType(),
+                        OsType.UNKNOWN.name()
+                    );
 
                     updateAccessCommodityForVmAndProviders(vm, LICENSE_PROVIDER_TYPES,
-                        CommodityType.LICENSE_ACCESS, "Linux");
+                        CommodityType.LICENSE_ACCESS, licenseCommodityKey);
 
                     // TODO: this would also be the place, for migrations to Azure, where
                     // if the migrating VM is not buying IO_THROUGHPUT from storage,
@@ -145,65 +154,47 @@ public class CommoditiesEditor {
         }
     }
 
-    private void updateAccessCommodityForVmAndProviders(@Nonnull TopologyEntity vm,
-                                                        @Nonnull Set<Integer> providerTypeIds,
-                                                        @Nonnull CommodityType commodityType,
-                                                        @Nonnull String newKey) {
-        Builder vmBuilder = vm.getTopologyEntityDtoBuilder();
+    /**
+     * Compute a map of each source OS value to the LICENSE_ACCESS commodity key to buy,
+     * considering any configuration provided in the scenario regarding remapped OSes
+     * and Bring Yoyr Own License options.
+     *
+     * @param migrationScenario May contain a lit of os migration options to apply which
+     *                          alter the default mapping.
+     * @return A map from each possible OS type to the LICENSE_ACCESS commodty key to buy.
+     */
+    @Nonnull
+    private Map<OSType, String> computeLicenseCommodityKeysByOS(@Nonnull TopologyMigration migrationScenario) {
+        Map<OsType, OSMigration> licenseTranslations = migrationScenario.getOsMigrationsList()
+            .stream().collect(Collectors.toMap(
+                migration -> OsType.fromDtoOS(migration.getFromOs()),
+                Function.identity()));
 
-        List<CommoditiesBoughtFromProvider> originalCommoditiesBoughtFromProviderList =
-            vmBuilder.getCommoditiesBoughtFromProvidersList();
+        ImmutableMap.Builder<OSType, String> licensingMap = ImmutableMap.builder();
+        for (OSType os : OSType.values()) {
+            // 1. Convert subtypes like LINUX_FOO/WINDOWS_FOO to the general category OS
+            OsType categoryOs = OsType.fromDtoOS(os).getCategoryOs();
 
-        vm.getTopologyEntityDtoBuilder().clearCommoditiesBoughtFromProviders();
-
-        for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider :
-            originalCommoditiesBoughtFromProviderList) {
-            if (providerTypeIds.contains(commoditiesBoughtFromProvider.getProviderEntityType())) {
-                commoditiesBoughtFromProvider =
-                    updateAccessCommodityKey(commoditiesBoughtFromProvider, commodityType, newKey);
+            // 2. Apply changes from the scenario, or default to migrate to the same OS without
+            // Bring Your Own License otherwise.
+            OsType destinationOS = categoryOs;
+            boolean byol = false;
+            OSMigration osMigration = licenseTranslations.get(categoryOs);
+            if (osMigration != null) {
+                destinationOS = OsType.fromDtoOS(osMigration.getToOs());
+                byol = osMigration.getByol();
             }
 
-            vmBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider);
-        }
-    }
-
-    private CommoditiesBoughtFromProvider updateAccessCommodityKey(
-        @Nonnull CommoditiesBoughtFromProvider commoditiesBoughtFromProvider,
-        @Nonnull CommodityType commodityType,
-        @Nonnull String newKey) {
-
-        CommoditiesBoughtFromProvider.Builder newCommoditiesBoughtFromProviderBuilder
-            = commoditiesBoughtFromProvider.toBuilder().clearCommodityBought();
-
-        boolean foundCommodity = false;
-
-        for (CommodityBoughtDTO commodityBought :
-            commoditiesBoughtFromProvider.getCommodityBoughtList()) {
-
-            // If this is the commodity type we're looking to change, rebuild it with the new key
-            if (commodityBought.getCommodityType().getType() == commodityType.getNumber()) {
-                commodityBought = commodityBought.toBuilder().setCommodityType(
-                    commodityBought.getCommodityType().toBuilder().setKey(newKey)
-                ).build();
-
-                foundCommodity = true;
+            // 3. Look up the appropriate license commodity key given the target OS and whether
+            // the customer is going to BYOL.
+            if (byol) {
+                destinationOS = destinationOS.getByolOs();
             }
 
-            newCommoditiesBoughtFromProviderBuilder.addCommodityBought(commodityBought);
+            licensingMap.put(os, destinationOS.getName());
         }
 
-        if (!foundCommodity) {
-            // Add commodity since it wasn't present
-            newCommoditiesBoughtFromProviderBuilder.addCommodityBought(
-                CommodityBoughtDTO.newBuilder().setCommodityType(
-                    TopologyDTO.CommodityType.newBuilder()
-                        .setType(commodityType.getNumber())
-                        .setKey(newKey)
-                )
-            );
-        }
-
-        return newCommoditiesBoughtFromProviderBuilder.build();
+        return licensingMap.build();
     }
 
     /**
@@ -278,6 +269,67 @@ public class CommoditiesEditor {
             }
         }
         return providerIdsByCommodityType;
+    }
+
+    private void updateAccessCommodityForVmAndProviders(@Nonnull TopologyEntity vm,
+                                                        @Nonnull Set<Integer> providerTypeIds,
+                                                        @Nonnull CommodityType commodityType,
+                                                        @Nonnull String newKey) {
+        Builder vmBuilder = vm.getTopologyEntityDtoBuilder();
+
+        List<CommoditiesBoughtFromProvider> originalCommoditiesBoughtFromProviderList =
+            vmBuilder.getCommoditiesBoughtFromProvidersList();
+
+        vm.getTopologyEntityDtoBuilder().clearCommoditiesBoughtFromProviders();
+
+        for (CommoditiesBoughtFromProvider commoditiesBoughtFromProvider
+            : originalCommoditiesBoughtFromProviderList) {
+            if (providerTypeIds.contains(commoditiesBoughtFromProvider.getProviderEntityType())) {
+                commoditiesBoughtFromProvider =
+                    updateAccessCommodityKey(commoditiesBoughtFromProvider, commodityType, newKey);
+            }
+
+            vmBuilder.addCommoditiesBoughtFromProviders(commoditiesBoughtFromProvider);
+        }
+    }
+
+    private CommoditiesBoughtFromProvider updateAccessCommodityKey(
+        @Nonnull CommoditiesBoughtFromProvider commoditiesBoughtFromProvider,
+        @Nonnull CommodityType commodityType,
+        @Nonnull String newKey) {
+
+        CommoditiesBoughtFromProvider.Builder newCommoditiesBoughtFromProviderBuilder
+            = commoditiesBoughtFromProvider.toBuilder().clearCommodityBought();
+
+        boolean foundCommodity = false;
+
+        for (CommodityBoughtDTO commodityBought
+            : commoditiesBoughtFromProvider.getCommodityBoughtList()) {
+
+            // If this is the commodity type we're looking to change, rebuild it with the new key
+            if (commodityBought.getCommodityType().getType() == commodityType.getNumber()) {
+                commodityBought = commodityBought.toBuilder().setCommodityType(
+                    commodityBought.getCommodityType().toBuilder().setKey(newKey)
+                ).build();
+
+                foundCommodity = true;
+            }
+
+            newCommoditiesBoughtFromProviderBuilder.addCommodityBought(commodityBought);
+        }
+
+        if (!foundCommodity) {
+            // Add commodity since it wasn't present
+            newCommoditiesBoughtFromProviderBuilder.addCommodityBought(
+                CommodityBoughtDTO.newBuilder().setCommodityType(
+                    TopologyDTO.CommodityType.newBuilder()
+                        .setType(commodityType.getNumber())
+                        .setKey(newKey)
+                )
+            );
+        }
+
+        return newCommoditiesBoughtFromProviderBuilder.build();
     }
 
     /**
@@ -372,6 +424,26 @@ public class CommoditiesEditor {
                 });
             });
         }
+    }
+
+    @Nonnull
+    private Set<TopologyEntity> getPlanVms(@Nonnull final TopologyGraph<TopologyEntity> graph,
+                                           @Nonnull TopologyDTO.TopologyInfo topologyInfo) {
+        return topologyInfo.getScopeSeedOidsList().stream()
+            .distinct()
+            .flatMap(oid -> findVMsInScope(graph, oid))
+            .collect(Collectors.toSet());
+    }
+
+    @Nonnull
+    private Set<TopologyEntity> getCloneVMs(@Nonnull final TopologyGraph<TopologyEntity> graph,
+                                            @Nonnull final Set<Long> cloneEntityOids) {
+        return cloneEntityOids.stream()
+            .map(oid -> graph.getEntity(oid))
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .filter(entity -> entity.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE)
+            .collect(Collectors.toSet());
     }
 
     /**

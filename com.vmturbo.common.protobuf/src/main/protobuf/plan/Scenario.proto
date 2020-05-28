@@ -228,6 +228,8 @@ message ScenarioChange {
         // - dbs -> dbs (migration_entity_type = DB)
         required DestinationEntityType destination_entity_type = 5;
 
+        repeated OSMigration os_migrations = 6;
+
         enum DestinationEntityType {
             // Virtual Machine group
             VIRTUAL_MACHINE = 0;
@@ -243,6 +245,26 @@ message ScenarioChange {
                 int32 entity_type = 3;
             }
 
+        }
+
+        // Controls OS License handling in Migrate to Public Cloud Plan.
+        // For each OS, a mapping from and to the same OS and without BYOL will be assumed
+        // by default unless overridden by one of these messages, and need not be explicitly
+        // included in the PlanChanges.
+        //
+        // NOTE: At this time, only the values for LINUX, SUSE, RHEL, or WINDOWS should be used
+        // and their migrations will be also applied to related subtypes like LINUX_WITH_SQL_WEB or
+        // WINDOWS_WITH_SQL_WEB.
+        message OSMigration {
+            // Map from this OS on migrating VMs...
+            required .common_dto.OSType from_os = 1;
+
+            // ... to this OS on the destination. If omitted, assume no change from source.
+            optional .common_dto.OSType to_os = 2;
+
+            // Bring Your Own License: If true, customer provides their own OS license and doesn't
+            // pay the cloud provider.
+            optional bool byol = 3;
         }
     }
 

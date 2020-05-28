@@ -126,7 +126,7 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance());
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(), null);
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -183,7 +183,7 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance());
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(), null);
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -271,7 +271,7 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance());
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(), null);
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -340,7 +340,7 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance());
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(), null);
 
         // Check values after calling CommoditiesEditor.
         // Expected : Before and after values should be same because commodity is an access commodity.
@@ -400,7 +400,7 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance());
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(), null);
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -467,7 +467,7 @@ public class CommoditiesEditorTest {
             .build();
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope);
+        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope, null);
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -527,7 +527,7 @@ public class CommoditiesEditorTest {
             .build();
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope);
+        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope, null);
 
         // Check values after calling CommoditiesEditor.
         // Compare used and peak
