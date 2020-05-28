@@ -92,10 +92,12 @@ public abstract class ReservedInstanceBoughtTableFilter extends ReservedInstance
             }
         }
 
-        // Ignore expired RIs
-        final LocalDateTime currentTime =
-            LocalDateTime.ofInstant(Instant.now(), ZoneId.from(ZoneOffset.UTC));
-        conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.EXPIRY_TIME.ge(currentTime));
+        if (!includeExpired) {
+            // Ignore expired RIs
+            final LocalDateTime currentTime =
+                    LocalDateTime.ofInstant(Instant.now(), ZoneId.from(ZoneOffset.UTC));
+            conditions.add(Tables.RESERVED_INSTANCE_BOUGHT.EXPIRY_TIME.ge(currentTime));
+        }
 
         return conditions.toArray(new Condition[conditions.size()]);
     }

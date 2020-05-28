@@ -3,6 +3,10 @@ package com.vmturbo.cost.component.reserved.instance;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.Period;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -99,6 +103,9 @@ public class ReservedInstanceUtilizationStoreTest {
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(100L)
             .setStartTime(System.currentTimeMillis())
+            .setEndTime(LocalDateTime.now().plus(Period.ofYears(1))
+                    .toInstant(ZoneOffset.UTC)
+                    .toEpochMilli())
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
             .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
@@ -114,6 +121,9 @@ public class ReservedInstanceUtilizationStoreTest {
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(100L)
             .setStartTime(System.currentTimeMillis())
+            .setEndTime(LocalDateTime.now().plus(Period.ofYears(1))
+                    .toInstant(ZoneOffset.UTC)
+                    .toEpochMilli())
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
             .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
@@ -129,6 +139,9 @@ public class ReservedInstanceUtilizationStoreTest {
             .setReservedInstanceSpec(99L)
             .setAvailabilityZoneId(50L)
             .setStartTime(System.currentTimeMillis())
+            .setEndTime(LocalDateTime.now().plus(Period.ofYears(1))
+                    .toInstant(ZoneOffset.UTC)
+                    .toEpochMilli())
             .setReservedInstanceBoughtCoupons(ReservedInstanceBoughtCoupons.newBuilder()
                     .setNumberOfCoupons(100))
                     .setReservedInstanceBoughtCost(ReservedInstanceBoughtInfo.ReservedInstanceBoughtCost
