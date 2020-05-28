@@ -410,8 +410,7 @@ public class Action implements ActionView {
                 final long primaryEntity = ActionDTOUtil.getPrimaryEntityId(recommendation);
                 associatedSettingsPolicies =
                         getAssociatedPolicies(entitiesSnapshot, primaryEntity);
-                associatedAccountId = entitiesSnapshot.getOwnerAccountOfEntity(primaryEntity)
-                    .map(EntityWithConnections::getOid);
+                associatedAccountId = Action.getAssociatedAccountId(recommendation, entitiesSnapshot, primaryEntity);
                 associatedResourceGroupId = entitiesSnapshot.getResourceGroupForEntity(primaryEntity);
             } catch (UnsupportedActionException e) {
                 // Shouldn't ever happen here, because we would have rejected this action
