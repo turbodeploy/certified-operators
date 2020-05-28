@@ -119,5 +119,10 @@ public class SearchableProperties {
      */
     public static final String TARGET_FILTER_MARKER = "discoveredBy";
 
+    /**
+     * Kubernetes cluster filter property.
+     */
+    public static final String K8S_CLUSTER = "k8sCluster";
+
     private SearchableProperties() {}
 }

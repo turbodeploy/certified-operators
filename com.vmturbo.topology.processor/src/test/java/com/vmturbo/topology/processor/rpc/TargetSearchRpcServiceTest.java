@@ -38,6 +38,7 @@ import com.vmturbo.platform.common.dto.Discovery.AccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry;
 import com.vmturbo.platform.common.dto.Discovery.CustomAccountDefEntry.PrimitiveValue;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
+import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.AccountValue;
 import com.vmturbo.topology.processor.api.TopologyProcessorDTO.OperationStatus.Status;
@@ -56,7 +57,9 @@ public class TargetSearchRpcServiceTest {
 
     private static AtomicLong counter = new AtomicLong(100);
     private static final String ID = "target-address";
+    private static final String CLOUD_NATIVE_PROBE_TYPE = "Kubernetes-kubernetes-dc11";
 
+    private TargetStore targetStore;
     private ProbeStore probeStore;
     private IOperationManager operationManager;
     private TargetSearchRpcService service;
@@ -77,7 +80,7 @@ public class TargetSearchRpcServiceTest {
         MockitoAnnotations.initMocks(this);
         probes = new HashMap<>();
         targets = new HashMap<>();
-        TargetStore targetStore = Mockito.mock(TargetStore.class);
+        targetStore = Mockito.mock(TargetStore.class);
         Mockito.when(targetStore.getTarget(Mockito.anyLong())).thenAnswer(answerById(targets));
         Mockito.when(targetStore.getAll())
                 .thenAnswer(invocation -> new ArrayList<>(targets.values()));
@@ -304,6 +307,103 @@ public class TargetSearchRpcServiceTest {
                         .setPositiveMatch(false))
                 .build();
         expectInvalidArgument(filter);
+    }
+
+    /**
+     * Tests fetching cloud native targets by K8s cluster name.
+     *
+     * @throws Exception on exceptions occurred.
+     */
+    @Test
+    public void testGetCloudNativeTargetsByK8sCluster() throws Exception {
+        final long probe1 = createProbe(CLOUD_NATIVE_PROBE_TYPE + "-a");
+        final long probe2 = createProbe(CLOUD_NATIVE_PROBE_TYPE + "-b");
+        final long target1 = createTarget(probe1);
+        final long target2 = createTarget(probe2);
+
+        Mockito.when(targetStore.getProbeCategoryForTarget(target1)).thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
+        Mockito.when(targetStore.getProbeCategoryForTarget(target2)).thenReturn(Optional.of(ProbeCategory.CLOUD_MANAGEMENT));
+
+        final PropertyFilter targetFilter = PropertyFilter.newBuilder()
+            .setPropertyName(SearchableProperties.K8S_CLUSTER)
+            .setStringFilter(StringFilter.newBuilder()
+                .setStringPropertyRegex(CLOUD_NATIVE_PROBE_TYPE + "-a")
+                .setPositiveMatch(true))
+            .build();
+        Assert.assertEquals(Collections.singleton(target1), expectResult(targetFilter));
+    }
+
+    /**
+     * Tests fetching cloud native targets by K8s cluster name using case-insensitive search.
+     *
+     * @throws Exception on exceptions occurred.
+     */
+    @Test
+    public void testGetCloudNativeTargetsByK8sClusterCaseInsensitive() throws Exception {
+        final long probe1 = createProbe(CLOUD_NATIVE_PROBE_TYPE + "-a");
+        final long probe2 = createProbe(CLOUD_NATIVE_PROBE_TYPE + "-b");
+        final long target1 = createTarget(probe1);
+        final long target2 = createTarget(probe2);
+
+        Mockito.when(targetStore.getProbeCategoryForTarget(target1)).thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
+        Mockito.when(targetStore.getProbeCategoryForTarget(target2)).thenReturn(Optional.of(ProbeCategory.CLOUD_MANAGEMENT));
+
+        final PropertyFilter targetFilter = PropertyFilter.newBuilder()
+            .setPropertyName(SearchableProperties.K8S_CLUSTER)
+            .setStringFilter(StringFilter.newBuilder()
+                .setStringPropertyRegex(CLOUD_NATIVE_PROBE_TYPE + "-A")
+                .setPositiveMatch(true))
+            .build();
+        Assert.assertEquals(Collections.singleton(target1), expectResult(targetFilter));
+    }
+
+    /**
+     * Tests fetching cloud native targets by K8s cluster name not matching the requested regex.
+     *
+     * @throws Exception on exceptions occurred.
+     */
+    @Test
+    public void testGetCloudNativeTargetsByK8sClusterNegativeMatch() throws Exception {
+        final long probe1 = createProbe(CLOUD_NATIVE_PROBE_TYPE + "-a");
+        final long probe2 = createProbe(CLOUD_NATIVE_PROBE_TYPE + "-b");
+        final long target1 = createTarget(probe1);
+        final long target2 = createTarget(probe2);
+
+        Mockito.when(targetStore.getProbeCategoryForTarget(target1)).thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
+        Mockito.when(targetStore.getProbeCategoryForTarget(target2)).thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
+
+        final PropertyFilter targetFilter = PropertyFilter.newBuilder()
+            .setPropertyName(SearchableProperties.K8S_CLUSTER)
+            .setStringFilter(StringFilter.newBuilder()
+                .setStringPropertyRegex(CLOUD_NATIVE_PROBE_TYPE + "-a")
+                .setPositiveMatch(false))
+            .build();
+        Assert.assertEquals(Collections.singleton(target2), expectResult(targetFilter));
+    }
+
+    /**
+     * Tests fetching cloud native targets by K8s cluster name not matching the requested regex with empty results.
+     *
+     * @throws Exception on exceptions occurred.
+     */
+    @Test
+    public void testGetCloudNativeTargetsByK8sClusterNegativeMatchEmptyResults() throws Exception {
+        final long probe1 = createProbe(CLOUD_NATIVE_PROBE_TYPE);
+        final long probe2 = createProbe(SDKProbeType.AZURE.getProbeType());
+        final long target1 = createTarget(probe1);
+        final long target2 = createTarget(probe2);
+
+        Mockito.when(targetStore.getProbeCategoryForTarget(target1)).thenReturn(Optional.of(ProbeCategory.CLOUD_NATIVE));
+        Mockito.when(targetStore.getProbeCategoryForTarget(target2)).thenReturn(Optional.of(ProbeCategory.CLOUD_MANAGEMENT));
+
+        final PropertyFilter targetFilter = PropertyFilter.newBuilder()
+            .setPropertyName(SearchableProperties.K8S_CLUSTER)
+            .setStringFilter(StringFilter.newBuilder()
+                .setStringPropertyRegex(CLOUD_NATIVE_PROBE_TYPE)
+                .setPositiveMatch(false))
+            .build();
+        // Filter Cloud Native targets not matching the given regex and result returns empty.
+        Assert.assertEquals(Collections.emptySet(), expectResult(targetFilter));
     }
 
     private Set<Long> expectResult(@Nonnull PropertyFilter targetFilter) {
