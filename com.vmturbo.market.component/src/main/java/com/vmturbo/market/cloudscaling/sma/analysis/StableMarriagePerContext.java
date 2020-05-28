@@ -816,7 +816,7 @@ public class StableMarriagePerContext {
             if (currentRICoupons > 0 && !currentRI.isCouponToBestVMEmpty()) {
                 logger.debug("SMA new RI={} remainingCoupons={}", currentRI.getName(),
                         currentRICoupons);
-                SMAVirtualMachine currentVM = currentRI.findBestVMIndexFromCouponToBestVM(currentRICoupons, includePartialCoverage);
+                SMAVirtualMachine currentVM = currentRI.findBestVMIndexFromCouponToBestVM(currentRICoupons, includePartialCoverage, virtualMachineGroupMap);
                 if (currentVM == null) {
                     continue;
                 }
@@ -986,36 +986,12 @@ public class StableMarriagePerContext {
          */
         @Override
         public int compare(SMAVirtualMachine vm1, SMAVirtualMachine vm2) {
-            float netSavingVm1 = computeSaving(vm1);
-            float netSavingVm2 = computeSaving(vm2);
-
+            int costComparison = reservedInstance
+                    .compareCost(vm1, vm2, virtualMachineGroupMap, coupons);
+            if (costComparison != 0) {
+                return costComparison;
+            }
             String riFamily = reservedInstance.getNormalizedTemplate().getFamily();
-            float couponsVm1 = (float)reservedInstance.getNormalizedTemplate().getCoupons() * vm1.getGroupSize();
-            float couponsVm2 = (float)reservedInstance.getNormalizedTemplate().getCoupons() * vm2.getGroupSize();
-            if (reservedInstance.isIsf()) {
-                couponsVm1 = (float)Math.min(coupons, vm1.getMinCostProviderPerFamily(riFamily).getCoupons() * vm1.getGroupSize());
-                couponsVm2 = (float)Math.min(coupons, vm2.getMinCostProviderPerFamily(riFamily).getCoupons() * vm2.getGroupSize());
-            }
-            float netSavingVm1PerCoupon = netSavingVm1 / couponsVm1;
-            float netSavingVm2PerCoupon = netSavingVm2 / couponsVm2;
-
-            netSavingVm1PerCoupon = SMAUtils.round(netSavingVm1PerCoupon);
-            netSavingVm2PerCoupon = SMAUtils.round(netSavingVm2PerCoupon);
-
-            // Pick VM with higher savings per coupon.
-            if ((netSavingVm1PerCoupon - netSavingVm2PerCoupon) > SMAUtils.EPSILON) {
-                return -1;
-            }
-            if ((netSavingVm2PerCoupon - netSavingVm1PerCoupon) > SMAUtils.EPSILON) {
-                return 1;
-            }
-
-            if ((couponsVm1 - couponsVm2) > SMAUtils.EPSILON) {
-                return -1;
-            }
-            if ((couponsVm2 - couponsVm1) > SMAUtils.EPSILON) {
-                return 1;
-            }
             // pick VM with higher initial RI coverage.
             float riCoverageVm1 = reservedInstance.getRICoverage(vm1);
             float riCoverageVm2 = reservedInstance.getRICoverage(vm2);
@@ -1079,47 +1055,8 @@ public class StableMarriagePerContext {
             }
         }
 
-        /**
-         * Compute the savings obtained by matching the virtual machine with reservedInstance.
-         *
-         * @param vm virtual machine of interest.
-         * @return  the savings obtained by matching the virtual machine with reservedInstance.
-         */
-        float computeSaving(SMAVirtualMachine vm) {
-            List<SMAVirtualMachine> vmList = new ArrayList(Arrays.asList(vm));
-            if (vm.getGroupSize() > 1) {
-                vmList = virtualMachineGroupMap.get(vm.getGroupName()).getVirtualMachines();
-            }
-            SMATemplate riTemplate = reservedInstance.getNormalizedTemplate();
-            float netSavingvm = 0;
-            for (SMAVirtualMachine member : vmList) {
-                float onDemandCostvm = member.getNaturalTemplate().getNetCost(vm.getBusinessAccountId(), vm.getOsType(), 0);
-                /*  ISF : VM with t3.large and a ISF RI in t2 family. VM can move to t2.large.
-                 *  t2.large need 10 coupons. But we have only 6 coupons.
-                 *  riTemplate.getFamily() returns t2.
-                 *  getMinCostProviderPerFamily().get("t2") returns t2.large
-                 *  netCost will be ondemandCost * .4 + discountedCost 0.6 of the t2.large template.
-                 *  Note that for AWS the discountedCost will be 0;
-                 */
-                /*  Non-ISF VM with t3.large and a RI is t2.large. VM has to move to t2.large.
-                 *  t2.large need 10 coupons.
-                 *  riTemplate returns t2.large.
-                 *  afterMoveCost will be ondemandCost * 0 + discountedCost * 1 of the t2.large template.
-                 *  Note that for AWS the discountedCost will be 0; So afterMoveCost will be 0;
-                 */
-                float afterMoveCostvm = reservedInstance.isIsf() ?
-                        member.getMinCostProviderPerFamily(riTemplate.getFamily()).getNetCost(vm.getBusinessAccountId(),
-                            vm.getOsType(),
-                            (float)coupons / vm.getGroupSize()) :
-                        riTemplate.getNetCost(vm.getBusinessAccountId(), vm.getOsType(), (float)coupons / vm.getGroupSize());
 
-                netSavingvm += (onDemandCostvm - afterMoveCostvm);
-            }
-            return netSavingvm;
-
-        }
     }
-
     /**
      * the number of moves required for the vm to change to the new template.
      *
