@@ -5,10 +5,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Executors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.PostConstruct;
 
+import com.vmturbo.cost.component.reserved.instance.BuyRIAnalysisScheduler;
+import com.vmturbo.cost.component.rpc.MigratedWorkloadCloudCommitmentAnalysisService;
 import io.grpc.BindableService;
 import io.grpc.ServerInterceptor;
 
@@ -104,6 +107,11 @@ public class CostComponent extends BaseVmtComponent {
     @Autowired
     private ReservedInstanceSpecConfig reservedInstanceSpecConfig;
 
+    @Bean
+    public MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService() {
+        return new MigratedWorkloadCloudCommitmentAnalysisService();
+    }
+
     /**
      * Starts the component.
      *
@@ -160,7 +168,8 @@ public class CostComponent extends BaseVmtComponent {
             costDebugConfig.costDebugRpcService(),
             buyRIAnalysisConfig.buyReservedInstanceRpcService(),
             buyRIAnalysisConfig.riBuyContextFetchRpcService(),
-            costDebugConfig.traxConfigurationRpcService());
+            costDebugConfig.traxConfigurationRpcService(),
+            migratedWorkloadCloudCommitmentAnalysisService());
     }
 
     @Nonnull

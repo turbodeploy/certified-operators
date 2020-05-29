@@ -28,6 +28,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Table;
 
+import com.vmturbo.common.protobuf.topology.TopologyDTOREST;
+import com.vmturbo.market.runner.cost.MigratedWorkloadCloudCommitmentAnalysisService;
 import io.grpc.StatusRuntimeException;
 
 import org.apache.commons.lang3.mutable.MutableInt;
@@ -210,6 +212,11 @@ public class Analysis {
 
     private final AnalysisRICoverageListener listener;
 
+    /**
+     * The service that will perform cloud commitment (RI) buy analysis during a migrate to cloud plan.
+     */
+    private final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService;
+
     // a set of on-prem application entity type
     private static final Set<Integer> entityTypesToSkip =
             new HashSet<>(Collections.singletonList(EntityType.BUSINESS_APPLICATION_VALUE));
@@ -245,7 +252,8 @@ public class Analysis {
                     @Nonnull final BuyRIImpactAnalysisFactory buyRIImpactAnalysisFactory,
                     @Nonnull final TierExcluderFactory tierExcluderFactory,
                     @Nonnull final AnalysisRICoverageListener listener,
-                    @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory) {
+                    @Nonnull final ConsistentScalingHelperFactory consistentScalingHelperFactory,
+                    @NonNull final MigratedWorkloadCloudCommitmentAnalysisService migratedWorkloadCloudCommitmentAnalysisService) {
         this.topologyInfo = topologyInfo;
         this.topologyDTOs = topologyDTOs.stream()
             .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
@@ -268,6 +276,7 @@ public class Analysis {
         this.tierExcluderFactory = tierExcluderFactory;
         this.listener = listener;
         this.consistentScalingHelperFactory = consistentScalingHelperFactory;
+        this.migratedWorkloadCloudCommitmentAnalysisService = migratedWorkloadCloudCommitmentAnalysisService;
     }
 
     private static final DataMetricSummary RESULT_PROCESSING = DataMetricSummary.builder()
@@ -296,6 +305,8 @@ public class Analysis {
         }
         final List<AnalysisType> analysisTypeList = topologyInfo.getAnalysisTypeList();
         final boolean isBuyRIImpactAnalysis = analysisTypeList.contains(AnalysisType.BUY_RI_IMPACT_ANALYSIS);
+        final boolean isMigrateToCloud = (topologyInfo.hasPlanInfo() && topologyInfo.getPlanInfo().getPlanType()
+                .equals(StringConstants.CLOUD_MIGRATION_PLAN));
         final boolean isM2AnalysisEnabled = analysisTypeList.contains(AnalysisType.MARKET_ANALYSIS);
         final TopologyCostCalculator topologyCostCalculator = topologyCostCalculatorFactory
                 .newCalculator(topologyInfo, originalCloudTopology);
@@ -571,6 +582,10 @@ public class Analysis {
                             .addRICoverageToProjectedRICoverage(cloudCostData.getCurrentRiCoverage());
                     }
 
+                    if (isMigrateToCloud) {
+                        runMigratedWorkloadCloudCommitmentAnalysis(projectedCloudTopology);
+                    }
+
                     // Invoke buy RI impact analysis after projected entity creation, but prior to
                     // projected cost calculations
                     // PS:  OCP Plan Option#2 (Market Only) will not be processed within runBuyRIImpactAnalysis.
@@ -816,6 +831,16 @@ public class Analysis {
                 logger.error("Error executing buy RI impact analysis (Context ID={}, Topology ID={})",
                         topologyInfo.getTopologyContextId(), topologyInfo.getTopologyId(), e);
             }
+        }
+    }
+
+    /**
+     * Runs the migrated workload cloud commitment analysis on the specified projected topology.
+     * @param projectedCloudTopology    The projected cloud topology
+     */
+    private void runMigratedWorkloadCloudCommitmentAnalysis(@Nonnull CloudTopology<TopologyEntityDTO> projectedCloudTopology) {
+        if (projectedCloudTopology.size() > 0) {
+            migratedWorkloadCloudCommitmentAnalysisService.startAnalysis(projectedCloudTopology.toString());
         }
     }
 
