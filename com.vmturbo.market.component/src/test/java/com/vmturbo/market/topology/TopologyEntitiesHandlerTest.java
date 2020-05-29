@@ -48,7 +48,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Mockito;
 
@@ -509,15 +508,13 @@ public class TopologyEntitiesHandlerTest {
                                                                         Function.identity())));
     }
 
-    // TODO: fix the shopping list context set up in testMoveToCheaperComputeTier and re-enable it
-    @Ignore
+    @Test
     public void testMoveToCheaperComputeTier_ShopTogether()
                     throws FileNotFoundException, InvalidProtocolBufferException {
         testMoveToCheaperComputeTier(true);
     }
 
-    // TODO: fix the shopping list context set up in testMoveToCheaperComputeTier and re-enable it
-    @Ignore
+    @Test
     public void testMoveToCheaperComputeTier_ShopAlone()
                     throws FileNotFoundException, InvalidProtocolBufferException {
         testMoveToCheaperComputeTier(false);
