@@ -961,31 +961,19 @@ public class ActionModeCalculator {
                                     resize.getNewCapacity());
                         } else if (newCapacity > oldCapacity) {
                             // A resize up action
-                            if (oldCapacity < maxThreshold && newCapacity <= maxThreshold) {
-                                applicableSpec = Optional.of(resizeSettings.upInBetweenThresholds());
-                            } else if (oldCapacity >= maxThreshold && newCapacity > maxThreshold) {
+                            // initialize applicableSpec to the actionMode for scaling up inbetween thresholds
+                            applicableSpec = Optional.of(resizeSettings.upInBetweenThresholds());
+                            if (oldCapacity >= maxThreshold && newCapacity > maxThreshold) {
+                                // if the currentCapacity is over max and we are scaling up, use setting aboveMax
                                 applicableSpec = Optional.of(resizeSettings.aboveMaxThreshold());
-                            } else {
-                                // Wrong resize up action
-                                logger.error("{} has a resize action from {} to {} on " +
-                                                "commodity {} (min {} Max {})with wrong settings.",
-                                        resize.getTarget().getId(), resize.getOldCapacity(),
-                                        resize.getNewCapacity(), commType,
-                                        minThreshold, maxThreshold);
                             }
                         } else {
                             // A resize down action
-                            if (oldCapacity > minThreshold && newCapacity >= minThreshold) {
-                                applicableSpec = Optional.of(resizeSettings.downInBetweenThresholds());
-                            } else if (oldCapacity <= minThreshold && newCapacity < minThreshold) {
+                            // initialize applicableSpec to the actionMode for scaling down inbetween thresholds
+                            applicableSpec = Optional.of(resizeSettings.downInBetweenThresholds());
+                            if (oldCapacity <= minThreshold && newCapacity < minThreshold) {
+                                // if the currentCapacity is below min and we are scaling down, use setting belowMin
                                 applicableSpec = Optional.of(resizeSettings.belowMinThreshold());
-                            } else {
-                                // Wrong resize down action
-                                logger.error("{} has a resize action from {} to {} on " +
-                                                "commodity {} (min {} Max {}) with wrong settings.",
-                                        resize.getTarget().getId(), resize.getOldCapacity(),
-                                        resize.getNewCapacity(), commType,
-                                        minThreshold, maxThreshold);
                             }
                         }
                     }
