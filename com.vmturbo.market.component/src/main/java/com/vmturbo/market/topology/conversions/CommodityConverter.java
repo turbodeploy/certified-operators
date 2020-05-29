@@ -204,7 +204,6 @@ public class CommodityConverter {
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(resizable)
                         .setCapacityIncrement(topologyCommSold.getCapacityIncrement() * scalingFactor)
-                        .setCapacityUpperBound(capacity * scalingFactor)
                         .setUtilizationUpperBound(utilizationUpperBound)
                         .setPriceFunction(priceFunction(topologyCommSold.getCommodityType(),
                                 scale, dto))
@@ -341,7 +340,6 @@ public class CommodityConverter {
         final CommodityDTOs.CommoditySoldSettingsTO economyCommSoldSettings =
                 CommodityDTOs.CommoditySoldSettingsTO.newBuilder()
                         .setResizable(false)
-                        .setCapacityUpperBound(capacity)
                         .setPriceFunction(priceFunction(commodityType, 1.0f, null))
                         .setUpdateFunction(uf)
                         .build();

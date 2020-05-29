@@ -276,11 +276,18 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
                 internalCheckRIBoughtAndUpdatePrices(newReservedInstances);
         final List<ReservedInstanceBoughtRecord> existingReservedInstances =
                 internalGet(context, ReservedInstanceBoughtFilter.newBuilder()
+                        .includeExpired(true)
                         .build());
         final Map<String, ReservedInstanceBoughtRecord> existingRIsProbeKeyToRecord =
                 existingReservedInstances.stream()
-                        .collect(Collectors.toMap(ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
-                                Function.identity()));
+                        .collect(Collectors.toMap(
+                                ReservedInstanceBoughtRecord::getProbeReservedInstanceId,
+                                Function.identity(),
+                                // It's possible there are duplicates given we were previously
+                                // accidentally inserting duplicates of expired RIs. We pick
+                                // the latest here and expect them to be cleaned up through
+                                // garbage collection
+                                (ri1, ri2) -> ri1.getId() > ri2.getId() ? ri1 : ri2));
         final List<ReservedInstanceBoughtInfo> reservedInstanceBoughtInfos =
                 unsetNumberOfCouponsUsed(updatedNewReservedInstances);
         final Map<String, ReservedInstanceBoughtInfo> newRIsProbeKeysToRI = reservedInstanceBoughtInfos.stream()
@@ -308,10 +315,7 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
             getReservedInstanceCostCalculator().calculateReservedInstanceAmortizedCost(updatedNewReservedInstances,
                         riSpecToTermInYearMap);
 
-        final Map<String, Long> probeRIIDToExpiryDateInMillis = getReservedInstanceCostCalculator()
-                .calculateReservedInstanceExpiryDateMillis(updatedNewReservedInstances, riSpecToTermInYearMap);
-
-        internalInsert(context, reservedInstanceToAdd, probeRIIDToAmortizedCost, probeRIIDToExpiryDateInMillis);
+        internalInsert(context, reservedInstanceToAdd, probeRIIDToAmortizedCost);
         internalUpdate(context, reservedInstanceUpdates, existingRIsProbeKeyToRecord, probeRIIDToAmortizedCost);
         internalDelete(context, reservedInstanceToRemove);
 
@@ -439,17 +443,16 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
      * @param context {@link DSLContext} transactional context.
      * @param reservedInstancesToAdd a list of new {@link ReservedInstanceBoughtInfo}.
      * @param probeRIIDToAmortizedCost a map of probeReservedInstanceID -> amortizedCost used to update the amortized cost.
-     * @param probeRIIDToExpiryDateInMillis a map of probeReservedInstanceID -> expiry time in
-     *                                      milliseconds.
      */
     private void internalInsert(@Nonnull final DSLContext context,
                                 @Nonnull final List<ReservedInstanceBoughtInfo> reservedInstancesToAdd,
-                                @Nonnull final Map<String, Double> probeRIIDToAmortizedCost,
-                                @Nonnull final Map<String, Long> probeRIIDToExpiryDateInMillis) {
+                                @Nonnull final Map<String, Double> probeRIIDToAmortizedCost) {
         final List<ReservedInstanceBoughtRecord> reservedInstancesRecordToAdd = reservedInstancesToAdd.stream()
-                .map(ri -> createNewReservedInstance(context, ri,
-                                probeRIIDToAmortizedCost.get(ri.getProbeReservedInstanceId()),
-                                probeRIIDToExpiryDateInMillis.get(ri.getProbeReservedInstanceId())
+                .map(ri -> createNewReservedInstanceRecord(
+                        context,
+                        getIdentityProvider().next(),
+                        ri,
+                        probeRIIDToAmortizedCost.get(ri.getProbeReservedInstanceId())
                     ))
                 .filter(Objects::nonNull)
                 .collect(toList());
@@ -471,11 +474,19 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
                                 @Nonnull final Map<String, ReservedInstanceBoughtRecord> reservedInstanceRecordMap,
                                 @Nonnull final Map<String, Double> probeRIIDToAmortizedCost) {
         final List<ReservedInstanceBoughtRecord> reservedInstanceRecordsUpdates =
-                reservedInstanceInfoMap.entrySet().stream().map(
-                        entry -> updateReservedInstanceRecord(entry.getValue(),
-                                reservedInstanceRecordMap.get(entry.getKey()),
-                                        probeRIIDToAmortizedCost.get(entry.getValue().getProbeReservedInstanceId())))
-                .collect(toList());
+                reservedInstanceInfoMap.entrySet()
+                        .stream()
+                        .map(riInfoByProbeId -> {
+
+                            final String probeId = riInfoByProbeId.getKey();
+                            final ReservedInstanceBoughtRecord record =  reservedInstanceRecordMap.get(probeId);
+
+                            return createNewReservedInstanceRecord(context,
+                                    record.getId(),
+                                    riInfoByProbeId.getValue(),
+                                    probeRIIDToAmortizedCost.get(probeId));
+
+                        }).collect(toList());
         context.batchUpdate(reservedInstanceRecordsUpdates).execute();
     }
 
@@ -534,23 +545,23 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
      * Create a new {@link ReservedInstanceBoughtRecord} based on input {@link ReservedInstanceBoughtInfo}.
      *
      * @param context context for DSL.
+     * @param reservedInstanceId The ID to use for the newly created record.
      * @param reservedInstanceInfo bought information on an RI.
      * @param amortizedCost amortized cost computed as (fixedCost / Term * 730 * 12) + recurringCost.
-     * @param expiryTimeMillis The expiry time in milliseconds.
      * @return a record for the ReservedInstance that was bought
      */
     @Nullable
-    private ReservedInstanceBoughtRecord createNewReservedInstance(
+    private ReservedInstanceBoughtRecord createNewReservedInstanceRecord(
             @Nonnull final DSLContext context,
+            long reservedInstanceId,
             @Nonnull final ReservedInstanceBoughtInfo reservedInstanceInfo,
-            @Nullable final Double amortizedCost,
-            @Nullable final Long expiryTimeMillis) {
+            @Nullable final Double amortizedCost) {
         if (amortizedCost == null) {
             getLogger().debug("Unable to get amortized cost for RI with probeReservedInstanceID {}. Amortized cost will default to 0.",
                             reservedInstanceInfo.getProbeReservedInstanceId());
         }
 
-        if (expiryTimeMillis == null) {
+        if (reservedInstanceInfo.getEndTime() == 0) {
             getLogger().error("The expiry time for RI with probeReservedInstanceID {} is not available" +
                 ". This RI will be ignored.", reservedInstanceInfo.getProbeReservedInstanceId());
             return null;
@@ -560,11 +571,11 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
             LocalDateTime.ofInstant(Instant.ofEpochMilli(reservedInstanceInfo.getStartTime()),
             ZoneId.from(ZoneOffset.UTC));
         LocalDateTime expiryTime =
-            LocalDateTime.ofInstant(Instant.ofEpochMilli(expiryTimeMillis),
+            LocalDateTime.ofInstant(Instant.ofEpochMilli(reservedInstanceInfo.getEndTime()),
                 ZoneId.from(ZoneOffset.UTC));
 
         return context.newRecord(RESERVED_INSTANCE_BOUGHT, new ReservedInstanceBoughtRecord(
-                getIdentityProvider().next(),
+                reservedInstanceId,
                 reservedInstanceInfo.getBusinessAccountId(),
                 reservedInstanceInfo.getProbeReservedInstanceId(),
                 reservedInstanceInfo.getReservedInstanceSpec(),
@@ -575,35 +586,6 @@ public class ReservedInstanceBoughtStore extends AbstractReservedInstanceStore i
                 reservedInstanceInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount(),
                 (amortizedCost == null ? 0D : amortizedCost.doubleValue()),
                 startTime, expiryTime));
-    }
-
-    /**
-     * Update {@link ReservedInstanceBoughtRecord} data based on input {@link ReservedInstanceBoughtInfo}.
-     *
-     * @param reservedInstanceInfo a {@link ReservedInstanceBoughtInfo}.
-     * @param reservedInstanceRecord a {@link ReservedInstanceBoughtRecord}.
-     * @param amortizedCost amortized cost computed as (fixedCost / Term * 730 * 12) + recurringCost.
-     * @return a {@link ReservedInstanceBoughtRecord}.
-     */
-    private ReservedInstanceBoughtRecord updateReservedInstanceRecord(
-            @Nonnull final ReservedInstanceBoughtInfo reservedInstanceInfo,
-            @Nonnull final ReservedInstanceBoughtRecord reservedInstanceRecord,
-            @Nullable final Double amortizedCost) {
-        if (amortizedCost == null) {
-            getLogger().debug("Unable to get amortized cost for RI with probeReservedInstanceID {}. Amortized cost will default to 0.",
-                            reservedInstanceInfo.getProbeReservedInstanceId());
-        }
-        reservedInstanceRecord.setBusinessAccountId(reservedInstanceInfo.getBusinessAccountId());
-        reservedInstanceRecord.setAvailabilityZoneId(reservedInstanceInfo.getAvailabilityZoneId());
-        reservedInstanceRecord.setProbeReservedInstanceId(reservedInstanceInfo.getProbeReservedInstanceId());
-        reservedInstanceRecord.setReservedInstanceSpecId(reservedInstanceInfo.getReservedInstanceSpec());
-        reservedInstanceRecord.setReservedInstanceBoughtInfo(
-                addDerivedCostRIBoughtInfo(reservedInstanceInfo, amortizedCost));
-        reservedInstanceRecord.setCount(reservedInstanceInfo.getNumBought());
-        reservedInstanceRecord.setPerInstanceFixedCost(reservedInstanceInfo.getReservedInstanceBoughtCost().getFixedCost().getAmount());
-        reservedInstanceRecord.setPerInstanceRecurringCostHourly(reservedInstanceInfo.getReservedInstanceBoughtCost().getRecurringCostPerHour().getAmount());
-        reservedInstanceRecord.setPerInstanceAmortizedCostHourly((amortizedCost == null ? 0D : amortizedCost.doubleValue()));
-        return reservedInstanceRecord;
     }
 
     /**

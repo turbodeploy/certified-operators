@@ -168,6 +168,14 @@ public class ActionDTOUtil {
                 if (primaryEntity.getEnvironmentType() == EnvironmentTypeEnum.EnvironmentType.CLOUD) {
                     return primaryEntity.getId();
                 }
+
+                // Another special case: for Business Users we don't want the severities to be shown
+                // at the Desktop Pool level in the supply chain.
+                // TODO: This should be a data driven implementation, so we can remove the if branch.
+                if (primaryEntity.getType() == EntityType.BUSINESS_USER_VALUE) {
+                    return primaryEntity.getId();
+                }
+
                 // For compliance actions, the target entity is the severity entity.
                 // TODO: Another case where the target entity is the severity entity is for VDI
                 // move actions. This special case also needs to be added here.

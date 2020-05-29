@@ -235,6 +235,9 @@ public class SearchService implements ISearchService {
                 .put(EntityFilterMapper.OWNER_OF_RESOURCE_GROUP_OID, (a, b, c) -> getResourceGroupsUUIDOptions())
                 .put("discoveredBy:validationStatus", (a, b, c) -> getValidationStatusOptions())
                 .put(EntityFilterMapper.WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
+                .put(EntityFilterMapper.CONTAINER_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
+                .put(EntityFilterMapper.CONTAINER_POD_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
+                .put(EntityFilterMapper.CONTAINER_SPEC_WORKLOAD_CONTROLLER_TYPE, (a, b, c) -> getWorkloadControllerTypeOptions())
                 .build();
     }
 
