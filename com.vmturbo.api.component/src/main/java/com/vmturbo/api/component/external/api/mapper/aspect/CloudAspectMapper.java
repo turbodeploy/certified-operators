@@ -13,14 +13,14 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.springframework.util.CollectionUtils;
-
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -40,6 +40,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
@@ -48,7 +49,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo.DriverInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
@@ -60,9 +60,8 @@ import com.vmturbo.platform.common.dto.CommonDTOREST.EntityDTO.VirtualMachineDat
  */
 public class CloudAspectMapper extends AbstractAspectMapper {
     private static final Logger logger = LogManager.getLogger();
-    private static final Map<Integer, Integer> ENTITY_TYPE_VALUE_TO_TIER_TYPE_VALUE =
+    private static final Map<Integer, Integer> WORKLOAD_ENTITY_TYPE_TO_TIER_TYPE =
             ImmutableMap.of(EntityType.VIRTUAL_MACHINE_VALUE, EntityType.COMPUTE_TIER_VALUE,
-                    EntityType.STORAGE_VALUE, EntityType.STORAGE_TIER_VALUE,
                     EntityType.DATABASE_SERVER_VALUE, EntityType.DATABASE_SERVER_TIER_VALUE,
                     EntityType.DATABASE_VALUE, EntityType.DATABASE_TIER_VALUE);
 
@@ -317,7 +316,7 @@ public class CloudAspectMapper extends AbstractAspectMapper {
     @Nonnull
     private static Optional<Long> getTemplateOid(@Nonnull TopologyEntityDTO entity) {
         final Integer tierTypeValue =
-                ENTITY_TYPE_VALUE_TO_TIER_TYPE_VALUE.get(entity.getEntityType());
+                WORKLOAD_ENTITY_TYPE_TO_TIER_TYPE.get(entity.getEntityType());
         if (tierTypeValue != null) {
             final List<Long> tiers = entity.getCommoditiesBoughtFromProvidersList()
                     .stream()
@@ -331,9 +330,6 @@ public class CloudAspectMapper extends AbstractAspectMapper {
                 }
                 return Optional.of(tiers.iterator().next());
             }
-        } else {
-            logger.warn("Could not find corresponding tier type for entity with oid {} and type {}",
-                    entity::getOid, () -> EntityType.forNumber(entity.getEntityType()));
         }
         return Optional.empty();
     }
