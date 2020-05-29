@@ -25,10 +25,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.group.GroupDTO;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupDefinition.EntityFilters.EntityFilter;
-import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.group.GroupDTO.MemberType;
 import com.vmturbo.common.protobuf.group.GroupDTO.Origin;
 import com.vmturbo.common.protobuf.group.GroupDTO.StaticMembers.StaticMembersByType;
 import com.vmturbo.components.api.ComponentGsonFactory;
@@ -85,6 +82,7 @@ public class GroupDaoDiagnostics implements DiagsRestorable {
         }
     }
 
+    @Nonnull
     private int collectGroupsOrdered(@Nonnull IGroupStore groupStore,
             @Nonnull DiagnosticsAppender appender) throws StoreOperationException {
         final Collection<Grouping> allGroups = groupStore.getGroups(
@@ -174,7 +172,6 @@ public class GroupDaoDiagnostics implements DiagsRestorable {
                         return groupings.stream();
                     }
                 })
-                .map(this::tryFixExpectedMemberTypes)
                 .collect(Collectors.toList());
         groupStore.deleteAllGroups();
         logger.info("Removed all the groups.");
@@ -204,71 +201,6 @@ public class GroupDaoDiagnostics implements DiagsRestorable {
                     group.getSupportsMemberReverseLookup());
         }
         logger.info("Restored {} groups from diagnostics", allGroups.size());
-    }
-
-    @Nonnull
-    private Grouping tryFixExpectedMemberTypes(@Nonnull Grouping grouping) {
-        final Set<MemberType> actualMemberTypes;
-        final GroupDefinition definition = grouping.getDefinition();
-        switch (definition.getSelectionCriteriaCase()) {
-            case STATIC_GROUP_MEMBERS: {
-                actualMemberTypes =
-                        definition.getStaticGroupMembers().getMembersByTypeList().stream().map(
-                                StaticMembersByType::getType).collect(Collectors.toSet());
-                break;
-            }
-            case ENTITY_FILTERS: {
-                actualMemberTypes =
-                        definition.getEntityFilters()
-                                .getEntityFilterList()
-                                .stream()
-                                .map(EntityFilter::getEntityType)
-                                .map(entityType -> MemberType.newBuilder()
-                                        .setEntity(entityType)
-                                        .build())
-                                .collect(Collectors.toSet());
-                break;
-            }
-            case GROUP_FILTERS: {
-                actualMemberTypes = definition.getGroupFilters().getGroupFilterList().stream().map(
-                        GroupFilter::getGroupType).map(
-                        groupType -> MemberType.newBuilder().setGroup(groupType).build()).collect(
-                        Collectors.toSet());
-                break;
-            }
-            default:
-                actualMemberTypes = Collections.emptySet();
-        }
-        final Set<MemberType> forgottenMembers = new HashSet<>(actualMemberTypes);
-        forgottenMembers.removeAll(grouping.getExpectedTypesList());
-        if (forgottenMembers.isEmpty()) {
-            logger.trace(
-                    "Group {} seem to have correct expected members set in its definition: [{}]",
-                    grouping::getId, () -> grouping.getExpectedTypesList()
-                            .stream()
-                            .map(this::toString)
-                            .collect(Collectors.joining(",")));
-            return grouping;
-        }
-        logger.warn("Group {} lacks the expected member types (required from members)."
-                        + "Will be guessed automatically. Data is inconsistent with diags dumped!: [{}]",
-                grouping.getId(),
-                forgottenMembers.stream().map(this::toString).collect(Collectors.joining(",")));
-        final Grouping result = Grouping.newBuilder(grouping).addAllExpectedTypes(
-                forgottenMembers).build();
-        return result;
-    }
-
-    @Nonnull
-    private String toString(@Nonnull MemberType memberType) {
-        switch (memberType.getTypeCase()) {
-            case ENTITY:
-                return "entity:" + memberType.getEntity();
-            case GROUP:
-                return "group:" + memberType.getGroup();
-            default:
-                return "unknown";
-        }
     }
 
     @Nonnull

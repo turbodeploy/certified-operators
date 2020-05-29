@@ -1,8 +1,6 @@
 package com.vmturbo.history;
 
-import com.vmturbo.history.dbmonitor.DbMonitor;
 import com.vmturbo.proactivesupport.DataMetricCounter;
-import com.vmturbo.proactivesupport.DataMetricGauge;
 import com.vmturbo.proactivesupport.DataMetricHistogram;
 import com.vmturbo.proactivesupport.DataMetricSummary;
 
@@ -36,16 +34,6 @@ public class SharedMetrics {
      * Indicates a metric related to a live topology.
      */
     public static final String LIVE_CONTEXT_TYPE_LABEL = "live";
-
-    /** connection count category for active connections of all variety. */
-    public static final String CONNECTION_COUNT_ACTIVE = "active";
-    /** connection count category for available connections (max - active). */
-    public static final String CONNECTION_COUNT_AVALABLE = "available";
-    /** connection count category for max allowed connections (db config value). */
-    public static final String CONNECTION_COUNT_MAX = "max_allowed";
-    /** connection count category for long-running connections. */
-    public static final String CONNECTION_COUNT_LONG_RUNNING = "long_running";
-
 
     /**
      * Possible values for batched insert dispositions (use name() for label values).
@@ -112,9 +100,9 @@ public class SharedMetrics {
      */
     public static final DataMetricCounter BATCHED_INSERTS = DataMetricCounter.builder()
             .withName("batched_inserts")
-            .withHelp("Number of batched insert executions.\n"
-                    + "RETRY may happen multiple times per batch, and that batch will also be counted "
-                    + "as a SUCCESS or as a FAILURE.")
+            .withHelp("Number of batched insert executions.\n" +
+            "RETRY may happen multiple times per batch, and that batch will also be counted " +
+            "as a SUCCESS or as a FAILURE.")
         .withLabelNames("table", "disposition")
         .build()
         .register();
@@ -136,16 +124,6 @@ public class SharedMetrics {
     public static final DataMetricSummary PERCENTILE_WRITING = DataMetricSummary.builder()
             .withName("percentile_writing_seconds")
             .withHelp("Duration in seconds it takes the history component to store percentile snapshot in database.")
-            .build()
-            .register();
-
-    /**
-     * Prometheus metric to capture connection counts collected by {@link DbMonitor}.
-     */
-    public static final DataMetricGauge CONNECTION_COUNTS = DataMetricGauge.builder()
-            .withName("db_connections")
-            .withHelp("Connection counts reported by database")
-            .withLabelNames("category")
             .build()
             .register();
 }

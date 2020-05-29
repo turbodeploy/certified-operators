@@ -129,15 +129,8 @@ public class PolicyStore implements DiagsRestorable {
                         .collect(Collectors.toList());
         final TargetPolicyUpdate update = new TargetPolicyUpdate(targetId, identityProvider,
                 discoveredPolicies, getDiscoveredByTarget(context, targetId));
-        update.apply(
-                (policy) -> {
-                    policyValidator.validatePolicy(context, policy);
-                    internalCreate(context, policy);
-                    },
-                (policy) -> {
-                    policyValidator.validatePolicy(context, policy);
-                    internalUpdate(context, policy);
-                    },
+        update.apply((policy) -> internalCreate(context, policy),
+                (policy) -> internalUpdate(context, policy),
                 (policy) -> deleteDiscoveredPolicy(context, policy, true));
         logger.info("Finished updating discovered groups.");
     }
@@ -192,16 +185,12 @@ public class PolicyStore implements DiagsRestorable {
         throws DuplicateNameException, InvalidPolicyException {
         final long id = identityProvider.next();
         try {
-
-            return dslContext.transactionResult(configuration -> {
-                final DSLContext context = DSL.using(configuration);
-                final PolicyDTO.Policy policyProto = PolicyDTO.Policy.newBuilder()
-                        .setId(id)
-                        .setPolicyInfo(policyInfo)
-                        .build();
-                policyValidator.validatePolicy(context, policyProto);
-                return internalCreate(context, policyProto);
-            });
+            return dslContext.transactionResult(configuration ->
+                internalCreate(DSL.using(configuration),
+                    PolicyDTO.Policy.newBuilder()
+                            .setId(id)
+                            .setPolicyInfo(policyInfo)
+                            .build()));
         } catch (DataAccessException e) {
             POLICY_STORE_ERROR_COUNT.labels(CREATE_LABEL).increment();
             if (e.getCause() instanceof DuplicateNameException) {
@@ -240,7 +229,6 @@ public class PolicyStore implements DiagsRestorable {
             final PolicyDTO.Policy updatedPolicy = existingPolicy.toBuilder()
                     .setPolicyInfo(policyInfo)
                     .build();
-            policyValidator.validatePolicy(dslContext, updatedPolicy);
             return internalUpdate(dslContext, updatedPolicy);
         } catch (Exception e) {
             POLICY_STORE_ERROR_COUNT.labels(UPDATE_LABEL).increment();
@@ -337,7 +325,7 @@ public class PolicyStore implements DiagsRestorable {
      * Restore policies to the {@link PolicyStore} from the collected diags.
      *
      * @param collectedDiags The diags collected from a previous call to
-     *      {@link StringDiagnosable#collectDiags(DiagnosticsAppender)}. Must be in the same order.
+     *      {@link StringDiagnosable#collectDiagsStream()}. Must be in the same order.
      * @throws DiagnosticsException If there is a problem writing the policies
      *         to the store.
      */
@@ -356,7 +344,7 @@ public class PolicyStore implements DiagsRestorable {
                 for (final PolicyDTO.Policy policy : policies) {
                     try {
                         internalCreate(transactionContext, policy);
-                    } catch (DuplicateNameException | RuntimeException e) {
+                    } catch (InvalidPolicyException | DuplicateNameException | RuntimeException e) {
                         // Log the exception, but continue attempting to restore other policies.
                         logger.error("Failed to restore policy " + policy.getPolicyInfo().getName()
                                 + "!", e);
@@ -402,20 +390,19 @@ public class PolicyStore implements DiagsRestorable {
      * Store a policy in the underlying database.
      * This method should be executed inside a transaction.
      *
-     * <p>Policy is not validated in this method. It is vital to be able importing customers
-     * topology as-is using {@link #restoreDiags(List)}.
-     *
      * @param context The transaction context. This should NOT be the root DSLContext.
      * @param policyProto The protobuf representation of the policy.
      * @return The protobuf representation of the policy.
      * @throws DataAccessException If there is an issue connecting to the database.
      * @throws DuplicateNameException If a policy with the same name already exists in the database.
+     * @throws InvalidPolicyException If the policy is invalid.
      */
     @Nonnull
     private PolicyDTO.Policy internalCreate(@Nonnull final DSLContext context,
                                             @Nonnull final PolicyDTO.Policy policyProto)
-            throws DataAccessException, DuplicateNameException {
+            throws DataAccessException, DuplicateNameException, InvalidPolicyException {
 
+        policyValidator.validatePolicy(context, policyProto);
         checkForDuplicates(context, policyProto.getId(), policyProto.getPolicyInfo().getName());
 
         final Policy policy = new Policy(policyProto.getId(),
@@ -437,23 +424,10 @@ public class PolicyStore implements DiagsRestorable {
         return toPolicyProto(policy);
     }
 
-    /**
-     * Updates the existing policy.
-     *
-     * <p>Policy is not validated in this method. It is vital to be able importing customers
-     * topology as-is using {@link #restoreDiags(List)}.
-     *
-     * @param context transactional context to use
-     * @param newPolicyProto new version of policy proto
-     * @return the version actually written to the db (existing one merged with a new one)
-     * @throws PolicyNotFoundException if policy to update is not found in the DB
-     * @throws DataAccessException in case of SQL errors
-     * @throws DuplicateNameException if policy name duplication detected
-     */
     @Nonnull
     private PolicyDTO.Policy internalUpdate(@Nonnull final DSLContext context,
                                             @Nonnull final PolicyDTO.Policy newPolicyProto)
-        throws PolicyNotFoundException, DataAccessException, DuplicateNameException {
+        throws PolicyNotFoundException, DataAccessException, DuplicateNameException, InvalidPolicyException {
         final PolicyRecord existingRecord =
                 context.fetchOne(Tables.POLICY, Tables.POLICY.ID.eq(newPolicyProto.getId()));
         if (existingRecord == null) {
@@ -462,6 +436,7 @@ public class PolicyStore implements DiagsRestorable {
 
         final PolicyDTO.Policy existingPolicyProto = toPolicyProto(existingRecord.into(Policy.class));
 
+        policyValidator.validatePolicy(context, newPolicyProto);
         checkForDuplicates(context, newPolicyProto.getId(), newPolicyProto.getPolicyInfo().getName());
 
         existingRecord.setName(newPolicyProto.getPolicyInfo().getName());
