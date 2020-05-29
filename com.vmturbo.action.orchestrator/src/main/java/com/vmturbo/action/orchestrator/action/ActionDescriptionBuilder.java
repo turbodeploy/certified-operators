@@ -4,12 +4,15 @@ import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodity
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyCommodityTypes;
 import static com.vmturbo.common.protobuf.action.ActionDTOUtil.beautifyEntityTypeAndName;
 
+import java.text.CharacterIterator;
 import java.text.MessageFormat;
+import java.text.StringCharacterIterator;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 
@@ -91,7 +94,6 @@ public class ActionDescriptionBuilder {
         ACTION_DESCRIPTION_BUYRI("Buy {0} {1} RIs for {2} in {3}"),
         ACTION_DESCRIPTION_ALLOCATE("Increase RI coverage for {0} in {1}"),
         CONTAINER_VCPU_MHZ("{0,number,integer} MHz"),
-        SIMPLE_GB("{0, number, integer} GB"),
         SIMPLE("{0, number, integer}");
 
         private final ThreadLocal<MessageFormat> messageFormat;
@@ -110,6 +112,7 @@ public class ActionDescriptionBuilder {
     private static final ImmutableMap<CommodityDTO.CommodityType, Long> commodityTypeToDefaultUnits =
         new ImmutableMap.Builder<CommodityDTO.CommodityType, Long>()
             .put(CommodityDTO.CommodityType.VMEM, Units.KBYTE)
+            .put(CommodityDTO.CommodityType.VMEM_REQUEST, Units.KBYTE)
             .put(CommodityDTO.CommodityType.STORAGE_AMOUNT, Units.MBYTE)
             .put(CommodityDTO.CommodityType.STORAGE_PROVISIONED, Units.MBYTE)
             .put(CommodityDTO.CommodityType.HEAP, Units.KBYTE)
@@ -545,14 +548,31 @@ public class ActionDescriptionBuilder {
     private static String formatResizeActionCommodityValue(
             @Nonnull final CommodityDTO.CommodityType commodityType,
             final int entityType, final double capacity) {
-        // Currently all items in this map are converted from default units to GB.
+        // Convert capacity of the commodities in this map into human readable format and round the number
+        // with 1 significant figure in decimal, eg. 100.2 MB, 11.0 GB, etc.
         if (commodityTypeToDefaultUnits.containsKey(commodityType)) {
-            return ActionMessageFormat.SIMPLE_GB.format(
-                capacity / (Units.GBYTE / commodityTypeToDefaultUnits.get(commodityType)));
+            long capacityInBytes = (long)(capacity * commodityTypeToDefaultUnits.get(commodityType) / Units.BYTE);
+            return getHumanReadableSize(capacityInBytes);
         } else if (entityType == EntityType.CONTAINER_VALUE) {
             return ActionMessageFormat.CONTAINER_VCPU_MHZ.format(capacity);
         } else {
             return ActionMessageFormat.SIMPLE.format(capacity);
         }
+    }
+
+    @VisibleForTesting
+    static String getHumanReadableSize(long capacityInBytes) {
+        // Reference:
+        // https://stackoverflow.com/questions/3758606/how-to-convert-byte-size-into-human-readable-format-in-java
+        if (capacityInBytes < 1024) {
+            return capacityInBytes + " Bytes";
+        }
+        long value = capacityInBytes;
+        CharacterIterator ci = new StringCharacterIterator("KMGTPE");
+        for (int i = 40; i >= 0 && capacityInBytes > 0xfffccccccccccccL >> i; i -= 10) {
+            value >>= 10;
+            ci.next();
+        }
+        return String.format("%.1f %cB", value / 1024.0, ci.current());
     }
 }
