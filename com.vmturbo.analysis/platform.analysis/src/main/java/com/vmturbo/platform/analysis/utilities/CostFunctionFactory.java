@@ -813,10 +813,13 @@ public class CostFunctionFactory {
 
         CostTuple costTuple = costTable.getTuple(regionIdBought, accountId, licenseTypeKey);
         if (costTuple == null) {
-            logger.debug("Cannot find type {} and region {} in costMap, license base type: {}",
-                    licenseTypeKey, regionIdBought, licenseBaseType);
-            // NOTE: CostTable.NO_VALUE (-1) is the no license commodity type and the same for region.
-            costTuple = costTable.getTuple(CostTable.NO_VALUE, accountId, CostTable.NO_VALUE);
+            // If the cost tuple is null for the no license case, that means there is no pricing for
+            // this region for any license for the template. In this case, we will return an infinite
+            // quote rather than looking up the cheapest region as we don't want to support inter-region
+            // moves.
+            logger.debug("Cost for region {} and license key {} not found in seller {}. Returning infinite"
+                    + " cost for this template.", regionIdBought, licenseTypeKey, sl.getDebugInfoNeverUseInCode());
+            return new CommodityQuote(seller, Double.POSITIVE_INFINITY);
         }
 
         final Long regionId = costTuple.getRegionId();
