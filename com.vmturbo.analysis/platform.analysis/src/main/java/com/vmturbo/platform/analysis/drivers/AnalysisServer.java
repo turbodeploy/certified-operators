@@ -16,11 +16,12 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.nullness.qual.NonNull;
-
-import com.google.common.annotations.VisibleForTesting;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.communication.ITransport;
@@ -64,7 +65,7 @@ public class AnalysisServer implements AutoCloseable {
     private final Map<Long, AnalysisInstanceInfo> analysisInstanceInfoMap = new
             ConcurrentHashMap<>();
     // map that associates every market name with actions from last run
-    private final Map<String, ReplayActions> replayActionsMap = new ConcurrentHashMap<>();
+    private final Map<String, @NonNull ReplayActions> replayActionsMap = new ConcurrentHashMap<>();
     // a queue to save the AnalysisResult message that was not sent to client side
     private final BlockingQueue<AnalysisResults> resultsToSend = new LinkedBlockingQueue<>();
     // websocket transport handler
@@ -182,7 +183,7 @@ public class AnalysisServer implements AutoCloseable {
         settings.setUseExpenseMetricForTermination(
                         settingsTO.getUseExpenseMetricForTermination());
         settings.setExpenseMetricFactor(settingsTO.getExpenseMetricFactor());
-        settings.setRateOfResize(settingsTO.getRateOfResize());
+        settings.setDefaultRateOfResize(settingsTO.getRateOfResize());
         settings.setEstimatesEnabled(settingsTO.getEstimates());
         settings.setQuoteFactor(settingsTO.getQuoteFactor());
         settings.setMaxPlacementIterations(settingsTO.getMaxPlacementIterations());
@@ -379,17 +380,15 @@ public class AnalysisServer implements AutoCloseable {
                             startPriceStatement, true);
         } else {
             // if there are no templates to be added this is not a headroom plan
-            ReplayActions lastDecisions = replayActionsMap.get(mktName);
             Ede ede = new Ede();
             boolean isReplayOrRealTime = instInfo.isReplayActions() || instInfo.isRealTime();
-            if (isReplayOrRealTime) {
-                ede.setReplayActions(
-                                (lastDecisions != null) ? lastDecisions : new ReplayActions());
-            }
+            final @NonNull ReplayActions seedActions = isReplayOrRealTime
+                ? replayActionsMap.getOrDefault(mktName, new ReplayActions())
+                : new ReplayActions();
             actions = ede.generateActions(economy, instInfo.isClassifyActions(),
-                            instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
-                            instInfo.isResizeEnabled(), true, mktData, instInfo.isRealTime(),
-                            instInfo.getSuspensionsThrottlingConfig());
+                instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
+                instInfo.isResizeEnabled(), true, seedActions, mktData, instInfo.isRealTime(),
+                instInfo.getSuspensionsThrottlingConfig());
             if (instInfo.isBalanceDeploy()) {
                 Set<Trader> placedVMSet = economy.getPlacementEntities().stream()
                     .filter(vm -> economy.getMarketsAsBuyer(vm).keySet().stream()
@@ -405,9 +404,9 @@ public class AnalysisServer implements AutoCloseable {
                                                 .forEach(sl -> sl.setMovable(false));
                             });
                     actions = ede.generateActions(economy, instInfo.isClassifyActions(),
-                                    instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
-                                    instInfo.isResizeEnabled(), true, mktData, instInfo.isRealTime(),
-                                    instInfo.getSuspensionsThrottlingConfig());
+                        instInfo.isProvisionEnabled(), instInfo.isSuspensionEnabled(),
+                        instInfo.isResizeEnabled(), true, seedActions, mktData,
+                        instInfo.isRealTime(), instInfo.getSuspensionsThrottlingConfig());
                 }
             }
             long stop = System.nanoTime();
@@ -428,17 +427,16 @@ public class AnalysisServer implements AutoCloseable {
                 @NonNull List<Action> secondRoundActions = new ArrayList<>();
                 AnalysisResults.Builder builder = results.toBuilder();
                 economy.getSettings().setResizeDependentCommodities(false);
-                secondRoundActions.addAll(ede
-                                .generateActions(economy, instInfo.isClassifyActions(), true, true,
-                                                false, true, false, mktData,
-                                                instInfo.getSuspensionsThrottlingConfig())
-                                .stream().filter(action -> action instanceof ProvisionBase
-                                                || action instanceof Activate
-                                                // Extract resizes that explicitly set extractAction to true as part
-                                                // of resizeThroughSupplier provision actions.
-                                                || (action instanceof Resize
-                                                                && action.isExtractAction()))
-                                .collect(Collectors.toList()));
+                secondRoundActions.addAll(
+                    ede.generateActions(economy, instInfo.isClassifyActions(), true, true,
+                                        false, true, false, new ReplayActions(), mktData,
+                                        instInfo.getSuspensionsThrottlingConfig())
+                        .stream().filter(action -> action instanceof ProvisionBase
+                                      || action instanceof Activate
+                                        // Extract resizes that explicitly set extractAction to true as part
+                                        // of resizeThroughSupplier provision actions.
+                                      || (action instanceof Resize && action.isExtractAction()))
+                        .collect(Collectors.toList()));
                 for (Action action : secondRoundActions) {
                     ActionTO actionTO = AnalysisToProtobuf.actionTO(action,
                                     lastComplete.getTraderOids(),
@@ -468,16 +466,19 @@ public class AnalysisServer implements AutoCloseable {
                 results = builder.build();
             }
             if (isReplayOrRealTime) {
-                ReplayActions newReplayActions = ede.getReplayActions();
+                ReplayActions newReplayActions = new ReplayActions();
                 // the OIDs have to be updated after analysisResults
-                newReplayActions.setTraderOids(lastComplete.getTraderOids());
                 if (instInfo.isReplayActions()) {
-                    newReplayActions.setActions(actions);
+                    newReplayActions = new ReplayActions(actions, ImmutableList.of(), lastComplete);
                 } else if (instInfo.isRealTime()) {
-                    // if replay is disabled, perform selective replay to deactivate entities in RT (OM-19855)
-                    newReplayActions.setActions(actions.stream()
-                                    .filter(action -> action instanceof Deactivate)
-                                    .collect(Collectors.toList()));
+                    // if replay is disabled, perform selective replay to deactivate entities in RT
+                    // (OM-19855)
+                    newReplayActions = new ReplayActions(ImmutableList.of(),
+                                                actions.stream()
+                                                    .filter(action -> action instanceof Deactivate)
+                                                    .map(action -> (Deactivate)action)
+                                                    .collect(Collectors.toList()),
+                                                lastComplete);
                 }
                 replayActionsMap.put(mktName, newReplayActions);
             }

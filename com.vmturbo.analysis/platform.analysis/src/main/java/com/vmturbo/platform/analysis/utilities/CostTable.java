@@ -78,6 +78,10 @@ public class CostTable {
         return accountIds.contains(businessAccountId);
     }
 
+    public Set<Long> getAccountIds() {
+       return accountIds;
+    }
+
     private void updateCheapest(CostTableKey key,
                                 CostTuple costTuple) {
         CostTuple cheapestTuple = map.getOrDefault(key, costTuple);

@@ -68,6 +68,7 @@ public class TestUtils {
     public static final int APP_SERVER_TYPE = 10;
     public static final int DB_TYPE = 11;
     public static final int DC_TYPE = 12;
+    public static final int NAMESPACE_TYPE = 13;
 
     public static final double FLOATING_POINT_DELTA = 1e-7;
     public static final double FLOATING_POINT_DELTA2 = 1e-15;
@@ -115,6 +116,7 @@ public class TestUtils {
     public static final CommoditySpecification POWER = createNewCommSpec();
     public static final CommoditySpecification SPACE = createNewCommSpec();
     public static final CommoditySpecification COOLING = createNewCommSpec();
+    public static final CommoditySpecification VMEMLIMITQUOTA = createNewCommSpec();
 
     public static final CommoditySpecificationTO iopsTO =
                     CommoditySpecificationTO.newBuilder().setBaseType(TestUtils.IOPS.getBaseType())
@@ -431,6 +433,9 @@ public class TestUtils {
         CommodityResizeSpecification vMemDependency =
                         new CommodityResizeSpecification(TestUtils.MEM.getType(),
                                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
+        CommodityResizeSpecification vMemQuotaDependency =
+                new CommodityResizeSpecification(TestUtils.VMEMLIMITQUOTA.getType(),
+                        M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
         CommodityResizeSpecification DBMemDependency =
                 new CommodityResizeSpecification(TestUtils.VMEM.getType(),
                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
@@ -438,7 +443,7 @@ public class TestUtils {
                 new CommodityResizeSpecification(TestUtils.VMEM.getType(),
                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
         commodityResizeDependencyMap.put(TestUtils.VCPU.getType(), Arrays.asList(vCpuDependency));
-        commodityResizeDependencyMap.put(TestUtils.VMEM.getType(), Arrays.asList(vMemDependency));
+        commodityResizeDependencyMap.put(TestUtils.VMEM.getType(), Arrays.asList(vMemDependency, vMemQuotaDependency));
         commodityResizeDependencyMap.put(TestUtils.DBMEM.getType(), Arrays.asList(DBMemDependency));
         commodityResizeDependencyMap.put(TestUtils.HEAP.getType(), Arrays.asList(HeapDependency));
     }
@@ -458,14 +463,19 @@ public class TestUtils {
                                 .newBuilder().setCommodityType(TestUtils.VCPU.getType()).build()
                 )));
         rawMap.put(TestUtils.VMEM.getType(),
-                new RawMaterials(Lists.newArrayList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
-                        .newBuilder().setCommodityType(TestUtils.MEM.getType()).build())));
+                new RawMaterials(Lists.newArrayList(
+                        CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                                .newBuilder().setCommodityType(TestUtils.MEM.getType()).build(),
+                        CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                                .newBuilder().setCommodityType(TestUtils.VMEMLIMITQUOTA.getType()).build())));
         rawMap.put(TestUtils.DBMEM.getType(),
-                new RawMaterials(Lists.newArrayList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
-                        .newBuilder().setCommodityType(TestUtils.VMEM.getType()).build())));
+                new RawMaterials(Lists.newArrayList(
+                        CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                                .newBuilder().setCommodityType(TestUtils.VMEM.getType()).build())));
         rawMap.put(TestUtils.HEAP.getType(),
-                new RawMaterials(Lists.newArrayList(CommunicationDTOs.EndDiscoveredTopology.RawMaterial
-                        .newBuilder().setCommodityType(TestUtils.VMEM.getType()).build())));
+                new RawMaterials(Lists.newArrayList(
+                        CommunicationDTOs.EndDiscoveredTopology.RawMaterial
+                                .newBuilder().setCommodityType(TestUtils.VMEM.getType()).build())));
     }
 
     /**
@@ -668,12 +678,13 @@ public class TestUtils {
      * @return an instance of Trader.
      */
     public static Trader setAndGetCBTP(double cost, String name, Economy economy,
-                                       boolean regional, long locationId, long accountScopeId) {
+                                       boolean regional, long locationId, long accountScopeId,
+                                       long priceId) {
         double riDeprecationFactor = 0.0000001;
         Trader cbtp = TestUtils.createTrader(economy, TestUtils.PM_TYPE, Arrays.asList(0l),
                         Arrays.asList(TestUtils.CPU, TestUtils.COUPON_COMMODITY),
                 new double[] {3000, 2}, true, true, name);
-        final BalanceAccount account = new BalanceAccount(0.0, 100000000d, 24, 0);
+        final BalanceAccount account = new BalanceAccount(0.0, 100000000d, 24, priceId);
         final Context context;
         if (regional) {
             context = new Context(locationId, 0L, account);
@@ -685,7 +696,8 @@ public class TestUtils {
         CbtpCostDTO.Builder cbtpBundleBuilder = createCbtpBundleBuilder(
                 TestUtils.COUPON_COMMODITY.getBaseType(), cost * riDeprecationFactor, 50,
                regional, locationId);
-        final CostTuple.Builder costTuple = CostTuple.newBuilder();
+        final CostTuple.Builder costTuple = CostTuple.newBuilder()
+                .setBusinessAccountId(priceId);
         if (regional) {
             costTuple.setRegionId(locationId);
         } else {

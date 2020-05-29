@@ -92,6 +92,8 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
     private Map<UUID, String> shoppingListToScalingGroup = new HashMap<UUID, String>();
     // Map from shopping list ID to peer information in scaling group
     private Map<String, ScalingGroupPeerInfo> scalingGroupToPeerInfo = new HashMap<>();
+    // Map from scaling group ID to members in scaling group
+    private Map<String, Set<Trader>> scalingGroupToMembers = new HashMap<>();
 
     // Cached data
 
@@ -763,9 +765,9 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
      * the entity in the scope.
      */
     @Override
-    public Trader getCloneOfTrader(Trader trader) {
+    public @NonNull Trader getCloneOfTrader(@NonNull Trader trader) {
         while (trader.isClone()) {
-            trader = this.getTraders().get(trader.getCloneOf());
+            trader = getTraders().get(trader.getCloneOf());
         }
         return trader;
     }
@@ -1164,6 +1166,26 @@ public final class Economy implements UnmodifiableEconomy, Serializable {
             return ScalingGroupPeerInfo.EMPTY;
         }
         return scalingGroupToPeerInfo.getOrDefault(scalingGroupId, ScalingGroupPeerInfo.EMPTY);
+    }
+
+    /**
+     * Record the mapping of a scalingGroupId to its list of members.
+     * @param trader that is to be registered as part of a scalingGroup.
+     * @param scalingGroupId the id of the scalingGp that the consumer belongs to.
+     */
+    public void populatePeerMembersForScalingGroup(@NonNull Trader trader, @NonNull String scalingGroupId) {
+        if (!scalingGroupId.isEmpty()) {
+            scalingGroupToMembers.putIfAbsent(scalingGroupId, new HashSet<>());
+            scalingGroupToMembers.get(scalingGroupId).add(trader);
+        }
+    }
+
+    /**
+     * Return the number of members in a scalingGroup
+     * @param scalingGroupId the id of the scalingGp that the consumer belongs to.
+     */
+    public int getNumberOfMembersInScalingGroup(@NonNull String scalingGroupId) {
+        return scalingGroupToMembers.getOrDefault(scalingGroupId, Collections.EMPTY_SET).size();
     }
 
     /**

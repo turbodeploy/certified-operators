@@ -505,7 +505,7 @@ public abstract class Trader implements Serializable {
 
     /**
      * Sets the scaling group ID.
-     * @param scaling group ID
+     * @param scalingGroupId group ID
      */
     public void setScalingGroupId(@Nonnull String scalingGroupId) {
         this.scalingGroupId_ = scalingGroupId;
@@ -514,8 +514,8 @@ public abstract class Trader implements Serializable {
     /**
      * @return whether this Trader is in a scaling group
      */
-    public boolean isInScalingGroup() {
-        return !NO_SCALING_GROUP.equals(scalingGroupId_);
+    public boolean isInScalingGroup(Economy e) {
+        return !scalingGroupId_.isEmpty() && e.getNumberOfMembersInScalingGroup(scalingGroupId_) > 1;
     }
 
     /**

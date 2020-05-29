@@ -375,6 +375,7 @@ public final class ProtobufToAnalysis {
         output.setDebugInfoNeverUseInCode(input.getDebugInfoNeverUseInCode());
         final String scalingGroupId = input.getScalingGroupId();
         output.setScalingGroupId(scalingGroupId);
+        ((Economy)topology.getEconomy()).populatePeerMembersForScalingGroup(output, scalingGroupId);
         populateTraderSettings(topology, input, output.getSettings());
 
         output.setDebugEnabled(input.getDebugEnabled());
@@ -435,14 +436,13 @@ public final class ProtobufToAnalysis {
             case ACTIVATE:
                 Trader traderToActivate = trader.apply(input.getActivate().getTraderToActivate());
                 return new Activate(economy, traderToActivate,
-                                economy.getMarket(basket(
-                                                input.getActivate().getTriggeringBasketList())),
+                                basket(input.getActivate().getTriggeringBasketList()),
                                 trader.apply(input.getActivate().getModelSeller()),
                                 traderToActivate.getBasketSold().get(
                                                 input.getActivate().getMostExpensiveCommodity()));
             case DEACTIVATE:
                 return new Deactivate(economy, trader.apply(input.getDeactivate().getTraderToDeactivate()),
-                                      economy.getMarket(basket(input.getDeactivate().getTriggeringBasketList())));
+                                      basket(input.getDeactivate().getTriggeringBasketList()));
             case PROVISION_BY_DEMAND:
                 return new ProvisionByDemand(economy,
                                 shoppingList.apply(input.getProvisionByDemand().getModelBuyer()),

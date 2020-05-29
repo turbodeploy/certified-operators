@@ -88,6 +88,26 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
         return this;
     }
 
+    @Override
+    @Pure
+    public @NonNull Action port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        return new Reconfigure(destinationEconomy, destinationShoppingList.apply(getTarget()));
+    }
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a reconfigure is always considered valid.</p>
+     */
+    // TODO: do we need to add conditions?
+    @Override
+    public boolean isValid() {
+        return true;
+    }
+
     private @NonNull Reconfigure internalRollback() {
         super.rollback();
         // Nothing to roll back!
@@ -154,7 +174,7 @@ public class Reconfigure extends MoveBase implements Action { // inheritance for
     @Override
     @Pure
     public boolean equals(@ReadOnly Reconfigure this, @ReadOnly Object other) {
-        if (other == null || !(other instanceof Reconfigure)) {
+        if (!(other instanceof Reconfigure)) {
             return false;
         }
         Reconfigure otherReconfigure = (Reconfigure)other;

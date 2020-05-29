@@ -433,6 +433,8 @@ public class ProvisionBySupplyTest {
         e.populateMarketsWithSellersAndMergeConsumerCoverage();
 
         ProvisionBySupply provision = (ProvisionBySupply)new ProvisionBySupply(e, app1, CPU).take();
+        // assert that clone is suspendable
+        assertTrue(((ProvisionBySupply)provision).getProvisionedSeller().getSettings().isSuspendable());
         assertTrue(e.getTraders().size() == 8);
         assertTrue(e.getTraders().stream().filter(t -> t.getType() == TestUtils.CONTAINER_TYPE)
                    .count() == 3);

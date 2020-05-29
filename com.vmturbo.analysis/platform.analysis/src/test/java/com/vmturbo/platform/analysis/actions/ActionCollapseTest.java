@@ -10,9 +10,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import org.junit.Test;
-
 import com.google.common.collect.Lists;
+
+import org.junit.Test;
 
 import com.vmturbo.platform.analysis.economy.Basket;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
@@ -338,12 +338,12 @@ public class ActionCollapseTest {
 
         // suppose the sequence for actions are : ProvisionByDemand -> Deactivate
         ProvisionByDemand provD1 = (ProvisionByDemand)new ProvisionByDemand(economy, s1, p1).take();
-        Deactivate d2 = new Deactivate(economy, provD1.getProvisionedSeller(), economy.getMarket(CPU_MEM_BASKET));
+        Deactivate d2 = new Deactivate(economy, provD1.getProvisionedSeller(), CPU_MEM_BASKET);
         List<Action> sequence1 = new ArrayList<Action>(Arrays.asList(provD1, d2));
         assertTrue(ActionCollapse.collapsed(sequence1).isEmpty());
         // suppose the sequence for actions are : ProvisionBySupply -> Move -> Deactivate
         ProvisionBySupply provS1 = (ProvisionBySupply)new ProvisionBySupply(economy, p1, TestUtils.CPU).take();
-        Deactivate d3 = new Deactivate(economy, provS1.getProvisionedSeller(), economy.getMarket(CPU_MEM_BASKET));
+        Deactivate d3 = new Deactivate(economy, provS1.getProvisionedSeller(), CPU_MEM_BASKET);
         ShoppingList sl3 = economy.addBasketBought(provS1.getProvisionedSeller(), ST_BASKET);
         Move m3 = new Move(economy, sl3, dc1);
         List<Action> sequence2 = new ArrayList<Action>(Arrays.asList(provS1, m3, d3));
@@ -351,7 +351,7 @@ public class ActionCollapseTest {
         // suppose the sequence for actions are: ProvisionBySupply1 -> ProvisionBySupply2 -> Deactivate1
         ProvisionBySupply provS5 = (ProvisionBySupply)new ProvisionBySupply(economy, p2, TestUtils.CPU).take();
         ProvisionBySupply provS6 = (ProvisionBySupply)new ProvisionBySupply(economy, p2, TestUtils.CPU).take();
-        Deactivate d5 = new Deactivate(economy, provS5.getProvisionedSeller(), economy.getMarket(CPU_MEM_BASKET));
+        Deactivate d5 = new Deactivate(economy, provS5.getProvisionedSeller(), CPU_MEM_BASKET);
         List<Action> sequence3 = new ArrayList<Action>(Arrays.asList(provS5, provS6, d5));
         List<Action> results3 = ActionCollapse.collapsed(sequence3);
         assertEquals(1, results3.size());
@@ -359,7 +359,7 @@ public class ActionCollapseTest {
         // suppose the sequence for actions are : ProvisionBySupply1 -> ProvisionByDemand2 -> Deactivate2
         ProvisionBySupply provS7 = (ProvisionBySupply)new ProvisionBySupply(economy, p2, TestUtils.CPU).take();
         ProvisionByDemand provD8 = (ProvisionByDemand)new ProvisionByDemand(economy, s1, p1).take();
-        Deactivate d6 = new Deactivate(economy, provD8.getProvisionedSeller(), economy.getMarket(CPU_MEM_BASKET));
+        Deactivate d6 = new Deactivate(economy, provD8.getProvisionedSeller(), CPU_MEM_BASKET);
         List<Action> sequence4 = new ArrayList<Action>(Arrays.asList(provS7, provD8, d6));
         List<Action> results4 = ActionCollapse.collapsed(sequence4);
         assertEquals(1, results4.size());
@@ -388,10 +388,10 @@ public class ActionCollapseTest {
         ProvisionBySupply provisionBySupply = new ProvisionBySupply(economy, p1, TestUtils.CPU);
         ProvisionByDemand provisionByDemand = new ProvisionByDemand(economy, s1, p1);
         Move move = new Move(economy, s1, v2);
-        Activate activate = new Activate(economy, p3, economy.getMarket(CPU_MEM_BASKET), p2, TestUtils.CPU);
+        Activate activate = new Activate(economy, p3, CPU_MEM_BASKET, p2, TestUtils.CPU);
         Resize resize = new Resize(economy, p2, new CommoditySpecification(0),10, 20);
-        Deactivate deactivate = new Deactivate(economy, provisionBySupply.getProvisionedSeller(),
-                        economy.getMarket(CPU_MEM_BASKET));
+        Deactivate deactivate =
+            new Deactivate(economy, provisionBySupply.getProvisionedSeller(), CPU_MEM_BASKET);
         Reconfigure reconfigure = new Reconfigure(economy, s1);
 
         // Act : Random insertion order.

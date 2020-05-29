@@ -1,8 +1,5 @@
 package com.vmturbo.platform.analysis.actions;
 
-import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
-
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,13 +7,13 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import com.google.common.hash.Hashing;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.dataflow.qual.Pure;
-
-import com.google.common.hash.Hashing;
 
 import com.vmturbo.platform.analysis.actions.GuaranteedBuyerHelper.BuyerInfo;
 import com.vmturbo.platform.analysis.economy.Basket;
@@ -100,7 +97,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
         getProvisionedSeller().setCloneOf(getModelSeller());
         // traders cloned through provisionByDemand are marked non-cloneable by default
         TraderSettings copySettings = getProvisionedSeller().getSettings();
-        copySettings.setSuspendable(getModelSeller().getSettings().isSuspendable());
+        copySettings.setSuspendable(true);
         copySettings.setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
         copySettings.setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
         copySettings.setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
@@ -257,6 +254,26 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
     }
 
     @Override
+    public @NonNull ProvisionByDemand port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        return new ProvisionByDemand(destinationEconomy,
+            destinationShoppingList.apply(getModelBuyer()),
+            destinationTrader.apply(getModelSeller()));
+    }
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a provision-by-demand is considered valid iff the model seller is cloneable.</p>
+     */
+    @Override
+    public boolean isValid() {
+        return getModelSeller().getSettings().isCloneable();
+    }
+
+    @Override
     public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
@@ -274,7 +291,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
         final @NonNull StringBuilder sb = new StringBuilder();
         sb.append("No ").append(traderType.apply(getModelBuyer().getBuyer().getType()/* Substitute correct type */))
           .append(" has enough capacity for ");
-        appendTrader(sb, getModelBuyer().getBuyer(), uuid, name);
+        Utility.appendTrader(sb, getModelBuyer().getBuyer(), uuid, name);
         sb.append(".");
         // TODO: update when we create the recommendation matrix for provisioning and possibly
         // create additional classes for provisioning actions.
@@ -293,7 +310,7 @@ public class ProvisionByDemand extends ProvisionBase implements Action {
     @Override
     @Pure
     public boolean equals(@ReadOnly ProvisionByDemand this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof ProvisionByDemand)) {
+        if (!(other instanceof ProvisionByDemand)) {
             return false;
         }
         ProvisionByDemand otherProvisionByDemand = (ProvisionByDemand)other;

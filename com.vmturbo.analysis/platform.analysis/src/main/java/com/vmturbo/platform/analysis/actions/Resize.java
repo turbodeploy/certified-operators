@@ -6,16 +6,18 @@ import static com.vmturbo.platform.analysis.actions.Utility.appendTrader;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
+import com.google.common.collect.Lists;
+import com.google.common.hash.Hashing;
+
 import org.checkerframework.checker.javari.qual.ReadOnly;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.collect.Lists;
-import com.google.common.hash.Hashing;
 import com.vmturbo.platform.analysis.economy.CommoditySold;
 import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
+import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.ede.Resizer;
 
@@ -24,7 +26,6 @@ import com.vmturbo.platform.analysis.ede.Resizer;
  */
 public class Resize extends ActionImpl {
     // Fields
-    private final @NonNull Economy economy_;
     private final @NonNull Trader sellingTrader_;
     private final @NonNull CommoditySpecification resizedCommoditySpec_;
     private final @NonNull CommoditySold resizedCommodity_;
@@ -75,7 +76,7 @@ public class Resize extends ActionImpl {
      * @param economy The economy containing target and destination.
      * @param sellingTrader The trader that sells the commodity that will be resized.
      * @param resizedCommoditySpec The commodity specification of the commodity that will be resized.
-     * @param resizedCommodity The commodity that will be resized.
+     * @param commoditySold The commodity that will be resized.
      * @param soldIndex The index of the resized commodity specification in seller's basket.
      * @param newCapacity The capacity of the commodity after the resize action is taken.
      */
@@ -101,14 +102,15 @@ public class Resize extends ActionImpl {
      * @param newCapacity The capacity of the commodity after the resize action is taken.
      */
     public Resize(@NonNull Economy economy, @NonNull Trader sellingTrader,
-                  @NonNull CommoditySpecification resizedCommoditySpec, CommoditySold
-                  resizedCommodity, int soldIndex,double oldCapacity, double newCapacity) {
+                  @NonNull CommoditySpecification resizedCommoditySpec, @NonNull CommoditySold
+                  resizedCommodity, int soldIndex, double oldCapacity, double newCapacity) {
+        super(economy);
+
         checkArgument(sellingTrader.getBasketSold().indexOf(resizedCommoditySpec) >= 0,
                       "resizedCommodity =  " + resizedCommoditySpec);
         checkArgument(oldCapacity >= 0, "oldCapacity = " + oldCapacity);
         checkArgument(newCapacity >= 0, "newCapacity = " + newCapacity);
 
-        economy_ = economy;
         sellingTrader_ = sellingTrader;
         resizedCommoditySpec_ = resizedCommoditySpec;
         resizedCommodity_ = resizedCommodity;
@@ -120,19 +122,10 @@ public class Resize extends ActionImpl {
     // Methods
 
     /**
-     * Returns the economy of {@code this} resize. i.e. the economy containing
-     * resized commodity.
-     */
-    @Pure
-    public @NonNull Economy getEconomy(@ReadOnly Resize this) {
-        return economy_;
-    }
-
-    /**
      * Returns the trader whose commodity will be resized by {@code this} action.
      */
     @Pure
-    public @Nullable Trader getSellingTrader(@ReadOnly Resize this) {
+    public @NonNull Trader getSellingTrader(@ReadOnly Resize this) {
         return sellingTrader_;
     }
 
@@ -141,7 +134,7 @@ public class Resize extends ActionImpl {
      * action.
      */
     @Pure
-    public @Nullable CommoditySpecification getResizedCommoditySpec(@ReadOnly Resize this) {
+    public @NonNull CommoditySpecification getResizedCommoditySpec(@ReadOnly Resize this) {
         return resizedCommoditySpec_;
     }
 
@@ -150,7 +143,7 @@ public class Resize extends ActionImpl {
      * action.
      */
     @Pure
-    public @Nullable CommoditySold getResizedCommodity(@ReadOnly Resize this) {
+    public @NonNull CommoditySold getResizedCommodity(@ReadOnly Resize this) {
         return resizedCommodity_;
     }
 
@@ -224,6 +217,25 @@ public class Resize extends ActionImpl {
     }
 
     @Override
+    public @NonNull Action port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        return new Resize(destinationEconomy, destinationTrader.apply(getSellingTrader()),
+            getResizedCommoditySpec(), getOldCapacity(), getNewCapacity());
+    }
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a resize is considered valid iff the resized commodity is resizable.</p>
+     */
+    @Override
+    public boolean isValid() {
+        return getResizedCommodity().getSettings().isResizable();
+    }
+
+    @Override
     public @NonNull String debugDescription(@NonNull Function<@NonNull Trader, @NonNull String> uuid,
                                             @NonNull Function<@NonNull Trader, @NonNull String> name,
                                             @NonNull IntFunction<@NonNull String> commodityType,
@@ -293,7 +305,7 @@ public class Resize extends ActionImpl {
     @Override
     @Pure
     public boolean equals(@ReadOnly Resize this,@ReadOnly Object other) {
-        if (other == null || !(other instanceof Resize)) {
+        if (!(other instanceof Resize)) {
             return false;
         }
         Resize otherResize = (Resize)other;

@@ -13,6 +13,9 @@ import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
+
+import com.google.common.collect.Lists;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.checkerframework.checker.javari.qual.ReadOnly;
@@ -20,7 +23,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 
-import com.google.common.collect.Lists;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
 import com.vmturbo.platform.analysis.economy.Trader;
@@ -49,7 +51,7 @@ public class CompoundMove extends ActionImpl {
      * @param destinations The new suppliers for the shopping lists in the same order as the
      *                     shopping lists appear in the respective collection.
      */
-    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
+    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
                         @NonNull Collection<@Nullable Trader> destinations) {
         this(economy,shoppingLists,shoppingLists.stream().map(ShoppingList::getSupplier)
              .collect(Collectors.toList()),destinations);
@@ -74,8 +76,10 @@ public class CompoundMove extends ActionImpl {
      *                Must be the same size as <b>destinations</b> and not empty.
      * @param destinations Same as for {@link #CompoundMove(Economy, Collection, Collection)}.
      */
-    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@Nullable ShoppingList> shoppingLists,
+    private CompoundMove(@NonNull Economy economy, @NonNull Collection<@NonNull ShoppingList> shoppingLists,
             @NonNull Collection<@Nullable Trader> sources, @NonNull Collection<@Nullable Trader> destinations) {
+        super(economy);
+
         checkArgument(shoppingLists.size() == destinations.size(), "shoppingLists.size() = "
                     + shoppingLists.size() + ", destinations.size() = " + destinations.size());
         checkArgument(shoppingLists.size() == sources.size(), "shoppingLists.size() = "
@@ -135,6 +139,35 @@ public class CompoundMove extends ActionImpl {
         super.rollback();
         moves_.forEach(Move::rollback);
         return this;
+    }
+
+    @Override
+    public @NonNull CompoundMove port(@NonNull final Economy destinationEconomy,
+            @NonNull final Function<@NonNull Trader, @NonNull Trader> destinationTrader,
+            @NonNull final Function<@NonNull ShoppingList, @NonNull ShoppingList>
+                                                                        destinationShoppingList) {
+        List<Move> portedMoves = getConstituentMoves().stream().map(
+            move -> move.port(destinationEconomy, destinationTrader, destinationShoppingList)
+        ).collect(Collectors.toList());
+
+        return new CompoundMove(destinationEconomy,
+            portedMoves.stream().map(Move::getTarget).collect(Collectors.toList()),
+            portedMoves.stream().map(Move::getSource).collect(Collectors.toList()),
+            portedMoves.stream().map(Move::getDestination).collect(Collectors.toList()));
+    }
+
+    /**
+     * Returns whether {@code this} action respects constraints and can be taken.
+     *
+     * <p>Currently a compound move is considered valid iff the target trader has shop-together
+     * enabled and all constituent moves are also valid.</p>
+     */
+    // TODO: does it make sense to replay a compound move if SNM is disabled? Can they represent
+    // moves that don't require it?
+    @Override
+    public boolean isValid() {
+        return getActionTarget().getSettings().isShopTogether()
+            && getConstituentMoves().stream().allMatch(Move::isValid);
     }
 
     @Override
@@ -227,8 +260,9 @@ public class CompoundMove extends ActionImpl {
     @Override
     @Pure
     public boolean equals(@ReadOnly CompoundMove this, @ReadOnly Object other) {
-        if(other == null || !(other instanceof CompoundMove))
+        if (!(other instanceof CompoundMove)) {
             return false;
+        }
         return moves_.equals(((CompoundMove)other).moves_);
     }
 

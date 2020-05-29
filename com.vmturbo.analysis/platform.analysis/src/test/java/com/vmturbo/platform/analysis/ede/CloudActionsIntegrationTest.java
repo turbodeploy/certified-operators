@@ -51,7 +51,7 @@ public class CloudActionsIntegrationTest {
     private static final Basket boughtByTemplateExcludedVM = new Basket(CPU, COUPON, LICENSE, TEMPLATE);
     private static final Logger logger = LogManager.getLogger(CloudActionsIntegrationTest.class);
 
-    private static final long BA = 1, REGION = 2, ZONE = 3;
+    private static final long BA = 1, REGION = 2, ZONE = 3, PRICE_ID = 4;
     private static final double VERY_LOW_PRICE = 2, LOW_PRICE = 5, HIGH_PRICE = 10;
 
     private @NonNull BiMap<@NonNull Trader, @NonNull Long> traderOids = HashBiMap.create();
@@ -68,7 +68,7 @@ public class CloudActionsIntegrationTest {
         traders[2] = vm3;
 
         final Context context = new Context(REGION, ZONE, new Context.BalanceAccount(0, 10000, BA,
-                0, BA));
+                PRICE_ID, BA));
         vm1.setDebugInfoNeverUseInCode("VirtualMachine|1");
         vm2.setDebugInfoNeverUseInCode("VirtualMachine|2");
         vm3.setDebugInfoNeverUseInCode("VirtualMachine|3");
@@ -119,7 +119,7 @@ public class CloudActionsIntegrationTest {
                         .setCouponBaseType(COUPON.getBaseType())
                         .setLicenseCommodityBaseType(LICENSE.getBaseType())
                         .addCostTupleList(CostDTOs.CostDTO.CostTuple.newBuilder()
-                                .setBusinessAccountId(BA)
+                                .setBusinessAccountId(PRICE_ID)
                                 .setLicenseCommodityType(LICENSE.getType())
                                 .setRegionId(REGION)
                                 .setPrice(LOW_PRICE).build())
@@ -141,7 +141,7 @@ public class CloudActionsIntegrationTest {
                         .setCouponBaseType(COUPON.getBaseType())
                         .setLicenseCommodityBaseType(LICENSE.getBaseType())
                         .addCostTupleList(CostDTOs.CostDTO.CostTuple.newBuilder()
-                                .setBusinessAccountId(BA)
+                                .setBusinessAccountId(PRICE_ID)
                                 .setLicenseCommodityType(LICENSE.getType())
                                 .setRegionId(REGION)
                                 .setPrice(HIGH_PRICE)
@@ -160,6 +160,7 @@ public class CloudActionsIntegrationTest {
                         .setDiscountPercentage(0.4)
                         .setScopeId(BA)
                         .addCostTupleList(CostDTOs.CostDTO.CostTuple.newBuilder()
+                                .setBusinessAccountId(PRICE_ID)
                                 .setLicenseCommodityType(LICENSE.getType())
                                 .setRegionId(REGION)
                                 .setPrice(VERY_LOW_PRICE * 0.0001))
@@ -172,6 +173,7 @@ public class CloudActionsIntegrationTest {
                         .setDiscountPercentage(0.4)
                         .setScopeId(BA)
                         .addCostTupleList(CostDTOs.CostDTO.CostTuple.newBuilder()
+                                .setBusinessAccountId(PRICE_ID)
                                 .setLicenseCommodityType(LICENSE.getType())
                                 .setRegionId(REGION)
                                 .setPrice(LOW_PRICE * 0.0001))
@@ -237,7 +239,7 @@ public class CloudActionsIntegrationTest {
             shoppingList.setGroupFactor(i == 1 ? numBuyers : 0);
             economy.registerShoppingListWithScalingGroup(scalingGroupId, shoppingList);
             trader.getSettings().setContext(new Context(REGION, ZONE,
-                    new Context.BalanceAccount(0, 10000, BA, 0, 0L)));
+                    new Context.BalanceAccount(0, 10000, BA, PRICE_ID, 0L)));
             traders[traderIndex++] = trader;
             traderOids.put(trader, (long)(i + startIndex));
         }
@@ -273,7 +275,7 @@ public class CloudActionsIntegrationTest {
             shoppingList.setGroupFactor(i == 1 ? numBuyers : 0);
             economy.registerShoppingListWithScalingGroup(scalingGroupId, shoppingList);
             trader.getSettings().setContext(new Context(REGION, ZONE,
-                    new Context.BalanceAccount(0, 10000, BA, 0, 0L)));
+                    new Context.BalanceAccount(0, 10000, BA, PRICE_ID, 0L)));
             traders[traderIndex++] = trader;
             traderOids.put(trader, (long) (i + startIndex));
         }
@@ -390,7 +392,7 @@ public class CloudActionsIntegrationTest {
                                 final double totalAllocatedCoupons,
                                 final double totalRequestedCoupons) {
         return new Context(providerId, REGION, ZONE,
-            new Context.BalanceAccount(0d, 10000d, BA, 0L, 0L),
+            new Context.BalanceAccount(0d, 10000d, BA, PRICE_ID, 0L),
             totalAllocatedCoupons, totalRequestedCoupons);
     }
 
@@ -664,18 +666,17 @@ public class CloudActionsIntegrationTest {
         // Consider the case where we request 24 coupons (with 12 coupons available for the CSG spread equally across its members).
         // There are 2 CBTPs with 12 coupons available in each,
         // if the minimumTP needed by the CBTP is available in both CBTPs, both CBTPs give the same price. NO MATTER THE DISCOUNT
-        // we wont move to the CBTP with the higher discount
+        // we will move to the CBTP with the higher discount
 
-        // NO ACTIONS!!!
         PlacementResults results = Placement.generateShopAlonePlacementDecisions(e, slVM1);
-        // no moves - no relinquishing
-        assertEquals(0, results.getActions().size());
+        // Move from CBTP2 to CBTP1 (lower nominal fee)
+        assertEquals(3, results.getActions().size());
         // moving each VM to CBTP consuming 8 coupons each
-        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 0, 0);
-        assertEquals(4, slVM1.getQuantity(1), 0);
+        assertEquals(sellers[2].getCommoditySold(COUPON).getQuantity(), 12, 0);
+        assertEquals(8, slVM1.getQuantity(1), 0);
         assertEquals(4, slVM2.getQuantity(1), 0);
-        assertEquals(4, slVM3.getQuantity(1), 0);
-        assertEquals(12, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
+        assertEquals(0, slVM3.getQuantity(1), 0);
+        assertEquals(0, sellers[3].getCommoditySold(COUPON).getQuantity(), 0);
     }
 
     /*

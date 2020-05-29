@@ -1,10 +1,6 @@
 package com.vmturbo.platform.analysis.ede;
 
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
+import java.util.HashSet;
 import junitparams.JUnitParamsRunner;
 import junitparams.Parameters;
 import junitparams.naming.TestCaseName;
@@ -15,9 +11,17 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import com.vmturbo.platform.analysis.economy.Basket;
+import com.vmturbo.platform.analysis.economy.CommoditySpecification;
 import com.vmturbo.platform.analysis.economy.Economy;
 import com.vmturbo.platform.analysis.economy.ShoppingList;
+import com.vmturbo.platform.analysis.economy.Trader;
 import com.vmturbo.platform.analysis.economy.TraderState;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * A test case for the {@link QuoteMinimizer} class.
@@ -53,6 +57,30 @@ public class QuoteMinimizerTest {
             {e1,e1.addBasketBought(e1.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY)},
             {e2,e2.addBasketBought(e2.addTrader(0, TraderState.ACTIVE, EMPTY), EMPTY)},
         };
+    }
+
+    /*
+     * Test that the QuoteMinimizer does not return the current provider as the best seller when the provider returns
+     * infinite price even when there are no other providers.
+     */
+    @Test
+    public final void testQuoteMinimizerWhenCurrentSellerReturnsInfinity() {
+        Economy e = new Economy();
+        Trader consumer = e.addTrader(1, TraderState.ACTIVE, new Basket(), new Basket(new CommoditySpecification(1)));;
+        ShoppingList sl = e.getMarketsAsBuyer(consumer).keySet().stream().findFirst().get();
+        sl.setQuantity(0, 5);
+
+        Trader provider = e.addTrader(2, TraderState.ACTIVE, new Basket(new CommoditySpecification(1)),
+                new HashSet<>());
+        provider.getCommoditiesSold().get(0).setQuantity(5).setCapacity(2);
+        sl.move(provider);
+        e.populateMarketsWithSellersAndMergeConsumerCoverage();
+
+        QuoteMinimizer minimizer = new QuoteMinimizer(e, sl, null, 0);
+        minimizer.accept(provider);
+
+        assertNull(minimizer.getBestSeller());
+        assertEquals(Double.POSITIVE_INFINITY, minimizer.getTotalBestQuote(), 0);
     }
 
     @Test
