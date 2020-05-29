@@ -109,11 +109,16 @@ class ProcessListClassifier {
      * A mostly-POJO that represents selected fields of a processlist table record.
      */
     static class ProcessListRecord {
+        private long id;
         private String db;
         private long time;
         private String command;
         private String state;
         private String info;
+
+        public long getId() {
+            return id;
+        }
 
         public String getDb() {
             return db;
@@ -165,4 +170,3 @@ class ProcessListClassifier {
         }
     }
 }
-
