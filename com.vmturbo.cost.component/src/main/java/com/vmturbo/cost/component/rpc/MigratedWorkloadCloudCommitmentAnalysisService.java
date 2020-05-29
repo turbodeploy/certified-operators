@@ -1,5 +1,6 @@
 package com.vmturbo.cost.component.rpc;
 
+import com.vmturbo.common.protobuf.cost.CostREST;
 import com.vmturbo.common.protobuf.cost.MigratedWorkloadCloudCommitmentAnalysisServiceGrpc.MigratedWorkloadCloudCommitmentAnalysisServiceImplBase;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisRequest;
 import com.vmturbo.common.protobuf.cost.Cost.MigratedWorkloadCloudCommitmentAnalysisResponse;
@@ -17,6 +18,7 @@ public class MigratedWorkloadCloudCommitmentAnalysisService extends MigratedWork
     public void startAnalysis(MigratedWorkloadCloudCommitmentAnalysisRequest request,
                               StreamObserver<MigratedWorkloadCloudCommitmentAnalysisResponse> responseObserver) {
         logger.info("MigratedWorkloadCloudCommitmentAnalysisService::startAnalysis");
+        responseObserver.onNext(MigratedWorkloadCloudCommitmentAnalysisResponse.getDefaultInstance());
         responseObserver.onCompleted();
     }
 }
