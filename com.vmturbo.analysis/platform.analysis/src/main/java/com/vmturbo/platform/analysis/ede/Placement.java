@@ -265,6 +265,7 @@ public class Placement {
                         < currentQuote * buyer.getSettings().getQuoteFactor() ||
                 (cheapestSeller == shoppingList.getSupplier()
                         && minimizer.getBestQuote().getContext().isPresent()
+                        && shoppingList.getBuyer().getSettings().getContext() != null
                         && !shoppingList.getBuyer().getSettings().getContext()
                             .isEqualCoverages(minimizer.getBestQuote().getContext())) ||
                 // isScalingGroupConsistentlySized() is only meaningful for cloud providers.

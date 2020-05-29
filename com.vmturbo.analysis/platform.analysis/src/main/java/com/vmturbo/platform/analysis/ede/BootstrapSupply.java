@@ -738,9 +738,16 @@ public class BootstrapSupply {
         if (shoppingList.getSupplier() == null) {
             if (Double.isFinite(minimizer.getTotalBestQuote())) {
                 // on getting finiteQuote, move unplaced Trader to the best provider
-                allActions.addAll(new Move(economy, shoppingList, minimizer.getBestSeller())
-                        .take().setImportance(Double.POSITIVE_INFINITY)
-                        .getAllActions());
+                if (minimizer.getBestQuote().getContext().isPresent()) {
+                    allActions.addAll(new Move(economy, shoppingList, shoppingList.getSupplier(),
+                            minimizer.getBestSeller(), minimizer.getBestQuote().getContext())
+                            .take().setImportance(Double.POSITIVE_INFINITY)
+                            .getAllActions());
+                } else {
+                    allActions.addAll(new Move(economy, shoppingList, minimizer.getBestSeller())
+                            .take().setImportance(Double.POSITIVE_INFINITY)
+                            .getAllActions());
+                }
                 if (logger.isTraceEnabled() || isDebugBuyer || isDebugSeller) {
                     logger.info("{" + buyerDebugInfo + "} moves to "
                                 + sellerDebugInfo + " because it is unplaced.");
