@@ -1,6 +1,7 @@
 package com.vmturbo.platform.analysis.utility;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.lang.reflect.Field;
@@ -446,6 +447,7 @@ public class CostFunctionTest {
             TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
                 .setLicenseCommodityType(-1)
                 .setPrice(t2NanoCost)
+                    .setRegionId(10L)
                 .setBusinessAccountId(24)
                 .build()).build()).build();
 
@@ -474,6 +476,7 @@ public class CostFunctionTest {
             TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
                 .setLicenseCommodityType(-1)
                 .setPrice(m5Large)
+                    .setRegionId(10L)
                 .setBusinessAccountId(24)
                 .build()).build()).build();
 
@@ -615,6 +618,7 @@ public class CostFunctionTest {
         CostDTO m5LargeTP_CostDto = CostDTO.newBuilder().setComputeTierCost(
                 TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
                         .setLicenseCommodityType(-1)
+                        .setRegionId(10L)
                         .setPrice(m5Large)
                         .setBusinessAccountId(24)
                         .build()).build()).build();
@@ -720,6 +724,7 @@ public class CostFunctionTest {
                 TestUtils.getComputeTierCostDTOBuilder().addCostTupleList(CostTuple.newBuilder()
                         .setLicenseCommodityType(-1)
                         .setPrice(m5LargePrice)
+                        .setRegionId(10L)
                         .setBusinessAccountId(vmBusinessAccountId)
                         )).build();
         m5LargeTP.getSettings().setCostFunction(CostFunctionFactory
@@ -816,7 +821,7 @@ public class CostFunctionTest {
 
     /**
      * Create a CostFunction with only License defined using a CostDTO with multiple Regions,
-     * the resulting Quote contains the RegionId that has the lowest cost.
+     * We should get an infinite quote
      */
     @Test
     public void testDatabaseTierComputeFunctionWithLicenseOnly() {
@@ -826,11 +831,9 @@ public class CostFunctionTest {
                 TestUtils.NO_TYPE));
         final MutableQuote quote = calculateCost(TestUtils.DC5_COMM_TYPE, cf);
 
-        // Assert: the quote contains the cost for WINDOWS License and cheapest Region
-        assertTrue(quote instanceof CommodityCloudQuote);
-        assertTrue(quote.getContext().isPresent());
-        assertEquals(TestUtils.DC1_COMM_TYPE, quote.getContext().get().getRegionId());
-        assertEquals(1.5d, quote.getQuoteValue(), 0);
+        assertFalse(quote.getContext().isPresent());
+        // Assert: the quote contains an infinite cost
+        assertTrue(quote.isInfinite());
     }
 
     /**
