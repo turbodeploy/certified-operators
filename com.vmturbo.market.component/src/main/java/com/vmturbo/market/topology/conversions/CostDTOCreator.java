@@ -229,7 +229,8 @@ public class CostDTOCreator {
                         .addCostTupleList(CostTuple.newBuilder()
                                 .setBusinessAccountId(accountPricingData.getAccountPricingDataOid())
                                 .setLicenseCommodityType(-1)
-                                .setRegionId(region.getOid())
+                                .setRegionId(dataCenterAccessCommodity.isPresent() ?
+                                        spec.getType() : null)
                                 .setPrice(Double.POSITIVE_INFINITY));
             }
         }

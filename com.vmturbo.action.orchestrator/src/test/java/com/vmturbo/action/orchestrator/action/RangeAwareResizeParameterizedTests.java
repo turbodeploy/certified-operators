@@ -46,35 +46,29 @@ public class RangeAwareResizeParameterizedTests {
     private final float oldCapacity;
     private final float newCapacity;
     private final ActionMode expectedActionMode;
-    private final EnumSettingValue modeAboveMax;
-    private final EnumSettingValue modeBelowMin;
 
     private static final Map<String, Setting> rangeAwareSettingsForEntity = Maps.newHashMap();
     private EntitiesAndSettingsSnapshot entitySettingsCache = mock(EntitiesAndSettingsSnapshot.class);
 
     private ActionModeCalculator actionModeCalculator = new ActionModeCalculator();
-    private static final EnumSettingValue DISABLED = EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()).build();
-    private static final EnumSettingValue AUTOMATIC = EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()).build();
-    private static final EnumSettingValue MANUAL = EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()).build();
-    private static final EnumSettingValue RECOMMEND = EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()).build();
 
     public RangeAwareResizeParameterizedTests(CommodityAttribute changedAttribute, int commodityType,
                                               int entityType, float oldCapacity, float newCapacity,
-                                              ActionMode actionMode, EnumSettingValue modeAboveMax,
-                                              EnumSettingValue modeBelowMin) {
+                                              ActionMode actionMode) {
         this.changedAttribute = changedAttribute;
         this.commodityType = commodityType;
         this.entityType = entityType;
         this.oldCapacity = oldCapacity;
         this.newCapacity = newCapacity;
         this.expectedActionMode = actionMode;
-        this.modeAboveMax = modeAboveMax;
-        this.modeBelowMin = modeBelowMin;
     }
 
     @BeforeClass
     public static void setUp() {
-
+        EnumSettingValue DISABLED = EnumSettingValue.newBuilder().setValue(ActionMode.DISABLED.name()).build();
+        EnumSettingValue AUTOMATIC = EnumSettingValue.newBuilder().setValue(ActionMode.AUTOMATIC.name()).build();
+        EnumSettingValue RECOMMEND = EnumSettingValue.newBuilder().setValue(ActionMode.RECOMMEND.name()).build();
+        EnumSettingValue MANUAL = EnumSettingValue.newBuilder().setValue(ActionMode.MANUAL.name()).build();
         // range aware vMem settings
         Setting vMemMaxThreshold = Setting.newBuilder()
                 .setSettingSpecName(EntitySettingSpecs.ResizeVmemMaxThreshold.getSettingName())
@@ -84,14 +78,22 @@ public class RangeAwareResizeParameterizedTests {
                 .setSettingSpecName(EntitySettingSpecs.ResizeVmemMinThreshold.getSettingName())
                 // In MB
                 .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(512).build()).build();
+        Setting vMemAboveMaxThreshold = Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName())
+                .setEnumSettingValue(DISABLED).build();
+        Setting vMemBelowMinThreshold = Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName())
+                .setEnumSettingValue(AUTOMATIC).build();
         Setting vMemUpInBetweenThresholds = Setting.newBuilder()
                 .setSettingSpecName(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName())
                 .setEnumSettingValue(MANUAL).build();
         Setting vMemDownInBetweenThresholds = Setting.newBuilder()
                 .setSettingSpecName(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName())
-                .setEnumSettingValue(AUTOMATIC).build();
+                .setEnumSettingValue(RECOMMEND).build();
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemMaxThreshold.getSettingName(), vMemMaxThreshold);
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemMinThreshold.getSettingName(), vMemMinThreshold);
+        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName(), vMemAboveMaxThreshold);
+        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName(), vMemBelowMinThreshold);
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(), vMemUpInBetweenThresholds);
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemDownInBetweenThresholds.getSettingName(), vMemDownInBetweenThresholds);
 
@@ -104,6 +106,12 @@ public class RangeAwareResizeParameterizedTests {
                 .setSettingSpecName(EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName())
                 // In cores
                 .setNumericSettingValue(NumericSettingValue.newBuilder().setValue(3).build()).build();
+        Setting vCpuAboveMaxThreshold = Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName())
+                .setEnumSettingValue(DISABLED).build();
+        Setting vCpuBelowMinThreshold = Setting.newBuilder()
+                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName())
+                .setEnumSettingValue(AUTOMATIC).build();
         Setting vCpuUpInBetweenThresholds = Setting.newBuilder()
                 .setSettingSpecName(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName())
                 .setEnumSettingValue(MANUAL).build();
@@ -112,6 +120,8 @@ public class RangeAwareResizeParameterizedTests {
                 .setEnumSettingValue(RECOMMEND).build();
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuMaxThreshold.getSettingName(), vCpuMaxThreshold);
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuMinThreshold.getSettingName(), vCpuMinThreshold);
+        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName(), vCpuAboveMaxThreshold);
+        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName(), vCpuBelowMinThreshold);
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds.getSettingName(), vCpuUpInBetweenThresholds);
         rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuDownInBetweenThresholds.getSettingName(), vCpuDownInBetweenThresholds);
 
@@ -124,44 +134,45 @@ public class RangeAwareResizeParameterizedTests {
 
     @SuppressWarnings("unused") // it is used reflectively
     @Parameters( name = "{index}:Resize attribute {0} of commodity {1} of entity type {2} from {3} to {4}. Expected mode = {5}" )
-    public static Collection<Object[]> parametersForTestRangeAwareResize() {
+    public static Collection<Object[]> data() {
         return Arrays.asList(new Object[][] {
                 // Vmem
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 20_000_000, ActionMode.MANUAL, MANUAL, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 20_000_000, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 8_000_000, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 8_000_000, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 8_000_000, 7_000_000, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 8_000_000, 7_000_000,
+                        ActionMode.RECOMMEND},
                 // Vcpu
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 2, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 2, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 12, ActionMode.MANUAL, MANUAL, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 12, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 7, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 7, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 7, 4, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 7, 4, ActionMode.RECOMMEND},
                 // Test the edges
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 5, 8, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 5, 8, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 12, 8, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 12, 8, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 5, 3, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 5, 3, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 1, 3, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 1, 3, ActionMode.MANUAL},
                 // Limit change
                 {CommodityAttribute.LIMIT, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.MANUAL},
                 // Reservation change
                 {CommodityAttribute.RESERVED, CommodityDTO.CommodityType.MEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 500_000, 300_000, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.RECOMMEND},
                 // Non-VM resize
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.CONTAINER_VALUE, 300_000, 500_000, ActionMode.DISABLED, DISABLED, AUTOMATIC},
+                        EntityType.CONTAINER_VALUE, 300_000, 500_000, ActionMode.DISABLED},
                 /*
                 Adjust resize
                 CPU
@@ -170,42 +181,42 @@ public class RangeAwareResizeParameterizedTests {
                 Resize Up
                  */
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 1, 2, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 1, 2, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 2, 4, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 2, 4, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 2, 8, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 2, 8, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 8, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 8, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 7, 8, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 7, 8, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 9, 10, ActionMode.DISABLED, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 9, 10, ActionMode.DISABLED},
                 // Resize up VCPU from max (8) to above max
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 8, 10, ActionMode.DISABLED, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 8, 10, ActionMode.DISABLED},
                 // Test case resize CPU from below max to above max (max=8 cores)
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 1, 10, ActionMode.MANUAL, MANUAL, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 1, 10, ActionMode.RECOMMEND},
                 // Resize Down
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 10, 9, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 10, 9, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 9, 7, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 9, 7, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 7, 4, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 7, 4, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 3, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 4, 3, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 9, 3, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 9, 3, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 2, 1, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 2, 1, ActionMode.AUTOMATIC},
                 // Resize down VCPU from min (3) to below min
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 3, 1, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 3, 1, ActionMode.AUTOMATIC},
                 // Test case resize CPU from above min to below min (min=3)
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VCPU_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 5, 1, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 5, 1, ActionMode.RECOMMEND},
                 /*
                 Mem
                 min = 512MB max = 16GB
@@ -213,67 +224,53 @@ public class RangeAwareResizeParameterizedTests {
                 Resize Up
                  */
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 100 * MB, 200 * MB, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 100 * MB, 200 * MB, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 200 * MB, 800 * MB, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 200 * MB, 800 * MB, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 200 * MB, 16_000 * MB, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 200 * MB, 16_000 * MB, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 800 * MB, 12_000 * MB, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 800 * MB, 12_000 * MB, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 12_000 * MB, 16_000 * MB, ActionMode.MANUAL, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 12_000 * MB, 16_000 * MB, ActionMode.MANUAL},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 25_000 * MB, ActionMode.DISABLED, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 25_000 * MB, ActionMode.DISABLED},
                 // Resize up VMem from max (16 GB) to above max
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 16_384 * MB, 25_000 * MB, ActionMode.DISABLED, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 16_384 * MB, 25_000 * MB, ActionMode.DISABLED},
                 // Test case resize Mem from below max to above max (max=16GB)
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 1_000 * MB, 1_000_000 * MB, ActionMode.MANUAL, MANUAL, AUTOMATIC},
-
+                        EntityType.VIRTUAL_MACHINE_VALUE, 1_000 * MB, 1_000_000 * MB,
+                        ActionMode.RECOMMEND},
                 // Resize Down
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 25_000 * MB, 19_000 * MB, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 25_000 * MB, 19_000 * MB, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 12_000 * MB, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 12_000 * MB, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 800 * MB, 512 * MB, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 12_000 * MB, 800 * MB, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 512 * MB, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 800 * MB, 512 * MB, ActionMode.RECOMMEND},
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 200 * MB, 100 * MB, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 19_000 * MB, 512 * MB, ActionMode.RECOMMEND},
+                {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
+                        EntityType.VIRTUAL_MACHINE_VALUE, 200 * MB, 100 * MB, ActionMode.AUTOMATIC},
                 // Resize down VMem from 512 MB to below min
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 512 * MB, 100 * MB, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 512 * MB, 100 * MB, ActionMode.AUTOMATIC},
                 // Test case resize Mem from above min to below min (min=512MB)
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VMEM_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 100_000 * MB, 100 * MB, ActionMode.AUTOMATIC, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 100_000 * MB, 100 * MB,
+                        ActionMode.RECOMMEND},
                 // Other commodity resize
                 {CommodityAttribute.CAPACITY, CommodityDTO.CommodityType.VSTORAGE_VALUE,
-                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.RECOMMEND, DISABLED, AUTOMATIC},
+                        EntityType.VIRTUAL_MACHINE_VALUE, 300_000, 500_000, ActionMode.RECOMMEND},
         });
 
     }
 
     @Test
     public void testRangeAwareResize() {
-        Setting vCpuAboveMaxThreshold = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName())
-                .setEnumSettingValue(modeAboveMax).build();
-        Setting vMemBelowMinThreshold = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName())
-                .setEnumSettingValue(modeBelowMin).build();
-        Setting vMemAboveMaxThreshold = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName())
-                .setEnumSettingValue(modeAboveMax).build();
-        Setting vCpuBelowMinThreshold = Setting.newBuilder()
-                .setSettingSpecName(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName())
-                .setEnumSettingValue(modeBelowMin).build();
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuAboveMaxThreshold.getSettingName(), vCpuAboveMaxThreshold);
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVcpuBelowMinThreshold.getSettingName(), vCpuBelowMinThreshold);
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemAboveMaxThreshold.getSettingName(), vMemAboveMaxThreshold);
-        rangeAwareSettingsForEntity.put(EntitySettingSpecs.ResizeVmemBelowMinThreshold.getSettingName(), vMemBelowMinThreshold);
-
         ActionDTO.Action.Builder actionBuilder = ActionDTO.Action.newBuilder()
                 .setId(10289)
                 .setExplanation(Explanation.getDefaultInstance())

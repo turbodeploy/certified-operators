@@ -58,7 +58,6 @@ import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatRequest;
 import com.vmturbo.common.protobuf.stats.Stats.GetMostRecentStatResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatHistoricalEpoch;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
@@ -68,9 +67,10 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
-import com.vmturbo.common.protobuf.utils.StringConstants;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
+import com.vmturbo.common.protobuf.utils.StringConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.AttachmentState;
@@ -146,7 +146,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     }
 
     @Override
-    @Nonnull
+    @Nullable
     public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatch(@Nonnull final List<TopologyEntityDTO> entities)
             throws InterruptedException, ConversionException {
         EntityAspect aspect = mapEntitiesToAspect(entities);
@@ -224,11 +224,14 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 getIdentifier = (entity) -> entity.getUuid() != null
                     ? entity.getUuid() : "";
                 break;
+            case EntityType.STORAGE_TIER_VALUE:
+                getIdentifier = (entity) -> entity.getTier() != null
+                    ? entity.getTier() : "";
+                break;
             case EntityType.VIRTUAL_MACHINE_VALUE:
                 getIdentifier = (entity) -> entity.getAttachedVirtualMachine() != null
                     ? entity.getAttachedVirtualMachine().getUuid() : "";
                 break;
-            case EntityType.STORAGE_TIER_VALUE:
             case EntityType.STORAGE_VALUE:
                 getIdentifier = (entity) -> entity.getProvider() != null
                     ? entity.getProvider().getUuid() : "";

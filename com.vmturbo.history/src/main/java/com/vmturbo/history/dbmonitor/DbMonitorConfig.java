@@ -80,15 +80,6 @@ public class DbMonitorConfig {
     @Value("${dbMonitorDisableDefaultClassifications:false}")
     public boolean dbMonitorDisableDefaultClassifications;
 
-    /**
-     * Time threshold for a process to be considered long-running.
-     *
-     * <p>Once the process is in that category at least two consecutive cycles, it will be logged
-     * individually.</p>
-     */
-    @Value("${longRunningQueryThresholdSecs:300}")
-    public int longRunningQueryThresholdSecs;
-
     @Autowired
     HistoryDbConfig historyDbConfig;
 
@@ -101,8 +92,7 @@ public class DbMonitorConfig {
      */
     @Bean
     public DbMonitor dbMonitorLoop() throws JsonProcessingException {
-        return new DbMonitor(processListClassifier(), historyDbConfig.dsl(),
-                dbMonitorIntervalSec, longRunningQueryThresholdSecs);
+        return new DbMonitor(processListClassifier(), historyDbConfig.dsl(), dbMonitorIntervalSec);
     }
 
     @Bean
