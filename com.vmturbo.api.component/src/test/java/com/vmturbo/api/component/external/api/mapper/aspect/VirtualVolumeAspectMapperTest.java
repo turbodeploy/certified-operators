@@ -6,6 +6,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -16,16 +17,18 @@ import static org.mockito.Mockito.when;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import org.junit.Assert;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -35,6 +38,7 @@ import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.MultiEntityRequest;
 import com.vmturbo.api.component.communication.RepositoryApi.SearchRequest;
 import com.vmturbo.api.dto.entity.ServiceEntityApiDTO;
+import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.dto.entityaspect.VirtualDiskApiDTO;
 import com.vmturbo.api.dto.entityaspect.VirtualDisksAspectApiDTO;
 import com.vmturbo.api.dto.statistic.StatApiDTO;
@@ -50,6 +54,7 @@ import com.vmturbo.common.protobuf.stats.Stats.StatHistoricalEpoch;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
+import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.ApiPartialEntity;
@@ -61,7 +66,6 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.StorageInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualVolumeInfo;
-import com.vmturbo.common.protobuf.topology.ApiEntityType;
 import com.vmturbo.commons.Units;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.components.common.ClassicEnumMapper.CommodityTypeUnits;
@@ -857,6 +861,45 @@ public class VirtualVolumeAspectMapperTest {
         });
     }
 
+    @Test
+    public void testMapOneToManyAspectsForStorageTier() {
+        // ARRANGE
+        final VirtualDiskApiDTO disk1 = new VirtualDiskApiDTO();
+        final ServiceEntityApiDTO tier1 = new ServiceEntityApiDTO();
+        tier1.setUuid(String.valueOf(1));
+        disk1.setProvider(tier1);
+
+        final VirtualDiskApiDTO disk2 = new VirtualDiskApiDTO();
+        final ServiceEntityApiDTO tier2 = new ServiceEntityApiDTO();
+        tier2.setUuid(String.valueOf(2));
+        disk2.setProvider(tier2);
+
+        final VirtualDisksAspectApiDTO aspect = new VirtualDisksAspectApiDTO();
+        aspect.setVirtualDisks(ImmutableList.of(disk1, disk2));
+
+        // ACT
+        final Map<String, EntityAspect> aspectMap = volumeAspectMapper.mapOneToManyAspects(
+                Collections.singletonList(storageTier1), aspect);
+
+        // ASSERT
+        assertNotNull(aspectMap);
+        assertEquals(2, aspectMap.size());
+
+        final EntityAspect aspect1 = aspectMap.get(String.valueOf(1));
+        assertTrue(aspect1 instanceof VirtualDisksAspectApiDTO);
+        final VirtualDisksAspectApiDTO vdAspect1 = (VirtualDisksAspectApiDTO)aspect1;
+        assertEquals(1, vdAspect1.getVirtualDisks().size());
+        assertEquals(String.valueOf(1),
+                vdAspect1.getVirtualDisks().iterator().next().getProvider().getUuid());
+
+        final EntityAspect aspect2 = aspectMap.get(String.valueOf(2));
+        assertTrue(aspect2 instanceof VirtualDisksAspectApiDTO);
+        final VirtualDisksAspectApiDTO vdAspect2 = (VirtualDisksAspectApiDTO)aspect2;
+        assertEquals(1, vdAspect2.getVirtualDisks().size());
+        assertEquals(String.valueOf(2),
+                vdAspect2.getVirtualDisks().iterator().next().getProvider().getUuid());
+    }
+
     /**
      * Test that if the current time is less than the snapshot time returned by
      * HistoryRpcService, then numDaysUnattached and lastAttachedVm are not populated.
@@ -962,7 +1005,7 @@ public class VirtualVolumeAspectMapperTest {
         // then
         Assert.assertNotNull(aspect);
         final VirtualDiskApiDTO virtualDiskApiDTO = aspect.getVirtualDisks().iterator().next();
-        Assert.assertTrue(virtualDiskApiDTO.getNumDaysUnattached().endsWith("+ days"));
+        assertTrue(virtualDiskApiDTO.getNumDaysUnattached().endsWith("+ days"));
     }
 
     /**
