@@ -1340,8 +1340,21 @@ public class ScenarioMapper {
             Set<MigrationReference> sources = Sets.newHashSet();
             Set<MigrationReference> destinations = Sets.newHashSet();
             migrateObjects.forEach(migrateObject -> {
-                sources.add(getMigrationReferenceFromBaseApiDTO(migrateObject.getSource()));
-                destinations.add(getMigrationReferenceFromBaseApiDTO(migrateObject.getDestination()));
+                if (CollectionUtils.isNotEmpty(migrateObject.getSources())
+                    && CollectionUtils.isNotEmpty(migrateObject.getDestinations())) {
+                    sources.addAll(migrateObject.getSources().stream()
+                            .collect(Collectors.mapping(
+                                    ScenarioMapper::getMigrationReferenceFromBaseApiDTO, Collectors.toSet())));
+                    destinations.addAll(migrateObject.getDestinations().stream()
+                            .collect(Collectors.mapping(
+                                    ScenarioMapper::getMigrationReferenceFromBaseApiDTO, Collectors.toSet())));
+
+                } else {
+                    // Using deprecated source and destination fields for backward compatibility.
+                    // This logic should be removed when deprecated fields are finally deleted.
+                    sources.add(getMigrationReferenceFromBaseApiDTO(migrateObject.getSource()));
+                    destinations.add(getMigrationReferenceFromBaseApiDTO(migrateObject.getDestination()));
+                }
             });
 
         MigrateObjectApiDTO firstMigrateObject = migrateObjects.get(0);
@@ -2064,8 +2077,6 @@ public class ScenarioMapper {
         final List<MigrateObjectApiDTO> changeApiDTOs = MoreObjects.firstNonNull(
                 outputChanges.getMigrateList(),
                 new ArrayList<>());
-        List<MigrationReference> sources = migration.getSourceList();
-        List<MigrationReference> destinations = migration.getDestinationList();
         // Default value is true
         boolean removeNonMigratingWorkloads = true;
         // Make VM the default (somewhat arbitrary, but more common)
@@ -2076,8 +2087,95 @@ public class ScenarioMapper {
             removeNonMigratingWorkloads = migration.getRemoveNonMigratingWorkloads();
         }
 
+        List<MigrationReference> sources = migration.getSourceList();
+        List<MigrationReference> destinations = migration.getDestinationList();
+
+        List<MigrateObjectApiDTO> migrateList = getMigrateList(
+                sources,
+                destinations,
+                context,
+                removeNonMigratingWorkloads,
+                destinationEntityType);
+
+        migrateList = getDeprecatedFormatMigrateList(
+                migrateList.get(0),
+                sources,
+                destinations,
+                context,
+                removeNonMigratingWorkloads,
+                destinationEntityType);
+
+        changeApiDTOs.addAll(migrateList);
+        outputChanges.setMigrateList(changeApiDTOs);
+    }
+
+    /**
+     * Generate a migrate list of {@link MigrateObjectApiDTO} of length 1 representing the characteristics of a
+     * cloud migration.
+     *
+     * @param sources the entities to migrate to a new cloud location
+     * @param destinations the locations to which workloads should be migrated
+     * @param context a {@link ScenarioChangeMappingContext} holding a cache of entities and groups
+     * @param removeNonMigratingWorkloads whether workloads in the specified migration destinations should be removed
+     * @param destinationEntityType the entity type of migrated workloads
+     * @return a list of length 1 of {@link MigrateObjectApiDTO} representing the migration at hand
+     */
+    @Nonnull
+    private static List<MigrateObjectApiDTO> getMigrateList(
+            @Nonnull final List<MigrationReference> sources,
+            @Nonnull final List<MigrationReference> destinations,
+            @Nonnull final ScenarioChangeMappingContext context,
+            @Nonnull final Boolean removeNonMigratingWorkloads,
+            @Nonnull final DestinationEntityType destinationEntityType) {
+        List<BaseApiDTO> sourceDtos = sources.stream()
+                .map(source -> context.dtoForId(source.getOid()))
+                .collect(Collectors.toList());
+        List<BaseApiDTO> destinationDtos = destinations.stream()
+                .map(destination -> context.dtoForId(destination.getOid()))
+                .collect(Collectors.toList());
+
+        MigrateObjectApiDTO migrateObjectApiDTO = new MigrateObjectApiDTO();
+        migrateObjectApiDTO.setSources(sourceDtos);
+        migrateObjectApiDTO.setDestinations(destinationDtos);
+        migrateObjectApiDTO.setRemoveNonMigratingWorkloads(removeNonMigratingWorkloads);
+        migrateObjectApiDTO.setDestinationEntityType(destinationEntityType);
+        // this is the default value- we do not support projection in migration plans
+        migrateObjectApiDTO.setProjectionDay(0);
+        return Lists.newArrayList(migrateObjectApiDTO);
+    }
+
+    /**
+     * Generate a migrate list of {@link MigrateObjectApiDTO} the same length as {@param sources}. This should be
+     * removed when the deprecated source and destination fields of {@link MigrateObjectApiDTO} are removed.
+     *
+     * @param migrateObjectApiDTO the entity created by getMigrateList that should be used as the first item in the returned collection
+     * @param sources the entities to migrate to a new cloud location
+     * @param destinations the locations to which workloads should be migrated
+     * @param context a {@link ScenarioChangeMappingContext} holding a cache of entities and groups
+     * @param removeNonMigratingWorkloads whether workloads in the specified migration destinations should be removed
+     * @param destinationEntityType the entity type of migrated workloads
+     * @return a list of length 1 of {@link MigrateObjectApiDTO} representing the migration at hand
+     */
+    @Nonnull
+    private static List<MigrateObjectApiDTO> getDeprecatedFormatMigrateList(
+            @Nonnull final MigrateObjectApiDTO migrateObjectApiDTO,
+            @Nonnull final List<MigrationReference> sources,
+            @Nonnull final List<MigrationReference> destinations,
+            @Nonnull final ScenarioChangeMappingContext context,
+            @Nonnull final Boolean removeNonMigratingWorkloads,
+            @Nonnull final DestinationEntityType destinationEntityType) {
+        final List<MigrateObjectApiDTO> changeApiDTOs = Lists.newArrayList();
         for (int sourceNum = 0; sourceNum < sources.size(); sourceNum++) {
-            final MigrateObjectApiDTO changeApiDTO = new MigrateObjectApiDTO();
+            MigrateObjectApiDTO changeApiDTO;
+            if (sourceNum == 0) {
+                changeApiDTO = migrateObjectApiDTO;
+            } else {
+                changeApiDTO = new MigrateObjectApiDTO();
+                // this is the default value- we do not support projection in migration plans
+                changeApiDTO.setProjectionDay(0);
+                changeApiDTO.setRemoveNonMigratingWorkloads(removeNonMigratingWorkloads);
+                changeApiDTO.setDestinationEntityType(destinationEntityType);
+            }
             MigrationReference source = sources.get(sourceNum);
             MigrationReference destination = destinations.get(Math.min(sourceNum, destinations.size() - 1));
             switch (source.getTypeCase()) {
@@ -2086,9 +2184,9 @@ public class ScenarioMapper {
                     changeApiDTO.setSource(context.dtoForId(source.getOid()));
                     break;
                 case TYPE_NOT_SET:
-                    logger.error("Unset source entity type in topology migration- source: {}, migration: {}",
-                            source, migration);
-                    return;
+                    logger.error("Unset source entity type in topology migration- source: {}",
+                            source);
+                    return Lists.newArrayList();
             }
             switch (destination.getTypeCase()) {
                 case ENTITY_TYPE:
@@ -2096,17 +2194,13 @@ public class ScenarioMapper {
                     changeApiDTO.setDestination(context.dtoForId(destination.getOid()));
                     break;
                 case TYPE_NOT_SET:
-                    logger.error("Unset destination entity type in topology migration- destination: {}, migration: {}",
-                            destination, migration);
-                    return;
+                    logger.error("Unset destination entity type in topology migration- destination: {}",
+                            destination);
+                    return Lists.newArrayList();
             }
-            // this is the default value- we do not support projection in migration plans
-            changeApiDTO.setProjectionDay(0);
-            changeApiDTO.setRemoveNonMigratingWorkloads(removeNonMigratingWorkloads);
-            changeApiDTO.setDestinationEntityType(destinationEntityType);
             changeApiDTOs.add(changeApiDTO);
         }
-        outputChanges.setMigrateList(changeApiDTOs);
+        return changeApiDTOs;
     }
 
     /**
