@@ -443,8 +443,7 @@ public class PlanDaoImpl implements PlanDao {
                         PlanStatus.STOPPED.name(),
                         PlanStatus.FAILED.name()))
                 .and(PLAN_INSTANCE.STATUS.isNotNull())
-                .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.USER.name()))
-                .and(PLAN_INSTANCE.TYPE.notEqual(PlanProjectType.RESERVATION_PLAN.name()))
+                .and(PLAN_INSTANCE.TYPE.equal(PlanProjectType.CLUSTER_HEADROOM.name()))
                 .fetchOne()
                 .into(Integer.class);
     }

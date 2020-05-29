@@ -38,6 +38,8 @@ import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScope;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.PlanScopeEntry;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.AnalysisSettings;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Builder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
@@ -96,8 +98,41 @@ public class PlanTopologyScopeEditor {
                                                     EntityType.forNumber(e.getEntityType())))
                                     .orElse(false))
                 .collect(Collectors.toCollection(HashSet::new));
-        // Add oids of the clones of any source entities to the seed set as well.
-        seedIds.addAll(cloneEntityOids);
+
+        List<TopologyEntity> entitiesToMigrateAndOnPremProviders = new ArrayList<>();
+
+        // For migration plans, seed OIDs in the topologyInfo.getScopeSeedOidsList() includes the
+        // OIDs of the destination (e.g. regions). Besides cloud entities, plan scope of a migration
+        // plan also includes:
+        // 1. The cloned VMs, which are the VMs to be migrated to cloud.
+        // 2. The on-prem VMs and their providers.
+        if (TopologyDTOUtil.isMigrateToPublicCloudPlan(topologyInfo)) {
+            Set<TopologyEntity> entitiesToMigrate = graph.getEntities(cloneEntityOids)
+                    .filter(vm -> vm.getClonedFromEntity().isPresent())
+                    .collect(Collectors.toSet());
+
+            Set<Long> sourceEntityOids = new HashSet<>();
+            for (TopologyEntity clonedEntity : entitiesToMigrate) {
+                clonedEntity.getClonedFromEntity().ifPresent(e -> sourceEntityOids.add(e.getOid()));
+            }
+
+            if (!sourceEntityOids.isEmpty()) {
+                List<TopologyEntity> sourceEntitiesAndProviders =
+                        TopologyGraphEntity.applyTransitively(graph.getEntities(sourceEntityOids)
+                                .collect(Collectors.toList()), TopologyEntity::getProviders);
+                // Set the controllable flag of the original on-prem entities to false
+                // to prevent actions to be generated for them.
+                for (TopologyEntity entity : sourceEntitiesAndProviders) {
+                    TopologyEntityDTO.Builder entityDtoBuilder = entity.getTopologyEntityDtoBuilder();
+                    AnalysisSettings analysisSettings =
+                            entityDtoBuilder.getAnalysisSettings().toBuilder().setControllable(false).build();
+                    entityDtoBuilder.setAnalysisSettings(analysisSettings);
+                }
+                entitiesToMigrateAndOnPremProviders.addAll(sourceEntitiesAndProviders);
+                entitiesToMigrateAndOnPremProviders.addAll(entitiesToMigrate);
+            }
+        }
+
         // for all VMs in the seed, we should bring the connected volumes to the seed
         // and for all volumes in the seed, we should bring the connected VMs
         final Set<Long> connectedVMsAndVVIds = new HashSet<>();
@@ -206,6 +241,9 @@ public class PlanTopologyScopeEditor {
                     .filter(e -> discoveredBy(e, targetIds))
                     .map(TopologyEntity::getTopologyEntityDtoBuilder)
                     .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder));
+        resultEntityMap.putAll(entitiesToMigrateAndOnPremProviders.stream()
+                .map(TopologyEntity::getTopologyEntityDtoBuilder)
+                .collect(Collectors.toMap(Builder::getOid, TopologyEntity::newBuilder)));
         return new TopologyGraphCreator<>(resultEntityMap).build();
     }
 

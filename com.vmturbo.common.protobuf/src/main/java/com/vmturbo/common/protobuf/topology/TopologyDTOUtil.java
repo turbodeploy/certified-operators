@@ -154,7 +154,18 @@ public final class TopologyDTOUtil {
     }
 
     /**
-     * Gets the TopologyEntityDTOs of type connectedEntityType which are connected to entity
+     * Determines whether or not the topology described by a {@link TopologyDTO.TopologyInfo}
+     * is generated for a Migrate to Public Cloud plan.
+     *
+     * @param topologyInfo The {@link TopologyDTO.TopologyInfo} describing a topology.
+     * @return true if the plan is MPC
+     */
+    public static boolean isMigrateToPublicCloudPlan(@Nonnull final TopologyDTO.TopologyInfo topologyInfo) {
+        return isPlan(topologyInfo) && PlanProjectType.CLOUD_MIGRATION.name().equals(topologyInfo.getPlanInfo().getPlanType());
+    }
+
+    /**
+     * Gets the TopologyEntityDTOs of type connectedEntityType which are connected to entity.
      *
      * @param entity entity for which connected entities are retrieved
      * @param connectedEntityType the type of connectedEntity which should be retrieved
