@@ -1,9 +1,11 @@
 package com.vmturbo.integrations.intersight.targetsync;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -22,6 +24,7 @@ import com.cisco.intersight.client.model.AssetTargetList;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.util.CollectionUtils;
 
 import com.vmturbo.communication.CommunicationException;
 import com.vmturbo.mediation.connector.intersight.IntersightConnection;
@@ -44,6 +47,15 @@ public class IntersightTargetSyncService implements Runnable {
     private static final Logger logger = LogManager.getLogger();
     private static final String INTERSIGHT_TRACEID =
             "x-starship-traceid";
+    private static final String INTERSIGHT_ADDRESS =
+            "address";
+    private static final String INTERSIGHT_PORT =
+            "port";
+    private static final String INTERSIGHT_CLIENTID =
+            "clientId";
+    private static final String INTERSIGHT_CLIENTSECRET =
+            "clientSecret";
+
 
     /**
      * The connection to access the Intersight instance.
@@ -100,13 +112,17 @@ public class IntersightTargetSyncService implements Runnable {
         // For looking up the probe below to add targets which requires the probe id
         final Map<String, ProbeInfo> probesByType = topologyProcessor.getAllProbes().stream()
                 .collect(Collectors.toMap(ProbeInfo::getType, Function.identity(), (p1, p2) -> p1));
-
         final Set<TargetInfo> targets = topologyProcessor.getAllTargets().stream()
                 .filter(t -> !t.isHidden()).collect(Collectors.toSet());
+        logger.debug("Existing targets ");
+        dumpTargetInfo(targets);
         final Set<TargetInfo> staleTargets = new HashSet<>(targets);
         final Map<Long, List<TargetInfo>> targetsByProbeId = targets.stream()
                 .collect(Collectors.groupingBy(TargetInfo::getProbeId));
-
+        for (Entry<Long, List<TargetInfo>> entry : targetsByProbeId.entrySet()) {
+            logger.debug("Grouped existing targets for {} ", entry.getKey());
+            dumpTargetInfo(entry.getValue());
+        }
         final ApiClient apiClient = intersightConnection.getApiClient();
         final AssetApi assetApi = new AssetApi(apiClient);
         // Technically we only need Moid and TargetType.  We are getting CreateTime and ModTime
@@ -138,6 +154,24 @@ public class IntersightTargetSyncService implements Runnable {
             throw e;
         }
 
+        // Sync Intersight Targets
+        syncIntersightTargets(probesByType, staleTargets, targetsByProbeId);
+
+        // Sync Asset Targets
+        syncAssetTargets(probesByType, staleTargets, targetsByProbeId, apiClient, assetTargetList);
+
+        // remove targets no longer discovered
+        for (final TargetInfo target : staleTargets) {
+            try {
+                topologyProcessor.removeTarget(target.getId());
+                logger.info("Removed target {}", target.getDisplayName());
+            } catch (TopologyProcessorException e) {
+                logger.error("Error removing target {} due to: {}", target, e.getMessage());
+            }
+        }
+    }
+
+    private void syncAssetTargets(final Map<String, ProbeInfo> probesByType, final Set<TargetInfo> staleTargets, final Map<Long, List<TargetInfo>> targetsByProbeId, final ApiClient apiClient, final AssetTargetList assetTargetList) throws CommunicationException, InterruptedException {
         if (assetTargetList != null && assetTargetList.getResults() != null) {
             final IntersightTargetUpdater targetUpdater = new IntersightTargetUpdater(apiClient,
                     topologyProcessor, noUpdateOnChangePeriodSeconds);
@@ -148,7 +182,7 @@ public class IntersightTargetSyncService implements Runnable {
                 }
                 final ProbeInfo probeInfo = probesByType.get(probeType.getProbeType());
                 if (probeInfo == null) {
-                    logger.info("No probe found for probe type {}; can't process asset target {}",
+                    logger.error("No probe found for probe type {}; can't process asset target {}",
                             probeType, assetTarget.getMoid());
                     continue;
                 }
@@ -169,17 +203,150 @@ public class IntersightTargetSyncService implements Runnable {
                 }
             }
         }
+    }
 
-        // remove targets no longer discovered
-        for (final TargetInfo target : staleTargets) {
+    private void syncIntersightTargets(final Map<String, ProbeInfo> probesByType, final Set<TargetInfo> staleTargets, final Map<Long, List<TargetInfo>> targetsByProbeId) throws CommunicationException {
+        // Add the Intersight Server Probe
+        final SDKProbeType intersightServerProbeType = SDKProbeType.INTERSIGHT;
+        final ProbeInfo intersightPobeInfo =
+                probesByType.get(intersightServerProbeType.getProbeType());
+        if (intersightPobeInfo == null) {
+            logger.info("No probe found for probe type {}; can't add Intersight target: {} [{}]",
+                    intersightServerProbeType,
+                    intersightConnection.getAddress(),
+                    intersightConnection.getClientId());
+        }
+
+        // Check if an Intersight server target already exists for this namespace
+        TargetInfo existingIntersightTargetInfo = null;
+        List<TargetInfo> intersightTargets = targetsByProbeId.get(intersightPobeInfo.getId());
+        logger.debug("Looking for ProbInfo for Id {} Found {} Intersight targets",
+                intersightPobeInfo.getId(),
+                !CollectionUtils.isEmpty(intersightTargets)  ? intersightTargets.size() : 0);
+        final List<String> targetIdFields = intersightPobeInfo.getIdentifyingFields();
+        existingIntersightTargetInfo = getExistingIntersightTargetInfo(existingIntersightTargetInfo,
+                intersightTargets,
+                targetIdFields);
+        if (existingIntersightTargetInfo != null) {
+            logger.debug("Found existing Intersight Server target {} with clientId {} ",
+                    intersightConnection.getAddress(),
+                    intersightConnection.getClientId());
+            // Target was already there
+            staleTargets.remove(existingIntersightTargetInfo);
+        } else {
+            TargetData intersightTargetData =
+                    buildIntersightServerProbeTargetData(intersightConnection, intersightPobeInfo);
+            logger.info("Adding Intersight target {}:{} [{}]",
+                    intersightConnection.getAddress(),
+                    intersightConnection.getPort(),
+                    intersightConnection.getClientId());
             try {
-                topologyProcessor.removeTarget(target.getId());
-                logger.info("Removed target {}", target.getDisplayName());
+                // No need to remove target since staleTargets.remove(intersightTargetData);
+                final long targetId = topologyProcessor.addTarget(intersightPobeInfo.getId(), intersightTargetData);
             } catch (TopologyProcessorException e) {
-                logger.error("Error removing target {} due to: {}", target, e.getMessage());
+                logger.error("Error adding or updating target {} of probe type {} due to: {}",
+                        intersightTargetData, intersightServerProbeType, e);
             }
         }
     }
+
+    private TargetInfo getExistingIntersightTargetInfo(TargetInfo existingIntersightTargetInfo, final List<TargetInfo> intersightTargets, final List<String> targetIdFields) {
+        if (!CollectionUtils.isEmpty(intersightTargets)) {
+            for (TargetInfo isTargetInfo : intersightTargets) {
+                boolean matchedAddress = false;
+                boolean matchedPort = false;
+                for (AccountValue accountValue : isTargetInfo.getAccountData()) {
+                    if (targetIdFields.contains(accountValue.getName())
+                            && INTERSIGHT_ADDRESS.equals(accountValue.getName())
+                            && Objects.equals(intersightConnection.getAddress(), accountValue.getStringValue())) {
+                        matchedAddress = true;
+                    }
+                    if (targetIdFields.contains(accountValue.getName())
+                            && INTERSIGHT_PORT.equals(accountValue.getName())
+                            && Objects.equals(intersightConnection.getPort().toString(), accountValue.getStringValue())) {
+                        matchedPort = true;
+                    }
+                }
+                if (matchedAddress && matchedPort) {
+                    existingIntersightTargetInfo = isTargetInfo;
+                    break;
+                }
+            }
+        }
+        return existingIntersightTargetInfo;
+    }
+
+    private void dumpTargetInfo(final Collection<TargetInfo> targets) {
+        for (TargetInfo targetInfo : targets) {
+            long targetProbeId = targetInfo.getProbeId();
+            long targetId = targetInfo.getId();
+
+            logger.debug("TargetInfo Probe Id {} Target Id {} DisplayName {}",
+                    targetProbeId, targetId, targetInfo.getDisplayName());
+        }
+    }
+
+
+    private TargetData buildIntersightServerProbeTargetData(@Nonnull final IntersightConnection
+                                                                    intersightConnection,
+                                                            @Nonnull final ProbeInfo
+                                                                    intersightProbeInfo) {
+        return new IntersightTargetData(intersightConnection, intersightProbeInfo);
+    }
+
+    /**
+     * {@link IntersightTargetData} implements {@link TargetData} by converting an input
+     * {@link IntersightTargetData} into a set of {@link AccountValue}s.
+     */
+    private static class IntersightTargetData implements TargetData {
+        private IntersightConnection intersightConnection;
+        private ProbeInfo intersightProbeInfo;
+
+        IntersightTargetData(@Nonnull final IntersightConnection intersightConnection,
+                             @Nonnull final ProbeInfo intersightProbeInfo) {
+            this.intersightConnection = intersightConnection;
+            this.intersightProbeInfo = intersightProbeInfo;
+        }
+
+        @Nonnull
+        @Override
+        public Set<AccountValue> getAccountData() {
+            return intersightProbeInfo.getAccountDefinitions().stream()
+                    .map(accountDefEntry -> {
+                        final String name = accountDefEntry.getName();
+                        final String strValue;
+                        switch (name) {
+                            case INTERSIGHT_CLIENTID:
+                                strValue = intersightConnection.getClientId();
+                                break;
+                            case INTERSIGHT_CLIENTSECRET:
+                                strValue = intersightConnection.getClientSecret();
+                                break;
+                            case INTERSIGHT_ADDRESS:
+                                strValue = intersightConnection.getAddress();
+                                break;
+                            case INTERSIGHT_PORT:
+                                strValue = intersightConnection.getPort().toString();
+                                break;
+                            default:
+                                switch (accountDefEntry.getValueType()) {
+                                    case STRING:
+                                        strValue = "";
+                                        break;
+                                    case NUMERIC:
+                                        strValue = "0";
+                                        break;
+                                    default:
+                                        strValue = "";
+                                        break;
+                                }
+                                break;
+                        }
+                        return new InputField(name, Objects.toString(strValue, ""), Optional.empty());
+                    }).collect(Collectors.toSet());
+        }
+    }
+
 
     /**
      * Find the {@link TargetInfo} for the given {@link AssetTarget} from Intersight.
