@@ -747,7 +747,7 @@ public class Stages {
         @Override
         public Status passthrough(@Nonnull TopologyGraph<TopologyEntity> graph) throws PipelineStageException {
             commoditiesEditor.applyCommodityEdits(graph, changes, getContext().getTopologyInfo(),
-                scope, getContext().getCloneEntityOids());
+                    scope, getContext().getCloneEntityOids());
             // TODO (roman, 23 Oct 2018): Add some information about number/type of modified commodities?
             return Status.success();
         }

@@ -18,6 +18,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.collections4.CollectionUtils;
@@ -70,6 +71,39 @@ public class CommoditiesEditor {
     // buy it in the case of on-prem VMs which are migrating to the cloud.
     private static final Set<Integer> LICENSE_PROVIDER_TYPES = ImmutableSet.of(
         EntityType.COMPUTE_TIER_VALUE, EntityType.PHYSICAL_MACHINE_VALUE);
+
+    /**
+     * Which commodities don't apply to cloud. During cloud migration, if an on-prem VM is buying
+     * any of these commodities, we skip these from the topologyEntity for that VM, so that we
+     * will not get into migration problem as cloud tiers don't sell these commodity types.
+     * Similar to Classic's MarketConstants::commClassToSkipForCrossCloud set.
+     */
+    @VisibleForTesting
+    static final Set<CommodityType> CLOUD_MIGRATION_SKIP_COMMODITIES = ImmutableSet.of(
+            CommodityType.CLUSTER,
+            CommodityType.Q1_VCPU,
+            CommodityType.Q2_VCPU,
+            CommodityType.Q3_VCPU,
+            CommodityType.Q4_VCPU,
+            CommodityType.Q5_VCPU,
+            CommodityType.Q6_VCPU,
+            CommodityType.Q7_VCPU,
+            CommodityType.Q8_VCPU,
+            CommodityType.Q16_VCPU,
+            CommodityType.Q32_VCPU,
+            CommodityType.Q64_VCPU,
+            CommodityType.QN_VCPU,
+            CommodityType.SWAPPING,
+            CommodityType.BALLOONING,
+            CommodityType.FLOW,
+            CommodityType.HOT_STORAGE,
+            CommodityType.CPU_PROVISIONED,
+            CommodityType.MEM_PROVISIONED,
+            CommodityType.STORAGE_PROVISIONED,
+            CommodityType.NETWORK,
+            CommodityType.INSTANCE_DISK_SIZE,
+            CommodityType.INSTANCE_DISK_TYPE
+    );
 
     private final Logger logger = LogManager.getLogger();
     private final StatsHistoryServiceBlockingStub historyClient;
@@ -149,6 +183,7 @@ public class CommoditiesEditor {
                     // if the migrating VM is not buying IO_THROUGHPUT from storage,
                     // to add it in proportion to STORAGE_ACCESS so that we get reasonable
                     // cost estimates for Ultra Disk.
+                    skipNonApplicableBoughtCommodities(vm, CLOUD_MIGRATION_SKIP_COMMODITIES);
                 }
             }
         }
@@ -551,4 +586,55 @@ public class CommoditiesEditor {
         });
     }
 
+    /**
+     * Skips any commodities that don't apply to the cloud, from the bought commodities list.
+     * Needed so that on-prem VMs that buy commodities like Q2_VCPU can migrate to cloud, which
+     * cloud tiers don't sell.
+     *
+     * @param entity Type of entity being migrated. E.g VM.
+     * @param commoditiesToCheck Set of commodities to check whether they need to be skipped or not.
+     */
+    @VisibleForTesting
+    static void skipNonApplicableBoughtCommodities(
+            @Nonnull final TopologyEntity entity,
+            @Nonnull final Set<CommodityType> commoditiesToCheck) {
+        Builder dtoBuilder = entity.getTopologyEntityDtoBuilder();
+        List<CommoditiesBoughtFromProvider> originalCommoditiesByProvider = dtoBuilder
+                .getCommoditiesBoughtFromProvidersList();
+        List<CommoditiesBoughtFromProvider> newCommoditiesByProvider = new ArrayList<>();
+        boolean updated = false;
+        for (CommoditiesBoughtFromProvider providerWithCommodities
+                : originalCommoditiesByProvider) {
+            List<CommodityBoughtDTO> commoditiesToInclude = new ArrayList<>();
+            List<CommodityBoughtDTO> originalCommodities = providerWithCommodities
+                    .getCommodityBoughtList();
+
+            for (CommodityBoughtDTO dtoBought : originalCommodities) {
+                CommodityType commodityType = CommodityType.forNumber(dtoBought
+                        .getCommodityType().getType());
+                if (!commoditiesToCheck.contains(commodityType)) {
+                    commoditiesToInclude.add(dtoBought);
+                }
+            }
+            if (commoditiesToInclude.size() == 0) {
+                // Remove the provider itself as there are no valid bought commodities from it.
+                updated = true;
+            } else if (commoditiesToInclude.size() < originalCommodities.size()) {
+                // We need to skip one or more on-prem specific commodities bought.
+                CommoditiesBoughtFromProvider.Builder newProviderWithCommodities =
+                        CommoditiesBoughtFromProvider.newBuilder(providerWithCommodities);
+                newProviderWithCommodities.clearCommodityBought();
+                newProviderWithCommodities.addAllCommodityBought(commoditiesToInclude);
+                newCommoditiesByProvider.add(newProviderWithCommodities.build());
+                updated = true;
+            } else {
+                // No changes, add old one as is.
+                newCommoditiesByProvider.add(providerWithCommodities);
+            }
+        }
+        if (updated) {
+            dtoBuilder.clearCommoditiesBoughtFromProviders();
+            dtoBuilder.addAllCommoditiesBoughtFromProviders(newCommoditiesByProvider);
+        }
+    }
 }

@@ -2,6 +2,8 @@ package com.vmturbo.topology.processor.topology;
 
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.buildTopologyEntityWithCommSold;
 import static com.vmturbo.topology.processor.topology.TopologyEntityUtils.createGraph;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -9,6 +11,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.annotation.Nonnull;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -126,7 +130,8 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(), null);
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(),
+                Collections.emptySet());
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -147,7 +152,7 @@ public class CommoditiesEditorTest {
     }
 
     @Test
-    public void testEditCommoditiesForDifferntProviderInDatabase() throws IOException {
+    public void testEditCommoditiesForDifferentProviderInDatabase() throws IOException {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
@@ -183,7 +188,8 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(), null);
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(),
+                Collections.emptySet());
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -271,7 +277,8 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(), null);
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(),
+                Collections.emptySet());
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -304,7 +311,7 @@ public class CommoditiesEditorTest {
     }
 
     @Test
-    public void testEditCommoditiesForAccessCommodties() throws IOException {
+    public void testEditCommoditiesForAccessCommodities() throws IOException {
         // Get graph
         // Sets value for VM(Used :10 , Peak : 20)
         // Sets value for PM(Used : 70, Peak : 80)
@@ -340,7 +347,8 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(), null);
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(),
+                Collections.emptySet());
 
         // Check values after calling CommoditiesEditor.
         // Expected : Before and after values should be same because commodity is an access commodity.
@@ -400,7 +408,8 @@ public class CommoditiesEditorTest {
         Mockito.when(statsHistoryService.getEntityStats(Mockito.any())).thenReturn(response);
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(), null);
+        commEditor.applyCommodityEdits(g, changes, topoInfo, PlanScope.getDefaultInstance(),
+                Collections.emptySet());
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -467,7 +476,8 @@ public class CommoditiesEditorTest {
             .build();
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope, null);
+        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope,
+                Collections.emptySet());
 
         // Check values after calling CommoditiesEditor.
         // Compare used
@@ -527,7 +537,8 @@ public class CommoditiesEditorTest {
             .build();
 
         CommoditiesEditor commEditor = new CommoditiesEditor(historyClient);
-        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope, null);
+        commEditor.applyCommodityEdits(g, new ArrayList<ScenarioChange>(), topologyInfo, scope,
+                Collections.emptySet());
 
         // Check values after calling CommoditiesEditor.
         // Compare used and peak
@@ -538,4 +549,123 @@ public class CommoditiesEditorTest {
                         .get(0).getPeak(), DELTA);
     }
 
+    /**
+     * Checks if commodities are getting skipped correctly when doing on-prem to cloud migration.
+     * Certain on-prem commodities don't apply to cloud and are thus not sold by cloud tiers,
+     * so those are being removed from TopologyEntity, before they can be migrated to cloud.
+     */
+    @Test
+    public void skipCommoditiesOnMigration() {
+        TopologyEntityDTO.Builder dtoBuilder = TopologyEntityDTO.newBuilder();
+        TopologyEntity vmEntity = TopologyEntity.newBuilder(dtoBuilder).build();
+        long pmProviderId = 101L;
+        long storageVolumeProviderId = 102L;
+        List<CommoditiesBoughtFromProvider> commoditiesByProvider =
+                getCommoditiesBoughtFromProviders(pmProviderId, storageVolumeProviderId);
+
+        dtoBuilder.addAllCommoditiesBoughtFromProviders(commoditiesByProvider);
+
+        assertEquals(2, dtoBuilder.getCommoditiesBoughtFromProvidersCount());
+        CommoditiesEditor.skipNonApplicableBoughtCommodities(vmEntity,
+                CommoditiesEditor.CLOUD_MIGRATION_SKIP_COMMODITIES);
+        // Storage volume provider got removed, as both its instance disk type/size commodities
+        // got filtered out. Only PM provider is left.
+        assertEquals(1, dtoBuilder.getCommoditiesBoughtFromProvidersCount());
+
+        CommoditiesBoughtFromProvider checkPmProvider = dtoBuilder
+                .getCommoditiesBoughtFromProviders(0);
+        assertEquals(pmProviderId, checkPmProvider.getProviderId());
+        List<CommodityBoughtDTO> dtoBoughtList = checkPmProvider.getCommodityBoughtList();
+        assertEquals(2, dtoBoughtList.size());
+
+        // These 2 commodities (cpu & mem) should not be getting filtered out, only Q2_VCPU should.
+        boolean hasCpu = false;
+        boolean hasMem = false;
+        for (CommodityBoughtDTO boughtDTO : dtoBoughtList) {
+            if (boughtDTO.getCommodityType().getType() == CommodityDTO.CommodityType.CPU_VALUE) {
+                hasCpu = true;
+            }
+            if (boughtDTO.getCommodityType().getType() == CommodityDTO.CommodityType.MEM_VALUE) {
+                hasMem = true;
+            }
+        }
+        assertTrue(hasCpu);
+        assertTrue(hasMem);
+    }
+
+    /**
+     * Gets a list of CommoditiesBoughtFromProvider - one for PM and other for storage volume.
+     *
+     * @param pmProviderId Id of PM provider.
+     * @param storageVolumeProviderId Id of storage volume provider.
+     * @return List of CommoditiesBoughtFromProvider with dummy commodities added.
+     */
+    @Nonnull
+    private List<CommoditiesBoughtFromProvider> getCommoditiesBoughtFromProviders(
+            long pmProviderId, long storageVolumeProviderId) {
+        List<CommoditiesBoughtFromProvider> commoditiesByProvider = new ArrayList<>();
+        commoditiesByProvider.add(
+                CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(pmProviderId)
+                        .setProviderEntityType(EntityType.PHYSICAL_MACHINE_VALUE)
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .Q2_VCPU.getNumber())
+                                                        .setKey("")
+                                                        .build())
+                                        .build())
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .CPU.getNumber())
+                                                        .setKey("")
+                                                        .build())
+                                        .build())
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .MEM.getNumber())
+                                                        .setKey("")
+                                                        .build())
+                                        .build())
+                        .build());
+
+        commoditiesByProvider.add(
+                CommoditiesBoughtFromProvider.newBuilder()
+                        .setProviderId(storageVolumeProviderId)
+                        .setProviderEntityType(EntityType.STORAGE_VOLUME_VALUE)
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .INSTANCE_DISK_SIZE.getNumber())
+                                                        .setKey("")
+                                                        .build())
+                                        .build())
+                        .addCommodityBought(
+                                CommodityBoughtDTO.newBuilder()
+                                        .setActive(true)
+                                        .setCommodityType(
+                                                CommodityType.newBuilder()
+                                                        .setType(CommodityDTO.CommodityType
+                                                                .INSTANCE_DISK_TYPE.getNumber())
+                                                        .setKey("")
+                                                        .build())
+                                        .build())
+                        .build());
+
+        return commoditiesByProvider;
+    }
 }
