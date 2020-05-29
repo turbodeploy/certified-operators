@@ -429,10 +429,10 @@ public class TestUtils {
             commodityResizeDependencyMap = economy.getModifiableCommodityResizeDependencyMap();
         CommodityResizeSpecification vCpuDependency =
                         new CommodityResizeSpecification(TestUtils.CPU.getType(),
-                                        M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
+                                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> (b));
         CommodityResizeSpecification vMemDependency =
                         new CommodityResizeSpecification(TestUtils.MEM.getType(),
-                                        M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
+                                        M2Utils.ADD_TWO_ARGS, (a,b,c) -> (b));
         CommodityResizeSpecification vMemQuotaDependency =
                 new CommodityResizeSpecification(TestUtils.VMEMLIMITQUOTA.getType(),
                         M2Utils.ADD_TWO_ARGS, M2Utils.SUBRTRACT_TWO_ARGS);
