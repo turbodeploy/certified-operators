@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 
+import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -161,14 +162,14 @@ public class EntitySettingsApplicator {
                 new ResizeIncrementApplicator(EntitySettingSpecs.StorageIncrement,
                         CommodityType.STORAGE_AMOUNT),
                 new VMThresholdApplicator(ImmutableMap.of(
-                        CommodityType.VMEM.getNumber(), Arrays.asList(
+                        CommodityType.VMEM.getNumber(), Sets.newHashSet(
                                 EntitySettingSpecs.ResizeVmemMinThreshold,
                                 EntitySettingSpecs.ResizeVmemMaxThreshold,
                                 EntitySettingSpecs.ResizeVmemUpInBetweenThresholds,
                                 EntitySettingSpecs.ResizeVmemDownInBetweenThresholds,
                                 EntitySettingSpecs.ResizeVmemAboveMaxThreshold,
                                 EntitySettingSpecs.ResizeVmemBelowMinThreshold),
-                        CommodityType.VCPU.getNumber(), Arrays.asList(
+                        CommodityType.VCPU.getNumber(), Sets.newHashSet(
                                 EntitySettingSpecs.ResizeVcpuMinThreshold,
                                 EntitySettingSpecs.ResizeVcpuMaxThreshold,
                                 EntitySettingSpecs.ResizeVcpuUpInBetweenThresholds,
@@ -835,11 +836,11 @@ public class EntitySettingsApplicator {
 
         //VMem setting value is in MBs. Market expects it in KBs.
         private final float conversionFactor = 1024.0f;
-        private final Map<Integer, List<EntitySettingSpecs>> entitySettingMapping;
+        private final Map<Integer, Set<EntitySettingSpecs>> entitySettingMapping;
         // We need the graph to fin the core CPU speed of the hosting PM for the unit conversion.
         private final TopologyGraph<TopologyEntity> graph;
 
-        private VMThresholdApplicator(@Nonnull final Map<Integer, List<EntitySettingSpecs>> settingMapping,
+        private VMThresholdApplicator(@Nonnull final Map<Integer, Set<EntitySettingSpecs>> settingMapping,
                                           @Nonnull final GraphWithSettings settingsGraph) {
             super(settingMapping.values().stream()
                     .flatMap(Collection::stream)
@@ -856,7 +857,7 @@ public class EntitySettingsApplicator {
                 entity.getCommoditySoldListBuilderList().stream()
                     .filter(commodity -> entitySettingMapping.get(commodity.getCommodityType().getType()) != null)
                     .forEach(commodityBuilder -> {
-                        List<EntitySettingSpecs> validSpecs = entitySettingMapping.get(commodityBuilder
+                        Set<EntitySettingSpecs> validSpecs = entitySettingMapping.get(commodityBuilder
                                 .getCommodityType().getType());
                         if (commodityBuilder.getCommodityType().getType() == CommodityType.VCPU.getNumber()) {
                             // Gets the CPU speed of the PM.
@@ -893,7 +894,7 @@ public class EntitySettingsApplicator {
          * @param multiplier multiplicand used along with the thresholds.
          */
         protected void setThresholds(@Nonnull final TopologyEntityDTO.Builder entity,
-                                     List<EntitySettingSpecs> validSpecs,
+                                     Set<EntitySettingSpecs> validSpecs,
                                      Collection<Setting> settings,
                                      CommoditySoldDTO.Builder commodityBuilder,
                                      double multiplier) {
