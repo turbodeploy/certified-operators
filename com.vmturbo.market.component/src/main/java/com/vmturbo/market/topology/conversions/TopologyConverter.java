@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -57,6 +58,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Connec
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.ConnectedEntity.ConnectionType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Origin;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.VirtualMachineInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTOUtil;
 import com.vmturbo.commons.Pair;
 import com.vmturbo.commons.Units;
@@ -108,6 +110,7 @@ import com.vmturbo.platform.analysis.protobuf.QuoteFunctionDTOs.QuoteFunctionDTO
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.CloudCostDTO.OSType;
 
 /**
  * Convert topology DTOs to economy DTOs.
@@ -2208,8 +2211,8 @@ public class TopologyConverter {
                 && provider.getEntityType() == EntityType.STORAGE_VALUE)
                         ? (float)(totalStorageAmountBought(buyer) / Units.KIBI)
                         : 0.0f;
-        Set<CommodityDTOs.CommodityBoughtTO> values = commBoughtGrouping.getCommodityBoughtList()
-            .stream()
+        Set<CommodityDTOs.CommodityBoughtTO> values = filterUnknownLicense(commBoughtGrouping.getCommodityBoughtList()
+            .stream(), buyer)
             .filter(CommodityBoughtDTO::getActive)
             .map(topoCommBought -> convertCommodityBought(buyer, topoCommBought, providerOid,
                     shopTogether, providers, scalingGroupUsage))
@@ -3045,5 +3048,27 @@ public class TopologyConverter {
      */
     public ConsistentScalingHelper getConsistentScalingHelper() {
         return consistentScalingHelper;
+    }
+
+    /**
+     * Filter the license commodity bought for a VM if its an Unknown License. If a VM has an unknown
+     * license, it should not be going into the market shopping for a license access commodity. It
+     * should not shop for one and we should scope it to the cost tuple having no value for license
+     * when getting a quote from a TP.
+     *
+     * @param stream Stream of CommodityBoughtDTO's.
+     * @param entityDTO The entity DTO.
+     *
+     * @return Stream with the filtered license commodities
+     */
+    public Stream<CommodityBoughtDTO> filterUnknownLicense(Stream<CommodityBoughtDTO> stream, TopologyEntityDTO entityDTO) {
+        if (EnvironmentType.CLOUD == entityDTO.getEnvironmentType() && entityDTO.getTypeSpecificInfo().hasVirtualMachine()) {
+            final VirtualMachineInfo info = entityDTO.getTypeSpecificInfo().getVirtualMachine();
+            if (info.hasGuestOsInfo()  && info.getGuestOsInfo().hasGuestOsType() && info
+                    .getGuestOsInfo().getGuestOsType() == OSType.UNKNOWN_OS) {
+                return stream.filter(s -> s.getCommodityType().getType() != CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE);
+            }
+        }
+        return stream;
     }
 }
