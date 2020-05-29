@@ -1277,7 +1277,7 @@ public class ScenarioMapper {
                                 .setSetting(
                                         Setting.newBuilder()
                                                 .setSettingSpecName(EntitySettingSpecs.ShopTogether.getSettingName())
-                                                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(true).build())
+                                                .setBooleanSettingValue(BooleanSettingValue.newBuilder().setValue(false).build())
                                                 .build())
                                 .build()).build();
     }

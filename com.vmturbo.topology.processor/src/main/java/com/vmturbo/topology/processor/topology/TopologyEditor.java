@@ -33,6 +33,7 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GroupFilter;
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.plan.PlanProjectOuterClass.PlanProjectType;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.PlanChanges.UtilizationLevel;
 import com.vmturbo.common.protobuf.plan.ScenarioOuterClass.ScenarioChange.TopologyAddition;
@@ -350,7 +351,12 @@ public class TopologyEditor {
                     }
                     // Set shop together true for added VMs
                     if (clone.getEntityType() == EntityType.VIRTUAL_MACHINE_VALUE) {
-                        clone.getAnalysisSettingsBuilder().setShopTogether(true);
+                        if (topologyInfo.hasPlanInfo() && PlanProjectType.CLOUD_MIGRATION.name().equals(topologyInfo.getPlanInfo().getPlanType())) {
+                            // a temporary fix for MPC to work.
+                            clone.getAnalysisSettingsBuilder().setShopTogether(false);
+                        } else {
+                            clone.getAnalysisSettingsBuilder().setShopTogether(true);
+                        }
                     } else if (clone.getEntityType() == EntityType.CONTAINER_VALUE ||
                             clone.getEntityType() == EntityType.CONTAINER_POD_VALUE) {
                         // If we are adding containers or container pods, then do not immediately
