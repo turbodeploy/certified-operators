@@ -32,6 +32,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastFailure
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyBroadcastSuccess;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologySummary;
+import com.vmturbo.components.common.RequiresDataInitialization;
 import com.vmturbo.topology.processor.api.server.TopoBroadcastManager;
 import com.vmturbo.topology.processor.api.server.TopologyProcessorNotificationSender;
 import com.vmturbo.topology.processor.entity.EntityStore;
@@ -39,6 +40,8 @@ import com.vmturbo.topology.processor.stitching.journal.StitchingJournalFactory;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.TopologyBroadcastInfo;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.TopologyPipelineException;
+import com.vmturbo.topology.processor.topology.pipeline.blocking.DiscoveryBasedUnblock;
+import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineUnblockFactory;
 
 /**
  * This class controls the building and running of topology pipelines. It is responsible for
@@ -50,7 +53,7 @@ import com.vmturbo.topology.processor.topology.pipeline.TopologyPipeline.Topolog
  * a broadcast is successful.
  */
 @ThreadSafe
-public class TopologyPipelineExecutorService implements AutoCloseable {
+public class TopologyPipelineExecutorService implements AutoCloseable, RequiresDataInitialization {
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -72,6 +75,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
 
     private final TargetStore targetStore;
 
+    private final PipelineUnblockFactory unblockBroadcastsFactory;
+
     /**
      * This is the "real" constructor. Intended to be invoked from a Spring configuration.
      *
@@ -86,6 +91,8 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
      * @param notificationSender The {@link TopologyProcessorNotificationSender} used to broadcast
      *                           notifications about successful/failed topology broadcasts.
      * @param targetStore The {@link TargetStore} containing target information.
+     * @param unblockFactory Factory for {@link DiscoveryBasedUnblock} operations to unblock
+     *                       broadcasts after all targets are discovered.
      * @param useReservationPipeline Dynamically control whether we use the custom,
      *                               slimmed down pipeline for reservations.
      * @param clock The system clock.
@@ -99,6 +106,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final EntityStore entityStore,
             @Nonnull final TopologyProcessorNotificationSender notificationSender,
             @Nonnull final TargetStore targetStore,
+            @Nonnull final PipelineUnblockFactory unblockFactory,
             final boolean useReservationPipeline,
             @Nonnull final Clock clock,
             final long maxBroadcastWait,
@@ -112,6 +120,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             entityStore,
             notificationSender,
             targetStore,
+            unblockFactory,
             useReservationPipeline,
             maxBroadcastWait,
             timeUnit);
@@ -128,6 +137,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
             @Nonnull final EntityStore entityStore,
             @Nonnull final TopologyProcessorNotificationSender notificationSender,
             @Nonnull final TargetStore targetStore,
+            @Nonnull final PipelineUnblockFactory unblockFactory,
             final boolean useReservationPipeline,
             final long maxBroadcastWait,
             @Nonnull final TimeUnit timeUnit) {
@@ -140,6 +150,7 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         this.planPipelineQueue = planPipelineQueue;
         this.useReservationPipeline = useReservationPipeline;
         this.targetStore = targetStore;
+        this.unblockBroadcastsFactory = unblockFactory;
         for (int i = 0; i < concurrentPipelinesAllowed; ++i) {
             planExecutorService.submit(new TopologyPipelineWorker(planPipelineQueue, notificationSender));
         }
@@ -147,8 +158,6 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
 
         // Block live broadcasts. At initialization time we will schedule a thread that will unblock
         // them when appropriate.
-        //
-        // These get unblocked by the PipelineUnblockLauncher, configured in Spring.
         blockBroadcasts(maxBroadcastWait, timeUnit);
     }
 
@@ -299,6 +308,22 @@ public class TopologyPipelineExecutorService implements AutoCloseable {
         // Note - sending a topology failure notification is part of the pipeline interrupt handling.
         planExecutorService.shutdownNow();
         realtimeExecutorService.shutdownNow();
+    }
+
+    @Override
+    public void initialize() {
+        // Asynchronously wait for discoveries to complete before unblocking.
+        //
+        // We do this asynchronously because we don't want to wait until discoveries are done
+        // to have the component up and responsive to other requests (e.g. add/remove targets).
+        new Thread(unblockBroadcastsFactory.newUnblockOperation(this),
+                "wait-for-discoveries").start();
+    }
+
+    @Override
+    public int priority() {
+        // Initialize AFTER the target store, so that we can get accurate target information.
+        return targetStore.priority() - 1;
     }
 
     /**

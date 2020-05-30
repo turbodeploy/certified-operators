@@ -45,7 +45,6 @@ import com.vmturbo.topology.processor.supplychain.SupplyChainValidationConfig;
 import com.vmturbo.topology.processor.targets.TargetConfig;
 import com.vmturbo.topology.processor.template.TemplateConfig;
 import com.vmturbo.topology.processor.topology.TopologyConfig;
-import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineBlockingConfig;
 
 /**
  * The main class of the Topology Processor.
@@ -80,8 +79,7 @@ import com.vmturbo.topology.processor.topology.pipeline.blocking.PipelineBlockin
     TopologyProcessorApiSecurityConfig.class,
     TopologyProcessorDBConfig.class,
     TopologyProcessorDiagnosticsConfig.class,
-    TopologyProcessorRpcConfig.class,
-    PipelineBlockingConfig.class
+    TopologyProcessorRpcConfig.class
 })
 public class TopologyProcessorComponent extends BaseVmtComponent {
 
