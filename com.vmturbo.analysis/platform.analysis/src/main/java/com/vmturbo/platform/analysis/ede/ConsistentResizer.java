@@ -106,40 +106,8 @@ public class ConsistentResizer {
                 capacityIncrement = resize.getResizedCommodity()
                         .getSettings().getCapacityIncrement();
             }
-            final double newCapacity = resize.getNewCapacity();
-            final double oldCapacity = resize.getOldCapacity();
-            maxCapacity = Math.max(maxCapacity, newCapacity);
-            if (newCapacity > oldCapacity) {
-                // We only set the max old capacity for resize ups, because we never want to set
-                // a new capacity below the original capacity of a resize up.  If this condition
-                // occurs, we abort all resizes in the scaling group.
-                maxOldCapacity = Math.max(maxOldCapacity, oldCapacity);
-            }
+
             PartialResize pr = new PartialResize(resize, engage, pairs);
-            Map<CommoditySold, Trader> commSoldMap = pr.getRawMaterials();
-            for (CommoditySold commSold : commSoldMap.keySet()) {
-                // Need to identify entities that reside on the same supplier so that we don't reuse
-                // excess capacity.  Release the existing resources.  After the max capacity is known
-                // we will remove that amount and determine whether there are sufficient resources.
-                counts.merge(commSold, 1, Integer::sum);
-                availableHeadroom.compute(commSold, (k, v) -> {
-                    if (v == null) {
-                        // New entry.  Since we want to keep track of the amount of headroom available
-                        // in each rawMaterial, the initial entry in the map needs to add the current
-                        // amount of headroom in the rawMaterial.  After that, we return the capacity
-                        // of the resized commodity back to the rawMaterial.
-                        double headroom = commSold == null ? Double.MAX_VALUE :
-                                resize.getResizedCommodity().getSettings().getUtilizationUpperBound() *
-                                        (commSold.getEffectiveCapacity() - commSold.getQuantity());
-
-                        return headroom + oldCapacity;
-                    } else {
-                        // Update existing entry
-                        return v + oldCapacity;
-                    }
-                });
-            }
-
             resizes.add(pr);
         }
 
@@ -156,6 +124,42 @@ public class ConsistentResizer {
                 return;
             }
             CommoditySold congestedRawMaterial = null;
+
+            // iterate over the partial resizes and recompute the available overhead.
+            for (PartialResize partial : resizes) {
+                final double newCapacity = partial.getResize().getNewCapacity();
+                final double oldCapacity = partial.getResize().getOldCapacity();
+                maxCapacity = Math.max(maxCapacity, newCapacity);
+                if (newCapacity > oldCapacity) {
+                    // We only set the max old capacity for resize ups, because we never want to set
+                    // a new capacity below the original capacity of a resize up.  If this condition
+                    // occurs, we abort all resizes in the scaling group.
+                    maxOldCapacity = Math.max(maxOldCapacity, oldCapacity);
+                }
+                Map<CommoditySold, Trader> commSoldMap = partial.getRawMaterials();
+                for (CommoditySold commSold : commSoldMap.keySet()) {
+                    // Need to identify entities that reside on the same supplier so that we don't reuse
+                    // excess capacity.  Release the existing resources.  After the max capacity is known
+                    // we will remove that amount and determine whether there are sufficient resources.
+                    counts.merge(commSold, 1, Integer::sum);
+                    availableHeadroom.compute(commSold, (k, v) -> {
+                        if (v == null) {
+                            // New entry.  Since we want to keep track of the amount of headroom available
+                            // in each rawMaterial, the initial entry in the map needs to add the current
+                            // amount of headroom in the rawMaterial.  After that, we return the capacity
+                            // of the resized commodity back to the rawMaterial.
+                            double headroom = commSold == null ? Double.MAX_VALUE :
+                                    partial.getResize().getResizedCommodity().getSettings().getUtilizationUpperBound()
+                                            * (commSold.getEffectiveCapacity() - commSold.getQuantity());
+
+                            return headroom + oldCapacity;
+                        } else {
+                            // Update existing entry
+                            return v + oldCapacity;
+                        }
+                    });
+                }
+            }
 
             /*
              * Subtract the new max capacity from each raw material. If any resulting headroom is

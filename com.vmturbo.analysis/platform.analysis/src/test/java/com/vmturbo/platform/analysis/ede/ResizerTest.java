@@ -833,9 +833,11 @@ public class ResizerTest {
                                                        double vmemLimitUsedByPod,
                                                        double numActions,
                                                        double up) {
-        Economy economy = setupContainerTopologyForResizeTest(nsAndPodVmemLimitCapacity, contVmemCapacity,
+        Economy economy = new Economy();
+        setupContainerTopologyForResizeTest(economy, nsAndPodVmemLimitCapacity, contVmemCapacity,
                 vmemUsedByApp, vmemUsedByCont, vmemLimitUsedByPod, 0.65, 0.75,
                 RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER);
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         List<Action> actions = Resizer.resizeDecisions(economy, ledger);
         assertTrue(numActions == actions.size());
         if (numActions == 1) {
@@ -846,6 +848,65 @@ public class ResizerTest {
                 assertEquals(change, namespace.getCommoditiesSold().get(0).getQuantity() - vmemLimitUsedByPod, 0);
             }
         }
+    }
+
+    /**
+    * Create SG1 SG2 containing 2 containers each. The usages of the containers are such that they all want to resize UP.
+    * There is a Namespace capacity of 100 units and a usage of 80 units.
+    *
+    * Evaluate that the total increase in capacity is less than the available headroom on the Namespace.
+    **/
+    @Test
+    public final void testConsistentResizeDecisionsForContainers() {
+        Economy economy = new Economy();
+        double namespaceCapacity = 100;
+        double namespaceUsage = 80;
+        setupContainerTopologyForResizeTest(economy, namespaceCapacity, 80,
+                70, 80, namespaceUsage, 0.65, 0.75,
+                RIGHT_SIZE_LOWER, RIGHT_SIZE_UPPER);
+        Trader container2 = setupContainerAndApp(economy, 80, 70, 80, 0.65, 0.75, 2);
+        cont.setScalingGroupId("SG1");
+        container2.setScalingGroupId("SG1");
+        economy.populatePeerMembersForScalingGroup(cont, "SG1");
+        economy.populatePeerMembersForScalingGroup(container2, "SG1");
+        Trader container3 = setupContainerAndApp(economy, 80, 70, 80, 0.65, 0.75, 3);
+        Trader container4 = setupContainerAndApp(economy, 80, 70, 80, 0.65, 0.75, 4);
+        container3.setScalingGroupId("SG2");
+        container4.setScalingGroupId("SG2");
+        economy.populatePeerMembersForScalingGroup(container3, "SG2");
+        economy.populatePeerMembersForScalingGroup(container4, "SG2");
+        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
+        ledger = new Ledger(economy);
+        List<Action> actions = Resizer.resizeDecisions(economy, ledger);
+
+        double totalIncrease = actions.stream().filter(Resize.class::isInstance)
+                .map(Resize.class::cast)
+                .mapToDouble(r -> r.getNewCapacity() - r.getOldCapacity())
+                .sum();
+        assertTrue(totalIncrease <= namespaceCapacity - namespaceUsage);
+    }
+
+    private Trader setupContainerAndApp(Economy economy,
+                                       double contVmemCapacity,
+                                       double vmemUsedByApp,
+                                       double vmemUsedByCont,
+                                       double minDesiredUtil, double maxDesiredUtil, int index) {
+        Trader container = TestUtils.createTrader(economy, TestUtils.CONTAINER_TYPE,
+                Arrays.asList(0L), Arrays.asList(TestUtils.VMEM),
+                new double[]{contVmemCapacity}, false, false);
+        container.setDebugInfoNeverUseInCode("CONTAINER" + index);
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.VMEMLIMITQUOTA), container,
+                new double[]{vmemUsedByCont}, pod).setMovable(false);
+        //Create app and place on container
+        Trader application = TestUtils.createTrader(economy, TestUtils.APP_TYPE,
+                Arrays.asList(0L), Arrays.asList(), new double[]{}, false, false);
+        application.setDebugInfoNeverUseInCode("APP" + index);
+        TestUtils.createAndPlaceShoppingList(economy,
+                Arrays.asList(TestUtils.VMEM), application,
+                new double[]{vmemUsedByApp}, container);
+        container.getSettings().setMinDesiredUtil(minDesiredUtil).setMaxDesiredUtil(maxDesiredUtil);
+        return container;
     }
 
     /**
@@ -940,18 +1001,20 @@ public class ResizerTest {
 
     /**
      * Sets up topology with one PM, one VM placed on the PM, and one app placed on the VM.
-     * @param nsAndPodVmemLimitCapacity - The VM's VMEM capacity
-     * @param contVmemCapacity - The Container's VMEM capacity
+     * @param economy in which all the traders are present.
+     * @param nsAndPodVmemLimitCapacity - The VM's VMEM capacity.
+     * @param contVmemCapacity - The Container's VMEM capacity.
      * @param vmemUsedByApp - The quantity of VMEM used by the app.
      * @param vmemUsedByCont - The quantity of VMEM used by the container.
      * @param vmemLimitUsedByPod - The quantity of VMEM used by the pod.
      * @param minDesiredUtil - The minimum desired utilization.
      * @param maxDesiredUtil - The maximum desired utilization.
-     * @param economyRightSizeLower - Economy's right size lower limit
-     * @param economyRightSizeUpper - Economy's right size upper limit
+     * @param economyRightSizeLower - Economy's right size lower limit.
+     * @param economyRightSizeUpper - Economy's right size upper limit.
      * @return Economy with the topology setup.
      */
-    private Economy setupContainerTopologyForResizeTest(
+    private void setupContainerTopologyForResizeTest(
+            Economy economy,
             double nsAndPodVmemLimitCapacity,
             double contVmemCapacity,
             double vmemUsedByApp,
@@ -959,7 +1022,7 @@ public class ResizerTest {
             double vmemLimitUsedByPod,
             double minDesiredUtil, double maxDesiredUtil,
             double economyRightSizeLower, double economyRightSizeUpper) {
-        Economy economy = new Economy();
+
         // Create Namespace
         namespace = TestUtils.createTrader(economy, TestUtils.NAMESPACE_TYPE,
                 Arrays.asList(0L), Arrays.asList(TestUtils.VMEMLIMITQUOTA),
@@ -996,9 +1059,7 @@ public class ResizerTest {
         economy.getSettings().setRightSizeUpper(economyRightSizeUpper);
         TestUtils.setupRawCommodityMap(economy);
         TestUtils.setupCommodityResizeDependencyMap(economy);
-        economy.populateMarketsWithSellersAndMergeConsumerCoverage();
         ledger = new Ledger(economy);
-        return economy;
     }
 
     /**
