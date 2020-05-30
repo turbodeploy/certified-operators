@@ -6,6 +6,7 @@ option java_package = "com.vmturbo.common.protobuf.group";
 
 import "CommonDTO.proto";
 import "group/GroupDTO.proto";
+import "search/Search.proto";
 
 // The information about a topology data definition in the system. Includes its OID and the
 // definition itself.
@@ -53,13 +54,20 @@ message TopologyDataDefinition {
                 // created entity's associated entities will change in the same way.
                 GroupID associated_group = 2;
 
-                // The criteria to select associated members dynamically.  The criteria are
-                // evaluated dynamically with time so that if the set of entities that matches changes,
-                // the realtionships between the created entity and its associated entities will change
-                // in the same way.
-                GroupDefinition.EntityFilters entity_filters = 3;
+                DynamicConnectionFilters dynamic_connection_filters = 3;
+
             }
+            // Type of entity that tag or attribute applies to
+            optional common_dto.EntityDTO.EntityType connected_entity_type = 4;
         }
+    }
+
+    // The criteria to select associated members dynamically.  The criteria are
+    // evaluated dynamically with time so that if the set of entities that matches changes,
+    // the realtionships between the created entity and its associated entities will change
+    // in the same way.
+    message DynamicConnectionFilters {
+        repeated search.SearchParameters.FilterSpecs entity_filters = 3;
     }
 
     // An automated entity definition defines a way to group existing entities (currently only

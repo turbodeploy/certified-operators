@@ -1,0 +1,23 @@
+{
+  "entityType": "BusinessApplication",
+  "displayName": "INCORRECT_FILTER",
+  "entityDefinitionData": {
+    "manualConnectionData": {
+      "virtualmachine": {
+        "dynamicConnectionCriteria": [
+          {
+            "expVal": "*-vm",
+            "singleLine": false
+          },
+          {
+            "expVal": "vm-*",
+            "expType": "RXNEQ",
+            "filterType": "virtualMachinesByName",
+            "caseSensitive": true,
+            "singleLine": false
+          }
+        ]
+      }
+    }
+  }
+}

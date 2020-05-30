@@ -636,6 +636,17 @@ public class ServiceConfig {
             cpuCatalogLifeHours);
     }
 
+    /**
+     * Bean for {@link TopologyDataDefinitionService}.
+     *
+     * @return topology data definition service
+     */
+    @Bean
+    public TopologyDataDefinitionService topologyDataDefinitionService() {
+        return new TopologyDataDefinitionService(communicationConfig.topologyDataDefinitionServiceBlockingStub(),
+                mapperConfig.topologyDataDefinitionMapper());
+    }
+
     @Bean
     public CpuInfoMapper cpuInfoMapper() {
         return new CpuInfoMapper();

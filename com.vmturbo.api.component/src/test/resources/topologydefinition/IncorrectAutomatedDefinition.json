@@ -1,0 +1,15 @@
+{
+  "entityType": "BusinessApplication",
+  "displayName": "department_Support",
+  "unknownField": {
+    "namePrefix": "department",
+    "entityType": "VirtualMachine",
+    "generationAndConnectionAttribute": {
+      "expVal": "Support",
+      "expType": "EQ",
+      "filterType": "virtualMachinesByTag",
+      "caseSensitive": true,
+      "singleLine": false
+    }
+  }
+}
