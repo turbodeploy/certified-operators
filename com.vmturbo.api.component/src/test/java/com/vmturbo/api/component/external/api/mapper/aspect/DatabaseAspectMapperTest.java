@@ -23,6 +23,9 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
     private static final DeploymentType TEST_DEPLOYMENT_TYPE = DeploymentType.MULTI_AZ;
     private static final LicenseModel TEST_LICENSE_MODEL = LicenseModel.BRING_YOUR_OWN_LICENSE;
     private static final String TEST_DATABASE_VERSION = "666";
+    private static final int MAX_CONCURRENT_SESSION = 400;
+    private static final int MAX_CONCURRENT_WORKER = 10;
+
     private static final long TEST_OID = 123L;
 
     @Test
@@ -37,7 +40,10 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
                     .setVersion(TEST_DATABASE_VERSION)
                     .setDeploymentType(TEST_DEPLOYMENT_TYPE)
                     .setLicenseModel(TEST_LICENSE_MODEL))
-                .build());
+                .build())
+                .putEntityPropertyMap("max_concurrent_session", "400")
+                .putEntityPropertyMap("max_concurrent_worker", "10");
+
         final DatabaseAspectMapper mapper = new DatabaseAspectMapper();
         // act
         EntityAspect result = mapper.mapEntityToAspect(topologyEntityDTO.build());
@@ -49,5 +55,8 @@ public class DatabaseAspectMapperTest extends BaseAspectMapperTest {
         assertEquals(TEST_DATABASE_VERSION, dbAspect.getDbVersion());
         assertEquals(TEST_LICENSE_MODEL.name(), dbAspect.getLicenseModel());
         assertEquals(TEST_DEPLOYMENT_TYPE.name(), dbAspect.getDeploymentType());
+        assertEquals(TEST_DEPLOYMENT_TYPE.name(), dbAspect.getDeploymentType());
+        assertEquals(MAX_CONCURRENT_SESSION, dbAspect.getMaxConcurrentSession());
+        assertEquals(MAX_CONCURRENT_WORKER, dbAspect.getMaxConcurrentWorker());
     }
 }

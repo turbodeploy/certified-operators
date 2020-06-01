@@ -2,7 +2,6 @@ package com.vmturbo.api.component.external.api.mapper.aspect;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-
 import com.vmturbo.api.dto.entityaspect.DBEntityAspectApiDTO;
 import com.vmturbo.api.dto.entityaspect.EntityAspect;
 import com.vmturbo.api.enums.AspectName;
@@ -35,6 +34,17 @@ public class DatabaseAspectMapper extends AbstractAspectMapper {
                 aspect.setDeploymentType(databaseInfo.getDeploymentType().name());
             }
         }
+
+        String concurrentSession = entity.getEntityPropertyMapOrDefault("max_concurrent_session", null);
+        if (concurrentSession != null) {
+            aspect.setMaxConcurrentSession(Integer.parseInt(concurrentSession));
+        }
+
+        String concurrentWorker = entity.getEntityPropertyMapOrDefault("max_concurrent_worker", null);
+        if (concurrentWorker != null) {
+            aspect.setMaxConcurrentWorker(Integer.parseInt(concurrentWorker));
+        }
+
         return aspect;
     }
 
