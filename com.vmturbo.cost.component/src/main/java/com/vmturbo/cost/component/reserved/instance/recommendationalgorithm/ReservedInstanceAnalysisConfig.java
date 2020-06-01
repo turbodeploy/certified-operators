@@ -52,7 +52,7 @@ public class ReservedInstanceAnalysisConfig {
     @Value("${riMinimumDataPoints}")
     private int riMinimumDataPoints;
 
-    @Value("${allowStandaloneAccountRIBuyAnalysis:true}")
+    @Value("${allowStandaloneAccountRIBuyAnalysis:false}")
     private boolean allowStandaloneAccountRIBuyAnalysis;
 
     @Autowired

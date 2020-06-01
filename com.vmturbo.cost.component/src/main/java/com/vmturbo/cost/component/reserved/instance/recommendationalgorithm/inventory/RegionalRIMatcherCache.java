@@ -33,7 +33,7 @@ public class RegionalRIMatcherCache {
 
     private final CloudTopology<TopologyEntityDTO> cloudTopology;
 
-    private final ReservedInstancePurchaseConstraints purchaseConstraints;
+    private final Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints;
 
     private final TopologyInfo topologyInfo;
 
@@ -41,7 +41,7 @@ public class RegionalRIMatcherCache {
     public RegionalRIMatcherCache(@Nonnull ReservedInstanceSpecMatcherFactory riSpecMatcherFactory,
                                   @Nonnull ReservedInstanceInventoryMatcherFactory riInventoryMatcherFactory,
                                   @Nonnull CloudTopology<TopologyEntityDTO> cloudTopology,
-                                  @Nonnull ReservedInstancePurchaseConstraints purchaseConstraints,
+                                  @Nonnull Map<String, ReservedInstancePurchaseConstraints> purchaseConstraints,
                                   @Nonnull TopologyInfo topologyInfo) {
 
         this.riSpecMatcherFactory = Objects.requireNonNull(riSpecMatcherFactory);
@@ -55,19 +55,19 @@ public class RegionalRIMatcherCache {
     @Nonnull
     public ReservedInstanceSpecMatcher getOrCreateRISpecMatchForRegion(long regionOid) {
         return riSpecMatchersByRegionOid.computeIfAbsent(regionOid,
-            (__) -> riSpecMatcherFactory.createRegionalMatcher(
-                cloudTopology,
-                purchaseConstraints,
-                regionOid));
+                (__) -> riSpecMatcherFactory.createRegionalMatcher(
+                        cloudTopology,
+                        purchaseConstraints,
+                        regionOid));
     }
 
     @Nonnull
     public ReservedInstanceInventoryMatcher getOrCreateRIInventoryMatcherForRegion(long regionOid) {
         return riInventoryMatchersByRegionOid.computeIfAbsent(regionOid,
-            (__) -> riInventoryMatcherFactory.createRegionalMatcher(
-                cloudTopology,
-                getOrCreateRISpecMatchForRegion(regionOid),
-                topologyInfo, regionOid));
+                (__) -> riInventoryMatcherFactory.createRegionalMatcher(
+                        cloudTopology,
+                        getOrCreateRISpecMatchForRegion(regionOid),
+                        topologyInfo, regionOid));
     }
 
     @Nonnull
