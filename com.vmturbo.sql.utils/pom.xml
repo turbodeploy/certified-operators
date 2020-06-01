@@ -66,11 +66,6 @@
             <artifactId>value</artifactId>
             <scope>compile</scope>
         </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <scope>compile</scope>
-        </dependency>
         <!-- END Database-related dependencies -->
     </dependencies>
 </project>
