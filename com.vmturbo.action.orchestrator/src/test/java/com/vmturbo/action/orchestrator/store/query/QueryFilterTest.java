@@ -8,12 +8,16 @@ import static org.mockito.Mockito.when;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
+import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import com.vmturbo.action.orchestrator.ActionOrchestratorTestUtils;
 import com.vmturbo.action.orchestrator.action.Action;
 import com.vmturbo.action.orchestrator.action.ActionModeCalculator;
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.action.orchestrator.action.TestActionBuilder;
 import com.vmturbo.action.orchestrator.store.LiveActionStore;
@@ -21,6 +25,7 @@ import com.vmturbo.action.orchestrator.store.PlanActionStore;
 import com.vmturbo.common.protobuf.action.ActionDTO;
 import com.vmturbo.common.protobuf.action.ActionDTO.Action.SupportLevel;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCategory;
+import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionInfo;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionMode;
@@ -34,7 +39,6 @@ import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderEx
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.ChangeProviderExplanation.InitialPlacement;
 import com.vmturbo.common.protobuf.action.ActionDTO.Explanation.MoveExplanation;
 import com.vmturbo.common.protobuf.action.ActionDTO.Severity;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.sdk.common.CloudCostDTO.CurrencyAmount;
@@ -263,6 +267,40 @@ public class QueryFilterTest {
         // action spec should be visible.
         assertTrue(new QueryFilter(readyVisibleFilter, LiveActionStore.VISIBILITY_PREDICATE)
                 .test(actionView));
+    }
+
+    /**
+     * Test query filter for actions with and without associated schedule.
+     */
+    @Test
+    public void testAssociatedScheduleMatch() {
+        final long requestedScheduleId = 9L;
+        final long otherScheduleId = 10L;
+        final ActionQueryFilter actionQueryFilter =
+                ActionQueryFilter.newBuilder().setAssociatedScheduleId(requestedScheduleId).build();
+        final ActionView actionWithRequestedSchedule = executableMoveAction(221L, 1L, 1, 2L, 1, 3L);
+        final ActionView actionWithOtherSchedule = executableMoveAction(222L, 1L, 1, 2L, 1, 3L);
+        final ActionView actionWithoutSchedule = executableMoveAction(223L, 1L, 1, 2L, 1, 3L);
+
+        Mockito.when(actionWithRequestedSchedule.getSchedule())
+                .thenReturn(Optional.of(
+                        new ActionSchedule(1L, 2L, "America/Chicago", requestedScheduleId,
+                                "testSchedule", ActionMode.MANUAL, "admin")));
+        Mockito.when(actionWithOtherSchedule.getSchedule())
+                .thenReturn(Optional.of(
+                        new ActionSchedule(1L, 2L, "America/Chicago", otherScheduleId,
+                                "testSchedule", ActionMode.MANUAL, "admin")));
+        Mockito.when(actionWithoutSchedule.getSchedule()).thenReturn(Optional.empty());
+
+        Assert.assertTrue(
+                new QueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE).test(
+                        actionWithRequestedSchedule));
+        Assert.assertFalse(
+                new QueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE).test(
+                        actionWithOtherSchedule));
+        Assert.assertFalse(
+                new QueryFilter(actionQueryFilter, LiveActionStore.VISIBILITY_PREDICATE).test(
+                        actionWithoutSchedule));
     }
 
     @Test

@@ -1034,6 +1034,10 @@ message ActionQueryFilter {
 
     // If non-empty, include only actions of given cost type
     optional ActionCostType cost_type = 14;
+
+    // If present, include actions which have associated schedule with this id.
+    // If not present, the field is not used to filter.
+    optional int64 associatedScheduleId = 15;
 }
 
 // The number of actions of a specific type that match the criteria in

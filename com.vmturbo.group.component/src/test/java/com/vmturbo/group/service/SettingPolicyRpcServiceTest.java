@@ -1158,15 +1158,18 @@ public class SettingPolicyRpcServiceTest {
         final long scheduleId = 11L;
         Mockito.when(transactionProvider.getSettingPolicyStore()
                 .getPolicies(SettingPolicyFilter.newBuilder()
-                        .withScheduleId(scheduleId)
+                        .withActivationScheduleId(scheduleId)
                         .build())).thenReturn(Arrays.asList(settingPolicy, settingPolicy));
+        Mockito.when(transactionProvider.getSettingPolicyStore()
+                .getPolicies(SettingPolicyFilter.newBuilder()
+                        .withExecutionScheduleId(scheduleId)
+                        .build())).thenReturn(Collections.singletonList(settingPolicy));
         settingPolicyService.getSettingPoliciesUsingSchedule(
-            GetSettingPoliciesUsingScheduleRequest.newBuilder()
-                .setScheduleId(scheduleId)
-                .build(),
-            responseObserver);
+                GetSettingPoliciesUsingScheduleRequest.newBuilder()
+                        .setScheduleId(scheduleId)
+                        .build(), responseObserver);
 
-        verify(responseObserver, times(2)).onNext(eq(settingPolicy));
+        verify(responseObserver, times(3)).onNext(eq(settingPolicy));
         verify(responseObserver).onCompleted();
     }
 
