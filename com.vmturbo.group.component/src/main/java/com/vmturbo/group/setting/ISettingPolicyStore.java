@@ -8,7 +8,9 @@ import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.group.service.StoreOperationException;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Setting policy store view for executing within a transaction.
@@ -67,4 +69,17 @@ public interface ISettingPolicyStore {
     @Nonnull
     Collection<SettingPolicy> getPolicies(@Nonnull SettingPolicyFilter filter)
             throws StoreOperationException;
+
+    /**
+     * Update setting policy.
+     *
+     * @param id the policy id
+     * @param newPolicyInfo new policy info overwriting the previous one
+     * @return pair of updated setting policy and flag describing should we remove accepted actions
+     * associated with policy or not
+     * @throws StoreOperationException if store operation failed
+     */
+    @Nonnull
+    Pair<SettingPolicy, Boolean> updateSettingPolicy(long id,
+            @Nonnull SettingPolicyInfo newPolicyInfo) throws StoreOperationException;
 }
