@@ -3,6 +3,7 @@ package com.vmturbo.action.orchestrator.store.query;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -11,6 +12,7 @@ import javax.annotation.Nonnull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.action.orchestrator.action.ActionSchedule;
 import com.vmturbo.action.orchestrator.action.ActionView;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionCostType;
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionEntity;
@@ -60,6 +62,14 @@ public class QueryFilter {
                          @Nonnull final ActionView actionView) {
         if (filter.hasVisible() && filter.getVisible() != visibilityPredicate.test(actionView)) {
             return false;
+        }
+
+        if (filter.hasAssociatedScheduleId()) {
+            final Optional<ActionSchedule> scheduleOpt = actionView.getSchedule();
+            if (!scheduleOpt.isPresent()
+                    || scheduleOpt.get().getScheduleId() != filter.getAssociatedScheduleId()) {
+                return false;
+            }
         }
 
         if (filter.hasEnvironmentType()) {

@@ -107,9 +107,9 @@ public class MockSettingPolicyStore implements ISettingPolicyStore {
             resultFilter = resultFilter.and(
                     policy -> filter.getDesiredTypes().contains(policy.getSettingPolicyType()));
         }
-        if (!filter.getSchedules().isEmpty()) {
+        if (!filter.getActivationSchedules().isEmpty()) {
             resultFilter = resultFilter.and(
-                    policy -> filter.getSchedules().contains(policy.getInfo().getScheduleId()));
+                    policy -> filter.getActivationSchedules().contains(policy.getInfo().getScheduleId()));
         }
         return resultFilter;
     }
