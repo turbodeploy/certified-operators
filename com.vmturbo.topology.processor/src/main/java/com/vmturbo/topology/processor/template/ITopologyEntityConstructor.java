@@ -30,6 +30,6 @@ public interface ITopologyEntityConstructor {
     @Nonnull
     TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException;
 }

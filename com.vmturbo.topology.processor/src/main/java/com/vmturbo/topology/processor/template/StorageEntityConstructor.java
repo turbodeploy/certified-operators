@@ -47,7 +47,7 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
                 template, originalTopologyEntity, isReplaced, identityProvider,
@@ -77,14 +77,13 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
         // to sell biclique commodities, so set shopTogether to false.
         topologyEntityBuilder.getAnalysisSettingsBuilder().setShopTogether(false);
 
-        addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
+        addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints,
+                commodityBoughtConstraints);
         if (originalTopologyEntity != null) {
-            updateRelatedEntityAccesses(originalTopologyEntity.getOid(),
-                    topologyEntityBuilder.getOid(),
-                    commoditySoldConstraints, topology);
+            updateRelatedEntityAccesses(originalTopologyEntity,
+                    topologyEntityBuilder.build(), commoditySoldConstraints, topology);
 
-            topologyEntityBuilder.setTypeSpecificInfo(
-                    originalTopologyEntity.getEntityBuilder().getTypeSpecificInfo());
+            topologyEntityBuilder.setTypeSpecificInfo(originalTopologyEntity.getTypeSpecificInfo());
         }
         return topologyEntityBuilder;
     }

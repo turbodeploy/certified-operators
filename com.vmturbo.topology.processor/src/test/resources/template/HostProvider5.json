@@ -1,34 +1,25 @@
 {
   "entityType": 2,
-  "oid": "73431846120360",
+  "oid": "73488350794439",
   "displayName": "SCIO:ESXDC9DS1",
   "commoditySoldList": [{
     "commodityType": {
-      "type": 8
+      "type": 51,
+      "key": "PhysicalMachine::Virtual_ESX_4238e2ce-54ca-5a35-4d2e-0096dcb83745"
     },
-    "used": 1446.0,
+    "used": 1.0,
     "peak": 0.0,
-    "capacity": 16128.0,
+    "capacity": 1.0E9,
     "isResizeable": false,
     "isThin": true,
+    "accesses": "73488350794450",
     "active": true,
     "displayName": ""
   }, {
     "commodityType": {
-      "type": 22
+      "type": 6
     },
-    "used": 8.5,
-    "peak": 0.0,
-    "capacity": 0.0,
-    "isResizeable": true,
-    "isThin": true,
-    "active": true,
-    "displayName": ""
-  }, {
-    "commodityType": {
-      "type": 64
-    },
-    "used": 2.7,
+    "used": 24585.0,
     "peak": 0.0,
     "capacity": 0.0,
     "isResizeable": true,
@@ -45,39 +36,36 @@
     "capacity": 1.0E9,
     "isResizeable": false,
     "isThin": true,
-    "accesses": "73431846120369",
+    "accesses": "73488350794448",
     "active": true,
     "displayName": ""
   }, {
     "commodityType": {
-      "type": 59,
-      "key": "free_storage_cluster"
+      "type": 22
     },
-    "used": 0.0,
+    "used": 11.100000000000001,
     "peak": 0.0,
-    "capacity": 1.0E9,
+    "capacity": 0.0,
+    "isResizeable": true,
+    "isThin": true,
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 8
+    },
+    "used": 1453.0,
+    "peak": 0.0,
+    "capacity": 16128.0,
     "isResizeable": false,
     "isThin": true,
     "active": true,
     "displayName": ""
   }, {
     "commodityType": {
-      "type": 51,
-      "key": "PhysicalMachine::Virtual_ESX_4238e2ce-54ca-5a35-4d2e-0096dcb83745"
+      "type": 64
     },
-    "used": 1.0,
-    "peak": 0.0,
-    "capacity": 1.0E9,
-    "isResizeable": false,
-    "isThin": true,
-    "accesses": "73431846120385",
-    "active": true,
-    "displayName": ""
-  }, {
-    "commodityType": {
-      "type": 6
-    },
-    "used": 20486.0,
+    "used": 2.7333333333333334,
     "peak": 0.0,
     "capacity": 0.0,
     "isResizeable": true,
@@ -94,12 +82,24 @@
     "capacity": 1.0E9,
     "isResizeable": false,
     "isThin": true,
-    "accesses": "73431846120368",
+    "accesses": "73488350794444",
+    "active": true,
+    "displayName": ""
+  }, {
+    "commodityType": {
+      "type": 59,
+      "key": "free_storage_cluster"
+    },
+    "used": 0.0,
+    "peak": 0.0,
+    "capacity": 1.0E9,
+    "isResizeable": false,
+    "isThin": true,
     "active": true,
     "displayName": ""
   }],
   "commoditiesBoughtFromProviders": [{
-    "providerId": "73431846120355",
+    "providerId": "73488350794433",
     "providerEntityType": 11,
     "commodityBought": [{
       "commodityType": {
@@ -125,9 +125,9 @@
   },
   "origin": {
     "discoveryOrigin": {
-      "lastUpdatedTime": "1587732743358",
+      "lastUpdatedTime": "1590999807913",
       "discoveredTargetData": {
-        "73431844170768": {
+        "73488349925440": {
           "vendorId": "datastore-444"
         }
       }
