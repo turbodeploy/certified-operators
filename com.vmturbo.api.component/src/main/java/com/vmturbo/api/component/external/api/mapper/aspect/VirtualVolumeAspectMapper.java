@@ -146,7 +146,7 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
     }
 
     @Override
-    @Nullable
+    @Nonnull
     public Optional<Map<Long, EntityAspect>> mapEntityToAspectBatch(@Nonnull final List<TopologyEntityDTO> entities)
             throws InterruptedException, ConversionException {
         EntityAspect aspect = mapEntitiesToAspect(entities);
@@ -224,14 +224,11 @@ public class VirtualVolumeAspectMapper extends AbstractAspectMapper {
                 getIdentifier = (entity) -> entity.getUuid() != null
                     ? entity.getUuid() : "";
                 break;
-            case EntityType.STORAGE_TIER_VALUE:
-                getIdentifier = (entity) -> entity.getTier() != null
-                    ? entity.getTier() : "";
-                break;
             case EntityType.VIRTUAL_MACHINE_VALUE:
                 getIdentifier = (entity) -> entity.getAttachedVirtualMachine() != null
                     ? entity.getAttachedVirtualMachine().getUuid() : "";
                 break;
+            case EntityType.STORAGE_TIER_VALUE:
             case EntityType.STORAGE_VALUE:
                 getIdentifier = (entity) -> entity.getProvider() != null
                     ? entity.getProvider().getUuid() : "";

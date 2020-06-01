@@ -64,6 +64,7 @@ public class ActionDescriptionBuilderTest {
     private ActionDTO.Action resizeVcpuReservationRecommendationForVM;
     private ActionDTO.Action resizeVcpuRecommendationForContainer;
     private ActionDTO.Action resizeVcpuReservationRecommendationForContainer;
+    private ActionDTO.Action resizeVemRequestRecommendationForContainer;
     private ActionDTO.Action deactivateRecommendation;
     private ActionDTO.Action activateRecommendation;
     private ActionDTO.Action reconfigureReasonCommoditiesRecommendation;
@@ -142,6 +143,7 @@ public class ActionDescriptionBuilderTest {
         resizeVcpuRecommendationForContainer = makeRec(makeResizeVcpuInfo(CONTAINER1_ID, 16.111f, 8.111f), SupportLevel.SUPPORTED).build();
         resizeVcpuReservationRecommendationForContainer =
             makeRec(makeResizeReservationVcpuInfo(CONTAINER1_ID, 16.111f, 8.111f), SupportLevel.SUPPORTED).build();
+        resizeVemRequestRecommendationForContainer = makeRec(makeVMemRequestInfo(CONTAINER1_ID, 3200f, 2200f), SupportLevel.SUPPORTED).build();
 
         deactivateRecommendation =
                 makeRec(makeDeactivateInfo(VM1_ID), SupportLevel.SUPPORTED).build();
@@ -306,6 +308,18 @@ public class ActionDescriptionBuilderTest {
         ActionInfo.Builder builder = makeResizeInfo(targetId, CommodityDTO.CommodityType.VCPU_VALUE, oldCapacity, newCapacity);
         builder.getResizeBuilder().setCommodityAttribute(CommodityAttribute.RESERVED);
         return builder;
+    }
+
+    /**
+     * Create a resize action for VMemRequest commodity.
+     *
+     * @param targetId the target entity id
+     * @param oldCapacity the capacity before resize
+     * @param newCapacity the capacity after resize
+     * @return {@link ActionInfo.Builder}
+     */
+    private ActionInfo.Builder makeVMemRequestInfo(long targetId, float oldCapacity, float newCapacity) {
+        return makeResizeInfo(targetId, CommodityDTO.CommodityType.VMEM_REQUEST_VALUE, oldCapacity, newCapacity);
     }
 
     private ActionInfo.Builder makeDeactivateInfo(long targetId) {
@@ -663,7 +677,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeMemRecommendation);
 
-        Assert.assertEquals(description, "Resize down Mem for Virtual Machine vm1_test from 16 GB to 8 GB");
+        Assert.assertEquals(description, "Resize down Mem for Virtual Machine vm1_test from 16.0 GB to 8.0 GB");
     }
 
     /**
@@ -680,7 +694,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
             entitySettingsCache, resizeVStorageRecommendation);
 
-        Assert.assertEquals("Resize up VStorage for Virtual Machine vm1_test from 2 GB to 4 GB", description);
+        Assert.assertEquals("Resize up VStorage for Virtual Machine vm1_test from 2.0 GB to 3.9 GB", description);
     }
 
     /**
@@ -697,7 +711,7 @@ public class ActionDescriptionBuilderTest {
                 entitySettingsCache, resizeMemReservationRecommendation);
 
         Assert.assertEquals(description,
-                "Resize down Mem reservation for Virtual Machine vm1_test from 16 GB to 8 GB");
+                "Resize down Mem reservation for Virtual Machine vm1_test from 16.0 GB to 8.0 GB");
     }
 
     /**
@@ -772,6 +786,26 @@ public class ActionDescriptionBuilderTest {
     }
 
     /**
+     * Test resize VMemRequest for container.
+     *
+     * @throws UnsupportedActionException Exception if action is not supported.
+     */
+    @Test
+    public void testBuildResizeVMemRequestActionDescriptionForContainer()
+        throws UnsupportedActionException {
+        when(entitySettingsCache.getEntityFromOid(eq(CONTAINER1_ID)))
+            .thenReturn((createEntity(CONTAINER1_ID,
+                EntityType.CONTAINER.getNumber(),
+                CONTAINER1_DISPLAY_NAME)));
+
+        String description = ActionDescriptionBuilder.buildActionDescription(
+            entitySettingsCache, resizeVemRequestRecommendationForContainer);
+
+        Assert.assertEquals(description,
+            "Resize down VMem Request for Container container1_test from 3.1 MB to 2.1 MB");
+    }
+
+    /**
      * Test that the unit is converted to more readable format in the final description for
      * resize DBMem action.
      */
@@ -786,7 +820,7 @@ public class ActionDescriptionBuilderTest {
         String description = ActionDescriptionBuilder.buildActionDescription(
                 entitySettingsCache, resizeDBMem);
         Assert.assertEquals(description,
-                "Resize down DB Mem for Database Server sqlServer1 from 15 GB to 6 GB");
+                "Resize down DB Mem for Database Server sqlServer1 from 15.1 GB to 5.9 GB");
     }
 
     @Test
@@ -1048,5 +1082,18 @@ public class ActionDescriptionBuilderTest {
                 entitySettingsCache, allocateRecommendation);
         Assert.assertEquals(description,
                 "Increase RI coverage for Virtual Machine vm1_test in ");
+    }
+
+    /**
+     * Test getHumanReadableSize.
+     */
+    @Test
+    public void testGetHumanReadableSize() {
+        Assert.assertEquals("1023 Bytes", ActionDescriptionBuilder.getHumanReadableSize(1023L));
+        Assert.assertEquals("1.8 KB", ActionDescriptionBuilder.getHumanReadableSize(1800L));
+        Assert.assertEquals("6.7 MB", ActionDescriptionBuilder.getHumanReadableSize(7000000L));
+        Assert.assertEquals("372.5 GB", ActionDescriptionBuilder.getHumanReadableSize(400000000000L));
+        Assert.assertEquals("1.4 TB", ActionDescriptionBuilder.getHumanReadableSize(1500000000000L));
+        Assert.assertEquals("8.0 EB", ActionDescriptionBuilder.getHumanReadableSize(Long.MAX_VALUE));
     }
 }

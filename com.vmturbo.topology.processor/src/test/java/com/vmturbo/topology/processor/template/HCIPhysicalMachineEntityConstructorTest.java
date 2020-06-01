@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -28,7 +29,6 @@ import org.junit.Test;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -65,21 +65,30 @@ public class HCIPhysicalMachineEntityConstructorTest {
     public void testConstructor() throws Exception {
         Template template = loadTemplate("HCITemplate.json");
 
-        TopologyEntity.Builder originalHostBuilder = TopologyEntity
-                .newBuilder(loadTopologyEntityDTO("HCIHost.json").toBuilder());
-        TopologyEntity.Builder originalStorageBuilder = TopologyEntity
+        TopologyEntity.Builder host1 = TopologyEntity
+                .newBuilder(loadTopologyEntityDTO("hp-esx78.eng.vmturbo.com.json").toBuilder());
+        TopologyEntity.Builder host2 = TopologyEntity
+                .newBuilder(loadTopologyEntityDTO("hp-esx79.eng.vmturbo.com.json").toBuilder());
+        TopologyEntity.Builder storage = TopologyEntity
                 .newBuilder(loadTopologyEntityDTO("HCIStorage.json").toBuilder());
-        originalHostBuilder.addConsumer(originalStorageBuilder);
+        host1.addConsumer(storage);
         TopologyEntity.Builder vmVMFS = TopologyEntity
-                .newBuilder(loadTopologyEntityDTO("VmVMFS.json").toBuilder());
-        originalHostBuilder.addConsumer(vmVMFS);
-        TopologyEntity.Builder vmVsan = TopologyEntity
-                .newBuilder(loadTopologyEntityDTO("VmVsan.json").toBuilder());
-        originalHostBuilder.addConsumer(vmVsan);
+                .newBuilder(loadTopologyEntityDTO("astra-vmfs.json").toBuilder());
+        host1.addConsumer(vmVMFS);
+        TopologyEntity.Builder vmVsan1 = TopologyEntity
+                .newBuilder(loadTopologyEntityDTO("astra-vsan-esx78.json").toBuilder());
+        host1.addConsumer(vmVsan1);
+        TopologyEntity.Builder vmVsan2 = TopologyEntity
+                .newBuilder(loadTopologyEntityDTO("astra-vsan-esx79.json").toBuilder());
+        host2.addConsumer(vmVsan2);
+        host2.addConsumer(storage);
+
+        List<TopologyEntity.Builder> hosts = Arrays.asList(host1, host1);
 
         Map<Long, TopologyEntity.Builder> topology = new HashMap<>();
-        topology.put(originalHostBuilder.getOid(), originalHostBuilder);
-        topology.put(originalStorageBuilder.getOid(), originalStorageBuilder);
+        topology.put(host1.getOid(), host1);
+        topology.put(host2.getOid(), host2);
+        topology.put(storage.getOid(), storage);
 
         Set<Long> hostProviderOids = new HashSet<>();
 
@@ -92,7 +101,7 @@ public class HCIPhysicalMachineEntityConstructorTest {
 
         // Run test
         Collection<TopologyEntityDTO.Builder> result = new HCIPhysicalMachineEntityConstructor(
-                template, topology, Collections.singletonList(originalHostBuilder), true,
+                template, topology, Collections.singletonList(host1), true,
                 identityProvider).createTopologyEntitiesFromTemplate();
 
         Assert.assertEquals(2, result.size());
@@ -102,8 +111,8 @@ public class HCIPhysicalMachineEntityConstructorTest {
         TopologyEntityDTO.Builder newStorage = result.stream()
                 .filter(o -> o.getEntityType() == EntityType.STORAGE_VALUE).findFirst().get();
 
-        TopologyEntityDTO.Builder originalHost = originalHostBuilder.getEntityBuilder();
-        TopologyEntityDTO.Builder originalStorage = originalStorageBuilder.getEntityBuilder();
+        TopologyEntityDTO.Builder originalHost = host1.getEntityBuilder();
+        TopologyEntityDTO.Builder originalStorage = storage.getEntityBuilder();
 
         // Check the original entities for modifications
         Assert.assertEquals(newHost.getOid(),
@@ -111,21 +120,9 @@ public class HCIPhysicalMachineEntityConstructorTest {
         Assert.assertEquals(newStorage.getOid(),
                 originalStorage.getEdit().getReplaced().getReplacementId());
 
-        // New entities should not have any references to the old oids.
-        Assert.assertFalse(hasCommodityByAccessOid(newHost, originalStorage.getOid()));
-        Assert.assertFalse(hasCommodityByAccessOid(newStorage, originalHost.getOid()));
-
-        // New entities should have references to the new oids.
-        Assert.assertTrue(hasCommodityByAccessOid(newHost, newStorage.getOid()));
-        Assert.assertTrue(hasCommodityByAccessOid(newStorage, newHost.getOid()));
-
         // Check vSAN info
         Assert.assertEquals(StorageType.VSAN,
                 newStorage.getTypeSpecificInfo().getStorage().getStorageType());
-
-        // Compare sold commodities
-        checkMissingSoldCommodity(originalHost, newHost);
-        checkMissingSoldCommodity(originalStorage, newStorage);
 
         // Check the Storage bought commodities
         List<CommoditiesBoughtFromProvider> boughts = newStorage
@@ -136,35 +133,17 @@ public class HCIPhysicalMachineEntityConstructorTest {
             Assert.assertTrue(printCommBought(comm), comm.getUsed() > 0);
         });
 
-        // Check if the original host storages are marked for replacement
-        for (Long oid : hostProviderOids) {
-            TopologyEntity.Builder provider = topology.get(oid);
+        // Check if the provider storages are marked for replacement
+        for (TopologyEntity.Builder host : hosts) {
+            for (Long oid : host.getProviderIds()) {
+                TopologyEntity.Builder provider = topology.get(oid);
 
-            if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
-                Assert.assertEquals(newStorage.getOid(),
-                        provider.getEntityBuilder().getEdit().getReplaced().getReplacementId());
+                if (provider.getEntityType() == EntityType.STORAGE_VALUE) {
+                    Assert.assertEquals(newStorage.getOid(),
+                            provider.getEntityBuilder().getEdit().getReplaced().getReplacementId());
+                }
             }
         }
-    }
-
-    private static void checkMissingSoldCommodity(@Nonnull TopologyEntityDTO.Builder originalEntity,
-            @Nonnull TopologyEntityDTO.Builder newEntity) {
-        for (CommoditySoldDTO commOrig : originalEntity.getCommoditySoldListList()) {
-            List<CommoditySoldDTO> comms = newEntity.getCommoditySoldListList().stream()
-                    .filter(commNew -> commOrig.getCommodityType().getType() == commNew
-                            .getCommodityType().getType()
-                            && commOrig.getCommodityType().getKey() == commNew.getCommodityType()
-                                    .getKey())
-                    .collect(Collectors.toList());
-
-            Assert.assertTrue(printComm(commOrig), comms.size() == 1);
-        }
-    }
-
-    private static String printComm(CommoditySoldDTO comm) {
-        return "[" + comm.getCommodityType().getType() + "-"
-                + getCommodityById(comm.getCommodityType()) + ", key: '"
-                + comm.getCommodityType().getKey() + "']";
     }
 
     private static String printCommBought(CommodityBoughtDTO comm) {
@@ -177,11 +156,6 @@ public class HCIPhysicalMachineEntityConstructorTest {
             TopologyDTO.CommodityType commodityType) {
         EnumLiteMap<CommodityType> s = CommodityType.internalGetValueMap();
         return s.findValueByNumber(commodityType.getType());
-    }
-
-    private static boolean hasCommodityByAccessOid(TopologyEntityDTO.Builder entity, long oid) {
-        return entity.getCommoditySoldListBuilderList().stream()
-                .filter(comm -> comm.getAccesses() == oid).findAny().isPresent();
     }
 
     @Nonnull

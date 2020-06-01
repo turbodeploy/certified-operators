@@ -51,16 +51,12 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
-            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
                 template, originalTopologyEntity, isReplaced, identityProvider,
                 EntityType.PHYSICAL_MACHINE_VALUE);
 
-        final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
-                originalTopologyEntity);
-        final Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(
-                originalTopologyEntity);
         final Map<String, String> computeTemplateResources = createFieldNameValueMap(
                 getTemplateResources(template, Compute));
         addComputeCommodities(topologyEntityBuilder, computeTemplateResources);
@@ -72,10 +68,9 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
         final List<TemplateResource> infraTemplateResources = getTemplateResources(template,
                 Infrastructure);
         addInfraCommodities(topologyEntityBuilder, infraTemplateResources);
-        addCommodityConstraints(topologyEntityBuilder, commoditySoldConstraints, commodityBoughtConstraints);
-        if (originalTopologyEntity != null) {
-            updateRelatedEntityAccesses(originalTopologyEntity.getOid(),
-                    topologyEntityBuilder.getOid(), commoditySoldConstraints, topology);
+
+        if (topology != null) {
+            setAccessCommodities(topologyEntityBuilder, originalTopologyEntity, topology);
         }
 
         String templateName = template.hasTemplateInfo() && template.getTemplateInfo().hasName() ?
@@ -110,6 +105,32 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
             .setPhysicalMachine(pmInfoBuilder));
 
         return topologyEntityBuilder;
+    }
+
+    /**
+     * Set the access commodities for the new host, based on the original host
+     * access commodities.
+     *
+     * @param newHost new host
+     * @param originalHost original host
+     * @param topology topology
+     * @throws TopologyEntityConstructorException error setting access
+     *             commodities
+     */
+    public static void setAccessCommodities(@Nonnull TopologyEntityDTO.Builder newHost,
+            @Nullable TopologyEntityDTO.Builder originalHost,
+            @Nonnull Map<Long, TopologyEntity.Builder> topology)
+            throws TopologyEntityConstructorException {
+        Set<CommoditySoldDTO> commoditySoldConstraints = getCommoditySoldConstraint(originalHost);
+        List<CommoditiesBoughtFromProvider> commodityBoughtConstraints = getActiveCommoditiesWithKeysGroups(
+                originalHost);
+
+        addCommodityConstraints(newHost, commoditySoldConstraints, commodityBoughtConstraints);
+
+        if (originalHost != null) {
+            updateRelatedEntityAccesses(originalHost, newHost.build(),
+                    commoditySoldConstraints, topology);
+        }
     }
 
     /**
