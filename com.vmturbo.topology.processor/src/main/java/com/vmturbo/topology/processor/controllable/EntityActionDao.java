@@ -5,10 +5,8 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 
 import com.vmturbo.common.protobuf.action.ActionDTO.ActionState;
-import com.vmturbo.common.protobuf.action.ActionDTO.ActionType;
 import com.vmturbo.platform.common.dto.ActionExecution.ActionItemDTO;
 import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.ActionRecordNotFoundException;
-import com.vmturbo.topology.processor.controllable.EntityActionDaoImp.NotSupportedActionStateException;
 
 /**
  * Data access object for creating, updating, deleting MOVE or ACTIVATE actions record tables.

@@ -10,6 +10,7 @@ import javax.annotation.PostConstruct;
 import javax.servlet.ServletException;
 
 import io.grpc.BindableService;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jetty.websocket.jsr356.server.deploy.WebSocketServerContainerInitializer;
@@ -122,6 +123,7 @@ public class TopologyProcessorComponent extends BaseVmtComponent {
 
     @Autowired
     private TopologyProcessorRpcConfig topologyProcessorRpcConfig;
+
 
     @Value("${mariadbHealthCheckIntervalSeconds:60}")
     private int mariaHealthCheckIntervalSeconds;
