@@ -187,10 +187,9 @@ public class StorageEntityConstructorTest {
                 .setEntityType(2)
                 .addAllCommoditySoldList(stCommoditySold)
                 .addAllCommoditiesBoughtFromProviders(stCommodityBoughtFromProvider);
-        TopologyEntity.Builder topologyEntity = TopologyEntity.newBuilder(builder);
 
         final TopologyEntityDTO.Builder topologyEntityDTO = new StorageEntityConstructor()
-                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, topologyEntity, false,
+                .createTopologyEntityFromTemplate(ST_TEMPLATE, topology, builder, false,
                         identityProvider);
         // 7 commodities sold: storage latency, provisioned, amount and access
         // storage cluster commodity and two dspm access commodities

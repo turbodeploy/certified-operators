@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -19,6 +18,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.ListMultimap;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.common.protobuf.TemplateProtoUtil;
 import com.vmturbo.common.protobuf.plan.TemplateDTO.ResourcesCategory.ResourcesCategoryName;
@@ -45,6 +47,8 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  */
 public class TopologyEntityConstructor {
 
+    private static final Logger logger = LogManager.getLogger();
+
     /**
      * Create topology entities from a template. It modifies the original entity
      * with the reference to the new one.
@@ -60,7 +64,7 @@ public class TopologyEntityConstructor {
      */
     @Nonnull
     public TopologyEntityDTO.Builder generateTopologyEntityBuilder(@Nonnull Template template,
-            @Nullable TopologyEntity.Builder originalTopologyEntity, boolean isReplaced,
+            @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider, int entityType)
             throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder result = TopologyEntityDTO.newBuilder()
@@ -76,7 +80,7 @@ public class TopologyEntityConstructor {
         if (originalTopologyEntity != null) {
             // Modify original topology entity.
             if (isReplaced) {
-                originalTopologyEntity.getEntityBuilder().getEditBuilder()
+                originalTopologyEntity.getEditBuilder()
                         .getReplacedBuilder().setReplacementId(oid);
             }
 
@@ -118,11 +122,11 @@ public class TopologyEntityConstructor {
      */
     @Nonnull
     public static List<CommoditiesBoughtFromProvider> getActiveCommoditiesWithKeysGroups(
-            @Nullable TopologyEntity.Builder entityDTO) {
+            @Nullable TopologyEntityDTO.Builder entityDTO) {
         if (entityDTO == null) {
             return Collections.emptyList();
         }
-        return entityDTO.getEntityBuilder().getCommoditiesBoughtFromProvidersList().stream()
+        return entityDTO.getCommoditiesBoughtFromProvidersList().stream()
                 .map(TopologyEntityConstructor::keepCommodityBoughtActiveWithKey)
                 .flatMap(commoditiesBoughtFromProvider -> commoditiesBoughtFromProvider
                         .map(Stream::of).orElseGet(Stream::empty))
@@ -160,11 +164,11 @@ public class TopologyEntityConstructor {
      */
     @Nonnull
     public static Set<CommoditySoldDTO> getCommoditySoldConstraint(
-            @Nullable TopologyEntity.Builder entityDTO) {
+            @Nullable TopologyEntityDTO.Builder entityDTO) {
         if (entityDTO == null) {
             return Collections.emptySet();
         }
-        return entityDTO.getEntityBuilder().getCommoditySoldListList().stream()
+        return entityDTO.getCommoditySoldListList().stream()
                 .filter(CommoditySoldDTO::getActive)
                 .filter(commoditySoldDTO -> !commoditySoldDTO.getCommodityType().getKey().isEmpty())
                 .collect(Collectors.toSet());
@@ -389,53 +393,123 @@ public class TopologyEntityConstructor {
      * <p>This method, in the example above, will add an additional equivalent commodity sold that Accesses
      * the replacement entity with a different key.
      *
-     * @param originalEntityId The ID of the entity being replaced.
-     * @param replacementEntityId The ID of the entity doing the replacement.
+     * @param originalEntity The entity being replaced.
+     * @param replacementEntity The entity doing the replacement.
      * @param commoditySoldConstraints The constraint commodities that may contain accesses relationships that
      *                                 must be updated.
      * @param topology The topology map from OID -> TopologyEntity.Builder. When performing a replace,
      *                 entities related to the entity being replaced may be updated to fix up relationships
      *                 to point to the new entity along with the old entity.
+     * @throws TopologyEntityConstructorException error processing access commodity
      */
-    public static void updateRelatedEntityAccesses(final long originalEntityId,
-            final long replacementEntityId,
-            @Nonnull final Collection<CommoditySoldDTO> commoditySoldConstraints,
-            @Nullable Map<Long, TopologyEntity.Builder> topology) {
+    public static void updateRelatedEntityAccesses(
+            @Nonnull TopologyEntityDTO.Builder originalEntity,
+            @Nonnull TopologyEntityDTO replacementEntity,
+            @Nonnull Collection<CommoditySoldDTO> commoditySoldConstraints,
+            @Nullable Map<Long, TopologyEntity.Builder> topology)
+            throws TopologyEntityConstructorException {
 
         if (topology == null) {
             return;
         }
 
-        commoditySoldConstraints.stream()
-            .filter(CommoditySoldDTO::hasAccesses)
-            .map(CommoditySoldDTO::getAccesses)
-            .map(topology::get)
-            .filter(Objects::nonNull)
-            .forEach(relatedEntity -> {
-                final List<CommoditySoldDTO.Builder> commoditiesAccessingOriginal = relatedEntity
-                    .getEntityBuilder().getCommoditySoldListBuilderList().stream()
-                    .filter(CommoditySoldDTO.Builder::hasAccesses)
-                    .filter(relatedEntityCommodity -> relatedEntityCommodity.getAccesses() == originalEntityId)
-                    .collect(Collectors.toList());
+        for (CommoditySoldDTO commoditySoldConstraint : commoditySoldConstraints) {
+            if (!commoditySoldConstraint.hasAccesses()) {
+                return;
+            }
 
-                // In addition to accessing the original, the related entity should also be able to
-                // access the replacement. Keep the relation to the original as well because the original
-                // remains in the topology until scoping happens in the market component.
-                commoditiesAccessingOriginal.forEach(commodityAccessingOriginal -> {
-                    CommoditySoldDTO.Builder commodityAccessing = commodityAccessingOriginal.clone();
-                    // Different key with same Accesses will raise
-                    // java.lang.IllegalArgumentException: value already present
-                    // at com.vmturbo.market.topology.conversions.TopologyConverter.edge.
-                    //   accessesByKey.computeIfAbsent(commSold.getCommodityType().getKey(),
-                    //      key -> commSold.getAccesses());
-                    // Because accessesByKey is HashBiMap, where both key and value should be unique.
-                    String newKey = commodityAccessing.getCommodityTypeBuilder().getKey() +
-                        "-" + originalEntityId;
-                    commodityAccessing.getCommodityTypeBuilder().setKey(newKey);
-                    commodityAccessing.setAccesses(replacementEntityId);
-                    relatedEntity.getEntityBuilder().addCommoditySoldList(commodityAccessing);
-                });
-            });
+            TopologyEntity.Builder relatedEntity = topology
+                    .get(commoditySoldConstraint.getAccesses());
+
+            if (relatedEntity == null) {
+                continue;
+            }
+
+            TopologyEntityDTO.Builder relatedEntityDTO = relatedEntity.getEntityBuilder();
+
+            Optional<CommoditySoldDTO.Builder> commodityAccessing = createRelatedEntityAccesses(
+                    relatedEntityDTO,
+                    originalEntity, replacementEntity);
+
+            if (!commodityAccessing.isPresent()) {
+                return;
+            }
+
+            relatedEntityDTO.addCommoditySoldList(commodityAccessing.get());
+        }
+    }
+
+    /**
+     * Create accesses relationship that point to the original entity to instead to point to the replacement
+     * entity. As an example: When replacing a host (Physical Machine), the host contains Datastore commodities
+     * with Accesses relationships pointing to Storages. These Storages in turn contain DSPM commodities with
+     * Accesses relationships that in turn point back to the host. When replacing the host, the Accesses
+     * in the DSPM on the storages will point to the replacement host, and also the old host. As a result,
+     * when the market attempts to create bicliques containing the hosts and storages, the replacement PM will
+     * be in the biclique it belongs in and VMs will be able to move to the replacement host.
+     *
+     * <p>This method, in the example above, will add an additional equivalent commodity sold that Accesses
+     * the replacement entity with a different key.
+     *
+     * @param relatedEntity related entity
+     * @param originalEntity The entity being replaced
+     * @param replacementEntity The entity doing the replacement
+     * @return access commodity
+     * @throws TopologyEntityConstructorException error processing access commodity
+     */
+    @Nonnull
+    public static Optional<CommoditySoldDTO.Builder> createRelatedEntityAccesses(
+            @Nonnull TopologyEntityDTO.Builder relatedEntity,
+            @Nonnull TopologyEntityDTO.Builder originalEntity,
+            @Nonnull TopologyEntityDTO replacementEntity)
+            throws TopologyEntityConstructorException {
+        final List<CommoditySoldDTO.Builder> commoditiesAccessingOriginals = relatedEntity
+                .getCommoditySoldListBuilderList().stream()
+            .filter(CommoditySoldDTO.Builder::hasAccesses)
+            .filter(relatedEntityCommodity -> relatedEntityCommodity.getAccesses() == originalEntity.getOid())
+            .collect(Collectors.toList());
+
+        if (commoditiesAccessingOriginals.isEmpty()) {
+            logger.warn("Entity '{}' does not have access commodities related to '{}'",
+                    originalEntity.getDisplayName(), relatedEntity.getDisplayName());
+            return Optional.empty();
+        }
+
+        if (commoditiesAccessingOriginals.size() > 1) {
+            throw new TopologyEntityConstructorException("The accesses commodity for "
+                    + originalEntity.getDisplayName() + " is not unique for the related entity "
+                    + relatedEntity.getDisplayName());
+        }
+
+        CommoditySoldDTO.Builder commodityAccessingOriginal = commoditiesAccessingOriginals.get(0);
+
+        // In addition to accessing the original, the related entity should also be able to
+        // access the replacement. Keep the relation to the original as well because the original
+        // remains in the topology until scoping happens in the market component.
+        CommoditySoldDTO.Builder commodityAccessing = commodityAccessingOriginal.clone();
+        setKeyAndAccess(commodityAccessing, replacementEntity);
+
+        return Optional.of(commodityAccessing);
+    }
+
+    /**
+     * Set key and accesses for a new biclique commodity.
+     *
+     * <p>Different key with same Accesses will raise
+     * java.lang.IllegalArgumentException: value already present at
+     * com.vmturbo.market.topology.conversions.TopologyConverter.edge.
+     * accessesByKey.computeIfAbsent(commSold.getCommodityType().getKey(), key
+     * -> commSold.getAccesses()); Because accessesByKey is HashBiMap, where
+     * both key and value should be unique.
+     *
+     * @param commodity commodity
+     * @param replacementEntity the entity doing the replacement
+     */
+    public static void setKeyAndAccess(@Nonnull CommoditySoldDTO.Builder commodity,
+            @Nonnull TopologyEntityDTO replacementEntity) {
+        String newKey = replacementEntity.getDisplayName() + "::" + replacementEntity.getOid();
+        commodity.getCommodityTypeBuilder().setKey(newKey);
+        commodity.setAccesses(replacementEntity.getOid());
     }
 
     protected static CommodityBoughtDTO createCommodityBoughtDTO(int commodityType, double used) {

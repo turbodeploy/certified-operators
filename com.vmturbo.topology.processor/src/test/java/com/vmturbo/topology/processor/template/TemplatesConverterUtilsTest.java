@@ -60,12 +60,13 @@ public class TemplatesConverterUtilsTest {
     }
 
     @Test
-    public void testUpdateRelatedEntityAccesses() {
+    public void testUpdateRelatedEntityAccesses() throws Exception {
         assertEquals(1, storage.getEntityBuilder().getCommoditySoldListCount());
 
         // Should add an extra DSPM commodity to the storage that accesses the replacementHost.
-        TopologyEntityConstructor.updateRelatedEntityAccesses(originalHost.getOid(),
-            replacementHost.getOid(), originalHost.getEntityBuilder().getCommoditySoldListList(), topology);
+        TopologyEntityConstructor.updateRelatedEntityAccesses(originalHost.getEntityBuilder(),
+                replacementHost.getEntityBuilder().build(),
+                originalHost.getEntityBuilder().getCommoditySoldListList(), topology);
 
         assertEquals(2, storage.getEntityBuilder().getCommoditySoldListCount());
         assertThat(storage.getEntityBuilder().getCommoditySoldListList().stream()
