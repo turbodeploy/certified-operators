@@ -846,6 +846,8 @@ public class ResizerTest {
             // make sure the namespaceQnty increased by the change observed while resizing up
             if (up == 1) {
                 assertEquals(change, namespace.getCommoditiesSold().get(0).getQuantity() - vmemLimitUsedByPod, 0);
+            } else if (up == -1) {
+                assertEquals(up * change, namespace.getCommoditiesSold().get(0).getQuantity(), 0);
             }
         }
     }

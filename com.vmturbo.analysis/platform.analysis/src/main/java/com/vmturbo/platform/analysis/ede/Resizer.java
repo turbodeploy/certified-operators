@@ -713,7 +713,7 @@ public class Resizer {
                 updateUsageOnBoughtAndSoldCommodities(commSoldBySupplier, shoppingList, boughtIndex,
                                                         typeOfCommBought, newCapacity, changeInCapacity);
 
-                if (commSoldBySupplier.getSettings().isResold() && changeInCapacity > 0) {
+                if (commSoldBySupplier.getSettings().isResold()) {
                     resizeDependentCommoditiesOnReseller(economy, supplier, specOfSold,
                             typeOfCommBought, newCapacity, changeInCapacity);
                 }
