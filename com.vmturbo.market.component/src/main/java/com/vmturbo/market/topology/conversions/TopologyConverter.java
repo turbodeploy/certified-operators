@@ -1899,12 +1899,6 @@ public class TopologyConverter {
                         .setClonable(false).setSuspendable(false).setResizeThroughSupplier(true);
             }
 
-            // Overwrite flags for vSAN
-            if (TopologyConversionUtils.isVsanStorage(topologyDTO)) {
-                settingsBuilder.setGuaranteedBuyer(true).setProviderMustClone(true)
-                        .setClonable(false).setSuspendable(false).setResizeThroughSupplier(true);
-            }
-
             //compute biclique IDs for this entity, the clique list will be used only for
             // shop together placement, so pmBasedBicliquer is called
             Set<Long> allCliques = pmBasedBicliquer.getBcIDs(String.valueOf(topologyDTO.getOid()));
@@ -2752,6 +2746,9 @@ public class TopologyConverter {
         // find original sold commodity of same type from original entity
         Optional<CommoditySoldDTO> originalCommoditySold =
                 commodityIndex.getCommSold(traderOid, commType);
+        if (!originalCommoditySold.isPresent() && projectedTraderTO.getCloneOf() != 0) {
+            originalCommoditySold = commodityIndex.getCommSold(projectedTraderTO.getCloneOf(), commType);
+        }
         CommoditySoldTO adjustedCommSoldTO = commSoldTO.toBuilder()
                 .setQuantity((float)reverseScaleComm(commSoldTO.getQuantity(),
                     originalCommoditySold, CommoditySoldDTO::getScalingFactor))
