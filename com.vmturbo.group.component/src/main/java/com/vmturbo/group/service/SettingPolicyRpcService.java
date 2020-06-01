@@ -65,8 +65,6 @@ import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsRequ
 import com.vmturbo.common.protobuf.setting.SettingProto.UploadEntitySettingsResponse;
 import com.vmturbo.components.api.SetOnce;
 import com.vmturbo.components.common.setting.EntitySettingSpecs;
-import com.vmturbo.group.common.DuplicateNameException;
-import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
 import com.vmturbo.group.identity.IdentityProvider;
 import com.vmturbo.group.setting.EntitySettingStore;
@@ -75,6 +73,7 @@ import com.vmturbo.group.setting.ISettingPolicyStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
 import com.vmturbo.group.setting.SettingSpecStore;
 import com.vmturbo.group.setting.SettingStore;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * The SettingPolicyService provides RPC's for CRUD-type operations
@@ -173,32 +172,31 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
      */
     @Override
     public void updateSettingPolicy(UpdateSettingPolicyRequest request,
-                                    StreamObserver<UpdateSettingPolicyResponse> responseObserver) {
+            StreamObserver<UpdateSettingPolicyResponse> responseObserver) {
         if (!request.hasId() || !request.hasNewInfo()) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription("Update request must have ID and new setting policy info.")
-                    .asException());
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription(
+                    "Update request must have ID and new setting policy info.").asException());
             return;
         }
+        grpcTransactionUtil.executeOperation(responseObserver,
+                stores -> updateSettingPolicyInternal(request, responseObserver,
+                        stores.getSettingPolicyStore()));
+    }
 
-        try {
-            final SettingPolicy policy =
-                    settingStore.updateSettingPolicy(request.getId(), request.getNewInfo());
-            cancelAutomationActions(policy);
-            responseObserver.onNext(UpdateSettingPolicyResponse.newBuilder()
-                    .setSettingPolicy(policy)
-                    .build());
-            responseObserver.onCompleted();
-        } catch (DuplicateNameException e) {
-            responseObserver.onError(Status.ALREADY_EXISTS
-                    .withDescription(e.getMessage()).asException());
-        } catch (InvalidItemException e) {
-            responseObserver.onError(Status.INVALID_ARGUMENT
-                    .withDescription(e.getMessage()).asException());
-        } catch (SettingPolicyNotFoundException e) {
-            responseObserver.onError(Status.NOT_FOUND
-                    .withDescription(e.getMessage()).asException());
+    private void updateSettingPolicyInternal(UpdateSettingPolicyRequest request,
+            StreamObserver<UpdateSettingPolicyResponse> responseObserver,
+            ISettingPolicyStore settingPolicyStore) throws StoreOperationException {
+        final Pair<SettingPolicy, Boolean> updateSettingPolicyPair =
+                settingPolicyStore.updateSettingPolicy(request.getId(), request.getNewInfo());
+        final SettingPolicy policy = updateSettingPolicyPair.getFirst();
+        final Boolean isModifiedExecutionScheduleSettings = updateSettingPolicyPair.getSecond();
+        if (isModifiedExecutionScheduleSettings) {
+            removeAcceptancesForAssociatedActions(policy.getId());
         }
+        cancelAutomationActions(policy);
+        responseObserver.onNext(
+                UpdateSettingPolicyResponse.newBuilder().setSettingPolicy(policy).build());
+        responseObserver.onCompleted();
     }
 
     @Override
@@ -213,7 +211,7 @@ public class SettingPolicyRpcService extends SettingPolicyServiceImplBase {
 
         try {
             final SettingPolicy policy =
-                    settingStore.resetSettingPolicy(request.getSettingPolicyId());
+                    settingStore.resetSettingPolicy(request.getSettingPolicyId()).getFirst();
             cancelAutomationActions(policy);
             responseObserver.onNext(ResetSettingPolicyResponse.newBuilder()
                     .setSettingPolicy(policy)

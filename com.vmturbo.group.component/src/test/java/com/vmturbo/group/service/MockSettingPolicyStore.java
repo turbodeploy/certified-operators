@@ -14,8 +14,10 @@ import io.grpc.Status;
 
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicy.Type;
+import com.vmturbo.common.protobuf.setting.SettingProto.SettingPolicyInfo;
 import com.vmturbo.group.setting.ISettingPolicyStore;
 import com.vmturbo.group.setting.SettingPolicyFilter;
+import com.vmturbo.platform.sdk.common.util.Pair;
 
 /**
  * Mock memory-based store for setting policies.
@@ -120,5 +122,16 @@ public class MockSettingPolicyStore implements ISettingPolicyStore {
                 .stream()
                 .filter(policyPredicate)
                 .collect(Collectors.toSet());
+    }
+
+    @Nonnull
+    @Override
+    public Pair<SettingPolicy, Boolean> updateSettingPolicy(long id,
+            @Nonnull SettingPolicyInfo newPolicyInfo) throws StoreOperationException {
+        final SettingPolicy settingPolicy = settingPolicies.get(id);
+        if (settingPolicy == null) {
+            throw new StoreOperationException(Status.NOT_FOUND, "Policy not found with Id " + id);
+        }
+        return Pair.create(settingPolicy.toBuilder().setInfo(newPolicyInfo).build(), false);
     }
 }
