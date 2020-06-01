@@ -84,8 +84,9 @@ class Zarkon implements Runnable {
                     // Configure the appropriate data source, and then delete all the data.
                     try {
                         TestDbConfiguration testDbConfiguration =
-                                new TestDbConfiguration(component.getDbSchema().get().getName(),
-                                        uninitializedContext.getEnvironment().getProperty("dbSchemaName"));
+                                new TestDbConfiguration(component.getDbSchema().get(),
+                                        uninitializedContext.getEnvironment().getProperty("dbSchemaName"),
+                                        "");
                         testDbConfiguration.getFlyway().clean();
                         logger.info("Finished cleaning database for component {}", component);
                     } catch (Exception e) {
