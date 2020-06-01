@@ -142,9 +142,7 @@ public class SettingsService implements ISettingsService {
                     .filter(Optional::isPresent).map(Optional::get)
                     .collect(Collectors.toList());
         }
-        return settingApiDTOs.stream()
-                .filter(setting -> isSupportedSetting(setting.getUuid()))
-                .collect(Collectors.toList());
+        return settingApiDTOs;
     }
 
     @Override
@@ -296,7 +294,7 @@ public class SettingsService implements ISettingsService {
                 SearchSettingSpecsRequest.getDefaultInstance());
 
         final List<SettingSpec> specs = StreamSupport.stream(specIt.spliterator(), false)
-                .filter(spec -> isSupportedSetting(spec.getName()))
+                .filter(this::isSupportedSettingSpec)
                 .filter(spec -> settingMatchEntityType(spec, entityType))
                 .collect(Collectors.toList());
         final List<SettingsManagerApiDTO> retMgrs;
@@ -313,9 +311,9 @@ public class SettingsService implements ISettingsService {
         return isPlan ? settingsManagerMapping.convertToPlanSettingSpecs(retMgrs) : retMgrs;
     }
 
-    private boolean isSupportedSetting(@Nonnull String settingName) {
+    private boolean isSupportedSettingSpec(@Nonnull SettingSpec settingSpec) {
         return !hideExecutionScheduleSettings || !EntitySettingSpecs.isExecutionScheduleSetting(
-                settingName);
+                settingSpec.getName());
     }
 
     @VisibleForTesting
