@@ -6,7 +6,6 @@ import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CONSUMED;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_CURRENT;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_PROVIDER;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPE;
-import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_TYPES_WHITELIST;
 import static com.vmturbo.extractor.models.ModelDefinitions.COMMODITY_UTILIZATION;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH;
 import static com.vmturbo.extractor.models.ModelDefinitions.ENTITY_HASH_AS_HASH;
@@ -28,7 +27,6 @@ import java.io.IOException;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -50,14 +48,11 @@ import com.google.protobuf.MessageOrBuilder;
 import com.google.protobuf.util.JsonFormat;
 import com.google.protobuf.util.JsonFormat.Printer;
 
-import it.unimi.dsi.fastutil.longs.LongArrayList;
-import it.unimi.dsi.fastutil.longs.LongList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jooq.DSLContext;
 
 import it.unimi.dsi.fastutil.longs.Long2LongMap;
-import it.unimi.dsi.fastutil.longs.Long2LongMap.Entry;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -77,8 +72,6 @@ import com.vmturbo.extractor.models.Column.JsonString;
 import com.vmturbo.extractor.models.DslUpdateRecordSink;
 import com.vmturbo.extractor.models.DslUpsertRecordSink;
 import com.vmturbo.extractor.models.Table.Record;
-import com.vmturbo.extractor.topology.TopologyWriterBase;
-import com.vmturbo.extractor.topology.WriterConfig;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.sql.utils.DbEndpoint;
@@ -184,7 +177,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         e.getCommoditiesBoughtFromProvidersList().forEach(cbfp -> {
             final long producer = cbfp.getProviderId();
             Map<Integer, List<CommodityBoughtDTO>> cbByType = cbfp.getCommodityBoughtList().stream()
-                    .filter(cb -> COMMODITY_TYPES_WHITELIST.contains(topologyToSdkCommodityType(cb.getCommodityType())))
+                    .filter(cb -> config.reportingCommodityWhitelist().contains(cb.getCommodityType().getType()))
                     .collect(Collectors.groupingBy(cb -> cb.getCommodityType().getType()));
             cbByType.forEach((typeNo, cbs) -> {
                 // sum across commodity keys in case same commodity type appears with multiple keys
@@ -203,7 +196,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
             });
         });
         Map<Integer, List<CommoditySoldDTO>> csByType = e.getCommoditySoldListList().stream()
-                .filter(cs -> COMMODITY_TYPES_WHITELIST.contains(topologyToSdkCommodityType(cs.getCommodityType())))
+                .filter(cs -> config.reportingCommodityWhitelist().contains(cs.getCommodityType().getType()))
                 .collect(Collectors.groupingBy(cs -> cs.getCommodityType().getType()));
         csByType.forEach((typeNo, css) -> {
             // sum across commodity keys in case same commodity type appears with multiple keys
