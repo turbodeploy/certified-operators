@@ -22,6 +22,7 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -80,6 +81,7 @@ import com.vmturbo.common.protobuf.stats.Stats.ProjectedEntityStatsResponse;
 import com.vmturbo.common.protobuf.stats.Stats.StatSnapshot;
 import com.vmturbo.common.protobuf.stats.StatsHistoryServiceGrpc.StatsHistoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.commons.forecasting.TimeInMillisConstants;
 import com.vmturbo.components.common.pagination.EntityStatsPaginationParams;
@@ -104,6 +106,7 @@ public class PaginatedStatsExecutor {
     private final UserSessionContext userSessionContext;
     private static Logger logger = LogManager.getLogger(StatsService.class);
     private final GroupExpander groupExpander;
+    private final StatsQueryExecutor statsQueryExecutor;
 
     /**
      * To do in-memory pagination of entities.
@@ -137,7 +140,8 @@ public class PaginatedStatsExecutor {
             @Nonnull final EntityStatsPaginator entityStatsPaginator,
             @Nonnull final EntityStatsPaginationParamsFactory paginationParamsFactory,
             @Nonnull final PaginationMapper paginationMapper,
-            @Nonnull final CostServiceBlockingStub costServiceRpc) {
+            @Nonnull final CostServiceBlockingStub costServiceRpc,
+            @Nonnull final StatsQueryExecutor statsQueryExecutor) {
         this.statsMapper = Objects.requireNonNull(statsMapper);
         this.uuidMapper = Objects.requireNonNull(uuidMapper);
         this.clock = Objects.requireNonNull(clock);
@@ -150,6 +154,7 @@ public class PaginatedStatsExecutor {
         this.paginationParamsFactory = Objects.requireNonNull(paginationParamsFactory);
         this.paginationMapper = Objects.requireNonNull(paginationMapper);
         this.costServiceRpc = Objects.requireNonNull(costServiceRpc);
+        this.statsQueryExecutor = Objects.requireNonNull(statsQueryExecutor);
     }
 
     public EntityStatsPaginationResponse getLiveEntityStats(@Nonnull final StatScopesApiInputDTO inputDto,
@@ -188,6 +193,12 @@ public class PaginatedStatsExecutor {
         private final Map<ApiEntityType, ApiEntityType> ENTITY_TYPES_TO_EXPAND = ImmutableMap.of(
                 ApiEntityType.DATACENTER, ApiEntityType.PHYSICAL_MACHINE
         );
+
+        /**
+         * Entity types that don't support historical stats.
+         */
+        private final Set<String> entitiesWithoutHistoricalData = ImmutableSet.of(ApiEntityType.COMPUTE_TIER.apiStr(),
+                ApiEntityType.DATABASE_SERVER_TIER.apiStr(), ApiEntityType.DATABASE_TIER.apiStr());
 
         /**
          * Constructs PaginatedStatsGather object.
@@ -237,11 +248,13 @@ public class PaginatedStatsExecutor {
         }
 
         /**
-         * Kicks off reading and processing historical or projected stats request.
+         * Kicks off reading and processing historical, projected or entities without historical stats request.
          */
         void processRequest() throws OperationFailedException {
             sanitizeStartDateOrEndDate();
-            if (isHistoricalStatsRequest()) {
+            if (isEntityWithoutHistoricalDataStatsRequest()) {
+                runEntitiesWithoutHistoricalDataStatsRequest();
+            } else if (isHistoricalStatsRequest()) {
                 runHistoricalStatsRequest();
             } else if (isProjectedStatsRequest()) {
                 runProjectedStatsRequest();
@@ -304,6 +317,15 @@ public class PaginatedStatsExecutor {
                 }
             }
             // if none of startDate, endDate is null, there is no need to modify anything
+        }
+
+        /**
+         * Determines if statsRequest is for entities without historical stats
+         *
+         * @return true if entity doesn't have historical data
+         */
+        boolean isEntityWithoutHistoricalDataStatsRequest() {
+            return entitiesWithoutHistoricalData.contains(inputDto.getRelatedType());
         }
 
         /**
@@ -431,6 +453,27 @@ public class PaginatedStatsExecutor {
             }
 
             return getCloudCostStats(scope, this.inputDto);
+        }
+
+        /**
+         * Makes stats request for entities that don't have historical stats.
+         */
+        void runEntitiesWithoutHistoricalDataStatsRequest() {
+            Set<Long> uuidList = inputDto.getScopes().stream().map(Long::parseLong).collect(Collectors.toSet());
+            List<TopologyDTO.TopologyEntityDTO> topologyEntityDTOS = repositoryApi.entitiesRequest(uuidList)
+                    .getFullEntities().collect(Collectors.toList());
+            List<EntityStatsApiDTO> entityStatsApiDTOS = new ArrayList<>();
+            topologyEntityDTOS.forEach(topologyEntityDTO -> {
+                EntityStatsApiDTO entityStatsApiDTO = new EntityStatsApiDTO();
+                entityStatsApiDTO.setUuid(Long.toString(topologyEntityDTO.getOid()));
+                entityStatsApiDTO.setStats(statsQueryExecutor.
+                        createRealtimeStatSnapshots(inputDto.getPeriod(), topologyEntityDTO));
+                entityStatsApiDTOS.add(entityStatsApiDTO);
+            });
+            final EntityStatsPaginationResponse entityStatsPaginationResponse =
+                    constructPaginatedResponse(null,
+                            entityStatsApiDTOS);
+            setEntityStatsPaginationResponse(entityStatsPaginationResponse);
         }
 
         /**
@@ -1088,7 +1131,7 @@ public class PaginatedStatsExecutor {
                 @Nullable PaginationResponse paginationResponse,
                 @Nonnull List<EntityStatsApiDTO> sortedResults) {
                 if (paginationResponse == null) {
-                    paginationRequest.allResultsResponse(sortedResults);
+                    return paginationRequest.allResultsResponse(sortedResults);
                 }
 
                 return PaginationProtoUtil.getNextCursor(paginationResponse)

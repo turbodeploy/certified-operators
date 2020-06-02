@@ -564,7 +564,8 @@ public class ServiceConfig {
                 entityStatsPaginator(),
                 paginationParamsFactory(),
                 mapperConfig.paginationMapper(),
-                communicationConfig.costServiceBlockingStub()
+                communicationConfig.costServiceBlockingStub(),
+                statsQueryExecutor()
                 );
     }
 
