@@ -63,6 +63,8 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupDTOMoles.GroupServiceMole;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.repository.EntityConstraintServiceGrpc;
+import com.vmturbo.common.protobuf.repository.RepositoryDTOMoles.RepositoryServiceMole;
 import com.vmturbo.common.protobuf.search.Search.SearchParameters;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
@@ -108,6 +110,7 @@ public class EntitiesServiceTest {
     private final GroupServiceMole groupService = spy(new GroupServiceMole());
     private final StatsHistoryServiceMole historyService = spy(new StatsHistoryServiceMole());
     private final ReportingServiceMole reportingService = spy(new ReportingServiceMole());
+    private final RepositoryServiceMole repositoryService = spy(new RepositoryServiceMole());
     private final SupplyChainFetcherFactory supplyChainFetcherFactory =
             mock(SupplyChainFetcherFactory.class);
 
@@ -120,7 +123,7 @@ public class EntitiesServiceTest {
     // gRPC servers
     @Rule
     public final GrpcTestServer grpcServer =
-        GrpcTestServer.newServer( actionsService, groupService, historyService, reportingService);
+        GrpcTestServer.newServer(actionsService, groupService, historyService, reportingService, repositoryService);
 
     // a sample topology ST -> PM -> VM
     private static final long CONTEXT_ID = 777777L;
@@ -228,7 +231,8 @@ public class EntitiesServiceTest {
                 SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel()),
                 mock(SettingsMapper.class),
                 actionSearchUtil,
-                repositoryApi, entitySettingQueryExecutor);
+                repositoryApi, entitySettingQueryExecutor,
+                EntityConstraintServiceGrpc.newBlockingStub(grpcServer.getChannel()));
     }
 
     /**

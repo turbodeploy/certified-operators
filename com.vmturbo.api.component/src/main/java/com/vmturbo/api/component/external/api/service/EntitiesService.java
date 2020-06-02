@@ -34,7 +34,6 @@ import org.springframework.hateoas.mvc.ControllerLinkBuilder;
 import com.vmturbo.api.component.communication.RepositoryApi;
 import com.vmturbo.api.component.communication.RepositoryApi.SingleEntityRequest;
 import com.vmturbo.api.component.external.api.mapper.ActionSpecMapper;
-import com.vmturbo.api.component.external.api.mapper.ConstraintsMapper;
 import com.vmturbo.api.component.external.api.mapper.ExceptionMapper;
 import com.vmturbo.api.component.external.api.mapper.PriceIndexPopulator;
 import com.vmturbo.api.component.external.api.mapper.ServiceEntityMapper;
@@ -52,6 +51,7 @@ import com.vmturbo.api.component.external.api.util.action.ImmutableActionStatsQu
 import com.vmturbo.api.component.external.api.util.setting.EntitySettingQueryExecutor;
 import com.vmturbo.api.constraints.ConstraintApiDTO;
 import com.vmturbo.api.constraints.ConstraintApiInputDTO;
+import com.vmturbo.api.constraints.PlacementOptionApiDTO;
 import com.vmturbo.api.controller.GroupsController;
 import com.vmturbo.api.controller.MarketsController;
 import com.vmturbo.api.dto.BaseApiDTO;
@@ -88,6 +88,11 @@ import com.vmturbo.common.protobuf.group.GroupDTO.GetGroupsForEntitiesResponse;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsRequest;
 import com.vmturbo.common.protobuf.group.GroupDTO.GetTagsResponse;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.EntityConstraintOuterClass.EntityConstraint;
+import com.vmturbo.common.protobuf.repository.EntityConstraintOuterClass.EntityConstraintRequest;
+import com.vmturbo.common.protobuf.repository.EntityConstraintOuterClass.EntityConstraintResponse;
+import com.vmturbo.common.protobuf.repository.EntityConstraintOuterClass.PotentialPlacements;
+import com.vmturbo.common.protobuf.repository.EntityConstraintServiceGrpc.EntityConstraintServiceBlockingStub;
 import com.vmturbo.common.protobuf.search.Search.TraversalFilter.TraversalDirection;
 import com.vmturbo.common.protobuf.search.SearchProtoUtil;
 import com.vmturbo.common.protobuf.setting.SettingPolicyServiceGrpc.SettingPolicyServiceBlockingStub;
@@ -99,6 +104,8 @@ import com.vmturbo.common.protobuf.tag.Tag.Tags;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.MinimalEntity;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.ApiEntityType;
+import com.vmturbo.components.common.ClassicEnumMapper;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.GroupDTO.GroupType;
 import com.vmturbo.platform.common.dto.CommonDTOREST.GroupDTO.ConstraintType;
 
@@ -145,6 +152,8 @@ public class EntitiesService implements IEntitiesService {
     private final RepositoryApi repositoryApi;
 
     private final EntitySettingQueryExecutor entitySettingQueryExecutor;
+
+    private final EntityConstraintServiceBlockingStub entityConstraintRpcService;
 
     // Entity types which are not part of Host or Storage Cluster.
     private static final ImmutableSet<String> NON_CLUSTER_ENTITY_TYPES =
@@ -202,7 +211,9 @@ public class EntitiesService implements IEntitiesService {
         @Nonnull final SettingPolicyServiceBlockingStub settingPolicyServiceBlockingStub,
         @Nonnull final SettingsMapper settingsMapper,
         @Nonnull final ActionSearchUtil actionSearchUtil,
-        @Nonnull final RepositoryApi repositoryApi, final EntitySettingQueryExecutor entitySettingQueryExecutor) {
+        @Nonnull final RepositoryApi repositoryApi,
+        final EntitySettingQueryExecutor entitySettingQueryExecutor,
+        @Nonnull final EntityConstraintServiceBlockingStub entityConstraintRpcService) {
         this.actionOrchestratorRpcService = Objects.requireNonNull(actionOrchestratorRpcService);
         this.actionSpecMapper = Objects.requireNonNull(actionSpecMapper);
         this.realtimeTopologyContextId = realtimeTopologyContextId;
@@ -220,6 +231,7 @@ public class EntitiesService implements IEntitiesService {
         this.actionSearchUtil = Objects.requireNonNull(actionSearchUtil);
         this.repositoryApi = Objects.requireNonNull(repositoryApi);
         this.entitySettingQueryExecutor = entitySettingQueryExecutor;
+        this.entityConstraintRpcService = entityConstraintRpcService;
     }
 
     @Override
@@ -811,73 +823,46 @@ public class EntitiesService implements IEntitiesService {
             throw new IllegalArgumentException(String.format("%s is illegal argument. " +
                     "Should be a numeric entity id.", uuid));
         }
-        final SupplychainApiDTO supplyChain = supplyChainFetcher.newApiDtoFetcher()
-                .topologyContextId(realtimeTopologyContextId)
-                .addSeedUuids(Lists.newArrayList(uuid))
-                .includeHealthSummary(false)
-                .entityDetailType(EntityDetailType.entity)
-                .fetch();
 
-        final Map<Long, ServiceEntityApiDTO> serviceEntityMap = supplyChain.getSeMap().values()
-                .stream()
-                .flatMap(supplyChainEntryDTO -> supplyChainEntryDTO.getInstances().values().stream())
-                .collect(Collectors.toMap(apiDTO -> {
-                    try {
-                        return uuidMapper.fromUuid(apiDTO.getUuid()).oid();
-                    } catch (OperationFailedException e) {
-                        throw new IllegalArgumentException(
-                                String.format("The uuid %s can not be mapped to oid",
-                                        apiDTO.getUuid()), e);
-                    }
-                }, Function.identity()));
+        final EntityConstraintResponse response = entityConstraintRpcService.getConstraintsByEntityOid(
+            EntityConstraintRequest.newBuilder().setOid(uuidMapper.fromUuid(uuid).oid()).build());
 
-        Optional<String> myEntityType = getEntityType(uuid, supplyChain);
-        // Get the consumers of this entity.
-        final Set<String> consumerOids = new HashSet<>();
-        if (myEntityType.isPresent()) {
-            SupplychainEntryDTO supplychainEntryDTO = supplyChain.getSeMap().get(myEntityType.get());
-            if (supplychainEntryDTO != null) {
-                Set<String> consumerTypes = supplychainEntryDTO.getConnectedConsumerTypes();
-                if (consumerTypes != null){
-                    consumerOids.addAll(consumerTypes.stream()
-                            .map(type -> supplyChain.getSeMap().get(type))
-                            .filter(Objects::nonNull)
-                            .map(dto -> dto.getInstances())
-                            .filter(Objects::nonNull)
-                            .flatMap(serviceEntityApiMap -> serviceEntityApiMap.keySet().stream())
-                            .collect(Collectors.toSet()));
-                }
+        final List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>(response.getEntityConstraintCount());
+        for (EntityConstraint entityConstraint : response.getEntityConstraintList()) {
+            ConstraintApiDTO constraintApiDTO = new ConstraintApiDTO();
+
+            constraintApiDTO.setEntityType(ApiEntityType.fromType(entityConstraint.getEntityType()).apiStr());
+
+            // We only care about RelationType.bought.
+            constraintApiDTO.setRelation(RelationType.bought);
+
+            constraintApiDTO.setNumPotentialEntities(entityConstraint.getNumPotentialPlacements());
+
+            final ServiceEntityApiDTO serviceEntityApiDTO = new ServiceEntityApiDTO();
+            serviceEntityApiDTO.setDisplayName(entityConstraint.getCurrentPlacement().getDisplayName());
+            constraintApiDTO.setRelatedEntities(Collections.singletonList(serviceEntityApiDTO));
+
+            final List<PlacementOptionApiDTO> placementOptionApiDTOs =
+                new ArrayList<>(entityConstraint.getPotentialPlacementsCount());
+            for (PotentialPlacements potentialPlacement : entityConstraint.getPotentialPlacementsList()) {
+                final PlacementOptionApiDTO placementOptionApiDTO = new PlacementOptionApiDTO();
+
+                placementOptionApiDTO.setConstraintType(ClassicEnumMapper.getCommodityString(
+                    CommodityType.forNumber(potentialPlacement.getCommodityType().getType())));
+                placementOptionApiDTO.setKey(potentialPlacement.getCommodityType().getKey());
+
+                placementOptionApiDTO.setNumPotentialEntities(potentialPlacement.getNumPotentialPlacements());
+
+                final BaseApiDTO baseApiDTO = new BaseApiDTO();
+                baseApiDTO.setDisplayName(potentialPlacement.getScopeDisplayName());
+                placementOptionApiDTO.setScope(baseApiDTO);
+
+                placementOptionApiDTOs.add(placementOptionApiDTO);
             }
-        }
+            constraintApiDTO.setPlacementOptions(placementOptionApiDTOs);
 
-        // Now query repo to get the TopologyEntityDTO for the current entity and its consumers.
-        List<ConstraintApiDTO> constraintApiDtos = new ArrayList<>();
-        Set<Long> oidsToQuery = new HashSet<>();
-        for (String sUuid : consumerOids) {
-            oidsToQuery.add(uuidMapper.fromUuid(sUuid).oid());
+            constraintApiDtos.add(constraintApiDTO);
         }
-        long oid = uuidMapper.fromUuid(uuid).oid();
-        oidsToQuery.add(oid);
-
-        // The constraints are embedded in the commodities. We have to fetch the TopologyEntityDTO
-        // to get the commodities info.
-        Map<Long, TopologyEntityDTO> entityDtos = repositoryApi.entitiesRequest(oidsToQuery)
-            .getFullEntities()
-            .collect(Collectors.toMap(TopologyEntityDTO::getOid, Function.identity()));
-
-        // We don't have to query the providers as we already have the provider info inside
-        // the commoditiesBought object.
-        // We don't support fully parity with classic. We just populate the ConstraintType(CommodityDTO.Type)
-        // and the ConstraintKey(CommodityDTO.Key)
-        constraintApiDtos.addAll(ConstraintsMapper.createConstraintApiDTOs(
-                Collections.singletonList(entityDtos.get(oid)),
-                serviceEntityMap, RelationType.bought));
-        List<TopologyEntityDTO> constraintDTOs = new ArrayList<>();
-        for (String consumerOid : consumerOids) {
-            constraintDTOs.add(entityDtos.get(uuidMapper.fromUuid(consumerOid).oid()));
-        }
-        constraintApiDtos.addAll(ConstraintsMapper.createConstraintApiDTOs(
-                constraintDTOs, serviceEntityMap, RelationType.sold));
         return constraintApiDtos;
     }
 

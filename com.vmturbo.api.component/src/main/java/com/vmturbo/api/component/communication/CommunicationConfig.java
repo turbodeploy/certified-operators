@@ -75,6 +75,8 @@ import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc;
 import com.vmturbo.common.protobuf.plan.TemplateSpecServiceGrpc.TemplateSpecServiceBlockingStub;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc;
 import com.vmturbo.common.protobuf.probe.ProbeRpcServiceGrpc.ProbeRpcServiceBlockingStub;
+import com.vmturbo.common.protobuf.repository.EntityConstraintServiceGrpc;
+import com.vmturbo.common.protobuf.repository.EntityConstraintServiceGrpc.EntityConstraintServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceBlockingStub;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceStub;
@@ -276,6 +278,11 @@ public class CommunicationConfig {
     @Bean
     public RepositoryServiceStub repositoryAsyncService() {
         return RepositoryServiceGrpc.newStub(repositoryClientConfig.repositoryChannel());
+    }
+
+    @Bean
+    public EntityConstraintServiceBlockingStub entityConstraintRpcService() {
+        return EntityConstraintServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel());
     }
 
     @Bean
