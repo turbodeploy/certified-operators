@@ -48,8 +48,7 @@ public class EntityAspectMapper {
                               @Nonnull final PortsAspectMapper portsAspectMapper,
                               @Nonnull final DatabaseAspectMapper databaseAspectMapper,
                               @Nonnull final RegionAspectMapper regionAspectMapper,
-                              @Nonnull final WorkloadControllerAspectMapper workloadControllerAspectMapper,
-                              @Nonnull final ComputeTierAspectMapper computeTierAspectMapper) {
+                              @Nonnull final WorkloadControllerAspectMapper workloadControllerAspectMapper) {
 
         aspectMappers = new ImmutableMap.Builder<Integer, List<IAspectMapper>>()
             .put(EntityType.DATABASE_VALUE, ImmutableList.of(
@@ -96,10 +95,7 @@ public class EntityAspectMapper {
                 regionAspectMapper))
             .put(EntityType.WORKLOAD_CONTROLLER_VALUE,
                 ImmutableList.of(workloadControllerAspectMapper))
-            .put(EntityType.COMPUTE_TIER_VALUE, ImmutableList.of(
-                    computeTierAspectMapper))
-            // todo: add mappers for db tiers aspect and dbs tiers aspect after OM-57942 is resolved.
-                .build();
+            .build();
     }
 
     /**
