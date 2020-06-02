@@ -398,13 +398,27 @@ then
   if [ X${externalDB} = X0 ]
   then
     externalDB=$(egrep "externalDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
-    echo "The database is external from thise server"
+    echo "The database is external from this server"
     echo "${externalDB}"
   else
     /opt/local/bin/configure_mariadb.sh
   fi
 
-  # Create the operator  
+#  todo: uncomment this block once XLR/search is ready
+#  # Setup timescaledb before bringing up XL components
+#  # Check to see if an external timescaledb is being used. If so, do not run timescaledb locally
+#  egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml
+#  externalTimescaleDB=$(echo $?)
+#  if [ X${externalTimescaleDB} = X0 ]
+#  then
+#    externalTimescaleDB=$(egrep "externalTimescaleDBName" /opt/turbonomic/kubernetes/operator/deploy/crds/charts_v1alpha1_xl_cr.yaml)
+#    echo "The TimescaleDB database is external from this server"
+#    echo "${externalTimescaleDB}"
+#  else
+#    /opt/local/bin/configure_timescaledb.sh
+#  fi
+
+  # Create the operator
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/service_account.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role.yaml -n turbonomic
   kubectl create -f /opt/turbonomic/kubernetes/operator/deploy/role_binding.yaml -n turbonomic
