@@ -46,7 +46,7 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
 
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull final Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
@@ -55,7 +55,7 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
 
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints;
         final Set<CommoditySoldDTO> commoditySoldConstraints;
-        if (originalTopologyEntity == null && topology != null) {
+        if (originalTopologyEntity == null) {
             // The case where a new storage is added from template.
             addExtentCommodityBought(topology, topologyEntityBuilder);
             commodityBoughtConstraints = Collections.emptyList();

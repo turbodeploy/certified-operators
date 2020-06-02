@@ -29,7 +29,7 @@ public interface ITopologyEntityConstructor {
      */
     @Nonnull
     TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nonnull Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException;
 }

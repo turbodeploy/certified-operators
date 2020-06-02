@@ -62,7 +62,7 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
 
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull final Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
