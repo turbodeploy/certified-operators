@@ -14,6 +14,7 @@ import org.springframework.context.annotation.Import;
 
 import com.vmturbo.api.component.communication.CommunicationConfig;
 import com.vmturbo.api.component.external.api.mapper.aspect.CloudAspectMapper;
+import com.vmturbo.api.component.external.api.mapper.aspect.ComputeTierAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DatabaseAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DesktopPoolAspectMapper;
 import com.vmturbo.api.component.external.api.mapper.aspect.DiskArrayAspectMapper;
@@ -364,13 +365,18 @@ public class MapperConfig {
     }
 
     @Bean
+    ComputeTierAspectMapper computeTierAspectMapper() {
+        return new ComputeTierAspectMapper();
+    }
+
+    @Bean
     public EntityAspectMapper entityAspectMapper() {
         return new EntityAspectMapper(storageTierAspectMapper(), virtualVolumeAspectMapper(),
             cloudAspectMapper(), virtualMachineMapper(), desktopPoolAspectMapper(),
             masterImageEntityAspectMapper(), physicalMachineAspectMapper(),
             storageAspectMapper(), diskArrayAspectMapper(), logicalPoolAspectMapper(),
             storageControllerAspectMapper(), portsAspectMapper(), databaseAspectMapper(),
-            regionAspectMapper(), workloadControllerAspectMapper());
+            regionAspectMapper(), workloadControllerAspectMapper(), computeTierAspectMapper());
     }
 
     @Bean
