@@ -1,6 +1,10 @@
 package com.vmturbo.extractor.topology;
 
+import java.util.Set;
+
 import org.immutables.value.Value;
+
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 
 /**
  * Configuration information needed by topology writers.
@@ -35,4 +39,11 @@ public interface WriterConfig {
      * @return time limit in seconds
      */
     int insertTimeoutSeconds();
+
+    /**
+     * Specifies the whitelist of commodities to write to db for reporting.
+     *
+     * @return set of {@link CommodityType}s in the number format
+     */
+    Set<Integer> reportingCommodityWhitelist();
 }

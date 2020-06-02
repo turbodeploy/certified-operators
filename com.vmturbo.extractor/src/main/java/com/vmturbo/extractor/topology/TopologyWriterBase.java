@@ -10,14 +10,12 @@ import java.util.concurrent.ExecutorService;
 import org.jooq.DSLContext;
 
 import com.vmturbo.common.protobuf.group.GroupDTO.Grouping;
-import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.components.common.utils.MultiStageTimer;
 import com.vmturbo.components.common.utils.MultiStageTimer.AsyncTimer;
 import com.vmturbo.extractor.models.DslRecordSink;
 import com.vmturbo.extractor.models.Model;
-import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 
@@ -79,16 +77,5 @@ public abstract class TopologyWriterBase implements ITopologyWriter {
             }
         });
         return 0;
-    }
-
-    /**
-     * Utility method to convert a {@link TopologyEntityDTO} commodity type to the corresponding SDK
-     * commodity type.
-     *
-     * @param commodityType topology commodity type
-     * @return SDK commodity type
-     */
-    protected CommodityType topologyToSdkCommodityType(final TopologyDTO.CommodityType commodityType) {
-        return CommodityType.forNumber(commodityType.getType());
     }
 }

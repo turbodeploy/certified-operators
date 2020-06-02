@@ -1,12 +1,16 @@
 package com.vmturbo.extractor.topology;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +22,9 @@ import org.springframework.context.annotation.Import;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc.GroupServiceBlockingStub;
 import com.vmturbo.extractor.ExtractorDbConfig;
+import com.vmturbo.extractor.models.ModelDefinitions;
 import com.vmturbo.group.api.GroupClientConfig;
+import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.sql.utils.DbEndpoint;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
 import com.vmturbo.topology.processor.api.TopologyProcessor;
@@ -69,6 +75,12 @@ public class TopologyListenerConfig {
     @Value("${insertTimeoutSeconds:300}")
     private int insertTimeoutSeconds;
 
+    @Value("${reportingCommodityWhitelistAdded:#{null}}")
+    private String[] reportingCommodityWhitelistAdded;
+
+    @Value("${reportingCommodityWhitelistRemoved:#{null}}")
+    private String[] reportingCommodityWhitelistRemoved;
+
     /**
      * Create an instance of our topology listener.
      *
@@ -98,8 +110,35 @@ public class TopologyListenerConfig {
                 .lastSeenUpdateIntervalMinutes(lastSeenUpdateIntervalMinutes)
                 .lastSeenAdditionalFuzzMinutes(lastSeenAdditionalFuzzMinutes)
                 .insertTimeoutSeconds(insertTimeoutSeconds)
+                .addAllReportingCommodityWhitelist(getReportingCommodityWhitelist())
                 .build();
+    }
 
+    /**
+     * Collect the commodities which should be persisted for reporting, based on default whitelist
+     * and added/removed list provided by user.
+     *
+     * @return set of commodity types in integer format
+     */
+    private Set<Integer> getReportingCommodityWhitelist() {
+        // use default whitelist as a basis
+        final Set<CommodityType> reportingCommodityTypes = Sets.newHashSet(
+                ModelDefinitions.REPORTING_DEFAULT_COMMODITY_TYPES_WHITELIST);
+        // add new commodities to whitelist if provided
+        if (reportingCommodityWhitelistAdded != null) {
+            reportingCommodityTypes.addAll(Arrays.stream(reportingCommodityWhitelistAdded)
+                    .map(CommodityType::valueOf)
+                    .collect(Collectors.toSet()));
+        }
+        // remove commodities from whitelist if provided
+        if (reportingCommodityWhitelistRemoved != null) {
+            reportingCommodityTypes.removeAll(Arrays.stream(reportingCommodityWhitelistRemoved)
+                    .map(CommodityType::valueOf)
+                    .collect(Collectors.toSet()));
+        }
+        return reportingCommodityTypes.stream()
+                .map(CommodityType::getNumber)
+                .collect(Collectors.toSet());
     }
 
     /**
