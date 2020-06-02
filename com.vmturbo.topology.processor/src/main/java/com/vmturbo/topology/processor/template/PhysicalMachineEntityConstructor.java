@@ -50,7 +50,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
 
     @Override
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull final Template template, @Nullable Map<Long, TopologyEntity.Builder> topology,
+            @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
             @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
@@ -68,10 +68,7 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
         final List<TemplateResource> infraTemplateResources = getTemplateResources(template,
                 Infrastructure);
         addInfraCommodities(topologyEntityBuilder, infraTemplateResources);
-
-        if (topology != null) {
-            setAccessCommodities(topologyEntityBuilder, originalTopologyEntity, topology);
-        }
+        setAccessCommodities(topologyEntityBuilder, originalTopologyEntity, topology);
 
         String templateName = template.hasTemplateInfo() && template.getTemplateInfo().hasName() ?
                         template.getTemplateInfo().getName() : "";

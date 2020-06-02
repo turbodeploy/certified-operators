@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -40,10 +41,14 @@ import com.vmturbo.topology.processor.discoverydumper.DiscoveryDumpFilename;
 import com.vmturbo.topology.processor.identity.IdentityProvider;
 import com.vmturbo.topology.processor.operation.IOperationManager;
 import com.vmturbo.topology.processor.operation.discovery.Discovery;
+import com.vmturbo.topology.processor.probes.ProbeException;
+import com.vmturbo.topology.processor.probes.ProbeStore;
+import com.vmturbo.topology.processor.scheduling.Schedule.ScheduleData;
+import com.vmturbo.topology.processor.scheduling.Scheduler;
+import com.vmturbo.topology.processor.scheduling.TargetDiscoverySchedule;
 import com.vmturbo.topology.processor.targets.Target;
 import com.vmturbo.topology.processor.targets.TargetStore;
 import com.vmturbo.topology.processor.topology.pipeline.TopologyPipelineExecutorService;
-import com.vmturbo.topology.processor.topology.pipeline.blocking.DiscoveryBasedUnblock.DiscoveryBasedUnblockFactory;
 
 /**
  * Unit tests for {@link DiscoveryBasedUnblock}.
@@ -54,11 +59,15 @@ public class DiscoveryBasedUnblockTest {
 
     private TargetStore targetStore = mock(TargetStore.class);
 
+    private ProbeStore probeStore = mock(ProbeStore.class);
+
+    private Scheduler scheduler = mock(Scheduler.class);
+
     private IOperationManager operationManager = mock(IOperationManager.class);
 
     private MutableFixedClock clock = new MutableFixedClock(1_000_000);
 
-    private final int targetShortCircuitCount = 2;
+    private final long targetShortCircuitMs = 50_000;
 
     private static final long PROBE_ID = 123L;
 
@@ -72,8 +81,7 @@ public class DiscoveryBasedUnblockTest {
 
     private File dumpDir;
 
-    private DiscoveryBasedUnblockFactory unblockBroadcastsFactory;
-
+    private DiscoveryBasedUnblock unblock;
 
     /**
      * Create a temporary folder for cached responses.
@@ -89,10 +97,10 @@ public class DiscoveryBasedUnblockTest {
     public void setup() throws IOException {
         dumpDir = new File(tmpFolder.newFolder("cached-responses-root"), "");
         final BinaryDiscoveryDumper discoveryDumper = new BinaryDiscoveryDumper(dumpDir);
-        unblockBroadcastsFactory = new DiscoveryBasedUnblockFactory(
-            targetStore, operationManager, clock, targetShortCircuitCount, maxDiscoveryWaitMs,
-            maxProbeRegistrationWaitMs, TimeUnit.MILLISECONDS, identityProvider, discoveryDumper,
-            true);
+        unblock = spy(new DiscoveryBasedUnblock(pipelineExecutorService,
+                    targetStore, probeStore, scheduler, operationManager,
+                    targetShortCircuitMs, maxDiscoveryWaitMs, maxProbeRegistrationWaitMs, TimeUnit.MILLISECONDS,
+                    clock, identityProvider, discoveryDumper, true));
         IdentityGenerator.initPrefix(1L);
         when(identityProvider.generateOperationId()).thenAnswer(invocation -> IdentityGenerator.next());
     }
@@ -107,8 +115,6 @@ public class DiscoveryBasedUnblockTest {
         newLastDiscovery(t1.getId());
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
 
-        final DiscoveryBasedUnblock unblock =
-                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
         // The discovery is still in progress.
         assertFalse(unblock.runIteration());
 
@@ -119,18 +125,22 @@ public class DiscoveryBasedUnblockTest {
     }
 
     /**
-     * Test a target with no discovery for more than the configured period does not block
+     * Test a target with no registered probe transports for more than the configured period does not block
      * broadcasts.
+     *
+     * @throws Exception To satisfy compiler.
      */
     @Test
-    public void testProbeRegistrationTimeout() {
+    public void testProbeRegistrationTimeout() throws Exception {
         final Target t1 = setupTarget(1L);
+        final long probeId = 121;
+        when(t1.getProbeId()).thenReturn(probeId);
         when(operationManager.getLastDiscoveryForTarget(t1.getId(), DiscoveryType.FULL))
                 .thenReturn(Optional.empty());
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
+        // No transport returned.
+        when(probeStore.getTransport(probeId)).thenReturn(Collections.emptyList());
 
-        final DiscoveryBasedUnblock unblock =
-                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
         assertFalse(unblock.runIteration());
 
         // Getting close to the threshold.
@@ -146,6 +156,37 @@ public class DiscoveryBasedUnblockTest {
     }
 
     /**
+     * Test a target with no existing probe for more than the configured period does not block broadcasts.
+     *
+     * @throws Exception To satisfy compiler.
+     */
+    @Test
+    public void testProbeRegistrationTimeoutExceptino() throws Exception {
+        final Target t1 = setupTarget(1L);
+        final long probeId = 121;
+        when(t1.getProbeId()).thenReturn(probeId);
+        when(operationManager.getLastDiscoveryForTarget(t1.getId(), DiscoveryType.FULL))
+                .thenReturn(Optional.empty());
+        when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
+        // Probe doesn't exist - throw an exception.
+        when(probeStore.getTransport(probeId)).thenThrow(new ProbeException("NO PROBE"));
+
+        assertFalse(unblock.runIteration());
+
+        // Getting close to the threshold.
+        clock.addTime(maxProbeRegistrationWaitMs - 1, ChronoUnit.MILLIS);
+
+        // Still not at threshold - waiting for probe to register.
+        assertFalse(unblock.runIteration());
+
+        clock.addTime(1, ChronoUnit.MILLIS);
+
+        // Probe still not registered. We ignore that target from now on.
+        assertTrue(unblock.runIteration());
+
+    }
+
+    /**
      * Test that we wait for a target that has no associated discovery for more than the configured
      * period BUT then gets an associated discovery while we are waiting for other targets.
      */
@@ -158,8 +199,6 @@ public class DiscoveryBasedUnblockTest {
                 .thenReturn(Optional.empty());
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1, t2));
 
-        final DiscoveryBasedUnblock unblock =
-                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
         assertFalse(unblock.runIteration());
 
         // Got to the threshold, but we are still waiting for t2's discovery to complete.
@@ -198,8 +237,6 @@ public class DiscoveryBasedUnblockTest {
         final Discovery t2d1 = newLastDiscovery(t2.getId());
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1, t2));
 
-        final DiscoveryBasedUnblock unblock =
-                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
         // One of the targets is still in progress.
         assertFalse(unblock.runIteration());
 
@@ -210,30 +247,73 @@ public class DiscoveryBasedUnblockTest {
 
     /**
      * Test that the unblock operation completes when a target fails more than the configured
-     * number of times in a row.
+     * number of times in a row - if the target has a low discovery interval.
      */
     @Test
-    public void testTargetShortCircuit() {
+    public void testTargetShortCircuitLowDiscoveryInterval() {
         final Target t1 = setupTarget(1L);
         final Discovery t1d1 = newLastDiscovery(t1.getId());
-        t1d1.success();
-        final Target t2 = setupTarget(2L);
-        final Discovery t2d1 = newLastDiscovery(t2.getId());
-        t2d1.fail();
-        when(targetStore.getAll()).thenReturn(Arrays.asList(t1, t2));
+        t1d1.fail();
+        when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
+        mockTargetDiscoverySchedule(t1.getId(), targetShortCircuitMs / 2);
 
-        final DiscoveryBasedUnblock unblock =
-                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
+        // The re-discovery interval of this target is low - the failure threshold should be 2.
+        // This is the first failure.
         assertFalse(unblock.runIteration());
         // At the second iteration, t2 has Status == FAILED, but it's still the same failed discovery
         // so we shouldn't double-count it.
         assertFalse(unblock.runIteration());
 
         // Next discovery failed too. This hits the short-circuit limit (2).
-        final Discovery t2d2 = newLastDiscovery(t2.getId());
+        final Discovery t2d2 = newLastDiscovery(t1.getId());
         t2d2.fail();
 
         assertTrue(unblock.runIteration());
+    }
+
+    /**
+     * Test that the unblock operation completes when a target fails more than the configured
+     * number of times in a row - if the target has a high discovery interval.
+     */
+    @Test
+    public void testTargetShortCircuitHighDiscoveryInterval() {
+        final Target t1 = setupTarget(1L);
+        final Discovery t1d1 = newLastDiscovery(t1.getId());
+        t1d1.fail();
+        when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
+        mockTargetDiscoverySchedule(t1.getId(), targetShortCircuitMs * 2);
+
+        // The re-discovery interval of this target is very high, so the failure threshold is 1.
+        assertTrue(unblock.runIteration());
+    }
+
+    /**
+     * Test that the unblock operation completes when a target fails more than the configured
+     * number of times in a row - if there is no schedule.
+     */
+    @Test
+    public void testTargetShortCircuitNoSchedule() {
+        final Target t1 = setupTarget(1L);
+        final Discovery t1d1 = newLastDiscovery(t1.getId());
+        t1d1.fail();
+        when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
+        when(scheduler.getDiscoverySchedule(t1.getId(), DiscoveryType.FULL))
+                .thenReturn(Optional.empty());
+
+        // When there is no schedule and a failed discovery, we fail immediately (this is not
+        // something that should happen).
+        assertTrue(unblock.runIteration());
+
+    }
+
+    private TargetDiscoverySchedule mockTargetDiscoverySchedule(final long targetId, final long discoveryIntervalMs) {
+        TargetDiscoverySchedule schedule = mock(TargetDiscoverySchedule.class);
+        ScheduleData scheduleData = mock(ScheduleData.class);
+        when(scheduleData.getScheduleIntervalMillis()).thenReturn(discoveryIntervalMs);
+        when(schedule.getScheduleData()).thenReturn(scheduleData);
+        when(scheduler.getDiscoverySchedule(targetId, DiscoveryType.FULL))
+                .thenReturn(Optional.of(schedule));
+        return schedule;
     }
 
     /**
@@ -249,8 +329,6 @@ public class DiscoveryBasedUnblockTest {
         newLastDiscovery(t2.getId());
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1, t2));
 
-        final DiscoveryBasedUnblock unblock =
-                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
         assertFalse(unblock.runIteration());
 
         // t2 got deleted - target store won't return it anymore.
@@ -270,8 +348,6 @@ public class DiscoveryBasedUnblockTest {
         final Discovery t1d1 = newLastDiscovery(t1.getId());
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
 
-        final DiscoveryBasedUnblock unblock =
-                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
         assertFalse(unblock.runIteration());
 
         t1d1.success();
@@ -299,8 +375,6 @@ public class DiscoveryBasedUnblockTest {
         t1d1.success();
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
 
-        final DiscoveryBasedUnblock unblock =
-                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
         unblock.run();
 
         verify(pipelineExecutorService, timeout(30_000)).unblockBroadcasts();
@@ -318,8 +392,6 @@ public class DiscoveryBasedUnblockTest {
         newLastDiscovery(t1.getId());
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
 
-        final DiscoveryBasedUnblock unblock =
-                unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
         Thread thread = new Thread(unblock);
         thread.start();
         thread.interrupt();
@@ -340,8 +412,6 @@ public class DiscoveryBasedUnblockTest {
         newLastDiscovery(t1.getId());
         when(targetStore.getAll()).thenReturn(Arrays.asList(t1));
 
-        final DiscoveryBasedUnblock unblock =
-                spy(unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService));
         doThrow(new RuntimeException("BOO")).when(unblock).runIteration();
 
         // This should return immediately because of the runtime exception.
@@ -363,8 +433,6 @@ public class DiscoveryBasedUnblockTest {
         when(targetStore.getAll()).thenReturn(Arrays.asList(mockTarget));
         when(targetStore.getTarget(targetId)).thenReturn(Optional.of(mockTarget));
         when(mockTarget.getProbeId()).thenReturn(1L);
-        final DiscoveryBasedUnblock unblock =
-            unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
 
         // Before loading the responses
         assertFalse(unblock.runIteration());
@@ -397,9 +465,6 @@ public class DiscoveryBasedUnblockTest {
 
         when(targetStore.getAll()).thenReturn(Arrays.asList(mockTarget1, mockTarget2));
 
-        final DiscoveryBasedUnblock unblock =
-            unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
-
         assertFalse(unblock.runIteration());
 
         unblock.run();
@@ -418,9 +483,6 @@ public class DiscoveryBasedUnblockTest {
         final long targetId = 1;
         writeDiscoveryResponse(targetId);
         when(targetStore.getTarget(targetId)).thenReturn(Optional.ofNullable(null));
-
-        final DiscoveryBasedUnblock unblock =
-            unblockBroadcastsFactory.newUnblockOperation(pipelineExecutorService);
 
         Assert.assertEquals(1, dumpDir.list().length);
 

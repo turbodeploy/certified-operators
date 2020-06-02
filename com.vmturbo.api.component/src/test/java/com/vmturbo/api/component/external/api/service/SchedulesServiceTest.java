@@ -25,10 +25,12 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import com.vmturbo.api.component.external.api.mapper.ScheduleMapper;
 import com.vmturbo.api.component.external.api.mapper.SettingsMapper;
+import com.vmturbo.api.component.external.api.util.action.ActionSearchUtil;
 import com.vmturbo.api.dto.settingspolicy.RecurrenceApiDTO;
 import com.vmturbo.api.dto.settingspolicy.ScheduleApiDTO;
 import com.vmturbo.api.dto.settingspolicy.SettingsPolicyApiDTO;
@@ -102,6 +104,7 @@ public class SchedulesServiceTest {
     private static final SettingsPolicyApiDTO SETTINGS_POLICY_API_DTO = new SettingsPolicyApiDTO();
     private final ScheduleMapper scheduleMapper = mock(ScheduleMapper.class);
     private final SettingsMapper settingsMapper = mock(SettingsMapper.class);
+    private final ActionSearchUtil actionSearchUtil = Mockito.mock(ActionSearchUtil.class);
     /** Expected exceptions to test against. */
     @Rule
     public ExpectedException thrown = ExpectedException.none();
@@ -126,7 +129,7 @@ public class SchedulesServiceTest {
         scheduleServiceStub = ScheduleServiceGrpc.newBlockingStub(grpcServer.getChannel());
         settingPolicyServiceStub = SettingPolicyServiceGrpc.newBlockingStub(grpcServer.getChannel());
         schedulesService = spy(new SchedulesService(scheduleServiceStub, settingPolicyServiceStub,
-            scheduleMapper, settingsMapper));
+            scheduleMapper, settingsMapper, actionSearchUtil));
     }
 
     private ScheduleApiDTO createNonRecurringScheduleDTO() {
@@ -408,7 +411,6 @@ public class SchedulesServiceTest {
         assertEquals(2, retList.size());
     }
 
-    // Validation tests
 
     /**
      * Validate non-recurring schedule.

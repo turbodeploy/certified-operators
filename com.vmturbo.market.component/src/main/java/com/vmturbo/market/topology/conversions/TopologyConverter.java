@@ -1712,36 +1712,51 @@ public class TopologyConverter {
 
         final float peakQuantity = peak; // It must be final
 
-        long volumeId = shoppingListOidToInfos.get(slOid) != null
-                && shoppingListOidToInfos.get(slOid).getResourceId().isPresent() ?
-                shoppingListOidToInfos.get(slOid).getResourceId().get() : 0;
+        final ShoppingListInfo shoppingListInfo = shoppingListOidToInfos.get(slOid);
+        long volumeId = Optional.ofNullable(shoppingListInfo)
+                        .flatMap(ShoppingListInfo::getResourceId).orElse(0L);
         return commodityConverter.marketToTopologyCommodity(commBoughtTO.getSpecification())
                 .map(commType -> {
-                    Optional<CommodityBoughtDTO> originalCommodityBoughtDTO =
+                    Optional<CommodityBoughtDTO> boughtDTObyTraderFromProjectedSellerInRealTopology =
                             commodityIndex.getCommBought(traderOid, supplierOid, commType, volumeId);
                     float currentUsage = getOriginalUsedValue(commBoughtTO, traderOid,
                             supplierOid, commType, volumeId, originalEntity);
                     final Builder builder = CommodityBoughtDTO.newBuilder();
-                    builder.setUsed(reverseScaleComm(currentUsage, originalCommodityBoughtDTO,
+                    builder.setUsed(reverseScaleComm(currentUsage, boughtDTObyTraderFromProjectedSellerInRealTopology,
                                     CommodityBoughtDTO::getScalingFactor))
                     .setReservedCapacity(reservedCapacityAnalysis.getReservedCapacity(traderOid, commType))
                     .setCommodityType(commType)
-                    .setPeak(reverseScaleComm(peakQuantity, originalCommodityBoughtDTO,
+                    .setPeak(reverseScaleComm(peakQuantity, boughtDTObyTraderFromProjectedSellerInRealTopology,
                             CommodityBoughtDTO::getScalingFactor));
 
-                    if (originalCommodityBoughtDTO.isPresent()) {
-                        builder.setScalingFactor(originalCommodityBoughtDTO.get().getScalingFactor());
-                        if(originalCommodityBoughtDTO.get().hasHistoricalUsed()
-                            && originalCommodityBoughtDTO.get().getHistoricalUsed().hasPercentile()) {
-                            //TODO Lakshmi - Set the projected percentile as exsitingPercentile * (existing capacity/new caapcity)
-                            // this wil be required by the VDI Image commodites.
-                            builder.setHistoricalUsed(HistoricalValues.newBuilder()
-                                    .setPercentile(originalCommodityBoughtDTO.get()
-                                            .getHistoricalUsed()
-                                            .getPercentile())
-                                    .build());
-                        }
+                    boughtDTObyTraderFromProjectedSellerInRealTopology.map(CommodityBoughtDTO::getScalingFactor)
+                                    .ifPresent(builder::setScalingFactor);
+
+                    /*
+                       if (bought by buyer from projected seller commodity in real topology exists) {
+                           there are several possible use cases here:
+                                1) Seller didn't change after work of market.
+                                   It's either resize or no action at all
+                                2) Seller changed after market's work.
+                                   It is moving some entity to entity1 -> entity2 -> entity1
+                           just use percentile from original topology
+                       } else {
+                            Buyer didn't buy from projectedSeller in real topology.
+                            It is definitely a move action (seller changed).
+                            we should calculate projected percentile value and use it
+                       }
+                     */
+                    final Double projectedPercentile =
+                                    boughtDTObyTraderFromProjectedSellerInRealTopology
+                                                    .map(CommodityBoughtDTO::getHistoricalUsed)
+                                                    .map(HistoricalValues::getPercentile)
+                                                    .orElse(getProjectedPercentileValue(supplierOid,
+                                                                                        shoppingListInfo,
+                                                                                        commType));
+                    if (projectedPercentile != null) {
+                        builder.setHistoricalUsed(HistoricalValues.newBuilder().setPercentile(projectedPercentile).build());
                     }
+
 
                     // Set timeslot values if applies
                     if (timeSlotsByCommType.containsKey(commType)) {
@@ -1758,6 +1773,65 @@ public class TopologyConverter {
                     }
 
                     return builder.build(); });
+    }
+
+    /**
+     * Calculates projected percentile if it is possible.
+     *
+     * @implNote projectedPercentile == originalPercentile * oldCapacity / newCapacity
+     *
+     * @param supplierOid oid of provider in projected topology (seller)
+     * @param shoppingListInfo information about commodities that are bought in real topology.
+     * @param commType commodity type
+     *
+     * @return projected percentile value or null if percentile is missing in original commodity
+     * or it's not possible to calculate it
+     */
+    private Double getProjectedPercentileValue(long supplierOid, ShoppingListInfo shoppingListInfo,
+                                               CommodityType commType) {
+        if (shoppingListInfo == null || shoppingListInfo.getSellerId() == null) {
+            logger.error("Shopping list info is null or sellerId is null. Unable to calculate projected percentile. Shopping list is {}",
+                         shoppingListInfo);
+            return null;
+        }
+
+        final List<CommodityBoughtDTO> commodityBoughtDTOs =
+                        shoppingListInfo.commodities.stream()
+                                        .filter(commodity -> commType
+                                                        .equals(commodity.getCommodityType()))
+                                        .collect(Collectors.toList());
+        if (commodityBoughtDTOs.size() != 1) {
+            logger.warn("There are too many or too few (count is {} but expected is 1) commodities with type {} that sold by supplier {} to buyer {}. Shopping list is {}.",
+                        commodityBoughtDTOs.size(),
+                        commType,
+                        supplierOid,
+                        shoppingListInfo.getBuyerId(),
+                        shoppingListInfo);
+            return null;
+        }
+
+        CommodityBoughtDTO boughtDTO = commodityBoughtDTOs.get(0);
+        if (boughtDTO == null || boughtDTO.getHistoricalUsed() == null) {
+            return null;
+        }
+
+        final double originalPercentile = boughtDTO.getHistoricalUsed().getPercentile();
+        final Optional<Double> oldCapacity = commodityIndex.getCommSold(
+                        shoppingListInfo.getSellerId(),
+                        commType).map(CommoditySoldDTO::getCapacity);
+        final Optional<Double> newCapacity =
+                        commodityIndex.getCommSold(supplierOid, commType)
+                                        .map(CommoditySoldDTO::getCapacity)
+                                        .filter(capacity -> capacity != 0);
+        if (oldCapacity.isPresent() && newCapacity.isPresent()) {
+            return originalPercentile * oldCapacity.get() / newCapacity.get();
+        }
+
+        logger.warn("Projected percentile approximation can't be calculated. Original percentile = {}, oldCapacity = {}, newCapacity = {}",
+                    originalPercentile,
+                    oldCapacity,
+                    newCapacity);
+        return null;
     }
 
     /**

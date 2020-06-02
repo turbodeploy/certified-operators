@@ -2,7 +2,9 @@ package com.vmturbo.topology.processor.migration;
 
 import static com.vmturbo.platform.sdk.common.util.SDKProbeType.AWS;
 import static com.vmturbo.platform.sdk.common.util.SDKProbeType.AWS_BILLING;
+import static com.vmturbo.topology.processor.migration.V_01_00_05__Standalone_AWS_Billing.FIELD_ACCOUNT_VALUE;
 import static com.vmturbo.topology.processor.probes.ProbeStore.PROBE_KV_STORE_PREFIX;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -14,6 +16,8 @@ import com.google.common.base.Strings;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableMap;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -58,7 +62,7 @@ public class V_01_00_05__Standalone_AWS_BillingTest {
         + "{  \"key\": \"address\", \"stringValue\": \"Development_billing\"},"
         + "{  \"key\": \"username\", \"stringValue\": \"AKIAIF4PPFRCVX2EPLPQ\"}, "
         + "{  \"key\": \"password\",  \"stringValue\": \"AAAAAQAAACBBlIALIW+c3CpiutTYx8cOTdsWKjJxZ6tNbXrewiOY/QAAABA2cC78yBMSNpBmIio2cuvyAAAAOMuWfrGHXh86uQs246GSWZPVTKfCUHH7EyO19Uy7yY47EfiAheGUrF93lrPBee6eih2VetTTHUHO\"}, "
-        + "{  \"key\": \"iamRole\",  \"stringValue\": \"\"}, "
+        + "{  \"key\": \"iamRole\",  \"stringValue\": \"arn:aws:iam::00000:role/turbonomics-service-role/itx-TurbonomicsServiceRole-000000\"}, "
         + "{  \"key\": \"bucketName\", \"stringValue\": \"turbonomic-cost-and-usage-reports\"}, "
         + "{  \"key\": \"bucketRegion\", \"stringValue\": \"us-west-2\"}, "
         + "{  \"key\": \"reportPathPrefix\", \"stringValue\": \"daily/turbonomic-cost-and-usage-reports\"}, "
@@ -129,12 +133,12 @@ public class V_01_00_05__Standalone_AWS_BillingTest {
         String targetKey = "targetKey";
         String targetId = "73453114215728";
 
-        migration.processSpec(spec, targetKey, targetId, probeId, probeType);
+        migration.processSpec(spec, targetKey, targetId, probeType);
         boolean foundIamRole = false;
         String foundIamRoleValue = null;
         boolean foundS3Field = false;
         boolean foundIamRoleArn = false;
-        JsonArray accountValues = spec.get(V_01_00_05__Standalone_AWS_Billing.FIELD_ACCOUNT_VALUE).getAsJsonArray();
+        JsonArray accountValues = spec.get(FIELD_ACCOUNT_VALUE).getAsJsonArray();
         // iterate over the fields
         for (int i = accountValues.size() - 1; i >= 0; i--) {
             JsonObject accountValue = accountValues.get(i).getAsJsonObject();
@@ -163,16 +167,15 @@ public class V_01_00_05__Standalone_AWS_BillingTest {
     public void testProcessSpecWithAwsBillingTarget() {
         JsonObject spec = new JsonParser().parse(spec_aws_billing_string).getAsJsonObject();
         String probeType = AWS_BILLING.getProbeType();
-        String probeId = spec.get("probeId").getAsString();
         String targetKey = "targetKey";
         String targetId = "73453114215728";
 
-        migration.processSpec(spec, targetKey, targetId, probeId, probeType);
+        migration.processSpec(spec, targetKey, targetId, probeType);
+        JsonArray accountValues = spec.get(FIELD_ACCOUNT_VALUE).getAsJsonArray();
         boolean foundIamRole = false;
         String foundIamRoleValue = null;
         int numberOfS3FieldsFound = 0;
         boolean foundIamRoleArn = false;
-        JsonArray accountValues = spec.get(V_01_00_05__Standalone_AWS_Billing.FIELD_ACCOUNT_VALUE).getAsJsonArray();
         // iterate over the fields
         for (int i = accountValues.size() - 1; i >= 0; i--) {
             JsonObject accountValue = accountValues.get(i).getAsJsonObject();
@@ -195,6 +198,12 @@ public class V_01_00_05__Standalone_AWS_BillingTest {
         if (foundIamRoleArn) {
             assertTrue("true".equals(foundIamRoleValue));
         }
+        Gson gson = new GsonBuilder().create();
+        //deep copy allowed only from version 2.8.2.
+        JsonObject clonedObject = gson.fromJson(gson.toJson(spec), JsonObject.class);
+        // run migration again and check if changes anything in account values.
+        migration.processSpec(spec, targetKey, targetId, probeType);
+        assertEquals(clonedObject, spec);
     }
 
     /**

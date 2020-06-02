@@ -18,7 +18,6 @@ import com.vmturbo.common.protobuf.plan.TemplateDTO.Template;
 import com.vmturbo.common.protobuf.topology.TopologyDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityBoughtDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
-import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTOOrBuilder;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
@@ -82,9 +81,10 @@ public class HCIPhysicalMachineEntityConstructor {
                 .createTopologyEntityFromTemplate(template, topology, originalStorage, isReplaced,
                         identityProvider);
         setClusterCommodities(newStorage);
+        setResizable(newStorage, CommodityType.STORAGE_AMOUNT);
+        setResizable(newStorage, CommodityType.STORAGE_PROVISIONED);
         long planId = anyHost.getEntityBuilder().getEdit().getReplaced().getPlanId();
-        originalStorage.getEditBuilder().getReplacedBuilder().setReplacementId(newStorage.getOid())
-                .setPlanId(planId);
+        setReplacementId(originalStorage, newStorage.getOid(), planId);
         setStoragePolicy(newStorage);
         result.add(newStorage);
         logger.info("Replacing HCI storage '{}' with '{}'", originalStorage.getDisplayName(),
@@ -92,19 +92,18 @@ public class HCIPhysicalMachineEntityConstructor {
 
         // Create new host
         TopologyEntityDTO.Builder newHost = new PhysicalMachineEntityConstructor()
-                .createTopologyEntityFromTemplate(template, null, anyHost.getEntityBuilder(),
+                .createTopologyEntityFromTemplate(template, topology, anyHost.getEntityBuilder(),
                         isReplaced, identityProvider);
         result.add(newHost);
         logger.info("Replacing HCI host '{}' with '{}'", anyHost.getDisplayName(),
                 newHost.getDisplayName());
 
+        // Process all the hosts
         for (TopologyEntity.Builder originalHost : hostsToReplace) {
             setAccessCommodities(newHost, originalHost.getEntityBuilder());
 
             for (TopologyEntity.Builder provider : getProvidingStorages(originalHost)) {
-                TopologyEntityDTO.Builder storage = provider.getEntityBuilder();
-                storage.getEditBuilder().getReplacedBuilder().setReplacementId(newStorage.getOid())
-                        .setPlanId(planId);
+                setReplacementId(provider.getEntityBuilder(), newStorage.getOid(), planId);
             }
         }
 
@@ -114,6 +113,17 @@ public class HCIPhysicalMachineEntityConstructor {
                 templateValues);
 
         return result;
+    }
+
+    private void setReplacementId(@Nonnull TopologyEntityDTO.Builder entity, long id, long planId) {
+        entity.getEditBuilder().getReplacedBuilder().setReplacementId(id).setPlanId(planId);
+    }
+
+    private void setResizable(@Nonnull TopologyEntityDTO.Builder newStorage,
+            @Nonnull CommodityDTO.CommodityType commType)
+            throws TopologyEntityConstructorException {
+        CommoditySoldDTO.Builder comm = getSoldCommodity(newStorage, commType);
+        comm.setIsResizeable(true);
     }
 
     /**
@@ -149,7 +159,7 @@ public class HCIPhysicalMachineEntityConstructor {
             }
 
             TopologyEntityDTO.Builder relatedEntityDto = relatedEntity.getEntityBuilder();
-            Optional<CommoditySoldDTO.Builder> newComm = TopologyEntityConstructor
+            Optional<CommoditySoldDTO> newComm = TopologyEntityConstructor
                     .createRelatedEntityAccesses(relatedEntityDto, originalHost,
                             newHost.build());
 
@@ -161,7 +171,7 @@ public class HCIPhysicalMachineEntityConstructor {
     }
 
     private boolean hasCommodity(@Nonnull TopologyEntityDTO.Builder entity,
-            @Nonnull CommoditySoldDTOOrBuilder comm) {
+            @Nonnull CommoditySoldDTO comm) {
         return entity.getCommoditySoldListBuilderList().stream()
                 .anyMatch(c -> c.getCommodityType().getType() == comm.getCommodityType().getType()
                         && c.getCommodityType().getKey().equals(comm.getCommodityType().getKey()));

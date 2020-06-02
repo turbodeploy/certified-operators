@@ -37,6 +37,7 @@ import io.grpc.Status;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -73,9 +74,8 @@ import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingSpec.SettingValueTypeCase;
 import com.vmturbo.common.protobuf.setting.SettingProto.SettingTiebreaker;
 import com.vmturbo.common.protobuf.setting.SettingProto.SortedSetOfOidSettingValue;
-import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.common.protobuf.setting.SettingProto.StringSettingValue;
-import com.vmturbo.group.common.DuplicateNameException;
+import com.vmturbo.components.common.setting.EntitySettingSpecs;
 import com.vmturbo.group.common.InvalidItemException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingNotFoundException;
 import com.vmturbo.group.common.ItemNotFoundException.SettingPolicyNotFoundException;
@@ -89,6 +89,7 @@ import com.vmturbo.group.schedule.ScheduleValidator;
 import com.vmturbo.group.service.StoreOperationException;
 import com.vmturbo.group.setting.SettingStore.SettingAdapter;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
+import com.vmturbo.platform.sdk.common.util.Pair;
 import com.vmturbo.sql.utils.DbCleanupRule;
 import com.vmturbo.sql.utils.DbConfigurationRule;
 
@@ -243,13 +244,7 @@ public class SettingStoreTest {
      */
     @Test
     public void testCreateUserWithScheduleThenGetById() throws Exception {
-        Schedule schedule1 = Schedule.newBuilder()
-            .setDisplayName("Test schedule1")
-            .setStartTime(1446760800000L)
-            .setEndTime(1446766200000L)
-            .setPerpetual(Perpetual.newBuilder().build())
-            .setTimezoneId("Test timezone")
-            .build();
+        final Schedule schedule1 = createSchedule("Test schedule1");
         final Schedule savedSchedule = scheduleStore.createSchedule(schedule1);
         assertTrue(savedSchedule.hasId());
 
@@ -278,23 +273,11 @@ public class SettingStoreTest {
      */
     @Test
     public void testCreateSettingPolicyWithExecutionSchedule() throws Exception {
-        final TestGroupGenerator groupGenerator = new TestGroupGenerator();
-        final Origin userOrigin = groupGenerator.createUserOrigin();
-        final GroupDefinition groupDefinition = groupGenerator.createGroupDefinition();
         final long groupId = 23L;
-
-        // create group - policy scope
-        groupStore.createGroup(groupId, userOrigin, groupDefinition,
-                Collections.singleton(MemberType.newBuilder().setEntity(1).build()), false);
+        createGroup(groupId);
 
         // create schedule - execution windows in policy
-        Schedule schedule1 = Schedule.newBuilder()
-                .setDisplayName("Test schedule1")
-                .setStartTime(1446760800000L)
-                .setEndTime(1446766200000L)
-                .setPerpetual(Perpetual.newBuilder().build())
-                .setTimezoneId("Test timezone")
-                .build();
+        final Schedule schedule1 = createSchedule("Test schedule1");
         final Schedule savedSchedule = scheduleStore.createSchedule(schedule1);
 
         final Setting actionModeSetting = Setting.newBuilder()
@@ -375,7 +358,7 @@ public class SettingStoreTest {
                 Collections.singleton(userPolicy));
 
         final SettingPolicy updatedPolicy =
-                settingStore.updateSettingPolicy(userPolicy.getId(), updatedInfo);
+                settingStore.updateSettingPolicy(userPolicy.getId(), updatedInfo).getFirst();
         assertEquals(updatedInfo, updatedPolicy.getInfo());
         final Optional<SettingPolicy> gotPolicy =
                 settingStore.getSettingPolicy(dbConfig.getDslContext(), userPolicy.getId());
@@ -390,13 +373,7 @@ public class SettingStoreTest {
      */
     @Test
     public void testUpdateSettingPolicyUpdateSchedule() throws Exception {
-        Schedule schedule1 = Schedule.newBuilder()
-            .setDisplayName("Test schedule1")
-            .setStartTime(1446760800000L)
-            .setEndTime(1446766200000L)
-            .setPerpetual(Perpetual.newBuilder().build())
-            .setTimezoneId("Test timezone")
-            .build();
+        final Schedule schedule1 = createSchedule("Test schedule1");
         final Schedule savedSchedule1 = scheduleStore.createSchedule(schedule1);
         assertTrue(savedSchedule1.hasId());
 
@@ -426,7 +403,7 @@ public class SettingStoreTest {
             .setScheduleId(scheduleId2).build();
         SettingPolicy updatedPolicy = policy.toBuilder().setInfo(updatedInfoWithSchedule).build();
         SettingPolicy updatedSavedPolicy = settingStore.updateSettingPolicy(savedPolicy.get().getId(),
-            updatedInfoWithSchedule);
+            updatedInfoWithSchedule).getFirst();
         assertEquals(updatedPolicy, updatedSavedPolicy);
         assertEquals(scheduleId2, updatedSavedPolicy.getInfo().getScheduleId());
         Optional<SettingPolicy> refetchedUpdatedSavedPolicy =
@@ -435,23 +412,43 @@ public class SettingStoreTest {
         assertEquals(scheduleId2, refetchedUpdatedSavedPolicy.get().getInfo().getScheduleId());
     }
 
-    @Test(expected = SettingPolicyNotFoundException.class)
+    /**
+     * Test case when updated policy not found.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
     public void testUpdateSettingPolicyNotFound() throws Exception {
-        settingStore.updateSettingPolicy(7, info);
+        final long policyId = identityProviderSpy.next();
+        expectedException.expect(StoreOperationException.class);
+        expectedException.expectMessage(
+                Matchers.containsString("Setting Policy " + policyId + " not " + "found."));
+        settingStore.updateSettingPolicy(policyId, info);
     }
 
-    @Test(expected = InvalidItemException.class)
+    /**
+     * Test case when new setting policy info is invalid.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
     public void testUpdateSettingPolicyWithInvalidInfo() throws Exception {
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
                 Collections.singleton(userPolicy));
 
-        doThrow(new InvalidItemException(""))
-            .when(settingPolicyValidator).validateSettingPolicy(eq(updatedInfo), any());
+        doThrow(new InvalidItemException("")).when(settingPolicyValidator)
+                .validateSettingPolicy(eq(updatedInfo), any());
 
+        expectedException.expect(StoreOperationException.class);
         settingStore.updateSettingPolicy(userPolicy.getId(), updatedInfo);
     }
 
-    @Test(expected = DuplicateNameException.class)
+    /**
+     * Test case when updated policy has duplicate name.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
     public void testUpdateSettingPolicyToDuplicateName() throws Exception {
         settingStore.createSettingPolicies(dbConfig.getDslContext(),
                 Collections.singleton(userPolicy));
@@ -460,6 +457,9 @@ public class SettingStoreTest {
                 .setInfo(SettingPolicyInfo.newBuilder().setName(updatedInfo.getName()).build())
                 .setSettingPolicyType(Type.USER)
                 .build();
+        expectedException.expect(StoreOperationException.class);
+        expectedException.expectMessage(
+                Matchers.containsString("Duplicated policy names found: " + updatedInfo.getName()));
 
         // Make sure there is another setting policy with the same name as the updated info.
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(duplicatedPolicy));
@@ -484,7 +484,7 @@ public class SettingStoreTest {
                         SettingPolicyFilter.newBuilder().build()).iterator().next();
 
         final SettingProto.SettingPolicy postResetPolicy =
-                settingStore.resetSettingPolicy(settingPolicy.getId());
+                settingStore.resetSettingPolicy(settingPolicy.getId()).getFirst();
         Assert.assertEquals(postResetPolicy.getId(), settingPolicy.getId());
         Assert.assertEquals(postResetPolicy.getInfo(), vmSettingPolicy);
     }
@@ -516,13 +516,22 @@ public class SettingStoreTest {
                         .next());
     }
 
-    @Test(expected = InvalidItemException.class)
+    /**
+     * Test case when updating discovery policy.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
     public void testUpdateDiscoveredSettingPolicyFail() throws Exception {
+        long policyId = identityProviderSpy.next();
         final SettingPolicy policy = SettingPolicy.newBuilder()
-                .setId(identityProviderSpy.next())
+                .setId(policyId)
                 .setSettingPolicyType(Type.DISCOVERED)
                 .setInfo(info)
                 .build();
+        expectedException.expect(StoreOperationException.class);
+        expectedException.expectMessage(Matchers.containsString(
+                "Illegal attempt to modify a discovered setting policy " + policyId));
         settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
         settingStore.updateSettingPolicy(policy.getId(), policy.getInfo());
     }
@@ -729,13 +738,7 @@ public class SettingStoreTest {
      */
     @Test
     public void testGetSettingPoliciesUsingSchedule() throws Exception {
-        Schedule schedule1 = Schedule.newBuilder()
-            .setDisplayName("Test schedule1")
-            .setStartTime(1446760800000L)
-            .setEndTime(1446766200000L)
-            .setPerpetual(Perpetual.newBuilder().build())
-            .setTimezoneId("Test timezone")
-            .build();
+        final Schedule schedule1 = createSchedule("Test schedule1");
         final Schedule savedSchedule = scheduleStore.createSchedule(schedule1);
         assertTrue(savedSchedule.hasId());
 
@@ -1063,5 +1066,311 @@ public class SettingStoreTest {
         settingsMap =
                 settingStore.getPlanEntitySettings(planId, Collections.singletonList(vmId));
         assertEquals(0, settingsMap.keySet().size());
+    }
+
+    /**
+     * Tests that acceptances for actions associated with policy weren't removed if existed
+     * execution schedule settings with associated action mode settings will not be changed.
+     * In this test case we update policy display name and add new pair of execution
+     * schedule and corresponding action mode settings.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testUpdatePolicyWithoutRemovingAcceptancesForActions() throws Exception {
+        final long groupId = 23L;
+        createGroup(groupId);
+
+        final Schedule schedule1 = createSchedule("Schedule1");
+        final Schedule savedSchedule1 = scheduleStore.createSchedule(schedule1);
+        assertTrue(savedSchedule1.hasId());
+
+        final Schedule schedule2 = createSchedule("Schedule2");
+        final Schedule savedSchedule2 = scheduleStore.createSchedule(schedule2);
+        assertTrue(savedSchedule2.hasId());
+
+        final Setting actionModeSetting =
+                createActionModeSetting(EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.name(),
+                        ActionMode.MANUAL);
+
+        final Setting executionScheduleSetting = createExecutionScheduleSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.name(),
+                Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
+
+        final SettingPolicyInfo settingPolicyInfo =
+                createSettingPolicyInfo(Arrays.asList(actionModeSetting, executionScheduleSetting),
+                        groupId);
+
+        final SettingPolicy policy = SettingPolicy.newBuilder()
+                .setId(identityProviderSpy.next())
+                .setInfo(settingPolicyInfo)
+                .setSettingPolicyType(Type.USER)
+                .build();
+        settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
+
+        final Optional<SettingPolicy> savedPolicy =
+                settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
+        assertTrue(savedPolicy.isPresent());
+
+        final Setting newActionModeSetting =
+                createActionModeSetting(EntitySettingSpecs.Move.name(), ActionMode.RECOMMEND);
+        final Setting newExecutionScheduleSetting =
+                createExecutionScheduleSetting(EntitySettingSpecs.MoveExecutionSchedule.name(),
+                        Collections.singletonList(savedSchedule1.getId()));
+
+        final SettingPolicyInfo updatedSettingPolicyInfo = savedPolicy.get()
+                .getInfo()
+                .toBuilder()
+                .setDisplayName("Updated display name")
+                .addAllSettings(Arrays.asList(newActionModeSetting, newExecutionScheduleSetting))
+                .build();
+        final Pair<SettingPolicy, Boolean> updateSettingPolicyResults =
+                settingStore.updateSettingPolicy(savedPolicy.get().getId(),
+                        updatedSettingPolicyInfo);
+        final SettingPolicy updatedSavedPolicy = updateSettingPolicyResults.getFirst();
+        assertEquals("Updated display name", updatedSavedPolicy.getInfo().getDisplayName());
+        // don't remove acceptances if there is no changes related to execution schedule settings
+        // with associated action mode settings
+        assertFalse(updateSettingPolicyResults.getSecond());
+    }
+
+    /**
+     * Tests removing acceptances for actions associated with policy if removed execution
+     * schedule setting from policy.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testUpdatePolicyWithRemovingAcceptancesWhenExecutionScheduleSettingDeleted()
+            throws Exception {
+        final long groupId = 23L;
+        createGroup(groupId);
+
+        final Schedule schedule1 = createSchedule("Schedule1");
+        final Schedule savedSchedule1 = scheduleStore.createSchedule(schedule1);
+        assertTrue(savedSchedule1.hasId());
+
+        final Schedule schedule2 = createSchedule("Schedule2");
+        final Schedule savedSchedule2 = scheduleStore.createSchedule(schedule2);
+        assertTrue(savedSchedule2.hasId());
+
+        final Setting actionModeSetting = createActionModeSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(),
+                ActionMode.MANUAL);
+
+        final Setting executionScheduleSetting = createExecutionScheduleSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.getSettingName(),
+                Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
+
+        final SettingPolicyInfo settingPolicyInfo =
+                createSettingPolicyInfo(Arrays.asList(actionModeSetting, executionScheduleSetting),
+                        groupId);
+
+        final SettingPolicy policy = SettingPolicy.newBuilder()
+                .setId(identityProviderSpy.next())
+                .setInfo(settingPolicyInfo)
+                .setSettingPolicyType(Type.USER)
+                .build();
+        settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
+
+        final Optional<SettingPolicy> savedPolicy =
+                settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
+        assertTrue(savedPolicy.isPresent());
+
+        final SettingPolicyInfo updatedSettingPolicyInfo = savedPolicy.get()
+                .getInfo()
+                .toBuilder()
+                .clearSettings()
+                .addSettings(actionModeSetting)
+                .build();
+        final Pair<SettingPolicy, Boolean> updateSettingPolicyResults =
+                settingStore.updateSettingPolicy(savedPolicy.get().getId(),
+                        updatedSettingPolicyInfo);
+        final SettingPolicy updatedSavedPolicy = updateSettingPolicyResults.getFirst();
+        Assert.assertTrue(
+                CollectionUtils.isEqualCollection(updatedSettingPolicyInfo.getSettingsList(),
+                        updatedSavedPolicy.getInfo().getSettingsList()));
+        // remove acceptance if removed execution schedule setting
+        Assert.assertTrue(updateSettingPolicyResults.getSecond());
+    }
+
+    /**
+     * Tests that acceptances for actions associated with policy weren't removed if execution
+     * schedule setting value was modified.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testUpdatePolicyWithoutRemovingAcceptancesWhenExecutionScheduleSettingModified()
+            throws Exception {
+        final long groupId = 23L;
+        createGroup(groupId);
+
+        final Schedule schedule1 = createSchedule("Schedule1");
+        final Schedule savedSchedule1 = scheduleStore.createSchedule(schedule1);
+        assertTrue(savedSchedule1.hasId());
+
+        final Schedule schedule2 = createSchedule("Schedule2");
+        final Schedule savedSchedule2 = scheduleStore.createSchedule(schedule2);
+        assertTrue(savedSchedule2.hasId());
+
+        final Setting actionModeSetting = createActionModeSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(),
+                ActionMode.MANUAL);
+
+        final Setting executionScheduleSetting = createExecutionScheduleSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.getSettingName(),
+                Collections.singletonList(savedSchedule1.getId()));
+
+        final SettingPolicyInfo settingPolicyInfo =
+                createSettingPolicyInfo(Arrays.asList(actionModeSetting, executionScheduleSetting),
+                        groupId);
+
+        final SettingPolicy policy = SettingPolicy.newBuilder()
+                .setId(identityProviderSpy.next())
+                .setInfo(settingPolicyInfo)
+                .setSettingPolicyType(Type.USER)
+                .build();
+        settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
+
+        final Optional<SettingPolicy> savedPolicy =
+                settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
+        assertTrue(savedPolicy.isPresent());
+
+        final Setting updatedExecutionScheduleSetting = createExecutionScheduleSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.getSettingName(),
+                Collections.singletonList(savedSchedule2.getId()));
+
+        final SettingPolicyInfo updatedSettingPolicyInfo = savedPolicy.get()
+                .getInfo()
+                .toBuilder()
+                .clearSettings()
+                .addAllSettings(Arrays.asList(actionModeSetting, updatedExecutionScheduleSetting))
+                .build();
+        final Pair<SettingPolicy, Boolean> updateSettingPolicyResults =
+                settingStore.updateSettingPolicy(savedPolicy.get().getId(),
+                        updatedSettingPolicyInfo);
+        final SettingPolicy updatedSavedPolicy = updateSettingPolicyResults.getFirst();
+        Assert.assertTrue(
+                CollectionUtils.isEqualCollection(updatedSettingPolicyInfo.getSettingsList(),
+                        updatedSavedPolicy.getInfo().getSettingsList()));
+        // remove acceptance if execution schedule setting value was changed
+        Assert.assertFalse(updateSettingPolicyResults.getSecond());
+    }
+
+    /**
+     * Tests removing acceptances for actions associated with policy when action mode associated
+     * with execution schedule was changed from MANUAL to other one.
+     *
+     * @throws Exception if something goes wrong
+     */
+    @Test
+    public void testUpdatePolicyWithRemovingAcceptancesWhenActionModeWasChanged() throws Exception {
+        final long groupId = 23L;
+        createGroup(groupId);
+
+        final Schedule schedule1 = createSchedule("Schedule1");
+        final Schedule savedSchedule1 = scheduleStore.createSchedule(schedule1);
+        assertTrue(savedSchedule1.hasId());
+
+        final Schedule schedule2 = createSchedule("Schedule2");
+        final Schedule savedSchedule2 = scheduleStore.createSchedule(schedule2);
+        assertTrue(savedSchedule2.hasId());
+
+        final Setting actionModeSetting = createActionModeSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(),
+                ActionMode.MANUAL);
+
+        final Setting executionScheduleSetting = createExecutionScheduleSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholdsExecutionSchedule.getSettingName(),
+                Arrays.asList(savedSchedule1.getId(), savedSchedule2.getId()));
+
+        final SettingPolicyInfo settingPolicyInfo =
+                createSettingPolicyInfo(Arrays.asList(actionModeSetting, executionScheduleSetting),
+                        groupId);
+
+        final SettingPolicy policy = SettingPolicy.newBuilder()
+                .setId(identityProviderSpy.next())
+                .setInfo(settingPolicyInfo)
+                .setSettingPolicyType(Type.USER)
+                .build();
+        settingStore.createSettingPolicies(dbConfig.getDslContext(), Collections.singleton(policy));
+
+        final Optional<SettingPolicy> savedPolicy =
+                settingStore.getSettingPolicy(dbConfig.getDslContext(), policy.getId());
+        assertTrue(savedPolicy.isPresent());
+
+        final Setting updatedActionModeSetting = createActionModeSetting(
+                EntitySettingSpecs.ResizeVmemUpInBetweenThresholds.getSettingName(),
+                ActionMode.AUTOMATIC);
+
+        final SettingPolicyInfo updatedSettingPolicyInfo = savedPolicy.get()
+                .getInfo()
+                .toBuilder()
+                .clearSettings()
+                .addAllSettings(Arrays.asList(updatedActionModeSetting, executionScheduleSetting))
+                .build();
+        final Pair<SettingPolicy, Boolean> updateSettingPolicyResults =
+                settingStore.updateSettingPolicy(savedPolicy.get().getId(),
+                        updatedSettingPolicyInfo);
+        final SettingPolicy updatedSavedPolicy = updateSettingPolicyResults.getFirst();
+        Assert.assertTrue(
+                CollectionUtils.isEqualCollection(updatedSettingPolicyInfo.getSettingsList(),
+                        updatedSavedPolicy.getInfo().getSettingsList()));
+        // remove acceptance if action mode changed from MANUAL to AUTOMATIC
+        Assert.assertTrue(updateSettingPolicyResults.getSecond());
+    }
+
+
+    @Nonnull
+    private Schedule createSchedule(@Nonnull final String scheduleName) {
+        return Schedule.newBuilder()
+                .setDisplayName(scheduleName)
+                .setStartTime(1446760800000L)
+                .setEndTime(1446766200000L)
+                .setPerpetual(Perpetual.newBuilder().build())
+                .setTimezoneId("Test timezone")
+                .build();
+    }
+
+    private Setting createActionModeSetting(@Nonnull final String settingName,
+            @Nonnull final ActionMode actionMode) {
+        return Setting.newBuilder()
+                .setSettingSpecName(settingName)
+                .setEnumSettingValue(
+                        EnumSettingValue.newBuilder().setValue(actionMode.name()).build())
+                .build();
+    }
+
+    private Setting createExecutionScheduleSetting(@Nonnull final String settingName,
+            @Nonnull final Collection<Long> executionSchedules) {
+        return Setting.newBuilder()
+                .setSettingSpecName(settingName)
+                .setSortedSetOfOidSettingValue(SortedSetOfOidSettingValue.newBuilder()
+                        .addAllOids(executionSchedules)
+                        .build())
+                .build();
+    }
+
+    private SettingPolicyInfo createSettingPolicyInfo(@Nonnull final Collection<Setting> settings,
+            long groupId) {
+        return SettingPolicyInfo.newBuilder()
+                .setName("Test")
+                .setDisplayName("Test Policy")
+                .setEntityType(EntityType.VIRTUAL_MACHINE_VALUE)
+                .setEnabled(true)
+                .setScope(Scope.newBuilder().addGroups(groupId).build())
+                .addAllSettings(settings)
+                .build();
+    }
+
+    private void createGroup(final long groupId) throws StoreOperationException {
+        final TestGroupGenerator groupGenerator = new TestGroupGenerator();
+        final Origin userOrigin = groupGenerator.createUserOrigin();
+        final GroupDefinition groupDefinition = groupGenerator.createGroupDefinition();
+
+        // create group - policy scope
+        groupStore.createGroup(groupId, userOrigin, groupDefinition,
+                Collections.singleton(MemberType.newBuilder().setEntity(1).build()), false);
     }
 }

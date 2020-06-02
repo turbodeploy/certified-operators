@@ -406,16 +406,12 @@ public class TopologyEntityConstructor {
             @Nonnull TopologyEntityDTO.Builder originalEntity,
             @Nonnull TopologyEntityDTO replacementEntity,
             @Nonnull Collection<CommoditySoldDTO> commoditySoldConstraints,
-            @Nullable Map<Long, TopologyEntity.Builder> topology)
+            @Nonnull Map<Long, TopologyEntity.Builder> topology)
             throws TopologyEntityConstructorException {
-
-        if (topology == null) {
-            return;
-        }
 
         for (CommoditySoldDTO commoditySoldConstraint : commoditySoldConstraints) {
             if (!commoditySoldConstraint.hasAccesses()) {
-                return;
+                continue;
             }
 
             TopologyEntity.Builder relatedEntity = topology
@@ -427,12 +423,12 @@ public class TopologyEntityConstructor {
 
             TopologyEntityDTO.Builder relatedEntityDTO = relatedEntity.getEntityBuilder();
 
-            Optional<CommoditySoldDTO.Builder> commodityAccessing = createRelatedEntityAccesses(
+            Optional<CommoditySoldDTO> commodityAccessing = createRelatedEntityAccesses(
                     relatedEntityDTO,
                     originalEntity, replacementEntity);
 
             if (!commodityAccessing.isPresent()) {
-                return;
+                continue;
             }
 
             relatedEntityDTO.addCommoditySoldList(commodityAccessing.get());
@@ -458,7 +454,7 @@ public class TopologyEntityConstructor {
      * @throws TopologyEntityConstructorException error processing access commodity
      */
     @Nonnull
-    public static Optional<CommoditySoldDTO.Builder> createRelatedEntityAccesses(
+    public static Optional<CommoditySoldDTO> createRelatedEntityAccesses(
             @Nonnull TopologyEntityDTO.Builder relatedEntity,
             @Nonnull TopologyEntityDTO.Builder originalEntity,
             @Nonnull TopologyEntityDTO replacementEntity)
@@ -489,7 +485,7 @@ public class TopologyEntityConstructor {
         CommoditySoldDTO.Builder commodityAccessing = commodityAccessingOriginal.clone();
         setKeyAndAccess(commodityAccessing, replacementEntity);
 
-        return Optional.of(commodityAccessing);
+        return Optional.of(commodityAccessing.build());
     }
 
     /**
