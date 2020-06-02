@@ -1,5 +1,7 @@
 package com.vmturbo.history.db;
 
+import static com.vmturbo.common.protobuf.topology.UICommodityType.RESPONSE_TIME;
+import static com.vmturbo.common.protobuf.topology.UICommodityType.TRANSACTION;
 import static com.vmturbo.common.protobuf.utils.StringConstants.AVG_VALUE;
 import static com.vmturbo.common.protobuf.utils.StringConstants.CAPACITY;
 import static com.vmturbo.common.protobuf.utils.StringConstants.COMMODITY_KEY;
@@ -56,6 +58,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
@@ -197,6 +200,16 @@ public class HistorydbIO extends BasedbIO {
             "retention_days", GlobalSettingSpecs.StatsRetentionDays.getSettingName(),
             "retention_months", GlobalSettingSpecs.StatsRetentionMonths.getSettingName()
         );
+
+    /**
+     * For application entities, the top N widgets include RESPONSE_TIME and TRANSACTION
+     * AVG used value instead of utilization, therefore we would like to sort by the AVG value that
+     * exists in the widget.
+     *
+     *<p>PRICE_INDEX, sort by the average value, because it's a compound metrics already.
+     */
+    private static final ImmutableSet<String> SORTED_BY_AVG_COMMODITIES
+            = ImmutableSet.of(PRICE_INDEX, RESPONSE_TIME.apiStr(), TRANSACTION.apiStr(), TRANSACTION.apiStr());
 
     private ImmutableBiMap<String, String> retentionSettingNameToDbColumnName =
         retentionDbColumnNameToSettingName.inverse();
@@ -741,7 +754,7 @@ public class HistorydbIO extends BasedbIO {
      * @param entityScope      The {@link EntityStatsScope} for the stats query.
      * @param timestamp        The timestamp to use to calculate the next page.
      * @param tFrame           The timeframe to use for the timestamp.
-     * @param paginationParams The pagination parameters. For princeIndex, we sort the results by
+     * @param paginationParams The pagination parameters. For SORTED_BY_AVG_COMMODITIES, we sort the results by
      *                         the average value; for others, we sort the results by the utilization
      *                        (average/capacity) value of the sort commodity. And then by the UUID of the entity.
      * @param entityType       The {@link EntityType} to determine tables to query
@@ -1747,7 +1760,7 @@ public class HistorydbIO extends BasedbIO {
 
         /**
          * Return the value field used in sort by.
-         * For princeIndex, sort by the average value, because it's a compound metrics already.
+         * For SORTED_BY_AVG_COMMODITIES, sort by the average value, because it's a compound metrics already.
          * For others commodity, sort by the average/capacity value, because the average value
          * is from "used", so divided by "capacity" to be utilization.
          * @param paginationParams Parameters for pagination.
@@ -1761,7 +1774,7 @@ public class HistorydbIO extends BasedbIO {
                 JooqUtils.getBigDecimalField(table, AVG_VALUE);
             // this approach of sorting by composite is questionable, definitely very slow
             // strictly speaking capacity is nullable and can contain zeros
-            return paginationParams.getSortCommodity().equals(PRICE_INDEX)
+            return SORTED_BY_AVG_COMMODITIES.contains(paginationParams.getSortCommodity())
                 ? avgValueField :
                 avgValueField.divide(JooqUtils.getBigDecimalField(table, CAPACITY));
         }
