@@ -31,6 +31,7 @@ import com.vmturbo.auth.api.authorization.jwt.JwtServerInterceptor;
 import com.vmturbo.common.protobuf.action.ActionsServiceGrpc;
 import com.vmturbo.common.protobuf.action.EntitySeverityServiceGrpc;
 import com.vmturbo.common.protobuf.group.GroupServiceGrpc;
+import com.vmturbo.common.protobuf.repository.EntityConstraintServiceGrpc.EntityConstraintServiceImplBase;
 import com.vmturbo.common.protobuf.repository.RepositoryDTOREST.RepositoryServiceController;
 import com.vmturbo.common.protobuf.repository.RepositoryServiceGrpc.RepositoryServiceImplBase;
 import com.vmturbo.common.protobuf.repository.SupplyChainProtoREST.SupplyChainServiceController;
@@ -59,6 +60,7 @@ import com.vmturbo.repository.migration.RepositoryMigrationsLibrary;
 import com.vmturbo.repository.search.SearchHandler;
 import com.vmturbo.repository.service.ArangoRepositoryRpcService;
 import com.vmturbo.repository.service.ArangoSupplyChainRpcService;
+import com.vmturbo.repository.service.EntityConstraintRpcService;
 import com.vmturbo.repository.service.LiveTopologyPaginator;
 import com.vmturbo.repository.service.PartialEntityConverter;
 import com.vmturbo.repository.service.PlanStatsService;
@@ -353,13 +355,19 @@ public class RepositoryComponent extends BaseVmtComponent {
         return new RepositoryMigrationsLibrary(repositoryComponentConfig.arangoDatabaseFactory());
     }
 
+    @Bean
+    public EntityConstraintServiceImplBase entityConstraintRpcService() {
+        return new EntityConstraintRpcService();
+    }
+
     @Nonnull
     @Override
     public List<BindableService> getGrpcServices() {
         try {
             return Arrays.asList(repositoryRpcService(),
                 searchRpcService(),
-                supplyChainRpcService());
+                supplyChainRpcService(),
+                entityConstraintRpcService());
         } catch (InterruptedException | CommunicationException | URISyntaxException e) {
             logger.error("Failed to start gRPC services due to exception.", e);
             return Collections.emptyList();
