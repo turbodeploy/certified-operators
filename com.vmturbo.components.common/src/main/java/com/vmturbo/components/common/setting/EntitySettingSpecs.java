@@ -1015,7 +1015,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
                     EntityType.DATABASE_SERVER,  EntityType.APPLICATION_COMPONENT,
                     EntityType.BUSINESS_TRANSACTION),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10000.0f/*default*/),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 2000.0f/*default*/),
             true),
 
     /**
@@ -1030,7 +1030,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.BUSINESS_APPLICATION, EntityType.APPLICATION_COMPONENT,
                     EntityType.BUSINESS_TRANSACTION, EntityType.SERVICE,
                     EntityType.DATABASE_SERVER),
-            new BooleanSettingDataType(true),
+            new BooleanSettingDataType(false),
             true),
 
     /**
@@ -1042,7 +1042,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
                     EntityType.DATABASE_SERVER,
                     EntityType.APPLICATION_COMPONENT, EntityType.BUSINESS_TRANSACTION),
-            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 20.0f/*default*/),
+            numeric(1.0f/*min*/, 31536000000000.0f/*max*/, 10.0f/*default*/),
             true),
 
     /**
@@ -1057,7 +1057,7 @@ public enum EntitySettingSpecs {
             EnumSet.of(EntityType.SERVICE, EntityType.BUSINESS_APPLICATION,
                     EntityType.BUSINESS_TRANSACTION, EntityType.DATABASE_SERVER,
                     EntityType.APPLICATION_COMPONENT),
-            new BooleanSettingDataType(true),
+            new BooleanSettingDataType(false),
             true),
 
     /**
