@@ -113,7 +113,7 @@ public class ProvisionBySupply extends ProvisionBase implements Action {
         // Copy trader settings
         TraderSettings copySettings = getProvisionedSeller().getSettings();
         copySettings.setCloneable(getModelSeller().getSettings().isCloneable());
-        copySettings.setSuspendable(getModelSeller().getSettings().isSuspendable());
+        copySettings.setSuspendable(true);
         copySettings.setMinDesiredUtil(getModelSeller().getSettings().getMinDesiredUtil());
         copySettings.setMaxDesiredUtil(getModelSeller().getSettings().getMaxDesiredUtil());
         copySettings.setGuaranteedBuyer(getModelSeller().getSettings().isGuaranteedBuyer());
