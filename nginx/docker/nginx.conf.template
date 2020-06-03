@@ -285,13 +285,13 @@ http {
         }
 
         # For proxying websockets
-        location = /vmturbo/messages {
+        location = /ws/messages {
             set $api_servers $API;
 
             # For proxying of websockets to API SSL port
-            #proxy_pass         https://$api_servers:9443/vmturbo/messages;
+            #proxy_pass         https://$api_servers:9443/ws/messages;
             # For proxying to non-SSL API
-            proxy_pass        http://$api_servers:8080/vmturbo/messages;
+            proxy_pass        http://$api_servers:8080/ws/messages;
 
             proxy_set_header   Host $http_host;
             proxy_set_header   X-Real-IP $remote_addr;
@@ -371,7 +371,7 @@ http {
 
         # Diags download can take a long time. So we set the read timeout to a
         # higher value.
-        location = /vmturbo/rest/cluster/diagnostics {
+        location = /api/v3/cluster/diagnostics {
             set $api_servers $API;
             proxy_pass         http://$api_servers:8080;
             proxy_set_header   Host $http_host;
