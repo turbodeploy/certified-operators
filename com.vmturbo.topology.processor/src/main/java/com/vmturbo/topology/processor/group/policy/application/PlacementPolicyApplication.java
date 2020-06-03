@@ -19,6 +19,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.CommoditySoldDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.CommodityType;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.CommoditiesBoughtFromProvider;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.TopologyEntity;
@@ -34,12 +35,6 @@ import com.vmturbo.topology.processor.group.GroupResolver;
  * type.
  */
 public abstract class PlacementPolicyApplication {
-
-    /**
-     * We can not set capacity to infinity, because database table can not store string "Infinity".
-     */
-    public static final float MAX_CAPACITY_VALUE = 1e9f;
-
     /**
      * Small delta that we are adding to a segmentation commodity capacity, to ensure floating point
      * roundoff error does not accidentally reduce the commodity capacity below the intended value.
@@ -389,7 +384,7 @@ public abstract class PlacementPolicyApplication {
     protected CommoditySoldDTO commoditySold(final PlacementPolicy policy) {
         return CommoditySoldDTO.newBuilder()
             .setCommodityType(commodityType(policy))
-            .setCapacity(MAX_CAPACITY_VALUE)
+            .setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY)
             .build();
     }
 

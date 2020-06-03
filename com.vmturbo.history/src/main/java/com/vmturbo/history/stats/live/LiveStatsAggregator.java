@@ -120,7 +120,6 @@ public class LiveStatsAggregator {
      * @param entityDTO the entity which sold commodities capacities are added to the cache.
      */
     private void cacheCapacities(TopologyEntityDTO entityDTO) {
-        final Map<Integer, Double> map;
         // for cloud volumes, the capacity is available in the volume info
         if (HistoryStatsUtils.isCloudEntity(entityDTO) &&
                 entityDTO.getEntityType() == EntityDTO.EntityType.VIRTUAL_VOLUME_VALUE) {

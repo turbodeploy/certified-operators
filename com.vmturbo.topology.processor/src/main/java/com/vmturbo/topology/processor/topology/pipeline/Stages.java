@@ -1158,15 +1158,23 @@ public class Stages {
      */
     public static class EntityValidationStage extends PassthroughStage<GraphWithSettings> {
         private final EntityValidator entityValidator;
+        private final boolean isPlan;
 
-        public EntityValidationStage(@Nonnull final EntityValidator entityValidator) {
+        /**
+         * Construct the validatio stage.
+         *
+         * @param entityValidator validator instance
+         * @param isPlan whether the pipeline is working on a plan or live broadcast
+         */
+        public EntityValidationStage(@Nonnull final EntityValidator entityValidator, boolean isPlan) {
             this.entityValidator = entityValidator;
+            this.isPlan = isPlan;
         }
 
         @Override
         public Status passthrough(final GraphWithSettings input) throws PipelineStageException {
             try {
-                entityValidator.validateTopologyEntities(input.getTopologyGraph().entities());
+                entityValidator.validateTopologyEntities(input.getTopologyGraph().entities(), isPlan);
                 return Status.success();
             } catch (EntitiesValidationException e) {
                 throw new PipelineStageException(e);

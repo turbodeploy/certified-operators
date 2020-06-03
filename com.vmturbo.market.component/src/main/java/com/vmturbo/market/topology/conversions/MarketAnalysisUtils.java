@@ -210,7 +210,9 @@ public final class MarketAnalysisUtils {
                                     CommodityDTO.CommodityType.VAPP_ACCESS_VALUE,
                                     CommodityDTO.CommodityType.VDC_VALUE,
                                     CommodityDTO.CommodityType.VMPM_ACCESS_VALUE,
-                                    CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE);
+                                    CommodityDTO.CommodityType.LICENSE_ACCESS_VALUE,
+                                    CommodityDTO.CommodityType.ACCESS_VALUE,
+                                    CommodityDTO.CommodityType.HOST_LUN_ACCESS_VALUE);
 
     public static final Set<Integer> SKIPPED_ENTITY_TYPES =
                     ImmutableSet.of(EntityType.ACTION_MANAGER_VALUE);

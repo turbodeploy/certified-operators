@@ -244,7 +244,7 @@ public class TestApiServerConfig extends WebMvcConfigurerAdapter {
 
     @Bean
     public EntityValidator entityValidator() {
-        return new EntityValidator();
+        return new EntityValidator(true);
     }
 
     @Bean

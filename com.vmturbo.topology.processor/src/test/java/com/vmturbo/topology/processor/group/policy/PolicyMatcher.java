@@ -53,7 +53,7 @@ public class PolicyMatcher {
     }
 
     public Matcher<TopologyEntity> hasProviderSegmentWithCapacity(final long segmentId,
-                                                          final float expectedCapacity) {
+                                                          final double expectedCapacity) {
         return new BaseMatcher<TopologyEntity>() {
             @Override
             public boolean matches(Object o) {
@@ -62,7 +62,7 @@ public class PolicyMatcher {
                     .anyMatch(commodity ->
                         commodity.getCommodityType().getType() == CommodityType.SEGMENTATION_VALUE &&
                             commodity.getCommodityType().getKey().equals(Long.toString(segmentId)) &&
-                            matchesCapacity(commodity, expectedCapacity, 0.2f)
+                            matchesCapacity(commodity, expectedCapacity, 0.2D)
                     );
             }
 
@@ -81,8 +81,8 @@ public class PolicyMatcher {
              * @return If the commodity capacity matches the expected capacity.
              */
             private boolean matchesCapacity(@Nonnull final CommoditySoldDTO commodity,
-                                            final float expectedCapacity,
-                                            final float epsilon) {
+                                            final double expectedCapacity,
+                                            final double epsilon) {
 
                 if (!commodity.hasCapacity()) {
                     return false;

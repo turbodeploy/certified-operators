@@ -8,11 +8,10 @@ import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.Immutable;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
-
-import jdk.nashorn.internal.ir.annotations.Immutable;
 
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.logging.log4j.LogManager;
@@ -130,7 +129,8 @@ class SoldCommoditiesInfo {
         return Optional.ofNullable(soldCommodities.get(commodityName))
                 .map(providers -> providers.asMap().get(providerId))
                 .map(commoditiesSold -> commoditiesSold.stream()
-                        .mapToDouble(CommoditySoldDTO::getCapacity).sum());
+                                .filter(CommoditySoldDTO::hasCapacity)
+                                .mapToDouble(CommoditySoldDTO::getCapacity).sum());
     }
 
     /**
