@@ -211,9 +211,10 @@
         {"inputType": "*", "elements": "Storage:storageInfoRepoDTO.local:CONNECTED_FROM:1", "filterCategory": "property", "filterType": "virtualVolumeWithLocalSupport"},
         {"inputType": "s|*", "elements": "tags", "filterCategory": "property", "filterType": "volumeByTag", "loadOptions": true},
         {"inputType": "s", "elements": "BusinessAccount:oid:OWNS:1", "filterCategory": "entity", "filterType": "volumeByAccount", "loadOptions": true},
-        {"inputType": "*", "elements": "VirtualMachine:displayName:CONNECTED_TO:1", "filterCategory": "entity", "filterType": "volumeByConnectedVm"},
+        {"inputType": "*", "elements": "VirtualMachine:displayName:CONSUMES:1", "filterCategory":
+        "entity", "filterType": "volumeByConnectedVm"},
         {"inputType": "s", "elements": "virtualVolumeInfoRepoDTO.attachmentState", "filterCategory": "property", "filterType": "volumeByAttachmentState", "loadOptions": true},
-        {"inputType": "s", "elements": "StorageTier:oid:CONNECTED_FROM:1", "filterCategory": "entity", "filterType": "volumeByTier", "loadOptions": true},
+        {"inputType": "s", "elements": "StorageTier:oid:PRODUCES:1", "filterCategory": "entity", "filterType": "volumeByTier", "loadOptions": true},
         {"inputType": "s", "elements": "Region:oid:AGGREGATES:VirtualVolume", "filterCategory": "entity", "filterType": "volumeByRegion", "loadOptions": true},
         {"inputType": "s", "elements": "discoveredBy:cloudProvider", "filterCategory": "property", "filterType": "volumeByCloudProvider", "loadOptions": true},
         {"inputType": "*", "elements": "vendorId", "filterCategory": "property", "filterType": "volumeById"},
