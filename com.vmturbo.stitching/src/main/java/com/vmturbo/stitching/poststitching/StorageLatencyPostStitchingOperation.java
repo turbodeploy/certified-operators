@@ -81,7 +81,7 @@ public abstract class StorageLatencyPostStitchingOperation implements PostStitch
      */
     private boolean isLatencyCommodityWithEmptyCapacity(final CommoditySoldDTO.Builder builder) {
         return (builder.getCommodityType().getType() == CommodityType.STORAGE_LATENCY_VALUE) &&
-            (!builder.hasCapacity() || builder.getCapacity() == 0);
+            (!builder.hasCapacity() || builder.getCapacity() <= 0);
     }
 
     /**

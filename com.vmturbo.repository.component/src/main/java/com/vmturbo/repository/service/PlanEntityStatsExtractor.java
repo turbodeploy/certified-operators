@@ -189,14 +189,16 @@ interface PlanEntityStatsExtractor {
                     if (historicalValues != null && historicalValues.hasPercentile()) {
                         final double percentile = historicalValues.getPercentile();
                         final double capacity = commoditySoldDTO.getCapacity();
-                        final StatValue percentileUsage = StatValue.newBuilder()
-                                .setAvg((float)(capacity * percentile))
-                                .build();
-                        percentileValue = HistUtilizationValue.newBuilder()
-                                .setType(StringConstants.PERCENTILE)
-                                .setUsage(percentileUsage)
-                                .setCapacity(capacityValue)
-                                .build();
+                        if (commoditySoldDTO.hasCapacity() && capacity > 0) {
+                            final StatValue percentileUsage = StatValue.newBuilder()
+                                    .setAvg((float)(capacity * percentile))
+                                    .build();
+                            percentileValue = HistUtilizationValue.newBuilder()
+                                    .setType(StringConstants.PERCENTILE)
+                                    .setUsage(percentileUsage)
+                                    .setCapacity(capacityValue)
+                                    .build();
+                        }
                     }
                 }
 

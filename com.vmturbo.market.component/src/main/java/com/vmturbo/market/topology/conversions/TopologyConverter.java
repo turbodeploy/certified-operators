@@ -1504,7 +1504,8 @@ public class TopologyConverter {
                         .filter(c -> c.getCommodityType().equals(commBought.getCommodityType()))
                         .filter(CommoditySoldDTO::hasCapacity)
                         .findFirst();
-                if (commoditySoldDTO.isPresent() && commoditySoldDTO.get().getIsResizeable()) {
+                if (commoditySoldDTO.isPresent() && commoditySoldDTO.get().getIsResizeable()
+                                && commoditySoldDTO.get().hasCapacity()) {
                     // We want to use the historical used (already smoothened) for both the resize-up
                     // and resize-down demand calculations. We do not want to consider the
                     // historical max or the peaks to avoid a one-time historic max value to cause
@@ -1536,7 +1537,7 @@ public class TopologyConverter {
         float histUsage = (float)commoditySoldDTO.getUsed();
         if (commoditySoldDTO.hasHistoricalUsed()) {
             if (commoditySoldDTO.getHistoricalUsed().hasPercentile() &&
-                    commoditySoldDTO.getIsResizeable()) {
+                    commoditySoldDTO.getIsResizeable() && commoditySoldDTO.hasCapacity()) {
                 final float percentile = (float)commoditySoldDTO.getHistoricalUsed().getPercentile();
                 logger.debug("Using percentile value {} to recalculate capacity for {} in {}",
                         percentile, commoditySoldDTO.getCommodityType().getType(),
@@ -2933,7 +2934,7 @@ public class TopologyConverter {
             Optional<CommoditySoldDTO> tierSoldDTO = marketTier.getTier()
                     .getCommoditySoldListList().stream().filter(commoditySoldDTO ->
                             commoditySoldDTO.getCommodityType().getType() == tierComodityType).findFirst();
-            if (tierSoldDTO.isPresent()) {
+            if (tierSoldDTO.isPresent() && tierSoldDTO.get().hasCapacity()) {
                 return (float)tierSoldDTO.get().getCapacity();
             } else {
                 logger.warn("Could not determine new provider capacity for sold commodity" +
