@@ -1,23 +1,24 @@
 package com.vmturbo.stitching.compute;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import com.vmturbo.platform.common.dto.CommonDTO;
-import com.vmturbo.stitching.StitchingScope;
-import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
-import com.vmturbo.stitching.utilities.CopyCommodities;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.vmturbo.platform.common.dto.CommonDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingPoint;
+import com.vmturbo.stitching.StitchingScope;
+import com.vmturbo.stitching.StitchingScope.StitchingScopeFactory;
 import com.vmturbo.stitching.TopologicalChangelog;
 import com.vmturbo.stitching.TopologicalChangelog.StitchingChangesBuilder;
+import com.vmturbo.stitching.utilities.CopyCommodities;
 import com.vmturbo.stitching.utilities.MergeEntities;
 
 /**
@@ -60,24 +61,25 @@ public class IaasVMStitchingOperation implements StitchingOperation<String, Stri
      * @return an optional list of Strings which is Optional.empty if the property doesn't exist or
      * is empty and is the list of values parsed from the property if it does exist.
      */
-    private Optional<String> getStringEntityProperty(@Nonnull StitchingEntity stitchingEntity,
+    private Collection<String> getStringEntityProperty(@Nonnull StitchingEntity stitchingEntity,
                                                                @Nonnull String propertyName) {
         Optional<CommonDTO.EntityDTO.EntityProperty> rawProperty = stitchingEntity.getEntityBuilder()
                 .getEntityPropertiesList()
                 .stream()
                 .filter(entityProperty -> entityProperty.getName().equals(propertyName))
                 .findFirst();
-        return rawProperty.isPresent() ? Optional.of(rawProperty.get().getValue()) : Optional.empty();
+        return rawProperty.map(entityProperty -> Collections.singleton(entityProperty.getValue()))
+                        .orElse(Collections.emptySet());
     }
 
     @Override
-    public Optional<String> getInternalSignature(@Nonnull final StitchingEntity internalEntity) {
+    public Collection<String> getInternalSignature(@Nonnull final StitchingEntity internalEntity) {
         return getStringEntityProperty(internalEntity, "Proxy_VM_UUID");
     }
 
     @Override
-    public Optional<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
-        return Optional.of(externalEntity.getEntityBuilder().getId());
+    public Collection<String> getExternalSignature(@Nonnull final StitchingEntity externalEntity) {
+        return Collections.singleton(externalEntity.getEntityBuilder().getId());
     }
 
     @Nonnull
@@ -98,8 +100,8 @@ public class IaasVMStitchingOperation implements StitchingOperation<String, Stri
      *                      relationships made by the stitching operation should be noted
      *                      in these results.
      */
-    private void stitch(@Nonnull final StitchingPoint stitchingPoint,
-                        @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
+    private static void stitch(@Nonnull final StitchingPoint stitchingPoint,
+                    @Nonnull final StitchingChangesBuilder<StitchingEntity> resultBuilder) {
         // The VM discovered by the container probe
         final StitchingEntity containerVM = stitchingPoint.getInternalEntity();
 

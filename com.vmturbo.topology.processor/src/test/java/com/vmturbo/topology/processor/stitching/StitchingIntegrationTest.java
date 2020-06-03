@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -27,7 +28,9 @@ import com.vmturbo.common.protobuf.stats.StatsMoles.StatsHistoryServiceMole;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.identity.exceptions.IdentityServiceException;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
+import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryType;
+import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
 import com.vmturbo.platform.sdk.common.util.SDKProbeType;
@@ -35,6 +38,8 @@ import com.vmturbo.stitching.PostStitchingOperationLibrary;
 import com.vmturbo.stitching.PreStitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationLibrary;
+import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
+import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.cpucapacity.CpuCapacityStore;
 import com.vmturbo.stitching.poststitching.DiskCapacityCalculator;
 import com.vmturbo.stitching.poststitching.SetCommodityMaxQuantityPostStitchingOperationConfig;
@@ -103,6 +108,16 @@ public abstract class StitchingIntegrationTest {
             .setProbeCategory(ProbeCategory.HYPERVISOR.getCategory())
             .setProbeType(SDKProbeType.VCENTER.getProbeType())
             .build()));
+    }
+
+    @Nonnull
+    protected static StringsToStringsDataDrivenStitchingOperation createDataDrivenStitchingOperation(
+                    MergedEntityMetadata mergedEntityMetadata, EntityType entityType,
+                    ProbeCategory probeCategory) {
+        return new StringsToStringsDataDrivenStitchingOperation(
+                        new StringsToStringsStitchingMatchingMetaData(entityType,
+                                        mergedEntityMetadata),
+                        Collections.singleton(probeCategory));
     }
 
     protected void setOperationsForProbe(final long probeId,

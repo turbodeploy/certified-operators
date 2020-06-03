@@ -1,15 +1,16 @@
 package com.vmturbo.stitching;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import javax.annotation.Nonnull;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.collect.Lists;
 import com.google.protobuf.MessageOrBuilder;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.stitching.utilities.DTOFieldAndPropertyHandler;
 
@@ -50,13 +51,13 @@ public class MatchingField<RETURN_TYPE> implements MatchingPropertyOrField<RETUR
      * exist.
      */
     @Override
-    public Optional<RETURN_TYPE> getMatchingValue(@Nonnull final StitchingEntity entity) {
+    public Collection<RETURN_TYPE> getMatchingValue(@Nonnull final StitchingEntity entity) {
         Object nextObject = entity.getEntityBuilder();
         for (String nextFieldName : messagePath) {
             if (!(nextObject instanceof MessageOrBuilder)) {
                 logger.error("Could not find field {} for entity {}.  Skipping this entity",
                         nextFieldName, nextObject);
-                return Optional.empty();
+                return Collections.emptySet();
             }
             try {
                 nextObject = DTOFieldAndPropertyHandler
@@ -64,17 +65,26 @@ public class MatchingField<RETURN_TYPE> implements MatchingPropertyOrField<RETUR
             } catch (NoSuchFieldException e) {
                 logger.error("Could not find field {} for entity {}.  Skipping this entity",
                         nextFieldName, nextObject);
-                return Optional.empty();
+                return Collections.emptySet();
             }
         }
         try {
-            RETURN_TYPE retVal = (RETURN_TYPE) nextObject;
-            return Optional.ofNullable(retVal);
+            if (nextObject instanceof Collection) {
+                @SuppressWarnings("unchecked")
+                final Collection<RETURN_TYPE> result = (Collection<RETURN_TYPE>)nextObject;
+                return result;
+            }
+            @SuppressWarnings("unchecked")
+            final RETURN_TYPE retVal = (RETURN_TYPE)nextObject;
+            if (retVal == null) {
+                return Collections.emptySet();
+            }
+            return Collections.singleton(retVal);
         } catch (ClassCastException cce) {
             logger.error("While extracting matching field for entity {} extracted value of wrong "
                             + " class.  For field {} retrieved value of type {}.  Exception: {}",
                     entity.getDisplayName(), messagePath.toString(), nextObject.getClass(), cce);
-            return Optional.empty();
+            return Collections.emptySet();
         }
     }
 }
