@@ -44,10 +44,9 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.Commodit
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityField;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.ListStringToListStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.ListStringToListStringStitchingMatchingMetaDataImpl;
+import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
+import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.TopologyEntity;
@@ -144,15 +143,15 @@ public class StorageStitchingIntegrationTest extends StitchingIntegrationTest {
         MatchingData storageMatchingData = MatchingData.newBuilder()
                 .setMatchingField(externalNames).build();
         MatchingMetadata storageMatchingMetadata = MatchingMetadata.newBuilder()
-                .addMatchingData(storageMatchingData).setReturnType(ReturnType.LIST_STRING)
+                .addMatchingData(storageMatchingData)
                 .addExternalEntityMatchingProperty(storageMatchingData)
-                .setExternalEntityReturnType(ReturnType.LIST_STRING).build();
+                .build();
         final MergedEntityMetadata storageMergeEntityMetadata =
                 MergedEntityMetadata.newBuilder().mergeMatchingMetadata(storageMatchingMetadata)
                         .addAllCommoditiesBought(storageBoughtCommodityData)
                         .build();
-        return new ListStringToListStringDataDrivenStitchingOperation(
-                new ListStringToListStringStitchingMatchingMetaDataImpl(EntityType.STORAGE,
+        return new StringsToStringsDataDrivenStitchingOperation(
+                new StringsToStringsStitchingMatchingMetaData(EntityType.STORAGE,
                         storageMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR));
     }
 

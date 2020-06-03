@@ -8,11 +8,10 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityFi
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.sdk.common.supplychain.SupplyChainConstants;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.StringToStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.StringToStringStitchingMatchingMetaDataImpl;
+import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
+import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 
 /**
  * A stitching operation appropriate for use by VCD targets.
@@ -23,22 +22,21 @@ import com.vmturbo.stitching.StringToStringStitchingMatchingMetaDataImpl;
  * with the field of existing hypervisor VM.
  */
 
-public class VcdVMStitchingOperation extends StringToStringDataDrivenStitchingOperation {
+public class VcdVMStitchingOperation extends StringsToStringsDataDrivenStitchingOperation {
 
     public VcdVMStitchingOperation() {
-        super(new StringToStringStitchingMatchingMetaDataImpl(
+        super(new StringsToStringsStitchingMatchingMetaData(
             EntityType.VIRTUAL_MACHINE, MergedEntityMetadata.newBuilder()
                 .mergeMatchingMetadata(MatchingMetadata.newBuilder()
                     .addMatchingData(MatchingData.newBuilder()
                         .setMatchingProperty(EntityPropertyName.newBuilder()
                             .setPropertyName(SupplyChainConstants.INTERNAL_NAME_TGT_ID)
                                 .build()))
-                    .setReturnType(ReturnType.STRING)
                     .addExternalEntityMatchingProperty(MatchingData.newBuilder()
                         .setMatchingProperty(EntityPropertyName.newBuilder()
                             .setPropertyName(SupplyChainConstants.INTERNAL_NAME_TGT_ID)
                                 .build()))
-                    .setExternalEntityReturnType(ReturnType.STRING).build())
+                    .build())
                 .addPatchedFields(EntityField.newBuilder()
                         .setFieldName(SupplyChainConstants.DISPLAY_NAME).build())
                 .addPatchedProperties(EntityPropertyName.newBuilder()

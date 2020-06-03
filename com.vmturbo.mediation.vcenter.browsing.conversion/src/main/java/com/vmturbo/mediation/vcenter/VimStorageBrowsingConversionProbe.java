@@ -8,13 +8,13 @@ import java.util.concurrent.TimeUnit;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.mediation.conversion.onprem.AddVirtualVolumeDiscoveryConverter;
 import com.vmturbo.mediation.vmware.browsing.sdk.VimStorageBrowsingProbe;
@@ -23,7 +23,6 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryContextDTO;
 import com.vmturbo.platform.common.dto.Discovery.DiscoveryResponse;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO.TemplateType;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
@@ -138,9 +137,7 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
     private static MergedEntityMetadata createStorageMergedEntityMetadata() {
         return new MergedEntityMetadataBuilder()
                 .internalMatchingProperty(SupplyChainConstants.STORAGE_ID)
-                .internalMatchingType(ReturnType.STRING)
                 .externalMatchingField(SupplyChainConstants.ID, Collections.emptyList())
-                .externalMatchingType(ReturnType.STRING)
                 .build();
     }
 
@@ -155,9 +152,7 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
     private static MergedEntityMetadata createVirtualMachineMergedEntityMetadata() {
         return new MergedEntityMetadataBuilder()
                 .internalMatchingProperty(SupplyChainConstants.INTERNAL_NAME_TGT_ID)
-                .internalMatchingType(ReturnType.STRING)
                 .externalMatchingProperty(SupplyChainConstants.INTERNAL_NAME_TGT_ID)
-                .externalMatchingType(ReturnType.STRING)
                 .build();
     }
 
@@ -171,9 +166,7 @@ public class VimStorageBrowsingConversionProbe extends VimStorageBrowsingProbe {
     private static MergedEntityMetadata createVirtualVolumeMergedEntityMetadata() {
         return new MergedEntityMetadataBuilder()
                 .internalMatchingField(SupplyChainConstants.ID, Collections.emptyList())
-                .internalMatchingType(ReturnType.STRING)
                 .externalMatchingField(SupplyChainConstants.ID, Collections.emptyList())
-                .externalMatchingType(ReturnType.STRING)
                 .mergedField("virtual_volume_data", Collections.emptyList())
                 .build();
     }

@@ -11,11 +11,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import org.junit.Test;
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
+
+import org.junit.Test;
 
 import com.vmturbo.common.protobuf.topology.Stitching.JournalOptions;
 import com.vmturbo.common.protobuf.topology.Stitching.Verbosity;
@@ -27,17 +26,10 @@ import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO.CommodityType;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.sdk.common.supplychain.MergedEntityMetadataBuilder;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.ListStringToListStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.ListStringToListStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
-import com.vmturbo.stitching.StringToListStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.StringToListStringStitchingMatchingMetaDataImpl;
-import com.vmturbo.stitching.StringToStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.StringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.journal.IStitchingJournal;
 import com.vmturbo.stitching.journal.JournalRecorder.StringBuilderRecorder;
@@ -322,60 +314,43 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
 
     private List<StitchingOperation<?, ?>> getDataDrivenStitchingOperations() {
         final MergedEntityMetadata vAppMergedEntityMetadata = new MergedEntityMetadataBuilder()
-            .internalMatchingType(ReturnType.STRING)
             .internalMatchingProperty("IP")
-            .externalMatchingType(ReturnType.LIST_STRING)
             .externalMatchingProperty("IP", ",")
             .mergedBoughtCommodity(EntityType.APPLICATION, ImmutableList.of(
                 CommodityType.TRANSACTION, CommodityType.RESPONSE_TIME))
             .build();
 
         final MergedEntityMetadata appMergedEntityMetadata = new MergedEntityMetadataBuilder()
-            .internalMatchingType(ReturnType.STRING)
             .internalMatchingProperty("IP")
-            .externalMatchingType(ReturnType.STRING)
             .externalMatchingProperty("IP")
             .mergedSoldCommodity(CommodityType.TRANSACTION)
             .mergedSoldCommodity(CommodityType.RESPONSE_TIME)
             .build();
 
-        return ImmutableList.of(
-            new StringToListStringDataDrivenStitchingOperation(
-                new StringToListStringStitchingMatchingMetaDataImpl(EntityType.VIRTUAL_APPLICATION,
-                    vAppMergedEntityMetadata), Sets.newHashSet(ProbeCategory.CLOUD_NATIVE)),
-            new StringToStringDataDrivenStitchingOperation(
-                new StringToStringStitchingMatchingMetaDataImpl(EntityType.APPLICATION,
-                    appMergedEntityMetadata), Sets.newHashSet(ProbeCategory.CLOUD_NATIVE))
-        );
+        return ImmutableList.of(createDataDrivenStitchingOperation(vAppMergedEntityMetadata,
+                        EntityType.VIRTUAL_APPLICATION, ProbeCategory.CLOUD_NATIVE),
+                        createDataDrivenStitchingOperation(appMergedEntityMetadata,
+                                        EntityType.APPLICATION, ProbeCategory.CLOUD_NATIVE));
     }
 
     private List<StitchingOperation<?, ?>> getDataDrivenStitchingOperationsFuture() {
         final MergedEntityMetadata vAppMergedEntityMetadata = new MergedEntityMetadataBuilder()
-            .internalMatchingType(ReturnType.LIST_STRING)
             .internalMatchingProperty("IP",",")
-            .externalMatchingType(ReturnType.LIST_STRING)
             .externalMatchingProperty("IP", ",")
             .mergedBoughtCommodity(EntityType.APPLICATION, ImmutableList.of(
                 CommodityType.TRANSACTION, CommodityType.RESPONSE_TIME))
             .build();
 
         final MergedEntityMetadata appMergedEntityMetadata = new MergedEntityMetadataBuilder()
-            .internalMatchingType(ReturnType.STRING)
             .internalMatchingProperty("IP")
-            .externalMatchingType(ReturnType.STRING)
             .externalMatchingProperty("IP")
             .mergedSoldCommodity(CommodityType.TRANSACTION)
             .mergedSoldCommodity(CommodityType.RESPONSE_TIME)
             .build();
 
-        return ImmutableList.of(
-            new ListStringToListStringDataDrivenStitchingOperation(
-                new ListStringToListStringStitchingMatchingMetaDataImpl(
-                    EntityType.VIRTUAL_APPLICATION, vAppMergedEntityMetadata),
-                Sets.newHashSet(ProbeCategory.CLOUD_NATIVE)),
-            new StringToStringDataDrivenStitchingOperation(
-                new StringToStringStitchingMatchingMetaDataImpl(EntityType.APPLICATION,
-                    appMergedEntityMetadata), Sets.newHashSet(ProbeCategory.CLOUD_NATIVE))
-        );
+        return ImmutableList.of(createDataDrivenStitchingOperation(vAppMergedEntityMetadata,
+                        EntityType.VIRTUAL_APPLICATION, ProbeCategory.CLOUD_NATIVE),
+                        createDataDrivenStitchingOperation(appMergedEntityMetadata,
+                                        EntityType.APPLICATION, ProbeCategory.CLOUD_NATIVE));
     }
 }
