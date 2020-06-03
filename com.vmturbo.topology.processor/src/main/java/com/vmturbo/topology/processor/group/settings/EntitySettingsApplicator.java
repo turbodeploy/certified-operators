@@ -1001,6 +1001,8 @@ public class EntitySettingsApplicator {
             ImmutableMap.of(
                 //VMEM setting value is in MBs. Market expects it in KBs.
                 CommodityType.VMEM_VALUE, 1024.0f,
+                //VMEM_REQUEST setting value is in MBs. Market expects it in KBs.
+                CommodityType.VMEM_REQUEST_VALUE, 1024.0f,
                 //VSTORAGE setting value is in GBs. Market expects it in MBs.
                 CommodityType.VSTORAGE_VALUE, 1024.0f,
                 //STORAGE_AMOUNT setting value is in GBs. Market expects it in MBs.
