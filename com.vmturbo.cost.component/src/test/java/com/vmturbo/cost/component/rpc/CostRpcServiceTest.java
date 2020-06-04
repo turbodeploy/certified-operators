@@ -257,7 +257,7 @@ public class CostRpcServiceTest {
 
     @Before
     public void setUp() {
-        businessAccountHelper.storeTargetMapping(2, ImmutableList.of(2L));
+        businessAccountHelper.storeTargetMapping(2, "Pay as you go - Engineering", ImmutableList.of(2L));
         costRpcService = new CostRpcService(discountStore, accountExpenseStore, entityCostStore,
                         projectedEntityCostStore, planProjectedEntityCostStore, timeFrameCalculator, businessAccountHelper,
                         clock, realTimeContextId);

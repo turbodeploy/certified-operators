@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -22,6 +23,11 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
+
+import com.vmturbo.common.protobuf.RepositoryDTOUtil;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.RetrieveTopologyEntitiesRequest;
+import com.vmturbo.common.protobuf.repository.RepositoryDTO.TopologyType;
+import com.vmturbo.common.protobuf.topology.TopologyDTO.PartialEntity.Type;
 
 import com.vmturbo.common.protobuf.common.EnvironmentTypeEnum.EnvironmentType;
 import com.vmturbo.common.protobuf.cost.Cost.ReservedInstanceSpec;
@@ -44,6 +50,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TypeSpecificInfo.ComputeTierInfo;
 import com.vmturbo.components.api.test.GrpcTestServer;
 import com.vmturbo.cost.calculation.integration.CloudTopology;
+import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopology;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.calculation.topology.TopologyEntityCloudTopologyFactory.DefaultTopologyEntityCloudTopologyFactory;
 import com.vmturbo.cost.component.db.Cost;
@@ -167,18 +174,42 @@ public class RIBuyAnalysisContextProviderTest {
                 .addAllAccounts(Lists.newArrayList(ACCOUNT_ID, MASTER_ACCOUNT_1_OID)).build();
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(startBuyRIAnalysisRequest);
         RIBuyAnalysisContextProvider contextProvider =
-                new RIBuyAnalysisContextProvider(computeTierDemandStatsStore, repositoryClient,
-                        cloudTopologyFactory, regionalRIMatcherCacheFactory, CONTEXT_ID,
-                        true);
+                new RIBuyAnalysisContextProvider(computeTierDemandStatsStore, regionalRIMatcherCacheFactory, CONTEXT_ID, true);
 
+        final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopology(repositoryClient,
+                cloudTopologyFactory);
 
         final RIBuyAnalysisContextInfo contexts =
-                contextProvider.computeAnalysisContexts(scope, null);
+                contextProvider.computeAnalysisContexts(scope, null, cloudTopology);
         Assert.assertNotNull(contexts);
         Assert.assertNotNull(contexts.regionalContexts());
         Assert.assertTrue(contexts.regionalContexts().size() == 2);
         contexts.regionalContexts().stream().forEach(context ->
             Assert.assertTrue(context.demandClusters().size() == 1));
+    }
+
+    /**
+     * Compute the TopologyEntityCloudTopology.
+     *
+     * @param repositoryClient Repository Client.
+     * @param cloudTopologyFactory Cloud Topology Factory.
+     *
+     * @return TopologyEntityCloudTopology Cloud topology.
+     */
+    private TopologyEntityCloudTopology createCloudTopology(RepositoryServiceBlockingStub repositoryClient,
+            TopologyEntityCloudTopologyFactory cloudTopologyFactory) {
+
+        Stream<TopologyEntityDTO> entities = RepositoryDTOUtil.topologyEntityStream(
+                repositoryClient.retrieveTopologyEntities(
+                        RetrieveTopologyEntitiesRequest.newBuilder()
+                                .setTopologyContextId(100)
+                                .setReturnType(Type.FULL)
+                                .setTopologyType(TopologyType.SOURCE)
+                                .build()))
+                .map(PartialEntity::getFullEntity);
+        TopologyEntityCloudTopology cloudTopology =
+                cloudTopologyFactory.newCloudTopology(entities);
+        return cloudTopology;
     }
 
     /**
@@ -210,13 +241,14 @@ public class RIBuyAnalysisContextProviderTest {
                 .addAllAccounts(Lists.newArrayList(ACCOUNT_ID, MASTER_ACCOUNT_1_OID)).build();
         ReservedInstanceAnalysisScope scope = new ReservedInstanceAnalysisScope(startBuyRIAnalysisRequest);
         RIBuyAnalysisContextProvider contextProvider =
-                new RIBuyAnalysisContextProvider(computeTierDemandStatsStore, repositoryClient,
-                        cloudTopologyFactory, regionalRIMatcherCacheFactory, CONTEXT_ID,
-                        true);
+                new RIBuyAnalysisContextProvider(computeTierDemandStatsStore,
+                        regionalRIMatcherCacheFactory, CONTEXT_ID, true);
 
+        final CloudTopology<TopologyEntityDTO> cloudTopology = createCloudTopology(repositoryClient,
+                cloudTopologyFactory);
 
         final RIBuyAnalysisContextInfo contexts =
-                contextProvider.computeAnalysisContexts(scope, null);
+                contextProvider.computeAnalysisContexts(scope, null, cloudTopology);
         Assert.assertNotNull(contexts);
         Assert.assertNotNull(contexts.regionalContexts());
         Assert.assertTrue(contexts.regionalContexts().size() == 1);
