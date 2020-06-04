@@ -1,6 +1,7 @@
 package com.vmturbo.extractor;
 
 import java.sql.SQLException;
+import java.time.temporal.ChronoUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,6 +37,13 @@ public class ExtractorComponent extends BaseVmtComponent {
     @Value("${timescaledbHealthCheckIntervalSeconds:60}")
     private int timescaledbHealthCheckIntervalSeconds;
 
+    /**
+     * Retention period for the reporting metric table.
+     * Todo: remove this once we support changing retention periods through our UI.
+     */
+    @Value("${reportingMetricTableRetentionMonths:#{null}}")
+    private Integer reportingMetricTableRetentionMonths;
+
     private void setupHealthMonitor() {
         logger.info("Adding PostgreSQL health checks to the component health monitor.");
         try {
@@ -65,5 +73,15 @@ public class ExtractorComponent extends BaseVmtComponent {
             throw new IllegalStateException("Failed to initialize data endpoints", e);
         }
         setupHealthMonitor();
+
+        // change retention policy if custom period is provided
+        if (reportingMetricTableRetentionMonths != null) {
+            try {
+                extractorDbConfig.ingesterEndpoint().getAdapter().setupRetentionPolicy(
+                        "metric", ChronoUnit.MONTHS, reportingMetricTableRetentionMonths);
+            } catch (UnsupportedDialectException | InterruptedException | SQLException e) {
+                logger.error("Failed to create retention policy", e);
+            }
+        }
     }
 }
