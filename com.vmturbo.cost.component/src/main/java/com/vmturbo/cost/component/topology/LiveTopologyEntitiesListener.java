@@ -85,7 +85,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         final long topologyId = topologyInfo.getTopologyId();
 
         if (topologyInfo.getTopologyType() == TopologyType.REALTIME) {
-
             logger.info("Queuing topology for processing (Context ID={}, Topology ID={})",
                     topologyContextId, topologyId);
 
@@ -105,7 +104,6 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         }
     }
 
-
     private void processLiveTopologyUpdate(@Nonnull final TopologyInfo topologyInfo,
                                            @Nonnull final RemoteIterator<TopologyDTO.Topology.DataSegment> entityIterator) {
         final long topologyContextId = topologyInfo.getTopologyContextId();
@@ -115,20 +113,19 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
         // summary notifications. It is possible that while waiting on the topology processing lock,
         // a subsequent topology broadcast occurs.
         if (liveTopologyInfoTracker.isLatestTopology(topologyInfo)) {
-
             logger.info("Processing live topology with topologyId: {}", topologyId);
 
             final CloudTopology<TopologyEntityDTO> cloudTopology =
                     cloudTopologyFactory.newCloudTopology(topologyContextId, entityIterator);
 
-            // if no Cloud entity, skip further processing
+            // If no Cloud entity, skip further processing.
+            // Run Buy RI in most situations except when we fail to persist costs.
+            boolean runBuyRI = true;
             if (cloudTopology.size() > 0) {
                 // Store allocation demand in db
                 computeTierDemandStatsWriter.calculateAndStoreRIDemandStats(topologyInfo, cloudTopology, false);
                 // Consumption demand in stored in db in CostComponentProjectedEntityTopologyListener
                 storeBusinessAccountIdToTargetIdMapping(cloudTopology.getEntities());
-
-                invoker.invokeRIBuyIfBusinessAccountsUpdated(businessAccountHelper.getAllBusinessAccounts());
 
                 // update reserved instance coverage data. RI coverage must be updated
                 // before cost calculation to accurately reflect costs based on up-to-date
@@ -144,11 +141,17 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
                 try {
                     entityCostStore.persistEntityCost(costs, cloudTopology, topologyInfo.getCreationTime());
                 } catch (DbException e) {
+                    runBuyRI = false;
                     logger.error("Failed to persist entity costs.", e);
                 }
             } else {
-                logger.info("live topology with topologyId: {}  doesn't have Cloud entity, skip processing",
+                logger.info("Live topology with topologyId {}  doesn't have Cloud entities."
+                        + " Partial processing will include Buy RI Analysis only.",
                         topologyInfo.getTopologyId());
+            }
+
+            if (runBuyRI) {
+                invoker.invokeBuyRIAnalysis(cloudTopology, businessAccountHelper.getAllBusinessAccounts());
             }
         } else {
             logger.warn("Skipping stale topology broadcast (Topology Context Id={}, Topology ID={}, Creation Time={})",
@@ -169,8 +172,9 @@ public class LiveTopologyEntitiesListener implements EntitiesListener {
             // If the entity is a business account, store the discovered target id.
             if (entityDTO.getEntityType() == EntityType.BUSINESS_ACCOUNT_VALUE) {
                 long baOID = entityDTO.getOid();
-                businessAccountHelper
-                        .storeTargetMapping(baOID, getTargetId(entityDTO));
+                businessAccountHelper.storeTargetMapping(baOID,
+                        entityDTO.getDisplayName(), getTargetId(entityDTO));
+                logger.debug("TopologyEntityDTO for BA {}", entityDTO);
             }
         }
     }
