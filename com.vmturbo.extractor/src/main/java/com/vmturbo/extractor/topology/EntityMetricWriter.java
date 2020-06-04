@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -117,12 +118,11 @@ public class EntityMetricWriter extends TopologyWriterBase {
 
     /**
      * Create a new writer instance.
-     *
-     * @param dbEndpoint db endpoint for persisting data
+     *  @param dbEndpointSupplier db endpoint for persisting data
      * @param pool       thread pool
      */
-    public EntityMetricWriter(final DbEndpoint dbEndpoint, final ExecutorService pool) {
-        super(dbEndpoint, REPORTING_MODEL, pool);
+    public EntityMetricWriter(final Supplier<DbEndpoint> dbEndpointSupplier, final ExecutorService pool) {
+        super(dbEndpointSupplier, REPORTING_MODEL, pool);
     }
 
     @Override
@@ -132,7 +132,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
         final ImmutableList<String> conflictColumns
                 = ImmutableList.of(ENTITY_OID_AS_OID.getName(), ENTITY_HASH_AS_HASH.getName());
         final ImmutableList<String> updateColumns = ImmutableList.of(LAST_SEEN.getName());
-        final DSLContext dsl = dbEndpoint.dslContext();
+        final DSLContext dsl = dbEndpointSupplier.get().dslContext();
         // super would attach an inserting sink to the entity table, but we need an upserting sink
         // so we do that here, and that will cause super to skip this table
         ENTITY_TABLE.attach(new DslUpsertRecordSink(dsl, ENTITY_TABLE, REPORTING_MODEL, config,
@@ -301,7 +301,7 @@ public class EntityMetricWriter extends TopologyWriterBase {
                     .of(ENTITY_HASH_AS_HASH.getName(), LAST_SEEN.getName());
             final List<String> matchColumns = ImmutableList.of(ENTITY_HASH_AS_HASH.getName());
             final List<String> updateColumns = ImmutableList.of(LAST_SEEN.getName());
-            final DSLContext dsl = dbEndpoint.dslContext();
+            final DSLContext dsl = dbEndpointSupplier.get().dslContext();
             ENTITY_TABLE.attach(new DslUpdateRecordSink(dsl, ENTITY_TABLE, REPORTING_MODEL, config,
                     pool, "upd_times", includeColumns, matchColumns, updateColumns), true);
             updateLastSeenForDroppedEntities();
