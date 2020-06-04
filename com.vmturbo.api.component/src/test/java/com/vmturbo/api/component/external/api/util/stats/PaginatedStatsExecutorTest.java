@@ -111,6 +111,8 @@ public class PaginatedStatsExecutorTest {
 
     private GroupExpander mockGroupExpander = Mockito.mock(GroupExpander.class);
 
+    private StatsQueryExecutor mockStatsQueryExecutor = Mockito.mock(StatsQueryExecutor.class);
+
     private StatsHistoryServiceMole statsHistoryServiceSpy = spy(new StatsHistoryServiceMole());
 
     private CostServiceMole costServiceMole = spy(new CostServiceMole());
@@ -148,7 +150,7 @@ public class PaginatedStatsExecutorTest {
                 mockRepositoryApi, statsHistoryServiceSpy, mockSupplyChainFetcherFactory,
                 mockUserSessionContext, mockGroupExpander, new EntityStatsPaginator(),
                 mock(EntityStatsPaginationParamsFactory.class), new PaginationMapper(),
-                costServiceRpcSpy);
+                costServiceRpcSpy, mockStatsQueryExecutor);
 
         doReturn(PaginationParameters.getDefaultInstance()).when(mockPaginationMapper).toProtoParams(any());
         //TODO: Can I get ride of all this?
