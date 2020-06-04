@@ -19,6 +19,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Table;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -43,6 +44,7 @@ import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs;
 import com.vmturbo.platform.analysis.protobuf.PriceFunctionDTOs.PriceFunctionTO;
 import com.vmturbo.platform.analysis.protobuf.UpdatingFunctionDTOs.UpdatingFunctionTO;
 import com.vmturbo.platform.analysis.utilities.BiCliquer;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 
 /**
@@ -113,6 +115,17 @@ public class CommodityConverter {
         @Nonnull TopologyEntityDTO dto) {
         final CommodityType commodityType = topologyCommSold.getCommodityType();
         float capacity = (float)topologyCommSold.getCapacity();
+        if (!topologyCommSold.hasCapacity() || capacity <= 0) {
+            if (MarketAnalysisUtils.ACCESS_COMMODITY_TYPES.contains(commodityType.getType())) {
+                capacity = (float)SDKConstants.ACCESS_COMMODITY_CAPACITY;
+            } else {
+                // such an invalid entity should be not controllable
+                Level level = dto.getAnalysisSettings().getControllable() ? Level.WARN : Level.DEBUG;
+                logger.log(level, "Capacity is unset for topology entity {} commodity {}",
+                                dto.getDisplayName(), commodityType.getType());
+                capacity = 0;
+            }
+        }
         float used = getUsedValue(topologyCommSold, TopologyDTO.CommoditySoldDTO::getUsed,
                 topologyCommSold.hasHistoricalUsed()
                         ? TopologyDTO.CommoditySoldDTO::getHistoricalUsed

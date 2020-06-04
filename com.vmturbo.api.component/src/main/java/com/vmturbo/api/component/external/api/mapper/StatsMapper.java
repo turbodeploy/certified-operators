@@ -466,7 +466,7 @@ public class StatsMapper {
     private static Float calculatePercentile(@Nonnull HistUtilizationValue value) {
         final StatValue usage = value.getUsage();
         final StatValue capacity = value.getCapacity();
-        if (usage.hasAvg() && capacity.hasAvg()) {
+        if (usage.hasAvg() && capacity.hasAvg() && capacity.getAvg() > 0) {
             return usage.getAvg() / capacity.getAvg();
         }
         return null;

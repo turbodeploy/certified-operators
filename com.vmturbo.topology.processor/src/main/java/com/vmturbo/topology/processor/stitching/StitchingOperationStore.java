@@ -12,6 +12,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -24,21 +25,14 @@ import org.apache.logging.log4j.Logger;
 
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.EntityType;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.common.dto.SupplyChain.TemplateDTO;
 import com.vmturbo.platform.sdk.common.MediationMessage.ProbeInfo;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.ListStringToListStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.ListStringToListStringStitchingMatchingMetaDataImpl;
-import com.vmturbo.stitching.ListStringToStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.ListStringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.StitchingOperation;
 import com.vmturbo.stitching.StitchingOperationLibrary;
 import com.vmturbo.stitching.StitchingOperationLibrary.StitchingUnknownProbeException;
-import com.vmturbo.stitching.StringToListStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.StringToListStringStitchingMatchingMetaDataImpl;
-import com.vmturbo.stitching.StringToStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.StringToStringStitchingMatchingMetaDataImpl;
+import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
+import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.journal.JournalableOperation;
 import com.vmturbo.topology.processor.probes.ProbeException;
 import com.vmturbo.topology.processor.probes.ProbeOrdering;
@@ -177,40 +171,23 @@ public class StitchingOperationStore {
         return entityTypes;
     }
 
-    private List<StitchingOperation<?, ?>> createStitchingOperationsFromProbeInfo(
-            @Nonnull final ProbeInfo probeInfo, @Nonnull final Set<ProbeCategory> probeScope) {
+    private static List<StitchingOperation<?, ?>> createStitchingOperationsFromProbeInfo(
+                    @Nonnull final ProbeInfo probeInfo,
+                    @Nonnull final Set<ProbeCategory> probeScope) {
         return probeInfo.getSupplyChainDefinitionSetList().stream()
-                .filter(TemplateDTO::hasMergedEntityMetaData)
-                .map(tDTO -> createStitchingOperation(tDTO, probeScope))
-                .collect(Collectors.toList());
+                    .filter(TemplateDTO::hasMergedEntityMetaData)
+                    .map(tDTO -> createStitchingOperation(tDTO, probeScope))
+                    .filter(Objects::nonNull).collect(Collectors.toList());
     }
 
-    private StitchingOperation<?, ?> createStitchingOperation(
-            @Nonnull final TemplateDTO templateDTO, @Nonnull final Set<ProbeCategory> probeScope) {
-        MergedEntityMetadata memd = templateDTO.getMergedEntityMetaData();
-        if (memd.getMatchingMetadata().getReturnType() == ReturnType.STRING) {
-            if (memd.getMatchingMetadata().getExternalEntityReturnType() == ReturnType.STRING) {
-                return new StringToStringDataDrivenStitchingOperation(
-                        new StringToStringStitchingMatchingMetaDataImpl(
-                                templateDTO.getTemplateClass(), memd), probeScope);
-            } else {
-                return new StringToListStringDataDrivenStitchingOperation(
-                        new StringToListStringStitchingMatchingMetaDataImpl(
-                                templateDTO.getTemplateClass(), memd), probeScope);
-
-            }
-        } else {
-            if (memd.getMatchingMetadata().getExternalEntityReturnType() == ReturnType.STRING) {
-                return new ListStringToStringDataDrivenStitchingOperation(
-                        new ListStringToStringStitchingMatchingMetaDataImpl(
-                                templateDTO.getTemplateClass(), memd), probeScope);
-            } else {
-                return new ListStringToListStringDataDrivenStitchingOperation(
-                        new ListStringToListStringStitchingMatchingMetaDataImpl(
-                                templateDTO.getTemplateClass(), memd), probeScope);
-            }
-
-        }
+    @Nullable
+    private static StitchingOperation<?, ?> createStitchingOperation(
+                    @Nonnull final TemplateDTO templateDTO,
+                    @Nonnull final Set<ProbeCategory> probeScope) {
+        final MergedEntityMetadata memd = templateDTO.getMergedEntityMetaData();
+        return new StringsToStringsDataDrivenStitchingOperation(
+                        new StringsToStringsStitchingMatchingMetaData(
+                                        templateDTO.getTemplateClass(), memd), probeScope);
     }
 
     @VisibleForTesting

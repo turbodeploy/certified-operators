@@ -1186,7 +1186,7 @@ message CommoditySoldDTO {
 
     optional double peak = 3 [default = 0.0];
 
-    optional double capacity = 4 [default = 100];
+    optional double capacity = 4 [default = 0.0];
 
     optional double effectiveCapacityPercentage = 5 [default = 100];
 

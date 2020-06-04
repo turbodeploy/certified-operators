@@ -174,7 +174,7 @@ public class VsanStorageApplicator implements SettingApplicator {
                 CommodityType.STORAGE_AMOUNT, storage, hostCapacityReservation, hciHostCount);
 
         // Set capacity and used for Storage Amount.
-        storageAmount.setUsed(storageAmount.getUsed() * compressionRatio);
+        storageAmount.setUsed(storageAmount.getUsed() * compressionRatio * raidFactor);
         storageAmount.setCapacity(effectiveSACapacity);
 
         //Compute Storage Access capacity.

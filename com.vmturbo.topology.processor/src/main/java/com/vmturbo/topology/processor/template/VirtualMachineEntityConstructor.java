@@ -64,10 +64,11 @@ public class VirtualMachineEntityConstructor extends TopologyEntityConstructor
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
-            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
+            @Nonnull IdentityProvider identityProvider, @Nullable String nameSuffix)
+            throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
                 template, originalTopologyEntity, isReplaced, identityProvider,
-                EntityType.VIRTUAL_MACHINE_VALUE);
+                EntityType.VIRTUAL_MACHINE_VALUE, nameSuffix);
 
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints =
                 sortAccessCommodityBought(getActiveCommoditiesWithKeysGroups(originalTopologyEntity));

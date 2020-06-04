@@ -605,6 +605,9 @@ public class ClusterHeadroomPlanPostProcessor implements ProjectPlanPostProcesso
                 if (templateCommodityUsed == 0) {
                     continue;
                 }
+                if (!comm.hasCapacity() || comm.getCapacity() <= 0) {
+                    continue;
+                }
                 // Set effective capacity
                 double capacity = comm.getScalingFactor() *
                     ((comm.getEffectiveCapacityPercentage() / 100) * comm.getCapacity());

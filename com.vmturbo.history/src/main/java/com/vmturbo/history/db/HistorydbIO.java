@@ -1679,6 +1679,8 @@ public class HistorydbIO extends BasedbIO {
                                     @Nonnull final Table<?> table) {
             final Field<BigDecimal> avgValueField =
                 JooqUtils.getBigDecimalField(table, AVG_VALUE);
+            // this approach of sorting by composite is questionable, definitely very slow
+            // strictly speaking capacity is nullable and can contain zeros
             return paginationParams.getSortCommodity().equals(PRICE_INDEX)
                 ? avgValueField :
                 avgValueField.divide(JooqUtils.getBigDecimalField(table, CAPACITY));

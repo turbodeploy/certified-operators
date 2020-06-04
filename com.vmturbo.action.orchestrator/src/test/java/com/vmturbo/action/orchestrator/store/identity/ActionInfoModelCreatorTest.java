@@ -3,9 +3,12 @@ package com.vmturbo.action.orchestrator.store.identity;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
+
+import com.google.common.collect.Sets;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -69,9 +72,10 @@ public class ActionInfoModelCreatorTest {
                                 .setDestination(createActionEntity(5L))))
                 .build();
         final ActionInfoModel model = modelCreator.apply(move);
-        Assert.assertEquals("[{\"sourceId\":\"1\",\"destinationId\":\"2\",\"resourceId\":\"3\"},"
-                + "{\"sourceId\":\"4\",\"destinationId\":\"5\"}]",
-                model.getDetails().get());
+        Assert.assertEquals(Optional.of(
+                Sets.newHashSet("{\"sourceId\":\"1\",\"destinationId\":\"2\",\"resourceId\":\"3\"}",
+                        "{\"sourceId\":\"4\",\"destinationId\":\"5\"}")),
+                model.getAdditionalDetails());
     }
 
     /**

@@ -43,7 +43,7 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
  */
 public class HCIPhysicalMachineEntityConstructorTest {
 
-    private static final long[] OIDS = {11111111111111L, 22222222222222L};
+    private static final long[] OIDS = {11111111111111L, 22222222222222L, 33333333333333L};
     private static int oidCount = 0;
 
     private final IdentityProvider identityProvider = mock(IdentityProvider.class);
@@ -104,19 +104,21 @@ public class HCIPhysicalMachineEntityConstructorTest {
                 template, topology, Collections.singletonList(host1), true,
                 identityProvider).createTopologyEntitiesFromTemplate();
 
-        Assert.assertEquals(2, result.size());
-        TopologyEntityDTO.Builder newHost = result.stream()
-                .filter(o -> o.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE).findFirst()
-                .get();
+        Assert.assertEquals(3, result.size());
+        List<TopologyEntityDTO.Builder> newHosts = result.stream()
+                .filter(o -> o.getEntityType() == EntityType.PHYSICAL_MACHINE_VALUE)
+                .collect(Collectors.toList());
         TopologyEntityDTO.Builder newStorage = result.stream()
                 .filter(o -> o.getEntityType() == EntityType.STORAGE_VALUE).findFirst().get();
 
         TopologyEntityDTO.Builder originalHost = host1.getEntityBuilder();
         TopologyEntityDTO.Builder originalStorage = storage.getEntityBuilder();
 
+        List<Long> hostOids = newHosts.stream().map(h -> h.getOid()).collect(Collectors.toList());
+
         // Check the original entities for modifications
-        Assert.assertEquals(newHost.getOid(),
-                originalHost.getEdit().getReplaced().getReplacementId());
+        Assert.assertTrue(
+                hostOids.contains(originalHost.getEdit().getReplaced().getReplacementId()));
         Assert.assertEquals(newStorage.getOid(),
                 originalStorage.getEdit().getReplaced().getReplacementId());
 
@@ -125,12 +127,16 @@ public class HCIPhysicalMachineEntityConstructorTest {
                 newStorage.getTypeSpecificInfo().getStorage().getStorageType());
 
         // Check the Storage bought commodities
-        List<CommoditiesBoughtFromProvider> boughts = newStorage
-                .getCommoditiesBoughtFromProvidersList().stream()
-                .filter(b -> b.getProviderId() == newHost.getOid()).collect(Collectors.toList());
-        Assert.assertEquals(1, boughts.size());
-        boughts.get(0).getCommodityBoughtList().forEach(comm -> {
-            Assert.assertTrue(printCommBought(comm), comm.getUsed() > 0);
+
+        newHosts.forEach(newHost -> {
+            List<CommoditiesBoughtFromProvider> boughts = newStorage
+                    .getCommoditiesBoughtFromProvidersList().stream()
+                    .filter(b -> b.getProviderId() == newHost.getOid())
+                    .collect(Collectors.toList());
+            Assert.assertEquals(1, boughts.size());
+            boughts.get(0).getCommodityBoughtList().forEach(comm -> {
+                Assert.assertTrue(printCommBought(comm), comm.getUsed() > 0);
+            });
         });
 
         // Check if the provider storages are marked for replacement

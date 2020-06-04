@@ -555,9 +555,9 @@ public class StagesTest {
         when(graphWithSettings.getTopologyGraph()).thenReturn(topologyGraph);
         when(topologyGraph.entities()).thenReturn(Stream.empty());
 
-        final EntityValidationStage entityValidationStage = new EntityValidationStage(entityValidator);
+        final EntityValidationStage entityValidationStage = new EntityValidationStage(entityValidator, false);
         entityValidationStage.passthrough(graphWithSettings);
-        verify(entityValidator).validateTopologyEntities(any());
+        verify(entityValidator).validateTopologyEntities(any(), eq(false));
     }
 
     @Test
@@ -568,16 +568,16 @@ public class StagesTest {
         when(graphWithSettings.getTopologyGraph()).thenReturn(topologyGraph);
         when(topologyGraph.entities()).thenReturn(Stream.empty());
         doThrow(new EntitiesValidationException(Collections.emptyList()))
-                .when(entityValidator).validateTopologyEntities(any());
+                .when(entityValidator).validateTopologyEntities(any(), eq(false));
 
-        final EntityValidationStage entityValidationStage = new EntityValidationStage(entityValidator);
+        final EntityValidationStage entityValidationStage = new EntityValidationStage(entityValidator, false);
         try {
             entityValidationStage.passthrough(graphWithSettings);
             fail();
         } catch (PipelineStageException e) {
             //expected
         }
-        verify(entityValidator).validateTopologyEntities(any());
+        verify(entityValidator).validateTopologyEntities(any(), eq(false));
     }
 
     @Test

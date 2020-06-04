@@ -280,7 +280,7 @@ public class LivePipelineFactory {
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new Stages.MatrixUpdateStage(mi))
                 .addStage(new PostStitchingStage(stitchingManager))
-                .addStage(new EntityValidationStage(entityValidator))
+                .addStage(new EntityValidationStage(entityValidator, false))
                 .addStage(new SupplyChainValidationStage(supplyChainValidator))
                 .addStage(new HistoryAggregationStage(historyAggregator, null, topologyInfo, null))
                 .addStage(new ExtractTopologyGraphStage())

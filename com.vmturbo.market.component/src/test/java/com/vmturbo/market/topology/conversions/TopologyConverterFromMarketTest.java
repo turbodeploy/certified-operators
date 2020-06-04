@@ -1310,11 +1310,13 @@ public class TopologyConverterFromMarketTest {
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
                 EntityType.COMPUTE_TIER_VALUE,
                 ImmutableList.of(CommodityDTO.CommodityType.MEM_VALUE,
-                                CommodityDTO.CommodityType.VSTORAGE_VALUE));
+                                CommodityDTO.CommodityType.VSTORAGE_VALUE),
+                OLD_TIER_CAPACITY);
         TopologyDTO.TopologyEntityDTO newTierDTO = createEntityDTO(CLOUD_NEW_COMPUTE_TIER_OID,
                 EntityType.COMPUTE_TIER_VALUE,
                 ImmutableList.of(CommodityDTO.CommodityType.MEM_VALUE,
-                        CommodityDTO.CommodityType.VSTORAGE_VALUE));
+                        CommodityDTO.CommodityType.VSTORAGE_VALUE),
+                OLD_TIER_CAPACITY * 2);
 
         CommoditySoldTO newTierSold = createSoldTO(CommodityDTO.CommodityType.MEM_VALUE,
                 OLD_TIER_CAPACITY * 2, true);
@@ -1409,10 +1411,12 @@ public class TopologyConverterFromMarketTest {
 
         TopologyDTO.TopologyEntityDTO oldTierDTO = createEntityDTO(CLOUD_COMPUTE_TIER_OID,
                 EntityType.COMPUTE_TIER_VALUE,
-                ImmutableList.of(CommodityDTO.CommodityType.MEM_VALUE));
+                ImmutableList.of(CommodityDTO.CommodityType.MEM_VALUE),
+                OLD_TIER_CAPACITY);
         TopologyDTO.TopologyEntityDTO newTierDTO = createEntityDTO(CLOUD_NEW_COMPUTE_TIER_OID,
                 EntityType.COMPUTE_TIER_VALUE,
-                ImmutableList.of(CommodityDTO.CommodityType.MEM_VALUE));
+                ImmutableList.of(CommodityDTO.CommodityType.MEM_VALUE),
+                OLD_TIER_CAPACITY * 2);
 
         CommoditySoldTO newTierMemSold = createSoldTO(CommodityDTO.CommodityType.MEM_VALUE,
                 OLD_TIER_CAPACITY * 2, false);
@@ -1949,9 +1953,10 @@ public class TopologyConverterFromMarketTest {
         return originalEntityDTO;
     }
 
-    private TopologyEntityDTO createEntityDTO(final long entityOid,
+    private static TopologyEntityDTO createEntityDTO(final long entityOid,
                                               final int entityTypeValue,
-                                              final List<Integer> soldCommodityTypeValues) {
+                                              final List<Integer> soldCommodityTypeValues,
+                                              double cap) {
 
         Builder entityDTO = TopologyEntityDTO.newBuilder()
                 .setOid(entityOid)
@@ -1964,6 +1969,7 @@ public class TopologyConverterFromMarketTest {
             entityDTO
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                         .setIsResizeable(resizable)
+                        .setCapacity(cap)
                         .setCommodityType(
                                 CommodityType.newBuilder()
                                         .setType(type).build()));

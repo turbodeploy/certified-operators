@@ -85,7 +85,7 @@ spec:
     - uri:
         prefix: /doc
     - uri:
-        prefix: /vmturbo/rest
+        prefix: /api/v3
     - uri:
         prefix: /vmturbo/saml2
     - uri:
@@ -97,7 +97,7 @@ spec:
           number: 8080
   - match:
     - uri:
-        prefix: /vmturbo/messages
+        prefix: /ws/messages
     route:
     - destination:
         host: api.{{ .Release.Namespace }}.svc.cluster.local

@@ -43,8 +43,9 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
     // Max 256 LUNS based on https://www.vmware.com/pdf/vsphere6/r60/vsphere-60-configuration-maximums.pdf
     public static final int MAX_LUN_LIMIT = 256;
 
-    // Random numbers ported from legacy.
+    // Semi-random capacity number based on VC standard 20-second real-time metric interval.
     public static final double QX_VCPU_BASE_COEFFICIENT = 20000.0;
+    // Random numbers ported from legacy.
     public static final double BALLOONING_DEFAULT_CAPACITY = 1.0E9;
     public static final double SWAPPING_DEFAULT_CAPACITY = 5000.0;
 
@@ -52,10 +53,11 @@ public class PhysicalMachineEntityConstructor extends TopologyEntityConstructor
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
-            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
+            @Nonnull IdentityProvider identityProvider, @Nullable String nameSuffix)
+            throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
                 template, originalTopologyEntity, isReplaced, identityProvider,
-                EntityType.PHYSICAL_MACHINE_VALUE);
+                EntityType.PHYSICAL_MACHINE_VALUE, nameSuffix);
 
         final Map<String, String> computeTemplateResources = createFieldNameValueMap(
                 getTemplateResources(template, Compute));

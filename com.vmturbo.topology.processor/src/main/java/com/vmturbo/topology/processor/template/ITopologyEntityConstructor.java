@@ -16,20 +16,22 @@ import com.vmturbo.topology.processor.identity.IdentityProvider;
 public interface ITopologyEntityConstructor {
 
     /**
-     * Create topology entities from a template.
+     * Create topology entity from a template.
      *
      * @param template template
      * @param topology topology
      * @param originalTopologyEntity original TopologyEntity
      * @param isReplaced is replaced
      * @param identityProvider identity provider
-     * @return topology entities
+     * @param nameSuffix suffix for the entity name
+     * @return topology entity
      * @throws TopologyEntityConstructorException error creating topology
      *             entities
      */
     @Nonnull
-    TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
-            @Nonnull Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
+    TopologyEntityDTO.Builder createTopologyEntityFromTemplate(@Nonnull Template template,
+            @Nonnull Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
-            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException;
+            @Nonnull IdentityProvider identityProvider, @Nullable String nameSuffix)
+            throws TopologyEntityConstructorException;
 }

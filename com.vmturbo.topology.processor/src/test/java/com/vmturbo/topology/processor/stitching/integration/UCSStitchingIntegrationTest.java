@@ -41,12 +41,11 @@ import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityFi
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.EntityPropertyName;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingData;
 import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.MatchingMetadata;
-import com.vmturbo.platform.common.dto.SupplyChain.MergedEntityMetadata.ReturnType;
 import com.vmturbo.platform.sdk.common.util.ProbeCategory;
-import com.vmturbo.stitching.ListStringToStringDataDrivenStitchingOperation;
-import com.vmturbo.stitching.ListStringToStringStitchingMatchingMetaDataImpl;
 import com.vmturbo.stitching.StitchingEntity;
 import com.vmturbo.stitching.StitchingOperation;
+import com.vmturbo.stitching.StringsToStringsDataDrivenStitchingOperation;
+import com.vmturbo.stitching.StringsToStringsStitchingMatchingMetaData;
 import com.vmturbo.stitching.TopologyEntity;
 import com.vmturbo.stitching.fabric.FabricChassisStitchingOperation;
 import com.vmturbo.stitching.fabric.FabricPMStitchingOperation;
@@ -93,16 +92,16 @@ public class UCSStitchingIntegrationTest extends StitchingIntegrationTest {
         MatchingData fabricExternalMatchingData = MatchingData.newBuilder()
                 .setMatchingField(idField).build();
         MatchingMetadata fabricMatchingMetadata = MatchingMetadata.newBuilder()
-                .addMatchingData(fabricMatchingData).setReturnType(ReturnType.LIST_STRING)
+                .addMatchingData(fabricMatchingData)
                 .addExternalEntityMatchingProperty(fabricExternalMatchingData)
-                .setExternalEntityReturnType(ReturnType.STRING).build();
+                .build();
         final MergedEntityMetadata fabricMergeEntityMetadata =
                 MergedEntityMetadata.newBuilder().mergeMatchingMetadata(fabricMatchingMetadata)
                         .addAllCommoditiesBought(pmBoughtCommodityData)
                         .addAllCommoditiesSoldMetadata(pmSoldCommodityData)
                         .build();
-        return new ListStringToStringDataDrivenStitchingOperation(
-                new ListStringToStringStitchingMatchingMetaDataImpl(EntityType.PHYSICAL_MACHINE,
+        return new StringsToStringsDataDrivenStitchingOperation(
+                new StringsToStringsStitchingMatchingMetaData(EntityType.PHYSICAL_MACHINE,
                         fabricMergeEntityMetadata), Sets.newHashSet(ProbeCategory.HYPERVISOR));
     }
 

@@ -50,6 +50,7 @@ import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyEntityDTO.Reserv
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyInfo;
 import com.vmturbo.common.protobuf.topology.TopologyDTO.TopologyType;
 import com.vmturbo.components.common.utils.ReservationProtoUtil;
+import com.vmturbo.platform.common.builders.SDKConstants;
 import com.vmturbo.platform.common.dto.CommonDTO.CommodityDTO;
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO;
 import com.vmturbo.stitching.TopologyEntity;
@@ -73,8 +74,6 @@ import com.vmturbo.topology.processor.topology.TopologyEditorException;
  */
 public class ReservationManager {
     private static final Logger logger = LogManager.getLogger();
-
-    private static final double MAX_CAPACITY_VALUE = 1e9d;
 
     static final String RESERVATION_KEY = "ReservationKey";
 
@@ -272,7 +271,7 @@ public class ReservationManager {
             .filter(entity -> entity.getEntityType() == EntityDTO.EntityType.PHYSICAL_MACHINE_VALUE)
             .map(Builder::getEntityBuilder)
             .forEach(entity -> entity.addCommoditySoldList(
-                CommoditySoldDTO.newBuilder().setCapacity(MAX_CAPACITY_VALUE)
+                CommoditySoldDTO.newBuilder().setCapacity(SDKConstants.ACCESS_COMMODITY_CAPACITY)
                     .setCommodityType(CommodityType.newBuilder().setType(VMPM_ACCESS_VALUE)
                         .setKey(RESERVATION_KEY)).build()));
 

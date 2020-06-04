@@ -238,7 +238,7 @@ public class PlanPipelineFactory {
                 .addStage(new SettingsUploadStage(entitySettingsResolver))
                 .addStage(new SettingsApplicationStage(settingsApplicator))
                 .addStage(new PostStitchingStage(stitchingManager))
-                .addStage(new EntityValidationStage(entityValidator))
+                .addStage(new EntityValidationStage(entityValidator, true))
                 .addStage(new HistoryAggregationStage(historyAggregator, changes, topologyInfo, scope))
                 .addStage(new ExtractTopologyGraphStage())
                 .addStage(new HistoricalUtilizationStage(historicalEditor, changes))
