@@ -56,6 +56,7 @@ import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.Att
 import com.vmturbo.platform.common.dto.CommonDTO.EntityDTO.VirtualVolumeData.VirtualVolumeFileDescriptor;
 
 public class WastedFilesAnalysisTest {
+    private static final int STORAGE_AMOUNT_CAPACITY = 20;
     private long topologyContextId = 1111;
     private long topologyId = 2222;
     private TopologyType topologyType = TopologyType.REALTIME;
@@ -114,7 +115,7 @@ public class WastedFilesAnalysisTest {
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                     .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.STORAGE_AMOUNT.getNumber()))
-                    .setCapacity(20))
+                    .setCapacity(STORAGE_AMOUNT_CAPACITY))
                 .addCommoditySoldList(CommoditySoldDTO.newBuilder()
                     .setCommodityType(CommodityType.newBuilder()
                         .setType(CommodityDTO.CommodityType.STORAGE_ACCESS.getNumber()))
@@ -333,6 +334,13 @@ public class WastedFilesAnalysisTest {
                 costMap.get(action.getInfo().getDelete().getTarget().getId()),
                 Double.valueOf(action.getSavingsPerHour().getAmount()))
         );
+
+        analysis.getActions().forEach(action -> {
+            assertTrue(action.hasExplanation());
+            assertTrue(action.getExplanation().hasDelete());
+            assertTrue(action.getExplanation().getDelete().hasSizeKb());
+            assertEquals(STORAGE_AMOUNT_CAPACITY, action.getExplanation().getDelete().getSizeKb(), .001);
+        });
 
         // make sure storage tier is the target of each action
         analysis.getActions().forEach(action -> {

@@ -351,17 +351,12 @@ public class WastedFilesAnalysis {
             } else {
                 logger.debug("Unable to get cost for volume {}", volume.getDisplayName());
             }
-
             return Collections.singletonList(newActionFromVolume(
-                    volume.getOid(), EntityType.VIRTUAL_VOLUME,
-                    storageTierOid, EntityType.STORAGE_TIER,
-                    null,
-                    volume.getEnvironmentType())
-                .setExplanation(Explanation.newBuilder().setDelete(
-                    DeleteExplanation.newBuilder().build()))
-                .setSavingsPerHour(CurrencyAmount.newBuilder()
-                    .setAmount(costSavings)
-                    .build())
+                    volume.getOid(), EntityType.VIRTUAL_VOLUME, storageTierOid,
+                    EntityType.STORAGE_TIER, null, volume.getEnvironmentType())
+                .setExplanation(Explanation.newBuilder().setDelete(DeleteExplanation.newBuilder()
+                    .setSizeKb((long)getStorageAmountCapacity(volume))))
+                .setSavingsPerHour(CurrencyAmount.newBuilder().setAmount(costSavings))
                 .build());
         } else {
             // handle ON_PREM
