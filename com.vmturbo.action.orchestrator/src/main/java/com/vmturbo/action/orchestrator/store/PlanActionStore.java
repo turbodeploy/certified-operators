@@ -431,6 +431,11 @@ public class PlanActionStore implements ActionStore {
      */
     private List<ActionAndInfo> translatePlanActions(@Nonnull final List<ActionDTO.Action> actions,
                                                      @Nonnull final com.vmturbo.action.orchestrator.db.tables.pojos.ActionPlan planData) {
+        Set<ActionDTO.Action> deleteVolumeActions = actions.stream()
+                .filter(action -> action.getInfo().getActionTypeCase() == ActionTypeCase.DELETE)
+                .collect(Collectors.toSet());
+        final Set<Long> deleteVolumesToRetrieve = ActionDTOUtil.getInvolvedEntityIds(deleteVolumeActions);
+
         final Set<Long> entitiesToRetrieve =
             new HashSet<>(ActionDTOUtil.getInvolvedEntityIds(actions));
         // snapshot contains the entities information that is required for the actions descriptions
@@ -442,13 +447,14 @@ public class PlanActionStore implements ActionStore {
         // TODO: remove hack to go to realtime if source plan topology is not available.  Needed to
         // compute action descriptions.
         EntitiesAndSettingsSnapshot snapshotHack = entitySettingsCache.newSnapshot(
-            entitiesToRetrieve, planContextId);
+                entitiesToRetrieve,deleteVolumesToRetrieve, planContextId);
         if (MapUtils.isEmpty(snapshotHack.getEntityMap())) {
             // Hack: if the plan source topology is not ready, use realtime.
             // This should only occur initially when the plan  created.
             logger.warn("translatePlanActions: failed for topologyContextId={} topologyId={}, try realtime",
                 planContextId, planData.getTopologyId());
-            snapshotHack = entitySettingsCache.newSnapshot(entitiesToRetrieve, realtimeTopologyContextId);
+            snapshotHack = entitySettingsCache.newSnapshot(
+                    entitiesToRetrieve, deleteVolumesToRetrieve, realtimeTopologyContextId);
         }
         final EntitiesAndSettingsSnapshot snapshot = snapshotHack;
         final List<ActionDTO.Action> actionsStream = new ArrayList<>(actions.size());

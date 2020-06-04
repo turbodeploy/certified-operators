@@ -216,7 +216,7 @@ public class LiveActionStoreTest {
     }
 
     public void setEntitiesOIDs() {
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getEntityFromOid(eq(vm1)))
             .thenReturn(ActionOrchestratorTestUtils.createTopologyEntityDTO(vm1,
                 EntityType.VIRTUAL_MACHINE.getNumber()));
@@ -273,8 +273,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(plan);
         assertEquals(2, actionStore.size());
@@ -294,8 +294,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(plan);
         assertEquals(2, actionStore.size());
@@ -325,8 +325,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(firstPlan);
         actionStore.populateRecommendedActions(secondPlan);
@@ -370,8 +370,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(firstPlan);
         Action actionToClear = actionStore.getAction(firstMove.getId()).get();
@@ -400,8 +400,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(firstPlan);
         when(actionStore.getAction(queuedMove.getId()).get().getState()).thenReturn(ActionState.QUEUED);
@@ -439,8 +439,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(firstPlan);
         when(actionStore.getAction(queuedMove.getId()).get().getState()).thenReturn(ActionState.QUEUED);
@@ -489,8 +489,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(firstPlan);
         when(actionStore.getAction(successMove.getId()).get().getState()).thenReturn(ActionState.SUCCEEDED);
@@ -534,8 +534,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(firstPlan);
         actionStore.populateRecommendedActions(secondPlan);
@@ -573,8 +573,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(firstPlan);
         actionStore.populateRecommendedActions(secondPlan);
@@ -600,8 +600,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(plan);
         assertThat(actionStore.getActionViews().getAll()
@@ -631,8 +631,8 @@ public class LiveActionStoreTest {
 
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         final long secondOid = actionIdentityService.getOidsForObjects(
                 Collections.singletonList(secondMove.getInfo())).iterator().next();
@@ -665,8 +665,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(plan);
         assertThat(actionStore.getActionViews().getAll()
@@ -701,6 +701,7 @@ public class LiveActionStoreTest {
         actionStore.populateRecommendedActions(plan);
 
         verify(entitySettingsCache).newSnapshot(eq(ImmutableSet.of(vm1, hostA, hostB)),
+            any(),
             eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyContextId()),
             eq(plan.getInfo().getMarket().getSourceTopologyInfo().getTopologyId()));
         verify(spyActionFactory).newAction(any(),
@@ -741,8 +742,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(secondPlan);
 
@@ -768,8 +769,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(plan);
         final Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
@@ -798,8 +799,8 @@ public class LiveActionStoreTest {
         }).when(actionTranslator).translate(any(Stream.class), any(EntitiesAndSettingsSnapshot.class));
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(plan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(plan);
         final Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
@@ -826,8 +827,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(firstPlan);
         Optional<Action> queuedAction = actionStore.getAction(queuedMove.getId());
@@ -872,8 +873,8 @@ public class LiveActionStoreTest {
             .build();
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(firstPlan);
 
@@ -932,8 +933,8 @@ public class LiveActionStoreTest {
 
         final EntitiesAndSettingsSnapshot snapshot =
             entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(firstPlan.getActionList()),
-                TOPOLOGY_CONTEXT_ID, topologyId);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+                    Collections.emptySet(), TOPOLOGY_CONTEXT_ID, topologyId);
+        when(entitySettingsCache.newSnapshot(any(), anySet(), anyLong(), anyLong())).thenReturn(snapshot);
 
         actionStore.populateRecommendedActions(firstPlan);
 

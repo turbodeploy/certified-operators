@@ -85,6 +85,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         this.supplyChainService = Objects.requireNonNull(builder.supplyChainService);
         this.repositoryService = Objects.requireNonNull(builder.repositoryService);
         this.licenseCheckClient = Objects.requireNonNull(builder.licenseCheckClient);
+        this.acceptedActionsStore = Objects.requireNonNull(builder.acceptedActionsDAO);
         this.actionIdentityService = Objects.requireNonNull(builder.actionIdentityService);
         this.involvedEntitiesExpander = Objects.requireNonNull(builder.involvedEntitiesExpander);
     }
@@ -198,6 +199,7 @@ public class ActionStoreFactory implements IActionStoreFactory {
         private SupplyChainServiceBlockingStub supplyChainService;
         private RepositoryServiceBlockingStub repositoryService;
         private LicenseCheckClient licenseCheckClient;
+        private AcceptedActionsDAO acceptedActionsDAO;
         private IdentityService<ActionInfo> actionIdentityService;
         private InvolvedEntitiesExpander involvedEntitiesExpander;
 
@@ -358,6 +360,10 @@ public class ActionStoreFactory implements IActionStoreFactory {
             return this;
         }
 
+        public Builder withAcceptedActionStore(@Nonnull AcceptedActionsDAO acceptedActionsStore) {
+            this.acceptedActionsDAO = acceptedActionsStore;
+            return this;
+        }
         /**
          * Sets the actionIdentityService on this builder.
          *

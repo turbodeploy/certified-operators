@@ -193,8 +193,8 @@ public class ActionStoreConfig {
             .withUserSessionContext(userSessionConfig.userSessionContext())
             .withSupplyChainService(SupplyChainServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
             .withRepositoryService(RepositoryServiceGrpc.newBlockingStub(repositoryClientConfig.repositoryChannel()))
-            .withAcceptedActionStore(acceptedActionsStore())
             .withLicenseCheckClient(licenseCheckClientConfig.licenseCheckClient())
+            .withAcceptedActionStore(acceptedActionsStore())
             .withActionIdentityService(actionIdentityService())
             .withInvolvedEntitiesExpander(actionStatsConfig.involvedEntitiesExpander())
             .build();

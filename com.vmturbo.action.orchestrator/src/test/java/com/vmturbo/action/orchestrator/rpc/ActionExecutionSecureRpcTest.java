@@ -298,7 +298,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -332,7 +332,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -363,7 +363,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -388,7 +388,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -432,7 +432,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
 
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot,recommendation);
@@ -458,7 +458,7 @@ public class ActionExecutionSecureRpcTest {
     public void testAcceptActionWithScopedUser() {
         final Action recommendation = ActionOrchestratorTestUtils.createMoveRecommendation(ACTION_ID, 10L, 0, 1, 1, 1 );
         final ActionPlan plan = actionPlan(recommendation);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         ActionOrchestratorTestUtils.setEntityAndSourceAndDestination(snapshot, recommendation);
         actionStorehouse.storeActions(plan);
 
@@ -469,7 +469,7 @@ public class ActionExecutionSecureRpcTest {
             .setTopologyContextId(TOPOLOGY_CONTEXT_ID)
             .build();
         EntitiesAndSettingsSnapshot snapshot = mock(EntitiesAndSettingsSnapshot.class);
-        when(entitySettingsCache.newSnapshot(any(), anyLong(), anyLong())).thenReturn(snapshot);
+        when(entitySettingsCache.newSnapshot(any(), any(), anyLong(), anyLong())).thenReturn(snapshot);
         when(snapshot.getOwnerAccountOfEntity(anyLong())).thenReturn(Optional.empty());
         // a user WITH access CAN execute the action
         EntityAccessScope accessScopeOK = new EntityAccessScope(null, null,

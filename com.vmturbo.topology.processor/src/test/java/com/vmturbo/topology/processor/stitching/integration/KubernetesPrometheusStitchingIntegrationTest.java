@@ -324,14 +324,10 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
             .mergedSoldCommodity(CommodityType.RESPONSE_TIME)
             .build();
 
-        return ImmutableList.of(
-            new StringToListStringDataDrivenStitchingOperation(
-                new StringToListStringStitchingMatchingMetaDataImpl(EntityType.SERVICE,
-                    serviceMergedEntityMetadata), Sets.newHashSet(ProbeCategory.CLOUD_NATIVE)),
-            new StringToStringDataDrivenStitchingOperation(
-                new StringToStringStitchingMatchingMetaDataImpl(EntityType.APPLICATION,
-                    appMergedEntityMetadata), Sets.newHashSet(ProbeCategory.CLOUD_NATIVE))
-        );
+        return ImmutableList.of(createDataDrivenStitchingOperation(serviceMergedEntityMetadata,
+                EntityType.SERVICE, ProbeCategory.CLOUD_NATIVE),
+                createDataDrivenStitchingOperation(appMergedEntityMetadata,
+                        EntityType.APPLICATION, ProbeCategory.CLOUD_NATIVE));
     }
 
     private List<StitchingOperation<?, ?>> getDataDrivenStitchingOperationsFuture() {
@@ -349,14 +345,9 @@ public class KubernetesPrometheusStitchingIntegrationTest extends StitchingInteg
             .mergedSoldCommodity(CommodityType.RESPONSE_TIME)
             .build();
 
-        return ImmutableList.of(
-            new ListStringToListStringDataDrivenStitchingOperation(
-                new ListStringToListStringStitchingMatchingMetaDataImpl(
-                    EntityType.SERVICE, serviceMergedEntityMetadata),
-                Sets.newHashSet(ProbeCategory.CLOUD_NATIVE)),
-            new StringToStringDataDrivenStitchingOperation(
-                new StringToStringStitchingMatchingMetaDataImpl(EntityType.APPLICATION,
-                    appMergedEntityMetadata), Sets.newHashSet(ProbeCategory.CLOUD_NATIVE))
-        );
+        return ImmutableList.of(createDataDrivenStitchingOperation(serviceMergedEntityMetadata,
+                EntityType.SERVICE, ProbeCategory.CLOUD_NATIVE),
+                createDataDrivenStitchingOperation(appMergedEntityMetadata,
+                        EntityType.APPLICATION, ProbeCategory.CLOUD_NATIVE));
     }
 }

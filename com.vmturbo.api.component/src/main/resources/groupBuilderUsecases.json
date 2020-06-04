@@ -78,8 +78,7 @@
             {"inputType": "*", "elements": "ApplicationComponent:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByApplicationComponent"},
             {"inputType": "*", "elements": "BusinessApplication:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByBusinessApplication"},
             {"inputType": "*", "elements": "BusinessTransaction:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByBusinessTransaction"},
-            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByService"}
-            {"inputType": "*", "elements": "Namespace:displayName:PRODUCES:WorkloadController:PRODUCES:ContainerPod:PRODUCES", "filterCategory": "entity", "filterType": "containersByNamespace"},
+            {"inputType": "*", "elements": "Service:displayName:CONSUMES", "filterCategory": "entity", "filterType": "containersByService"},
             {"inputType": "s|*", "elements": "WorkloadController:workloadControllerInfoRepoDTO.controllerType:PRODUCES:ContainerPod:PRODUCES", "filterCategory": "entity", "filterType": "containersByControllerKind", "loadOptions": true},
             {"inputType": "*", "elements": "discoveredBy:k8sCluster", "filterCategory": "property", "filterType": "containersByK8sCluster"}
         ]

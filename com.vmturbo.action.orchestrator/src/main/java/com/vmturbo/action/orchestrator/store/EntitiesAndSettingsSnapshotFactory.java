@@ -280,9 +280,10 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
+                                                   @Nonnull final Set<Long> nonProjectedEntities,
                                                    final long topologyContextId,
                                                    final long topologyId) {
-        return internalNewSnapshot(entities, topologyContextId, topologyId);
+        return internalNewSnapshot(entities, nonProjectedEntities, topologyContextId, topologyId);
     }
 
     /**
@@ -297,8 +298,9 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      */
     @Nonnull
     public EntitiesAndSettingsSnapshot newSnapshot(@Nonnull final Set<Long> entities,
+                                                   @Nonnull final Set<Long> nonProjectedEntities,
                                                    final long topologyContextId) {
-        return internalNewSnapshot(entities, topologyContextId, null);
+        return internalNewSnapshot(entities, nonProjectedEntities, topologyContextId, null);
     }
 
     /**
@@ -312,6 +314,7 @@ public class EntitiesAndSettingsSnapshotFactory implements RepositoryListener {
      */
     @Nonnull
     private EntitiesAndSettingsSnapshot internalNewSnapshot(@Nonnull final Set<Long> entities,
+                                                            @Nonnull Set<Long> nonProjectedEntities,
                                                             final long topologyContextId,
                                                             @Nullable final Long topologyId) {
         final Map<Long, Map<String, SettingAndPolicies>> settingAndPoliciesMapByEntityAndSpecName =

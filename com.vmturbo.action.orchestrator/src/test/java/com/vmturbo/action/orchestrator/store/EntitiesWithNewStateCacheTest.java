@@ -54,7 +54,7 @@ public class EntitiesWithNewStateCacheTest {
     @Before
     public void setup() {
         actions = new LiveActions(actionHistoryDao, acceptedActionsStore, clock,
-            userSessionContext);
+            userSessionContext, Mockito.mock(InvolvedEntitiesExpander.class));
         entitiesWithNewStateCache = new EntitiesWithNewStateCache(actions);
         actionModeCalculator = new ActionModeCalculator();
         IdentityGenerator.initPrefix(0);

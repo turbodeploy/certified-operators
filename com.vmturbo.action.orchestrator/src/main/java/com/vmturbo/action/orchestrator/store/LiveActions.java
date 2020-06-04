@@ -126,8 +126,8 @@ class LiveActions implements QueryableActionViews {
 
     @VisibleForTesting
     LiveActions(@Nonnull final ActionHistoryDao actionHistoryDao,
-                @Nonnull final AcceptedActionsDAO acceptedActionsStore,
                 @Nonnull final Clock clock,
+                @Nonnull final AcceptedActionsDAO acceptedActionsStore,
                 @Nonnull QueryFilterFactory queryFilterFactory,
                 @Nonnull final UserSessionContext userSessionContext,
                 @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {

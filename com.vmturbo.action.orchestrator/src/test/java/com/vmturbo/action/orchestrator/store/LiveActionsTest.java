@@ -97,7 +97,7 @@ public class LiveActionsTest {
     @Before
     public void setup() {
         liveActions = new LiveActions(
-            actionHistoryDao, acceptedActionsStore, clock, queryFilterFactory, userSessionContext,
+            actionHistoryDao, clock, acceptedActionsStore, queryFilterFactory, userSessionContext,
             involvedEntitiesExpander);
         when(involvedEntitiesExpander.expandInvolvedEntitiesFilter(anyCollection())).thenAnswer(
             (Answer<InvolvedEntitiesFilter>)invocationOnMock -> {
@@ -474,7 +474,7 @@ public class LiveActionsTest {
             1);
 
         liveActions = new LiveActions(
-            actionHistoryDao, clock, QueryFilter::new, userSessionContext,
+            actionHistoryDao, clock, acceptedActionsStore, QueryFilter::new, userSessionContext,
             involvedEntitiesExpander);
         liveActions.replaceMarketActions(Stream.of(
             moveActionInTarget, moveActionInSource, moveActionInDestination));

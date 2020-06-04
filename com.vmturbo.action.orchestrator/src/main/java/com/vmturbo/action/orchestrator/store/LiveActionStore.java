@@ -163,7 +163,6 @@ public class LiveActionStore implements ActionStore {
                            @Nonnull final AcceptedActionsDAO acceptedActionsStore,
                            @Nonnull final IdentityService<ActionInfo> actionIdentityService,
                            @Nonnull final InvolvedEntitiesExpander involvedEntitiesExpander) {
-) {
         this.actionFactory = Objects.requireNonNull(actionFactory);
         this.topologyContextId = topologyContextId;
         this.severityCache = new EntitySeverityCache(supplyChainService, repositoryService, true);
@@ -247,7 +246,7 @@ public class LiveActionStore implements ActionStore {
 
             final EntitiesAndSettingsSnapshot snapshot =
                 entitySettingsCache.newSnapshot(ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
-                    topologyContextId, topologyId);
+                        Collections.emptySet(), topologyContextId, topologyId);
 
             // This call requires some computation and an RPC call, so do it outside of the
             // action lock.
@@ -513,7 +512,8 @@ public class LiveActionStore implements ActionStore {
         // topology. This is safe because we only need the names of the related regions and tiers,
         // which don't change between realtime and plan.
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
-            ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()), topologyContextId);
+            ActionDTOUtil.getInvolvedEntityIds(actionPlan.getActionList()),
+                Collections.emptySet(), topologyContextId);
 
         final Iterator<Long> recommendationOids;
         try {

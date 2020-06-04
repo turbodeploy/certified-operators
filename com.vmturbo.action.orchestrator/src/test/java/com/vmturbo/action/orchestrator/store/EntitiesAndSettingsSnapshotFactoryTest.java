@@ -185,7 +185,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
                 GetGroupsForEntitiesResponse.getDefaultInstance());
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(Collections.singleton(ENTITY_ID),
-            TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+                Collections.emptySet(), TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         Assert.assertTrue(snapshot.getSettingsForEntity(ENTITY_ID).isEmpty());
     }
@@ -232,7 +232,7 @@ public class EntitiesAndSettingsSnapshotFactoryTest {
 
         final EntitiesAndSettingsSnapshot snapshot = entitySettingsCache.newSnapshot(
                 Sets.newHashSet(Arrays.asList(appServerId, appServerIdNotRelatedToBA)),
-                REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
+                Collections.emptySet(), REALTIME_TOPOLOGY_CONTEXT_ID, TOPOLOGY_ID);
 
         Assert.assertEquals(snapshot.getOwnerAccountOfEntity(appServerId).get(),
                 businessAccountEntity);
