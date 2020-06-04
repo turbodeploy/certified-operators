@@ -5,7 +5,7 @@ RUN groupadd -g 1000 vmtsyslog && useradd -m -r -d /home/vmtsyslog -g 1000 -s /b
     passwd -l root
 
 # Install rsyslog package
-RUN dnf install -y rsyslog procps-ng zip xz python2  && \
+RUN dnf install -y rsyslog procps-ng zip xz python2 gnutls  && \
     dnf clean all && \
     rm -rf /var/cache/dnf && \
     mkdir -p /home/vmtsyslog/rsyslog && \

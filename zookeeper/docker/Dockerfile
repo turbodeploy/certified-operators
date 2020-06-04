@@ -14,7 +14,7 @@ COPY start_zookeeper /
 COPY zookeeper-ready /
 
 # Install rsyslog and java-11 packages
-RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk-headless && \
+RUN dnf install -y rsyslog procps-ng python2 java-11-openjdk-headless gnutls && \
     dnf clean all && \
     rm -rf /var/cache/dnf
 
