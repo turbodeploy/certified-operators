@@ -2304,12 +2304,14 @@ public class TopologyConverter {
             }
             // Create DC comm bought
             createDCCommodityBoughtForCloudEntity(providerOid, buyerOid).ifPresent(values::add);
-            // Create Coupon Comm
-            Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(
-                    providerOid, buyerOid);
-            if (coupon.isPresent()) {
-                values.add(coupon.get());
-                addGroupFactor = true;
+            if (marketMode != MarketMode.SMAOnly) {
+                // Create Coupon Comm
+                Optional<CommodityBoughtTO> coupon = createCouponCommodityBoughtForCloudEntity(
+                        providerOid, buyerOid);
+                if (coupon.isPresent()) {
+                    values.add(coupon.get());
+                    addGroupFactor = true;
+                }
             }
             // Create template exclusion commodity bought
             values.addAll(createTierExclusionCommodityBoughtForCloudEntity(providerOid, buyerOid));

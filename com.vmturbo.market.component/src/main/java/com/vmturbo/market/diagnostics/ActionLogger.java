@@ -462,7 +462,16 @@ public class ActionLogger {
             ReservedInstanceData riData = optional.get();
             ReservedInstanceBought riBought = riData.getReservedInstanceBought();
             ReservedInstanceBoughtInfo riBoughtInfo = riBought.getReservedInstanceBoughtInfo();
-            String reservedInstanceName = riBoughtInfo.getProbeReservedInstanceId();
+            final String reservedInstanceName;
+            if (Strings.isNullOrEmpty(riBoughtInfo.getProbeReservedInstanceId())) {
+                final long regionId = riData.getReservedInstanceSpec()
+                        .getReservedInstanceSpecInfo()
+                        .getRegionId();
+                reservedInstanceName = SMAInput.constructRIName(cloudTopology, regionId,
+                        riBoughtInfo);
+            } else {
+                reservedInstanceName = riBoughtInfo.getProbeReservedInstanceId();
+            }
             boolean shared = riBoughtInfo.getReservedInstanceScopeInfo().getShared();
             ReservedInstanceSpec riSpec = riData.getReservedInstanceSpec();
             ReservedInstanceSpecInfo riSpecInfo = riSpec.getReservedInstanceSpecInfo();
