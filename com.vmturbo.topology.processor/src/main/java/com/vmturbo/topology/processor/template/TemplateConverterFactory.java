@@ -183,7 +183,7 @@ public class TemplateConverterFactory {
 
         for (int i = 0; i < additionCount; i++) {
             result.add(generateTopologyEntityByType(template, topology, null,
-                    isReservation, false));
+                    isReservation, false, "(Clone " + i + ")"));
         }
 
         return result;
@@ -208,7 +208,7 @@ public class TemplateConverterFactory {
 
             for (TopologyEntity.Builder entity : entitiesToReplace) {
                 result.add(generateTopologyEntityByType(template, topology,
-                        entity.getEntityBuilder(), false, true));
+                        entity.getEntityBuilder(), false, true, null));
             }
 
             return result;
@@ -260,7 +260,8 @@ public class TemplateConverterFactory {
             @Nonnull final Template template,
             @Nonnull final Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, final boolean isReservation,
-            boolean isReplaced) throws TopologyEntityConstructorException {
+            boolean isReplaced, @Nullable String nameSuffix)
+            throws TopologyEntityConstructorException {
         final int templateEntityType = template.getTemplateInfo().getEntityType();
         final Map<Integer, ITopologyEntityConstructor> converterMap = isReservation
                 ? reservationTemplateConvertMap
@@ -270,6 +271,6 @@ public class TemplateConverterFactory {
         }
 
         return converterMap.get(templateEntityType).createTopologyEntityFromTemplate(template,
-                topology, originalTopologyEntity, isReplaced, identityProvider);
+                topology, originalTopologyEntity, isReplaced, identityProvider, nameSuffix);
     }
 }

@@ -48,10 +48,11 @@ public class StorageEntityConstructor extends TopologyEntityConstructor
     public TopologyEntityDTO.Builder createTopologyEntityFromTemplate(
             @Nonnull final Template template, @Nonnull Map<Long, TopologyEntity.Builder> topology,
             @Nullable TopologyEntityDTO.Builder originalTopologyEntity, boolean isReplaced,
-            @Nonnull IdentityProvider identityProvider) throws TopologyEntityConstructorException {
+            @Nonnull IdentityProvider identityProvider, @Nullable String nameSuffix)
+            throws TopologyEntityConstructorException {
         TopologyEntityDTO.Builder topologyEntityBuilder = super.generateTopologyEntityBuilder(
                 template, originalTopologyEntity, isReplaced, identityProvider,
-                EntityType.STORAGE_VALUE);
+                EntityType.STORAGE_VALUE, nameSuffix);
 
         final List<CommoditiesBoughtFromProvider> commodityBoughtConstraints;
         final Set<CommoditySoldDTO> commoditySoldConstraints;
