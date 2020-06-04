@@ -262,7 +262,7 @@ public class ScenarioMapper {
         infoBuilder.addAllChanges(getLoadChanges(dto.getLoadChanges()));
         // check the scenario and add default automation settings if necessary
         infoBuilder.addAllChanges(checkAndCreateDefaultAutomationSettingsForPlan(dto));
-        getScope(dto.getScope()).ifPresent(infoBuilder::setScope);
+        infoBuilder.setScope(getScope(dto.getScope()));
         // TODO (gabriele, Oct 27 2017) We need to extend the Plan Orchestrator with support
         // for the other types of changes: time based topology, load and config
 
@@ -1263,18 +1263,22 @@ public class ScenarioMapper {
     /**
      * If there are any scope entries in the list of scopeDTO's, create a PlanScope object that
      * represents the scope contents in XL DTO schema objects.
-     * @param scopeDTOs the list of scope DTO objects, which can be empty or null.
-     * @return the equivalent PlanScope, if any scope DTO's were found. Empty otherwise.
+     * Otherwise, throw an exception.
+     * @param scopeDTOs the list of scope DTO objects.
+     * @return the equivalent PlanScope, if any scope DTO's were found.
      * @throws IllegalArgumentException if any of the scope DTOs in the list does not have a uuid,
      *                                  or if the class name provided in a scopeDTO does not match
      *                                  the class name internally associated with the DTO's uuid.
+     *                                  Also, if the scope is empty or it is the whole Market; we
+     *                                  disallow such usage.
      * @throws OperationFailedException if looking up the uuid from a scopeDTO fails.
      */
-    private Optional<PlanScope> getScope(@Nullable final List<BaseApiDTO> scopeDTOs)
+    private PlanScope getScope(@Nullable final List<BaseApiDTO> scopeDTOs)
             throws IllegalArgumentException, OperationFailedException {
         // convert scope info from BaseApiDTO's to PlanScopeEntry objects
         if (scopeDTOs == null || scopeDTOs.size() == 0) {
-            return Optional.empty(); // no scope to convert
+            throw new IllegalArgumentException(
+                    "No scope specified. Please specify a group or an entity as a scope.");
         }
 
         ApiId resolvedScope;
@@ -1296,10 +1300,11 @@ public class ScenarioMapper {
                         + resolvedScope.uuid());
             }
             // Since all scope entries are additive, if any scope is the Market scope, then this is
-            // effectively the same as an unscoped plan, so return the empty scope. In the future,
+            // effectively the same as an unscoped plan (which implies the whole Market), so throw
+            // an exception since we disallow using the whole Market as a scope. In the future,
             // if we support scope reduction entries, this may change.
-            if (resolvedScope.getClassName().equalsIgnoreCase(MARKET_PLAN_SCOPE_CLASSNAME)) {
-                return Optional.empty();
+            if (resolvedScope.isRealtimeMarket()) {
+                throw new IllegalArgumentException("Cannot use the whole market as a scope. Please specify a group or an entity as a scope.");
             }
 
             scopeBuilder.addScopeEntriesBuilder()
@@ -1308,7 +1313,7 @@ public class ScenarioMapper {
                     .setDisplayName(resolvedScope.getDisplayName());
         }
         // we have a customized scope -- return it
-        return Optional.of(scopeBuilder.build());
+        return scopeBuilder.build();
     }
 
     private List<BaseApiDTO> buildApiScopeObjects(@Nonnull final Scenario scenario) {
