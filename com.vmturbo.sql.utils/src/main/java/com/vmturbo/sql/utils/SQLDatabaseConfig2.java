@@ -1,5 +1,6 @@
 package com.vmturbo.sql.utils;
 
+import java.lang.reflect.Field;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,6 +16,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.util.ClassUtils;
 
 import com.vmturbo.auth.api.db.DBPasswordUtil;
 import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
@@ -27,17 +29,18 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  * package!).</p>
  *
  * <p>The component can then create one or more database endpoints by using the {@link
- * #primaryDbEndpoint(SQLDialect)} and {@link #secondaryDbEndpoint(String, SQLDialect)} static
- * methods. Most components will only need to define a main instance, but components that need
- * multiple DB endpoints will need to create tagged instances for all or all but one of them. Each
- * endpoint should be configured as a bean.</p>
+ * #primaryDbEndpoint(SQLDialect)}
+ * and {@link #secondaryDbEndpoint(String, SQLDialect)} static methods. Most components will only
+ * need to define a main instance, but components that need multiple DB endpoints will need to
+ * create tagged instances for all or all but one of them. Each endpoint should be configured as a
+ * bean.</p>
  *
  * <p>It is important that the endpoints not be used before they are initialized, which normally
- * should happen in the component's onComponentStart() method. Importantly, this means that where
- * one might normally want to configure some other bean using a dataSource or (jooQ) DSL context
- * providing access to the endpoint, this will likely fail. Instead, the component should be given
- * the {@link DbEndpoint} bean instance, from which it can later obtain whatever sort of access
- * mechanism it desires.</p>
+ * should happen in the component's onComponentStart() method.
+ * Importantly, this means that where one might normally want to configure some other bean using a
+ * dataSource or (jooQ) DSL context providing access to the endpoint, this will likely fail.
+ * Instead, the component should be given the {@link DbEndpoint} bean instance, from which it can
+ * later obtain whatever sort of access mechanism it desires.</p>
  *
  * <p>The reason for this requirement is the manner in which endpoints obtain their configuration
  * values. Values are obtained from the application context's final {@link Environment}, using
@@ -67,7 +70,6 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 @Configuration
 public class SQLDatabaseConfig2 {
-    // TODO Add debug logging
     private static final Logger logger = LogManager.getLogger();
 
     @Autowired
@@ -105,7 +107,7 @@ public class SQLDatabaseConfig2 {
      * @return an endpoint that can provide access to the database
      * @throws UnsupportedDialectException if the requested dialect is not supported
      */
-    public DbEndpointBuilder primaryDbEndpoint(SQLDialect dialect) {
+    public DbEndpoint primaryDbEndpoint(SQLDialect dialect) throws UnsupportedDialectException {
         return secondaryDbEndpoint(null, dialect);
     }
 
@@ -125,8 +127,19 @@ public class SQLDatabaseConfig2 {
      * @return an endpoint that can provide access to the database
      * @throws UnsupportedDialectException if the requested dialect is not supported
      */
-    public DbEndpointBuilder secondaryDbEndpoint(String tag, SQLDialect dialect) {
-        return new DbEndpointBuilder(tag, dialect);
+    public DbEndpoint secondaryDbEndpoint(String tag, SQLDialect dialect) throws UnsupportedDialectException {
+        if (!instanceByTag.containsKey(tag)) {
+            instanceByTag.put(tag, new DbEndpoint(tag, dialect, dbPasswordUtil(), resolver));
+        }
+        final DbEndpoint instance = instanceByTag.get(tag);
+        if (instance.getDialect() == dialect) {
+            return instance;
+        } else {
+            final String msg = String.format(
+                    "A DbConfig instance tagged '%s' already exists with a different dialect (%s != %s)",
+                    tag, instance.getDialect(), dialect);
+            throw new IllegalStateException(msg);
+        }
     }
 
     /**
@@ -138,11 +151,44 @@ public class SQLDatabaseConfig2 {
      * @throws UnsupportedDialectException if any endpoint uses an unsupported SQL dialect
      * @throws SQLException                if any endpoint fails initialization due to SQL execution
      *                                     failure
-     * @throws InterruptedException        if interrupted
+     * @throws InterruptedException if interrupted
      */
     public void initAll() throws UnsupportedDialectException, SQLException, InterruptedException {
-        final Environment env = applicationContext.getEnvironment();
-        DbEndpoint.setResolver(env::getProperty, dbPasswordUtil());
+        createPropertyResolver();
+        for (DbEndpoint dbEndpoint : instanceByTag.values()) {
+            dbEndpoint.init();
+        }
     }
 
+    /**
+     * Build the property resolver to be used for endpoint initialization.
+     *
+     * <p>Our resolver takes the form of a String -> String unary operator. Properties are resolved
+     * using a map of values injected via spring's {@link Value} annotation. If that does not yield
+     * a value, the Spring environment is used. This makes values provided as injection defaults -
+     * which will not appear in the environment - available for resolution.</p>
+     */
+    public synchronized void createPropertyResolver() {
+        if (resolver.get() == null) {
+            final Map<String, String> injections = getInjectedValues();
+            final Environment env = applicationContext.getEnvironment();
+            resolver.set(s -> injections.containsKey(s) ? injections.get(s) : env.getProperty(s));
+        }
+    }
+
+    private Map<String, String> getInjectedValues() {
+        Map<String, String> injectedValues = new HashMap<>();
+        Environment env = applicationContext.getEnvironment();
+        for (Object bean : applicationContext.getBeansWithAnnotation(Configuration.class).values()) {
+            Class<?> cls = ClassUtils.getUserClass(bean.getClass());
+            for (Field field : cls.getDeclaredFields()) {
+                final Value valueAnnotation = field.getAnnotation(Value.class);
+                if (valueAnnotation != null) {
+                    final String value = env.resolvePlaceholders(valueAnnotation.value());
+                    injectedValues.put(field.getName(), value);
+                }
+            }
+        }
+        return injectedValues;
+    }
 }

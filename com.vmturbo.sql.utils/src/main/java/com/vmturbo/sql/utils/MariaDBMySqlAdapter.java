@@ -15,7 +15,7 @@ import com.vmturbo.sql.utils.DbEndpoint.UnsupportedDialectException;
  */
 class MariaDBMySqlAdapter extends DbAdapter {
 
-    MariaDBMySqlAdapter(final DbEndpointConfig config) {
+    MariaDBMySqlAdapter(final DbEndpoint config) {
         super(config);
     }
 
@@ -26,7 +26,6 @@ class MariaDBMySqlAdapter extends DbAdapter {
         dataSource.setUrl(url);
         dataSource.setUser(user);
         dataSource.setPassword(password);
-        dataSource.setDatabaseName(config.getDbDatabaseName());
         return dataSource;
     }
 
@@ -34,24 +33,21 @@ class MariaDBMySqlAdapter extends DbAdapter {
     protected void createSchema() throws SQLException, UnsupportedDialectException, InterruptedException {
         try (Connection conn = getRootConnection(null)) {
             execute(conn, String.format("CREATE DATABASE IF NOT EXISTS %s",
-                    config.getDbDatabaseName()));
+                    config.getDatabaseName()));
         }
     }
 
     @Override
     protected void createNonRootUser() throws UnsupportedDialectException, SQLException, InterruptedException {
         try (Connection conn = getRootConnection(null)) {
-            dropUser(conn, config.getDbUserName());
+            dropUser(conn, config.getUserName());
             execute(conn, String.format("CREATE USER '%s'@'%%' IDENTIFIED BY '%s'",
-                    config.getDbUserName(), config.getDbPassword()));
+                    config.getUserName(), config.getPassword()));
         }
     }
 
     private void dropUser(final Connection conn, final String user) {
         // DROP USER IF NOT EXISTS is not supported in MySQL until v5.7, and breaks jenkins builds
-        if (!config.getDbDestructiveProvisioningEnabled()) {
-            return;
-        }
         try {
             execute(conn, String.format("DROP USER '%s@%%'", user));
         } catch (SQLException e) {
@@ -62,9 +58,9 @@ class MariaDBMySqlAdapter extends DbAdapter {
     @Override
     protected void performNonRootGrants(DbEndpointAccess access) throws SQLException, UnsupportedDialectException, InterruptedException {
         String privileges = getPrivileges(access);
-        try (Connection conn = getRootConnection(config.getDbDatabaseName())) {
+        try (Connection conn = getRootConnection(config.getDatabaseName())) {
             execute(conn, String.format("GRANT %s ON `%s`.* TO '%s'@'%%'",
-                    privileges, config.getDbDatabaseName(), config.getDbUserName()));
+                    privileges, config.getDatabaseName(), config.getUserName()));
         }
     }
 

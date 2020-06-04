@@ -170,58 +170,6 @@ public class ScenarioMapperTest {
                 policiesService, groupRpcService, groupMapper, uuidMapper);
     }
 
-    /**
-     * Creates an ApiId mock that returns the values provided when the corresponding methods are
-     * being called.
-     * @param uuid the uuid returned from uuid()
-     * @param oid the oid returned from oid()
-     * @param className the className returned from getClassName()
-     * @param displayName the displayName returned from getDisplayName()
-     * @return the ApiId mock
-     */
-    private ApiId createApiIdMock(String uuid, long oid, String className, String displayName) {
-        ApiId apiIdMock = mock(ApiId.class);
-        when(apiIdMock.uuid()).thenReturn(uuid);
-        when(apiIdMock.oid()).thenReturn(oid);
-        when(apiIdMock.getClassName()).thenReturn(className);
-        when(apiIdMock.getDisplayName()).thenReturn(displayName);
-        return apiIdMock;
-    }
-
-    /**
-     * Creates a BaseApiDto and populates the corresponding fields with the values provided.
-     * @param uuid the uuid of the scope
-     * @param className the class name of the scope
-     * @param displayName the display name of the scope
-     * @return the scope dto
-     */
-    private BaseApiDTO createBaseApiDto(String uuid, String className, String displayName) {
-        BaseApiDTO scope = new BaseApiDTO();
-        scope.setUuid(uuid);
-        scope.setDisplayName(displayName);
-        scope.setClassName(className);
-        return scope;
-    }
-
-    /**
-     * Wrapper for the creation of a scope to be used in tests. It sets up a mock for an ApiId that
-     * will represent internally the scope, creates and returns a BaseApiDTO representing the
-     * scope that can be passed to a ScenarioApiDTO.
-     * @param uuid the uuid of the scope
-     * @param className the class name of the scope
-     * @param displayName the display name of the scope
-     * @return the scope created
-     * @throws OperationFailedException UuidMapper throws it if an error happens when converting a
-     *                                  uuid to an {@link UuidMapper.ApiId}; not expected since it's
-     *                                  mocked.
-     */
-    private BaseApiDTO createTestScope(String uuid, String className, String displayName)
-            throws OperationFailedException {
-        ApiId apiIdMock = createApiIdMock(uuid, Long.parseLong(uuid), className, displayName);
-        when(uuidMapper.fromUuid(uuid)).thenReturn(apiIdMock);
-        return createBaseApiDto(uuid, className, displayName);
-    }
-
     @Test
     public void testAdditionChange() throws OperationFailedException {
         TopologyChangesApiDTO topoChanges = new TopologyChangesApiDTO();
@@ -388,12 +336,12 @@ public class ScenarioMapperTest {
     @Test
     public void getScopeFromScopeDtoWithoutClassNameAndDisplayName()
             throws InvalidOperationException, OperationFailedException {
-        String scopeUuid = "1";
         BaseApiDTO inputScopeDto = new BaseApiDTO();
-        inputScopeDto.setUuid(scopeUuid);
-        ApiId apiIdMock = createApiIdMock(
-                scopeUuid, Long.parseLong(scopeUuid), "Entity", "Entity 1");
-        when(uuidMapper.fromUuid(scopeUuid)).thenReturn(apiIdMock);
+        inputScopeDto.setUuid("1");
+        ApiId apiIdMock = mock(ApiId.class);
+        when(apiIdMock.getClassName()).thenReturn("Entity");
+        when(apiIdMock.getDisplayName()).thenReturn("Entity 1");
+        when(uuidMapper.fromUuid("1")).thenReturn(apiIdMock);
         ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
         scenarioApiDTO.setScope(Collections.singletonList(inputScopeDto));
 
@@ -417,18 +365,18 @@ public class ScenarioMapperTest {
     @Test(expected = IllegalArgumentException.class)
     public void getScopeFromScopeDtoWithWrongClassName()
             throws InvalidOperationException, OperationFailedException {
-        String scopeUuid = "1";
         BaseApiDTO inputScopeDto = new BaseApiDTO();
-        inputScopeDto.setUuid(scopeUuid);
+        inputScopeDto.setUuid("1");
         inputScopeDto.setClassName("WrongClassName");
-        ApiId apiIdMock = createApiIdMock(
-                scopeUuid, Long.parseLong(scopeUuid), "CorrectClassName", "Entity 1");
-        when(uuidMapper.fromUuid(scopeUuid)).thenReturn(apiIdMock);
+        ApiId apiIdMock = mock(ApiId.class);
+        when(apiIdMock.getClassName()).thenReturn("CorrectClassName");
+        when(apiIdMock.getDisplayName()).thenReturn("Entity 1");
+        when(uuidMapper.fromUuid("1")).thenReturn(apiIdMock);
         ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
         scenarioApiDTO.setScope(Collections.singletonList(inputScopeDto));
 
         ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo(null, scenarioApiDTO);
-        // illegal argument exception expected since the two class names do not match
+        // illegal argument exception excpected since the two class names do not match
     }
 
     /**
@@ -441,47 +389,18 @@ public class ScenarioMapperTest {
     @Test(expected = IllegalArgumentException.class)
     public void getScopeFromScopeDtoWithoutUuid()
             throws InvalidOperationException, OperationFailedException {
-        String scopeUuid = "1";
         BaseApiDTO inputScopeDto = new BaseApiDTO();
         inputScopeDto.setClassName("Entity");
-        inputScopeDto.setDisplayName("Entity 1");
-        ApiId apiIdMock = createApiIdMock(
-                scopeUuid, Long.parseLong(scopeUuid), "CorrectClassName", "Entity 1");
-        when(uuidMapper.fromUuid(scopeUuid)).thenReturn(apiIdMock);
+        inputScopeDto.setClassName("Entity 1");
+        ApiId apiIdMock = mock(ApiId.class);
+        when(apiIdMock.getClassName()).thenReturn("CorrectClassName");
+        when(apiIdMock.getDisplayName()).thenReturn("Entity 1");
+        when(uuidMapper.fromUuid("1")).thenReturn(apiIdMock);
         ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
         scenarioApiDTO.setScope(Collections.singletonList(inputScopeDto));
 
         ScenarioInfo scenarioInfo = scenarioMapper.toScenarioInfo(null, scenarioApiDTO);
         // illegal argument exception expected since the input scope does not have a uuid
-    }
-
-    /**
-     * Tests that if the input dto to toScenarioInfo() contains no scope, an exception is being
-     * thrown.
-     * @throws OperationFailedException from toScenarioInfo, not expected
-     * @throws InvalidOperationException from toScenarioInfo, not expected
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetScopeWithoutScope()
-            throws OperationFailedException, InvalidOperationException {
-        ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
-        scenarioMapper.toScenarioInfo(null, scenarioApiDTO);
-    }
-
-    /**
-     * Tests that if the input dto to toScenarioInfo() contains Market in the scopes list, an
-     * exception is being thrown since it is not allowed.
-     * @throws OperationFailedException from toScenarioInfo, not expected
-     * @throws InvalidOperationException from toScenarioInfo, not expected
-     */
-    @Test(expected = IllegalArgumentException.class)
-    public void testGetScopeWithMarketScope()
-            throws OperationFailedException, InvalidOperationException {
-        ScenarioApiDTO scenarioApiDTO = new ScenarioApiDTO();
-        scenarioApiDTO.setScope(Collections.singletonList(
-                createTestScope("777777", "Market", "Market")
-        ));
-        scenarioMapper.toScenarioInfo(null, scenarioApiDTO);
     }
 
     @Test
@@ -542,9 +461,10 @@ public class ScenarioMapperTest {
     public void testInvalidChange() throws OperationFailedException {
         ScenarioApiDTO scenarioDto = new ScenarioApiDTO();
         scenarioDto.setScope(Collections.singletonList(entity(1)));
-        String scopeUuid = "1";
-        ApiId apiIdMock = createApiIdMock(scopeUuid, 1L, "Entity", "Entity 1");
-        when(uuidMapper.fromUuid(scopeUuid)).thenReturn(apiIdMock);
+        ApiId apiIdMock = mock(ApiId.class);
+        when(apiIdMock.getClassName()).thenReturn("Entity");
+        when(apiIdMock.getDisplayName()).thenReturn("Entity 1");
+        when(uuidMapper.fromUuid("1")).thenReturn(apiIdMock);
 
         ScenarioInfo info = getScenarioInfo(SCENARIO_NAME, scenarioDto);
         assertEquals(0, info.getChangesList().stream().filter(c -> !c.hasSettingOverride()).count());
@@ -705,9 +625,6 @@ public class ScenarioMapperTest {
     public void testToScenarioInfoWithoutConfigChanges() throws OperationFailedException {
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setConfigChanges(null);
-        String scopeUuid = "12345";
-        dto.setScope(Collections.singletonList(
-                createTestScope(scopeUuid, "Group", "testScopeDisplayName")));
         final ScenarioInfo scenarioInfo = getScenarioInfo("name", dto);
         Assert.assertTrue(scenarioInfo.getChangesList().isEmpty());
     }
@@ -735,9 +652,6 @@ public class ScenarioMapperTest {
         final ScenarioApiDTO decommissionHostPlanDto = new ScenarioApiDTO();
         decommissionHostPlanDto.setConfigChanges(null);
         decommissionHostPlanDto.setType(DECOMMISSION_HOST_SCENARIO_TYPE);
-        String scopeUuid = "12345";
-        decommissionHostPlanDto.setScope(Collections.singletonList(
-                createTestScope(scopeUuid, "Group", "testScopeDisplayName")));
         final ScenarioInfo decommissionScenarioInfo = getScenarioInfo("decommission plan", decommissionHostPlanDto);
         Assert.assertTrue(decommissionScenarioInfo.getChangesList().size() == 1);
         List<SettingOverride> pmp = decommissionScenarioInfo.getChangesList().stream()
@@ -979,9 +893,6 @@ public class ScenarioMapperTest {
         configChanges.setAutomationSettingList(automationSettings);
         dto.setConfigChanges(configChanges);
         dto.setLoadChanges(loadChangesApiDTO);
-        String scopeUuid = "12345";
-        dto.setScope(Collections.singletonList(
-                createTestScope(scopeUuid, "Group", "testScopeDisplayName")));
         return getScenarioInfo("name", dto);
     }
 
@@ -1286,9 +1197,6 @@ public class ScenarioMapperTest {
         topologyChanges.setAddList(ImmutableList.of(addObject));
         final ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setTopologyChanges(topologyChanges);
-        String scopeUuid = "12345";
-        dto.setScope(Collections.singletonList(
-                createTestScope(scopeUuid, "Group", "testScopeDisplayName")));
         final ScenarioInfo scenarioInfo = getScenarioInfo("", dto);
 
         Assert.assertEquals(1, scenarioInfo.getChangesList().size());
@@ -1608,8 +1516,7 @@ public class ScenarioMapperTest {
         return riSetting;
     }
 
-    private ScenarioApiDTO scenarioApiForAlleviatePressurePlan(long sourceId, long destinationId)
-            throws OperationFailedException {
+    private ScenarioApiDTO scenarioApiForAlleviatePressurePlan(long sourceId, long destinationId) {
         RelievePressureObjectApiDTO relievePressureObjectApiDTO = new RelievePressureObjectApiDTO();
         relievePressureObjectApiDTO.setSources(Arrays.asList(template(sourceId)));
         relievePressureObjectApiDTO.setDestinations(Arrays.asList(template(destinationId)));
@@ -1649,13 +1556,9 @@ public class ScenarioMapperTest {
         return entity;
     }
 
-    private ScenarioApiDTO scenarioApiDTO(@Nonnull final TopologyChangesApiDTO topoChanges)
-            throws OperationFailedException {
+    private ScenarioApiDTO scenarioApiDTO(@Nonnull final TopologyChangesApiDTO topoChanges) {
         ScenarioApiDTO dto = new ScenarioApiDTO();
         dto.setTopologyChanges(topoChanges);
-        String scopeUuid = "12345";
-        dto.setScope(Collections.singletonList(
-                createTestScope(scopeUuid, "Group", "testScopeDisplayName")));
 
         return dto;
     }
